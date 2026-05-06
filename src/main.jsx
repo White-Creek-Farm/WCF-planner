@@ -17,7 +17,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {BrowserRouter, useLocation, useNavigate} from 'react-router-dom';
-import {VIEW_TO_PATH, PATH_TO_VIEW, HASH_COMPAT} from './lib/routes.js';
+import {VIEW_TO_PATH, PATH_TO_VIEW, HASH_COMPAT, ALIASES_EXACT, ALIASES_PREFIX} from './lib/routes.js';
 
 // Phase 2.0.0: foundation lib helpers extracted from this file. Importing
 // here makes them available throughout the verbatim-ported app body without
@@ -255,6 +255,29 @@ try {
 } catch (e) {
   /* no history API / locked-down browser — skip */
 }
+
+// ── MANIFEST HREF SWAP (2026-05-06 public-URL rename) ──
+// Two static manifests live in public/: manifest.webmanifest (start_url
+// /dailys, the operator daily-reports hub) and manifest-equipment.webmanifest
+// (start_url /equipment, the operator equipment/fueling hub). When the user
+// is on /equipment* or the legacy /fueling*, link[rel="manifest"] points at
+// the equipment manifest so Add to Home Screen and the install banner pick
+// up the equipment-hub start_url. Otherwise it points at the default daily
+// manifest. The helper runs at module scope (correct href before first
+// paint) AND inside an App useEffect keyed on location.pathname (so SPA
+// navigation between hubs keeps the link in sync without a full reload).
+function applyManifestHref(pathname) {
+  try {
+    const link = document.querySelector('link[rel="manifest"]');
+    if (!link) return;
+    const isEquipment = pathname.startsWith('/equipment') || pathname.startsWith('/fueling');
+    const next = isEquipment ? '/manifest-equipment.webmanifest' : '/manifest.webmanifest';
+    if (link.getAttribute('href') !== next) link.setAttribute('href', next);
+  } catch (e) {
+    /* no DOM / locked-down browser — skip */
+  }
+}
+applyManifestHref(window.location.pathname);
 
 // ── LAZY LOAD SHEETJS ──
 // SheetJS (xlsx) is ~600KB minified and only used when opening processor
@@ -1215,22 +1238,47 @@ function App() {
   const navigate = useNavigate();
   const syncingFromUrl = React.useRef(false);
   useEffect(() => {
-    // WebformHub owns its own sub-routing under /webforms/<form>. Treat any
+    // 2026-05-06 alias resolution — legacy public paths redirect to canonical.
+    // /webforms* → /dailys*, /fueling* → /equipment*, /equipment/fleet →
+    // /fleet, /equipment/fuel-log → /fleet/fuel-log. Use react-router
+    // navigate({replace:true}) so the address bar updates AND react-router's
+    // own location state stays in sync (raw history.replaceState would skip
+    // react-router and break popstate handling).
+    const exactAlias = ALIASES_EXACT[location.pathname];
+    if (exactAlias) {
+      syncingFromUrl.current = true;
+      navigate(exactAlias + location.search + location.hash, {replace: true});
+      return;
+    }
+    let prefixAlias = null;
+    for (const [oldPrefix, newPrefix] of ALIASES_PREFIX) {
+      if (location.pathname.startsWith(oldPrefix)) {
+        prefixAlias = newPrefix + location.pathname.slice(oldPrefix.length);
+        break;
+      }
+    }
+    if (prefixAlias) {
+      syncingFromUrl.current = true;
+      navigate(prefixAlias + location.search + location.hash, {replace: true});
+      return;
+    }
+
+    // WebformHub owns its own sub-routing under /dailys/<form>. Treat any
     // such path as view='webformhub' so the browser back button can traverse
     // selector ↔ sub-form boundaries without the app snapping to home.
     //
     // EXCEPT for paths that have an explicit PATH_TO_VIEW entry — those
-    // are dedicated top-level views that happen to live under /webforms/.
-    // Currently: /webforms/tasks → 'tasksWebform' (C3). The exact-match
+    // are dedicated top-level views that happen to live under /dailys/.
+    // Currently: /dailys/tasks → 'tasksWebform' (C3). The exact-match
     // PATH_TO_VIEW lookup beats the generic subpath fallback so the
     // dedicated component mounts instead of WebformHub trying to render
     // it as an internal sub-form.
     const exactPathView = PATH_TO_VIEW[location.pathname];
-    const isWebformSubpath = !exactPathView && location.pathname.startsWith('/webforms/');
+    const isWebformSubpath = !exactPathView && location.pathname.startsWith('/dailys/');
     const isEquipmentSubpath =
-      !exactPathView && (location.pathname.startsWith('/equipment/') || location.pathname === '/equipment');
+      !exactPathView && (location.pathname.startsWith('/fleet/') || location.pathname === '/fleet');
     const isFuelingSubpath =
-      !exactPathView && (location.pathname.startsWith('/fueling/') || location.pathname === '/fueling');
+      !exactPathView && (location.pathname.startsWith('/equipment/') || location.pathname === '/equipment');
     const viewFromUrl = isWebformSubpath
       ? 'webformhub'
       : isEquipmentSubpath
@@ -1256,17 +1304,26 @@ function App() {
       navigate({pathname: '/', hash: location.hash}, {replace: true});
     }
   }, [location.pathname]);
+
+  // Keep link[rel="manifest"] in sync with the active hub on SPA navigation.
+  // The module-scope shim above sets the link before first paint; this
+  // effect handles transitions between hubs without a full reload (e.g.
+  // navigating from /dailys to /equipment via the Header buttons).
+  useEffect(() => {
+    applyManifestHref(location.pathname);
+  }, [location.pathname]);
+
   useEffect(() => {
     if (syncingFromUrl.current) {
       syncingFromUrl.current = false;
       return;
     }
-    // Don't clobber /webforms/<form> sub-paths — WebformHub owns them.
-    if (view === 'webformhub' && location.pathname.startsWith('/webforms/')) return;
-    // Don't clobber /equipment/<slug> sub-paths — EquipmentHome owns them.
-    if (view === 'equipmentHome' && location.pathname.startsWith('/equipment/')) return;
-    // Don't clobber /fueling/<slug> sub-paths — FuelingHub owns them.
-    if (view === 'fuelingHub' && location.pathname.startsWith('/fueling/')) return;
+    // Don't clobber /dailys/<form> sub-paths — WebformHub owns them.
+    if (view === 'webformhub' && location.pathname.startsWith('/dailys/')) return;
+    // Don't clobber /fleet/<slug> sub-paths — EquipmentHome owns them.
+    if (view === 'equipmentHome' && location.pathname.startsWith('/fleet/')) return;
+    // Don't clobber /equipment/<slug> sub-paths — FuelingHub owns them.
+    if (view === 'fuelingHub' && location.pathname.startsWith('/equipment/')) return;
     const pathFromView = VIEW_TO_PATH[view];
     if (pathFromView && pathFromView !== location.pathname) {
       navigate(pathFromView);

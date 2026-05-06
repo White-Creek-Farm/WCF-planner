@@ -1,19 +1,22 @@
-// FuelingHub — public (no-auth) hub at /fueling. Shows category clusters
-// of equipment tiles + a Quick Fuel Log tile + a Maintenance Event tile.
-// Each tile navigates to /fueling/<slug> or /fueling/quick.
+// FuelingHub — public (no-auth) hub at /equipment (canonical, post 2026-05-06
+// rename — was /fueling, which now aliases). Shows category clusters of
+// equipment tiles + a Quick Fuel Log tile + a Fuel Supply tile. Each tile
+// navigates to /equipment/<slug> or /equipment/supply.
 //
-// Own sub-routing under /fueling/* just like WebformHub owns /webforms/*.
+// Own sub-routing under /equipment/* just like WebformHub owns /dailys/*.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {EQUIPMENT_CATEGORIES, CATEGORY_BY_KEY} from '../lib/equipment.js';
 import EquipmentCategoryIcon from '../components/EquipmentCategoryIcon.jsx';
 import EquipmentFuelingWebform from './EquipmentFuelingWebform.jsx';
 import FuelSupplyWebform from './FuelSupplyWebform.jsx';
+import AppSetupModal from './AppSetupModal.jsx';
 
 export default function FuelingHub({sb}) {
   const [equipment, setEquipment] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [missingSchema, setMissingSchema] = React.useState(false);
+  const [showAppSetup, setShowAppSetup] = React.useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -39,9 +42,9 @@ export default function FuelingHub({sb}) {
   const path = location.pathname;
   let subRoute = 'hub';
   let slug = null;
-  if (path === '/fueling/supply') subRoute = 'supply';
-  else if (path.startsWith('/fueling/')) {
-    slug = path.slice('/fueling/'.length);
+  if (path === '/equipment/supply') subRoute = 'supply';
+  else if (path.startsWith('/equipment/')) {
+    slug = path.slice('/equipment/'.length);
     subRoute = 'form';
   }
 
@@ -109,7 +112,7 @@ export default function FuelingHub({sb}) {
               No equipment with slug <code>{slug}</code>.
               <div>
                 <button
-                  onClick={() => navigate('/fueling')}
+                  onClick={() => navigate('/equipment')}
                   style={{
                     marginTop: 10,
                     color: '#1d4ed8',
@@ -128,11 +131,11 @@ export default function FuelingHub({sb}) {
         </div>
       );
     }
-    return <EquipmentFuelingWebform sb={sb} equipment={eq} onBack={() => navigate('/fueling')} />;
+    return <EquipmentFuelingWebform sb={sb} equipment={eq} onBack={() => navigate('/equipment')} />;
   }
 
   if (subRoute === 'supply') {
-    return <FuelSupplyWebform sb={sb} onBack={() => navigate('/fueling')} />;
+    return <FuelSupplyWebform sb={sb} onBack={() => navigate('/equipment')} />;
   }
 
   // HUB — category clusters
@@ -143,8 +146,28 @@ export default function FuelingHub({sb}) {
 
   return (
     <div style={wfBg}>
+      {showAppSetup && <AppSetupModal onClose={() => setShowAppSetup(false)} />}
       <div style={{maxWidth: 720, margin: '0 auto', paddingTop: '1rem'}}>
         {logoEl}
+        <div style={{display: 'flex', justifyContent: 'center', marginBottom: 12}}>
+          <button
+            data-app-setup-trigger="1"
+            onClick={() => setShowAppSetup(true)}
+            style={{
+              background: 'white',
+              border: '1px solid #d6d3d1',
+              borderRadius: 999,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#57534e',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            📲 App Setup
+          </button>
+        </div>
         <div style={{fontSize: 13, color: '#6b7280', textAlign: 'center', marginBottom: 20}}>
           Tap your equipment to log a fueling
         </div>
@@ -163,7 +186,7 @@ export default function FuelingHub({sb}) {
               {g.rows.map((eq) => (
                 <button
                   key={eq.id}
-                  onClick={() => navigate('/fueling/' + eq.slug)}
+                  onClick={() => navigate('/equipment/' + eq.slug)}
                   style={{
                     background: g.bg,
                     border: '1px solid ' + g.bd,
@@ -196,7 +219,7 @@ export default function FuelingHub({sb}) {
           </div>
           <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8}}>
             <button
-              onClick={() => navigate('/fueling/supply')}
+              onClick={() => navigate('/equipment/supply')}
               style={{
                 background: '#fffbeb',
                 border: '1px solid #fde68a',
@@ -217,10 +240,7 @@ export default function FuelingHub({sb}) {
 
         <div style={{textAlign: 'center', marginTop: 16}}>
           <button
-            onClick={() => {
-              window.location.hash = '#webforms';
-              window.location.reload();
-            }}
+            onClick={() => navigate('/dailys')}
             style={{
               background: 'none',
               border: 'none',

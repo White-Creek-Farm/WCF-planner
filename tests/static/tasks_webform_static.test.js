@@ -9,10 +9,10 @@ import {_REGISTRY as RPC_REGISTRY} from '../../src/lib/offlineRpcForms.js';
 // Public Tasks webform — C3 static-shape lock
 // ============================================================================
 // Locks the wiring so future refactors can't silently regress:
-//   1. Routes map tasksWebform → /webforms/tasks.
+//   1. Routes map tasksWebform → /dailys/tasks (post 2026-05-06 rename).
 //   2. main.jsx mounts TasksWebform on view='tasksWebform'.
 //   3. WebformHub form selector exposes a Tasks tile pointing at
-//      /webforms/tasks.
+//      /dailys/tasks.
 //   4. TasksWebform uses useOfflineRpcSubmit('task_submit') and passes
 //      a stable `ti-...` parentId.
 //   5. offlineRpcForms registry has a task_submit entry whose buildArgs
@@ -45,8 +45,8 @@ const adminTasksSrc = fs.readFileSync(path.join(ROOT, 'src/admin/AdminTasksView.
 const migSrc = fs.readFileSync(path.join(ROOT, 'supabase-migrations/041_tasks_public_rpcs.sql'), 'utf8');
 
 describe('Routes wiring', () => {
-  it('tasksWebform → /webforms/tasks in routes.js', () => {
-    expect(routesSrc).toMatch(/tasksWebform:\s*'\/webforms\/tasks'/);
+  it('tasksWebform → /dailys/tasks in routes.js (post 2026-05-06 rename)', () => {
+    expect(routesSrc).toMatch(/tasksWebform:\s*'\/dailys\/tasks'/);
   });
 
   it("main.jsx includes 'tasksWebform' in VALID_VIEWS", () => {
@@ -57,20 +57,26 @@ describe('Routes wiring', () => {
     expect(mainSrc).toMatch(/view\s*===\s*'tasksWebform'[\s\S]{0,200}TasksWebform/);
   });
 
-  it('URL→view sync prefers an exact PATH_TO_VIEW match over the generic /webforms/* fallback', () => {
-    // The /webforms/tasks dedicated view must beat WebformHub's "any
-    // /webforms/<sub> is webformhub" rule. Locking the exactPathView
+  it('URL→view sync prefers an exact PATH_TO_VIEW match over the generic /dailys/* fallback', () => {
+    // The /dailys/tasks dedicated view must beat WebformHub's "any
+    // /dailys/<sub> is webformhub" rule. Locking the exactPathView
     // shortcut so a future refactor doesn't accidentally swallow C3's
     // dedicated route.
     expect(mainSrc).toMatch(/const exactPathView\s*=\s*PATH_TO_VIEW\[location\.pathname\]/);
-    expect(mainSrc).toMatch(/!exactPathView\s*&&\s*location\.pathname\.startsWith\('\/webforms\/'\)/);
+    expect(mainSrc).toMatch(/!exactPathView\s*&&\s*location\.pathname\.startsWith\('\/dailys\/'\)/);
   });
 });
 
 describe('WebformHub Tasks tile', () => {
-  it('renders a tile with data-tile="tasks" navigating to /webforms/tasks', () => {
+  it('renders a tile with data-tile="tasks" navigating to /dailys/tasks (post 2026-05-06 rename)', () => {
     expect(hubSrc).toMatch(/data-tile="tasks"/);
-    expect(hubSrc).toMatch(/navigate\(\s*'\/webforms\/tasks'\s*\)/);
+    expect(hubSrc).toMatch(/navigate\(\s*'\/dailys\/tasks'\s*\)/);
+  });
+
+  it('uses the approved Tasks tile description copy', () => {
+    expect(hubSrc.replace(/\s+/g, ' ')).toContain(
+      "Use this to assign tasks to a Wcf Planner user when there is a repair needed or anything that shouldn't be forgotten.",
+    );
   });
 });
 

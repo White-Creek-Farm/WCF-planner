@@ -856,7 +856,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                     key={a.key}
                     data-attention-kind={a.kind}
                     data-equipment-slug={a.slug}
-                    onClick={() => navigate(a.kind === 'fillup_streak' ? '/fueling/' + a.slug : '/equipment/' + a.slug)}
+                    onClick={() => navigate(a.kind === 'fillup_streak' ? '/equipment/' + a.slug : '/fleet/' + a.slug)}
                     style={{
                       background: palette.bg,
                       border: '1px solid ' + palette.bd,

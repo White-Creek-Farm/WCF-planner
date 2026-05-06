@@ -142,7 +142,7 @@ export default function EquipmentAddModal({sb, onClose, onCreated}) {
               style={inpS}
             />
             <div style={{fontSize: 10, color: '#9ca3af', marginTop: 3}}>
-              Will appear at /equipment/{form.slug || generateSlug()} and /fueling/{form.slug || generateSlug()}.
+              Will appear at /equipment/{form.slug || generateSlug()} and /fleet/{form.slug || generateSlug()}.
             </div>
           </div>
           <div>

@@ -11,6 +11,7 @@ import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
 import DailyPhotoCapture from './DailyPhotoCapture.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
+import AppSetupModal from './AppSetupModal.jsx';
 const WebformHub = ({
   sb,
   wfGroups,
@@ -26,6 +27,7 @@ const WebformHub = ({
   const {useState, useEffect} = React;
   const {wfRoster, setWfRoster, wfAvailability, setWfAvailability} = useWebformsConfig();
   const [loadedConfig, setLoadedConfig] = useState(null); // loaded from Supabase full_config
+  const [showAppSetup, setShowAppSetup] = useState(false);
   const [broilerGroupsFromDb, setBroilerGroupsFromDb] = useState([]);
   const [wfSettings, setWfSettings] = useState({});
   const [pigGroupsFromDb, setPigGroupsFromDb] = useState([]);
@@ -61,10 +63,12 @@ const WebformHub = ({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  // URL-driven activeForm: /webforms → selector, /webforms/<sub> → sub-form.
+  // URL-driven activeForm: /dailys → selector, /dailys/<sub> → sub-form.
   // setActiveForm(X) pushes a history entry so the browser back button
   // traverses selector ↔ sub-form correctly. main.jsx's URL adapter treats
-  // every /webforms/* path as view='webformhub' (see the adapter branch).
+  // every /dailys/* path as view='webformhub' (see the adapter branch).
+  // Legacy /webforms/* aliases redirect to /dailys/* in main.jsx before
+  // this component sees pathname.
   const location = useLocation();
   const navigate = useNavigate();
   const SUB_FORMS = ['broiler', 'layer', 'pig', 'cattle', 'egg', 'sheep'];
@@ -74,7 +78,7 @@ const WebformHub = ({
     return SUB_FORMS.includes(sub) ? sub : null;
   })();
   const setActiveForm = (f) => {
-    navigate(f ? `/webforms/${f}` : '/webforms');
+    navigate(f ? `/dailys/${f}` : '/dailys');
   };
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -1358,8 +1362,28 @@ const WebformHub = ({
   if (!activeForm)
     return (
       <div style={wfBg}>
+        {showAppSetup && <AppSetupModal onClose={() => setShowAppSetup(false)} />}
         <div style={{maxWidth: 480, margin: '0 auto', paddingTop: '1rem'}}>
           {logo}
+          <div style={{display: 'flex', justifyContent: 'center', marginBottom: 12}}>
+            <button
+              data-app-setup-trigger="1"
+              onClick={() => setShowAppSetup(true)}
+              style={{
+                background: 'white',
+                border: '1px solid #cfe6d8',
+                borderRadius: 999,
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#085041',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              📲 App Setup
+            </button>
+          </div>
           <div style={{fontSize: 13, color: '#6b7280', textAlign: 'center', marginBottom: 20}}>
             Select a report type to fill out
           </div>
@@ -1423,7 +1447,7 @@ const WebformHub = ({
           </div>
           <div
             data-tile="tasks"
-            onClick={() => navigate('/webforms/tasks')}
+            onClick={() => navigate('/dailys/tasks')}
             style={{
               background: '#f0fdfa',
               borderRadius: 12,
@@ -1440,11 +1464,9 @@ const WebformHub = ({
             <div style={{fontSize: 32}}>{'\u2705'}</div>
             <div style={{flex: 1}}>
               <div style={{fontSize: 16, fontWeight: 700, color: '#0f766e'}}>Submit a Task</div>
-              <div style={{fontSize: 12, color: '#0f766e', opacity: 0.8}}>
-                One-time task for a planner user \u2014 admin will see it on Tasks Center
-              </div>
-              <div style={{fontSize: 11, color: '#0f766e', opacity: 0.6, marginTop: 2}}>
-                {'Anyone on the roster can submit'}
+              <div style={{fontSize: 12, lineHeight: 1.35, color: '#0f766e', opacity: 0.8}}>
+                Use this to assign tasks to a Wcf Planner user when there is a repair needed or anything that shouldn't
+                be forgotten.
               </div>
             </div>
             <div style={{color: '#0f766e', fontSize: 18}}>{'\u203a'}</div>

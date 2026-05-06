@@ -11,12 +11,18 @@
 // The `view` state machine stays unchanged. setView('X') is still the API
 // every component calls. The URL just mirrors `view` (and vice versa on
 // back/forward).
+//
+// 2026-05-06 public-URL rename:
+//   - Public daily-reports hub canonical: /dailys (was /webforms).
+//   - Public equipment/fueling hub canonical: /equipment (was /fueling).
+//   - Internal logged-in Equipment module canonical: /fleet (was /equipment).
+//   Old paths remain working aliases — see ALIASES_EXACT / ALIASES_PREFIX.
 // ============================================================================
 
 // view string → URL path. Keep paths lower-kebab-case, program-scoped where
 // it makes sense. Home is '/'. Legacy hash bookmarks (/#weighins, /#addfeed,
-// /#webforms) map to the clean public-webform paths and are rewritten by
-// the hash-compat shim landing in Phase 3.3.
+// /#webforms) map to canonical paths and are rewritten by the hash-compat
+// shim in main.jsx.
 export const VIEW_TO_PATH = {
   // Home
   home: '/',
@@ -62,10 +68,17 @@ export const VIEW_TO_PATH = {
   sheepdailys: '/sheep/dailys',
   sheepweighins: '/sheep/weighins',
 
-  // Equipment
-  equipmentHome: '/equipment',
-  equipmentFleet: '/equipment/fleet',
-  equipmentFuelLog: '/equipment/fuel-log',
+  // Equipment (logged-in internal — moved to /fleet 2026-05-06).
+  // Note: only the equipmentHome view has a top-level VIEW_TO_PATH entry.
+  // EquipmentHome owns sub-routing under /fleet/* (Fleet view at /fleet,
+  // Fuel Log at /fleet/fuel-log, per-equipment detail at /fleet/<slug>),
+  // and main.jsx's URL adapter routes any /fleet/<sub> path to
+  // view='equipmentHome'. Adding /fleet/fuel-log here would break that —
+  // PATH_TO_VIEW would resolve to a separate equipmentFuelLog view that
+  // isn't registered in main.jsx VALID_VIEWS, snapping the user home.
+  // The legacy /equipment/fleet and /equipment/fuel-log paths are
+  // preserved via ALIASES_EXACT (both redirect into the /fleet/* world).
+  equipmentHome: '/fleet',
 
   // Admin (logged-in only)
   webforms: '/admin',
@@ -74,14 +87,13 @@ export const VIEW_TO_PATH = {
   // Logged-in (any role)
   myTasks: '/my-tasks',
 
-  // Public (no-auth) — these also have /#X legacy hash bookmarks that the
-  // Phase 3.3 shim rewrites to these clean paths.
-  webformhub: '/webforms',
-  tasksWebform: '/webforms/tasks',
+  // Public (no-auth) — these also have legacy aliases handled below.
+  webformhub: '/dailys',
+  tasksWebform: '/dailys/tasks',
   addfeed: '/addfeed',
   weighins: '/weighins',
   webform: '/webform-pigs', // legacy standalone pig-dailys public form (rare)
-  fuelingHub: '/fueling',
+  fuelingHub: '/equipment',
   fuelSupply: '/fuel-supply',
 };
 
@@ -90,7 +102,7 @@ export const VIEW_TO_PATH = {
 export const PATH_TO_VIEW = Object.fromEntries(Object.entries(VIEW_TO_PATH).map(([v, p]) => [p, v]));
 
 // Legacy hash bookmarks users may have saved in browsers/Slack/email.
-// Phase 3.3 reads these once on app mount and history.replaceState()s to
+// main.jsx reads these once on app mount and history.replaceState()s to
 // the corresponding clean path before the router boots.
 // NOTE: /#access_token=...&type=recovery is deliberately NOT rewritten —
 // SetPasswordScreen parses it from the hash for backward compat with the
@@ -98,5 +110,34 @@ export const PATH_TO_VIEW = Object.fromEntries(Object.entries(VIEW_TO_PATH).map(
 export const HASH_COMPAT = {
   '#weighins': '/weighins',
   '#addfeed': '/addfeed',
-  '#webforms': '/webforms',
+  '#webforms': '/dailys',
 };
+
+// Exact-path aliases for the 2026-05-06 public-URL rename. The URL sync
+// adapter resolves these before routing — visiting any of these triggers a
+// replace-navigate to the canonical path so operators with bookmarks /
+// printed materials still land on the right hub and the address bar
+// updates.
+//
+// Intentionally NOT aliased: /equipment/<slug> does NOT redirect to
+// /fleet/<slug>. /equipment is now the public equipment-checklist hub, and
+// /equipment/<slug> resolves to that hub's per-piece detail. Old logged-in
+// /equipment/<slug> bookmarks land on the public checklist for that piece.
+export const ALIASES_EXACT = {
+  '/webforms': '/dailys',
+  '/webforms/tasks': '/dailys/tasks',
+  '/fueling': '/equipment',
+  '/fueling/supply': '/equipment/supply',
+  '/equipment/fleet': '/fleet',
+  '/equipment/fuel-log': '/fleet/fuel-log',
+};
+
+// Prefix aliases. The matched prefix is replaced with the canonical prefix
+// and the rest of the path is preserved (e.g. /webforms/sheep → /dailys/sheep,
+// /fueling/jd-317 → /equipment/jd-317). The exact-aliases map is checked
+// first, so /webforms/tasks and /fueling/supply hit the exact rule before
+// falling through to the generic prefix rule.
+export const ALIASES_PREFIX = [
+  ['/webforms/', '/dailys/'],
+  ['/fueling/', '/equipment/'],
+];

@@ -190,8 +190,8 @@ export default function FuelReconcileView() {
         <div style={{fontSize: 12, color: '#065f46', lineHeight: 1.5}}>
           <strong>How this works:</strong> <strong>Purchased</strong> = supplier bills (Home Oil etc.) grouped by
           delivery month. <strong>Consumed</strong> = per-piece equipment fueling checklists at{' '}
-          <code>/fueling/&lt;piece&gt;</code> plus direct non-equipment dispensing at <code>/fueling/supply</code> (gas
-          cans, farm truck, other). Cell refills (fuel going INTO the portable cell from a supplier delivery) are
+          <code>/equipment/&lt;piece&gt;</code> plus direct non-equipment dispensing at <code>/equipment/supply</code>{' '}
+          (gas cans, farm truck, other). Cell refills (fuel going INTO the portable cell from a supplier delivery) are
           inventory movement, NOT consumption — they're excluded so we don't double-count once the equipment checklists
           record what was later pulled out of the cell. Variance bands: <strong>&le;{VARIANCE_WARN_PCT}% green</strong>{' '}
           ·{' '}

@@ -1,12 +1,12 @@
 {
-  "name": "WCF Planner",
-  "short_name": "WCF",
-  "start_url": "/dailys",
+  "name": "WCF Planner — Equipment",
+  "short_name": "WCF Equipment",
+  "start_url": "/equipment",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#085041",
-  "background_color": "#f6f8f7",
+  "theme_color": "#57534e",
+  "background_color": "#f5f5f4",
   "icons": [
     {
       "src": "/icons/icon-192.png",

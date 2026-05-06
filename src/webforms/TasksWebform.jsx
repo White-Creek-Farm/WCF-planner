@@ -220,7 +220,7 @@ const TasksWebform = ({sb}) => {
           </button>
           <button
             onClick={() => {
-              window.location.href = '/webforms';
+              window.location.href = '/dailys';
             }}
             style={{
               width: '100%',
@@ -416,7 +416,7 @@ const TasksWebform = ({sb}) => {
         <div style={{textAlign: 'center', marginTop: 12}}>
           <button
             onClick={() => {
-              window.location.href = '/webforms';
+              window.location.href = '/dailys';
             }}
             style={{
               background: 'none',

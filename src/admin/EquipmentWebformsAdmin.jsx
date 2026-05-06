@@ -220,7 +220,7 @@ export default function EquipmentWebformsAdmin() {
           </div>
         )}
         <div style={{fontSize: 11, color: '#9ca3af', marginTop: 10}}>
-          Changes auto-save on blur. Live on /fueling/&lt;slug&gt; immediately after save.
+          Changes auto-save on blur. Live on /equipment/&lt;slug&gt; immediately after save.
         </div>
       </div>
 
@@ -434,7 +434,7 @@ function TeamMembersEditor({equipment, onReload}) {
       <div style={sectionTitle}>
         Team Members{' '}
         <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
-          Assign operators to this piece · names managed in /webforms admin
+          Assign operators to this piece · names managed in admin
         </span>
       </div>
       {activeMaster.length === 0 && (
@@ -682,7 +682,7 @@ function ManualsEditor({equipment, onReload}) {
       <div style={sectionTitle}>
         Manuals &amp; Videos{' '}
         <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
-          Operator reference — shows on /fueling and /equipment
+          Operator reference — shows on /equipment and /fleet
         </span>
       </div>
       {manuals.length === 0 && (
@@ -882,7 +882,7 @@ function DocumentsEditor({equipment, onReload}) {
       <div style={sectionTitle}>
         Admin Documents{' '}
         <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
-          Internal only — invoices, contracts, warranty paperwork. NOT shown on /fueling or /equipment.
+          Internal only — invoices, contracts, warranty paperwork. NOT shown on /equipment or /fleet.
         </span>
       </div>
       {docs.length === 0 && (
@@ -999,7 +999,7 @@ function WebformHelpTextEditor({equipment, onReload}) {
       <div style={sectionTitle}>
         Webform Help Text{' '}
         <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
-          Shown to the team on /fueling/{equipment.slug}
+          Shown to the team on /equipment/{equipment.slug}
         </span>
       </div>
       <div style={{marginBottom: 14}}>
@@ -1089,7 +1089,7 @@ function EveryFillupEditor({equipment, onReload}) {
       <div style={sectionTitle}>
         Every-fillup Items{' '}
         <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
-          Ticked by the team on every /fueling submission
+          Ticked by the team on every /equipment submission
         </span>
       </div>
       <div style={{marginBottom: 14}}>

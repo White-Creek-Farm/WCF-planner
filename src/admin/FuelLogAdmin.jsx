@@ -164,7 +164,7 @@ export default function FuelLogAdmin() {
                     </div>
                     <div style={{fontSize: 12, color: '#047857', marginTop: 4}}>
                       Operators log fuel <strong>delivered to the farm</strong> (portable cell / gas cans / farm truck).
-                      Per-equipment fuelings go under /fueling.
+                      Per-equipment fuelings go under /equipment.
                     </div>
                   </div>
                   <div>
@@ -180,12 +180,12 @@ export default function FuelLogAdmin() {
                       URL
                     </div>
                     <a
-                      href="/fueling/supply"
+                      href="/equipment/supply"
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{fontSize: 13, color: '#1d4ed8', fontFamily: 'monospace'}}
                     >
-                      /fueling/supply
+                      /equipment/supply
                     </a>
                   </div>
                 </div>

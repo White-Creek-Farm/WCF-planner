@@ -1,12 +1,16 @@
-// EquipmentHome — container for /equipment/* routes. Owns sub-routing:
-//   /equipment              → Fleet view (default)
-//   /equipment/fleet        → Fleet view (explicit)
-//   /equipment/fuel-log     → flat Fuel Log
-//   /equipment/<slug>       → per-equipment detail
+// EquipmentHome — container for /fleet/* routes (logged-in internal,
+// post 2026-05-06 rename — was /equipment/*, which now hosts the public
+// equipment-checklist hub). Owns sub-routing:
+//   /fleet              → Fleet view (default)
+//   /fleet/fuel-log     → flat Fuel Log
+//   /fleet/<slug>       → per-equipment detail
 //
-// Mirrors the pattern used by WebformHub for /webforms/* routes. main.jsx
-// maps every /equipment/* path to view='equipmentHome' so the browser back
-// button can traverse sub-routes without the app snapping to /.
+// Mirrors the pattern used by WebformHub for /dailys/* routes. main.jsx
+// maps every /fleet/* path to view='equipmentHome' so the browser back
+// button can traverse sub-routes without the app snapping to /. Legacy
+// /equipment/fleet and /equipment/fuel-log redirect to canonical via the
+// alias map; /equipment/<slug> intentionally does NOT redirect — that
+// path is now the public equipment-checklist surface.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import UsersModal from '../auth/UsersModal.jsx';
@@ -66,9 +70,9 @@ export default function EquipmentHome({
   const path = location.pathname;
   let subView = 'fleet';
   let detailSlug = null;
-  if (path === '/equipment/fuel-log') subView = 'fuel-log';
-  else if (path.startsWith('/equipment/') && path !== '/equipment/fleet') {
-    detailSlug = path.slice('/equipment/'.length);
+  if (path === '/fleet/fuel-log') subView = 'fuel-log';
+  else if (path.startsWith('/fleet/')) {
+    detailSlug = path.slice('/fleet/'.length);
     subView = 'detail';
   }
 
@@ -117,10 +121,10 @@ export default function EquipmentHome({
       >
         {!isEquipmentTech && (
           <>
-            <button onClick={() => navigate('/equipment')} style={subNavBtn(subView === 'fleet')}>
+            <button onClick={() => navigate('/fleet')} style={subNavBtn(subView === 'fleet')}>
               🚜 Fleet
             </button>
-            <button onClick={() => navigate('/equipment/fuel-log')} style={subNavBtn(subView === 'fuel-log')}>
+            <button onClick={() => navigate('/fleet/fuel-log')} style={subNavBtn(subView === 'fuel-log')}>
               ⛽ Fuel Log
             </button>
           </>
@@ -132,7 +136,7 @@ export default function EquipmentHome({
             .map((e) => (
               <button
                 key={e.id}
-                onClick={() => navigate('/equipment/' + e.slug)}
+                onClick={() => navigate('/fleet/' + e.slug)}
                 style={subNavBtn(subView === 'detail' && detailSlug === e.slug)}
               >
                 {e.name}
@@ -186,7 +190,7 @@ export default function EquipmentHome({
             equipment={equipment}
             fuelings={fuelings}
             fmt={fmt}
-            onOpen={(slug) => navigate('/equipment/' + slug)}
+            onOpen={(slug) => navigate('/fleet/' + slug)}
             onReload={loadAll}
           />
         )}
@@ -236,7 +240,7 @@ export default function EquipmentHome({
             <a
               onClick={(e) => {
                 e.preventDefault();
-                navigate('/equipment');
+                navigate('/fleet');
               }}
               href="#"
               style={{color: '#1d4ed8', cursor: 'pointer'}}
