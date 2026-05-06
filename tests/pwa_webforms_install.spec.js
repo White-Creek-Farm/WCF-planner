@@ -40,6 +40,27 @@ test('equipment manifest start_url is /equipment', async ({request}) => {
   expect(manifest.scope).toBe('/');
 });
 
+test('GET /equipment.html serves the equipment manifest at HTML level (pre-JS)', async ({request}) => {
+  // 2026-05-06 install hotfix: the install banner reads link[rel="manifest"]
+  // at HTML parse time, before any JS runs. equipment.html must have the
+  // equipment manifest baked in — JS swap is too late for Add to Home Screen.
+  const res = await request.get('/equipment.html');
+  expect(res.ok()).toBe(true);
+  const html = await res.text();
+  const m = html.match(/<link\s+rel="manifest"\s+href="([^"]+)"\s*\/?>/);
+  expect(m, 'expected <link rel="manifest"> in equipment.html').not.toBeNull();
+  expect(m[1]).toBe('/manifest-equipment.webmanifest');
+});
+
+test('GET /index.html serves the default daily manifest at HTML level', async ({request}) => {
+  const res = await request.get('/index.html');
+  expect(res.ok()).toBe(true);
+  const html = await res.text();
+  const m = html.match(/<link\s+rel="manifest"\s+href="([^"]+)"\s*\/?>/);
+  expect(m, 'expected <link rel="manifest"> in index.html').not.toBeNull();
+  expect(m[1]).toBe('/manifest.webmanifest');
+});
+
 test('anon load of /dailys renders WebformHub, not LoginScreen', async ({page}) => {
   await page.goto('/dailys');
 

@@ -1,4 +1,18 @@
-# SPA fallback — any unmatched path serves index.html so client-side
-# routing (React Router, added in Phase 3) can take over. Status 200 (not
-# 301) so the browser URL stays as-is.
+# Netlify _redirects — first match wins, top-to-bottom.
+#
+# Equipment-hub install routes (2026-05-06 PWA install hotfix). Serve the
+# equipment HTML — same React app, different <link rel="manifest"> — so iOS
+# Safari / Android Chrome read start_url=/equipment at HTML parse time,
+# before any JS runs. The dynamic in-React applyManifestHref() helper stays
+# as defensive runtime sync but is NOT relied on for install. /fueling* is
+# the legacy alias and gets the same treatment for operators with old
+# bookmarks who tap Add to Home Screen.
+/equipment       /equipment.html  200
+/equipment/*     /equipment.html  200
+/fueling         /equipment.html  200
+/fueling/*       /equipment.html  200
+
+# SPA fallback — any other unmatched path serves index.html so client-side
+# routing (React Router) can take over. Status 200 (not 301) so the browser
+# URL stays as-is. MUST stay last; it's the catch-all.
 /*  /index.html  200
