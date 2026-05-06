@@ -9,6 +9,7 @@
 import React from 'react';
 import {computeDueIntervals} from '../lib/equipment.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import ManualsCard from '../equipment/ManualsCard.jsx';
 
 export default function EquipmentFuelingWebform({sb, equipment, equipmentList, onBack}) {
@@ -250,6 +251,12 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
       setErr(fuelLabel + ' gallons required.');
       return;
     }
+    // Reading required — the RPC rejects a missing/zero reading and the
+    // parent equipment row needs it to advance via the GREATEST update.
+    if (!hasReading) {
+      setErr('Current ' + readingLabel + ' required.');
+      return;
+    }
 
     // Check Oil enforcement: every non-ATV, non-Toro piece must have its
     // oil-check ticked before the submit goes through. "Oil" match is broad
@@ -337,8 +344,17 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
     });
 
     const defNum = parseFloat(defGallons);
+    // Mig 047 SECURITY DEFINER RPC. INSERTs the equipment_fuelings row AND
+    // updates equipment.current_<unit> atomically with anon EXECUTE — the
+    // prior pattern (synchronous .insert + silent .update on equipment) was
+    // broken under prod RLS because anon has no UPDATE policy on equipment;
+    // the parent row drifted behind every public submission. The RPC's
+    // GREATEST/only-go-forward semantic means a public submission can only
+    // raise current_<unit> — admin corrections downward still go through
+    // the authenticated /fleet detail page.
     const rec = {
       id: 'fuel-webform-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      client_submission_id: newClientSubmissionId(),
       equipment_id: eq.id,
       date,
       team_member: teamMember,
@@ -356,24 +372,11 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
       podio_source_app: null,
     };
     setSubmitting(true);
-    const {error} = await sb.from('equipment_fuelings').insert(rec);
+    const {error} = await sb.rpc('submit_equipment_fueling', {parent_in: rec});
     if (error) {
       setErr('Save failed: ' + error.message);
       setSubmitting(false);
       return;
-    }
-    // Bump current reading on the equipment row.
-    if (hasReading) {
-      const upd = {};
-      if (eq.tracking_unit === 'hours') upd.current_hours = readingNum;
-      else if (eq.tracking_unit === 'km') upd.current_km = readingNum;
-      if (Object.keys(upd).length > 0) {
-        await sb
-          .from('equipment')
-          .update(upd)
-          .eq('id', eq.id)
-          .then(() => {});
-      }
     }
     setSubmitting(false);
     setDone(true);

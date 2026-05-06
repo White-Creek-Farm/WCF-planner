@@ -312,12 +312,16 @@ export function fmtReading(value, unit) {
   return Math.round(value).toLocaleString() + ' ' + (unit === 'km' ? 'km' : 'h');
 }
 
-// Derive an effective current reading for an equipment row. Anon-context
-// updates to equipment.current_hours/km from the public fueling webform are
-// silently failing in prod under RLS (recon 2026-04-28), so trusting
-// equipment.current_* alone causes HomeDashboard's overdue-interval math to
-// run against stale parent rows. Mirrors the codebase's existing precedent of
-// preferring the most-recent-by-DATE fueling submission as operator truth.
+// Derive an effective current reading for an equipment row. Originally a
+// drift-compensation helper: anon-context updates to equipment.current_*
+// from the public fueling webform were silently failing under prod RLS
+// (recon 2026-04-28), and HomeDashboard's overdue-interval math was running
+// against stale parent rows. Mig 047 (submit_equipment_fueling SECURITY
+// DEFINER RPC, 2026-05-06) fixes the write path AND ships a one-shot
+// reconciliation; new submissions correctly bump equipment.current_*. The
+// helper stays in place as defensive fallback — historical pre-mig-047
+// rows + any future caller that bypasses the RPC are still tolerated by
+// this read-side derivation.
 //
 // Rule:
 //   1. Pick the latest fueling by date for this piece.
