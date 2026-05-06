@@ -2406,20 +2406,21 @@ const WeighInsWebform = ({sb}) => {
           )}
 
           {/* Recent entries (pig) — no tag / age / ADG, just numbered weights.
-            Entry # = insertion order. Displayed ascending (oldest #1 at top). */}
+            Entry # = insertion order. Displayed ascending (oldest #1 at top).
+            All entries are rendered (no slice cap) — the operator needs the
+            full session count visible mid-weigh. Delete/edit pins by id, not
+            index, so list-length is purely a render concern. */}
           {species === 'pig' &&
             entries.length > 0 &&
             (() => {
-              const tail = entries.slice(-10);
-              const firstNum = entries.length - tail.length + 1;
               return (
                 <div style={cardS}>
                   <div style={{fontSize: 12, fontWeight: 700, color: '#4b5563', marginBottom: 8}}>
-                    Recent entries (latest 10)
+                    {'Recent entries (' + entries.length + ')'}
                   </div>
-                  {tail.map((e, i) => {
-                    // i=0 is the oldest in the tail. 1-based number = firstNum + i.
-                    const entryNum = firstNum + i;
+                  {entries.map((e, i) => {
+                    // i is 0-based; 1-based session sequence number.
+                    const entryNum = i + 1;
                     const isEditing = editingEntryId === e.id;
                     if (isEditing)
                       return (

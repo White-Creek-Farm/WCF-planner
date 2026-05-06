@@ -33,4 +33,23 @@ describe('WeighInsWebform.jsx static lock', () => {
   it('reads broiler_batch_meta from webform_config', () => {
     expect(source).toMatch(/broiler_batch_meta/);
   });
+
+  // Pig recent-entries cap regression guard (2026-05-06).
+  // The pig session UI previously rendered only `entries.slice(-10)` with a
+  // header "Recent entries (latest 10)". Operators mid-weigh lost the first
+  // entries from the visible list as soon as #11 landed. The fix renders all
+  // entries with `Recent entries (<count>)`. These asserts lock the absence
+  // of the old pattern in this file (pig-only block; cattle/sheep have their
+  // own `slice(0, N)` patterns elsewhere that this lock does not touch).
+  it('does not slice pig recent-entries to the latest 10', () => {
+    expect(source).not.toMatch(/entries\.slice\(-10\)/);
+  });
+
+  it('header copy no longer says "latest 10"', () => {
+    expect(source).not.toMatch(/Recent entries \(latest 10\)/);
+  });
+
+  it('pig recent-entries header renders the live entries.length count', () => {
+    expect(source).toMatch(/'Recent entries \(' \+ entries\.length \+ '\)'/);
+  });
 });
