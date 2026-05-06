@@ -28,6 +28,7 @@ import CattleSendToProcessorModal from '../cattle/CattleSendToProcessorModal.jsx
 import SheepSendToProcessorModal from '../sheep/SheepSendToProcessorModal.jsx';
 import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
 import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
+import {renderCattleIcon, renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 
 const WeighInsWebform = ({sb}) => {
@@ -1377,7 +1378,7 @@ const WeighInsWebform = ({sb}) => {
           {[
             {
               key: 'cattle',
-              icon: '\ud83d\udc04',
+              icon: renderCattleIcon(36),
               color: '#991b1b',
               bg: '#fef2f2',
               label: 'Cattle',
@@ -1485,7 +1486,7 @@ const WeighInsWebform = ({sb}) => {
           </button>
           <div style={{fontSize: 17, fontWeight: 700, color: '#1e40af', marginBottom: 16}}>
             {species === 'cattle'
-              ? '\ud83d\udc04 Cattle'
+              ? renderCattleIconLabel('Cattle', {size: 20})
               : species === 'sheep'
                 ? '\ud83d\udc11 Sheep'
                 : species === 'pig'

@@ -29,6 +29,7 @@ import {
   CATTLE_SORT_KEYS,
   STALE_WEIGHT_DAYS_DEFAULT,
 } from '../lib/cattleHerdFilters.js';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 
 const HERD_LABELS = {
   mommas: 'Mommas',
@@ -1520,7 +1521,9 @@ const CattleHerdsView = ({
                     }}
                   >
                     <span style={{fontSize: 12, color: hc.tx}}>{herdOpen ? '▼' : '▶'}</span>
-                    <span style={{fontSize: 15, fontWeight: 700, color: hc.tx}}>{'🐄 ' + HERD_LABELS[h]}</span>
+                    <span style={{fontSize: 15, fontWeight: 700, color: hc.tx}}>
+                      {renderCattleIconLabel(HERD_LABELS[h], {size: 21})}
+                    </span>
                     <span style={{fontSize: 12, color: hc.tx, opacity: 0.8}}>
                       {cows.length} {cows.length === 1 ? 'cow' : 'cows'}
                     </span>

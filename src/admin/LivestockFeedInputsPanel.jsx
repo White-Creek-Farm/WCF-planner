@@ -1,5 +1,6 @@
 // Phase 2 Round 4 extraction (verbatim).
 import React from 'react';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 
 const LivestockFeedInputsPanel = ({sb}) => {
   const [feeds, setFeeds] = React.useState([]);
@@ -1182,7 +1183,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
               {/* Herd scope */}
               <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
                 <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 8}}>
-                  {'\ud83d\udc04 HERD / FLOCK SCOPE'}{' '}
+                  {renderCattleIconLabel('HERD / FLOCK SCOPE', {size: 16})}{' '}
                   <span style={{fontWeight: 400, color: '#9ca3af'}}>
                     (which herds/flocks see this in webform dropdowns)
                   </span>

@@ -23,6 +23,7 @@ import React from 'react';
 import {loadRoster} from '../lib/teamMembers.js';
 import {loadAvailability, availableNamesFor} from '../lib/teamAvailability.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
+import {renderCattleIcon} from '../components/CattleIcon.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 
 const AddFeedWebform = ({sb}) => {
@@ -816,7 +817,7 @@ const AddFeedWebform = ({sb}) => {
               {key: 'pig', icon: '\ud83d\udc37', label: 'Pig', color: '#1e40af', bg: '#eff6ff'},
               {key: 'broiler', icon: '\ud83d\udc14', label: 'Broiler', color: '#a16207', bg: '#fef9c3'},
               {key: 'layer', icon: '\ud83d\udc13', label: 'Layer', color: '#78350f', bg: '#fffbeb'},
-              {key: 'cattle', icon: '\ud83d\udc04', label: 'Cattle', color: '#991b1b', bg: '#fef2f2'},
+              {key: 'cattle', icon: renderCattleIcon(24), label: 'Cattle', color: '#991b1b', bg: '#fef2f2'},
               {key: 'sheep', icon: '\ud83d\udc11', label: 'Sheep', color: '#0f766e', bg: '#f0fdfa'},
             ].map(function (p) {
               return (
