@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#085041"/>
+<title>WCF Planner</title>
+<!-- Equipment-hub install entry. Identical to index.html EXCEPT the manifest
+     link below points at the equipment manifest so iOS Safari / Android
+     Chrome read start_url=/equipment at HTML parse time, before any JS.
+     Netlify _redirects routes /equipment* and /fueling* to this file
+     before the SPA fallback. The React app boots from /src/main.jsx the
+     same way as index.html — only the install manifest differs. -->
+<link rel="manifest" href="/manifest-equipment.webmanifest"/>
+<link rel="apple-touch-icon" href="/icons/icon-192.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://unpkg.com" crossorigin/>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin/>
+<link rel="preconnect" href="https://pzfujbjtayhkdlxiblwe.supabase.co" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<!-- React, ReactDOM, and Supabase are now bundled by Vite via /src/main.jsx (see end of <body>). -->
+<!-- Babel-in-browser was removed when Vite took over JSX transpilation at build time. -->
+<!-- The CDN preload + script tags that lived here pre-migration are deleted. -->
+<!-- Pre-migration index.html backed up at ~/OneDrive/Desktop/WCF-planner-backups/index.html.pre-vite-2026-04-19 -->
+
+<style>
+  :root {
+    --green-50:  #f0f7f4;
+    --green-100: #d8ede6;
+    --green-200: #b2dbd0;
+    --green-300: #7fc2b2;
+    --green-400: #4fa690;
+    --green-500: #2d8a72;
+    --green-600: #1e6e5a;
+    --green-700: #165749;
+    --green-800: #10433a;
+    --green-900: #0b3530;
+    --text-primary:   #111827;
+    --text-secondary: #4b5563;
+    --text-muted:     #9ca3af;
+    --border:         #e5e7eb;
+    --border-strong:  #d1d5db;
+    --bg-page:        #f6f8f7;
+    --bg-card:        #ffffff;
+    --shadow-sm:  0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:  0 4px 6px rgba(0,0,0,.05), 0 2px 4px rgba(0,0,0,.04);
+    --shadow-lg:  0 10px 15px rgba(0,0,0,.06), 0 4px 6px rgba(0,0,0,.04);
+    --radius-sm:  6px;
+    --radius-md:  10px;
+    --radius-lg:  14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg-page);
+    color:var(--text-primary);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  input,select,textarea{
+    font-family:inherit;
+    font-size:13px;
+    padding:8px 11px;
+    border:1px solid var(--border-strong);
+    border-radius:var(--radius-sm);
+    width:100%;
+    outline:none;
+    background:#fff;
+    color:var(--text-primary);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  input:focus,select:focus,textarea:focus{
+    border-color:var(--green-500);
+    box-shadow:0 0 0 3px rgba(45,138,114,.1);
+  }
+  input::placeholder,textarea::placeholder{color:var(--text-muted)}
+  button{font-family:inherit;cursor:pointer}
+  textarea{resize:vertical}
+
+
+    @media print {
+    .no-print{display:none!important}
+    body{background:#fff}
+    .print-area{padding:0!important}
+  }
+  .breed-gantt::-webkit-scrollbar { height: 24px; }
+  .breed-gantt::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 12px; }
+  .breed-gantt::-webkit-scrollbar-thumb { background: #6b7280; border-radius: 12px; border: 4px solid #e5e7eb; }
+  .breed-gantt::-webkit-scrollbar-thumb:hover { background: #374151; }
+
+  /* ── WEBFORM STYLES (scoped to #webform-container) ── */
+  #webform-container{--wf-green:#085041;--wf-green-lt:#ecfdf5;--wf-green-bd:#a7f3d0;--wf-text:#111827;--wf-text2:#4b5563;--wf-muted:#9ca3af;--wf-border:#e5e7eb;--wf-border2:#d1d5db;--wf-bg:#f6f8f7;--wf-r-sm:6px;--wf-r-md:10px;--wf-shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);font-family:'Geist',-apple-system,sans-serif;background:#f6f8f7;color:#111827;font-size:14px;line-height:1.5;min-height:100vh}
+  #webform-container input,#webform-container select,#webform-container textarea{font-family:inherit;font-size:13px;padding:9px 12px;border:1px solid #d1d5db;border-radius:6px;width:100%;outline:none;background:#fff;color:#111827;transition:border-color .15s,box-shadow .15s}
+  #webform-container input:focus,#webform-container select:focus,#webform-container textarea:focus{border-color:#085041;box-shadow:0 0 0 3px rgba(8,80,65,.1)}
+  #webform-container input::placeholder,#webform-container textarea::placeholder{color:#9ca3af}
+  #webform-container button{font-family:inherit;cursor:pointer}
+  #webform-container label{display:block;font-size:12px;color:#4b5563;margin-bottom:4px;font-weight:500}
+  #webform-container .header{background:linear-gradient(135deg,#042f23,#085041 60%,#0d6652);color:#fff;padding:14px 1.5rem;display:flex;justify-content:space-between;align-items:center}
+  #webform-container .header-logo{font-size:17px;font-weight:700;letter-spacing:-.4px}
+  #webform-container .header-sub{font-size:11px;font-weight:500;color:rgba(255,255,255,.6);border-left:1px solid rgba(255,255,255,.25);padding-left:10px;margin-left:10px;letter-spacing:.5px}
+  #webform-container .wrap{max-width:540px;margin:0 auto;padding:1.5rem 1rem 3rem}
+  #webform-container .card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  #webform-container .card-title{font-size:13px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #e5e7eb}
+  #webform-container .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  #webform-container .field{margin-bottom:12px}
+  #webform-container .field:last-child{margin-bottom:0}
+  #webform-container .toggle-group{display:grid;grid-template-columns:1fr 1fr;border-radius:6px;overflow:hidden;border:1px solid #d1d5db}
+  #webform-container .tgl{padding:9px 0;border:none;background:#f9fafb;color:#4b5563;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;text-align:center;transition:background .12s,color .12s}
+  #webform-container .tgl:first-child{border-right:1px solid #d1d5db}
+  #webform-container .tgl.yes{background:#085041;color:#fff}
+  #webform-container .tgl.no{background:#374151;color:#fff}
+  #webform-container .btn-submit{width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#085041,#0d6652);color:#fff;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(8,80,65,.25);transition:opacity .15s}
+  #webform-container .btn-submit:hover{opacity:.92}
+  #webform-container .btn-submit:disabled{opacity:.45;cursor:not-allowed}
+  #webform-container .hint{font-size:11px;color:#9ca3af;margin-top:3px}
+  #webform-container .err{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#b91c1c;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none}
+  #webform-container .today{display:inline-block;font-size:11px;padding:2px 8px;background:#ecfdf5;color:#085041;border:1px solid #a7f3d0;border-radius:4px;font-weight:600;margin-top:4px;cursor:pointer;user-select:none}
+  #webform-container .today:hover{background:#d1fae5}
+  #webform-container .success{text-align:center;padding:3rem 1rem;display:none}
+  #webform-container .success-icon{font-size:56px;margin-bottom:16px}
+  #webform-container .success h2{font-size:20px;font-weight:700;margin-bottom:8px}
+  #webform-container .success p{font-size:14px;color:#4b5563;margin-bottom:28px;line-height:1.6}
+  .btn-another{display:inline-block;padding:10px 28px;border:2px solid var(--green);border-radius:var(--r-md);background:#fff;color:var(--green);font-size:14px;font-weight:600;cursor:pointer}
+  .loading-msg{text-align:center;padding:3rem;color:var(--muted);font-size:14px}
+  @media(max-width:400px){.grid2{grid-template-columns:1fr}}
+  .hoverable-tile:hover{background:#f0fdf4 !important;}
+  .hoverable-row:hover td{background:#f0fdf4 !important;}
+</style>
+<script>
+  // Select all text in number inputs on focus so typing replaces the 0 immediately
+  document.addEventListener('focusin', function(e){
+    if(e.target.type === 'number') e.target.select();
+  });
+  // (window._wcfBabelCache + window._wcfLoadXLSX definitions removed in
+  // Phase 1.5 / 1.4 — Babel-in-browser is gone, xlsx is dynamically
+  // imported from npm in src/main.jsx. The wcf-babel-* localStorage keys
+  // left over from prior visits are purged once on app mount, also in
+  // src/main.jsx.)
+</script>
+<style>
+  /* Loading spinner shown while Babel transpiles + first React render */
+  #wcf-boot-loader {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #f0f7f4 0%, #ecfdf5 100%);
+    font-family: 'Geist', -apple-system, sans-serif;
+    z-index: 99999;
+    transition: opacity .3s;
+  }
+  #wcf-boot-loader.fade-out { opacity: 0; pointer-events: none; }
+  #wcf-boot-loader .logo { font-size: 22px; font-weight: 800; color: #085041; letter-spacing: -.4px; margin-bottom: 6px; }
+  #wcf-boot-loader .tagline { font-size: 12px; color: #6b7280; margin-bottom: 24px; }
+  #wcf-boot-loader .spinner { width: 32px; height: 32px; border: 3px solid #d1fae5; border-top-color: #085041; border-radius: 50%; animation: wcfspin 0.7s linear infinite; }
+  #wcf-boot-loader .step { font-size: 11px; color: #9ca3af; margin-top: 16px; letter-spacing: .3px; }
+  @keyframes wcfspin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="wcf-boot-loader">
+  <div class="logo">🌾 WCF Planner</div>
+  <div class="tagline">Loading...</div>
+  <div class="spinner"></div>
+  <div class="step" id="wcf-boot-step">Starting up</div>
+</div>
+<div id="root"></div>
+<script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
