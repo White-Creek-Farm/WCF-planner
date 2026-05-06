@@ -3,6 +3,7 @@ import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const FROM = 'WCF Planner <reports@wcfplanner.com>';
 
@@ -17,6 +18,43 @@ async function sendEmail(payload: object): Promise<Response> {
     headers: {Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
   });
+}
+
+// HTML-escape user-controlled strings before interpolating into email
+// templates. Codex C4 re-review BLOCKER 2: tasksWeeklyHtml renders task
+// titles + submitted_by_team_member + submission_source + due_date and
+// branded subtitle (full_name) directly into HTML; these strings can
+// originate from public webform submitters or admin-typed input.
+function escapeHtml(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Bearer parser tolerant of leading "Bearer " prefix. Used by the
+// tasks_weekly_summary service-role gate (Codex C4 re-review BLOCKER 5).
+function extractBearer(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  const trimmed = authHeader.trim();
+  if (trimmed.toLowerCase().startsWith('bearer ')) return trimmed.slice(7).trim();
+  return trimmed;
+}
+
+// Length-first then byte compare. Mirrors the tasks-cron pattern. Hides
+// length-leak signal; the service-role JWT is long enough that brute-
+// forcing per-request is infeasible.
+function safeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -216,6 +254,60 @@ function passwordResetHtml(name: string, resetLink: string, isTest: boolean) {
   return brandedEmail({title: '🔑 Password Reset', subtitle: 'WCF Planner', bodyHtml, isTest});
 }
 
+// ─── Tasks weekly summary table — used by tasks_weekly_summary branch (C4) ───
+// Simple due-date / title rows, with optional submitted-by + source
+// subtext. Does NOT inline thumbnails or signed URLs (Codex Q4).
+// `tasks` shape per row: {id, due_date, title, submission_source?,
+// submitted_by_team_member?}.
+//
+// All user-controlled strings (title / submitted_by_team_member /
+// submission_source / due_date) are HTML-escaped before interpolation
+// (Codex C4 re-review BLOCKER 2). Title in particular can come from
+// public webform submitters or admin-typed input.
+function tasksWeeklyHtml(tasks: Array<Record<string, any>>): string {
+  const rows = tasks
+    .map((t) => {
+      const due = escapeHtml(t.due_date || '');
+      const title = escapeHtml(t.title || '(untitled)');
+      const ctxParts: string[] = [];
+      if (t.submission_source && t.submission_source !== 'generated') {
+        ctxParts.push(`source: ${escapeHtml(t.submission_source)}`);
+      }
+      if (t.submitted_by_team_member) {
+        ctxParts.push(`from ${escapeHtml(t.submitted_by_team_member)}`);
+      }
+      const ctx = ctxParts.length
+        ? `<div style="color:#888;font-size:12px;font-family:Arial,sans-serif;margin-top:4px;">${ctxParts.join(' · ')}</div>`
+        : '';
+      return `
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid #efeae0;font-family:Arial,sans-serif;font-size:13px;color:#566542;font-weight:700;white-space:nowrap;vertical-align:top;">${due}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #efeae0;font-family:Georgia,serif;font-size:14px;color:#232323;vertical-align:top;">
+            ${title}
+            ${ctx}
+          </td>
+        </tr>`;
+    })
+    .join('');
+  return `
+    <p style="font-family:Georgia,serif;font-size:15px;color:#232323;margin:0 0 16px 0;line-height:1.6;">
+      You have ${tasks.length} open task${tasks.length === 1 ? '' : 's'} on the WCF Planner.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8e4dc;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <thead>
+        <tr style="background:#f8f6f0;">
+          <th align="left" style="padding:8px 12px;font-family:Arial,sans-serif;font-size:11px;color:#566542;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e8e4dc;">Due</th>
+          <th align="left" style="padding:8px 12px;font-family:Arial,sans-serif;font-size:11px;color:#566542;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e8e4dc;">Task</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="font-family:Georgia,serif;font-size:13px;color:#888;line-height:1.6;margin:0;">
+      Open the planner to mark tasks complete: <a href="https://wcfplanner.com/my-tasks" style="color:#566542;text-decoration:underline;">wcfplanner.com/my-tasks</a>
+    </p>
+  `;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // MAIN HANDLER
 // ═══════════════════════════════════════════════════════════════════
@@ -324,6 +416,101 @@ serve(async (req) => {
         to: test_to ? [test_to] : [data.email],
         subject: test_to ? `[TEST] Reset your WCF Planner password` : `Reset your WCF Planner password`,
         html: passwordResetHtml(data.name || '', resetLink, !!test_to),
+      });
+      const result = await res.json();
+      return new Response(JSON.stringify({ok: true, result}), {
+        headers: {...corsHeaders, 'Content-Type': 'application/json'},
+      });
+    }
+
+    // ─── USER DELETE — admin hard-deletes an auth account ───
+    // Source restored to repo as part of C4 (was deploy-only artifact;
+    // archive/SESSION_LOG.md:1397+1436+1539 confirm "Ronnie pasted that
+    // block in mid-session, deployed it"). UsersModal.jsx:131-148 is
+    // the live caller. NO email sent — this just frees the email so
+    // it can be re-invited; the JS caller deletes the profiles row
+    // afterward.
+    //
+    // Codex C4 re-review BLOCKER 1: rapid-processor is deployed with
+    // --no-verify-jwt so the platform does NOT enforce authentication
+    // for us. Verify the caller in-function via rpc('is_admin') with
+    // the caller's bearer (anon-key client + Authorization header is
+    // the standard Supabase pattern for resolving auth.uid() inside
+    // SECURITY DEFINER helpers). 401 on no header / 403 on non-admin.
+    if (type === 'user_delete') {
+      if (!data.id) throw new Error('id required');
+      const authHeader = req.headers.get('authorization');
+      if (!authHeader) {
+        return new Response(JSON.stringify({error: 'unauthorized'}), {
+          status: 401,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {persistSession: false, autoRefreshToken: false},
+        global: {headers: {Authorization: authHeader}},
+      });
+      const {data: isAdminData, error: isAdminErr} = await userClient.rpc('is_admin');
+      if (isAdminErr || isAdminData !== true) {
+        return new Response(JSON.stringify({error: 'forbidden'}), {
+          status: 403,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const {error} = await admin.auth.admin.deleteUser(data.id);
+      if (error) throw new Error(error.message);
+      return new Response(JSON.stringify({ok: true, deleted: data.email || null}), {
+        headers: {...corsHeaders, 'Content-Type': 'application/json'},
+      });
+    }
+
+    // ─── TASKS WEEKLY SUMMARY — branded list of one assignee's open tasks ───
+    // Invoked by supabase/functions/tasks-summary/index.ts once per
+    // assignee with at least one open task_instances row. Uses the
+    // top-level test_to escape (not data.test_to) per Codex C4
+    // amendment 5; the calling Edge Function gates cron-mode test_to
+    // before this is reached.
+    //
+    // Codex C4 re-review BLOCKER 5: rapid-processor is deployed with
+    // --no-verify-jwt so the platform does not enforce auth. Without
+    // an in-function gate, anyone reaching this endpoint could trigger
+    // arbitrary WCF-branded emails to attacker-controlled addresses.
+    // Require the caller's bearer to byte-equal SUPABASE_SERVICE_ROLE_KEY
+    // — only tasks-summary (running in this same project) sends that.
+    // Constant-time-ish compare via safeEqual mirrors the tasks-cron
+    // auth pattern.
+    if (type === 'tasks_weekly_summary') {
+      const bearer = extractBearer(req.headers.get('authorization'));
+      if (!safeEqual(bearer, SUPABASE_SERVICE_ROLE_KEY)) {
+        return new Response(JSON.stringify({error: 'unauthorized'}), {
+          status: 401,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      const {email, full_name, tasks, count} = data || {};
+      if (!email) throw new Error('email required');
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        return new Response(JSON.stringify({ok: true, skipped: true, reason: 'no tasks'}), {
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      const taskCount = typeof count === 'number' ? count : tasks.length;
+      const subjectBase = `WCF Planner - ${taskCount} open task${taskCount === 1 ? '' : 's'}`;
+      const html = brandedEmail({
+        title: 'Open Tasks',
+        // brandedEmail interpolates subtitle directly into HTML; escape
+        // here (Codex C4 re-review BLOCKER 2). full_name is profile data
+        // but admins can self-edit so it's still untrusted.
+        subtitle: escapeHtml(full_name || ''),
+        bodyHtml: tasksWeeklyHtml(tasks),
+        isTest: !!test_to,
+      });
+      const res = await sendEmail({
+        from: FROM,
+        to: test_to ? [test_to] : [email],
+        subject: test_to ? `[TEST] ${subjectBase}` : subjectBase,
+        html,
       });
       const result = await res.json();
       return new Response(JSON.stringify({ok: true, result}), {
