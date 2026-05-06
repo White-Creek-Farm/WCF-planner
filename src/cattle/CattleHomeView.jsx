@@ -9,6 +9,7 @@ import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 import {toISO} from '../lib/dateUtils.js';
 import {buildForecast} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 const CattleHomeView = ({
   sb,
   fmt,
@@ -592,7 +593,7 @@ const CattleHomeView = ({
                       }}
                     >
                       <span style={{fontSize: 16, fontWeight: 700, color: accent}}>
-                        {'\ud83d\udc04 ' + HERD_LABELS[h]}
+                        {renderCattleIconLabel(HERD_LABELS[h], {size: 22})}
                       </span>
                       <span style={{fontSize: 11, color: '#6b7280'}}>
                         {cows.length} {cows.length === 1 ? 'cow' : 'cows'}

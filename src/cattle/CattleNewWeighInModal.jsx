@@ -8,6 +8,7 @@
 // ============================================================================
 import React from 'react';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 const CattleNewWeighInModal = ({sb, onClose, onCreate}) => {
   const {useState, useEffect} = React;
   const todayStr = () => {
@@ -87,7 +88,7 @@ const CattleNewWeighInModal = ({sb, onClose, onCreate}) => {
         }}
       >
         <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 14}}>
-          {'\ud83d\udc04 New Cattle Weigh-In'}
+          {renderCattleIconLabel('New Cattle Weigh-In', {size: 20})}
         </div>
         <div style={{marginBottom: 10}}>
           <label style={lblS}>Team member *</label>

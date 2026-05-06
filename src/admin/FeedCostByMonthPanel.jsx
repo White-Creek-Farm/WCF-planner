@@ -1,6 +1,7 @@
 // Phase 2 Round 4 extraction (verbatim).
 import React from 'react';
 import {wcfSelectAll} from '../lib/pagination.js';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 
 const FeedCostByMonthPanel = ({sb, feedCosts}) => {
   const {useState, useEffect} = React;
@@ -177,7 +178,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       letterSpacing: 0.5,
                     }}
                   >
-                    {'\ud83d\udc04 Cattle'}
+                    {renderCattleIconLabel('Cattle', {size: 16})}
                   </th>
                   <th
                     style={{

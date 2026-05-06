@@ -12,6 +12,7 @@ import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
 import DailyPhotoCapture from './DailyPhotoCapture.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 import AppSetupModal from './AppSetupModal.jsx';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 const WebformHub = ({
   sb,
   wfGroups,
@@ -1476,7 +1477,7 @@ const WebformHub = ({
             {id: 'layer', label: '🐓 Layer Daily Report'},
             {id: 'egg', label: '🥚 Egg Collection Report'},
             {id: 'pig', label: '🐷 Pig Daily Report'},
-            {id: 'cattle', label: '🐄 Cattle Daily Report'},
+            {id: 'cattle', label: renderCattleIconLabel('Cattle Daily Report', {size: 22})},
             {id: 'sheep', label: '🐑 Sheep Daily Report'},
           ].map((f) => (
             <div
@@ -2671,7 +2672,7 @@ const WebformHub = ({
             {'\u2039 Back'}
           </button>
           <div style={{fontSize: 17, fontWeight: 700, color: '#991b1b', marginBottom: 16}}>
-            {'\ud83d\udc04 Cattle Daily Report'}
+            {renderCattleIconLabel('Cattle Daily Report', {size: 22})}
           </div>
 
           {/* Report info */}

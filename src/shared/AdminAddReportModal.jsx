@@ -11,6 +11,7 @@ import WcfToggle from './WcfToggle.jsx';
 import {wcfSendEmail} from '../lib/email.js';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   const [loadedConfig, setLoadedConfig] = React.useState(null);
   const [broilerGroupsFromDb, setBroilerGroupsFromDb] = React.useState([]);
@@ -624,9 +625,10 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
     layer: '🐓 Add Layer Report',
     egg: '🥚 Add Egg Report',
     pig: '🐷 Add Pig Report',
-    cattle: '🐄 Add Cattle Report',
+    cattle: 'Add Cattle Report',
     sheep: '🐑 Add Sheep Report',
   };
+  const title = formType === 'cattle' ? renderCattleIconLabel('Add Cattle Report', {size: 20}) : titles[formType];
 
   return (
     <div
@@ -672,7 +674,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
             zIndex: 1,
           }}
         >
-          <div style={{fontSize: 15, fontWeight: 700, color: '#085041'}}>{titles[formType]}</div>
+          <div style={{fontSize: 15, fontWeight: 700, color: '#085041'}}>{title}</div>
           <button
             onClick={onClose}
             style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}

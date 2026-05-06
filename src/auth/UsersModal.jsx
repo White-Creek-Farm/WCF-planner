@@ -2,6 +2,7 @@
 import React, {useState} from 'react';
 import {sb} from '../lib/supabase.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
+import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUsers}) {
   const {setAuthState} = useAuth() || {};
   const [umTab, setUmTab] = React.useState('users');
@@ -464,7 +465,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                           ['broiler', '\ud83d\udc14 Broiler'],
                           ['layer', '\ud83e\udd5a Layer'],
                           ['pig', '\ud83d\udc37 Pig'],
-                          ['cattle', '\ud83d\udc04 Cattle'],
+                          ['cattle', renderCattleIconLabel('Cattle', {size: 15})],
                           ['sheep', '\ud83d\udc11 Sheep'],
                           ['equipment', '\ud83d\ude9c Equipment'],
                         ].map(([k, l]) => {

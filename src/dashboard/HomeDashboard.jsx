@@ -17,6 +17,7 @@ import {calcPoultryStatus, calcBroilerStatsFromDailys, calcTimeline} from '../li
 import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, calcCycleStatus} from '../lib/pig.js';
 import {computeIntervalStatus, daysSince, latestSaneReading, WARRANTY_WINDOW_DAYS} from '../lib/equipment.js';
 import EquipmentCategoryIcon from '../components/EquipmentCategoryIcon.jsx';
+import {renderCattleIcon, renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
@@ -319,7 +320,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         allMissed.push({
           key,
           label: h.charAt(0).toUpperCase() + h.slice(1),
-          icon: '🐄',
+          icon: renderCattleIcon(22),
           type: 'Cattle',
           date: checkDate,
         });
@@ -473,7 +474,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
       .map((d) => ({id: d.id, view: 'eggdailys', date: d.date, type: '🥚 Egg', raw: d})),
     ...cattleDailysRecent
       .filter((d) => d.date >= weekAgo)
-      .map((d) => ({id: d.id, view: 'cattledailys', date: d.date, type: '🐄 Cattle', raw: d})),
+      .map((d) => ({id: d.id, view: 'cattledailys', date: d.date, type: 'Cattle', raw: d})),
     ...sheepDailysRecent
       .filter((d) => d.date >= weekAgo)
       .map((d) => ({id: d.id, view: 'sheepdailys', date: d.date, type: '🐑 Sheep', raw: d})),
@@ -607,7 +608,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
             },
             {
               label: 'Cattle',
-              icon: '🐄',
+              icon: null,
               desc: `Mommas \u00b7 backgrounders \u00b7 finishers \u00b7 bulls`,
               view: 'cattleHome',
               color: '#991b1b',
@@ -650,7 +651,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 }}
               >
                 <div style={{flexShrink: 0, lineHeight: 1}}>
-                  <EquipmentCategoryIcon category={c} size={36} />
+                  {c.view === 'cattleHome' ? renderCattleIcon(42) : <EquipmentCategoryIcon category={c} size={36} />}
                 </div>
                 <div style={{minWidth: 0, flex: 1}}>
                   <div style={{fontSize: 18, fontWeight: 700, color: c.color}}>{c.label}</div>
@@ -733,7 +734,9 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                   <div style={{fontSize: 26, fontWeight: 700, color: '#991b1b'}}>
                     {cattleOnFarmCount.toLocaleString()}
                   </div>
-                  <div style={{fontSize: 11, color: '#6b7280', marginTop: 2}}>{'\ud83d\udc04 Cattle'}</div>
+                  <div style={{fontSize: 11, color: '#6b7280', marginTop: 2}}>
+                    {renderCattleIconLabel('Cattle', {size: 16})}
+                  </div>
                 </div>
                 <div style={{textAlign: 'center'}}>
                   <div style={{fontSize: 26, fontWeight: 700, color: '#0f766e'}}>{sheepOnFarm.toLocaleString()}</div>
@@ -996,7 +999,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 '🐓 Layer': 2,
                 '🥚 Layer': 2,
                 '🥚 Egg': 3,
-                '🐄 Cattle': 4,
+                Cattle: 4,
                 '🐑 Sheep': 5,
               };
               const typeColors = {
@@ -1005,7 +1008,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 '🐓 Layer': '#92400e',
                 '🥚 Layer': '#92400e',
                 '🥚 Egg': '#78350f',
-                '🐄 Cattle': '#991b1b',
+                Cattle: '#991b1b',
                 '🐑 Sheep': '#0f766e',
               };
               const typeBg = {
@@ -1014,7 +1017,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 '🐓 Layer': '#fffbeb',
                 '🥚 Layer': '#fffbeb',
                 '🥚 Egg': '#fefce8',
-                '🐄 Cattle': '#fef2f2',
+                Cattle: '#fef2f2',
                 '🐑 Sheep': '#f0fdfa',
               };
               return dates.map((date, di) => {
@@ -1057,7 +1060,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                               paddingLeft: 2,
                             }}
                           >
-                            {type.toUpperCase()}
+                            {type === 'Cattle' ? renderCattleIconLabel('CATTLE', {size: 18}) : type.toUpperCase()}
                           </div>
                           <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
                             {typeRecs.map((r, i) => {
@@ -1489,7 +1492,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                         </>
                                       );
                                     }
-                                    if (r.type === '🐄 Cattle') {
+                                    if (r.type === 'Cattle') {
                                       const HERD_LBL = {
                                         mommas: 'Mommas',
                                         backgrounders: 'Backgrounders',
