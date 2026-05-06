@@ -701,3 +701,35 @@ test('stuck modal renders on species picker (not only on session screen)', async
   // unique marker.
   await expect(page.getByText(/Pick what you[’']re weighing/)).toBeVisible();
 });
+
+// --------------------------------------------------------------------------
+// Test 12 — Pig recent-entries list shows ALL entries (no slice cap)
+// --------------------------------------------------------------------------
+// Hotfix 2026-05-06: the pig session UI used to render `entries.slice(-10)`
+// with header "Recent entries (latest 10)". As soon as #11 landed locally,
+// #1 dropped off the visible list and the operator lost the early entries
+// mid-weigh. Fix renders all entries with a live count header.
+//
+// Lock: add 12 entries; the header must report the live count, and BOTH
+// #1 and #12 must be visible.
+test('pig recent-entries list shows all entries (no slice cap)', async ({page, weighInsOfflineScenario}) => {
+  void weighInsOfflineScenario;
+
+  await page.goto('/weighins');
+  await pigStartFreshSession(page);
+
+  // Add 12 entries; weights are arbitrary, just need 12 distinct entries.
+  for (let i = 0; i < 12; i++) {
+    await pigAddEntry(page, 240 + i);
+  }
+
+  // Header reports live count (was hard-coded "latest 10").
+  await expect(page.getByText('Recent entries (12)')).toBeVisible();
+  await expect(page.getByText(/Recent entries \(latest 10\)/)).toHaveCount(0);
+
+  // First entry must still be visible (was dropped by slice(-10) once #11 landed).
+  // Use exact text match so #1 doesn't false-match #10/#11/#12.
+  await expect(page.getByText('#1', {exact: true})).toBeVisible();
+  // Last entry must be visible.
+  await expect(page.getByText('#12', {exact: true})).toBeVisible();
+});
