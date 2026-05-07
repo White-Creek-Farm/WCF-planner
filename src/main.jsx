@@ -1338,9 +1338,7 @@ function App() {
   const [showArchBatches, setShowArchBatches] = useState(false);
   const [feedOrders, setFeedOrders] = useState({pig: {}, starter: {}, grower: {}, layerfeed: {}});
   const [pigFeedInventory, setPigFeedInventory] = useState(null); // {count, date} or null
-  const [pigFeedExpandedMonths, setPigFeedExpandedMonths] = useState(new Set());
   const [poultryFeedInventory, setPoultryFeedInventory] = useState(null); // {starter:{count,date}, grower:{count,date}, layer:{count,date}}
-  const [poultryFeedExpandedMonths, setPoultryFeedExpandedMonths] = useState(new Set());
   const [adminTab, setAdminTab] = useState('webforms'); // 'webforms' | 'feedcosts'
   // wfForm/wfSubmitting/wfDone/wfErr/wfGroupName moved into
   // src/webforms/PigDailysWebform.jsx as internal state — App no longer
@@ -3496,8 +3494,6 @@ function App() {
       setFeedOrders,
       poultryFeedInventory,
       setPoultryFeedInventory,
-      poultryFeedExpandedMonths,
-      setPoultryFeedExpandedMonths,
       collapsedBatches,
       setCollapsedBatches,
       sbSave,
@@ -3512,8 +3508,6 @@ function App() {
       setFeedOrders,
       pigFeedInventory,
       setPigFeedInventory,
-      pigFeedExpandedMonths,
-      setPigFeedExpandedMonths,
       sbSave,
     });
   // ── BREEDING GANTT VIEW ──

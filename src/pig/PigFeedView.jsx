@@ -2,9 +2,9 @@
 // src/pig/PigFeedView.jsx  —  Phase 2 Round 6
 // ----------------------------------------------------------------------------
 // Pig feed planning view. Pig entity arrays come from usePig(); the feed-
-// cost rates come from useFeedCosts(). Feed-inventory state + the expanded-
-// months Set + the sbSave persistence helper still live in App and come in
-// as props (these weren't lifted to a context in Round 0).
+// cost rates come from useFeedCosts(). Feed-inventory state + the sbSave
+// persistence helper still live in App and come in as props (these
+// weren't lifted to a context in Round 0).
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
@@ -25,10 +25,9 @@ export default function PigFeedView({
   setFeedOrders,
   pigFeedInventory,
   setPigFeedInventory,
-  pigFeedExpandedMonths,
-  setPigFeedExpandedMonths,
   sbSave,
 }) {
+  const [pigFeedExpandedMonths, setPigFeedExpandedMonths] = React.useState(new Set());
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {breeders, feederGroups, farrowingRecs, breedingCycles} = usePig();
   const {pigDailys} = useDailysRecent();

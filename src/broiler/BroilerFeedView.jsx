@@ -3,8 +3,8 @@
 // ----------------------------------------------------------------------------
 // Poultry feed planning view. Mixes broiler + layer data to project feed
 // needs per month and compare against actuals + orders. feedOrders /
-// poultryFeedInventory / poultryFeedExpandedMonths and sbSave still live
-// in App (Round 0 left them out of contexts) and come in as props.
+// poultryFeedInventory and sbSave still live in App (Round 0 left them
+// out of contexts) and come in as props.
 // ============================================================================
 import React, {useState} from 'react';
 import {sb} from '../lib/supabase.js';
@@ -33,12 +33,11 @@ export default function BroilerFeedView({
   setFeedOrders,
   poultryFeedInventory,
   setPoultryFeedInventory,
-  poultryFeedExpandedMonths,
-  setPoultryFeedExpandedMonths,
   collapsedBatches,
   setCollapsedBatches,
   sbSave,
 }) {
+  const [poultryFeedExpandedMonths, setPoultryFeedExpandedMonths] = useState(new Set());
   const {batches} = useBatches();
   const {layerBatches, layerHousings, allLayerDailys} = useLayer();
   const {broilerDailys} = useDailysRecent();
