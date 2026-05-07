@@ -1335,8 +1335,6 @@ function App() {
   const subAutoSaveTimer = React.useRef(null);
   const tripAutoSaveTimer = React.useRef(null);
   const breedAutoSaveTimer = React.useRef(null);
-  const [leaderboardExpanded, setLeaderboardExpanded] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
   const [showArchBatches, setShowArchBatches] = useState(false);
   const [feedOrders, setFeedOrders] = useState({pig: {}, starter: {}, grower: {}, layerfeed: {}});
   const [pigFeedInventory, setPigFeedInventory] = useState(null); // {count, date} or null
@@ -3660,10 +3658,6 @@ function App() {
       persistOriginOptions,
       confirmDelete,
       resolveSire,
-      leaderboardExpanded,
-      setLeaderboardExpanded,
-      showArchived,
-      setShowArchived,
     });
 
   // ── LAYERS HOME DASHBOARD (Phase 4) ──

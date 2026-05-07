@@ -24,11 +24,9 @@ export default function SowsView({
   persistOriginOptions,
   confirmDelete,
   resolveSire,
-  leaderboardExpanded,
-  setLeaderboardExpanded,
-  showArchived,
-  setShowArchived,
 }) {
+  const [leaderboardExpanded, setLeaderboardExpanded] = React.useState(false);
+  const [showArchived, setShowArchived] = React.useState(false);
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {
     breedingCycles,
