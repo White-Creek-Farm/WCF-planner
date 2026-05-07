@@ -1,6 +1,6 @@
 # HO - static workflow SOP
 
-Last updated: 2026-05-06
+Last updated: 2026-05-07
 
 This file is the static start-of-session operating prompt for Ronnie, CC
 (Claude Code), and Codex. It is not a session log and must not carry current
@@ -189,6 +189,12 @@ Codex responses or prompts intended for CC start with `From Codex:` in a
 copyable text block.
 
 Use these prefixes exactly. They replace the old `Codex Review` relay format.
+
+Inside the copyable block, keep content as plain text. Do not wrap file paths,
+route names, function names, commit subjects, or command names in Markdown
+backticks — backticked terms render as shaded snippets and add friction to
+one-click copy/paste of the handoff. Use Markdown inline code only when exact
+formatting is explicitly required.
 
 If CC or Codex disagrees with the other, say so clearly, explain the concrete
 risk, recommend a path, and let Ronnie adjudicate.
