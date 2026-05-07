@@ -75,6 +75,8 @@ describe('calcAgeRange', () => {
       hasActual: false,
       count: 0,
       total: 0,
+      minDays: null,
+      maxDays: null,
     });
   });
 
@@ -132,5 +134,33 @@ describe('calcAgeRange', () => {
     const a = calcAgeRange('c1', new Date('2026-08-01T12:00:00'), [cycle], recs);
     const b = calcAgeRange('c1', new Date('2026-08-01T12:00:00'), [cycle], recs);
     expect(a.text).toBe(b.text);
+  });
+
+  it('returns numeric minDays/maxDays for the planned-trip projector', () => {
+    // exposureStart 2026-01-01 → theoretical window 2026-04-27..2026-06-10.
+    // Pin asOfDate to 2026-08-01.
+    const out = calcAgeRange('c1', new Date('2026-08-01T12:00:00'), [cycle], []);
+    // youngestDays ≈ 52, oldestDays ≈ 96 with the theoretical window.
+    expect(out.minDays).toBe(52);
+    expect(out.maxDays).toBe(96);
+  });
+
+  it('clamps minDays to 0 when youngest pigs are still unborn (Up-to case)', () => {
+    const recs = [
+      {id: 'r1', group: '1', farrowingDate: '2026-05-01'},
+      {id: 'r2', group: '1', farrowingDate: '2026-06-05'},
+    ];
+    const out = calcAgeRange('c1', new Date('2026-05-15T12:00:00'), [cycle], recs);
+    // oldest 14d, youngest negative → clamp youngest to 0.
+    expect(out.minDays).toBe(0);
+    expect(out.maxDays).toBe(14);
+  });
+
+  it('returns null minDays/maxDays when entire cycle is not yet born', () => {
+    const recs = [{id: 'r1', group: '1', farrowingDate: '2026-05-01'}];
+    const out = calcAgeRange('c1', new Date('2026-04-15T12:00:00'), [cycle], recs);
+    expect(out.text).toBe('Not yet born');
+    expect(out.minDays).toBeNull();
+    expect(out.maxDays).toBeNull();
   });
 });

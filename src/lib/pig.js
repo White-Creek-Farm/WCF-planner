@@ -311,17 +311,25 @@ export function cycleRecords(cycle, farrowingRecs) {
 // pinned by the caller (e.g. the latest processor-trip date once a batch's
 // current count hits 0) so the displayed age stops advancing.
 //
-// Returns {text, hasActual, count, total}:
+// Returns {text, hasActual, count, total, minDays, maxDays}:
 //   text       — display string (e.g. "5m 2w – 5m 5w" or "Up to 6m 0w (est.)")
 //   hasActual  — true when actual farrowing records were used
 //   count      — number of farrowing records found for this cycle
 //   total      — cycle.sowCount as integer (0 if missing)
+//   minDays    — youngest age in days at ref, clamped to 0 (never negative)
+//                or null when the cycle has no usable timeline
+//   maxDays    — oldest age in days at ref, or null when same
+//
+// minDays/maxDays power the planned-trip projector's pre-weigh-in mode
+// (recalculateProjections cycleAgeDaysAtRef arg). Both are null when the
+// cycle is missing, exposureStart is missing, or the session/ref is before
+// any farrowing date (the not-yet-born clamp).
 export function calcAgeRange(cycleId, asOfDate, breedingCycles, farrowingRecs) {
   const cycles = Array.isArray(breedingCycles) ? breedingCycles : [];
   const cycle = cycles.find((c) => c.id === cycleId);
-  if (!cycle) return {text: '—', hasActual: false, count: 0, total: 0};
+  if (!cycle) return {text: '—', hasActual: false, count: 0, total: 0, minDays: null, maxDays: null};
   const tl = calcBreedingTimeline(cycle.exposureStart);
-  if (!tl) return {text: '—', hasActual: false, count: 0, total: 0};
+  if (!tl) return {text: '—', hasActual: false, count: 0, total: 0, minDays: null, maxDays: null};
 
   const recs = cycleRecords(cycle, farrowingRecs);
   const ref = asOfDate instanceof Date && !isNaN(asOfDate.getTime()) ? asOfDate : new Date();
@@ -343,14 +351,23 @@ export function calcAgeRange(cycleId, asOfDate, breedingCycles, farrowingRecs) {
   const total = parseInt(cycle.sowCount) || 0;
 
   if (oldestDays <= 0) {
-    return {text: 'Not yet born', hasActual, count: recs.length, total};
+    return {text: 'Not yet born', hasActual, count: recs.length, total, minDays: null, maxDays: null};
   }
   const oldest = daysToMWD(oldestDays);
   const text =
     youngestDays <= 0
       ? `Up to ${oldest}${!hasActual ? ' (est.)' : ''}`
       : `${daysToMWD(youngestDays)} – ${oldest}${!hasActual ? ' (est.)' : ''}`;
-  return {text, hasActual, count: recs.length, total};
+  // Numeric bounds for the projector. Clamp youngest to 0 so the band
+  // doesn't go negative when the youngest pigs haven't quite been born yet.
+  return {
+    text,
+    hasActual,
+    count: recs.length,
+    total,
+    minDays: Math.max(0, youngestDays),
+    maxDays: oldestDays,
+  };
 }
 
 export function reconcileFeederGroupsFromBreeders(feederGroups) {

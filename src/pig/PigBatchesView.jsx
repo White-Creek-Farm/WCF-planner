@@ -25,7 +25,16 @@ import {
   pigMortalityForBatch,
   computePigBatchFCR,
   calcAgeRange as libCalcAgeRange,
+  pigSlug,
 } from '../lib/pig.js';
+import {
+  PLANNED_TRIP_MIN_SIZE,
+  PLANNED_TRIP_TARGET_WEIGHT_LBS,
+  PLANNED_TRIP_OVER_WEIGHT_WARN_LBS,
+  allocatePlannedTrips,
+  recalculateProjections,
+  seedGlobalADG,
+} from '../lib/pigForecast.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
@@ -113,6 +122,242 @@ export default function PigBatchesView({
     });
     return counts;
   }
+
+  // ── Planned-trip forecasting infrastructure (commit 4a) ─────────────────
+  // Global ADG: app_store key ppp-pig-global-adg-v1, shape
+  //   {manualValue: number | null, updatedAt: ISO | null,
+  //    updatedBy: profileId | null}
+  // Manual value (when set) overrides the system estimate. System estimate
+  // is computed live from pig sessions with usable (ageDays, avgWeightLbs).
+  // No reset button per Codex — admin types a new value to change. The
+  // null-clearing path (revert to live seed) is parked for a future
+  // discussion.
+  const [globalAdgRow, setGlobalAdgRow] = React.useState(null); // null=loading, {} after load
+  const [adgEditing, setAdgEditing] = React.useState(false);
+  const [adgInput, setAdgInput] = React.useState('');
+  const [adgSaving, setAdgSaving] = React.useState(false);
+  React.useEffect(() => {
+    sb.from('app_store')
+      .select('data')
+      .eq('key', 'ppp-pig-global-adg-v1')
+      .maybeSingle()
+      .then(({data}) => {
+        if (data && data.data && typeof data.data === 'object') {
+          setGlobalAdgRow(data.data);
+        } else {
+          setGlobalAdgRow({manualValue: null, updatedAt: null, updatedBy: null});
+        }
+      });
+  }, []);
+
+  // Latest pig weigh-in session entries grouped by sub_batch_id (resolved
+  // via pigSlug from session.batch_id). Drives the rank-window projection
+  // when latest entries exist, and also feeds the system-estimate ADG seed.
+  const [pigSessionsForForecast, setPigSessionsForForecast] = React.useState([]);
+  const [pigEntriesForForecast, setPigEntriesForForecast] = React.useState([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const {data: sessions} = await sb
+        .from('weigh_in_sessions')
+        .select('id, batch_id, date, status, started_at')
+        .eq('species', 'pig')
+        .order('date', {ascending: false});
+      if (cancelled) return;
+      setPigSessionsForForecast(sessions || []);
+      const ids = (sessions || []).map((s) => s.id);
+      if (ids.length === 0) {
+        setPigEntriesForForecast([]);
+        return;
+      }
+      const {data: ents} = await sb.from('weigh_ins').select('session_id, weight').in('session_id', ids);
+      if (cancelled) return;
+      setPigEntriesForForecast(ents || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // latestEntriesBySubId: Map<subId, [{weight}]> from the most recent pig
+  // session for each sub. Used by recalculateProjections rank-window mode.
+  const latestEntriesBySubId = React.useMemo(() => {
+    if (pigSessionsForForecast.length === 0) return {};
+    // Group sessions by pigSlug(batch_id), pick the latest per slug.
+    const latestBySlug = {};
+    for (const s of pigSessionsForForecast) {
+      const slug = pigSlug(s.batch_id);
+      if (!slug) continue;
+      const cur = latestBySlug[slug];
+      if (!cur || (s.date || '') > (cur.date || '')) latestBySlug[slug] = s;
+    }
+    // Build slug -> entries map.
+    const entriesBySession = {};
+    for (const e of pigEntriesForForecast) {
+      if (!entriesBySession[e.session_id]) entriesBySession[e.session_id] = [];
+      entriesBySession[e.session_id].push(e);
+    }
+    // Resolve slug -> subBatchId via feederGroups.
+    const out = {};
+    for (const g of feederGroups || []) {
+      for (const sub of g.subBatches || []) {
+        const slug = pigSlug(sub.name);
+        const sess = latestBySlug[slug];
+        if (sess) out[sub.id] = entriesBySession[sess.id] || [];
+      }
+    }
+    return out;
+  }, [feederGroups, pigSessionsForForecast, pigEntriesForForecast]);
+
+  // System ADG estimate via seedGlobalADG. Pairs each pig session's avg
+  // weight with its age in days at session date. Age = sessionDate − cycle's
+  // first farrowing date (or theoretical farrowingStart fallback).
+  const systemAdgEstimate = React.useMemo(() => {
+    if (pigSessionsForForecast.length === 0) return null;
+    const sessAvg = {};
+    for (const e of pigEntriesForForecast) {
+      const w = parseFloat(e.weight);
+      if (!isFinite(w) || w <= 0) continue;
+      if (!sessAvg[e.session_id]) sessAvg[e.session_id] = {sum: 0, n: 0};
+      sessAvg[e.session_id].sum += w;
+      sessAvg[e.session_id].n += 1;
+    }
+    const usable = [];
+    for (const s of pigSessionsForForecast) {
+      const ent = sessAvg[s.id];
+      if (!ent || ent.n === 0) continue;
+      // Resolve cycle for this session via feederGroups.
+      const slug = pigSlug(s.batch_id);
+      let cycleId = null;
+      for (const g of feederGroups || []) {
+        for (const sub of g.subBatches || []) {
+          if (pigSlug(sub.name) === slug) {
+            cycleId = g.cycleId;
+            break;
+          }
+        }
+        if (cycleId) break;
+      }
+      if (!cycleId) continue;
+      const ageRange = libCalcAgeRange(cycleId, new Date(s.date + 'T12:00:00'), breedingCycles, farrowingRecs);
+      if (ageRange.minDays == null || ageRange.maxDays == null) continue;
+      // Use the midpoint of the cycle age range.
+      const ageDays = (ageRange.minDays + ageRange.maxDays) / 2;
+      usable.push({ageDays, avgWeightLbs: ent.sum / ent.n});
+    }
+    return seedGlobalADG(usable);
+  }, [feederGroups, breedingCycles, farrowingRecs, pigSessionsForForecast, pigEntriesForForecast]);
+
+  // Effective Global ADG: manual value when set, otherwise the live system
+  // estimate. null when neither is available.
+  const effectiveAdgLbsPerDay =
+    globalAdgRow && globalAdgRow.manualValue != null
+      ? parseFloat(globalAdgRow.manualValue)
+      : systemAdgEstimate
+        ? systemAdgEstimate.valueLbsPerDay
+        : null;
+
+  function persistGlobalAdg(nextValue) {
+    setAdgSaving(true);
+    const next = {
+      manualValue: nextValue,
+      updatedAt: new Date().toISOString(),
+      updatedBy: (authState && authState.user && authState.user.id) || null,
+    };
+    sb.from('app_store')
+      .upsert({key: 'ppp-pig-global-adg-v1', data: next}, {onConflict: 'key'})
+      .then(({error}) => {
+        setAdgSaving(false);
+        if (error) {
+          console.warn('persistGlobalAdg error:', error.message || error);
+          return;
+        }
+        setGlobalAdgRow(next);
+        setAdgEditing(false);
+      });
+  }
+
+  // Auto-allocate planned trips for any (sub, sex) pair that satisfies all
+  // requirements (Codex Q2). Idempotent and narrow: never overwrites an
+  // existing pair and never writes when requirements are missing.
+  React.useEffect(() => {
+    if (!feederGroups || feederGroups.length === 0) return;
+    if (effectiveAdgLbsPerDay == null) return;
+    const today = new Date().toISOString().slice(0, 10);
+    let dirty = false;
+    const next = feederGroups.map((g) => {
+      if (g.status === 'processed' || !g.cycleId) return g;
+      const subs = g.subBatches || [];
+      if (subs.length === 0) return g;
+      const ageRange = libCalcAgeRange(g.cycleId, new Date(today + 'T12:00:00'), breedingCycles, farrowingRecs);
+      if (ageRange.minDays == null || ageRange.maxDays == null) return g;
+      const planned = Array.isArray(g.plannedProcessingTrips) ? g.plannedProcessingTrips.slice() : [];
+      let groupDirty = false;
+      for (const sub of subs) {
+        if (sub.status === 'processed') continue;
+        const giltCount = parseInt(sub.giltCount) || 0;
+        const boarCount = parseInt(sub.boarCount) || 0;
+        // Sex-mixed subs are flagged in the UI; never auto-allocate (Q1).
+        if (giltCount > 0 && boarCount > 0) continue;
+        const sex = giltCount > 0 ? 'gilt' : boarCount > 0 ? 'boar' : null;
+        if (!sex) continue;
+        // Already has planned trips for this (sub, sex) pair — leave alone.
+        const existingForPair = planned.filter((t) => t.subBatchId === sub.id && t.sex === sex);
+        if (existingForPair.length > 0) continue;
+        // Ledger remaining for this sub. Mortality + transfers + real-trip
+        // attributions are sex-agnostic in current data; for v1 we treat
+        // a single-sex sub's remaining as the whole ledger remainder.
+        const transfers = pigTransfersForSub(breeders, g.batchName, sub.name);
+        const tripPigs = pigTripPigsForSub(g.processingTrips || [], sub.id);
+        const mortality = pigMortalityForSub(g, sub.name);
+        const started = giltCount + boarCount;
+        const remaining = Math.max(0, started - tripPigs - transfers.count - mortality);
+        if (remaining <= 0) continue;
+        // Forecasted ready start date. Anchor on latest entries when
+        // available; fall back to cycle age + ADG. Clamp to today.
+        const latest = latestEntriesBySubId[sub.id] || [];
+        const adg = effectiveAdgLbsPerDay;
+        let anchorWeight = null;
+        let anchorDate = today;
+        if (latest.length > 0) {
+          const sumW = latest.reduce((s, e) => s + (parseFloat(e.weight) || 0), 0);
+          const cnt = latest.filter((e) => parseFloat(e.weight) > 0).length;
+          if (cnt > 0) anchorWeight = sumW / cnt;
+        } else {
+          // Use the OLDEST cycle age (so heavier pigs lead the ready date).
+          anchorWeight = ageRange.maxDays * adg;
+        }
+        let readyDate = today;
+        if (anchorWeight != null && adg > 0) {
+          const daysToReady = Math.max(0, (PLANNED_TRIP_TARGET_WEIGHT_LBS - anchorWeight) / adg);
+          const d = new Date(anchorDate + 'T12:00:00');
+          d.setDate(d.getDate() + Math.ceil(daysToReady));
+          const candidate = d.toISOString().slice(0, 10);
+          readyDate = candidate < today ? today : candidate;
+        }
+        const allocated = allocatePlannedTrips({
+          remainingCount: remaining,
+          sex,
+          subBatchId: sub.id,
+          startDate: readyDate,
+        });
+        if (allocated.length > 0) {
+          for (const t of allocated) planned.push(t);
+          groupDirty = true;
+        }
+      }
+      if (groupDirty) {
+        dirty = true;
+        return {...g, plannedProcessingTrips: planned};
+      }
+      return g;
+    });
+    if (dirty) persistFeeders(next);
+    // sb is a stable prop; persistFeeders reads from latest feederGroups
+    // through the closure. eslint-disable matches the file's existing
+    // pattern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feederGroups, breedingCycles, farrowingRecs, breeders, latestEntriesBySubId, effectiveAdgLbsPerDay]);
 
   // ── Pig mortality entries (parent batch with sub-batch attribution) ─────
   // Stored as feederGroup.pigMortalities = [{id, date, sub_batch_id,
@@ -583,9 +828,137 @@ export default function PigBatchesView({
     setOriginalFeederForm(null);
   }
 
+  const isManager = !!(authState && authState.role === 'admin');
   return (
     <div>
       <Header />
+      {/* Global ADG (commit 4a). Manual override + live system estimate.
+        Manager-and-above (admin role for v1) can edit; operators read-only.
+        Persists to app_store ppp-pig-global-adg-v1. No reset button per
+        Codex; admin types a new value to change. */}
+      <div
+        style={{
+          padding: '10px 14px',
+          margin: '8px 12px',
+          background: '#f9fafb',
+          border: '1px solid #e5e7eb',
+          borderRadius: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}
+      >
+        <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+          <span style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600}}>Global ADG</span>
+          {!adgEditing && (
+            <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>
+              {effectiveAdgLbsPerDay != null
+                ? `${(Math.round(effectiveAdgLbsPerDay * 100) / 100).toFixed(2)} lb/day`
+                : '— Projection unavailable'}
+            </span>
+          )}
+          {!adgEditing && globalAdgRow && globalAdgRow.manualValue != null && (
+            <span
+              style={{
+                fontSize: 10,
+                color: '#92400e',
+                background: '#fef3c7',
+                padding: '2px 8px',
+                borderRadius: 10,
+                fontWeight: 600,
+              }}
+            >
+              MANUAL
+            </span>
+          )}
+          {!adgEditing && isManager && (
+            <button
+              onClick={() => {
+                setAdgInput(effectiveAdgLbsPerDay != null ? String(Math.round(effectiveAdgLbsPerDay * 100) / 100) : '');
+                setAdgEditing(true);
+              }}
+              style={{
+                fontSize: 11,
+                padding: '3px 10px',
+                borderRadius: 6,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#1d4ed8',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {adgEditing && (
+            <>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={adgInput}
+                onChange={(e) => setAdgInput(e.target.value)}
+                placeholder="lb/day"
+                style={{
+                  fontSize: 13,
+                  padding: '4px 8px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 6,
+                  width: 110,
+                  fontFamily: 'inherit',
+                }}
+              />
+              <button
+                onClick={() => {
+                  const v = parseFloat(adgInput);
+                  if (!isFinite(v) || v <= 0) {
+                    alert('Enter a positive number for Global ADG.');
+                    return;
+                  }
+                  persistGlobalAdg(v);
+                }}
+                disabled={adgSaving}
+                style={{
+                  fontSize: 11,
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #085041',
+                  background: '#085041',
+                  color: 'white',
+                  cursor: adgSaving ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {adgSaving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => setAdgEditing(false)}
+                style={{
+                  fontSize: 11,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        <div style={{fontSize: 10, color: '#6b7280'}}>
+          {systemAdgEstimate
+            ? `System estimate: ${(Math.round(systemAdgEstimate.valueLbsPerDay * 100) / 100).toFixed(2)} lb/day from ${systemAdgEstimate.sampleCount} session${systemAdgEstimate.sampleCount === 1 ? '' : 's'}`
+            : 'System estimate: — (need pig sessions with weights and known age)'}
+          {globalAdgRow && globalAdgRow.manualValue != null && globalAdgRow.updatedAt
+            ? ` · manual set ${(globalAdgRow.updatedAt || '').slice(0, 10)}`
+            : ''}
+        </div>
+      </div>
       {/* Mortality entry modal — overlay across the page */}
       {mortalityModal &&
         (() => {
@@ -1959,132 +2332,311 @@ export default function PigBatchesView({
                       sft.dailyCount != null &&
                       sb.status !== 'processed' &&
                       Math.abs((parseInt(sft.dailyCount) || 0) - sft.ledgerCurrent) > 2;
+                    // Planned-trip projection for this sub (commit 4a).
+                    // Read-only render — date/count edit controls land in
+                    // commit 4b. Cycle age + Global ADG drive the
+                    // pre-weigh-in band; latestEntriesBySubId drives the
+                    // rank-window band when entries exist.
+                    const subGiltCount = parseInt(sb.giltCount) || 0;
+                    const subBoarCount = parseInt(sb.boarCount) || 0;
+                    const isMixedSex = subGiltCount > 0 && subBoarCount > 0;
+                    const todayStr = todayISO();
+                    const cycleAgeForRender = g.cycleId
+                      ? libCalcAgeRange(g.cycleId, new Date(todayStr + 'T12:00:00'), breedingCycles, farrowingRecs)
+                      : null;
+                    const cycleAgeDaysAtRef =
+                      cycleAgeForRender && cycleAgeForRender.minDays != null
+                        ? {minDays: cycleAgeForRender.minDays, maxDays: cycleAgeForRender.maxDays}
+                        : null;
+                    const plannedRawForSub = (g.plannedProcessingTrips || []).filter((t) => t.subBatchId === sb.id);
+                    const plannedProjected = recalculateProjections(plannedRawForSub, {
+                      latestEntries: latestEntriesBySubId[sb.id] || [],
+                      referenceDate: todayStr,
+                      globalAdgLbsPerDay: effectiveAdgLbsPerDay,
+                      cycleAgeDaysAtRef,
+                      targetWeightLbs: PLANNED_TRIP_TARGET_WEIGHT_LBS,
+                      minSize: PLANNED_TRIP_MIN_SIZE,
+                      overWeightWarnLbs: PLANNED_TRIP_OVER_WEIGHT_WARN_LBS,
+                    });
                     return (
-                      <div
-                        key={sb.id}
-                        style={{
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          alignItems: 'center',
-                          gap: '6px 12px',
-                          padding: '8px 10px',
-                          borderRadius: 7,
-                          border: '1px solid #e5e7eb',
-                          marginBottom: 6,
-                          background: sb.status === 'processed' ? '#f9fafb' : 'white',
-                          opacity: sb.status === 'processed' ? 0.7 : 1,
-                        }}
-                      >
-                        <strong style={{fontSize: 12, color: '#111827'}}>{sb.name}</strong>
-                        <span style={S.badge(sbSc.bg, sbSc.tx)}>{sb.status}</span>
-                        {sft.started > 0 && (
-                          <span style={{fontSize: 11, color: '#374151'}}>
-                            Started: <strong>{sft.started}</strong>
-                          </span>
-                        )}
-                        {sft.adjustedFeed > 0 && (
-                          <span style={{fontSize: 11, color: '#92400e', fontWeight: 600}}>
-                            🌾 {Math.round(sft.adjustedFeed).toLocaleString()} lbs feed
-                          </span>
-                        )}
-                        {(() => {
-                          const finishers = Math.max(0, sft.started - sft.transferCount - sft.mortality);
-                          return sft.adjustedFeed > 0 && finishers > 0 ? (
-                            <span
-                              style={{fontSize: 11, color: '#78350f'}}
-                              title={`adjusted feed ÷ ${finishers} (started ${sft.started}${sft.transferCount ? ` − ${sft.transferCount} transferred` : ''}${sft.mortality ? ` − ${sft.mortality} mortality` : ''})`}
-                            >
-                              ({Math.round(sft.adjustedFeed / finishers)} lbs/pig)
+                      <React.Fragment key={sb.id}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            gap: '6px 12px',
+                            padding: '8px 10px',
+                            borderRadius: 7,
+                            border: '1px solid #e5e7eb',
+                            marginBottom: 6,
+                            background: sb.status === 'processed' ? '#f9fafb' : 'white',
+                            opacity: sb.status === 'processed' ? 0.7 : 1,
+                          }}
+                        >
+                          <strong style={{fontSize: 12, color: '#111827'}}>{sb.name}</strong>
+                          <span style={S.badge(sbSc.bg, sbSc.tx)}>{sb.status}</span>
+                          {sft.started > 0 && (
+                            <span style={{fontSize: 11, color: '#374151'}}>
+                              Started: <strong>{sft.started}</strong>
                             </span>
-                          ) : null;
-                        })()}
-                        {sft.transferFeedCredit > 0 && (
-                          <span
-                            style={{fontSize: 10, color: '#6b7280'}}
-                            title={`raw ${Math.round(sft.rawFeed).toLocaleString()} − ${Math.round(sft.transferFeedCredit).toLocaleString()} credited to ${sft.transferCount} transferred`}
-                          >
-                            (−{Math.round(sft.transferFeedCredit).toLocaleString()} → breeding)
-                          </span>
-                        )}
-                        <span style={{fontSize: 11, color: '#111827'}}>🐷 {sft.currentCount} current</span>
-                        {dailyVsLedger && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              color: '#b91c1c',
-                              background: '#fef2f2',
-                              border: '1px solid #fecaca',
-                              padding: '1px 6px',
-                              borderRadius: 4,
-                            }}
-                            title="Latest daily count differs from ledger by more than 2"
-                          >
-                            ⚠ daily {sft.dailyCount}
-                          </span>
-                        )}
-                        {sft.dailys.length > 0 && (
-                          <span style={{fontSize: 11, color: '#6b7280'}}>📋 {sft.dailys.length} reports</span>
-                        )}
-
-                        <div style={{marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center'}}>
-                          {sb.status === 'active' ? (
-                            <button
-                              onClick={() => archiveSubBatch(g.id, sb.id)}
-                              style={{
-                                fontSize: 11,
-                                padding: '2px 8px',
-                                borderRadius: 5,
-                                border: '1px solid #d1d5db',
-                                color: '#6b7280',
-                                background: 'white',
-                                cursor: 'pointer',
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Mark Processed
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => unarchiveSubBatch(g.id, sb.id)}
-                              style={{
-                                fontSize: 11,
-                                padding: '2px 8px',
-                                borderRadius: 5,
-                                border: '1px solid #085041',
-                                color: '#085041',
-                                background: 'white',
-                                cursor: 'pointer',
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Reactivate
-                            </button>
                           )}
-                          <button
-                            onClick={() => {
-                              clearTimeout(subAutoSaveTimer.current);
-                              setShowSubForm(g.id);
-                              setEditSubId(sb.id);
-                              setSubForm({
-                                name: sb.name,
-                                giltCount: sb.giltCount || 0,
-                                boarCount: sb.boarCount || 0,
-                                originalPigCount: sb.originalPigCount || 0,
-                                notes: sb.notes || '',
-                              });
-                            }}
+                          {sft.adjustedFeed > 0 && (
+                            <span style={{fontSize: 11, color: '#92400e', fontWeight: 600}}>
+                              🌾 {Math.round(sft.adjustedFeed).toLocaleString()} lbs feed
+                            </span>
+                          )}
+                          {(() => {
+                            const finishers = Math.max(0, sft.started - sft.transferCount - sft.mortality);
+                            return sft.adjustedFeed > 0 && finishers > 0 ? (
+                              <span
+                                style={{fontSize: 11, color: '#78350f'}}
+                                title={`adjusted feed ÷ ${finishers} (started ${sft.started}${sft.transferCount ? ` − ${sft.transferCount} transferred` : ''}${sft.mortality ? ` − ${sft.mortality} mortality` : ''})`}
+                              >
+                                ({Math.round(sft.adjustedFeed / finishers)} lbs/pig)
+                              </span>
+                            ) : null;
+                          })()}
+                          {sft.transferFeedCredit > 0 && (
+                            <span
+                              style={{fontSize: 10, color: '#6b7280'}}
+                              title={`raw ${Math.round(sft.rawFeed).toLocaleString()} − ${Math.round(sft.transferFeedCredit).toLocaleString()} credited to ${sft.transferCount} transferred`}
+                            >
+                              (−{Math.round(sft.transferFeedCredit).toLocaleString()} → breeding)
+                            </span>
+                          )}
+                          <span style={{fontSize: 11, color: '#111827'}}>🐷 {sft.currentCount} current</span>
+                          {dailyVsLedger && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: '#b91c1c',
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                              }}
+                              title="Latest daily count differs from ledger by more than 2"
+                            >
+                              ⚠ daily {sft.dailyCount}
+                            </span>
+                          )}
+                          {sft.dailys.length > 0 && (
+                            <span style={{fontSize: 11, color: '#6b7280'}}>📋 {sft.dailys.length} reports</span>
+                          )}
+
+                          <div style={{marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center'}}>
+                            {sb.status === 'active' ? (
+                              <button
+                                onClick={() => archiveSubBatch(g.id, sb.id)}
+                                style={{
+                                  fontSize: 11,
+                                  padding: '2px 8px',
+                                  borderRadius: 5,
+                                  border: '1px solid #d1d5db',
+                                  color: '#6b7280',
+                                  background: 'white',
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Mark Processed
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => unarchiveSubBatch(g.id, sb.id)}
+                                style={{
+                                  fontSize: 11,
+                                  padding: '2px 8px',
+                                  borderRadius: 5,
+                                  border: '1px solid #085041',
+                                  color: '#085041',
+                                  background: 'white',
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Reactivate
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                clearTimeout(subAutoSaveTimer.current);
+                                setShowSubForm(g.id);
+                                setEditSubId(sb.id);
+                                setSubForm({
+                                  name: sb.name,
+                                  giltCount: sb.giltCount || 0,
+                                  boarCount: sb.boarCount || 0,
+                                  originalPigCount: sb.originalPigCount || 0,
+                                  notes: sb.notes || '',
+                                });
+                              }}
+                              style={{
+                                fontSize: 11,
+                                color: '#1d4ed8',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Rename
+                            </button>
+                          </div>
+                        </div>
+                        {/* Planned trips for this sub (commit 4a, read-only).
+                        Compact band beneath the sub row. Cards show date,
+                        count, projected weight range, ready badge, and
+                        warnings. Edit controls land in commit 4b. */}
+                        {sb.status !== 'processed' && (
+                          <div
+                            data-planned-trips-sub={sb.id}
                             style={{
-                              fontSize: 11,
-                              color: '#1d4ed8',
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
+                              margin: '0 0 8px 0',
+                              padding: '6px 10px',
+                              borderRadius: 7,
+                              border: '1px dashed #d1d5db',
+                              background: '#fafafa',
                             }}
                           >
-                            Rename
-                          </button>
-                        </div>
-                      </div>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                fontWeight: 600,
+                                marginBottom: 6,
+                              }}
+                            >
+                              Planned trips (forecast)
+                            </div>
+                            {isMixedSex && (
+                              <div style={{fontSize: 11, color: '#92400e', fontStyle: 'italic'}}>
+                                Mixed sex sub: split into separate gilts/boars subgroups before planning trips.
+                              </div>
+                            )}
+                            {!isMixedSex && !g.cycleId && (
+                              <div style={{fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>
+                                Link a breeding cycle to see planned trips.
+                              </div>
+                            )}
+                            {!isMixedSex && g.cycleId && effectiveAdgLbsPerDay == null && (
+                              <div style={{fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>
+                                Set Global ADG above to see planned trips.
+                              </div>
+                            )}
+                            {!isMixedSex &&
+                              g.cycleId &&
+                              effectiveAdgLbsPerDay != null &&
+                              plannedProjected.length === 0 && (
+                                <div style={{fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>
+                                  Projection unavailable — cycle age range not yet usable.
+                                </div>
+                              )}
+                            {!isMixedSex &&
+                              g.cycleId &&
+                              effectiveAdgLbsPerDay != null &&
+                              plannedProjected.length > 0 && (
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                                    gap: 6,
+                                  }}
+                                >
+                                  {plannedProjected.map((t) => {
+                                    const projRange =
+                                      t.projectedMinLbs != null && t.projectedMaxLbs != null
+                                        ? `${Math.round(t.projectedMinLbs)} – ${Math.round(t.projectedMaxLbs)} lb`
+                                        : '—';
+                                    const projAvg =
+                                      t.projectedAvgLbs != null ? `~${Math.round(t.projectedAvgLbs)} lb avg` : '';
+                                    return (
+                                      <div
+                                        key={t.id}
+                                        data-planned-trip-id={t.id}
+                                        data-planned-trip-sex={t.sex}
+                                        style={{
+                                          background: 'white',
+                                          border: '1px solid #e5e7eb',
+                                          borderRadius: 6,
+                                          padding: '6px 10px',
+                                          fontSize: 11,
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          gap: 2,
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                          }}
+                                        >
+                                          <span style={{fontWeight: 700, color: '#111827'}}>{fmt(t.date)}</span>
+                                          <span style={{color: '#1e40af', fontWeight: 600}}>
+                                            {t.plannedCount} {t.sex === 'gilt' ? 'gilt' : 'boar'}
+                                            {t.plannedCount === 1 ? '' : 's'}
+                                          </span>
+                                        </div>
+                                        <div style={{color: '#374151'}}>{projRange}</div>
+                                        {projAvg && <div style={{color: '#6b7280'}}>{projAvg}</div>}
+                                        <div style={{display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2}}>
+                                          {t.ready && (
+                                            <span
+                                              style={{
+                                                fontSize: 9,
+                                                fontWeight: 700,
+                                                padding: '1px 6px',
+                                                borderRadius: 8,
+                                                background: '#d1fae5',
+                                                color: '#065f46',
+                                                textTransform: 'uppercase',
+                                              }}
+                                            >
+                                              Ready
+                                            </span>
+                                          )}
+                                          {t.warnings.includes('undersized') && (
+                                            <span
+                                              style={{
+                                                fontSize: 9,
+                                                fontWeight: 700,
+                                                padding: '1px 6px',
+                                                borderRadius: 8,
+                                                background: '#fef3c7',
+                                                color: '#92400e',
+                                                textTransform: 'uppercase',
+                                              }}
+                                            >
+                                              Under {PLANNED_TRIP_MIN_SIZE}
+                                            </span>
+                                          )}
+                                          {t.warnings.includes('overweight') && (
+                                            <span
+                                              style={{
+                                                fontSize: 9,
+                                                fontWeight: 700,
+                                                padding: '1px 6px',
+                                                borderRadius: 8,
+                                                background: '#fee2e2',
+                                                color: '#991b1b',
+                                                textTransform: 'uppercase',
+                                              }}
+                                            >
+                                              Over {PLANNED_TRIP_OVER_WEIGHT_WARN_LBS}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                          </div>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </div>
