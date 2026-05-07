@@ -41,6 +41,12 @@ const TEST_OWNED_TABLES = [
   'equipment_maintenance_events',
   'equipment_fuelings',
   'fuel_supplies',
+  // Mig 048 equipment materials sidecar tables — clears FK to materials,
+  // both FK to equipment with CASCADE so child-first ordering is mostly
+  // for readability. Truncating both wipes admin-edited materials AND any
+  // operator-applied clears between specs.
+  'equipment_material_clears',
+  'equipment_service_materials',
   // Parents.
   'cattle',
   'sheep',
