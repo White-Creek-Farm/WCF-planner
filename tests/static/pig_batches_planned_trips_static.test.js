@@ -168,6 +168,37 @@ describe('Commit 4b — date edit + count move handler hard gates', () => {
   });
 });
 
+describe('Commit 5 — Add Batch breeding-cycle filter', () => {
+  // Filter shape: cycles already linked to OTHER feederGroups are hidden.
+  // In Add mode (no editFeederId), any link hides. In Edit mode, only
+  // links from OTHER batches hide; the self batch's own cycle stays
+  // visible.
+  it('breedingCycles is filtered before being mapped into <option> rows', () => {
+    expect(viewSrc).toMatch(/breedingCycles\s*\.filter\(/);
+  });
+
+  it('Add mode hides any cycle linked by any feederGroup', () => {
+    expect(viewSrc).toMatch(/!editFeederId/);
+    expect(viewSrc).toMatch(/feederGroups[\s\S]*?\.some\(\s*\(fg\)\s*=>\s*fg\.cycleId\s*===\s*c\.id\s*\)/);
+  });
+
+  it('Edit mode keeps self-batch cycle visible by excluding self from the link check', () => {
+    expect(viewSrc).toMatch(/fg\.id !== editFeederId/);
+  });
+
+  it('renders the empty-state hint only in Add mode when no available cycles remain', () => {
+    expect(viewSrc).toMatch(/data-feeder-cycle-empty-hint/);
+    // Whitespace/newlines tolerated so Prettier wrap doesn't false-fail.
+    expect(viewSrc).toMatch(
+      /All breeding cycles are already linked to a pig batch\.\s+Add a new breeding cycle in the\s+Breeding tab before creating another batch\./,
+    );
+  });
+
+  it('the filtered <select> exposes data-feeder-cycle-select for tests', () => {
+    expect(viewSrc).toMatch(/data-feeder-cycle-select/);
+  });
+});
+
 describe('Commit 4a — calcAgeRange numeric bounds extension', () => {
   it('calcAgeRange returns minDays/maxDays alongside text', () => {
     const libSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pig.js'), 'utf8');

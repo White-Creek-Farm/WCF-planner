@@ -1418,18 +1418,50 @@ export default function PigBatchesView({
                     <label style={S.label}>
                       Linked breeding cycle <span style={{color: '#dc2626'}}>*</span>
                     </label>
-                    <select value={feederForm.cycleId} onChange={(e) => updFeeder('cycleId', e.target.value)}>
+                    <select
+                      value={feederForm.cycleId}
+                      onChange={(e) => updFeeder('cycleId', e.target.value)}
+                      data-feeder-cycle-select
+                    >
                       <option value="">{'\u2014 Select \u2014'}</option>
-                      {breedingCycles.map((c) => {
-                        const tl = calcBreedingTimeline(c.exposureStart);
-                        return (
-                          <option key={c.id} value={c.id}>
-                            {cycleLabel(c, cycleSeqMap)} —{' '}
-                            {tl ? fmtS(tl.farrowingStart) + ' to ' + fmtS(tl.farrowingEnd) : fmtS(c.exposureStart)}
-                          </option>
-                        );
-                      })}
+                      {breedingCycles
+                        .filter((c) => {
+                          // Commit 5 — hide cycles already linked to ANOTHER
+                          // pig batch. Edit mode keeps the self-batch's
+                          // cycle visible by excluding self from the link
+                          // set. Empty cycleId entries are ignored.
+                          if (!editFeederId) {
+                            // Add mode: any other batch linking this cycle hides it.
+                            return !(feederGroups || []).some((fg) => fg.cycleId === c.id);
+                          }
+                          // Edit mode: only exclude OTHER batches.
+                          return !(feederGroups || []).some((fg) => fg.id !== editFeederId && fg.cycleId === c.id);
+                        })
+                        .map((c) => {
+                          const tl = calcBreedingTimeline(c.exposureStart);
+                          return (
+                            <option key={c.id} value={c.id}>
+                              {cycleLabel(c, cycleSeqMap)} —{' '}
+                              {tl ? fmtS(tl.farrowingStart) + ' to ' + fmtS(tl.farrowingEnd) : fmtS(c.exposureStart)}
+                            </option>
+                          );
+                        })}
                     </select>
+                    {/* Commit 5 empty-state hint: shown only in Add mode
+                      when every breeding cycle is already linked. Edit
+                      mode never hits this branch because the self batch's
+                      own cycle stays visible. */}
+                    {!editFeederId &&
+                      breedingCycles.filter((c) => !(feederGroups || []).some((fg) => fg.cycleId === c.id)).length ===
+                        0 && (
+                        <div
+                          data-feeder-cycle-empty-hint
+                          style={{fontSize: 11, color: '#92400e', fontStyle: 'italic', marginTop: 4}}
+                        >
+                          All breeding cycles are already linked to a pig batch. Add a new breeding cycle in the
+                          Breeding tab before creating another batch.
+                        </div>
+                      )}
                   </div>
                   <div>
                     <label style={S.label}>
