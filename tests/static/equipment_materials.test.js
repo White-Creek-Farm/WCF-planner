@@ -585,9 +585,18 @@ describe('Admin editor wiring — writes to materials table, not service_interva
 
   it('EquipmentWebformsAdmin reloads equipment in-place after the initial load', () => {
     expect(adminSrc).toMatch(/const didInitialLoadRef = React\.useRef\(false\)/);
-    expect(adminSrc).toMatch(/if \(!didInitialLoadRef\.current\) setLoading\(true\)/);
+    expect(adminSrc).toMatch(/const isInitialLoad = !didInitialLoadRef\.current/);
+    expect(adminSrc).toMatch(/if \(isInitialLoad\) \{\s*setLoading\(true\);/);
     expect(adminSrc).toMatch(/didInitialLoadRef\.current = true/);
     expect(adminSrc).not.toMatch(/const loadAll = React\.useCallback\(async \(\) => \{\s*setLoading\(true\)/);
+  });
+
+  it('EquipmentWebformsAdmin preserves modal scroll during background reloads', () => {
+    expect(adminSrc).toMatch(/const modalScrollRef = React\.useRef\(null\)/);
+    expect(adminSrc).toMatch(/const pendingReloadScrollTopRef = React\.useRef\(null\)/);
+    expect(adminSrc).toMatch(/pendingReloadScrollTopRef\.current = modalScrollRef\.current\.scrollTop/);
+    expect(adminSrc).toMatch(/React\.useLayoutEffect\(\(\) => \{[\s\S]*modalScrollRef\.current\.scrollTop = top/);
+    expect(adminSrc).toMatch(/ref=\{modalScrollRef\}/);
   });
 });
 

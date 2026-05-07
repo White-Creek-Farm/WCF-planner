@@ -56,9 +56,16 @@ export default function EquipmentWebformsAdmin() {
   const [loading, setLoading] = React.useState(true);
   const [missingSchema, setMissingSchema] = React.useState(false);
   const didInitialLoadRef = React.useRef(false);
+  const modalScrollRef = React.useRef(null);
+  const pendingReloadScrollTopRef = React.useRef(null);
 
   const loadAll = React.useCallback(async () => {
-    if (!didInitialLoadRef.current) setLoading(true);
+    const isInitialLoad = !didInitialLoadRef.current;
+    if (isInitialLoad) {
+      setLoading(true);
+    } else if (modalScrollRef.current) {
+      pendingReloadScrollTopRef.current = modalScrollRef.current.scrollTop;
+    }
     const {data, error} = await sb.from('equipment').select('*').order('category').order('name');
     if (error && /does not exist|relation/i.test(error.message || '')) {
       setMissingSchema(true);
@@ -72,6 +79,13 @@ export default function EquipmentWebformsAdmin() {
   React.useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  React.useLayoutEffect(() => {
+    if (pendingReloadScrollTopRef.current == null || !modalScrollRef.current) return;
+    const top = pendingReloadScrollTopRef.current;
+    pendingReloadScrollTopRef.current = null;
+    modalScrollRef.current.scrollTop = top;
+  }, [equipment]);
 
   const selected = equipment.find((e) => e.id === selectedId) || null;
 
@@ -229,6 +243,7 @@ export default function EquipmentWebformsAdmin() {
 
       {selected && (
         <div
+          ref={modalScrollRef}
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedId(null);
           }}
