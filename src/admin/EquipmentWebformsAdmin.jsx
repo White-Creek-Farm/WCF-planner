@@ -15,6 +15,7 @@ import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {loadRoster, activeNames as activeNamesFromRoster} from '../lib/teamMembers.js';
 import {EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
+import EquipmentMaterialsEditor from './EquipmentMaterialsEditor.jsx';
 
 const inpS = {
   fontSize: 12,
@@ -319,6 +320,7 @@ export default function EquipmentWebformsAdmin() {
               {Array.isArray(selected.attachment_checklists) && selected.attachment_checklists.length > 0 && (
                 <AttachmentChecklistsEditor equipment={selected} onReload={loadAll} />
               )}
+              <EquipmentMaterialsEditor equipment={selected} onReload={loadAll} />
             </div>
           </div>
         </div>

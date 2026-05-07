@@ -17,6 +17,7 @@ import UsersModal from '../auth/UsersModal.jsx';
 import EquipmentFleetView from './EquipmentFleetView.jsx';
 import EquipmentFuelLogView from './EquipmentFuelLogView.jsx';
 import EquipmentDetail from './EquipmentDetail.jsx';
+import EquipmentMaterialListView from './EquipmentMaterialListView.jsx';
 
 export default function EquipmentHome({
   sb,
@@ -71,6 +72,7 @@ export default function EquipmentHome({
   let subView = 'fleet';
   let detailSlug = null;
   if (path === '/fleet/fuel-log') subView = 'fuel-log';
+  else if (path === '/fleet/materials') subView = 'materials';
   else if (path.startsWith('/fleet/')) {
     detailSlug = path.slice('/fleet/'.length);
     subView = 'detail';
@@ -126,6 +128,9 @@ export default function EquipmentHome({
             </button>
             <button onClick={() => navigate('/fleet/fuel-log')} style={subNavBtn(subView === 'fuel-log')}>
               ⛽ Fuel Log
+            </button>
+            <button onClick={() => navigate('/fleet/materials')} style={subNavBtn(subView === 'materials')}>
+              📋 Materials
             </button>
           </>
         )}
@@ -212,6 +217,7 @@ export default function EquipmentHome({
         {!loading && !missingSchema && subView === 'fuel-log' && !isEquipmentTech && (
           <EquipmentFuelLogView equipment={equipment} fuelings={fuelings} fmt={fmt} />
         )}
+        {!loading && !missingSchema && subView === 'materials' && !isEquipmentTech && <EquipmentMaterialListView />}
         {!loading && !missingSchema && subView === 'detail' && activeEq && (
           <EquipmentDetail
             sb={sb}

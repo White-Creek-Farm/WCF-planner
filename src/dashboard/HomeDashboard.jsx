@@ -16,6 +16,7 @@ import {fmt, fmtS, toISO, addDays, todayISO} from '../lib/dateUtils.js';
 import {calcPoultryStatus, calcBroilerStatsFromDailys, calcTimeline} from '../lib/broiler.js';
 import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, calcCycleStatus} from '../lib/pig.js';
 import {computeIntervalStatus, daysSince, latestSaneReading, WARRANTY_WINDOW_DAYS} from '../lib/equipment.js';
+import {buildMaterialChecklist} from '../lib/equipmentMaterials.js';
 import EquipmentCategoryIcon from '../components/EquipmentCategoryIcon.jsx';
 import {renderCattleIcon, renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
@@ -50,13 +51,22 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
 
   // Equipment data for missed-fueling + EQUIPMENT ATTENTION section. Loaded
   // defensively so the home page still renders if migration 016 isn't in.
+  // attachment_checklists is included so the mig-048 Materials card can
+  // resolve attachment-based service groups without a second query.
   const [equipment, setEquipment] = React.useState([]);
   const [equipmentCompletions, setEquipmentCompletions] = React.useState({}); // eq.id → [completion {...with reading_at_completion}]
   const [equipmentFuelings, setEquipmentFuelings] = React.useState({}); // eq.id → [{date, team_member, hours_reading, km_reading, every_fillup_check}] sorted reading desc
+  // mig 048 — Materials Needed dashboard card. Loaded defensively so the
+  // home page still renders if mig 048 isn't applied yet (the missingTables
+  // branch falls through to an empty checklist below).
+  const [materials, setMaterials] = React.useState([]);
+  const [materialClears, setMaterialClears] = React.useState([]);
+  const [materialsTablesMissing, setMaterialsTablesMissing] = React.useState(false);
+  const [materialsTick, setMaterialsTick] = React.useState(0);
   React.useEffect(() => {
     sb.from('equipment')
       .select(
-        'id,slug,name,status,tracking_unit,current_hours,current_km,warranty_expiration,service_intervals,every_fillup_items',
+        'id,slug,name,status,tracking_unit,current_hours,current_km,warranty_expiration,service_intervals,attachment_checklists,every_fillup_items',
       )
       .eq('status', 'active')
       .then(({data, error}) => {
@@ -106,6 +116,44 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         setEquipmentFuelings(fuelM);
       });
   }, []);
+
+  // mig 048 — Materials + clears for the home dashboard card. Same data the
+  // /fleet/materials view loads, just rendered compactly here. Bumping
+  // materialsTick triggers a refetch (used after Clear so the row vanishes
+  // from the home view immediately).
+  React.useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      sb.from('equipment_service_materials').select('*').eq('active', true),
+      sb.from('equipment_material_clears').select('*'),
+    ]).then(([matRes, clrRes]) => {
+      if (cancelled) return;
+      if (matRes.error && /does not exist|relation/i.test(matRes.error.message || '')) {
+        setMaterialsTablesMissing(true);
+        return;
+      }
+      // Clears load failure is a defensive guard: if we can't read the
+      // clears table (RLS denial, transient error, etc.) we MUST NOT fall
+      // back to an empty clears list, because that would resurface
+      // previously-cleared materials on the home card. Treat it as if the
+      // tables aren't ready and hide the card entirely until a refresh.
+      if (clrRes.error) {
+        if (/does not exist|relation/i.test(clrRes.error.message || '')) {
+          setMaterialsTablesMissing(true);
+        } else {
+          console.error('equipment_material_clears load:', clrRes.error);
+          setMaterials([]);
+          setMaterialClears([]);
+        }
+        return;
+      }
+      setMaterials(matRes.data || []);
+      setMaterialClears(clrRes.data || []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [materialsTick]);
 
   // Auto-status counts for poultry
   const activeBatches = batches.filter((b) => calcPoultryStatus(b) === 'active');
@@ -451,6 +499,48 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
     if (ko !== 0) return ko;
     return a.label.localeCompare(b.label);
   });
+
+  // mig 048 — Materials Needed dashboard card.
+  // Same data /fleet/materials renders, just inline here. The fuelingsBy
+  // map gets fed into buildMaterialChecklist alongside the equipment list +
+  // materials + clears so the helper can derive next_due via the existing
+  // computeIntervalStatus math. Per Codex (lane amendment) Clear is one-
+  // material-at-a-time only on the home card too — no bulk clear.
+  const materialsFuelingsBy = React.useMemo(() => {
+    const m = new Map();
+    for (const eqId of Object.keys(equipmentFuelings || {})) {
+      m.set(eqId, equipmentFuelings[eqId]);
+    }
+    return m;
+  }, [equipmentFuelings]);
+  const materialsChecklist = React.useMemo(() => {
+    if (materialsTablesMissing) return [];
+    if (!Array.isArray(equipment) || equipment.length === 0) return [];
+    return buildMaterialChecklist({
+      equipment,
+      fuelingsBy: materialsFuelingsBy,
+      materials,
+      clears: materialClears,
+    });
+  }, [equipment, materialsFuelingsBy, materials, materialClears, materialsTablesMissing]);
+  async function clearMaterialOne(material, group) {
+    const id = `emc-h-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const row = {
+      id,
+      material_id: material.id,
+      equipment_id: material.equipment_id,
+      due_bucket_value: group.due_bucket_value,
+      due_bucket_unit: group.due_bucket_unit,
+      cleared_at: new Date().toISOString(),
+    };
+    const {error} = await sb.from('equipment_material_clears').insert(row);
+    // Treat unique-key collision as a no-op (already cleared in this bucket).
+    if (error && !/duplicate key|23505/i.test(error.message || '')) {
+      console.error('clearMaterialOne:', error);
+      return;
+    }
+    setMaterialsTick((n) => n + 1);
+  }
 
   const activeBroilerBatches2 = batches.filter((b) => calcPoultryStatus(b) === 'active');
   const activePigBatches2 = feederGroups.filter((g) => g.status === 'active');
@@ -900,6 +990,141 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Materials Needed (mig 048) ── compact rolling-checklist on the
+              admin home. Cleared rows vanish from the active list (Codex
+              lane amendment 2). One-material-at-a-time clear only — no bulk
+              Clear All. Full detail at /fleet/materials. */}
+        {materialsChecklist.length > 0 && (
+          <div data-home-materials-card="1">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 10,
+                marginBottom: 8,
+              }}
+            >
+              <div style={{fontSize: 13, fontWeight: 600, color: '#92400e', letterSpacing: 0.3}}>
+                🧰 MATERIALS NEEDED
+              </div>
+              <button
+                onClick={() => navigate('/fleet/materials')}
+                style={{
+                  fontSize: 11,
+                  color: '#1d4ed8',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '0 4px',
+                  fontFamily: 'inherit',
+                  marginLeft: 'auto',
+                }}
+                data-home-materials-link="1"
+              >
+                View full list →
+              </button>
+            </div>
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid #fde68a',
+                borderRadius: 10,
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              {materialsChecklist.map((row) => (
+                <div key={row.equipment.id} data-home-material-equipment={row.equipment.slug}>
+                  <div style={{fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 4}}>
+                    {row.equipment.name}
+                  </div>
+                  {row.groups.map((g) => {
+                    const labelUnit = g.interval_unit === 'km' ? 'km' : g.interval_unit === 'use' ? '' : 'h';
+                    const groupLabel =
+                      g.interval_unit === 'use'
+                        ? g.attachment_name
+                          ? `${g.attachment_name} — Every Use`
+                          : 'Every Use'
+                        : g.attachment_name
+                          ? `${g.attachment_name} — ${g.interval_value}${labelUnit}`
+                          : `Every ${g.interval_value}${labelUnit}`;
+                    const isOverdue = g.status?.overdue;
+                    const dueLabel =
+                      g.interval_unit === 'use'
+                        ? 'always'
+                        : isOverdue
+                          ? 'OVERDUE'
+                          : `due in ${g.status?.until_due ?? '—'}${labelUnit}`;
+                    return (
+                      <div
+                        key={g.groupKey}
+                        style={{
+                          marginBottom: 6,
+                          paddingLeft: 8,
+                          borderLeft: '2px solid ' + (isOverdue ? '#fecaca' : '#fde68a'),
+                        }}
+                      >
+                        <div style={{display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2}}>
+                          <span style={{fontSize: 11, fontWeight: 700, color: '#374151'}}>{groupLabel}</span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: isOverdue ? 700 : 500,
+                              color: isOverdue ? '#b91c1c' : '#6b7280',
+                            }}
+                          >
+                            {dueLabel}
+                          </span>
+                        </div>
+                        {g.materials.map((m) => (
+                          <div
+                            key={m.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '2px 0',
+                              fontSize: 12,
+                            }}
+                            data-home-material-row={m.id}
+                          >
+                            <span style={{flex: 1, color: '#111827'}}>{m.material_name}</span>
+                            {m.qty && (
+                              <span style={{fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap'}}>
+                                {m.qty}
+                                {m.unit ? ` ${m.unit}` : ''}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => clearMaterialOne(m, g)}
+                              style={{
+                                fontSize: 11,
+                                color: '#6b7280',
+                                background: 'white',
+                                border: '1px solid #d1d5db',
+                                borderRadius: 6,
+                                padding: '2px 10px',
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                                flexShrink: 0,
+                              }}
+                              data-home-material-clear={m.id}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         )}
