@@ -11,27 +11,34 @@ import {describe, it, expect} from 'vitest';
 // archived batches stop ticking forward. Mortality/transfer-only emptying
 // keeps using today (no trip date to pin to).
 //
-// calcAgeRange is a closure inside PigBatchesView. Locking via source-shape
-// assertions: the function must accept asOfDate, and the batch-card render
-// path must compute latestTripDate + pass it when currentPigCount === 0.
+// calcAgeRange now lives as a pure helper in src/lib/pig.js (extracted
+// during the per-view internalization lane). PigBatchesView keeps a thin
+// wrapper closure that supplies the React-context-bound breedingCycles +
+// farrowingRecs arrays. Locks: lib helper accepts asOfDate and uses the
+// ref variable for day-delta math; the view wrapper preserves the
+// (cycleId, asOfDate) signature; the batch-card render path computes
+// latestTripDate and passes it when currentPigCount === 0.
 // ============================================================================
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const src = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
+const libSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pig.js'), 'utf8');
 
 describe('PigBatchesView age freeze on processor-trip empty', () => {
-  it('calcAgeRange accepts an optional asOfDate parameter', () => {
+  it('PigBatchesView wrapper preserves the (cycleId, asOfDate) signature', () => {
     expect(src).toMatch(/function calcAgeRange\(cycleId,\s*asOfDate\)/);
   });
 
-  it('calcAgeRange uses asOfDate as the reference instead of today when provided', () => {
+  it('lib calcAgeRange uses asOfDate as the reference instead of today when provided', () => {
+    // Library helper signature: (cycleId, asOfDate, breedingCycles, farrowingRecs)
+    expect(libSrc).toMatch(/export function calcAgeRange\(cycleId,\s*asOfDate,\s*breedingCycles,\s*farrowingRecs\)/);
     // Reference variable computed from asOfDate (with NaN/Date guard)
-    expect(src).toMatch(/asOfDate\s+instanceof\s+Date/);
+    expect(libSrc).toMatch(/asOfDate\s+instanceof\s+Date/);
     // Day-delta math uses the ref variable, not `today`
-    expect(src).toMatch(/oldestDays\s*=\s*Math\.round\(\(ref\s*-\s*firstDate\)/);
-    expect(src).toMatch(/youngestDays\s*=\s*Math\.round\(\(ref\s*-\s*lastDate\)/);
+    expect(libSrc).toMatch(/oldestDays\s*=\s*Math\.round\(\(ref\s*-\s*firstDate\)/);
+    expect(libSrc).toMatch(/youngestDays\s*=\s*Math\.round\(\(ref\s*-\s*lastDate\)/);
   });
 
   it('batch card derives latestTripDate from trips before computing ageRange', () => {

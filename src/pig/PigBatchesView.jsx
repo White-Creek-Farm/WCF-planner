@@ -8,7 +8,7 @@
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
-import {fmt, fmtS, todayISO, addDays, toISO} from '../lib/dateUtils.js';
+import {fmt, fmtS, todayISO, toISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {
   calcBreedingTimeline,
@@ -24,6 +24,7 @@ import {
   pigMortalityForSub,
   pigMortalityForBatch,
   computePigBatchFCR,
+  calcAgeRange as libCalcAgeRange,
 } from '../lib/pig.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
@@ -375,69 +376,11 @@ export default function PigBatchesView({
     });
   }
 
-  function daysToMWD(days) {
-    // Ronnie prefers months+weeks on the batch tile. Days dropped.
-    if (days <= 0) return null;
-    const m = Math.floor(days / 30);
-    const w = Math.floor((days % 30) / 7);
-    return `${m}m ${w}w`;
-  }
-
-  // Get farrowing records that belong to a given breeding cycle (match group + within farrowing window)
-  function cycleRecords(cycle) {
-    if (!cycle) return [];
-    const tl = calcBreedingTimeline(cycle.exposureStart);
-    if (!tl) return [];
-    return farrowingRecs.filter((r) => {
-      if (r.group !== cycle.group) return false;
-      if (!r.farrowingDate) return false;
-      // Must fall within the theoretical farrowing window (with a 2-week buffer for edge cases)
-      const rd = new Date(r.farrowingDate + 'T12:00:00');
-      const wStart = new Date(tl.farrowingStart + 'T12:00:00');
-      const wEnd = addDays(tl.farrowingEnd, 14); // buffer
-      return rd >= wStart && rd <= wEnd;
-    });
-  }
-
+  // Thin closure over the lib helper that supplies the React-context-bound
+  // breedingCycles + farrowingRecs arrays. Keeping the wrapper preserves the
+  // existing call-site signature (cycleId, asOfDate?) without ripple changes.
   function calcAgeRange(cycleId, asOfDate) {
-    const cycle = breedingCycles.find((c) => c.id === cycleId);
-    if (!cycle) return {text: '—', hasActual: false, count: 0, total: 0};
-    const tl = calcBreedingTimeline(cycle.exposureStart);
-    if (!tl) return {text: '—', hasActual: false, count: 0, total: 0};
-
-    const recs = cycleRecords(cycle);
-    // Caller may pin the reference point (e.g. latest processor-trip date
-    // once a batch's current count hits 0) so the displayed age stops
-    // advancing. Default = today.
-    const ref = asOfDate instanceof Date && !isNaN(asOfDate.getTime()) ? asOfDate : new Date();
-
-    let firstDate,
-      lastDate,
-      hasActual = false;
-
-    if (recs.length > 0) {
-      // Use actual farrowing dates
-      const dates = recs.map((r) => new Date(r.farrowingDate + 'T12:00:00')).sort((a, b) => a - b);
-      firstDate = dates[0];
-      lastDate = dates[dates.length - 1];
-      hasActual = true;
-    } else {
-      // Fall back to theoretical window
-      firstDate = new Date(tl.farrowingStart + 'T12:00:00');
-      lastDate = new Date(tl.farrowingEnd + 'T12:00:00');
-    }
-
-    const oldestDays = Math.round((ref - firstDate) / 86400000);
-    const youngestDays = Math.round((ref - lastDate) / 86400000);
-
-    if (oldestDays <= 0)
-      return {text: 'Not yet born', hasActual, count: recs.length, total: parseInt(cycle.sowCount) || 0};
-    const oldest = daysToMWD(oldestDays);
-    const text =
-      youngestDays <= 0
-        ? `Up to ${oldest}${!hasActual ? ' (est.)' : ''}`
-        : `${daysToMWD(youngestDays)} – ${oldest}${!hasActual ? ' (est.)' : ''}`;
-    return {text, hasActual, count: recs.length, total: parseInt(cycle.sowCount) || 0};
+    return libCalcAgeRange(cycleId, asOfDate, breedingCycles, farrowingRecs);
   }
 
   // Trip helpers

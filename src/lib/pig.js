@@ -275,6 +275,84 @@ export function pigMortalityForBatch(group) {
 //
 // Returns {changed, groups, warnings} so callers can surface unresolved
 // mismatches to the user.
+// ── AGE / TIMELINE HELPERS (extracted from PigBatchesView for reuse) ───────
+// Pure helpers — pass breedingCycles / farrowingRecs in rather than reading
+// React context. Used by PigBatchesView and the pig-forecast helpers.
+
+// Convert a positive day count into a "Xm Yw" label (months + weeks, days
+// dropped per Ronnie's preference on batch tiles). Returns null for ≤ 0 days.
+export function daysToMWD(days) {
+  if (days <= 0) return null;
+  const m = Math.floor(days / 30);
+  const w = Math.floor((days % 30) / 7);
+  return `${m}m ${w}w`;
+}
+
+// Farrowing records that belong to a given breeding cycle: must match the
+// cycle's group AND fall within the theoretical farrowing window (with a
+// 14-day buffer for edge cases).
+export function cycleRecords(cycle, farrowingRecs) {
+  if (!cycle || !Array.isArray(farrowingRecs)) return [];
+  const tl = calcBreedingTimeline(cycle.exposureStart);
+  if (!tl) return [];
+  return farrowingRecs.filter((r) => {
+    if (r.group !== cycle.group) return false;
+    if (!r.farrowingDate) return false;
+    const rd = new Date(r.farrowingDate + 'T12:00:00');
+    const wStart = new Date(tl.farrowingStart + 'T12:00:00');
+    const wEnd = addDays(tl.farrowingEnd, 14);
+    return rd >= wStart && rd <= wEnd;
+  });
+}
+
+// Age range for the pigs in a breeding cycle as of a reference date.
+// Uses actual farrowing dates when present, falls back to the theoretical
+// farrowing window (marked "(est.)" in the rendered text). asOfDate may be
+// pinned by the caller (e.g. the latest processor-trip date once a batch's
+// current count hits 0) so the displayed age stops advancing.
+//
+// Returns {text, hasActual, count, total}:
+//   text       — display string (e.g. "5m 2w – 5m 5w" or "Up to 6m 0w (est.)")
+//   hasActual  — true when actual farrowing records were used
+//   count      — number of farrowing records found for this cycle
+//   total      — cycle.sowCount as integer (0 if missing)
+export function calcAgeRange(cycleId, asOfDate, breedingCycles, farrowingRecs) {
+  const cycles = Array.isArray(breedingCycles) ? breedingCycles : [];
+  const cycle = cycles.find((c) => c.id === cycleId);
+  if (!cycle) return {text: '—', hasActual: false, count: 0, total: 0};
+  const tl = calcBreedingTimeline(cycle.exposureStart);
+  if (!tl) return {text: '—', hasActual: false, count: 0, total: 0};
+
+  const recs = cycleRecords(cycle, farrowingRecs);
+  const ref = asOfDate instanceof Date && !isNaN(asOfDate.getTime()) ? asOfDate : new Date();
+
+  let firstDate, lastDate;
+  let hasActual = false;
+  if (recs.length > 0) {
+    const dates = recs.map((r) => new Date(r.farrowingDate + 'T12:00:00')).sort((a, b) => a - b);
+    firstDate = dates[0];
+    lastDate = dates[dates.length - 1];
+    hasActual = true;
+  } else {
+    firstDate = new Date(tl.farrowingStart + 'T12:00:00');
+    lastDate = new Date(tl.farrowingEnd + 'T12:00:00');
+  }
+
+  const oldestDays = Math.round((ref - firstDate) / 86400000);
+  const youngestDays = Math.round((ref - lastDate) / 86400000);
+  const total = parseInt(cycle.sowCount) || 0;
+
+  if (oldestDays <= 0) {
+    return {text: 'Not yet born', hasActual, count: recs.length, total};
+  }
+  const oldest = daysToMWD(oldestDays);
+  const text =
+    youngestDays <= 0
+      ? `Up to ${oldest}${!hasActual ? ' (est.)' : ''}`
+      : `${daysToMWD(youngestDays)} – ${oldest}${!hasActual ? ' (est.)' : ''}`;
+  return {text, hasActual, count: recs.length, total};
+}
+
 export function reconcileFeederGroupsFromBreeders(feederGroups) {
   let changed = false;
   const warnings = [];
