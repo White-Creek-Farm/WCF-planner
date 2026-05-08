@@ -33,6 +33,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 const routesJs = fs.readFileSync(path.join(ROOT, 'src/lib/routes.js'), 'utf8');
 const mainJsx = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
+const headerJsx = fs.readFileSync(path.join(ROOT, 'src/shared/Header.jsx'), 'utf8');
 const taskCenterView = fs.readFileSync(path.join(ROOT, 'src/tasks/TaskCenterView.jsx'), 'utf8');
 const myTasksTab = fs.readFileSync(path.join(ROOT, 'src/tasks/MyTasksTab.jsx'), 'utf8');
 const recurringTab = fs.readFileSync(path.join(ROOT, 'src/tasks/RecurringTab.jsx'), 'utf8');
@@ -182,5 +183,194 @@ describe('Tasks v2 T2 — read-only contract on T2 components and helper', () =>
     expect(myTasksTab).toMatch(/title="Task has at least one photo"/);
     // Negative lock: no "Photo" word inside the indicator span.
     expect(myTasksTab).not.toMatch(/📎\s+Photo/);
+  });
+});
+
+// ============================================================================
+// Tasks v2 T3 — Header Tasks button + own due/past-due badge.
+// ----------------------------------------------------------------------------
+// What this guards:
+//   1. HeaderBase imports the read-only count helper from tasksCenterApi
+//      and the Central-time helper from dateUtils. Reverting either to a
+//      mutation module or browser-local Date math would silently change
+//      the badge contract.
+//   2. The Tasks button has data-tasks-header-link="1" and navigates via
+//      setView('tasks'). Renaming the attribute breaks Playwright; pointing
+//      it elsewhere breaks the route guarantee.
+//   3. The badge has data-tasks-header-badge and renders ONLY when the
+//      count is > 0 (no empty pill). Removing the conditional would leak
+//      a zero-count pill into the dark bar.
+//   4. The Header useEffect deps include sb, callerProfileId, AND view —
+//      the view dep is the explicit Codex amendment so the badge catches
+//      up after legacy /my-tasks completions.
+//   5. Header soft-fails: any loader error sets count=0, never throws out
+//      of Header. A try/catch around the count call is the contract.
+//   6. main.jsx threads sb into the HeaderBase closure so the Header can
+//      query the DB without ad-hoc context plumbing.
+// ============================================================================
+
+describe('Tasks v2 T3 — Header Tasks button + own due/past-due badge', () => {
+  it('HeaderBase imports countMyOpenDueOrPastTasks from tasksCenterApi', () => {
+    expect(headerJsx).toMatch(
+      /import\s*\{\s*countMyOpenDueOrPastTasks\s*\}\s*from\s*['"]\.\.\/lib\/tasksCenterApi\.js['"]/,
+    );
+  });
+
+  it('HeaderBase imports todayCentralISO from dateUtils', () => {
+    expect(headerJsx).toMatch(/import\s*\{\s*todayCentralISO\s*\}\s*from\s*['"]\.\.\/lib\/dateUtils\.js['"]/);
+  });
+
+  it('HeaderBase does NOT import a mutation module (tasksAdminApi/tasksUserApi)', () => {
+    expect(headerJsx).not.toMatch(/from\s+['"][^'"]*tasksAdminApi[^'"]*['"]/);
+    expect(headerJsx).not.toMatch(/from\s+['"][^'"]*tasksUserApi[^'"]*['"]/);
+  });
+
+  it('HeaderBase signature accepts sb prop', () => {
+    expect(headerJsx).toMatch(/export default function Header\(\s*\{\s*sb\s*,/);
+  });
+
+  it('Header Tasks button has data-tasks-header-link and navigates to setView("tasks")', () => {
+    expect(headerJsx).toMatch(/data-tasks-header-link="1"/);
+    expect(headerJsx).toMatch(/data-tasks-header-link="1"[\s\S]*?onClick={[\s\S]*?setView\(\s*['"]tasks['"]\s*\)/);
+  });
+
+  it('Header badge has data-tasks-header-badge and renders only when count > 0', () => {
+    // Conditional render: the badge JSX sits under {myDueCount > 0 && (...)}.
+    expect(headerJsx).toMatch(/myDueCount\s*>\s*0\s*&&[\s\S]*?data-tasks-header-badge/);
+  });
+
+  it('Header useEffect deps include sb, callerProfileId, AND view (Codex T3 amendment)', () => {
+    // The dep array is on the useEffect that calls countMyOpenDueOrPastTasks.
+    expect(headerJsx).toMatch(
+      /countMyOpenDueOrPastTasks[\s\S]*?\}\s*,\s*\[\s*sb\s*,\s*callerProfileId\s*,\s*view\s*\]/,
+    );
+  });
+
+  it('Header soft-fails: count effect wraps the call in try/catch', () => {
+    // The refresh() inner function must wrap its loader call in try/catch
+    // so a transient DB error never throws out of Header rendering.
+    expect(headerJsx).toMatch(/try\s*\{[\s\S]*?countMyOpenDueOrPastTasks[\s\S]*?\}\s*catch/);
+  });
+
+  it('main.jsx Header closure factory threads sb into HeaderBase', () => {
+    // The factory at line ~3097 must include `sb,` in its prop bag so
+    // HeaderBase has access to the supabase client.
+    expect(mainJsx).toMatch(/React\.createElement\(HeaderBase,\s*\{\s*sb\s*,/);
+  });
+});
+
+// ============================================================================
+// Tasks v2 T4 — Completed + Recurring functional read-only contract.
+// ----------------------------------------------------------------------------
+// Both tabs must remain strictly read-only:
+//   - import only from tasksCenterApi (no admin/user modules);
+//   - never call any v2 mutation RPC (covered by the FORBIDDEN_RPC_NAMES
+//     loop above — both tabs are already in T2_FILES);
+//   - never write to any task_* table (covered by the write-chain check
+//     above);
+//   - never upload to storage (covered by the upload check above);
+//   - render no edit/delete affordance (asserted negatively below).
+//
+// In addition, the Completed tab uses Central-time formatting for
+// completed_at, and the Recurring tab uses the pure groupRecurringByTemplate
+// helper so the orphan grouping stays testable.
+// ============================================================================
+
+describe('Tasks v2 T4 — Completed tab read-only contract', () => {
+  it('CompletedTab imports loaders from tasksCenterApi only', () => {
+    expect(completedTab).toMatch(/from\s+['"]\.\.\/lib\/tasksCenterApi\.js['"]/);
+    expect(completedTab).not.toMatch(/from\s+['"][^'"]*tasksAdminApi[^'"]*['"]/);
+    expect(completedTab).not.toMatch(/from\s+['"][^'"]*tasksUserApi[^'"]*['"]/);
+  });
+
+  it('CompletedTab calls loadCompletedTaskInstances and loadEligibleProfilesById', () => {
+    expect(completedTab).toMatch(/loadCompletedTaskInstances/);
+    expect(completedTab).toMatch(/loadEligibleProfilesById/);
+  });
+
+  it('CompletedTab renders no edit/save/delete/complete buttons', () => {
+    // Negative locks: no button onClick that fires a write or mutation
+    // helper. We accept the tab toggle buttons (none in CompletedTab —
+    // it has no <button> at all in T4).
+    expect(completedTab).not.toMatch(/<button[\s\S]*?onClick/);
+  });
+
+  it('CompletedTab uses fmtCentralDateTime for completed_at (Central-time display lock)', () => {
+    expect(completedTab).toMatch(/fmtCentralDateTime/);
+    // Negative lock: no toLocaleString / toLocaleTimeString that would
+    // re-introduce browser-zone drift.
+    expect(completedTab).not.toMatch(/toLocaleString\(\)/);
+    expect(completedTab).not.toMatch(/toLocaleTimeString\(\)/);
+  });
+
+  it('CompletedTab does not read profiles directly', () => {
+    expect(completedTab).not.toMatch(/\.from\(\s*['"]profiles['"]\s*\)/);
+  });
+});
+
+describe('Tasks v2 T4 — Recurring tab read-only contract', () => {
+  it('RecurringTab imports loaders from tasksCenterApi only', () => {
+    expect(recurringTab).toMatch(/from\s+['"]\.\.\/lib\/tasksCenterApi\.js['"]/);
+    expect(recurringTab).not.toMatch(/from\s+['"][^'"]*tasksAdminApi[^'"]*['"]/);
+    expect(recurringTab).not.toMatch(/from\s+['"][^'"]*tasksUserApi[^'"]*['"]/);
+  });
+
+  it('RecurringTab calls loadRecurringTaskTemplates + loadOpenRecurringInstances + groupRecurringByTemplate', () => {
+    expect(recurringTab).toMatch(/loadRecurringTaskTemplates/);
+    expect(recurringTab).toMatch(/loadOpenRecurringInstances/);
+    expect(recurringTab).toMatch(/groupRecurringByTemplate/);
+  });
+
+  it('RecurringTab does not reference template mutation helpers', () => {
+    // upsertTaskTemplate / deleteTaskTemplate live in tasksAdminApi.js;
+    // they must not appear in any Recurring tab read path.
+    expect(recurringTab).not.toMatch(/upsertTaskTemplate/);
+    expect(recurringTab).not.toMatch(/deleteTaskTemplate/);
+  });
+
+  it('RecurringTab buttons are all collapse toggles, never edit/delete/save controls', () => {
+    // The only <button> elements are the per-template collapse toggles
+    // wired to the local toggle() helper. Lock that any button onClick
+    // calls toggle(...) so a future drift can't slip an edit handler in.
+    const buttonOnClicks = Array.from(recurringTab.matchAll(/<button\b[\s\S]*?onClick=\{[\s\S]*?\}/g), (m) => m[0]);
+    expect(buttonOnClicks.length).toBeGreaterThan(0);
+    for (const btn of buttonOnClicks) {
+      expect(btn, 'every Recurring tab button must call toggle(...) only').toMatch(/toggle\(/);
+    }
+  });
+
+  it('RecurringTab does not read profiles directly', () => {
+    expect(recurringTab).not.toMatch(/\.from\(\s*['"]profiles['"]\s*\)/);
+  });
+});
+
+describe('Tasks v2 T3+T4 — tasksCenterApi loader shape', () => {
+  it('countMyOpenDueOrPastTasks scopes to status=open + caller assignee + due_date<=today', () => {
+    expect(tasksCenterApi).toMatch(/export\s+async\s+function\s+countMyOpenDueOrPastTasks/);
+    // The body of countMyOpenDueOrPastTasks must combine status=open,
+    // assignee_profile_id eq, and due_date lte. Lock the substrings; they
+    // sit close together inside the chained .from('task_instances') call.
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+countMyOpenDueOrPastTasks[\s\S]*?\n\}/);
+    expect(body, 'body of countMyOpenDueOrPastTasks must be present').not.toBeNull();
+    expect(body[0]).toMatch(/\.eq\(\s*['"]status['"]\s*,\s*['"]open['"]\s*\)/);
+    expect(body[0]).toMatch(/\.eq\(\s*['"]assignee_profile_id['"]\s*,\s*callerProfileId\s*\)/);
+    expect(body[0]).toMatch(/\.lte\(\s*['"]due_date['"]\s*,\s*todayStr\s*\)/);
+  });
+
+  it('loadCompletedTaskInstances scopes to status=completed', () => {
+    expect(tasksCenterApi).toMatch(/export\s+async\s+function\s+loadCompletedTaskInstances/);
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+loadCompletedTaskInstances[\s\S]*?\n\}/);
+    expect(body[0]).toMatch(/\.eq\(\s*['"]status['"]\s*,\s*['"]completed['"]\s*\)/);
+  });
+
+  it('loadOpenRecurringInstances scopes to designation=recurring AND status=open', () => {
+    expect(tasksCenterApi).toMatch(/export\s+async\s+function\s+loadOpenRecurringInstances/);
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+loadOpenRecurringInstances[\s\S]*?\n\}/);
+    expect(body[0]).toMatch(/\.eq\(\s*['"]status['"]\s*,\s*['"]open['"]\s*\)/);
+    expect(body[0]).toMatch(/\.eq\(\s*['"]designation['"]\s*,\s*['"]recurring['"]\s*\)/);
+  });
+
+  it('groupRecurringByTemplate is exported as a pure helper', () => {
+    expect(tasksCenterApi).toMatch(/export\s+function\s+groupRecurringByTemplate\s*\(/);
   });
 });

@@ -134,3 +134,106 @@ export function photoPresenceFor(ti) {
     hasCompletion: !!ti.completion_photo_path,
   };
 }
+
+// ── Tasks v2 T3: Header badge count ─────────────────────────────────────
+//
+// Count open tasks assigned to the caller whose due_date is today or
+// earlier (overdue + due-today). Filters server-side so only the
+// caller's eligible rows transit, even though the v2 transparency RLS
+// would otherwise let the caller SELECT every row. The Header badge
+// uses this number; soft-fail on the consumer side keeps Header
+// rendering even if the DB call errors.
+//
+// Returns 0 for a falsy callerProfileId (unauthenticated render path).
+export async function countMyOpenDueOrPastTasks(sb, callerProfileId, todayStr) {
+  if (!callerProfileId) return 0;
+  if (!todayStr) return 0;
+  const {count, error} = await sb
+    .from('task_instances')
+    .select('id', {count: 'exact', head: true})
+    .eq('status', 'open')
+    .eq('assignee_profile_id', callerProfileId)
+    .lte('due_date', todayStr);
+  if (error) throw new Error(`countMyOpenDueOrPastTasks: ${error.message}`);
+  return count || 0;
+}
+
+// ── Tasks v2 T4: Completed tab ──────────────────────────────────────────
+//
+// Read the most recent completed task_instances rows. Capped at 200 so
+// a long-running farm doesn't pull thousands of rows into the browser
+// for a read-only review pane; foreseeable cohort fits comfortably.
+// Older completions remain queryable via direct DB / future filters.
+export async function loadCompletedTaskInstances(sb, {limit = 200} = {}) {
+  const {data, error} = await sb
+    .from('task_instances')
+    .select('*')
+    .eq('status', 'completed')
+    .order('completed_at', {ascending: false, nullsFirst: false})
+    .order('title', {ascending: true})
+    .limit(limit);
+  if (error) throw new Error(`loadCompletedTaskInstances: ${error.message}`);
+  return data || [];
+}
+
+// ── Tasks v2 T4: Recurring tab ──────────────────────────────────────────
+//
+// Load every recurring task_templates row (active + inactive) so the
+// Recurring tab can show toggle state. Inactive templates may still
+// have open instances generated before deactivation; orphan grouping
+// in the pure helper below covers the post-delete case (template_id
+// went to NULL via mig 050's ON DELETE SET NULL).
+export async function loadRecurringTaskTemplates(sb) {
+  const {data, error} = await sb
+    .from('task_templates')
+    .select('*')
+    .order('active', {ascending: false})
+    .order('title', {ascending: true});
+  if (error) throw new Error(`loadRecurringTaskTemplates: ${error.message}`);
+  return data || [];
+}
+
+export async function loadOpenRecurringInstances(sb) {
+  const {data, error} = await sb
+    .from('task_instances')
+    .select('*')
+    .eq('status', 'open')
+    .eq('designation', 'recurring')
+    .order('due_date', {ascending: true})
+    .order('title', {ascending: true});
+  if (error) throw new Error(`loadOpenRecurringInstances: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Pure helper: bucket open recurring instances under their parent
+ * templates and surface orphans (designation='recurring' but
+ * template_id is NULL — the parent was deleted via the v2
+ * SET NULL FK). Returns:
+ *   {
+ *     templates: [{template, openCount, instances: TaskRow[]}, ...],
+ *     orphans:   TaskRow[],
+ *   }
+ * Templates appear in the order they were passed in (caller already
+ * sorted by active desc, title asc). Instances inside each bucket
+ * keep the input sort order (caller passed due_date asc).
+ */
+export function groupRecurringByTemplate(templates, openInstances) {
+  const byId = new Map();
+  for (const t of templates || []) {
+    if (t && t.id) byId.set(t.id, {template: t, openCount: 0, instances: []});
+  }
+  const orphans = [];
+  for (const ti of openInstances || []) {
+    const tid = ti.template_id;
+    if (tid && byId.has(tid)) {
+      const bucket = byId.get(tid);
+      bucket.instances.push(ti);
+      bucket.openCount += 1;
+    } else {
+      orphans.push(ti);
+    }
+  }
+  const templateBuckets = (templates || []).filter((t) => t && t.id).map((t) => byId.get(t.id));
+  return {templates: templateBuckets, orphans};
+}

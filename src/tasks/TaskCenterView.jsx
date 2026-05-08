@@ -7,13 +7,13 @@
 //
 // Tabs:
 //   My Tasks       — default; functional read-only (MyTasksTab).
-//   Recurring      — placeholder; functional in a later commit.
-//   Completed      — placeholder; functional in a later commit.
-//   System Tasks   — admin-only; placeholder in T2.
+//   Recurring      — functional read-only (RecurringTab) — T4.
+//   Completed      — functional read-only (CompletedTab) — T4.
+//   System Tasks   — admin-only; placeholder until T5.
 //
-// T2 ships zero mutations: no create/edit/complete/delete UI, no
-// header button, no /my-tasks redirect. Legacy /my-tasks and
-// /admin/tasks remain live and unchanged.
+// Mutation surfaces (create / complete / due-date edits / assign /
+// delete / system-rule admin) all land in later T-lane commits.
+// Legacy /my-tasks and /admin/tasks remain live and unchanged.
 
 import React from 'react';
 import MyTasksTab from './MyTasksTab.jsx';
@@ -67,8 +67,8 @@ export default function TaskCenterView({Header, sb, authState}) {
   // imports as referenced. Matches main.jsx's view-mounting pattern.
   let body = null;
   if (activeTab === 'mine') body = React.createElement(MyTasksTab, {sb, authState});
-  else if (activeTab === 'recurring') body = React.createElement(RecurringTab, null);
-  else if (activeTab === 'completed') body = React.createElement(CompletedTab, null);
+  else if (activeTab === 'recurring') body = React.createElement(RecurringTab, {sb});
+  else if (activeTab === 'completed') body = React.createElement(CompletedTab, {sb});
   else if (activeTab === 'system' && isAdmin) body = React.createElement(SystemTasksTab, null);
   else body = React.createElement(MyTasksTab, {sb, authState});
 

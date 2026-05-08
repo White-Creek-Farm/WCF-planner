@@ -17,12 +17,54 @@ import {useAuth} from '../contexts/AuthContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
+import {countMyOpenDueOrPastTasks} from '../lib/tasksCenterApi.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 
-export default function Header({signOut, loadUsers, DeleteConfirmModal}) {
+export default function Header({sb, signOut, loadUsers, DeleteConfirmModal}) {
   const {authState, saveStatus, setShowUsers} = useAuth();
   const {view, setView, showMenu, setShowMenu} = useUI();
   const {showForm, setShowForm} = useBatches();
   const {showBreedForm, setShowBreedForm, showFarrowForm, setShowFarrowForm} = usePig();
+  // Tasks v2 T3: own due/past-due count for the Header badge. Soft-fails
+  // to 0 on any error so a transient DB hiccup never crashes Header.
+  // Re-runs on auth user change AND on view change so the badge catches
+  // up after a completion through the legacy /my-tasks surface or a
+  // return from any other task surface. A lightweight window-focus
+  // listener also nudges a refresh when the user tabs back in.
+  const callerProfileId = authState && authState.user ? authState.user.id : null;
+  const [myDueCount, setMyDueCount] = React.useState(0);
+  React.useEffect(() => {
+    if (!sb || !callerProfileId) {
+      setMyDueCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const n = await countMyOpenDueOrPastTasks(sb, callerProfileId, todayCentralISO());
+        if (!cancelled) setMyDueCount(n || 0);
+      } catch (e) {
+        if (!cancelled) setMyDueCount(0);
+        // Soft-fail: log for diagnostics but never throw out of Header.
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('Header tasks badge: count failed', e && e.message ? e.message : e);
+        }
+      }
+    }
+    refresh();
+    function onFocus() {
+      refresh();
+    }
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('focus', onFocus);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('focus', onFocus);
+      }
+    };
+  }, [sb, callerProfileId, view]);
   const poultryViews = ['broilerHome', 'timeline', 'list', 'feed', 'broilerdailys', 'broilerweighins'];
   const pigViews = ['pigsHome', 'breeding', 'farrowing', 'sows', 'pigbatches', 'pigs', 'pigdailys', 'pigweighins'];
   const cattleViews = [
@@ -233,6 +275,55 @@ export default function Header({signOut, loadUsers, DeleteConfirmModal}) {
           >
             ⛽ Fueling
           </button>
+          {authState?.user && (
+            <button
+              data-tasks-header-link="1"
+              onClick={() => {
+                setShowForm(false);
+                setShowBreedForm(false);
+                setShowFarrowForm(false);
+                setView('tasks');
+              }}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 7,
+                border: '1px solid rgba(255,255,255,.3)',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 500,
+                background: view === 'tasks' ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.1)',
+                color: 'white',
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              ✅ Tasks
+              {myDueCount > 0 && (
+                <span
+                  data-tasks-header-badge={myDueCount}
+                  aria-label={`${myDueCount} tasks due or overdue`}
+                  style={{
+                    display: 'inline-block',
+                    padding: '0 6px',
+                    minWidth: 16,
+                    height: 16,
+                    lineHeight: '16px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    background: '#dc2626',
+                    color: 'white',
+                    textAlign: 'center',
+                  }}
+                >
+                  {myDueCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
         <div style={{fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, opacity: 0.75, marginLeft: 'auto'}}>
           {saveStatus === 'saving' && <span style={{color: '#a7f3d0', fontWeight: 500}}>Saving…</span>}

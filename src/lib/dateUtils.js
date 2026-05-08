@@ -62,4 +62,30 @@ export function todayCentralISO(now = new Date()) {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+// Format a timestamptz (ISO string, Date, or epoch ms) as
+//   "mm/dd/yy h:mm AM/PM" in America/Chicago.
+//
+// Used by the Task Center's Completed tab so completed_at displays
+// in farm time regardless of the viewer's browser timezone (Tasks
+// are Central-time per Ronnie's lock — same reason todayCentralISO
+// exists). Returns "—" for null/empty/malformed input.
+export function fmtCentralDateTime(input) {
+  if (input === null || input === undefined || input === '') return '—';
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dateFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const timeFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateFmt.format(d)} ${timeFmt.format(d)}`;
+}
+
 // ── HOLIDAY LOGIC ──────────────────────────────────────────────────────────

@@ -3096,6 +3096,7 @@ function App() {
   // extracted view can keep calling <Header/> as a zero-arg prop.
   const Header = () =>
     React.createElement(HeaderBase, {
+      sb,
       signOut,
       loadUsers,
       DeleteConfirmModal,

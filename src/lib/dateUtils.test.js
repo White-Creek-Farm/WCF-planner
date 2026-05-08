@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {addDays, toISO, fmt, fmtS, todayISO, todayCentralISO} from './dateUtils.js';
+import {addDays, toISO, fmt, fmtS, todayISO, todayCentralISO, fmtCentralDateTime} from './dateUtils.js';
 
 describe('addDays', () => {
   it('adds days to an ISO date string and returns a Date object', () => {
@@ -119,5 +119,35 @@ describe('todayCentralISO', () => {
   it('accepts a timestamp number as well as a Date instance', () => {
     const ts = Date.parse('2026-05-08T18:00:00Z'); // mid-afternoon Central
     expect(todayCentralISO(ts)).toBe('2026-05-08');
+  });
+});
+
+describe('fmtCentralDateTime', () => {
+  it('formats a UTC instant as mm/dd/yy h:mm AM/PM in America/Chicago (CDT, UTC-5)', () => {
+    // 2026-05-08 18:00:00 UTC = 2026-05-08 13:00 CDT (DST in May).
+    expect(fmtCentralDateTime('2026-05-08T18:00:00Z')).toBe('05/08/26 1:00 PM');
+  });
+
+  it('rolls the displayed date back one day when the UTC instant is before Central midnight', () => {
+    // 2026-05-08 04:00:00 UTC = 2026-05-07 23:00 CDT (still May 7th in
+    // Central time even though UTC has flipped).
+    expect(fmtCentralDateTime('2026-05-08T04:00:00Z')).toBe('05/07/26 11:00 PM');
+  });
+
+  it('formats midnight Central correctly as 12:00 AM', () => {
+    // 2026-05-08 05:00:00 UTC = 2026-05-08 00:00 CDT.
+    expect(fmtCentralDateTime('2026-05-08T05:00:00Z')).toBe('05/08/26 12:00 AM');
+  });
+
+  it('respects standard time offset (CST, UTC-6) outside of DST', () => {
+    // 2026-12-15 18:00:00 UTC = 2026-12-15 12:00 CST.
+    expect(fmtCentralDateTime('2026-12-15T18:00:00Z')).toBe('12/15/26 12:00 PM');
+  });
+
+  it('returns "—" for null, undefined, empty, or malformed input', () => {
+    expect(fmtCentralDateTime(null)).toBe('—');
+    expect(fmtCentralDateTime(undefined)).toBe('—');
+    expect(fmtCentralDateTime('')).toBe('—');
+    expect(fmtCentralDateTime('not-a-date')).toBe('—');
   });
 });
