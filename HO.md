@@ -34,7 +34,10 @@ handoff text in `PROJECT.md`.
 
 ## Roles
 
-Ronnie is the product owner and final decision-maker.
+Ronnie is the product owner and final decision-maker. Ronnie does not edit
+code, run validation, apply migrations, run `psql`, redeploy, run tests, or
+verify PROD state. Routing those back to Ronnie when CC has the needed access
+is a workflow bug.
 
 CC (Claude Code) is the primary builder. CC verifies plans, pushes back on
 risk, edits files, runs validation, applies approved Supabase work, and reports
@@ -67,7 +70,27 @@ Ronnie approves production-impacting work. CC executes approved Supabase work.
 Do not route routine SQL, migration applies, function deploys, Vault checks, or
 PROD verification back to Ronnie when CC has the needed access.
 
+When a `From Codex:` prompt frames SQL, migration apply, function deploy, or
+Vault work as "Ronnie/admin action," treat that framing as informational only.
+CC owns the action under the rules above. Do not pause the lane to relay the
+work back to Ronnie unless the work falls outside CC's approved access.
+
 `exec_sql` in PROD is forbidden under every approval shape.
+
+### Production-impacting actions and which gate covers each
+
+| Action | Gate that covers it |
+|---|---|
+| Push to `main` | Push approval (Netlify auto-deploys; no separate "deploy" gate for code-only lanes). |
+| PROD `psql` migration apply | Separate apply approval. Lane approval can pre-cover; otherwise one-off Ronnie ok. |
+| Supabase Edge Function deploy | Separate deploy approval. Lane approval can pre-cover. |
+| Vault secret add / rotate | Separate Vault approval. |
+| TEST DB migration apply | No separate gate inside an approved lane; CC applies and reports. |
+| Lint/test/build/format runs | No gate; CC runs as part of validation. |
+
+Push approval implies the corresponding Netlify production runtime change for
+code-only pushes. Migration / function / Vault gates are independent and never
+implied by push or commit.
 
 ---
 
@@ -146,8 +169,10 @@ Codex should prepare the next CC prompt immediately after a clean checkpoint,
 commit, or push decision, unless Ronnie redirects.
 
 After every clean checkpoint, Codex must provide the next CC-ready prompt or
-name the exact blocker. If the roadmap already defines the next lane, Codex
-scopes it. Do not ask CC to choose the next scope.
+name the exact blocker by item. "Proceed to <next> planning" without a scoped
+prompt is not enough — CC does not draft against an unscoped lane and will
+hold instead of guessing scope. If the roadmap already defines the next lane,
+Codex scopes it. Do not ask CC to choose the next scope.
 
 Codex should maintain a working queue during the session: current build, next
 build, paused hotfixes, open approvals, and docs/wrap status. Hotfixes may
@@ -236,9 +261,22 @@ A build summary from CC should include:
 - Intentionally excluded scope.
 - Whether commit/push/deploy/merge approval is being requested.
 
-If a PR exists, the PR body should hold this detailed report. Chat-side
-`From CC:` can then be short: branch, PR link, one-line summary, and "see PR
-body for details."
+Chat-side `From CC:` is summary-first and target-length under ~40 lines:
+branch / files changed / one-line validation result table / gates being
+requested. Long sections (full RPC contracts, exhaustive verification
+checklists, multi-paragraph implementation notes) belong in the PR body or
+in a fold-out at the bottom of the chat block. The goal is one-glance review
+for Ronnie; full detail stays available but does not block scanning.
+
+If a PR exists, the PR body should hold the detailed report. Chat-side
+`From CC:` can then be even shorter: branch, PR link, one-line summary, and
+"see PR body for details."
+
+Inside any `From CC:` or `From Codex:` block, content stays plain text — no
+Markdown backticks around file paths, route names, function names, commit
+subjects, or command names — so Ronnie can copy the block straight into the
+other tool without backtick artifacts. Same rule as §Communication Format;
+restated here because build summaries are where it matters most.
 
 ---
 
@@ -370,6 +408,22 @@ Docs-only changes may skip code tests when clearly disclosed.
 
 Any skipped validation must be stated plainly with the reason and residual
 risk.
+
+### PROD migration verification
+
+After any PROD migration apply, CC produces — without being asked:
+
+- Precheck for fail-closed seed dependencies (eligible profiles, required rows)
+  before any DDL touches the DB.
+- Sequential apply via `psql` against `PROD_DB_URL` with `ON_ERROR_STOP=1`.
+- Post-apply verification table covering, where applicable: row counts on new
+  reference tables, RLS policies on touched tables, RPC signatures (overload
+  list), trigger states, and EXECUTE grants per role.
+- One-line PROD-impact statement for the runtime (no impact / reversible /
+  one-way).
+
+Use the same template every apply so review is one-glance for Ronnie. Skipped
+checks call out what was skipped and why.
 
 ---
 
