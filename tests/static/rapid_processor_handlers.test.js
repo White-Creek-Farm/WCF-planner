@@ -204,6 +204,32 @@ describe('rapid-processor.ts — tasks_weekly_summary service-role gate (Codex C
   });
 });
 
+describe('rapid-processor.ts — env secrets are envTrim-normalized (digest gate hotfix)', () => {
+  // Background: tasks-summary's invokeRapidProcessor sends an envTrim'd
+  // service-role bearer; rapid-processor's bearer gate compares against
+  // SUPABASE_SERVICE_ROLE_KEY. If rapid-processor reads the env value raw
+  // (unstripped), any trailing whitespace / newline picked up by the
+  // platform's secret store causes a silent byte-equal mismatch and a
+  // mysterious {"error":"unauthorized"} for every digest send. Lock that
+  // every project-level secret read goes through the envTrim helper.
+  it('defines an envTrim helper that strips leading/trailing whitespace', () => {
+    expect(code).toMatch(
+      /function\s+envTrim\([^)]*\)\s*:\s*string\s*\{[\s\S]*?Deno\.env\.get\([\s\S]*?\.replace\(\/\^\\s\+\|\\s\+\$\/g/,
+    );
+  });
+
+  it('SUPABASE_SERVICE_ROLE_KEY is read via envTrim, not raw Deno.env.get', () => {
+    expect(code).toMatch(/SUPABASE_SERVICE_ROLE_KEY\s*=\s*envTrim\(\s*'SUPABASE_SERVICE_ROLE_KEY'\s*\)/);
+    expect(code).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY\s*=\s*Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)!/);
+  });
+
+  it('SUPABASE_URL / SUPABASE_ANON_KEY / RESEND_API_KEY are also envTrim-normalized', () => {
+    expect(code).toMatch(/SUPABASE_URL\s*=\s*envTrim\(\s*'SUPABASE_URL'\s*\)/);
+    expect(code).toMatch(/SUPABASE_ANON_KEY\s*=\s*envTrim\(\s*'SUPABASE_ANON_KEY'\s*\)/);
+    expect(code).toMatch(/RESEND_API_KEY\s*=\s*envTrim\(\s*'RESEND_API_KEY'\s*\)/);
+  });
+});
+
 describe('rapid-processor.ts — bearer auth helpers', () => {
   it('extractBearer + safeEqual helpers are defined', () => {
     expect(code).toMatch(/function\s+extractBearer\(/);

@@ -1,10 +1,20 @@
 import {serve} from 'https://deno.land/std@0.168.0/http/server.ts';
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+// Defensive trim on every secret read. Mirrors tasks-cron / tasks-summary.
+// Paste-deploy of secrets (Dashboard / `supabase secrets set`) often picks up
+// a trailing newline or space; safeEqual is exact-byte so we normalize at load
+// time. Critical for the tasks_weekly_summary bearer gate below: tasks-summary
+// already sends an envTrim'd value, so rapid-processor MUST trim too or the
+// byte-equal comparison silently rejects matched secrets.
+function envTrim(name: string): string {
+  return (Deno.env.get(name) ?? '').replace(/^\s+|\s+$/g, '');
+}
+
+const RESEND_API_KEY = envTrim('RESEND_API_KEY');
+const SUPABASE_URL = envTrim('SUPABASE_URL');
+const SUPABASE_ANON_KEY = envTrim('SUPABASE_ANON_KEY');
+const SUPABASE_SERVICE_ROLE_KEY = envTrim('SUPABASE_SERVICE_ROLE_KEY');
 const FROM = 'WCF Planner <reports@wcfplanner.com>';
 
 const corsHeaders = {
