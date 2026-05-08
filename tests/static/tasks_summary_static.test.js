@@ -286,4 +286,25 @@ describe('Edge Function — rapid-processor invocation', () => {
     expect(fnCode).toMatch(/tasks:\s*bucket\.tasks/);
     expect(fnCode).toMatch(/count:\s*bucket\.tasks\.length/);
   });
+
+  // Hotfix lock: the Supabase platform gateway rejects any request that
+  // carries BOTH a project apikey AND a project Authorization bearer with
+  // a "Conflicting API keys" 401. invokeRapidProcessor previously sent
+  // both (apikey: SUPABASE_ANON_KEY + Authorization: Bearer service-role)
+  // and was silently breaking every digest send. Lock that the apikey
+  // header is gone from the invocation block.
+  it('invokeRapidProcessor does NOT send a project apikey alongside the service-role Authorization', () => {
+    const block = fnCode.match(/async\s+function\s+invokeRapidProcessor\([\s\S]*?\n\}/);
+    expect(block, 'invokeRapidProcessor body must be present').not.toBeNull();
+    // No apikey header in the rapid-processor fetch call.
+    expect(block[0]).not.toMatch(/apikey\s*:/);
+    // Specifically, no apikey: SUPABASE_ANON_KEY pairing — that's the
+    // exact shape that triggered the gateway-level "Conflicting API keys"
+    // rejection.
+    expect(block[0]).not.toMatch(/apikey\s*:\s*SUPABASE_ANON_KEY/);
+    // Positive lock: the Authorization bearer is still the service-role
+    // JWT (rapid-processor's tasks_weekly_summary gate compares against
+    // SUPABASE_SERVICE_ROLE_KEY).
+    expect(block[0]).toMatch(/Authorization:\s*`Bearer\s*\$\{SUPABASE_SERVICE_ROLE_KEY\}/);
+  });
 });

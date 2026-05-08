@@ -158,16 +158,21 @@ async function writeAuditRow(serviceClient: ReturnType<typeof createClient>, row
 }
 
 // ─── rapid-processor invocation ─────────────────────────────────────────
-// Direct fetch to the rapid-processor Edge Function. Service-role bearer
-// + apikey headers — the function trusts both and reads test_to off the
-// top-level request body.
+// Direct fetch to the rapid-processor Edge Function. Sends ONLY the
+// service-role Authorization bearer — rapid-processor's tasks_weekly_summary
+// branch reads the bearer from the Authorization header and ignores apikey.
+//
+// The Supabase platform gateway now rejects any request that carries BOTH
+// a project apikey AND a project Authorization bearer with the error
+// "Conflicting API keys. Send the intended sb_ key only in the `apikey`
+// header." Sending only Authorization (with the service-role JWT) keeps
+// rapid-processor's gate intact and avoids the gateway-level rejection.
 async function invokeRapidProcessor(payload: object): Promise<{ok: boolean; status: number; body: string}> {
   const url = `${SUPABASE_URL}/functions/v1/rapid-processor`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      apikey: SUPABASE_ANON_KEY,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
