@@ -578,6 +578,21 @@ describe('Admin editor wiring — writes to materials table, not service_interva
     expect(editorSrc).not.toMatch(/sb\.from\('equipment'\)\.update/);
   });
 
+  it('EquipmentMaterialsEditor keeps material edit order stable without reload-on-blur', () => {
+    expect(editorSrc).toMatch(/\.order\('sort_order',\s*\{ascending:\s*true\}\)/);
+    const patchFn = editorSrc.match(/async\s+function\s+patchMaterial\([\s\S]*?\n\s{2}\}/);
+    expect(patchFn, 'expected patchMaterial function').not.toBeNull();
+    expect(patchFn[0]).toMatch(/setMaterials\(\(prev\)\s*=>\s*prev\.map/);
+    expect(patchFn[0]).not.toMatch(/await reload\(\)/);
+  });
+
+  it('EquipmentWebformsAdmin applies successful text saves locally instead of modal reload', () => {
+    expect(adminSrc).toMatch(/function applySavedEquipmentPatch/);
+    expect(adminSrc).toMatch(/const patchEquipmentLocal = React\.useCallback/);
+    expect(adminSrc).toMatch(/onLocalPatch=\{\(patch\) => patchEquipmentLocal\(selected\.id, patch\)\}/);
+    expect(adminSrc).toMatch(/applySavedEquipmentPatch\(onLocalPatch, onReload/);
+  });
+
   it('EquipmentWebformsAdmin slot includes <EquipmentMaterialsEditor>', () => {
     expect(adminSrc).toMatch(/import EquipmentMaterialsEditor from '\.\/EquipmentMaterialsEditor\.jsx'/);
     expect(adminSrc).toMatch(/<EquipmentMaterialsEditor\s+equipment=\{selected\}\s+onReload=\{loadAll\}\s*\/>/);

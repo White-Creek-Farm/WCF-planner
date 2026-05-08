@@ -74,6 +74,20 @@ function groupLabelOf(o) {
   return `Every ${o.interval_value}${unit}`;
 }
 
+function sortMaterials(materials) {
+  return (materials || []).slice().sort((a, b) => {
+    const ao = Number(a.sort_order);
+    const bo = Number(b.sort_order);
+    if (Number.isFinite(ao) && Number.isFinite(bo) && ao !== bo) return ao - bo;
+    if (Number.isFinite(ao) && !Number.isFinite(bo)) return -1;
+    if (!Number.isFinite(ao) && Number.isFinite(bo)) return 1;
+    const an = (a.material_name || '').toLowerCase();
+    const bn = (b.material_name || '').toLowerCase();
+    if (an !== bn) return an.localeCompare(bn);
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+}
+
 // Build the unioned list of groups: every service interval + attachment
 // checklist on the equipment row, plus any standalone groups that exist in
 // the materials table but no longer match a service (defensive — shouldn't
@@ -146,7 +160,7 @@ function buildGroups(equipment, materials) {
   return arr;
 }
 
-export default function EquipmentMaterialsEditor({equipment, onReload}) {
+export default function EquipmentMaterialsEditor({equipment}) {
   const [materials, setMaterials] = React.useState([]);
   const [clearsByMat, setClearsByMat] = React.useState(new Map());
   const [loading, setLoading] = React.useState(true);
@@ -159,7 +173,12 @@ export default function EquipmentMaterialsEditor({equipment, onReload}) {
     setLoading(true);
     setErr('');
     const [matRes, clrRes] = await Promise.all([
-      sb.from('equipment_service_materials').select('*').eq('equipment_id', equipment.id),
+      sb
+        .from('equipment_service_materials')
+        .select('*')
+        .eq('equipment_id', equipment.id)
+        .order('sort_order', {ascending: true})
+        .order('material_name', {ascending: true}),
       sb.from('equipment_material_clears').select('*').eq('equipment_id', equipment.id),
     ]);
     if (matRes.error) {
@@ -172,7 +191,7 @@ export default function EquipmentMaterialsEditor({equipment, onReload}) {
       setLoading(false);
       return;
     }
-    setMaterials(matRes.data || []);
+    setMaterials(sortMaterials(matRes.data || []));
     const m = new Map();
     for (const c of clrRes.data || []) {
       const arr = m.get(c.material_id) || [];
@@ -216,23 +235,23 @@ export default function EquipmentMaterialsEditor({equipment, onReload}) {
       setErr('Add failed: ' + error.message);
       return;
     }
-    await reload();
-    if (typeof onReload === 'function') onReload();
+    setMaterials((prev) => sortMaterials([...prev, row]));
   }
 
   async function patchMaterial(material, patch) {
     setBusy(true);
     setErr('');
+    const updatedAt = new Date().toISOString();
     const {error} = await sb
       .from('equipment_service_materials')
-      .update({...patch, updated_at: new Date().toISOString()})
+      .update({...patch, updated_at: updatedAt})
       .eq('id', material.id);
     setBusy(false);
     if (error) {
       setErr('Save failed: ' + error.message);
       return;
     }
-    await reload();
+    setMaterials((prev) => prev.map((m) => (m.id === material.id ? {...m, ...patch, updated_at: updatedAt} : m)));
   }
 
   async function removeMaterial(material) {
@@ -251,8 +270,12 @@ export default function EquipmentMaterialsEditor({equipment, onReload}) {
       setErr('Delete failed: ' + error.message);
       return;
     }
-    await reload();
-    if (typeof onReload === 'function') onReload();
+    setMaterials((prev) => prev.filter((m) => m.id !== material.id));
+    setClearsByMat((prev) => {
+      const next = new Map(prev);
+      next.delete(material.id);
+      return next;
+    });
   }
 
   async function unclearMaterial(material) {
@@ -264,7 +287,11 @@ export default function EquipmentMaterialsEditor({equipment, onReload}) {
       setErr('Reset failed: ' + error.message);
       return;
     }
-    await reload();
+    setClearsByMat((prev) => {
+      const next = new Map(prev);
+      next.delete(material.id);
+      return next;
+    });
   }
 
   if (missingTables) {

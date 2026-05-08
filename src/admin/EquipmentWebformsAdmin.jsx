@@ -50,6 +50,14 @@ const card = {
   marginBottom: 14,
 };
 
+function applySavedEquipmentPatch(onLocalPatch, onReload, patch) {
+  if (typeof onLocalPatch === 'function') {
+    onLocalPatch(patch);
+    return;
+  }
+  if (typeof onReload === 'function') onReload();
+}
+
 export default function EquipmentWebformsAdmin() {
   const [equipment, setEquipment] = React.useState([]);
   const [selectedId, setSelectedId] = React.useState(null);
@@ -86,6 +94,10 @@ export default function EquipmentWebformsAdmin() {
     pendingReloadScrollTopRef.current = null;
     modalScrollRef.current.scrollTop = top;
   }, [equipment]);
+
+  const patchEquipmentLocal = React.useCallback((id, patch) => {
+    setEquipment((prev) => prev.map((e) => (e.id === id ? {...e, ...patch} : e)));
+  }, []);
 
   const selected = equipment.find((e) => e.id === selectedId) || null;
 
@@ -326,16 +338,52 @@ export default function EquipmentWebformsAdmin() {
               </button>
             </div>
             <div style={{padding: '14px 20px'}}>
-              <IdentityEditor equipment={selected} onReload={loadAll} />
-              <TeamMembersEditor equipment={selected} onReload={loadAll} />
-              <SpecsEditor equipment={selected} onReload={loadAll} />
-              <ManualsEditor equipment={selected} onReload={loadAll} />
-              <DocumentsEditor equipment={selected} onReload={loadAll} />
-              <WebformHelpTextEditor equipment={selected} onReload={loadAll} />
-              <EveryFillupEditor equipment={selected} onReload={loadAll} />
-              <ServiceIntervalEditor equipment={selected} onReload={loadAll} />
+              <IdentityEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
+              <TeamMembersEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
+              <SpecsEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
+              <ManualsEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
+              <DocumentsEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
+              <WebformHelpTextEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
+              <EveryFillupEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
+              <ServiceIntervalEditor
+                equipment={selected}
+                onReload={loadAll}
+                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+              />
               {Array.isArray(selected.attachment_checklists) && selected.attachment_checklists.length > 0 && (
-                <AttachmentChecklistsEditor equipment={selected} onReload={loadAll} />
+                <AttachmentChecklistsEditor
+                  equipment={selected}
+                  onReload={loadAll}
+                  onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
+                />
               )}
               <EquipmentMaterialsEditor equipment={selected} onReload={loadAll} />
             </div>
@@ -347,20 +395,21 @@ export default function EquipmentWebformsAdmin() {
 }
 
 // ── identity: name / serial / status ───────────────────────────────────────
-function IdentityEditor({equipment, onReload}) {
+function IdentityEditor({equipment, onReload, onLocalPatch}) {
   const [busy, setBusy] = React.useState(false);
   async function save(col, val) {
+    const payload = typeof val === 'string' && !val.trim() ? null : val;
     setBusy(true);
     const {error} = await sb
       .from('equipment')
-      .update({[col]: typeof val === 'string' && !val.trim() ? null : val})
+      .update({[col]: payload})
       .eq('id', equipment.id);
     setBusy(false);
     if (error) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {[col]: payload});
   }
   return (
     <div style={card}>
@@ -375,7 +424,6 @@ function IdentityEditor({equipment, onReload}) {
         <input
           type="text"
           defaultValue={equipment.name || ''}
-          disabled={busy}
           onBlur={(e) => {
             const v = e.target.value.trim();
             if (v && v !== (equipment.name || '')) save('name', v);
@@ -386,7 +434,6 @@ function IdentityEditor({equipment, onReload}) {
         <input
           type="text"
           defaultValue={equipment.serial_number || ''}
-          disabled={busy}
           onBlur={(e) => {
             const v = e.target.value.trim();
             if (v !== (equipment.serial_number || '')) save('serial_number', v);
@@ -419,7 +466,7 @@ function IdentityEditor({equipment, onReload}) {
 // writer of the master roster. This component never writes
 // webform_config.team_roster or team_members; it only writes the
 // equipment.team_members column.
-function TeamMembersEditor({equipment, onReload}) {
+function TeamMembersEditor({equipment, onReload, onLocalPatch}) {
   const [roster, setRoster] = React.useState([]);
   const [busy, setBusy] = React.useState(false);
 
@@ -445,7 +492,7 @@ function TeamMembersEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {team_members: next});
   }
 
   return (
@@ -499,8 +546,8 @@ function TeamMembersEditor({equipment, onReload}) {
 // ── specs & fluids (filters, oils, capacities, warranty) ─────────────────
 // Part numbers, oil types, tank capacities, warranty info. Debounced
 // auto-save on blur, matching the inline /equipment/<slug> spec panel.
-function SpecsEditor({equipment, onReload}) {
-  const [busy, setBusy] = React.useState(false);
+function SpecsEditor({equipment, onReload, onLocalPatch}) {
+  const [_busy, setBusy] = React.useState(false);
   async function save(col, val) {
     setBusy(true);
     const payload = typeof val === 'string' && !val.trim() ? null : val;
@@ -513,7 +560,7 @@ function SpecsEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {[col]: payload});
   }
   const FIELDS = [
     ['engine_oil', 'Engine Oil'],
@@ -544,7 +591,6 @@ function SpecsEditor({equipment, onReload}) {
             <textarea
               rows={1}
               defaultValue={equipment[k] || ''}
-              disabled={busy}
               onBlur={(e) => {
                 const v = e.target.value;
                 if (v.trim() !== (equipment[k] || '')) save(k, v);
@@ -560,7 +606,6 @@ function SpecsEditor({equipment, onReload}) {
             min="0"
             step="0.1"
             defaultValue={equipment.fuel_tank_gal != null ? equipment.fuel_tank_gal : ''}
-            disabled={busy}
             onBlur={(e) => {
               const v = e.target.value === '' ? null : Number(e.target.value);
               if (v !== equipment.fuel_tank_gal) save('fuel_tank_gal', v);
@@ -576,7 +621,6 @@ function SpecsEditor({equipment, onReload}) {
               min="0"
               step="0.1"
               defaultValue={equipment.def_tank_gal != null ? equipment.def_tank_gal : ''}
-              disabled={busy}
               onBlur={(e) => {
                 const v = e.target.value === '' ? null : Number(e.target.value);
                 if (v !== equipment.def_tank_gal) save('def_tank_gal', v);
@@ -590,7 +634,6 @@ function SpecsEditor({equipment, onReload}) {
           <input
             type="date"
             defaultValue={equipment.warranty_expiration || ''}
-            disabled={busy}
             onBlur={(e) => {
               const v = e.target.value || null;
               if (v !== equipment.warranty_expiration) save('warranty_expiration', v);
@@ -621,7 +664,7 @@ function youtubeId(url) {
   return null;
 }
 
-function ManualsEditor({equipment, onReload}) {
+function ManualsEditor({equipment, onReload, onLocalPatch}) {
   const [busy, setBusy] = React.useState(false);
   const [newVideoUrl, setNewVideoUrl] = React.useState('');
   const [newVideoTitle, setNewVideoTitle] = React.useState('');
@@ -636,7 +679,7 @@ function ManualsEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {manuals: next});
   }
 
   async function uploadPdf(file) {
@@ -742,7 +785,6 @@ function ManualsEditor({equipment, onReload}) {
                 <input
                   type="text"
                   defaultValue={m.title || ''}
-                  disabled={busy}
                   onBlur={(e) => {
                     const v = e.target.value.trim();
                     if (v && v !== (m.title || '')) editTitle(i, v);
@@ -838,7 +880,7 @@ function ManualsEditor({equipment, onReload}) {
 // NOT shown on the public /fueling webform or /equipment detail page —
 // visible only inside this admin modal. Separate column from `manuals`
 // so the two buckets can't mix up.
-function DocumentsEditor({equipment, onReload}) {
+function DocumentsEditor({equipment, onReload, onLocalPatch}) {
   const [busy, setBusy] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const docs = Array.isArray(equipment.documents) ? equipment.documents : [];
@@ -851,7 +893,7 @@ function DocumentsEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {documents: next});
   }
 
   async function uploadPdf(file) {
@@ -942,7 +984,6 @@ function DocumentsEditor({equipment, onReload}) {
                 <input
                   type="text"
                   defaultValue={d.title || ''}
-                  disabled={busy}
                   onBlur={(e) => {
                     const v = e.target.value.trim();
                     if (v && v !== (d.title || '')) editTitle(i, v);
@@ -997,20 +1038,21 @@ function DocumentsEditor({equipment, onReload}) {
 }
 
 // ── webform help text: operator_notes + fuel_gallons_help ─────────────────
-function WebformHelpTextEditor({equipment, onReload}) {
-  const [busy, setBusy] = React.useState(false);
+function WebformHelpTextEditor({equipment, onReload, onLocalPatch}) {
+  const [_busy, setBusy] = React.useState(false);
   async function save(col, val) {
+    const payload = (val && val.trim()) || null;
     setBusy(true);
     const {error} = await sb
       .from('equipment')
-      .update({[col]: (val && val.trim()) || null})
+      .update({[col]: payload})
       .eq('id', equipment.id);
     setBusy(false);
     if (error) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {[col]: payload});
   }
   const taS = {...inpS, resize: 'vertical'};
   return (
@@ -1025,7 +1067,6 @@ function WebformHelpTextEditor({equipment, onReload}) {
         <div style={subTitle}>Operator notes (yellow banner at top of form — between-fillup maintenance etc.)</div>
         <textarea
           defaultValue={equipment.operator_notes || ''}
-          disabled={busy}
           onBlur={(e) => {
             const v = e.target.value;
             if (v.trim() !== (equipment.operator_notes || '')) save('operator_notes', v);
@@ -1039,7 +1080,6 @@ function WebformHelpTextEditor({equipment, onReload}) {
         <div style={subTitle}>Gallons field help (shown below the gallons input)</div>
         <textarea
           defaultValue={equipment.fuel_gallons_help || ''}
-          disabled={busy}
           onBlur={(e) => {
             const v = e.target.value;
             if (v.trim() !== (equipment.fuel_gallons_help || '')) save('fuel_gallons_help', v);
@@ -1054,7 +1094,7 @@ function WebformHelpTextEditor({equipment, onReload}) {
 }
 
 // ── every-fillup items + every_fillup_help ─────────────────────────────────
-function EveryFillupEditor({equipment, onReload}) {
+function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
   const [newLabel, setNewLabel] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const items = Array.isArray(equipment.every_fillup_items) ? equipment.every_fillup_items : [];
@@ -1067,7 +1107,7 @@ function EveryFillupEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {every_fillup_items: next});
   }
   async function addOne() {
     const label = (newLabel || '').trim();
@@ -1100,7 +1140,7 @@ function EveryFillupEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {every_fillup_help: help || null});
   }
 
   return (
@@ -1115,7 +1155,6 @@ function EveryFillupEditor({equipment, onReload}) {
         <div style={subTitle}>Help text (shown above the checks on the webform)</div>
         <textarea
           defaultValue={equipment.every_fillup_help || ''}
-          disabled={busy}
           onBlur={(e) => {
             const v = e.target.value.trim();
             if (v !== (equipment.every_fillup_help || '')) editFillupHelp(v);
@@ -1137,7 +1176,6 @@ function EveryFillupEditor({equipment, onReload}) {
               <input
                 type="text"
                 defaultValue={it.label || ''}
-                disabled={busy}
                 onBlur={(e) => {
                   const v = e.target.value.trim();
                   if (v && v !== (it.label || '')) editLabel(i, v);
@@ -1207,7 +1245,7 @@ function EveryFillupEditor({equipment, onReload}) {
 }
 
 // ── service intervals + per-interval tasks + per-interval help text ───────
-function ServiceIntervalEditor({equipment, onReload}) {
+function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
   const [newVal, setNewVal] = React.useState('');
   const [newKind, setNewKind] = React.useState(equipment.tracking_unit || 'hours');
   const [newLabel, setNewLabel] = React.useState('');
@@ -1224,7 +1262,7 @@ function ServiceIntervalEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {service_intervals: next});
   }
   async function addOne() {
     const v = parseInt(newVal, 10);
@@ -1510,7 +1548,7 @@ function ServiceIntervalEditor({equipment, onReload}) {
 }
 
 // ── attachment checklists (Ventrac etc.) ───────────────────────────────────
-function AttachmentChecklistsEditor({equipment, onReload}) {
+function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
   const [expandedIdx, setExpandedIdx] = React.useState(null);
   const [newTaskLabels, setNewTaskLabels] = React.useState({});
   const [busy, setBusy] = React.useState(false);
@@ -1524,7 +1562,7 @@ function AttachmentChecklistsEditor({equipment, onReload}) {
       alert('Save failed: ' + error.message);
       return;
     }
-    onReload();
+    applySavedEquipmentPatch(onLocalPatch, onReload, {attachment_checklists: next});
   }
   async function editHelpText(idx, help_text) {
     const next = items.slice();
