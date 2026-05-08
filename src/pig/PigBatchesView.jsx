@@ -2685,6 +2685,11 @@ export default function PigBatchesView({
                                         border: '1px solid #d1d5db',
                                         borderRadius: 5,
                                         fontFamily: 'inherit',
+                                        width: 132,
+                                        minWidth: 132,
+                                        maxWidth: 132,
+                                        flex: '0 0 132px',
+                                        boxSizing: 'border-box',
                                       }}
                                     />
                                     <input
