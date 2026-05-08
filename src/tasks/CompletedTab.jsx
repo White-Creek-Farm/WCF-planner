@@ -18,7 +18,9 @@ import {
   attributionFor,
   photoPresenceFor,
 } from '../lib/tasksCenterApi.js';
+import {TASK_CHANGE_EVENT} from '../lib/tasksCenterMutationsApi.js';
 import {fmt, fmtCentralDateTime} from '../lib/dateUtils.js';
+import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
 
 const CARD = {
   background: 'white',
@@ -54,8 +56,18 @@ function nameFor(profileId, profilesById) {
   return p && p.full_name ? p.full_name : 'Unknown user';
 }
 
+const PHOTO_LINK_BTN = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  cursor: 'pointer',
+  fontSize: 12,
+  color: '#6b7280',
+  fontFamily: 'inherit',
+};
+
 // eslint-disable-next-line no-unused-vars -- referenced via JSX <CompletedRow .../> below
-function CompletedRow({ti, profilesById}) {
+function CompletedRow({ti, profilesById, onOpenPhotos}) {
   const photo = photoPresenceFor(ti);
   const attribution = attributionFor(ti);
   const assigneeName = nameFor(ti.assignee_profile_id, profilesById);
@@ -112,14 +124,17 @@ function CompletedRow({ti, profilesById}) {
           </span>
         )}
         {(photo.hasRequest || photo.hasCompletion) && (
-          <span
-            style={SUB}
+          <button
+            type="button"
             data-task-has-photo="1"
+            data-task-photo-open="1"
+            onClick={() => onOpenPhotos && onOpenPhotos(ti)}
             title="Task has at least one photo"
             aria-label="Task has at least one photo"
+            style={PHOTO_LINK_BTN}
           >
             📎
-          </span>
+          </button>
         )}
       </div>
     </div>
@@ -131,6 +146,8 @@ export default function CompletedTab({sb}) {
   const [profiles, setProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
+  const [photoTaskTarget, setPhotoTaskTarget] = React.useState(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -151,7 +168,24 @@ export default function CompletedTab({sb}) {
     return () => {
       cancelled = true;
     };
-  }, [sb]);
+  }, [sb, reloadKey]);
+
+  // A completion in MyTasksTab fires TASK_CHANGE_EVENT; refresh so the
+  // newly-completed row appears at the top of this tab without waiting
+  // for navigation.
+  React.useEffect(() => {
+    function onChange() {
+      setReloadKey((k) => k + 1);
+    }
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener(TASK_CHANGE_EVENT, onChange);
+    }
+    return () => {
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener(TASK_CHANGE_EVENT, onChange);
+      }
+    };
+  }, []);
 
   return (
     <div data-tasks-tab="completed">
@@ -181,10 +215,18 @@ export default function CompletedTab({sb}) {
               <div style={{fontSize: 13, color: '#374151'}}>No completed tasks yet.</div>
             </div>
           ) : (
-            rows.map((ti) => <CompletedRow key={ti.id} ti={ti} profilesById={profiles} />)
+            rows.map((ti) => (
+              <CompletedRow key={ti.id} ti={ti} profilesById={profiles} onOpenPhotos={setPhotoTaskTarget} />
+            ))
           )}
         </>
       )}
+      {React.createElement(TaskPhotoLightbox, {
+        sb,
+        task: photoTaskTarget,
+        isOpen: !!photoTaskTarget,
+        onClose: () => setPhotoTaskTarget(null),
+      })}
     </div>
   );
 }

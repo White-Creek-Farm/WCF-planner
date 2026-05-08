@@ -18,6 +18,7 @@ import {useUI} from '../contexts/UIContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {countMyOpenDueOrPastTasks} from '../lib/tasksCenterApi.js';
+import {TASK_CHANGE_EVENT} from '../lib/tasksCenterMutationsApi.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 
 export default function Header({sb, signOut, loadUsers, DeleteConfirmModal}) {
@@ -55,13 +56,18 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal}) {
     function onFocus() {
       refresh();
     }
+    function onTaskChange() {
+      refresh();
+    }
     if (typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('focus', onFocus);
+      window.addEventListener(TASK_CHANGE_EVENT, onTaskChange);
     }
     return () => {
       cancelled = true;
       if (typeof window !== 'undefined' && window.removeEventListener) {
         window.removeEventListener('focus', onFocus);
+        window.removeEventListener(TASK_CHANGE_EVENT, onTaskChange);
       }
     };
   }, [sb, callerProfileId, view]);

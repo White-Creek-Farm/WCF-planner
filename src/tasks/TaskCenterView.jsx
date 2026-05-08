@@ -20,6 +20,9 @@ import MyTasksTab from './MyTasksTab.jsx';
 import RecurringTab from './RecurringTab.jsx';
 import CompletedTab from './CompletedTab.jsx';
 import SystemTasksTab from './SystemTasksTab.jsx';
+import NewTaskModal from './NewTaskModal.jsx';
+import {loadEligibleProfilesById} from '../lib/tasksCenterApi.js';
+import {fireTaskChangeEvent} from '../lib/tasksCenterMutationsApi.js';
 
 const PAGE_BG = {
   minHeight: '100vh',
@@ -59,9 +62,32 @@ const TABS = [
 
 export default function TaskCenterView({Header, sb, authState}) {
   const [activeTab, setActiveTab] = React.useState('mine');
+  const [newTaskOpen, setNewTaskOpen] = React.useState(false);
+  const [profilesById, setProfilesById] = React.useState({});
   const isAdmin = authState && authState.role === 'admin';
 
   const visibleTabs = TABS.filter((t) => !t.adminOnly || isAdmin);
+
+  // Load eligible profiles once at the view level so the NewTaskModal
+  // assignee dropdown opens instantly. Tabs that need their own profile
+  // map keep loading their own copy — view-level cache is just for the
+  // create modal's snappiness.
+  React.useEffect(() => {
+    if (!sb) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const map = await loadEligibleProfilesById(sb);
+        if (!cancelled) setProfilesById(map);
+      } catch (_e) {
+        /* soft-fail; modal will show an empty assignee list and the user
+         * can retry by reopening it after a network blip. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sb]);
 
   // React.createElement instead of JSX so ESLint sees the tab-component
   // imports as referenced. Matches main.jsx's view-mounting pattern.
@@ -76,12 +102,53 @@ export default function TaskCenterView({Header, sb, authState}) {
     <div style={PAGE_BG} data-view="task-center">
       {Header ? <Header /> : null}
       <div style={{maxWidth: 880, margin: '0 auto', padding: '16px 18px'}}>
-        <div style={{marginBottom: 12}}>
-          <h1 style={{fontSize: 20, margin: 0, color: '#111827'}}>Task Center</h1>
-          <div style={{fontSize: 12, color: '#6b7280'}}>
-            All open tasks across the farm. Your tasks are highlighted at the top of the My Tasks tab.
+        <div
+          style={{
+            marginBottom: 12,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 12,
+          }}
+        >
+          <div>
+            <h1 style={{fontSize: 20, margin: 0, color: '#111827'}}>Task Center</h1>
+            <div style={{fontSize: 12, color: '#6b7280'}}>
+              All open tasks across the farm. Your tasks are highlighted at the top of the My Tasks tab.
+            </div>
           </div>
+          <button
+            type="button"
+            data-tasks-new-task-button="1"
+            onClick={() => setNewTaskOpen(true)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid #085041',
+              background: '#085041',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + New Task
+          </button>
         </div>
+        {React.createElement(NewTaskModal, {
+          sb,
+          profilesById,
+          isOpen: newTaskOpen,
+          onClose: () => setNewTaskOpen(false),
+          // Fire the cross-component refresh signal so the Header badge
+          // and any open tab re-fetch open data without waiting for
+          // focus/navigation.
+          onCreated: () => {
+            fireTaskChangeEvent();
+          },
+        })}
 
         <div style={TAB_BAR} role="tablist" data-tasks-tab-bar="1">
           {visibleTabs.map((t) => {

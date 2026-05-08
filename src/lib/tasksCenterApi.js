@@ -238,6 +238,27 @@ export function groupRecurringByTemplate(templates, openInstances) {
   return {templates: templateBuckets, orphans};
 }
 
+// ── Tasks v2 T6/T7: photo lightbox sidecar reader ──────────────────────
+//
+// Read every task_instance_photos row for a given instance, ordered by
+// kind ('creation' first, then 'completion') and slot. RLS allows
+// authenticated SELECT on this sidecar (mig 051); writes are SECDEF-RPC
+// only, so this reader is safe for any authenticated caller.
+//
+// Lightbox callers map each row's storage_path through the appropriate
+// bucket signed-URL helper from tasksCenterMutationsApi.js on click.
+export async function loadTaskInstancePhotos(sb, instanceId) {
+  if (!instanceId) return [];
+  const {data, error} = await sb
+    .from('task_instance_photos')
+    .select('id, instance_id, kind, storage_path, sort_order, uploaded_at, uploaded_by_profile_id')
+    .eq('instance_id', instanceId)
+    .order('kind', {ascending: true})
+    .order('sort_order', {ascending: true});
+  if (error) throw new Error(`loadTaskInstancePhotos: ${error.message}`);
+  return data || [];
+}
+
 // ── Tasks v2 T5: System Tasks tab ───────────────────────────────────────
 //
 // Read every task_system_rules row (active + inactive). RLS allows

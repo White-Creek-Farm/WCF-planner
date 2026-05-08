@@ -26,7 +26,10 @@ import {
   dueStateFor,
   photoPresenceFor,
 } from '../lib/tasksCenterApi.js';
+import {TASK_CHANGE_EVENT, fireTaskChangeEvent} from '../lib/tasksCenterMutationsApi.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
+import CompleteTaskModal from './CompleteTaskModal.jsx';
+import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
 
 const CARD = {
   background: 'white',
@@ -72,8 +75,29 @@ const BADGE_SYSTEM = {...BADGE_BASE, background: '#ecfdf5', color: '#047857'};
 const BADGE_OVERDUE = {...BADGE_BASE, background: '#fef2f2', color: '#991b1b', marginLeft: 0};
 const BADGE_TODAY = {...BADGE_BASE, background: '#fffbeb', color: '#92400e', marginLeft: 0};
 
+const COMPLETE_BTN = {
+  padding: '4px 10px',
+  borderRadius: 6,
+  border: '1px solid #085041',
+  background: '#085041',
+  color: 'white',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+};
+const PHOTO_LINK_BTN = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  cursor: 'pointer',
+  fontSize: 12,
+  color: '#6b7280',
+  fontFamily: 'inherit',
+};
+
 // eslint-disable-next-line no-unused-vars -- referenced via JSX <TaskRow .../> below
-function TaskRow({ti, todayStr}) {
+function TaskRow({ti, todayStr, canComplete, onComplete, onOpenPhotos}) {
   const due = dueStateFor(ti, todayStr);
   const attribution = attributionFor(ti);
   const photo = photoPresenceFor(ti);
@@ -117,14 +141,27 @@ function TaskRow({ti, todayStr}) {
           </span>
         )}
         {(photo.hasRequest || photo.hasCompletion) && (
-          <span
-            style={SUB}
+          <button
+            type="button"
             data-task-has-photo="1"
+            data-task-photo-open="1"
+            onClick={() => onOpenPhotos && onOpenPhotos(ti)}
             title="Task has at least one photo"
             aria-label="Task has at least one photo"
+            style={PHOTO_LINK_BTN}
           >
             📎
-          </span>
+          </button>
+        )}
+        {canComplete && (
+          <button
+            type="button"
+            data-task-complete-button="1"
+            onClick={() => onComplete && onComplete(ti)}
+            style={COMPLETE_BTN}
+          >
+            Complete
+          </button>
         )}
       </div>
     </div>
@@ -137,8 +174,12 @@ export default function MyTasksTab({sb, authState}) {
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
   const [expanded, setExpanded] = React.useState({}); // {assigneeProfileId: bool}
+  const [completeTaskTarget, setCompleteTaskTarget] = React.useState(null);
+  const [photoTaskTarget, setPhotoTaskTarget] = React.useState(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
 
   const callerProfileId = authState && authState.user ? authState.user.id : null;
+  const isAdmin = authState && authState.role === 'admin';
 
   React.useEffect(() => {
     let cancelled = false;
@@ -159,7 +200,31 @@ export default function MyTasksTab({sb, authState}) {
     return () => {
       cancelled = true;
     };
-  }, [sb]);
+  }, [sb, reloadKey]);
+
+  // Listen for cross-component create/complete events so a task created
+  // through the +New Task modal (or completed via the Complete modal in
+  // a sibling render path) refreshes My Tasks without waiting for focus.
+  React.useEffect(() => {
+    function onChange() {
+      setReloadKey((k) => k + 1);
+    }
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener(TASK_CHANGE_EVENT, onChange);
+    }
+    return () => {
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener(TASK_CHANGE_EVENT, onChange);
+      }
+    };
+  }, []);
+
+  function canCompleteRow(ti) {
+    if (!ti || ti.status !== 'open') return false;
+    if (isAdmin) return true;
+    if (callerProfileId && ti.assignee_profile_id === callerProfileId) return true;
+    return false;
+  }
 
   // todayCentralISO ties due-state comparisons to America/Chicago, so
   // overdue / due-today doesn't drift on a phone set to a different
@@ -202,7 +267,16 @@ export default function MyTasksTab({sb, authState}) {
                 <div style={{fontSize: 13, color: '#374151'}}>Nothing assigned to you right now.</div>
               </div>
             ) : (
-              mine.map((ti) => <TaskRow key={ti.id} ti={ti} todayStr={todayStr} />)
+              mine.map((ti) => (
+                <TaskRow
+                  key={ti.id}
+                  ti={ti}
+                  todayStr={todayStr}
+                  canComplete={canCompleteRow(ti)}
+                  onComplete={setCompleteTaskTarget}
+                  onOpenPhotos={setPhotoTaskTarget}
+                />
+              ))
             )}
           </div>
 
@@ -234,7 +308,14 @@ export default function MyTasksTab({sb, authState}) {
                     {isOpen && (
                       <div data-tasks-group-body={key} style={{paddingLeft: 8, marginBottom: 8}}>
                         {g.tasks.map((ti) => (
-                          <TaskRow key={ti.id} ti={ti} todayStr={todayStr} />
+                          <TaskRow
+                            key={ti.id}
+                            ti={ti}
+                            todayStr={todayStr}
+                            canComplete={canCompleteRow(ti)}
+                            onComplete={setCompleteTaskTarget}
+                            onOpenPhotos={setPhotoTaskTarget}
+                          />
                         ))}
                       </div>
                     )}
@@ -245,6 +326,24 @@ export default function MyTasksTab({sb, authState}) {
           </div>
         </>
       )}
+
+      {React.createElement(CompleteTaskModal, {
+        sb,
+        task: completeTaskTarget,
+        isOpen: !!completeTaskTarget,
+        onClose: () => setCompleteTaskTarget(null),
+        onCompleted: () => {
+          setCompleteTaskTarget(null);
+          fireTaskChangeEvent();
+          setReloadKey((k) => k + 1);
+        },
+      })}
+      {React.createElement(TaskPhotoLightbox, {
+        sb,
+        task: photoTaskTarget,
+        isOpen: !!photoTaskTarget,
+        onClose: () => setPhotoTaskTarget(null),
+      })}
     </div>
   );
 }

@@ -40,6 +40,10 @@ const recurringTab = fs.readFileSync(path.join(ROOT, 'src/tasks/RecurringTab.jsx
 const completedTab = fs.readFileSync(path.join(ROOT, 'src/tasks/CompletedTab.jsx'), 'utf8');
 const systemTasksTab = fs.readFileSync(path.join(ROOT, 'src/tasks/SystemTasksTab.jsx'), 'utf8');
 const tasksCenterApi = fs.readFileSync(path.join(ROOT, 'src/lib/tasksCenterApi.js'), 'utf8');
+const tasksCenterMutationsApi = fs.readFileSync(path.join(ROOT, 'src/lib/tasksCenterMutationsApi.js'), 'utf8');
+const newTaskModal = fs.readFileSync(path.join(ROOT, 'src/tasks/NewTaskModal.jsx'), 'utf8');
+const completeTaskModal = fs.readFileSync(path.join(ROOT, 'src/tasks/CompleteTaskModal.jsx'), 'utf8');
+const taskPhotoLightbox = fs.readFileSync(path.join(ROOT, 'src/tasks/TaskPhotoLightbox.jsx'), 'utf8');
 
 const T2_FILES = {
   'TaskCenterView.jsx': taskCenterView,
@@ -288,11 +292,16 @@ describe('Tasks v2 T4 — Completed tab read-only contract', () => {
     expect(completedTab).toMatch(/loadEligibleProfilesById/);
   });
 
-  it('CompletedTab renders no edit/save/delete/complete buttons', () => {
-    // Negative locks: no button onClick that fires a write or mutation
-    // helper. We accept the tab toggle buttons (none in CompletedTab —
-    // it has no <button> at all in T4).
-    expect(completedTab).not.toMatch(/<button[\s\S]*?onClick/);
+  it('CompletedTab buttons are limited to the photo-lightbox open button (no edit/save/delete/complete)', () => {
+    // T6/T7 added a photo-affordance button that opens the lightbox.
+    // Lock that every button in this file is the photo-open button by
+    // checking each <button onClick=...> block contains the
+    // data-task-photo-open marker — a future drift can't slip an edit
+    // or write handler in without that marker also showing up.
+    const buttonOnClicks = Array.from(completedTab.matchAll(/<button\b[\s\S]*?onClick=\{[\s\S]*?\}/g), (m) => m[0]);
+    for (const btn of buttonOnClicks) {
+      expect(btn, 'every CompletedTab button must be a photo-open affordance').toMatch(/data-task-photo-open="1"/);
+    }
   });
 
   it('CompletedTab uses fmtCentralDateTime for completed_at (Central-time display lock)', () => {
@@ -471,5 +480,177 @@ describe('Tasks v2 T5 — tasksCenterApi system-task loader shape', () => {
 
   it('groupSystemTasksByRule is exported as a pure helper', () => {
     expect(tasksCenterApi).toMatch(/export\s+function\s+groupSystemTasksByRule\s*\(/);
+  });
+});
+
+// ============================================================================
+// Tasks v2 T6 + T7 — NewTaskModal, CompleteTaskModal, TaskPhotoLightbox.
+// ----------------------------------------------------------------------------
+// /tasks operational surfaces. All DB writes flow through v2 SECDEF RPCs in
+// src/lib/tasksCenterMutationsApi.js. Static lock asserts:
+//   * NewTaskModal / CompleteTaskModal / TaskPhotoLightbox import only from
+//     tasksCenterMutationsApi for mutations (no tasksAdminApi / tasksUserApi
+//     legacy wrappers).
+//   * NewTaskModal calls create_one_time_task_instance with p_instance and
+//     p_creation_photo_paths.
+//   * CompleteTaskModal calls complete_task_instance with p_instance_id,
+//     p_completion_note, p_completion_photo_paths — never the v1
+//     p_completion_photo_path single-arg shape.
+//   * Neither modal sets created_by_*, designation, from_recurring_template,
+//     or from_system_rule_id in payloads (server-locked).
+//   * No T6/T7 file references the other v2 mutation RPCs we don't own:
+//     update_task_instance_due_date / assign_task_instance /
+//     delete_task_instance / generate_system_task_instance.
+//   * No direct .insert/.update/.delete on task_* tables from any T6/T7 file.
+//   * Upload helpers stay append-only (upsert:false + duplicate-as-success).
+//   * Completion photo paths use task.assignee_profile_id, not the caller.
+//   * Header listens for the TASK_CHANGE_EVENT refresh signal.
+// ============================================================================
+
+const T6_T7_FILES = {
+  'NewTaskModal.jsx': newTaskModal,
+  'CompleteTaskModal.jsx': completeTaskModal,
+  'TaskPhotoLightbox.jsx': taskPhotoLightbox,
+};
+
+const T6_T7_FORBIDDEN_RPC_NAMES = [
+  'update_task_instance_due_date',
+  'assign_task_instance',
+  'delete_task_instance',
+  'generate_system_task_instance',
+];
+
+describe('Tasks v2 T6 + T7 — mutation modules import boundary', () => {
+  it('NewTaskModal / CompleteTaskModal / TaskPhotoLightbox import from tasksCenterMutationsApi', () => {
+    expect(newTaskModal).toMatch(/from\s+['"]\.\.\/lib\/tasksCenterMutationsApi\.js['"]/);
+    expect(completeTaskModal).toMatch(/from\s+['"]\.\.\/lib\/tasksCenterMutationsApi\.js['"]/);
+    expect(taskPhotoLightbox).toMatch(/from\s+['"]\.\.\/lib\/tasksCenterMutationsApi\.js['"]/);
+  });
+
+  it('No T6/T7 file imports tasksAdminApi or tasksUserApi (legacy v1 wrappers stay out of /tasks)', () => {
+    for (const [name, src] of Object.entries(T6_T7_FILES)) {
+      expect(src, `${name} must not import tasksAdminApi`).not.toMatch(/from\s+['"][^'"]*tasksAdminApi[^'"]*['"]/);
+      expect(src, `${name} must not import tasksUserApi`).not.toMatch(/from\s+['"][^'"]*tasksUserApi[^'"]*['"]/);
+    }
+  });
+
+  it('No T6/T7 file calls v2 mutation RPCs we do not own (due_date/assign/delete/system-generate)', () => {
+    for (const rpc of T6_T7_FORBIDDEN_RPC_NAMES) {
+      for (const [name, src] of Object.entries(T6_T7_FILES)) {
+        expect(src, `${name} must not reference ${rpc}`).not.toMatch(new RegExp(rpc));
+      }
+    }
+  });
+
+  it('No T6/T7 file writes directly to task_* tables', () => {
+    const writeChain =
+      /\.from\(\s*['"](task_instances|task_templates|task_instance_photos|task_instance_due_date_edits|task_system_rules)['"]\s*\)\s*[\s\S]{0,200}?\.(insert|update|delete|upsert)\s*\(/;
+    for (const [name, src] of Object.entries(T6_T7_FILES)) {
+      expect(src, `${name} must not write to task_* tables directly`).not.toMatch(writeChain);
+    }
+  });
+});
+
+describe('Tasks v2 T6 — create_one_time_task_instance wrapper contract', () => {
+  it('createOneTimeTaskInstanceV2 calls create_one_time_task_instance with p_instance + p_creation_photo_paths', () => {
+    expect(tasksCenterMutationsApi).toMatch(/export\s+async\s+function\s+createOneTimeTaskInstanceV2/);
+    const body = tasksCenterMutationsApi.match(/export\s+async\s+function\s+createOneTimeTaskInstanceV2[\s\S]*?\n\}/);
+    expect(body, 'createOneTimeTaskInstanceV2 body must be present').not.toBeNull();
+    expect(body[0]).toMatch(/sb\.rpc\(\s*['"]create_one_time_task_instance['"]/);
+    expect(body[0]).toMatch(/p_instance\s*:/);
+    expect(body[0]).toMatch(/p_creation_photo_paths\s*:/);
+  });
+
+  it('NewTaskModal payload omits server-locked fields (created_by_*, designation, recurring/system markers)', () => {
+    // The payload object literal lives near createOneTimeTaskInstanceV2.
+    // None of these field names should appear in the modal source — the
+    // v2 RPC locks them server-side and a client-side write would silently
+    // be ignored or rejected.
+    expect(newTaskModal).not.toMatch(/created_by_profile_id/);
+    expect(newTaskModal).not.toMatch(/created_by_display_name/);
+    expect(newTaskModal).not.toMatch(/designation\s*:/);
+    expect(newTaskModal).not.toMatch(/from_recurring_template/);
+    expect(newTaskModal).not.toMatch(/from_system_rule_id/);
+  });
+
+  it('NewTaskModal mints stable id + client_submission_id once per modal open', () => {
+    // The idsRef pattern keeps id+csid stable across re-renders so a
+    // retry hits the same storage path AND the same RPC csid (the RPC
+    // dedupes via ON CONFLICT (client_submission_id) DO NOTHING).
+    expect(newTaskModal).toMatch(/idsRef/);
+    expect(newTaskModal).toMatch(/client_submission_id/);
+  });
+
+  it('uploadTaskCreationPhotos stays append-only (upsert:false + duplicate-as-success)', () => {
+    expect(tasksCenterMutationsApi).toMatch(/export\s+async\s+function\s+uploadTaskCreationPhotos/);
+    expect(tasksCenterMutationsApi).toMatch(/upsert:\s*false/);
+    expect(tasksCenterMutationsApi).toMatch(/isStorageDuplicateError/);
+  });
+});
+
+describe('Tasks v2 T7 — complete_task_instance wrapper contract', () => {
+  it('completeTaskInstanceV2 calls complete_task_instance with v2 named args (note + paths array)', () => {
+    expect(tasksCenterMutationsApi).toMatch(/export\s+async\s+function\s+completeTaskInstanceV2/);
+    const body = tasksCenterMutationsApi.match(/export\s+async\s+function\s+completeTaskInstanceV2[\s\S]*?\n\}/);
+    expect(body, 'completeTaskInstanceV2 body must be present').not.toBeNull();
+    expect(body[0]).toMatch(/sb\.rpc\(\s*['"]complete_task_instance['"]/);
+    expect(body[0]).toMatch(/p_instance_id\s*:/);
+    expect(body[0]).toMatch(/p_completion_note\s*:/);
+    expect(body[0]).toMatch(/p_completion_photo_paths\s*:/);
+  });
+
+  it('No T6/T7 file uses the v1 single-arg p_completion_photo_path shape', () => {
+    // The v1 overload from mig 040 takes (text, text DEFAULT NULL) and
+    // a body carrying p_completion_photo_path (singular). PostgREST
+    // routes by named-arg match, so the v1 shape MUST NOT appear in any
+    // /tasks code or it would silently fall through to v1 instead of v2.
+    for (const [name, src] of Object.entries(T6_T7_FILES)) {
+      expect(src, `${name} must not use v1 p_completion_photo_path shape`).not.toMatch(
+        /p_completion_photo_path\b(?!_)/,
+      );
+    }
+    expect(tasksCenterMutationsApi).not.toMatch(/p_completion_photo_path\b(?!_)/);
+  });
+
+  it('CompleteTaskModal uploads to task.assignee_profile_id, not the caller', () => {
+    // Per §7 the completion-photo path prefix must use the row's
+    // assignee_profile_id even when admin completes someone else's task.
+    // The upload helper takes assigneeUid as its first arg; this lock
+    // ensures the modal passes task.assignee_profile_id, not authState
+    // or callerProfileId. Match the CALL site (uploadTaskCompletionPhotos
+    // followed by `(`), not the import line.
+    const callBody = completeTaskModal.match(/uploadTaskCompletionPhotos\(\s*[\s\S]*?\)/);
+    expect(callBody, 'uploadTaskCompletionPhotos invocation must be present in CompleteTaskModal').not.toBeNull();
+    expect(callBody[0]).toMatch(/task\.assignee_profile_id/);
+  });
+
+  it('uploadTaskCompletionPhotos stays append-only (upsert:false + duplicate-as-success)', () => {
+    expect(tasksCenterMutationsApi).toMatch(/export\s+async\s+function\s+uploadTaskCompletionPhotos/);
+    // upsert:false + isStorageDuplicateError already asserted globally
+    // above; this lock pins that the helper exists by name.
+  });
+});
+
+describe('Tasks v2 T6 + T7 — Header listens for TASK_CHANGE_EVENT', () => {
+  it('Header imports TASK_CHANGE_EVENT from tasksCenterMutationsApi', () => {
+    expect(headerJsx).toMatch(
+      /import\s*\{\s*TASK_CHANGE_EVENT\s*\}\s*from\s*['"]\.\.\/lib\/tasksCenterMutationsApi\.js['"]/,
+    );
+  });
+
+  it('Header registers a window listener on TASK_CHANGE_EVENT inside the badge effect', () => {
+    expect(headerJsx).toMatch(/addEventListener\(\s*TASK_CHANGE_EVENT/);
+    expect(headerJsx).toMatch(/removeEventListener\(\s*TASK_CHANGE_EVENT/);
+  });
+});
+
+describe('Tasks v2 T6 + T7 — TaskCenterView wires NewTaskModal', () => {
+  it('TaskCenterView renders + New Task button and mounts NewTaskModal', () => {
+    expect(taskCenterView).toMatch(/data-tasks-new-task-button="1"/);
+    expect(taskCenterView).toMatch(/import\s+NewTaskModal\s+from\s+['"]\.\/NewTaskModal\.jsx['"]/);
+  });
+
+  it('TaskCenterView fires TASK_CHANGE_EVENT after a successful create', () => {
+    expect(taskCenterView).toMatch(/fireTaskChangeEvent\s*\(/);
   });
 });
