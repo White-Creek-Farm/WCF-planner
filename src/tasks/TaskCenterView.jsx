@@ -9,7 +9,7 @@
 //   My Tasks       — default; functional read-only (MyTasksTab).
 //   Recurring      — functional read-only (RecurringTab) — T4.
 //   Completed      — functional read-only (CompletedTab) — T4.
-//   System Tasks   — admin-only; placeholder until T5.
+//   System Tasks   — admin-only; functional read-only (SystemTasksTab) — T5.
 //
 // Mutation surfaces (create / complete / due-date edits / assign /
 // delete / system-rule admin) all land in later T-lane commits.
@@ -69,7 +69,7 @@ export default function TaskCenterView({Header, sb, authState}) {
   if (activeTab === 'mine') body = React.createElement(MyTasksTab, {sb, authState});
   else if (activeTab === 'recurring') body = React.createElement(RecurringTab, {sb});
   else if (activeTab === 'completed') body = React.createElement(CompletedTab, {sb});
-  else if (activeTab === 'system' && isAdmin) body = React.createElement(SystemTasksTab, null);
+  else if (activeTab === 'system' && isAdmin) body = React.createElement(SystemTasksTab, {sb});
   else body = React.createElement(MyTasksTab, {sb, authState});
 
   return (

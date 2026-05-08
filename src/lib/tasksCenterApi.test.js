@@ -14,6 +14,7 @@ import {
   dueStateFor,
   photoPresenceFor,
   groupRecurringByTemplate,
+  groupSystemTasksByRule,
 } from './tasksCenterApi.js';
 
 describe('splitTasksForMyTab', () => {
@@ -162,6 +163,82 @@ describe('groupRecurringByTemplate', () => {
   it('tolerates null/undefined inputs', () => {
     const out = groupRecurringByTemplate(null, undefined);
     expect(out.templates).toEqual([]);
+    expect(out.orphans).toEqual([]);
+  });
+});
+
+describe('groupSystemTasksByRule', () => {
+  const rules = [
+    {id: 'broiler-4wk-weighin', name: 'Broiler 4-week weigh-in', active: true},
+    {id: 'pig-6mo-weighin', name: 'Pig 6-month weigh-in', active: true},
+    {id: 'clean-brooder', name: 'Clean brooder', active: false},
+  ];
+
+  it('buckets open instances under their owning rule by from_system_rule_id', () => {
+    const opens = [
+      {id: 'i1', from_system_rule_id: 'broiler-4wk-weighin', title: 'B-26-01 4wk', due_date: '2026-05-08'},
+      {id: 'i2', from_system_rule_id: 'broiler-4wk-weighin', title: 'B-26-02 4wk', due_date: '2026-05-09'},
+      {id: 'i3', from_system_rule_id: 'pig-6mo-weighin', title: 'P-26-01 6mo', due_date: '2026-06-01'},
+    ];
+    const out = groupSystemTasksByRule(rules, opens);
+    expect(out.rules).toHaveLength(3);
+    const broiler4 = out.rules.find((b) => b.rule.id === 'broiler-4wk-weighin');
+    expect(broiler4.openCount).toBe(2);
+    expect(broiler4.instances.map((i) => i.id)).toEqual(['i1', 'i2']);
+    const pig = out.rules.find((b) => b.rule.id === 'pig-6mo-weighin');
+    expect(pig.openCount).toBe(1);
+    const clean = out.rules.find((b) => b.rule.id === 'clean-brooder');
+    expect(clean.openCount).toBe(0);
+    expect(out.orphans).toEqual([]);
+  });
+
+  it('preserves the input order of instances inside each bucket', () => {
+    const opens = [
+      {id: 'i-late', from_system_rule_id: 'broiler-4wk-weighin', due_date: '2026-06-01'},
+      {id: 'i-early', from_system_rule_id: 'broiler-4wk-weighin', due_date: '2026-05-01'},
+      {id: 'i-mid', from_system_rule_id: 'broiler-4wk-weighin', due_date: '2026-05-15'},
+    ];
+    const out = groupSystemTasksByRule(rules, opens);
+    const b = out.rules.find((x) => x.rule.id === 'broiler-4wk-weighin');
+    expect(b.instances.map((i) => i.id)).toEqual(['i-late', 'i-early', 'i-mid']);
+  });
+
+  it('routes instances with NULL from_system_rule_id into orphans', () => {
+    const opens = [
+      {id: 'orphan-null', from_system_rule_id: null, title: 'Null rule', due_date: '2026-05-08'},
+      {id: 'i1', from_system_rule_id: 'broiler-4wk-weighin', due_date: '2026-05-08'},
+    ];
+    const out = groupSystemTasksByRule(rules, opens);
+    expect(out.orphans.map((i) => i.id)).toEqual(['orphan-null']);
+    expect(out.rules.find((b) => b.rule.id === 'broiler-4wk-weighin').openCount).toBe(1);
+  });
+
+  it('routes instances with missing from_system_rule_id key into orphans', () => {
+    const opens = [{id: 'no-key', title: 'no key field at all'}];
+    const out = groupSystemTasksByRule(rules, opens);
+    expect(out.orphans.map((i) => i.id)).toEqual(['no-key']);
+  });
+
+  it('routes instances whose rule id is unknown (rule missing from input) into orphans', () => {
+    const opens = [{id: 'mystery', from_system_rule_id: 'rule-gone', title: 'Mystery'}];
+    const out = groupSystemTasksByRule(rules, opens);
+    expect(out.orphans.map((i) => i.id)).toEqual(['mystery']);
+  });
+
+  it('preserves the input rule order (caller already sorted)', () => {
+    const out = groupSystemTasksByRule(rules, []);
+    expect(out.rules.map((b) => b.rule.id)).toEqual(['broiler-4wk-weighin', 'pig-6mo-weighin', 'clean-brooder']);
+  });
+
+  it('returns empty buckets and empty orphans when both inputs are empty', () => {
+    const out = groupSystemTasksByRule([], []);
+    expect(out.rules).toEqual([]);
+    expect(out.orphans).toEqual([]);
+  });
+
+  it('tolerates null/undefined inputs', () => {
+    const out = groupSystemTasksByRule(null, undefined);
+    expect(out.rules).toEqual([]);
     expect(out.orphans).toEqual([]);
   });
 });

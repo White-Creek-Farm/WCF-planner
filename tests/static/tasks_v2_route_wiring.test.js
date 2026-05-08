@@ -374,3 +374,102 @@ describe('Tasks v2 T3+T4 — tasksCenterApi loader shape', () => {
     expect(tasksCenterApi).toMatch(/export\s+function\s+groupRecurringByTemplate\s*\(/);
   });
 });
+
+// ============================================================================
+// Tasks v2 T5 — System Tasks tab read-only contract.
+// ----------------------------------------------------------------------------
+// SystemTasksTab is admin-gated in TaskCenterView (covered by an existing
+// T2 lock). Inside the tab, all data flows through tasksCenterApi read
+// helpers; no mutation paths exist. The most dangerous regression here
+// would be importing or calling generate_system_task_instance — that RPC
+// drives system-task generation and any frontend reference would be a
+// product-design break (generation is owned by the cron Edge Function,
+// not the operator UI). Lock all six v2 mutation RPCs negatively, plus
+// the storage/upload/profiles negatives the other T2/T4 tabs already
+// enforce.
+// ============================================================================
+
+describe('Tasks v2 T5 — System Tasks tab read-only contract', () => {
+  it('SystemTasksTab imports loaders from tasksCenterApi only', () => {
+    expect(systemTasksTab).toMatch(/from\s+['"]\.\.\/lib\/tasksCenterApi\.js['"]/);
+    expect(systemTasksTab).not.toMatch(/from\s+['"][^'"]*tasksAdminApi[^'"]*['"]/);
+    expect(systemTasksTab).not.toMatch(/from\s+['"][^'"]*tasksUserApi[^'"]*['"]/);
+  });
+
+  it('SystemTasksTab calls loadSystemTaskRules + loadOpenSystemTaskInstances + groupSystemTasksByRule', () => {
+    expect(systemTasksTab).toMatch(/loadSystemTaskRules/);
+    expect(systemTasksTab).toMatch(/loadOpenSystemTaskInstances/);
+    expect(systemTasksTab).toMatch(/groupSystemTasksByRule/);
+  });
+
+  it('SystemTasksTab references no v2 mutation RPC names (especially generate_system_task_instance)', () => {
+    for (const rpc of FORBIDDEN_RPC_NAMES) {
+      expect(systemTasksTab, `SystemTasksTab must not reference ${rpc}`).not.toMatch(new RegExp(rpc));
+    }
+  });
+
+  it('SystemTasksTab writes to no task_* tables', () => {
+    const writeChain =
+      /\.from\(\s*['"](task_instances|task_templates|task_instance_photos|task_instance_due_date_edits|task_system_rules)['"]\s*\)\s*[\s\S]{0,200}?\.(insert|update|delete|upsert)\s*\(/;
+    expect(systemTasksTab).not.toMatch(writeChain);
+  });
+
+  it('SystemTasksTab uploads to no storage bucket', () => {
+    expect(systemTasksTab).not.toMatch(/\.storage\.from\([^)]*\)\.upload\s*\(/);
+  });
+
+  it('SystemTasksTab buttons are all collapse toggles, never edit/delete/save/generate/assign controls', () => {
+    // The only <button> elements are the per-rule collapse toggles wired
+    // to the local toggle() helper. Lock that any button onClick calls
+    // toggle(...) so a future drift can't slip an edit/generate handler in.
+    const buttonOnClicks = Array.from(systemTasksTab.matchAll(/<button\b[\s\S]*?onClick=\{[\s\S]*?\}/g), (m) => m[0]);
+    expect(buttonOnClicks.length).toBeGreaterThan(0);
+    for (const btn of buttonOnClicks) {
+      expect(btn, 'every System Tasks tab button must call toggle(...) only').toMatch(/toggle\(/);
+    }
+  });
+
+  it('SystemTasksTab does not read profiles directly', () => {
+    expect(systemTasksTab).not.toMatch(/\.from\(\s*['"]profiles['"]\s*\)/);
+  });
+
+  it('SystemTasksTab reads task_system_rules only through tasksCenterApi (no direct .from on this file)', () => {
+    expect(systemTasksTab).not.toMatch(/\.from\(\s*['"]task_system_rules['"]\s*\)/);
+  });
+
+  it('TaskCenterView still gates the System Tasks tab to admin only after T5 wiring', () => {
+    // T5 swaps the placeholder for the functional component but must NOT
+    // remove the adminOnly flag or the visibleTabs filter — duplicates
+    // T2's existing lock so a future reorg can't drop just this part.
+    expect(taskCenterView).toMatch(/key:\s*'system'[\s\S]*?adminOnly:\s*true/);
+    expect(taskCenterView).toMatch(/visibleTabs\s*=\s*TABS\.filter\(\(t\)\s*=>\s*!t\.adminOnly\s*\|\|\s*isAdmin\)/);
+    // And the system tab body must still be conditional on isAdmin so a
+    // direct activeTab='system' from a non-admin can't render the body.
+    expect(taskCenterView).toMatch(/activeTab\s*===\s*'system'\s*&&\s*isAdmin/);
+  });
+});
+
+describe('Tasks v2 T5 — tasksCenterApi system-task loader shape', () => {
+  it('loadSystemTaskRules reads task_system_rules', () => {
+    expect(tasksCenterApi).toMatch(/export\s+async\s+function\s+loadSystemTaskRules/);
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+loadSystemTaskRules[\s\S]*?\n\}/);
+    expect(body, 'body of loadSystemTaskRules must be present').not.toBeNull();
+    expect(body[0]).toMatch(/\.from\(\s*['"]task_system_rules['"]\s*\)/);
+  });
+
+  it('loadOpenSystemTaskInstances scopes to status=open AND (designation=system OR from_system_rule_id IS NOT NULL)', () => {
+    expect(tasksCenterApi).toMatch(/export\s+async\s+function\s+loadOpenSystemTaskInstances/);
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+loadOpenSystemTaskInstances[\s\S]*?\n\}/);
+    expect(body, 'body of loadOpenSystemTaskInstances must be present').not.toBeNull();
+    expect(body[0]).toMatch(/\.eq\(\s*['"]status['"]\s*,\s*['"]open['"]\s*\)/);
+    // PostgREST .or() is the only way to express the union; lock the
+    // exact arg string so a future swap to a single .eq filter (which
+    // would silently drop one of the two row populations) trips the
+    // static check.
+    expect(body[0]).toMatch(/\.or\(\s*['"]designation\.eq\.system,from_system_rule_id\.not\.is\.null['"]\s*\)/);
+  });
+
+  it('groupSystemTasksByRule is exported as a pure helper', () => {
+    expect(tasksCenterApi).toMatch(/export\s+function\s+groupSystemTasksByRule\s*\(/);
+  });
+});
