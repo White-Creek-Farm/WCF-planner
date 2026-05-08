@@ -11,7 +11,14 @@ import UsersModal from '../auth/UsersModal.jsx';
 import {writeBroilerBatchAvg, recomputeBroilerBatchWeekAvg} from '../lib/broiler.js';
 import {loadRoster, activeNames as rosterActiveNames} from '../lib/teamMembers.js';
 import {pigSlug} from '../lib/pig.js';
-import {formatAgeRange, formatFeedPerPig, formatGroupAdg, formatAvgWeight} from '../lib/pigForecast.js';
+import {
+  formatAgeRange,
+  formatFeedPerPig,
+  formatGroupAdg,
+  formatAvgWeight,
+  reconcilePlannedTripsForSend,
+} from '../lib/pigForecast.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import PigSendToTripModal from './PigSendToTripModal.jsx';
 const LivestockWeighInsView = ({
   sb,
@@ -69,6 +76,11 @@ const LivestockWeighInsView = ({
   const [feederGroups, setFeederGroups] = useState([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState(new Set());
   const [tripModal, setTripModal] = useState(null); // {session, entries: []}
+  // Permission gate for pig send-to-planned-trip mutations (Codex pig
+  // planned trips lane spec): admin OR management can mutate; farm_team
+  // is read-only across the entire pig planned/processing trip surface,
+  // including selection checkboxes, the send action, and undo-send.
+  const canManagePigPlannedTrips = !!(authState && (authState.role === 'admin' || authState.role === 'management'));
   // Pig inline add-entry state (per expanded session — scoped via expandedSession)
   const [pigAddEntry, setPigAddEntry] = useState({weight: '', note: ''});
   const [pigBusy, setPigBusy] = useState(false);
@@ -667,81 +679,96 @@ const LivestockWeighInsView = ({
     await loadAll();
   }
 
-  // Send-to-Trip: merge the selected weigh-ins into a trip inside a feeder group.
-  // Trip's pigCount gets incremented by the selection count. liveWeights gets
-  // the weights space-appended (matches the existing liveWeights string format).
-  // Each weigh-in row is stamped with sent_to_trip_id + sent_to_group_id so it
-  // survives grid saves and shows up in the Sent panel.
-  async function sendEntriesToTrip({groupId, tripId, createNewWithDate}) {
+  // Send-to-Trip: planned-trip-driven flow per Codex's pig planned trips
+  // lane spec. The modal pre-resolves source sub-batch + sex; this handler
+  // re-runs reconcilePlannedTripsForSend (single source of truth) on the
+  // current plannedProcessingTrips, then creates an actual processingTrips
+  // row dated to the target planned trip's date.
+  //
+  // Each weigh-in row is stamped with sent_to_trip_id + sent_to_group_id
+  // so it survives grid saves and surfaces in the Sent panel. The new
+  // actual processingTrips id is what gets stamped — the planned trip's
+  // id stays in plannedProcessingTrips (or is removed via reconciliation),
+  // those are different namespaces.
+  async function sendEntriesToTrip({groupId, sourceSubId, sourceSubSex, sendCount}) {
     if (!tripModal) return;
-    const {session, entries: selectedEntries} = tripModal;
-    if (!groupId || selectedEntries.length === 0) return;
+    // Permission gate: farm_team cannot mutate planned/processing trips.
+    if (!canManagePigPlannedTrips) {
+      console.warn('sendEntriesToTrip refused: caller lacks admin/management role');
+      setTripModal(null);
+      return;
+    }
+    const {entries: selectedEntries} = tripModal;
+    if (!groupId || !sourceSubId || !sourceSubSex || !selectedEntries || selectedEntries.length === 0) return;
     const groups = feederGroups.slice();
     const gi = groups.findIndex((g) => g.id === groupId);
     if (gi < 0) return;
     const g = {...groups[gi]};
+
+    // Re-run reconciliation against the live planned-trip array. The modal
+    // already validated, but the helper is the contract; rerun guards
+    // against any concurrent mutation between modal open and confirm.
+    const recon = reconcilePlannedTripsForSend(g.plannedProcessingTrips || [], {
+      subBatchId: sourceSubId,
+      sex: sourceSubSex,
+      sendCount,
+      today: todayCentralISO(),
+    });
+    if (recon.error) {
+      // Surface to console + abort. The modal-side validation should
+      // have caught this; if we got here, the plannedTrips changed
+      // under us. Refusing without writes is the safe path.
+      console.warn('sendEntriesToTrip reconciliation refused:', recon.error);
+      return;
+    }
+
+    const sourceSub = (g.subBatches || []).find((sb) => sb.id === sourceSubId);
+    if (!sourceSub) {
+      console.warn('sendEntriesToTrip: source sub not found on group', groupId, sourceSubId);
+      return;
+    }
+
     const trips = (g.processingTrips || []).slice();
     const addWeights = selectedEntries.map((e) => parseFloat(e.weight) || 0).filter((w) => w > 0);
     const addCount = selectedEntries.length;
-    // Resolve session.batch_id (a slug like "p-26-01-a-gilts-") to the
-    // sub-batch on this parent group. We capture id, name, AND sex onto
-    // the trip's subAttributions row so the schema is human-readable in
-    // the JSON blob (sub IDs are timestamps; names + sex give context).
-    // Sex is inferred from the sub's existing giltCount/boarCount layout.
-    let effectiveTripId = tripId;
-    const sourceSub = (() => {
-      if (!session || !session.batch_id) return null;
-      const s = pigSlug(session.batch_id);
-      for (const sb of g.subBatches || []) if (pigSlug(sb.name) === s) return sb;
-      return null;
-    })();
-    function attRow(sub, count) {
-      const isBoars = (parseInt(sub.boarCount) || 0) > 0 && (parseInt(sub.giltCount) || 0) === 0;
-      return {subId: sub.id, subBatchName: sub.name, sex: isBoars ? 'Boars' : 'Gilts', count};
-    }
-    if (!tripId && createNewWithDate) {
-      // Create a new trip with this selection seeded
-      effectiveTripId = String(Date.now()) + Math.random().toString(36).slice(2, 6);
-      trips.push({
-        id: effectiveTripId,
-        date: createNewWithDate,
-        pigCount: addCount,
-        liveWeights: addWeights.join(' '),
-        hangingWeight: 0,
-        notes: '',
-        subAttributions: sourceSub ? [attRow(sourceSub, addCount)] : [],
-      });
-    } else {
-      const ti = trips.findIndex((t) => t.id === tripId);
-      if (ti < 0) return;
-      const t = {...trips[ti]};
-      t.pigCount = (parseInt(t.pigCount) || 0) + addCount;
-      const existing = (t.liveWeights || '').trim();
-      t.liveWeights = (existing ? existing + ' ' : '') + addWeights.join(' ');
-      const atts = Array.isArray(t.subAttributions) ? t.subAttributions.slice() : [];
-      if (sourceSub) {
-        const ai = atts.findIndex((a) => a && a.subId === sourceSub.id);
-        if (ai >= 0)
-          atts[ai] = {...atts[ai], count: (parseInt(atts[ai].count) || 0) + addCount, subBatchName: sourceSub.name};
-        else atts.push(attRow(sourceSub, addCount));
-      }
-      t.subAttributions = atts;
-      trips[ti] = t;
-    }
+
+    // subAttributions row — denormalize subBatchName + sex onto the actual
+    // processingTrips row per the §7 contract.
+    const sexLabel = sourceSubSex === 'boar' ? 'Boars' : 'Gilts';
+    const attRow = {subId: sourceSub.id, subBatchName: sourceSub.name, sex: sexLabel, count: addCount};
+
+    // Always create a NEW actual processingTrips row dated to the target
+    // planned trip's date. Each send is one actual trip; if the operator
+    // sends to the same planned date twice, two actual rows result —
+    // matches the existing semantics for non-planned sends.
+    const newTripId = String(Date.now()) + Math.random().toString(36).slice(2, 6);
+    trips.push({
+      id: newTripId,
+      date: recon.targetTripDate,
+      pigCount: addCount,
+      liveWeights: addWeights.join(' '),
+      hangingWeight: 0,
+      notes: '',
+      subAttributions: [attRow],
+    });
     trips.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     g.processingTrips = trips;
+    g.plannedProcessingTrips = recon.updatedPlannedTrips;
     groups[gi] = g;
+
     await sb.from('app_store').upsert({key: 'ppp-feeders-v1', data: groups}, {onConflict: 'key'});
-    // Mark the weigh_ins rows
+
+    // Stamp every selected weigh_ins row with the actual trip + group.
     for (const e of selectedEntries) {
       await sb
         .from('weigh_ins')
         .update({
-          sent_to_trip_id: effectiveTripId,
+          sent_to_trip_id: newTripId,
           sent_to_group_id: groupId,
         })
         .eq('id', e.id);
     }
+
     setFeederGroups(groups);
     setSelectedEntryIds(new Set());
     setTripModal(null);
@@ -749,6 +776,10 @@ const LivestockWeighInsView = ({
   }
   async function undoSendToTrip(entry) {
     if (!entry || !entry.sent_to_trip_id || !entry.sent_to_group_id) return;
+    if (!canManagePigPlannedTrips) {
+      console.warn('undoSendToTrip refused: caller lacks admin/management role');
+      return;
+    }
     const groups = feederGroups.slice();
     const gi = groups.findIndex((g) => g.id === entry.sent_to_group_id);
     if (gi >= 0) {
@@ -1616,11 +1647,16 @@ const LivestockWeighInsView = ({
                                       alignItems: 'center',
                                     }}
                                   >
-                                    {/* Col 1: select-to-trip checkbox (or spacer) */}
+                                    {/* Col 1: select-to-trip checkbox (or spacer).
+                                      Pig planned trips lane: gated on
+                                      canManagePigPlannedTrips (admin/management).
+                                      farm_team is read-only across the entire
+                                      pig planned/processing trip surface. */}
                                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                                      {editable && (
+                                      {editable && canManagePigPlannedTrips && (
                                         <input
                                           type="checkbox"
+                                          data-pig-send-select="1"
                                           checked={checked}
                                           onChange={() => toggle(e.id)}
                                           style={{margin: 0}}
@@ -1761,8 +1797,9 @@ const LivestockWeighInsView = ({
                                           {'\u2192 Breeding'}
                                         </button>
                                       )}
-                                      {isSent && (
+                                      {isSent && canManagePigPlannedTrips && (
                                         <button
+                                          data-pig-send-undo="1"
                                           onClick={() => undoSendToTrip(e)}
                                           title="Undo send to trip"
                                           style={{
@@ -1913,9 +1950,12 @@ const LivestockWeighInsView = ({
                               />
                             </div>
 
-                            {/* Send-to-Trip action bar */}
-                            {unsent.length > 0 && !fieldsLocked && (
+                            {/* Send-to-Trip action bar — admin/management only.
+                              farm_team can view the session and weights but
+                              cannot mutate planned/processing trip state. */}
+                            {unsent.length > 0 && !fieldsLocked && canManagePigPlannedTrips && (
                               <div
+                                data-pig-send-bar="1"
                                 style={{
                                   marginTop: 12,
                                   paddingTop: 10,

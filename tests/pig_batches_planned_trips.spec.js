@@ -290,18 +290,21 @@ test('Admin count move: −1 → next preserves total and toggles the under-5 ch
   await expect(card1).not.toContainText('Under 5');
   await expect(card2).not.toContainText('Under 5');
 
-  // Move 2 from card 1 to card 2: click −1 → next twice.
-  await card1.locator('[data-planned-trip-move-out="pt-mv-1"]').click();
+  // Pig planned trips lane: forward = current → next (lightest pig from
+  // current's rank window). First trip has forward only.
+  await card1.locator('[data-planned-trip-move-forward="pt-mv-1"]').click();
   await expect(card1).toContainText('5 gilts'); // 6 - 1
-  await page.locator('[data-planned-trip-id="pt-mv-1"]').locator('[data-planned-trip-move-out="pt-mv-1"]').click();
+  await page.locator('[data-planned-trip-id="pt-mv-1"]').locator('[data-planned-trip-move-forward="pt-mv-1"]').click();
   await expect(page.locator('[data-planned-trip-id="pt-mv-1"]')).toContainText('4 gilts'); // 5 - 1
   await expect(page.locator('[data-planned-trip-id="pt-mv-2"]')).toContainText('8 gilts'); // 6 + 2
   // Total preserved.
   // Under-5 chip now on card 1.
   await expect(page.locator('[data-planned-trip-id="pt-mv-1"]')).toContainText('Under 5');
 
-  // Move 1 back via card 1's "+1 ← next" button. Sum still 12.
-  await page.locator('[data-planned-trip-id="pt-mv-1"]').locator('[data-planned-trip-move-in="pt-mv-1"]').click();
+  // Pig planned trips lane: back = current → previous (heaviest pig from
+  // current's rank window). Last trip has back only. Move 1 from card 2
+  // back to card 1 via card 2's back button. Sum still 12.
+  await page.locator('[data-planned-trip-id="pt-mv-2"]').locator('[data-planned-trip-move-back="pt-mv-2"]').click();
   await expect(page.locator('[data-planned-trip-id="pt-mv-1"]')).toContainText('5 gilts');
   await expect(page.locator('[data-planned-trip-id="pt-mv-2"]')).toContainText('7 gilts');
   // Under-5 chip cleared from card 1.

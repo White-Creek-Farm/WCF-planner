@@ -1,65 +1,148 @@
 // ============================================================================
-// PigSendToTripModal — Phase 2.1.4
+// PigSendToTripModal — planned-trip-driven send confirmation
 // ============================================================================
-// Verbatim byte-for-byte extraction from main.jsx. Pig weigh-in flow modal
-// for assigning selected weigh-in entries to a processing trip. Self-contained
-// — props carry session, selected entries, feeder groups, and callbacks.
-// ============================================================================
+// Lane: pig planned processing trips. Codex's spec retires the old
+// "Existing trip / New trip" arbitrary picker as the primary processor
+// send. The modal now resolves the source sub-batch from the session
+// (via pigSlug), looks up the next planned trip in the (subBatchId, sex)
+// chain, and previews reconcilePlannedTripsForSend before committing.
+//
+// Inline error paths (no DB writes when any of these surface):
+//   - Cannot resolve source sub-batch from session (mixed-session edge).
+//   - No planned trip exists for the (subBatchId, sex) chain.
+//   - Selected count > total chain plannedCount (over-pull exhausted).
+//
+// Under-pull with no next trip does NOT block — the helper leaves a
+// residual on the target trip and surfaces remainderStayedOnTarget=true
+// so this modal can render the residual-aware copy instead of the
+// "push forward" wording used when a next trip exists.
+//
+// onConfirm receives {groupId, sourceSubId, sourceSubSex, sendCount}.
+// The parent (LivestockWeighInsView) re-runs reconcilePlannedTripsForSend
+// for the actual mutation so the helper is the single source of truth.
+
 import React from 'react';
-import {fmt} from '../lib/dateUtils.js';
+import {fmt, todayCentralISO} from '../lib/dateUtils.js';
+import {pigSlug} from '../lib/pig.js';
+import {reconcilePlannedTripsForSend} from '../lib/pigForecast.js';
+
+function resolveSourceSub(session, feederGroups) {
+  if (!session || !session.batch_id) return null;
+  const s = pigSlug(session.batch_id);
+  for (const g of feederGroups || []) {
+    for (const sb of g.subBatches || []) {
+      if (pigSlug(sb.name) === s) {
+        return {group: g, sub: sb};
+      }
+    }
+  }
+  return null;
+}
+
+function inferSex(sub) {
+  if (!sub) return null;
+  const gilt = parseInt(sub.giltCount) || 0;
+  const boar = parseInt(sub.boarCount) || 0;
+  if (gilt > 0 && boar === 0) return 'gilt';
+  if (boar > 0 && gilt === 0) return 'boar';
+  return null; // mixed-sex sub — cannot send through planned-trip flow
+}
+
+function describeReconciliation(sendCount, targetCount, pushedRemainder, remainderStayedOnTarget) {
+  if (sendCount === targetCount) {
+    return `Sending ${sendCount} pigs will fulfill the planned trip exactly.`;
+  }
+  if (sendCount < targetCount) {
+    if (remainderStayedOnTarget) {
+      return `Sending ${sendCount} of the planned ${targetCount}; the remaining ${pushedRemainder} pigs will stay on this planned trip for a later send.`;
+    }
+    return `Sending ${sendCount} of the planned ${targetCount}; the remaining ${pushedRemainder} pigs will push forward to the next planned trip.`;
+  }
+  return `Sending ${sendCount} pigs (${sendCount - targetCount} more than the planned ${targetCount}); the extra will be pulled from later planned trips in chain order.`;
+}
+
 const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, onConfirm}) => {
-  const {useState} = React;
-  const [groupId, setGroupId] = useState('');
-  const [mode, setMode] = useState('existing'); // existing | new
-  const [tripId, setTripId] = useState('');
-  const [newDate, setNewDate] = useState((session && session.date) || new Date().toISOString().slice(0, 10));
+  const {useState, useMemo} = React;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const active = feederGroups.filter((g) => g.status === 'active');
-  const group = feederGroups.find((g) => g.id === groupId);
-  const trips = group
-    ? [...(group.processingTrips || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    : [];
-  const totalWeight = selectedEntries.reduce((s, e) => s + (parseFloat(e.weight) || 0), 0);
+
+  const totalWeight = (selectedEntries || []).reduce((s, e) => s + (parseFloat(e.weight) || 0), 0);
+  const sendCount = (selectedEntries || []).length;
+
+  const {group, sub, sex, recon, blockerError} = useMemo(() => {
+    const resolved = resolveSourceSub(session, feederGroups);
+    if (!resolved) {
+      return {
+        group: null,
+        sub: null,
+        sex: null,
+        recon: null,
+        blockerError:
+          'Cannot resolve the source sub-batch from this weigh-in session. Open /pig/batches to confirm the sub-batch name matches.',
+      };
+    }
+    const inferred = inferSex(resolved.sub);
+    if (!inferred) {
+      return {
+        group: resolved.group,
+        sub: resolved.sub,
+        sex: null,
+        recon: null,
+        blockerError:
+          'Source sub-batch is mixed-sex. Split into separate gilt/boar subgroups on /pig/batches before sending to processor.',
+      };
+    }
+    if (sendCount <= 0) {
+      return {group: resolved.group, sub: resolved.sub, sex: inferred, recon: null, blockerError: ''};
+    }
+    const r = reconcilePlannedTripsForSend(resolved.group.plannedProcessingTrips || [], {
+      subBatchId: resolved.sub.id,
+      sex: inferred,
+      sendCount,
+      today: todayCentralISO(),
+    });
+    return {
+      group: resolved.group,
+      sub: resolved.sub,
+      sex: inferred,
+      recon: r.error ? null : r,
+      blockerError: r.error || '',
+    };
+  }, [session, feederGroups, sendCount]);
+
   async function go() {
-    if (!groupId) {
-      setErr('Pick a feeder group.');
+    if (busy) return;
+    setErr('');
+    if (blockerError) {
+      setErr(blockerError);
       return;
     }
-    if (mode === 'existing' && !tripId) {
-      setErr('Pick an existing trip or switch to New.');
-      return;
-    }
-    if (mode === 'new' && !newDate) {
-      setErr('Pick a date for the new trip.');
+    if (!group || !sub || !sex) {
+      setErr('Cannot send — source resolution failed.');
       return;
     }
     setBusy(true);
-    setErr('');
     try {
       await onConfirm({
-        groupId,
-        tripId: mode === 'existing' ? tripId : null,
-        createNewWithDate: mode === 'new' ? newDate : null,
+        groupId: group.id,
+        sourceSubId: sub.id,
+        sourceSubSex: sex,
+        sendCount,
       });
     } catch (e) {
-      setErr(e.message || 'Failed');
+      setErr((e && e.message) || 'Failed');
       setBusy(false);
     }
   }
+
   const lblS = {display: 'block', fontSize: 12, color: '#374151', marginBottom: 4, fontWeight: 600};
-  const inpS = {
-    fontFamily: 'inherit',
-    fontSize: 13,
-    padding: '8px 10px',
-    border: '1px solid #d1d5db',
-    borderRadius: 6,
-    width: '100%',
-    boxSizing: 'border-box',
-    background: 'white',
-  };
+
+  // Find the planned target trip for the preview (recon already verified it).
+  const targetTrip = recon ? (group.plannedProcessingTrips || []).find((t) => t.id === recon.targetTripId) : null;
+
   return (
     <div
+      data-pig-send-modal="1"
       style={{
         position: 'fixed',
         inset: 0,
@@ -82,91 +165,50 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
         }}
       >
         <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 10}}>
-          {'\ud83d\ude9a Send ' + selectedEntries.length + ' weigh-ins to Trip'}
+          {'🚚 Send ' + sendCount + ' weigh-ins to next planned trip'}
         </div>
         <div style={{fontSize: 11, color: '#6b7280', marginBottom: 14}}>
           {'Total live weight: ' + totalWeight.toFixed(1) + ' lb'}
         </div>
-        <div style={{marginBottom: 10}}>
-          <label style={lblS}>Feeder group *</label>
-          <select
-            value={groupId}
-            onChange={(e) => {
-              setGroupId(e.target.value);
-              setTripId('');
-              setMode('existing');
-            }}
-            style={inpS}
-          >
-            <option value="">Select group...</option>
-            {active.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.batchName + ' (' + (g.processingTrips || []).length + ' trips)'}
-              </option>
-            ))}
-          </select>
-        </div>
-        {groupId && (
-          <div style={{marginBottom: 10}}>
-            <div style={{display: 'flex', gap: 6, marginBottom: 6}}>
-              <button
-                type="button"
-                onClick={() => setMode('existing')}
-                disabled={trips.length === 0}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  border: '1px solid ' + (mode === 'existing' ? '#1e40af' : '#d1d5db'),
-                  background: mode === 'existing' ? '#1e40af' : 'white',
-                  color: mode === 'existing' ? 'white' : trips.length === 0 ? '#d1d5db' : '#374151',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: trips.length === 0 ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {'Existing trip (' + trips.length + ')'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('new')}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  border: '1px solid ' + (mode === 'new' ? '#1e40af' : '#d1d5db'),
-                  background: mode === 'new' ? '#1e40af' : 'white',
-                  color: mode === 'new' ? 'white' : '#374151',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                + New trip
-              </button>
-            </div>
-            {mode === 'existing' && (
-              <select value={tripId} onChange={(e) => setTripId(e.target.value)} style={inpS}>
-                <option value="">Select trip...</option>
-                {trips.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {fmt(t.date) + ' \u00b7 ' + (t.pigCount || 0) + ' pigs'}
-                  </option>
-                ))}
-              </select>
-            )}
-            {mode === 'new' && (
-              <div>
-                <label style={lblS}>Trip date *</label>
-                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} style={inpS} />
-              </div>
-            )}
+
+        {sub && sex && (
+          <div style={{...lblS}}>
+            <span style={{fontWeight: 700, color: '#111827'}}>{sub.name}</span>{' '}
+            <span style={{color: '#1d4ed8'}}>({sex})</span>
           </div>
         )}
-        {err && (
+
+        {recon && targetTrip && (
+          <div data-pig-send-target="1" style={{marginBottom: 12}}>
+            <div style={{fontSize: 11, color: '#374151'}}>
+              Target planned trip: <strong>{fmt(recon.targetTripDate)}</strong> · planned{' '}
+              <strong>{targetTrip.plannedCount}</strong> pigs
+            </div>
+            <div
+              data-pig-send-summary="1"
+              style={{
+                fontSize: 11,
+                color: '#1e40af',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: 6,
+                padding: '6px 10px',
+                marginTop: 6,
+              }}
+            >
+              {describeReconciliation(
+                sendCount,
+                targetTrip.plannedCount,
+                recon.pushedRemainder,
+                !!recon.remainderStayedOnTarget,
+              )}
+            </div>
+          </div>
+        )}
+
+        {(blockerError || err) && (
           <div
+            data-pig-send-error="1"
             style={{
               color: '#b91c1c',
               fontSize: 12,
@@ -176,11 +218,13 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
               borderRadius: 6,
             }}
           >
-            {err}
+            {blockerError || err}
           </div>
         )}
+
         <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end'}}>
           <button
+            data-pig-send-cancel="1"
             onClick={onClose}
             disabled={busy}
             style={{
@@ -198,21 +242,22 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
             Cancel
           </button>
           <button
+            data-pig-send-confirm="1"
             onClick={go}
-            disabled={busy || !groupId || (mode === 'existing' && !tripId)}
+            disabled={busy || !!blockerError || !recon}
             style={{
               padding: '8px 16px',
               borderRadius: 7,
               border: 'none',
-              background: busy || !groupId || (mode === 'existing' && !tripId) ? '#9ca3af' : '#047857',
+              background: busy || !!blockerError || !recon ? '#9ca3af' : '#047857',
               color: 'white',
               fontWeight: 700,
               fontSize: 12,
-              cursor: busy || !groupId || (mode === 'existing' && !tripId) ? 'not-allowed' : 'pointer',
+              cursor: busy || !!blockerError || !recon ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit',
             }}
           >
-            {busy ? 'Sending\u2026' : 'Send'}
+            {busy ? 'Sending…' : 'Send'}
           </button>
         </div>
       </div>

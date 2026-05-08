@@ -268,6 +268,276 @@ export function movePigsBetweenTrips(trips, fromTripId, toTripId, count) {
   };
 }
 
+// ── Manual planned-trip mutations (admin/management surfaces) ──────────────
+//
+// All three helpers below preserve the persisted 6-key shape exactly:
+//   {id, date, sex, subBatchId, plannedCount, order}
+// Projection / warning / ready / ADG fields are NEVER persisted; callers
+// pipe results through recalculateProjections on render.
+//
+// Inputs are treated as immutable — every helper returns a fresh array.
+
+/**
+ * Append a manual planned trip to the (subBatchId, sex) chain. CRITICAL:
+ * preserves the chain's total plannedCount when adding to an existing
+ * chain. A positive-count add draws those pigs from a single existing
+ * trip in the chain (per Codex pig planned trips lane spec):
+ *   - new date AFTER all existing trips → draw from the nearest PRIOR
+ *     existing trip (last in chain by date asc).
+ *   - new date BEFORE the first existing trip → draw from the NEXT
+ *     trip (first in chain by date asc).
+ *   - new date BETWEEN existing trips → prefer the previous trip unless
+ *     it lacks enough plannedCount, then fall back to the next trip.
+ * If the requested count cannot be fully drawn from a single source
+ * trip, the helper refuses with an error.
+ *
+ * 0-count add is always allowed (creates a placeholder for future
+ * count-moves via ← / →). A positive-count first trip on an empty
+ * chain is allowed (no draw needed — establishes the chain).
+ *
+ * order = max(existing order in chain) + 1.
+ *
+ * Returns {trips} on success or {error}.
+ */
+export function addPlannedTrip(trips, {subBatchId, sex, date, plannedCount, idFactory = defaultIdFactory} = {}) {
+  if (!Array.isArray(trips)) return {error: 'trips array required'};
+  if (typeof subBatchId !== 'string' || !subBatchId) return {error: 'subBatchId required'};
+  if (sex !== 'gilt' && sex !== 'boar') return {error: 'sex must be "gilt" or "boar"'};
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return {error: 'date must be YYYY-MM-DD'};
+  const count = parseInt(plannedCount);
+  if (!Number.isFinite(count) || count < 0) return {error: 'plannedCount must be a non-negative integer'};
+
+  const chain = trips
+    .filter((t) => t && t.subBatchId === subBatchId && t.sex === sex)
+    .slice()
+    .sort(planedTripSortFn);
+
+  let maxOrder = -1;
+  for (const t of chain) {
+    const o = parseInt(t.order);
+    if (Number.isFinite(o) && o > maxOrder) maxOrder = o;
+  }
+
+  // Build the new trip first; we'll append it AND (when count > 0 and
+  // the chain is non-empty) reduce one source trip's plannedCount to
+  // preserve chain total.
+  const newTrip = {
+    id: idFactory(),
+    date,
+    sex,
+    subBatchId,
+    plannedCount: count,
+    order: maxOrder + 1,
+  };
+
+  // Empty chain or 0-count add: no source draw needed.
+  if (count === 0 || chain.length === 0) {
+    return {trips: [...trips, newTrip]};
+  }
+
+  // Find prev (last trip with date <= newDate) and next (first trip with
+  // date > newDate). Equal-date inserts are treated as "between" with
+  // previous as the source.
+  let prevTrip = null;
+  let nextTrip = null;
+  for (const t of chain) {
+    if (t.date <= date) prevTrip = t;
+    else if (!nextTrip) nextTrip = t;
+  }
+
+  // Prefer prev when it has enough; otherwise fall back to next.
+  let source = null;
+  if (prevTrip && (parseInt(prevTrip.plannedCount) || 0) >= count) {
+    source = prevTrip;
+  } else if (nextTrip && (parseInt(nextTrip.plannedCount) || 0) >= count) {
+    source = nextTrip;
+  }
+  if (!source) {
+    return {
+      error:
+        'Cannot draw the requested count from the existing chain. Reduce the new trip count or move pigs in the chain first.',
+    };
+  }
+
+  const sourceId = source.id;
+  return {
+    trips: [
+      ...trips.map((t) => (t.id === sourceId ? {...t, plannedCount: (parseInt(t.plannedCount) || 0) - count} : t)),
+      newTrip,
+    ],
+  };
+}
+
+/**
+ * Delete a planned trip and reconcile its plannedCount onto another trip
+ * in the same (subBatchId, sex) chain. Per Codex's lane spec:
+ *   - Move pigs to the NEXT planned trip in the chain (sorted by date asc,
+ *     order asc).
+ *   - If no next exists, move to the PREVIOUS trip.
+ *   - If the chain has only this trip (no next AND no previous), refuse:
+ *     deletion would lose the planned-count signal, and the UI gate already
+ *     disables the button in that case as a defensive double-check.
+ *
+ * Returns {trips} on success or {error}.
+ */
+export function deletePlannedTripWithReconciliation(trips, tripId) {
+  if (!Array.isArray(trips)) return {error: 'trips array required'};
+  if (typeof tripId !== 'string' || !tripId) return {error: 'tripId required'};
+  const target = trips.find((t) => t && t.id === tripId);
+  if (!target) return {error: `tripId "${tripId}" not found`};
+  const chain = trips
+    .filter((t) => t && t.subBatchId === target.subBatchId && t.sex === target.sex)
+    .slice()
+    .sort(planedTripSortFn);
+  if (chain.length <= 1) {
+    return {error: 'cannot delete the only planned trip in this chain'};
+  }
+  const idx = chain.findIndex((t) => t.id === tripId);
+  const nextTrip = idx >= 0 && idx + 1 < chain.length ? chain[idx + 1] : null;
+  const prevTrip = idx > 0 ? chain[idx - 1] : null;
+  const recipient = nextTrip || prevTrip;
+  if (!recipient) {
+    // Defensive — chain.length > 1 should always yield a recipient, but
+    // bail rather than silently drop the count.
+    return {error: 'no recipient trip available for reconciliation'};
+  }
+  const movedCount = parseInt(target.plannedCount) || 0;
+  return {
+    trips: trips
+      .filter((t) => t.id !== tripId)
+      .map((t) => (t.id === recipient.id ? {...t, plannedCount: (parseInt(t.plannedCount) || 0) + movedCount} : t)),
+  };
+}
+
+/**
+ * Reconcile planned trips for a weigh-in send. Resolves the target planned
+ * trip (next future date in the (subBatchId, sex) chain; falls back to
+ * earliest if all dates are in the past) and folds sendCount onto the
+ * chain per Codex's three-branch rule:
+ *
+ *   sendCount === target.plannedCount → consume target (remove).
+ *   sendCount  <  target.plannedCount → consume target, push remainder
+ *                                        (planned - send) onto NEXT trip.
+ *                                        If no next trip exists, keep the
+ *                                        target alive with the remainder
+ *                                        and surface remainderStayedOnTarget
+ *                                        =true so the caller can render
+ *                                        residual-aware copy.
+ *   sendCount  >  target.plannedCount → consume target, then pull extra
+ *                                        from later trips in chain order
+ *                                        until satisfied. If chain
+ *                                        exhausts, error.
+ *
+ * The over-pull error matches Codex's option (a): refuse rather than
+ * silently leaving an imbalanced chain. Under-pull with no next trip
+ * does NOT block — the helper preserves the remainder by reducing the
+ * target's plannedCount and surfaces remainderStayedOnTarget=true so
+ * the caller can render branch-aware copy.
+ *
+ * Returns {updatedPlannedTrips, targetTripId, targetTripDate,
+ * pushedRemainder, remainderStayedOnTarget} on success, or {error}
+ * when:
+ *   - chain has no planned trip for this (subBatchId, sex) pair
+ *   - over-pull beyond chain
+ */
+export function reconcilePlannedTripsForSend(plannedTrips, {subBatchId, sex, sendCount, today = todayISOSafe()} = {}) {
+  if (!Array.isArray(plannedTrips)) return {error: 'plannedTrips array required'};
+  if (typeof subBatchId !== 'string' || !subBatchId) return {error: 'subBatchId required'};
+  if (sex !== 'gilt' && sex !== 'boar') return {error: 'sex must be "gilt" or "boar"'};
+  const send = parseInt(sendCount);
+  if (!Number.isFinite(send) || send <= 0) return {error: 'sendCount must be a positive integer'};
+
+  const chain = plannedTrips
+    .filter((t) => t && t.subBatchId === subBatchId && t.sex === sex)
+    .slice()
+    .sort(planedTripSortFn);
+  if (chain.length === 0) {
+    return {error: 'No planned trip exists for this sub-batch — create one in /pig/batches first.'};
+  }
+
+  // Target = first chain trip whose date >= today; fall back to the
+  // earliest chain trip if every trip is in the past (e.g., overdue
+  // shipments). The chain is already sorted by date+order.
+  let targetIdx = chain.findIndex((t) => typeof t.date === 'string' && t.date >= today);
+  if (targetIdx === -1) targetIdx = 0;
+  const target = chain[targetIdx];
+  const targetCount = parseInt(target.plannedCount) || 0;
+
+  // Total available across target + later trips. Used for the over-pull
+  // chain-exhausted check.
+  let availableForward = 0;
+  for (let i = targetIdx; i < chain.length; i++) {
+    availableForward += parseInt(chain[i].plannedCount) || 0;
+  }
+  if (send > availableForward) {
+    return {
+      error:
+        'Selected pigs exceed the total planned count for this sub-batch. Add another planned trip on /pig/batches or reduce the selection.',
+    };
+  }
+
+  // Build the consumed map: trip.id → plannedCount delta to apply.
+  // Negative deltas reduce the trip; full consumption removes the trip.
+  const removed = new Set();
+  const adjusted = new Map(); // tripId → new plannedCount (when not removed)
+  let needed = send;
+  let pushedRemainder = 0;
+  let remainderStayedOnTarget = false;
+
+  if (send === targetCount) {
+    removed.add(target.id);
+    needed = 0;
+  } else if (send < targetCount) {
+    // Under-pull. Codex amendment: if a next trip exists, push the
+    // remainder forward (target consumed). If no next trip exists, keep
+    // target alive with reduced plannedCount = target - send, so the
+    // residual count can be sent later. Either way the actual processing
+    // trip is created with sendCount.
+    const remainder = targetCount - send;
+    const nextTrip = chain[targetIdx + 1];
+    if (nextTrip) {
+      removed.add(target.id);
+      adjusted.set(nextTrip.id, (parseInt(nextTrip.plannedCount) || 0) + remainder);
+    } else {
+      adjusted.set(target.id, remainder);
+      remainderStayedOnTarget = true;
+    }
+    pushedRemainder = remainder;
+    needed = 0;
+  } else {
+    // Over-pull: consume target fully, then pull from later trips in order.
+    removed.add(target.id);
+    needed = send - targetCount;
+    for (let i = targetIdx + 1; i < chain.length && needed > 0; i++) {
+      const t = chain[i];
+      const have = parseInt(t.plannedCount) || 0;
+      if (needed >= have) {
+        removed.add(t.id);
+        needed -= have;
+      } else {
+        adjusted.set(t.id, have - needed);
+        needed = 0;
+      }
+    }
+    if (needed > 0) {
+      // availableForward check above should prevent this — defensive.
+      return {error: 'Selected pigs exceed the total planned count (chain exhausted).'};
+    }
+  }
+
+  const updatedPlannedTrips = plannedTrips
+    .filter((t) => !removed.has(t.id))
+    .map((t) => (adjusted.has(t.id) ? {...t, plannedCount: adjusted.get(t.id)} : t));
+
+  return {
+    updatedPlannedTrips,
+    targetTripId: target.id,
+    targetTripDate: target.date,
+    pushedRemainder,
+    remainderStayedOnTarget,
+  };
+}
+
 // ── Live projection recompute ──────────────────────────────────────────────
 
 // Recompute display-only projection fields for a list of planned trips.

@@ -45,6 +45,22 @@ test('Send-to-Trip stamps subAttributions, ledger current = 12, lbs/pig honors f
     expect(batch.subBatches).toHaveLength(2);
   }
 
+  // Pig planned trips lane: the new Send-to-Trip flow requires a planned
+  // trip in the (subBatchId, sex) chain. Inject a 5-pig planned trip for
+  // sub A (gilts) so the send is an EXACT match → consumes the planned
+  // trip, no remainder math. Keeps this regression test focused on
+  // subAttributions stamping + ledger arithmetic, not the reconciliation
+  // branches (which have their own focused spec).
+  {
+    const {data} = await supabaseAdmin.from('app_store').select('data').eq('key', 'ppp-feeders-v1').single();
+    const feeders = data.data;
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    feeders[0].plannedProcessingTrips = [
+      {id: 'pt-mathseed-1', date: tomorrow, sex: 'gilt', subBatchId: subAId, plannedCount: 5, order: 0},
+    ];
+    await supabaseAdmin.from('app_store').upsert({key: 'ppp-feeders-v1', data: feeders}, {onConflict: 'key'});
+  }
+
   // --- ACT: drive Send-to-Trip via UI ---------------------------------------
   await page.goto('/pig/weighins');
 
@@ -70,29 +86,19 @@ test('Send-to-Trip stamps subAttributions, ledger current = 12, lbs/pig honors f
   // Click "→ Send 5 to Trip" — opens PigSendToTripModal.
   await page.getByText(/→ Send 5 to Trip/).click();
 
-  // Modal opened — anchor on the title line.
-  const modalTitle = page.getByText(/Send 5 weigh-ins to Trip/);
-  await expect(modalTitle).toBeVisible({timeout: 5_000});
+  // New planned-trip-driven modal: data-pig-send-modal="1". The modal
+  // pre-resolves the source sub via pigSlug + the target planned trip
+  // and shows a reconciliation summary. Send count == planned count so
+  // the summary should call out exact-fulfillment.
+  const modal = page.locator('[data-pig-send-modal="1"]');
+  await expect(modal).toBeVisible({timeout: 5_000});
+  await expect(modal.locator('[data-pig-send-summary="1"]')).toContainText(/fulfill the planned trip exactly/);
 
-  // Pick the feeder group. Locate the modal's <select> by the option whose
-  // text contains the batch name ("P-26-01 (0 trips)" — count is 0 because
-  // the seed deliberately leaves processingTrips empty).
-  const groupSelect = page
-    .locator('select')
-    .filter({has: page.locator('option', {hasText: batchName})})
-    .first();
-  await groupSelect.selectOption({label: `${batchName} (0 trips)`});
-
-  // Default mode is 'existing' but the seeded batch has zero trips, so the
-  // "Existing trip (0)" button is disabled. Switch to "+ New trip".
-  await page.getByRole('button', {name: '+ New trip'}).click();
-
-  // Submit. Modal "Send" button — exact text disambiguates from the page's
-  // "→ Send 5 to Trip" trigger that's still in the DOM behind the modal.
-  await page.getByRole('button', {name: 'Send', exact: true}).click();
+  // Confirm.
+  await modal.locator('[data-pig-send-confirm="1"]').click();
 
   // Wait for the modal to close.
-  await expect(modalTitle).toHaveCount(0, {timeout: 10_000});
+  await expect(modal).toHaveCount(0, {timeout: 10_000});
 
   // --- ASSERT 1: DB ppp-feeders-v1 has trip with proper subAttributions.
   // Poll until the trip appears — modal close and persistence are async,

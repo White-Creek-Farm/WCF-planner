@@ -12,6 +12,9 @@ import {
   allocatePlannedTrips,
   movePigsBetweenTrips,
   recalculateProjections,
+  addPlannedTrip,
+  deletePlannedTripWithReconciliation,
+  reconcilePlannedTripsForSend,
   formatAgeRange,
   formatFeedPerPig,
   formatGroupAdg,
@@ -547,5 +550,371 @@ describe('recalculateProjections', () => {
         order: expect.any(Number),
       });
     }
+  });
+});
+
+describe('addPlannedTrip', () => {
+  const baseChain = [
+    {id: 't-a', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 12, order: 0},
+    {id: 't-b', date: '2026-06-15', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 12, order: 1},
+    {id: 't-c', date: '2026-06-10', sex: 'boar', subBatchId: 'sub-1', plannedCount: 8, order: 0},
+  ];
+
+  it('on empty chain: positive-count Add establishes the first trip; order starts at 0', () => {
+    let n = 0;
+    const ids = () => 'new-' + ++n;
+    const r = addPlannedTrip([], {
+      subBatchId: 'sub-9',
+      sex: 'boar',
+      date: '2026-07-01',
+      plannedCount: 5,
+      idFactory: ids,
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.trips[0]).toEqual({
+      id: 'new-1',
+      date: '2026-07-01',
+      sex: 'gilt' === r.trips[0].sex ? 'gilt' : 'boar',
+      subBatchId: 'sub-9',
+      plannedCount: 5,
+      order: 0,
+    });
+  });
+
+  it('on existing chain with positive count: preserves chain total by drawing from a single source trip', () => {
+    let n = 0;
+    const ids = () => 'new-' + ++n;
+    // chain has gilt trips with plannedCount [12, 12]; total 24. Add 5 dated AFTER both → draws from PREVIOUS (last existing).
+    const r = addPlannedTrip(baseChain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      date: '2026-07-01',
+      plannedCount: 5,
+      idFactory: ids,
+    });
+    expect(r.error).toBeUndefined();
+    const giltTotal = r.trips
+      .filter((t) => t.subBatchId === 'sub-1' && t.sex === 'gilt')
+      .reduce((s, t) => s + (t.plannedCount || 0), 0);
+    expect(giltTotal).toBe(24);
+    // Source was t-b (the last existing): plannedCount went 12 → 7.
+    expect(r.trips.find((t) => t.id === 't-b').plannedCount).toBe(7);
+    // The new trip carries the requested count.
+    expect(r.trips[r.trips.length - 1]).toMatchObject({plannedCount: 5, order: 2});
+  });
+
+  it('new date BEFORE first existing trip: draws from the NEXT (first) trip', () => {
+    let n = 0;
+    const ids = () => 'new-' + ++n;
+    const r = addPlannedTrip(baseChain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      date: '2026-05-01',
+      plannedCount: 4,
+      idFactory: ids,
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.trips.find((t) => t.id === 't-a').plannedCount).toBe(12 - 4);
+    expect(r.trips.find((t) => t.id === 't-b').plannedCount).toBe(12);
+  });
+
+  it('new date BETWEEN existing trips: prefers PREVIOUS, falls back to NEXT when prev lacks count', () => {
+    let n = 0;
+    const ids = () => 'new-' + ++n;
+    // Insert between t-a and t-b. First try a count prev can supply.
+    const r1 = addPlannedTrip(baseChain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      date: '2026-06-08',
+      plannedCount: 3,
+      idFactory: ids,
+    });
+    expect(r1.error).toBeUndefined();
+    expect(r1.trips.find((t) => t.id === 't-a').plannedCount).toBe(12 - 3);
+    expect(r1.trips.find((t) => t.id === 't-b').plannedCount).toBe(12);
+
+    // Now try a count larger than prev's plannedCount — falls back to next.
+    const skewedChain = [
+      {id: 't-a', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 2, order: 0},
+      {id: 't-b', date: '2026-06-15', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 12, order: 1},
+    ];
+    const r2 = addPlannedTrip(skewedChain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      date: '2026-06-08',
+      plannedCount: 5,
+      idFactory: ids,
+    });
+    expect(r2.error).toBeUndefined();
+    // prev had only 2 — fall back to next (t-b): 12 → 7.
+    expect(r2.trips.find((t) => t.id === 't-a').plannedCount).toBe(2);
+    expect(r2.trips.find((t) => t.id === 't-b').plannedCount).toBe(12 - 5);
+  });
+
+  it('refuses positive-count Add when no source trip in the chain has enough plannedCount', () => {
+    const tiny = [
+      {id: 't-a', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 3, order: 0},
+      {id: 't-b', date: '2026-06-15', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 4, order: 1},
+    ];
+    let n = 0;
+    const ids = () => 'new-' + ++n;
+    const r = addPlannedTrip(tiny, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      date: '2026-07-01',
+      plannedCount: 10,
+      idFactory: ids,
+    });
+    expect(r.error).toMatch(/Cannot draw the requested count/);
+  });
+
+  it('0-count Add is allowed even on an existing chain (placeholder for later count-moves)', () => {
+    let n = 0;
+    const ids = () => 'new-' + ++n;
+    const r = addPlannedTrip(baseChain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      date: '2026-07-01',
+      plannedCount: 0,
+      idFactory: ids,
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.trips[r.trips.length - 1].plannedCount).toBe(0);
+    // Existing trips untouched.
+    expect(r.trips.find((t) => t.id === 't-a').plannedCount).toBe(12);
+    expect(r.trips.find((t) => t.id === 't-b').plannedCount).toBe(12);
+  });
+
+  it('separates order across (subBatchId, sex) chains', () => {
+    let n = 0;
+    const ids = () => 'new-' + ++n;
+    // Adding boar with count 0 (boars chain has only t-c; order shifts to 1).
+    const r = addPlannedTrip(baseChain, {
+      subBatchId: 'sub-1',
+      sex: 'boar',
+      date: '2026-07-01',
+      plannedCount: 0,
+      idFactory: ids,
+    });
+    expect(r.trips[r.trips.length - 1].order).toBe(1);
+  });
+
+  it('rejects malformed inputs without mutating', () => {
+    expect(addPlannedTrip(baseChain, {sex: 'gilt', date: '2026-07-01', plannedCount: 5}).error).toMatch(/subBatchId/);
+    expect(
+      addPlannedTrip(baseChain, {subBatchId: 'sub-1', sex: 'mixed', date: '2026-07-01', plannedCount: 5}).error,
+    ).toMatch(/sex/);
+    expect(
+      addPlannedTrip(baseChain, {subBatchId: 'sub-1', sex: 'gilt', date: '07/01/26', plannedCount: 5}).error,
+    ).toMatch(/YYYY-MM-DD/);
+    expect(
+      addPlannedTrip(baseChain, {subBatchId: 'sub-1', sex: 'gilt', date: '2026-07-01', plannedCount: -3}).error,
+    ).toMatch(/non-negative/);
+  });
+});
+
+describe('deletePlannedTripWithReconciliation', () => {
+  const chain = [
+    {id: 't-a', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 10, order: 0},
+    {id: 't-b', date: '2026-06-15', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 8, order: 1},
+    {id: 't-c', date: '2026-06-29', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 6, order: 2},
+    {id: 't-other', date: '2026-06-15', sex: 'boar', subBatchId: 'sub-1', plannedCount: 5, order: 0},
+  ];
+
+  it('moves the deleted trip plannedCount onto the NEXT chain trip when present', () => {
+    const r = deletePlannedTripWithReconciliation(chain, 't-b');
+    expect(r.error).toBeUndefined();
+    const ids = r.trips.map((t) => t.id);
+    expect(ids).not.toContain('t-b');
+    const tc = r.trips.find((t) => t.id === 't-c');
+    expect(tc.plannedCount).toBe(6 + 8);
+    expect(r.trips.find((t) => t.id === 't-other').plannedCount).toBe(5);
+  });
+
+  it('falls back to PREVIOUS trip when the deleted trip is the last in chain', () => {
+    const r = deletePlannedTripWithReconciliation(chain, 't-c');
+    expect(r.error).toBeUndefined();
+    const tb = r.trips.find((t) => t.id === 't-b');
+    expect(tb.plannedCount).toBe(8 + 6);
+  });
+
+  it('uses the NEXT trip when deleting the FIRST trip in chain', () => {
+    const r = deletePlannedTripWithReconciliation(chain, 't-a');
+    expect(r.error).toBeUndefined();
+    const tb = r.trips.find((t) => t.id === 't-b');
+    expect(tb.plannedCount).toBe(8 + 10);
+  });
+
+  it('refuses to delete the only planned trip in a chain', () => {
+    const single = [{id: 's-1', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-9', plannedCount: 5, order: 0}];
+    const r = deletePlannedTripWithReconciliation(single, 's-1');
+    expect(r.error).toMatch(/only planned trip/);
+  });
+
+  it('refuses when tripId not found', () => {
+    expect(deletePlannedTripWithReconciliation(chain, 'missing').error).toMatch(/not found/);
+  });
+});
+
+describe('reconcilePlannedTripsForSend', () => {
+  const chain = [
+    {id: 't-1', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 12, order: 0},
+    {id: 't-2', date: '2026-06-15', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 8, order: 1},
+    {id: 't-3', date: '2026-06-29', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 6, order: 2},
+    {id: 't-other', date: '2026-06-15', sex: 'boar', subBatchId: 'sub-1', plannedCount: 5, order: 0},
+  ];
+
+  it('selects the first chain trip with date >= today as the target', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 12,
+      today: '2026-05-25',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.targetTripId).toBe('t-1');
+    expect(r.targetTripDate).toBe('2026-06-01');
+  });
+
+  it('falls back to earliest chain trip when every trip is in the past', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 12,
+      today: '2026-12-31',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.targetTripId).toBe('t-1');
+  });
+
+  it('exact send (selected == planned): consumes target only', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 12,
+      today: '2026-05-01',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-1')).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-2').plannedCount).toBe(8);
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-3').plannedCount).toBe(6);
+    expect(r.pushedRemainder).toBe(0);
+  });
+
+  it('under-pull (selected < planned): consumes target, pushes remainder forward to NEXT', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 8,
+      today: '2026-05-01',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-1')).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-2').plannedCount).toBe(8 + 4);
+    expect(r.pushedRemainder).toBe(4);
+  });
+
+  it('over-pull (selected > planned, satisfiable from chain): consumes target + later trips', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 18,
+      today: '2026-05-01',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-1')).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-2').plannedCount).toBe(8 - 6);
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-3').plannedCount).toBe(6);
+  });
+
+  it('over-pull cascading: removes intermediate fully-consumed trips', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 12 + 8 + 4,
+      today: '2026-05-01',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-1')).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-2')).toBeUndefined();
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-3').plannedCount).toBe(6 - 4);
+  });
+
+  it('refuses over-pull when the chain is exhausted', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 100,
+      today: '2026-05-01',
+    });
+    expect(r.error).toMatch(/exceed the total planned count/);
+    expect(r.updatedPlannedTrips).toBeUndefined();
+  });
+
+  it('under-pull with no NEXT trip leaves a residual planned trip rather than refusing', () => {
+    // Codex amendment: the chain-edge case must not block a real send.
+    // Keep the target alive with reduced plannedCount so the residual
+    // can be sent later. The helper signals this branch via
+    // remainderStayedOnTarget=true so the UI can render
+    // residual-aware copy instead of the "push forward" wording.
+    const lastOnly = [{id: 't-1', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 12, order: 0}];
+    const r = reconcilePlannedTripsForSend(lastOnly, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 8,
+      today: '2026-05-01',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.targetTripId).toBe('t-1');
+    expect(r.targetTripDate).toBe('2026-06-01');
+    const residual = r.updatedPlannedTrips.find((t) => t.id === 't-1');
+    expect(residual).toBeDefined();
+    expect(residual.plannedCount).toBe(4);
+    expect(r.pushedRemainder).toBe(4);
+    expect(r.remainderStayedOnTarget).toBe(true);
+  });
+
+  it('under-pull WITH a next trip clears remainderStayedOnTarget (push-forward path)', () => {
+    const chainTwo = [
+      {id: 't-1', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 12, order: 0},
+      {id: 't-2', date: '2026-06-15', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 8, order: 1},
+    ];
+    const r = reconcilePlannedTripsForSend(chainTwo, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 8,
+      today: '2026-05-01',
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.pushedRemainder).toBe(4);
+    expect(r.remainderStayedOnTarget).toBe(false);
+  });
+
+  it('refuses when no planned trip exists for the (sub, sex) chain', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-9',
+      sex: 'gilt',
+      sendCount: 5,
+      today: '2026-05-01',
+    });
+    expect(r.error).toMatch(/No planned trip exists/);
+  });
+
+  it('keeps trips in other (sub, sex) chains untouched', () => {
+    const r = reconcilePlannedTripsForSend(chain, {
+      subBatchId: 'sub-1',
+      sex: 'gilt',
+      sendCount: 12,
+      today: '2026-05-01',
+    });
+    expect(r.updatedPlannedTrips.find((t) => t.id === 't-other').plannedCount).toBe(5);
+  });
+
+  it('rejects malformed inputs', () => {
+    expect(reconcilePlannedTripsForSend(chain, {subBatchId: 'sub-1', sex: 'gilt', sendCount: 0}).error).toMatch(
+      /sendCount/,
+    );
+    expect(reconcilePlannedTripsForSend(chain, {subBatchId: 'sub-1', sex: 'mixed', sendCount: 5}).error).toMatch(/sex/);
+    expect(reconcilePlannedTripsForSend(chain, {sex: 'gilt', sendCount: 5}).error).toMatch(/subBatchId/);
   });
 });

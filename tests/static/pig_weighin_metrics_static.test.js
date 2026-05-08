@@ -54,9 +54,14 @@ describe('Pig weigh-in metrics — public form (commit 3)', () => {
 
 describe('Pig weigh-in metrics — admin LivestockWeighInsView (commit 3)', () => {
   it('imports the same pig forecast formatters as the public form', () => {
-    expect(adminSrc).toMatch(
-      /import\s*\{\s*formatAgeRange,\s*formatFeedPerPig,\s*formatGroupAdg,\s*formatAvgWeight\s*\}\s*from\s*'\.\.\/lib\/pigForecast\.js'/,
-    );
+    // Pig planned trips lane (Codex) added reconcilePlannedTripsForSend
+    // to the same import — match relaxed to "all four formatters present"
+    // rather than the exact import-block byte sequence.
+    expect(adminSrc).toMatch(/from\s*'\.\.\/lib\/pigForecast\.js'/);
+    expect(adminSrc).toMatch(/\bformatAgeRange\b/);
+    expect(adminSrc).toMatch(/\bformatFeedPerPig\b/);
+    expect(adminSrc).toMatch(/\bformatGroupAdg\b/);
+    expect(adminSrc).toMatch(/\bformatAvgWeight\b/);
   });
 
   it('fans out pig_session_metrics RPC per pig session', () => {

@@ -29,8 +29,12 @@ describe('Commit 4a — Global ADG persistence + role gate', () => {
     expect(viewSrc).toMatch(/['"]ppp-pig-global-adg-v1['"]/);
   });
 
-  it('Global ADG edit is gated on authState.role === "admin" (manager-and-above for v1)', () => {
-    expect(viewSrc).toMatch(/authState && authState\.role === 'admin'/);
+  it('Planned-trip mutations are gated on admin OR management (pig planned trips lane: farm_team is read-only)', () => {
+    // The mutation gate predicate: admin OR management (Codex pig
+    // planned trips lane spec). farm_team can view but not mutate the
+    // inline date editor, manual Add, Delete, ← / → arrows, or the
+    // Global ADG editor.
+    expect(viewSrc).toMatch(/authState\.role === 'admin' \|\| authState\.role === 'management'/);
   });
 
   it('imports the four pigForecast pieces commit 4a needs', () => {
@@ -139,22 +143,28 @@ describe('Commit 4b — date edit + count move handler hard gates', () => {
     expect(moveHandler[0]).toMatch(/movePigsBetweenTrips\([\s\S]*?,\s*1\s*\)/);
   });
 
-  it('Edit / Save / Cancel / move buttons all gate on isManager (admin-only)', () => {
+  it('Edit / Save / Cancel / move / delete / add buttons all gate on isManager (admin OR management)', () => {
     // Each gated control's data-attr is preceded by an isManager check.
+    // The pig planned trips lane renamed move-out/move-in to
+    // move-forward/move-back (semantic clarification: forward = current
+    // → next, back = current → previous) and added Add + Delete.
     const gatedAttrs = [
       'data-planned-trip-edit-date',
       'data-planned-trip-save-date',
-      'data-planned-trip-move-out',
-      'data-planned-trip-move-in',
+      'data-planned-trip-move-forward',
+      'data-planned-trip-move-back',
+      'data-planned-trip-delete',
+      'data-planned-trip-add-button',
     ];
     for (const attr of gatedAttrs) {
       // The attribute should appear inside an {isManager && ...} block.
-      // Loose anchor: look for "isManager" within the 4000 chars preceding
-      // the attribute usage. The card body is large enough that the second
-      // move button sits ~2500 chars after its enclosing `{isManager &&`.
+      // Loose anchor: look for "isManager" within the 12000 chars preceding
+      // the attribute usage. The Planned trips card body is large enough
+      // that the +Add and Delete affordances sit several thousand chars
+      // after their enclosing gates.
       const idx = viewSrc.indexOf(attr);
       expect(idx, `expected ${attr} to render in JSX`).toBeGreaterThan(0);
-      const window = viewSrc.slice(Math.max(0, idx - 4000), idx);
+      const window = viewSrc.slice(Math.max(0, idx - 12000), idx);
       expect(window, `expected ${attr} to be gated by isManager`).toMatch(/isManager/);
     }
   });

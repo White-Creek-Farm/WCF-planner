@@ -35,6 +35,8 @@ import {
   recalculateProjections,
   seedGlobalADG,
   movePigsBetweenTrips,
+  addPlannedTrip,
+  deletePlannedTripWithReconciliation,
 } from '../lib/pigForecast.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
@@ -145,6 +147,13 @@ export default function PigBatchesView({
   // blur-saving was rejected as too easy to trigger accidentally).
   const [editingPlannedTripId, setEditingPlannedTripId] = React.useState(null);
   const [editingPlannedTripDate, setEditingPlannedTripDate] = React.useState('');
+  // Manual + Add planned-trip form (single open at a time per sub).
+  // {groupId, subBatchId, sex} identifies the open form; date and count
+  // are the user inputs.
+  const [addingTripFor, setAddingTripFor] = React.useState(null);
+  const [addingTripDate, setAddingTripDate] = React.useState('');
+  const [addingTripCount, setAddingTripCount] = React.useState('');
+  const [addingTripError, setAddingTripError] = React.useState('');
   React.useEffect(() => {
     sb.from('app_store')
       .select('data')
@@ -320,6 +329,36 @@ export default function PigBatchesView({
     }
     const nb = feederGroups.map((g) => (g.id !== groupId ? g : {...g, plannedProcessingTrips: r.trips}));
     persistFeeders(nb);
+  }
+
+  // Manual add (admin/management) — appends a planned trip to the
+  // (subBatchId, sex) chain. order = max(existing order in chain) + 1.
+  // Date is whatever the user typed; recalculateProjections sorts by
+  // date+order so out-of-order dates still render correctly.
+  function addPlannedTripById(groupId, {subBatchId, sex, date, plannedCount}) {
+    const fg = feederGroups.find((g) => g.id === groupId);
+    if (!fg) return {error: 'group not found'};
+    const r = addPlannedTrip(fg.plannedProcessingTrips || [], {subBatchId, sex, date, plannedCount});
+    if (r.error) return r;
+    const nb = feederGroups.map((g) => (g.id !== groupId ? g : {...g, plannedProcessingTrips: r.trips}));
+    persistFeeders(nb);
+    return {ok: true};
+  }
+
+  // Delete with reconciliation (admin/management) — removes the trip and
+  // moves its plannedCount onto the NEXT chain trip (or PREVIOUS if last).
+  // Refuses when chain has only one trip.
+  function deletePlannedTripById(groupId, tripId) {
+    const fg = feederGroups.find((g) => g.id === groupId);
+    if (!fg) return {error: 'group not found'};
+    const r = deletePlannedTripWithReconciliation(fg.plannedProcessingTrips || [], tripId);
+    if (r.error) {
+      console.warn('deletePlannedTripById:', r.error);
+      return r;
+    }
+    const nb = feederGroups.map((g) => (g.id !== groupId ? g : {...g, plannedProcessingTrips: r.trips}));
+    persistFeeders(nb);
+    return {ok: true};
   }
 
   // Auto-allocate planned trips for any (sub, sex) pair that satisfies all
@@ -873,7 +912,10 @@ export default function PigBatchesView({
     setOriginalFeederForm(null);
   }
 
-  const isManager = !!(authState && authState.role === 'admin');
+  // Planned-trip mutation gate: admin OR management can mutate, farm_team
+  // is read-only. Per Codex's pig-planned-trips lane spec — applies to the
+  // inline date editor, manual Add, Delete, and the ← / → move arrows.
+  const isManager = !!(authState && (authState.role === 'admin' || authState.role === 'management'));
   return (
     <div>
       <Header />
@@ -2610,6 +2652,172 @@ export default function PigBatchesView({
                                   Projection unavailable — cycle age range not yet usable.
                                 </div>
                               )}
+                            {/* Manual + Add planned trip (admin/management only).
+                              Sex comes from the sub itself (non-mixed subs are
+                              gilt-only or boar-only). Mixed-sex hint above already
+                              tells the user to split before planning. Date is
+                              free-form per Codex's pre-build answer #2 — the chain
+                              re-sorts by date+order on render. */}
+                            {!isMixedSex && isManager && (
+                              <div data-planned-trip-add-shell={sb.id} style={{marginBottom: 6}}>
+                                {addingTripFor && addingTripFor.subBatchId === sb.id ? (
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      gap: 6,
+                                      flexWrap: 'wrap',
+                                      alignItems: 'center',
+                                      background: 'white',
+                                      border: '1px solid #d1d5db',
+                                      borderRadius: 6,
+                                      padding: '6px 8px',
+                                      fontSize: 11,
+                                    }}
+                                  >
+                                    <input
+                                      data-planned-trip-add-date={sb.id}
+                                      type="date"
+                                      value={addingTripDate}
+                                      onChange={(e) => setAddingTripDate(e.target.value)}
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 4px',
+                                        border: '1px solid #d1d5db',
+                                        borderRadius: 5,
+                                        fontFamily: 'inherit',
+                                      }}
+                                    />
+                                    <input
+                                      data-planned-trip-add-count={sb.id}
+                                      type="number"
+                                      min={1}
+                                      placeholder="pigs"
+                                      value={addingTripCount}
+                                      onChange={(e) => setAddingTripCount(e.target.value)}
+                                      style={{
+                                        fontSize: 11,
+                                        padding: '2px 4px',
+                                        border: '1px solid #d1d5db',
+                                        borderRadius: 5,
+                                        fontFamily: 'inherit',
+                                        width: 70,
+                                      }}
+                                    />
+                                    <span style={{color: '#6b7280'}}>{addingTripFor.sex}</span>
+                                    <button
+                                      data-planned-trip-add-save={sb.id}
+                                      onClick={() => {
+                                        const r = addPlannedTripById(g.id, {
+                                          subBatchId: sb.id,
+                                          sex: addingTripFor.sex,
+                                          date: addingTripDate,
+                                          plannedCount: parseInt(addingTripCount),
+                                        });
+                                        if (r && r.error) {
+                                          setAddingTripError(r.error);
+                                          return;
+                                        }
+                                        setAddingTripFor(null);
+                                        setAddingTripDate('');
+                                        setAddingTripCount('');
+                                        setAddingTripError('');
+                                      }}
+                                      style={{
+                                        fontSize: 10,
+                                        padding: '3px 10px',
+                                        borderRadius: 5,
+                                        border: '1px solid #085041',
+                                        background: '#085041',
+                                        color: 'white',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                      }}
+                                    >
+                                      Add
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setAddingTripFor(null);
+                                        setAddingTripDate('');
+                                        setAddingTripCount('');
+                                        setAddingTripError('');
+                                      }}
+                                      style={{
+                                        fontSize: 10,
+                                        padding: '3px 10px',
+                                        borderRadius: 5,
+                                        border: '1px solid #d1d5db',
+                                        background: 'white',
+                                        color: '#6b7280',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                    {addingTripError && (
+                                      <span
+                                        data-planned-trip-add-error={sb.id}
+                                        style={{color: '#b91c1c', fontSize: 10, fontStyle: 'italic'}}
+                                      >
+                                        {addingTripError}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                                    {(parseInt(sb.giltCount) || 0) > 0 && (
+                                      <button
+                                        data-planned-trip-add-button={`${sb.id}-gilt`}
+                                        onClick={() => {
+                                          setAddingTripFor({groupId: g.id, subBatchId: sb.id, sex: 'gilt'});
+                                          setAddingTripDate(new Date().toISOString().slice(0, 10));
+                                          setAddingTripCount('');
+                                          setAddingTripError('');
+                                        }}
+                                        style={{
+                                          fontSize: 10,
+                                          padding: '3px 10px',
+                                          borderRadius: 5,
+                                          border: '1px solid #1d4ed8',
+                                          background: 'white',
+                                          color: '#1d4ed8',
+                                          cursor: 'pointer',
+                                          fontFamily: 'inherit',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        + Add gilt trip
+                                      </button>
+                                    )}
+                                    {(parseInt(sb.boarCount) || 0) > 0 && (
+                                      <button
+                                        data-planned-trip-add-button={`${sb.id}-boar`}
+                                        onClick={() => {
+                                          setAddingTripFor({groupId: g.id, subBatchId: sb.id, sex: 'boar'});
+                                          setAddingTripDate(new Date().toISOString().slice(0, 10));
+                                          setAddingTripCount('');
+                                          setAddingTripError('');
+                                        }}
+                                        style={{
+                                          fontSize: 10,
+                                          padding: '3px 10px',
+                                          borderRadius: 5,
+                                          border: '1px solid #1d4ed8',
+                                          background: 'white',
+                                          color: '#1d4ed8',
+                                          cursor: 'pointer',
+                                          fontFamily: 'inherit',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        + Add boar trip
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {!isMixedSex &&
                               g.cycleId &&
                               effectiveAdgLbsPerDay != null &&
@@ -2628,11 +2836,19 @@ export default function PigBatchesView({
                                         : '—';
                                     const projAvg =
                                       t.projectedAvgLbs != null ? `~${Math.round(t.projectedAvgLbs)} lb avg` : '';
-                                    // Commit 4b — move target is the next same-sex trip
-                                    // in this (sub, sex) sequence. plannedProjected is
-                                    // already sorted by (date, order) and scoped to this
-                                    // sub via plannedRawForSub upstream.
+                                    // Move targets within this (sub, sex) chain. plannedProjected
+                                    // is already sorted by (date, order). nextSameSex receives
+                                    // forward moves; prevSameSex receives back moves.
                                     const nextSameSex = plannedProjected.slice(ti + 1).find((nt) => nt.sex === t.sex);
+                                    const prevSameSex = plannedProjected
+                                      .slice(0, ti)
+                                      .reverse()
+                                      .find((pt) => pt.sex === t.sex);
+                                    // Chain trip count for THIS sex governs the delete-disable.
+                                    // A chain of one trip cannot be deleted (deletion would
+                                    // lose the planned-count signal).
+                                    const sameSexChainCount = plannedProjected.filter((ct) => ct.sex === t.sex).length;
+                                    const canDelete = isManager && sameSexChainCount > 1;
                                     const isEditingDate = editingPlannedTripId === t.id;
                                     return (
                                       <div
@@ -2792,52 +3008,77 @@ export default function PigBatchesView({
                                             </span>
                                           )}
                                         </div>
-                                        {/* Admin count-move arrows. Single-pig moves
-                                          per Codex W1; zero-count source/destination
-                                          disables the corresponding button. Last-trip
-                                          (no nextSameSex) hides both buttons. */}
-                                        {isManager && nextSameSex && (
-                                          <div style={{display: 'flex', gap: 4, marginTop: 2}}>
-                                            <button
-                                              data-planned-trip-move-out={t.id}
-                                              disabled={(parseInt(t.plannedCount) || 0) <= 0}
-                                              onClick={() => movePlannedTripPigsById(g.id, t.id, nextSameSex.id)}
-                                              style={{
-                                                fontSize: 10,
-                                                padding: '2px 6px',
-                                                borderRadius: 5,
-                                                border: '1px solid #d1d5db',
-                                                background: 'white',
-                                                color: (parseInt(t.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
-                                                cursor: (parseInt(t.plannedCount) || 0) > 0 ? 'pointer' : 'not-allowed',
-                                                fontFamily: 'inherit',
-                                              }}
-                                              title="Move 1 pig to the next planned trip"
-                                            >
-                                              −1 →
-                                            </button>
-                                            <button
-                                              data-planned-trip-move-in={t.id}
-                                              disabled={(parseInt(nextSameSex.plannedCount) || 0) <= 0}
-                                              onClick={() => movePlannedTripPigsById(g.id, nextSameSex.id, t.id)}
-                                              style={{
-                                                fontSize: 10,
-                                                padding: '2px 6px',
-                                                borderRadius: 5,
-                                                border: '1px solid #d1d5db',
-                                                background: 'white',
-                                                color:
-                                                  (parseInt(nextSameSex.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
-                                                cursor:
-                                                  (parseInt(nextSameSex.plannedCount) || 0) > 0
-                                                    ? 'pointer'
-                                                    : 'not-allowed',
-                                                fontFamily: 'inherit',
-                                              }}
-                                              title="Take 1 pig from the next planned trip"
-                                            >
-                                              ← +1
-                                            </button>
+                                        {/* Move arrows + delete (admin/management).
+                                          ← back: send 1 pig from this trip to the PREVIOUS
+                                          chain trip (heaviest in current rank window).
+                                          → forward: send 1 pig from this trip to the NEXT
+                                          chain trip (lightest in current rank window).
+                                          First trip: forward only. Last trip: back only.
+                                          Middle trips: both. Disabled when this trip has
+                                          0 pigs to give. */}
+                                        {isManager && (nextSameSex || prevSameSex || canDelete) && (
+                                          <div style={{display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap'}}>
+                                            {prevSameSex && (
+                                              <button
+                                                data-planned-trip-move-back={t.id}
+                                                disabled={(parseInt(t.plannedCount) || 0) <= 0}
+                                                onClick={() => movePlannedTripPigsById(g.id, t.id, prevSameSex.id)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 6px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #d1d5db',
+                                                  background: 'white',
+                                                  color: (parseInt(t.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
+                                                  cursor:
+                                                    (parseInt(t.plannedCount) || 0) > 0 ? 'pointer' : 'not-allowed',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                                title="Move 1 pig back to the previous planned trip (heaviest in this trip's rank window)"
+                                              >
+                                                ← −1
+                                              </button>
+                                            )}
+                                            {nextSameSex && (
+                                              <button
+                                                data-planned-trip-move-forward={t.id}
+                                                disabled={(parseInt(t.plannedCount) || 0) <= 0}
+                                                onClick={() => movePlannedTripPigsById(g.id, t.id, nextSameSex.id)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 6px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #d1d5db',
+                                                  background: 'white',
+                                                  color: (parseInt(t.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
+                                                  cursor:
+                                                    (parseInt(t.plannedCount) || 0) > 0 ? 'pointer' : 'not-allowed',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                                title="Move 1 pig forward to the next planned trip (lightest in this trip's rank window)"
+                                              >
+                                                −1 →
+                                              </button>
+                                            )}
+                                            {canDelete && (
+                                              <button
+                                                data-planned-trip-delete={t.id}
+                                                onClick={() => deletePlannedTripById(g.id, t.id)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 6px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #fecaca',
+                                                  background: 'white',
+                                                  color: '#b91c1c',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                                title="Delete this planned trip (its pigs move to the next, or previous if last)"
+                                              >
+                                                🗑
+                                              </button>
+                                            )}
                                           </div>
                                         )}
                                       </div>
