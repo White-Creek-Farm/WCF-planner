@@ -236,7 +236,24 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal}) {
             </span>
           )}
         </button>
-        <div style={{display: 'flex', gap: 6, alignItems: 'center', marginLeft: 16}}>
+        {/* Webforms group: Dailys + Equipment public webform hubs sit
+            inside a labeled wrapper so operators read them as one
+            group. Tasks button sits OUTSIDE this group with a divider
+            so it doesn't read as another webform link. */}
+        <div data-header-webforms-group="1" style={{display: 'flex', gap: 6, alignItems: 'center', marginLeft: 16}}>
+          <span
+            data-header-webforms-label="1"
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 0.6,
+              textTransform: 'uppercase',
+              color: 'rgba(255,255,255,.55)',
+              paddingRight: 4,
+            }}
+          >
+            Webforms
+          </span>
           <button
             onClick={() => {
               setShowForm(false);
@@ -260,6 +277,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal}) {
             📝 Dailys
           </button>
           <button
+            data-header-webforms-equipment="1"
             onClick={() => {
               setShowForm(false);
               setShowBreedForm(false);
@@ -279,9 +297,22 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal}) {
               whiteSpace: 'nowrap',
             }}
           >
-            ⛽ Fueling
+            🚜 Equipment
           </button>
-          {authState?.user && (
+        </div>
+        {/* Visual divider: separates the Webforms group from the Tasks
+            destination so the Tasks button reads as its own
+            navigation, not another webform link. */}
+        {authState?.user && (
+          <div data-header-tasks-divider="1" style={{display: 'flex', alignItems: 'center', marginLeft: 8}}>
+            <div
+              style={{
+                width: 1,
+                height: 20,
+                background: 'rgba(255,255,255,.25)',
+                marginRight: 10,
+              }}
+            />
             <button
               data-tasks-header-link="1"
               onClick={() => {
@@ -329,8 +360,8 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal}) {
                 </span>
               )}
             </button>
-          )}
-        </div>
+          </div>
+        )}
         <div style={{fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, opacity: 0.75, marginLeft: 'auto'}}>
           {saveStatus === 'saving' && <span style={{color: '#a7f3d0', fontWeight: 500}}>Saving…</span>}
           {saveStatus === 'saved' && <span style={{color: '#a7f3d0', fontWeight: 500}}>✓ Saved</span>}

@@ -28,6 +28,7 @@ import React from 'react';
 import {
   loadOpenTaskInstances,
   loadEligibleProfilesById,
+  loadTaskAssignableProfilesById,
   splitTasksForMyTab,
   attributionFor,
   dueStateFor,
@@ -123,7 +124,11 @@ const PHOTO_LINK_BTN = {
   border: 'none',
   padding: 0,
   cursor: 'pointer',
-  fontSize: 12,
+  // 36px paperclip per Codex amendment — original 12px was too small to
+  // notice. Icon-only; visible "Photo" text stays out per the existing
+  // T2 lock.
+  fontSize: 36,
+  lineHeight: 1,
   color: '#6b7280',
   fontFamily: 'inherit',
 };
@@ -244,7 +249,11 @@ function TaskRow({
 
 export default function MyTasksTab({sb, authState}) {
   const [tasks, setTasks] = React.useState([]);
+  // profiles is the unfiltered display map (for row name rendering).
+  // assignableProfiles is the filtered subset for write-modal dropdowns
+  // — hidden profiles via Public Tasks availability are excluded.
   const [profiles, setProfiles] = React.useState({});
+  const [assignableProfiles, setAssignableProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
   const [expanded, setExpanded] = React.useState({}); // {assigneeProfileId: bool}
@@ -263,10 +272,15 @@ export default function MyTasksTab({sb, authState}) {
     (async () => {
       setErr('');
       try {
-        const [list, profMap] = await Promise.all([loadOpenTaskInstances(sb), loadEligibleProfilesById(sb)]);
+        const [list, profMap, assignableMap] = await Promise.all([
+          loadOpenTaskInstances(sb),
+          loadEligibleProfilesById(sb),
+          loadTaskAssignableProfilesById(sb),
+        ]);
         if (!cancelled) {
           setTasks(list);
           setProfiles(profMap);
+          setAssignableProfiles(assignableMap);
         }
       } catch (e) {
         if (!cancelled) setErr(e && e.message ? e.message : String(e));
@@ -464,7 +478,11 @@ export default function MyTasksTab({sb, authState}) {
       })}
       {React.createElement(EditDueDateModal, {
         sb,
-        task: editDueTarget,
+        // Resolve to the live tasks-row each render so a click handler
+        // captured before the most recent reload doesn't pin stale data
+        // (due_date / edit-count) into the modal. Falls back to the
+        // captured ref so the modal still renders on a transient miss.
+        task: editDueTarget ? tasks.find((t) => t.id === editDueTarget.id) || editDueTarget : null,
         isOpen: !!editDueTarget,
         isAdmin,
         profilesById: profiles,
@@ -479,7 +497,9 @@ export default function MyTasksTab({sb, authState}) {
         sb,
         task: assignTarget,
         isOpen: !!assignTarget,
-        profilesById: profiles,
+        // Reassign dropdown must NOT surface hidden profiles — pass the
+        // filtered assignable map.
+        profilesById: assignableProfiles,
         onClose: () => setAssignTarget(null),
         onAssigned: () => {
           setAssignTarget(null);

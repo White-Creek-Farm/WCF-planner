@@ -5,11 +5,13 @@
 // helpers.
 //
 // Mutations (complete / create / due-date edit / assign / delete /
-// system-generate) live in a future tasksCenterMutationsApi.js that
-// lands with T3+ as each functional tab arrives. Keeping reads and
+// system-generate) live in src/lib/tasksCenterMutationsApi.js which
+// landed with T3+ as each functional tab arrived. Keeping reads and
 // writes in separate modules makes the static no-mutation lock for
-// T2 components trivial: the lock just asserts no T2 file imports
-// from a mutations module that doesn't exist yet.
+// the read-only tabs trivial: the lock asserts that none of those
+// files import from the mutations module.
+
+import {TASKS_PUBLIC_ASSIGNEE_AVAILABILITY_KEY, visiblePublicAssignees} from './tasks.js';
 
 /**
  * Load every open task_instances row visible to the caller. Under
@@ -47,6 +49,74 @@ export async function loadEligibleProfilesById(sb) {
   if (error) throw new Error(`loadEligibleProfilesById: ${error.message}`);
   const out = {};
   for (const p of data || []) out[p.id] = {id: p.id, full_name: p.full_name};
+  return out;
+}
+
+/**
+ * Load the assignable-only subset of eligible profiles for Task Center
+ * write paths (NewTask / Reassign / Recurring template / System rule
+ * edit dropdowns). This applies the same Public Tasks assignee
+ * availability filter (`webform_config.tasks_public_assignee_availability`
+ * → `{hiddenProfileIds: [...]}`) that /webforms/tasks already uses, so a
+ * profile hidden via Team Availability → Public Tasks is excluded from
+ * Task Center mutation dropdowns too.
+ *
+ * Hidden profiles still appear in the unfiltered display map
+ * (loadEligibleProfilesById) so existing tasks/templates/rules already
+ * assigned to a hidden profile continue rendering the person's name in
+ * read-only rows. "Hidden" means "not assignable going forward," not
+ * "Unknown user everywhere."
+ *
+ * Read path: list_eligible_assignees RPC + webform_config row → filter
+ * via visiblePublicAssignees(). Never reads profiles directly.
+ *
+ * Failure modes (Codex amendment — must fail CLOSED for hidden filtering):
+ *   - row missing / null  → defaults to "no hiddenProfileIds" → every
+ *                           eligible profile is assignable. The
+ *                           availability config is opt-in; absent config
+ *                           means nobody is hidden.
+ *   - webform_config read returns an error or throws → return an EMPTY
+ *                           assignable map. We do NOT fall back to the
+ *                           unfiltered eligible list because a transient
+ *                           read failure would silently re-expose hidden
+ *                           profiles in mutation dropdowns. Empty map
+ *                           means admins see "— Select —" and can retry
+ *                           by reopening the modal.
+ */
+export async function loadTaskAssignableProfilesById(sb) {
+  const {data: rpcData, error: rpcErr} = await sb.rpc('list_eligible_assignees');
+  if (rpcErr) throw new Error(`loadTaskAssignableProfilesById: ${rpcErr.message}`);
+  const eligible = (rpcData || []).map((p) => ({id: p.id, full_name: p.full_name}));
+
+  let availability = null;
+  try {
+    const {data: row, error: rowErr} = await sb
+      .from('webform_config')
+      .select('data')
+      .eq('key', TASKS_PUBLIC_ASSIGNEE_AVAILABILITY_KEY)
+      .maybeSingle();
+    if (rowErr) {
+      // Fail closed: a read error must not silently re-expose hidden
+      // profiles. Return empty so the dropdown shows nothing rather
+      // than the full unfiltered list.
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('loadTaskAssignableProfilesById availability read failed:', rowErr.message);
+      }
+      return {};
+    }
+    if (row && row.data) {
+      availability = row.data;
+    }
+  } catch (e) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('loadTaskAssignableProfilesById availability read threw:', e && e.message);
+    }
+    return {};
+  }
+
+  const visible = visiblePublicAssignees(eligible, availability);
+  const out = {};
+  for (const p of visible) out[p.id] = {id: p.id, full_name: p.full_name};
   return out;
 }
 

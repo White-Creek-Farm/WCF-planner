@@ -61,7 +61,11 @@ const PHOTO_LINK_BTN = {
   border: 'none',
   padding: 0,
   cursor: 'pointer',
-  fontSize: 12,
+  // 36px paperclip per Codex amendment — original 12px was too small to
+  // notice. Icon-only; visible "Photo" text stays out per the existing
+  // T2 lock.
+  fontSize: 36,
+  lineHeight: 1,
   color: '#6b7280',
   fontFamily: 'inherit',
 };

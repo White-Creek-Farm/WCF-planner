@@ -121,6 +121,11 @@ export default function RecurringTemplateModal({
   // Stable id per modal-open for inserts (idempotent retry).
   const newIdRef = React.useRef(null);
 
+  // Hydrate fields from the row (or new-mode defaults) only when the
+  // modal opens or the target template changes. Profile-map changes do
+  // NOT belong here — re-firing this effect mid-edit would clobber the
+  // user's in-flight input. The assignee re-resolution against the
+  // assignable map lives in its own effect below.
   React.useEffect(() => {
     if (!isOpen) {
       setSaving(false);
@@ -129,7 +134,6 @@ export default function RecurringTemplateModal({
       return;
     }
     if (template && template.id) {
-      // Edit mode: hydrate from row.
       setTitle(template.title || '');
       setDescription(template.description || '');
       setAssigneeId(template.assignee_profile_id || '');
@@ -139,7 +143,6 @@ export default function RecurringTemplateModal({
       setNotes(template.notes || '');
       setActive(!!template.active);
     } else {
-      // New mode: defaults, mint id once.
       setTitle('');
       setDescription('');
       setAssigneeId('');
@@ -151,6 +154,22 @@ export default function RecurringTemplateModal({
       newIdRef.current = mintTemplateId();
     }
   }, [isOpen, template]);
+
+  // Edit-mode only: when the assignable map loads/changes and the
+  // template's current assignee is hidden via Public Tasks availability,
+  // clear the dropdown to '' so admin must pick a visible assignee.
+  // Skipped for new-mode (assigneeId starts at '' and the user picks).
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (!template || !template.id) return;
+    const cur = template.assignee_profile_id || '';
+    if (!cur) return;
+    if (profilesById && profilesById[cur]) {
+      setAssigneeId(cur);
+    } else {
+      setAssigneeId('');
+    }
+  }, [isOpen, template, profilesById]);
 
   if (!isOpen) return null;
 

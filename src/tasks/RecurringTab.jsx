@@ -28,6 +28,7 @@ import {
   loadRecurringTaskTemplates,
   loadOpenRecurringInstances,
   loadEligibleProfilesById,
+  loadTaskAssignableProfilesById,
   groupRecurringByTemplate,
 } from '../lib/tasksCenterApi.js';
 import {TASK_CHANGE_EVENT, fireTaskChangeEvent, deleteRecurringTaskTemplate} from '../lib/tasksCenterMutationsApi.js';
@@ -256,6 +257,7 @@ export default function RecurringTab({sb, authState}) {
   const [templates, setTemplates] = React.useState([]);
   const [openInstances, setOpenInstances] = React.useState([]);
   const [profiles, setProfiles] = React.useState({});
+  const [assignableProfiles, setAssignableProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
   const [expanded, setExpanded] = React.useState({});
@@ -268,15 +270,17 @@ export default function RecurringTab({sb, authState}) {
     (async () => {
       setErr('');
       try {
-        const [tpls, opens, profMap] = await Promise.all([
+        const [tpls, opens, profMap, assignableMap] = await Promise.all([
           loadRecurringTaskTemplates(sb),
           loadOpenRecurringInstances(sb),
           loadEligibleProfilesById(sb),
+          loadTaskAssignableProfilesById(sb),
         ]);
         if (!cancelled) {
           setTemplates(tpls);
           setOpenInstances(opens);
           setProfiles(profMap);
+          setAssignableProfiles(assignableMap);
         }
       } catch (e) {
         if (!cancelled) setErr(e && e.message ? e.message : String(e));
@@ -480,7 +484,8 @@ export default function RecurringTab({sb, authState}) {
         isOpen: editTarget !== null,
         template: editTarget && editTarget !== 'new' ? editTarget : null,
         authState,
-        profilesById: profiles,
+        // Recurring template assignee dropdown uses the filtered map.
+        profilesById: assignableProfiles,
         onClose: () => setEditTarget(null),
         onSaved: () => {
           setEditTarget(null);

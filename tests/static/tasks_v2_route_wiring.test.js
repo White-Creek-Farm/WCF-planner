@@ -1031,3 +1031,156 @@ describe('Tasks v2 T11 — legacy route retirement', () => {
     expect(headerJsxFull).toMatch(/data-tasks-header-link="1"/);
   });
 });
+
+// ============================================================================
+// Header webforms grouping + Equipment rename + Tasks divider.
+// ----------------------------------------------------------------------------
+// The dark-bar layout pattern:
+//   1. Dailys + Equipment buttons live inside a labeled "Webforms" group
+//      (data-header-webforms-group, data-header-webforms-label="Webforms")
+//      so they read as related forms, not as one-offs next to ✅ Tasks.
+//   2. The legacy "⛽ Fueling" button is renamed "🚜 Equipment" but still
+//      routes to setView('fuelingHub') — view name stays untouched so URL
+//      adapter, deep links, and main.jsx mount don't care about the label.
+//   3. A divider element (data-header-tasks-divider) separates the
+//      Webforms group from the ✅ Tasks button so Tasks doesn't read as a
+//      third webform link.
+// ============================================================================
+
+describe('Header — Webforms grouping + Equipment rename + Tasks divider', () => {
+  it('Header has a webforms group with a "Webforms" label', () => {
+    expect(headerJsx).toMatch(/data-header-webforms-group="1"/);
+    expect(headerJsx).toMatch(/data-header-webforms-label="1"[\s\S]*?>\s*Webforms\s*</);
+  });
+
+  it('Header renames Fueling to Equipment but keeps fuelingHub routing', () => {
+    expect(headerJsx).toMatch(/data-header-webforms-equipment="1"/);
+    expect(headerJsx).toMatch(/🚜 Equipment/);
+    // setView('fuelingHub') is still the click target so the underlying
+    // view + URL doesn't shift just because the label changed.
+    expect(headerJsx).toMatch(/data-header-webforms-equipment="1"[\s\S]*?setView\(\s*['"]fuelingHub['"]\s*\)/);
+    // Negative lock: the old label string must not still be in the file.
+    expect(headerJsx).not.toMatch(/⛽\s*Fueling/);
+  });
+
+  it('Header puts a visual divider between the Webforms group and the Tasks button', () => {
+    // The divider wrapper sits before the data-tasks-header-link button.
+    expect(headerJsx).toMatch(/data-header-tasks-divider="1"[\s\S]*?data-tasks-header-link="1"/);
+  });
+});
+
+// ============================================================================
+// Task Center assignee availability mapping.
+// ----------------------------------------------------------------------------
+// Codex spec: profiles hidden via webform_config.tasks_public_assignee_availability
+// (the "Public Tasks" team-availability config) must NOT be selectable in
+// any Task Center mutation dropdown — NewTask, Reassign (AssignTaskModal),
+// Recurring template, or System rule edit.
+//
+//   - tasksCenterApi exports loadTaskAssignableProfilesById that reads
+//     list_eligible_assignees + the webform_config row + filters with
+//     visiblePublicAssignees(). Never reads `profiles` directly.
+//   - TaskCenterView / MyTasksTab / RecurringTab / SystemTasksTab load
+//     BOTH the unfiltered display map (loadEligibleProfilesById) and the
+//     filtered assignable map (loadTaskAssignableProfilesById). Display
+//     map keeps existing names intact for read-only rows; assignable map
+//     drives the modal dropdowns.
+//   - NewTaskModal / AssignTaskModal / RecurringTemplateModal /
+//     SystemRuleEditModal receive the assignable map as profilesById.
+//   - AssignTaskModal / RecurringTemplateModal / SystemRuleEditModal each
+//     reset the dropdown to '' when the row's current assignee is not in
+//     the assignable map (hidden), so admin must pick a visible profile.
+// ============================================================================
+
+describe('Tasks v2 — assignee availability filter on Task Center mutation dropdowns', () => {
+  it('tasksCenterApi exposes loadTaskAssignableProfilesById that filters via visiblePublicAssignees', () => {
+    expect(tasksCenterApi).toMatch(/export\s+async\s+function\s+loadTaskAssignableProfilesById/);
+    expect(tasksCenterApi).toMatch(
+      /import\s*\{\s*TASKS_PUBLIC_ASSIGNEE_AVAILABILITY_KEY\s*,\s*visiblePublicAssignees\s*\}\s*from\s*['"]\.\/tasks\.js['"]/,
+    );
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+loadTaskAssignableProfilesById[\s\S]*?\n\}/);
+    expect(body, 'loadTaskAssignableProfilesById body must be present').not.toBeNull();
+    expect(body[0]).toMatch(/sb\.rpc\(\s*['"]list_eligible_assignees['"]/);
+    expect(body[0]).toMatch(/\.from\(\s*['"]webform_config['"]\s*\)/);
+    expect(body[0]).toMatch(/TASKS_PUBLIC_ASSIGNEE_AVAILABILITY_KEY/);
+    expect(body[0]).toMatch(/visiblePublicAssignees\(/);
+  });
+
+  it('loadTaskAssignableProfilesById never reads the profiles table directly', () => {
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+loadTaskAssignableProfilesById[\s\S]*?\n\}/);
+    expect(body[0]).not.toMatch(/\.from\(\s*['"]profiles['"]\s*\)/);
+  });
+
+  // Codex amendment: hidden-assignee filtering must fail CLOSED. A read
+  // error from webform_config must NOT silently fall back to the
+  // unfiltered eligible list — that would re-expose hidden profiles in
+  // mutation dropdowns. Lock both error-path branches (rowErr + try/catch)
+  // so each returns an empty map.
+  it('loadTaskAssignableProfilesById fails CLOSED on availability read error/throw', () => {
+    const body = tasksCenterApi.match(/export\s+async\s+function\s+loadTaskAssignableProfilesById[\s\S]*?\n\}/);
+    expect(body, 'helper body must be present').not.toBeNull();
+    // The rowErr branch must return {} (not visiblePublicAssignees-of-eligible).
+    expect(body[0]).toMatch(/if\s*\(\s*rowErr\s*\)\s*\{[\s\S]*?return\s*\{\s*\}\s*;/);
+    // The try/catch branch must also return {} on throw.
+    expect(body[0]).toMatch(/catch\s*\([^)]*\)\s*\{[\s\S]*?return\s*\{\s*\}\s*;/);
+  });
+
+  it('TaskCenterView loads both the display and assignable profile maps', () => {
+    expect(taskCenterView).toMatch(/loadEligibleProfilesById/);
+    expect(taskCenterView).toMatch(/loadTaskAssignableProfilesById/);
+  });
+
+  it('MyTasksTab / RecurringTab / SystemTasksTab each load the assignable profile map', () => {
+    expect(myTasksTab).toMatch(/loadTaskAssignableProfilesById/);
+    expect(recurringTab).toMatch(/loadTaskAssignableProfilesById/);
+    expect(systemTasksTab).toMatch(/loadTaskAssignableProfilesById/);
+  });
+
+  it('AssignTaskModal resets target to "" when the current assignee is hidden (not in profilesById)', () => {
+    // The reset effect checks profilesById[cur]; if absent (hidden), the
+    // modal opens with "— Select —". Lock both the conditional and the
+    // useEffect dep on profilesById so a future drift can't strip the
+    // hidden-current-assignee handling.
+    expect(assignTaskModal).toMatch(
+      /profilesById\s*&&\s*profilesById\[cur\][\s\S]*?setTarget\(cur\)[\s\S]*?setTarget\(''\)/,
+    );
+    expect(assignTaskModal).toMatch(/\}\s*,\s*\[isOpen,\s*task,\s*profilesById\]/);
+  });
+
+  it('RecurringTemplateModal resets assignee to "" when the template assignee is hidden', () => {
+    expect(recurringTemplateModal).toMatch(
+      /profilesById\s*&&\s*profilesById\[cur\][\s\S]*?setAssigneeId\(cur\)[\s\S]*?setAssigneeId\(''\)/,
+    );
+    expect(recurringTemplateModal).toMatch(/\}\s*,\s*\[isOpen,\s*template,\s*profilesById\]/);
+  });
+
+  it('SystemRuleEditModal resets assignee to "" when the rule assignee is hidden', () => {
+    expect(systemRuleEditModal).toMatch(
+      /profilesById\s*&&\s*profilesById\[cur\][\s\S]*?setAssigneeId\(cur\)[\s\S]*?setAssigneeId\(''\)/,
+    );
+    expect(systemRuleEditModal).toMatch(/\}\s*,\s*\[isOpen,\s*rule,\s*profilesById\]/);
+  });
+});
+
+// ============================================================================
+// Photo icon size — MyTasksTab + CompletedTab.
+// ----------------------------------------------------------------------------
+// The paperclip 📎 button on each task row was 12px (basically invisible).
+// Spec bumps it to >= 36px so it's a real tap/click target. Lock the size
+// at exactly 36 in PHOTO_LINK_BTN so a future restyle can't silently shrink
+// it.
+// ============================================================================
+
+describe('Tasks v2 — photo icon size on My Tasks and Completed', () => {
+  it('MyTasksTab PHOTO_LINK_BTN sets fontSize: 36', () => {
+    const block = myTasksTab.match(/const\s+PHOTO_LINK_BTN\s*=\s*\{[\s\S]*?\};/);
+    expect(block, 'MyTasksTab PHOTO_LINK_BTN block must be present').not.toBeNull();
+    expect(block[0]).toMatch(/fontSize:\s*36\b/);
+  });
+
+  it('CompletedTab PHOTO_LINK_BTN sets fontSize: 36', () => {
+    const block = completedTab.match(/const\s+PHOTO_LINK_BTN\s*=\s*\{[\s\S]*?\};/);
+    expect(block, 'CompletedTab PHOTO_LINK_BTN block must be present').not.toBeNull();
+    expect(block[0]).toMatch(/fontSize:\s*36\b/);
+  });
+});

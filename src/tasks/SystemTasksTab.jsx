@@ -27,6 +27,7 @@ import {
   loadSystemTaskRules,
   loadOpenSystemTaskInstances,
   loadEligibleProfilesById,
+  loadTaskAssignableProfilesById,
   groupSystemTasksByRule,
   dueStateFor,
 } from '../lib/tasksCenterApi.js';
@@ -177,6 +178,7 @@ export default function SystemTasksTab({sb, authState}) {
   const [rules, setRules] = React.useState([]);
   const [openInstances, setOpenInstances] = React.useState([]);
   const [profiles, setProfiles] = React.useState({});
+  const [assignableProfiles, setAssignableProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
   const [expanded, setExpanded] = React.useState({});
@@ -188,15 +190,17 @@ export default function SystemTasksTab({sb, authState}) {
     (async () => {
       setErr('');
       try {
-        const [r, opens, profMap] = await Promise.all([
+        const [r, opens, profMap, assignableMap] = await Promise.all([
           loadSystemTaskRules(sb),
           loadOpenSystemTaskInstances(sb),
           loadEligibleProfilesById(sb),
+          loadTaskAssignableProfilesById(sb),
         ]);
         if (!cancelled) {
           setRules(r);
           setOpenInstances(opens);
           setProfiles(profMap);
+          setAssignableProfiles(assignableMap);
         }
       } catch (e) {
         if (!cancelled) setErr(e && e.message ? e.message : String(e));
@@ -360,7 +364,8 @@ export default function SystemTasksTab({sb, authState}) {
         sb,
         isOpen: !!editRule,
         rule: editRule,
-        profilesById: profiles,
+        // System rule assignee dropdown uses the filtered map.
+        profilesById: assignableProfiles,
         onClose: () => setEditRule(null),
         onSaved: () => {
           setEditRule(null);

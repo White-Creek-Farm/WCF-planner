@@ -63,6 +63,10 @@ export default function AssignTaskModal({sb, task, isOpen, profilesById, onClose
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState('');
 
+  // Reset modal state when it opens / the row changes. Profile map
+  // updates do NOT belong here — re-firing would clobber the admin's
+  // in-flight selection. The assignee re-resolution against the
+  // assignable map lives in its own effect below.
   React.useEffect(() => {
     if (!isOpen) {
       setTarget('');
@@ -72,6 +76,20 @@ export default function AssignTaskModal({sb, task, isOpen, profilesById, onClose
       setTarget(task.assignee_profile_id || '');
     }
   }, [isOpen, task]);
+
+  // When the assignable map loads/changes and the row's current
+  // assignee is hidden via Public Tasks availability, clear the
+  // dropdown to '' so admin must pick a visible assignee.
+  React.useEffect(() => {
+    if (!isOpen || !task) return;
+    const cur = task.assignee_profile_id || '';
+    if (!cur) return;
+    if (profilesById && profilesById[cur]) {
+      setTarget(cur);
+    } else {
+      setTarget('');
+    }
+  }, [isOpen, task, profilesById]);
 
   if (!isOpen || !task) return null;
 

@@ -77,6 +77,11 @@ export default function SystemRuleEditModal({sb, isOpen, rule, profilesById, onC
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState('');
 
+  // Hydrate fields when the modal opens / the rule changes. Profile map
+  // updates do NOT belong here — re-firing this effect mid-edit would
+  // clobber the admin's in-flight changes to lead-time / active. The
+  // assignee re-resolution against the assignable map lives in its own
+  // effect below.
   React.useEffect(() => {
     if (!isOpen || !rule) {
       setAssigneeId('');
@@ -92,6 +97,20 @@ export default function SystemRuleEditModal({sb, isOpen, rule, profilesById, onC
     setSaving(false);
     setErr('');
   }, [isOpen, rule]);
+
+  // When the assignable map loads/changes and the rule's current
+  // assignee is hidden via Public Tasks availability, clear the dropdown
+  // to '' so admin must pick a visible assignee.
+  React.useEffect(() => {
+    if (!isOpen || !rule) return;
+    const cur = rule.assignee_profile_id || '';
+    if (!cur) return;
+    if (profilesById && profilesById[cur]) {
+      setAssigneeId(cur);
+    } else {
+      setAssigneeId('');
+    }
+  }, [isOpen, rule, profilesById]);
 
   if (!isOpen || !rule) return null;
 

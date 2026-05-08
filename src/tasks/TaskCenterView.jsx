@@ -33,7 +33,7 @@ import RecurringTab from './RecurringTab.jsx';
 import CompletedTab from './CompletedTab.jsx';
 import SystemTasksTab from './SystemTasksTab.jsx';
 import NewTaskModal from './NewTaskModal.jsx';
-import {loadEligibleProfilesById} from '../lib/tasksCenterApi.js';
+import {loadEligibleProfilesById, loadTaskAssignableProfilesById} from '../lib/tasksCenterApi.js';
 import {fireTaskChangeEvent} from '../lib/tasksCenterMutationsApi.js';
 
 const PAGE_BG = {
@@ -75,7 +75,15 @@ const TABS = [
 export default function TaskCenterView({Header, sb, authState}) {
   const [activeTab, setActiveTab] = React.useState('mine');
   const [newTaskOpen, setNewTaskOpen] = React.useState(false);
+  // Two profile maps. profilesById is the unfiltered display map (every
+  // eligible profile, used for read-only name resolution on existing
+  // tasks/templates/rules including ones already assigned to a profile
+  // hidden via Public Tasks availability). assignableProfilesById is
+  // the filtered subset shown in mutation dropdowns (NewTask /
+  // Reassign / Recurring template / System rule edit) — Codex
+  // amendment: hidden profiles must NOT be selectable going forward.
   const [profilesById, setProfilesById] = React.useState({});
+  const [assignableProfilesById, setAssignableProfilesById] = React.useState({});
   const isAdmin = authState && authState.role === 'admin';
 
   const visibleTabs = TABS.filter((t) => !t.adminOnly || isAdmin);
@@ -89,8 +97,14 @@ export default function TaskCenterView({Header, sb, authState}) {
     let cancelled = false;
     (async () => {
       try {
-        const map = await loadEligibleProfilesById(sb);
-        if (!cancelled) setProfilesById(map);
+        const [displayMap, assignableMap] = await Promise.all([
+          loadEligibleProfilesById(sb),
+          loadTaskAssignableProfilesById(sb),
+        ]);
+        if (!cancelled) {
+          setProfilesById(displayMap);
+          setAssignableProfilesById(assignableMap);
+        }
       } catch (_e) {
         /* soft-fail; modal will show an empty assignee list and the user
          * can retry by reopening it after a network blip. */
@@ -151,7 +165,9 @@ export default function TaskCenterView({Header, sb, authState}) {
         </div>
         {React.createElement(NewTaskModal, {
           sb,
-          profilesById,
+          // Pass the assignable subset — NewTaskModal's dropdown must
+          // not surface hidden profiles per Codex amendment.
+          profilesById: assignableProfilesById,
           isOpen: newTaskOpen,
           onClose: () => setNewTaskOpen(false),
           // Fire the cross-component refresh signal so the Header badge

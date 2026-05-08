@@ -15,6 +15,7 @@ import {
   photoPresenceFor,
   groupRecurringByTemplate,
   groupSystemTasksByRule,
+  loadTaskAssignableProfilesById,
 } from './tasksCenterApi.js';
 
 describe('splitTasksForMyTab', () => {
@@ -240,5 +241,96 @@ describe('groupSystemTasksByRule', () => {
     const out = groupSystemTasksByRule(null, undefined);
     expect(out.rules).toEqual([]);
     expect(out.orphans).toEqual([]);
+  });
+});
+
+// ============================================================================
+// loadTaskAssignableProfilesById — Public Tasks availability filter
+// ----------------------------------------------------------------------------
+// Codex amendment: hidden-assignee filtering must fail CLOSED. A transient
+// webform_config read failure must NOT silently re-expose hidden profiles in
+// Task Center mutation dropdowns. Behaviors covered:
+//
+//   1. Row missing / null  → no hiddenProfileIds → all eligible visible.
+//   2. hiddenProfileIds set → matching id is dropped from the assignable map.
+//   3. webform_config read returns an error → empty assignable map.
+//   4. webform_config read throws            → empty assignable map.
+// ============================================================================
+
+function fakeSupabaseFor({rpcRows, configResult, configThrow}) {
+  return {
+    rpc(_name) {
+      return Promise.resolve({data: rpcRows, error: null});
+    },
+    from(_table) {
+      const builder = {
+        _filters: {},
+        select() {
+          return builder;
+        },
+        eq() {
+          return builder;
+        },
+        async maybeSingle() {
+          if (configThrow) throw configThrow;
+          return configResult;
+        },
+      };
+      return builder;
+    },
+  };
+}
+
+describe('loadTaskAssignableProfilesById', () => {
+  const eligible = [
+    {id: 'p-alice', full_name: 'Alice'},
+    {id: 'p-bob', full_name: 'Bob'},
+    {id: 'p-byron', full_name: 'Byron'},
+  ];
+
+  it('returns every eligible profile when the availability row is missing', async () => {
+    const sb = fakeSupabaseFor({
+      rpcRows: eligible,
+      configResult: {data: null, error: null},
+    });
+    const out = await loadTaskAssignableProfilesById(sb);
+    expect(Object.keys(out).sort()).toEqual(['p-alice', 'p-bob', 'p-byron']);
+  });
+
+  it('returns every eligible profile when the row exists but data is null', async () => {
+    const sb = fakeSupabaseFor({
+      rpcRows: eligible,
+      configResult: {data: {data: null}, error: null},
+    });
+    const out = await loadTaskAssignableProfilesById(sb);
+    expect(Object.keys(out).sort()).toEqual(['p-alice', 'p-bob', 'p-byron']);
+  });
+
+  it('drops hidden ids from the assignable map', async () => {
+    const sb = fakeSupabaseFor({
+      rpcRows: eligible,
+      configResult: {data: {data: {hiddenProfileIds: ['p-byron']}}, error: null},
+    });
+    const out = await loadTaskAssignableProfilesById(sb);
+    expect(Object.keys(out).sort()).toEqual(['p-alice', 'p-bob']);
+    expect(out['p-byron']).toBeUndefined();
+  });
+
+  it('fails CLOSED with an empty map when the webform_config read returns an error', async () => {
+    const sb = fakeSupabaseFor({
+      rpcRows: eligible,
+      configResult: {data: null, error: {message: 'permission denied'}},
+    });
+    const out = await loadTaskAssignableProfilesById(sb);
+    expect(out).toEqual({});
+  });
+
+  it('fails CLOSED with an empty map when the webform_config read throws', async () => {
+    const sb = fakeSupabaseFor({
+      rpcRows: eligible,
+      configThrow: new Error('network failure'),
+    });
+    const out = await loadTaskAssignableProfilesById(sb);
+    expect(out).toEqual({});
   });
 });
