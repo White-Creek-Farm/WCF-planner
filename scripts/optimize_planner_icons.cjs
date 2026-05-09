@@ -2,8 +2,19 @@
 // One-shot script: resize + re-encode the raw PNGs from
 // `<sourceDir>` into `<outDir>` for use under public/icons/planner/.
 //
-// Run via: npx --yes -p sharp@0.34.5 node scripts/optimize_planner_icons.cjs
-// (sharp is not added as a project dependency — install on demand.)
+// sharp is not a project dependency — install it on demand before running.
+// Recommended invocation:
+//
+//   npm install --no-save sharp@0.34.5
+//   node scripts/optimize_planner_icons.cjs
+//
+// Optional explicit paths:
+//
+//   node scripts/optimize_planner_icons.cjs <sourceDir> <outDir>
+//
+// (`npx --yes -p sharp` does NOT make sharp resolvable from a separate
+// .cjs file — confirmed during the 2026-05-08 icon lane. Install via
+// npm --no-save and the require() at line 39 will find it.)
 //
 // Targets a max dimension of 256px at PNG quality ~80, palette compression,
 // effort 10. Most icons land at 30-90 KB on this profile (vs 1-3 MB raw).

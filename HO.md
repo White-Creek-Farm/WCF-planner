@@ -130,11 +130,10 @@ requests a specific doc update. Otherwise keep current state in chat, not docs.
 
 Start by reading this file, then read only the relevant `PROJECT.md` sections:
 
-- Section 1 for project overview and codebase constraints.
-- Section 2 for infrastructure, stack, and schema facts when relevant.
-- Section 7 for load-bearing contracts.
-- Section 8 for roadmap, next build, and locked decisions.
-- Part 4 recent rows when session history matters.
+- "Start Here" + "Current Build State" for project overview and codebase constraints.
+- "Infrastructure" + "Roles And Permissions" + "Persistence" for stack and schema facts when relevant.
+- "Load-Bearing Contracts" for load-bearing rules.
+- "Active Roadmap" + "Recent Milestones" for next build, locked decisions, and session history.
 
 Before any plan or edit, inspect:
 
@@ -142,7 +141,7 @@ Before any plan or edit, inspect:
 - `git log --oneline -12`
 - The relevant source/test/migration files for the lane.
 
-If the task touches a Section 7 contract, call that out in the plan before
+If the task touches a Load-Bearing Contract, call that out in the plan before
 editing.
 
 Codex must identify the current queue before planning: active lane, next
@@ -286,7 +285,7 @@ A CC-ready `From Codex:` build prompt should include:
 
 - Goal.
 - Scope and out-of-scope.
-- Relevant Section 7 contracts.
+- Relevant load-bearing contracts (PROJECT.md "Load-Bearing Contracts").
 - Files or areas likely touched.
 - Product/UX/permission/data-model decisions.
 - Required tests and validation floor.
@@ -362,7 +361,7 @@ If there is doubt, route through Codex.
 CC owns implementation by default:
 
 - Read the relevant docs and files before planning.
-- Walk any touched Section 7 contracts in the plan.
+- Walk any touched load-bearing contracts in the plan.
 - Keep edits scoped to the approved lane.
 - Preserve unrelated user or agent changes.
 - Use CC's Supabase CLI access, approved SQL paths, and Supabase verification
