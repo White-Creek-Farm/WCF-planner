@@ -143,14 +143,15 @@ describe('Commit 4b — date edit + count move handler hard gates', () => {
     expect(moveHandler[0]).toMatch(/movePigsBetweenTrips\([\s\S]*?,\s*1\s*\)/);
   });
 
-  it('Edit / Save / Cancel / move / delete / add buttons all gate on isManager (admin OR management)', () => {
+  it('Calendar / date-step / move / delete / add controls all gate on isManager (admin OR management)', () => {
     // Each gated control's data-attr is preceded by an isManager check.
     // The pig planned trips lane renamed move-out/move-in to
     // move-forward/move-back (semantic clarification: forward = current
     // → next, back = current → previous) and added Add + Delete.
     const gatedAttrs = [
       'data-planned-trip-edit-date',
-      'data-planned-trip-save-date',
+      'data-planned-trip-date-back',
+      'data-planned-trip-date-forward',
       'data-planned-trip-move-forward',
       'data-planned-trip-move-back',
       'data-planned-trip-delete',
@@ -169,11 +170,16 @@ describe('Commit 4b — date edit + count move handler hard gates', () => {
     }
   });
 
-  it('explicit Save button (no blur-saving — Codex W3 correction)', () => {
-    // Date input itself has no onBlur handler; saves only when the Save
-    // button is clicked.
-    const inputDecl = viewSrc.match(/<input\s+type="date"[\s\S]*?\/>/);
-    expect(inputDecl, 'expected <input type="date">').not.toBeNull();
+  it('date picker and day steppers autosave without explicit Save/Cancel buttons', () => {
+    expect(viewSrc).toMatch(/data-planned-trip-date-back/);
+    expect(viewSrc).toMatch(/data-planned-trip-date-forward/);
+    expect(viewSrc).toMatch(/shiftPlannedTripDateById\(/);
+    expect(viewSrc).not.toMatch(/data-planned-trip-save-date/);
+
+    const inputDecl = viewSrc.match(/data-planned-trip-date-input=\{t\.id\}[\s\S]*?\/>/);
+    expect(inputDecl, 'expected planned-trip date input').not.toBeNull();
+    expect(inputDecl[0]).toMatch(/onChange=/);
+    expect(inputDecl[0]).toMatch(/setPlannedTripDateById\(/);
     expect(inputDecl[0]).not.toMatch(/onBlur=/);
   });
 });

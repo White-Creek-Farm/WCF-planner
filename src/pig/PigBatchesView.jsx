@@ -8,7 +8,7 @@
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
-import {fmt, fmtS, todayISO, toISO} from '../lib/dateUtils.js';
+import {addDays, fmt, fmtS, todayISO, toISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {
   calcBreedingTimeline,
@@ -142,12 +142,8 @@ export default function PigBatchesView({
   const [adgEditing, setAdgEditing] = React.useState(false);
   const [adgInput, setAdgInput] = React.useState('');
   const [adgSaving, setAdgSaving] = React.useState(false);
-  // Commit 4b — inline date editor state for planned-trip cards.
-  // editingPlannedTripId is the single trip being edited (null when no
-  // edit is open). editingPlannedTripDate is the YYYY-MM-DD input value.
-  // Codex W3 locked single-card-at-a-time inline edit — no bulk mode.
-  // Date saves on explicit Save click only (Codex W3 correction —
-  // blur-saving was rejected as too easy to trigger accidentally).
+  // Planned-trip calendar picker state. The date input is exposed one card
+  // at a time; picker changes and day-step buttons autosave immediately.
   const [editingPlannedTripId, setEditingPlannedTripId] = React.useState(null);
   const [editingPlannedTripDate, setEditingPlannedTripDate] = React.useState('');
   // Manual + Add planned-trip form (single open at a time per sub).
@@ -298,12 +294,14 @@ export default function PigBatchesView({
       });
   }
 
-  // Commit 4b — admin date edit for a single planned trip. Updates the
-  // matching trip's date field and persists. Other fields are preserved
-  // via {...t}; the persistable shape stays minimal (id, date, sex,
-  // subBatchId, plannedCount, order). recalculateProjections re-runs on
-  // the next render with the new daysUntil.
+  // Planned-trip date edit for a single trip. Updates the matching trip's
+  // date field and persists. Other fields are preserved via {...t}; the
+  // persistable shape stays minimal (id, date, sex, subBatchId,
+  // plannedCount, order). recalculateProjections re-runs on the next
+  // render with the new daysUntil.
   function setPlannedTripDateById(groupId, tripId, newDate) {
+    if (!isManager) return;
+    if (typeof newDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return;
     const nb = feederGroups.map((fg) => {
       if (fg.id !== groupId) return fg;
       return {
@@ -314,6 +312,14 @@ export default function PigBatchesView({
       };
     });
     persistFeeders(nb);
+  }
+
+  function shiftPlannedTripDateById(groupId, tripId, currentDate, deltaDays) {
+    if (!isManager) return;
+    if (typeof currentDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) return;
+    const nextDate = toISO(addDays(currentDate, deltaDays));
+    if (editingPlannedTripId === tripId) setEditingPlannedTripDate(nextDate);
+    setPlannedTripDateById(groupId, tripId, nextDate);
   }
 
   // Commit 4b — admin count move between two planned trips in the same
@@ -2894,42 +2900,94 @@ export default function PigBatchesView({
                                             flexWrap: 'wrap',
                                           }}
                                         >
-                                          {!isEditingDate && (
-                                            <span style={{fontWeight: 700, color: '#111827'}}>{fmt(t.date)}</span>
-                                          )}
-                                          {!isEditingDate && isManager && (
-                                            <button
-                                              data-planned-trip-edit-date={t.id}
-                                              onClick={() => {
-                                                setEditingPlannedTripId(t.id);
-                                                setEditingPlannedTripDate(t.date || '');
-                                              }}
-                                              style={{
-                                                fontSize: 10,
-                                                padding: '1px 6px',
-                                                borderRadius: 5,
-                                                border: '1px solid #d1d5db',
-                                                background: 'white',
-                                                color: '#1d4ed8',
-                                                cursor: 'pointer',
-                                                fontFamily: 'inherit',
-                                              }}
-                                              title="Edit planned trip date"
-                                            >
-                                              ✎
-                                            </button>
+                                          <span style={{fontWeight: 700, color: '#111827'}}>{fmt(t.date)}</span>
+                                          {isManager && (
+                                            <div style={{display: 'inline-flex', gap: 3, alignItems: 'center'}}>
+                                              <button
+                                                data-planned-trip-edit-date={t.id}
+                                                onClick={() => {
+                                                  if (isEditingDate) {
+                                                    setEditingPlannedTripId(null);
+                                                    setEditingPlannedTripDate('');
+                                                    return;
+                                                  }
+                                                  setEditingPlannedTripId(t.id);
+                                                  setEditingPlannedTripDate(t.date || '');
+                                                }}
+                                                style={{
+                                                  fontSize: 11,
+                                                  width: 24,
+                                                  height: 22,
+                                                  padding: 0,
+                                                  borderRadius: 5,
+                                                  border: '1px solid #bfdbfe',
+                                                  background: '#eff6ff',
+                                                  color: '#1d4ed8',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                }}
+                                                title="Open planned trip calendar"
+                                              >
+                                                📅
+                                              </button>
+                                              <button
+                                                data-planned-trip-date-back={t.id}
+                                                onClick={() => shiftPlannedTripDateById(g.id, t.id, t.date, -1)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 5px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #bfdbfe',
+                                                  background: 'white',
+                                                  color: '#1d4ed8',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                                title="Move planned trip date back 1 day"
+                                              >
+                                                ←1d
+                                              </button>
+                                              <button
+                                                data-planned-trip-date-forward={t.id}
+                                                onClick={() => shiftPlannedTripDateById(g.id, t.id, t.date, 1)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 5px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #bfdbfe',
+                                                  background: 'white',
+                                                  color: '#1d4ed8',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                                title="Move planned trip date forward 1 day"
+                                              >
+                                                1d→
+                                              </button>
+                                            </div>
                                           )}
                                           {isEditingDate && (
                                             <input
+                                              data-planned-trip-date-input={t.id}
                                               type="date"
                                               value={editingPlannedTripDate}
-                                              onChange={(e) => setEditingPlannedTripDate(e.target.value)}
+                                              onChange={(e) => {
+                                                const nextDate = e.target.value;
+                                                setEditingPlannedTripDate(nextDate);
+                                                if (nextDate && nextDate !== t.date) {
+                                                  setPlannedTripDateById(g.id, t.id, nextDate);
+                                                }
+                                              }}
                                               style={{
                                                 fontSize: 11,
                                                 padding: '2px 4px',
                                                 border: '1px solid #d1d5db',
                                                 borderRadius: 5,
                                                 fontFamily: 'inherit',
+                                                width: 132,
                                               }}
                                             />
                                           )}
@@ -2938,46 +2996,6 @@ export default function PigBatchesView({
                                             {t.plannedCount === 1 ? '' : 's'}
                                           </span>
                                         </div>
-                                        {isEditingDate && isManager && (
-                                          <div style={{display: 'flex', gap: 4, marginTop: 2}}>
-                                            <button
-                                              data-planned-trip-save-date={t.id}
-                                              onClick={() => {
-                                                if (editingPlannedTripDate && editingPlannedTripDate !== t.date) {
-                                                  setPlannedTripDateById(g.id, t.id, editingPlannedTripDate);
-                                                }
-                                                setEditingPlannedTripId(null);
-                                              }}
-                                              style={{
-                                                fontSize: 10,
-                                                padding: '2px 8px',
-                                                borderRadius: 5,
-                                                border: '1px solid #085041',
-                                                background: '#085041',
-                                                color: 'white',
-                                                cursor: 'pointer',
-                                                fontFamily: 'inherit',
-                                              }}
-                                            >
-                                              Save
-                                            </button>
-                                            <button
-                                              onClick={() => setEditingPlannedTripId(null)}
-                                              style={{
-                                                fontSize: 10,
-                                                padding: '2px 8px',
-                                                borderRadius: 5,
-                                                border: '1px solid #d1d5db',
-                                                background: 'white',
-                                                color: '#6b7280',
-                                                cursor: 'pointer',
-                                                fontFamily: 'inherit',
-                                              }}
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                        )}
                                         <div style={{color: '#374151'}}>{projRange}</div>
                                         {projAvg && <div style={{color: '#6b7280'}}>{projAvg}</div>}
                                         <div style={{display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2}}>

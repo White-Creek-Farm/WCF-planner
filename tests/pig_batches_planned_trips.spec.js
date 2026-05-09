@@ -32,6 +32,20 @@ function isoDaysAgo(n) {
   return d.toISOString().slice(0, 10);
 }
 
+function fmtIso(iso) {
+  const [y, m, d] = String(iso).split('-');
+  return `${m}/${d}/${String(y).slice(-2)}`;
+}
+
+async function upsertAppStore(supabaseAdmin, key, data) {
+  const {error} = await supabaseAdmin
+    .from('app_store')
+    .upsert({key, data}, {onConflict: 'key'})
+    .select('key')
+    .maybeSingle();
+  if (error) throw new Error(`seed app_store ${key}: ${error.message}`);
+}
+
 async function seedFeederGraph(supabaseAdmin, opts = {}) {
   const giltSub = {
     id: SUB_GILTS_ID,
@@ -67,34 +81,24 @@ async function seedFeederGraph(supabaseAdmin, opts = {}) {
     pigMortalities: [],
     plannedProcessingTrips: opts.plannedProcessingTrips || [],
   };
-  await supabaseAdmin.from('app_store').upsert({key: 'ppp-feeders-v1', data: [group]}, {onConflict: 'key'});
+  await upsertAppStore(supabaseAdmin, 'ppp-feeders-v1', [group]);
 
   // Cycle exposureStart 2025-12-20 → farrowing window 2026-04-15..2026-05-29.
-  await supabaseAdmin.from('app_store').upsert(
-    {
-      key: 'ppp-breeding-v1',
-      data: opts.cycleId === null ? [] : [{id: CYCLE_ID, group: '1', exposureStart: '2025-12-20', sowCount: 5}],
-    },
-    {onConflict: 'key'},
+  await upsertAppStore(
+    supabaseAdmin,
+    'ppp-breeding-v1',
+    opts.cycleId === null ? [] : [{id: CYCLE_ID, group: '1', exposureStart: '2025-12-20', sowCount: 5}],
   );
-  await supabaseAdmin.from('app_store').upsert(
-    {
-      key: 'ppp-farrowing-v1',
-      data: [{id: 'f-pt-09', group: '1', farrowingDate: FARROW_DATE}],
-    },
-    {onConflict: 'key'},
-  );
-  await supabaseAdmin.from('app_store').upsert({key: 'ppp-breeders-v1', data: []}, {onConflict: 'key'});
+  await upsertAppStore(supabaseAdmin, 'ppp-farrowing-v1', [{id: 'f-pt-09', group: '1', farrowingDate: FARROW_DATE}]);
+  await upsertAppStore(supabaseAdmin, 'ppp-breeders-v1', []);
 }
 
 async function seedManualGlobalAdg(supabaseAdmin, value) {
-  await supabaseAdmin.from('app_store').upsert(
-    {
-      key: 'ppp-pig-global-adg-v1',
-      data: {manualValue: value, updatedAt: new Date().toISOString(), updatedBy: null},
-    },
-    {onConflict: 'key'},
-  );
+  await upsertAppStore(supabaseAdmin, 'ppp-pig-global-adg-v1', {
+    manualValue: value,
+    updatedAt: new Date().toISOString(),
+    updatedBy: null,
+  });
 }
 
 test('Global ADG control: admin sees edit affordance; manual value displays the override badge', async ({
@@ -204,7 +208,11 @@ test('No cycle linkage renders the link-cycle hint and does NOT auto-allocate', 
   await expect(band.locator('[data-planned-trip-id]')).toHaveCount(0);
 });
 
-test('Admin date edit: changing a planned trip date updates the projection', async ({supabaseAdmin, resetDb, page}) => {
+test('Admin date controls: day steppers autosave and update projected weights', async ({
+  supabaseAdmin,
+  resetDb,
+  page,
+}) => {
   await resetDb();
   // Two manual planned trips at +30 and +90 days, 6 gilts each.
   const today = new Date();
@@ -219,7 +227,7 @@ test('Admin date edit: changing a planned trip date updates the projection', asy
       {id: 'pt-edit-2', date: inDays(90), sex: 'gilt', subBatchId: SUB_GILTS_ID, plannedCount: 6, order: 1},
     ],
   });
-  await seedManualGlobalAdg(supabaseAdmin, 1.5);
+  await seedManualGlobalAdg(supabaseAdmin, 4);
 
   await page.goto('/pig/batches');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
@@ -238,17 +246,31 @@ test('Admin date edit: changing a planned trip date updates the projection', asy
   expect(beforeMatch, 'expected ~NNN lb avg in initial card').not.toBeNull();
   const beforeAvg = parseInt(beforeMatch[1]);
 
-  // Open the inline date editor and push the date 90 days further out.
-  await editCard.locator('[data-planned-trip-edit-date="pt-edit-1"]').click();
-  const dateInput = editCard.locator('input[type="date"]');
-  await dateInput.fill(inDays(120));
-  await editCard.locator('[data-planned-trip-save-date="pt-edit-1"]').click();
+  // Move the planned trip one day forward. The stepper autosaves; there is
+  // no explicit Save button in the planned-trip card.
+  await editCard.locator('[data-planned-trip-date-forward="pt-edit-1"]').click();
+  await expect(editCard).toContainText(fmtIso(inDays(31)));
+  await expect
+    .poll(async () => {
+      const {data} = await supabaseAdmin.from('app_store').select('data').eq('key', 'ppp-feeders-v1').maybeSingle();
+      const group = (data?.data || []).find((g) => g.id === PARENT_ID);
+      const trip = (group?.plannedProcessingTrips || []).find((t) => t.id === 'pt-edit-1');
+      return trip?.date || null;
+    })
+    .toBe(inDays(31));
 
   // Projection must increase: more days × ADG → heavier projected avg.
   const afterText = await page.locator('[data-planned-trip-id="pt-edit-1"]').textContent();
   const afterMatch = afterText.match(/~(\d+) lb avg/);
   const afterAvg = parseInt(afterMatch[1]);
   expect(afterAvg).toBeGreaterThan(beforeAvg);
+
+  // Move it back one day; date and projection both roll back immediately.
+  await editCard.locator('[data-planned-trip-date-back="pt-edit-1"]').click();
+  await expect(editCard).toContainText(fmtIso(inDays(30)));
+  const backText = await page.locator('[data-planned-trip-id="pt-edit-1"]').textContent();
+  const backMatch = backText.match(/~(\d+) lb avg/);
+  expect(parseInt(backMatch[1])).toBeLessThan(afterAvg);
 });
 
 test('Admin count move: −1 → next preserves total and toggles the under-5 chip', async ({
