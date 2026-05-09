@@ -1252,6 +1252,12 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
   const [expandedIdx, setExpandedIdx] = React.useState(null);
   const [newTaskLabels, setNewTaskLabels] = React.useState({});
   const [busy, setBusy] = React.useState(false);
+  // Drag-reorder state. dragSource = {intervalIdx, taskIdx} of the row
+  // being dragged; dragTarget = {intervalIdx, taskIdx} of the row the
+  // pointer is currently over (for the insertion highlight). Both clear
+  // on drop / drag-end.
+  const [dragSource, setDragSource] = React.useState(null);
+  const [dragTarget, setDragTarget] = React.useState(null);
   const intervals = Array.isArray(equipment.service_intervals) ? equipment.service_intervals : [];
 
   async function persist(next) {
@@ -1314,6 +1320,17 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
     nextTasks[ti] = {...nextTasks[ti], label};
     const next = intervals.slice();
     next[ii] = {...intervals[ii], tasks: nextTasks};
+    await persist(next);
+  }
+  async function reorderTask(ii, fromIdx, toIdx) {
+    if (fromIdx === toIdx) return;
+    const tasks = Array.isArray(intervals[ii].tasks) ? intervals[ii].tasks : [];
+    if (fromIdx < 0 || fromIdx >= tasks.length || toIdx < 0 || toIdx >= tasks.length) return;
+    const reordered = tasks.slice();
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const next = intervals.slice();
+    next[ii] = {...intervals[ii], tasks: reordered};
     await persist(next);
   }
   async function editHelpText(ii, help_text) {
@@ -1410,44 +1427,108 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                         No sub-tasks yet. Add below.
                       </div>
                     )}
-                    {tasks.map((t, ti) => (
-                      <div
-                        key={ti}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 70px',
-                          gap: 8,
-                          marginBottom: 4,
-                          alignItems: 'center',
-                        }}
-                      >
-                        <input
-                          type="text"
-                          defaultValue={t.label || ''}
-                          onBlur={(e) => {
-                            const v = e.target.value.trim();
-                            if (v && v !== (t.label || '')) editTaskLabel(i, ti, v);
+                    {tasks.map((t, ti) => {
+                      const isDragSource = dragSource && dragSource.intervalIdx === i && dragSource.taskIdx === ti;
+                      const isDragTarget =
+                        dragSource &&
+                        dragSource.intervalIdx === i &&
+                        dragTarget &&
+                        dragTarget.intervalIdx === i &&
+                        dragTarget.taskIdx === ti &&
+                        dragSource.taskIdx !== ti;
+                      return (
+                        <div
+                          // Stable key by task id (with fallback) — fixes the
+                          // "delete just-added task instead of selected row"
+                          // bug. With key={ti}, defaultValue inputs were
+                          // reused by index across re-renders, leaving DOM
+                          // labels out of sync with the underlying array.
+                          key={t.id || `idx-${ti}`}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move';
+                            // Some browsers require setData to enable drag.
+                            try {
+                              e.dataTransfer.setData('text/plain', String(ti));
+                            } catch (_e) {
+                              /* setData fail is non-fatal */
+                            }
+                            setDragSource({intervalIdx: i, taskIdx: ti});
                           }}
-                          style={inpS}
-                        />
-                        <button
-                          onClick={() => removeTask(i, ti)}
-                          disabled={busy}
+                          onDragOver={(e) => {
+                            if (!dragSource || dragSource.intervalIdx !== i) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            if (!dragTarget || dragTarget.intervalIdx !== i || dragTarget.taskIdx !== ti) {
+                              setDragTarget({intervalIdx: i, taskIdx: ti});
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (!dragSource || dragSource.intervalIdx !== i) return;
+                            reorderTask(i, dragSource.taskIdx, ti);
+                            setDragSource(null);
+                            setDragTarget(null);
+                          }}
+                          onDragEnd={() => {
+                            setDragSource(null);
+                            setDragTarget(null);
+                          }}
                           style={{
-                            padding: '3px 8px',
-                            borderRadius: 5,
-                            border: '1px solid #fecaca',
-                            background: 'white',
-                            color: '#b91c1c',
-                            fontSize: 11,
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
+                            display: 'grid',
+                            gridTemplateColumns: '20px 1fr 70px',
+                            gap: 8,
+                            marginBottom: 4,
+                            padding: '2px 4px',
+                            alignItems: 'center',
+                            background: isDragTarget ? '#fef3c7' : 'transparent',
+                            opacity: isDragSource ? 0.4 : 1,
+                            border: isDragTarget ? '1px dashed #f59e0b' : '1px solid transparent',
+                            borderRadius: 4,
                           }}
                         >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                          <span
+                            aria-hidden="true"
+                            title="Drag to reorder"
+                            style={{
+                              fontSize: 14,
+                              color: '#9ca3af',
+                              cursor: 'grab',
+                              textAlign: 'center',
+                              userSelect: 'none',
+                              lineHeight: 1,
+                            }}
+                          >
+                            ≡
+                          </span>
+                          <input
+                            type="text"
+                            defaultValue={t.label || ''}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v && v !== (t.label || '')) editTaskLabel(i, ti, v);
+                            }}
+                            style={inpS}
+                          />
+                          <button
+                            onClick={() => removeTask(i, ti)}
+                            disabled={busy}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 5,
+                              border: '1px solid #fecaca',
+                              background: 'white',
+                              color: '#b91c1c',
+                              fontSize: 11,
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
                     <div
                       style={{
                         display: 'grid',
@@ -1552,6 +1633,10 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
   const [expandedIdx, setExpandedIdx] = React.useState(null);
   const [newTaskLabels, setNewTaskLabels] = React.useState({});
   const [busy, setBusy] = React.useState(false);
+  // Drag-reorder state, scoped per attachment-checklist row. Same shape
+  // as ServiceIntervalEditor's dragSource / dragTarget.
+  const [dragSource, setDragSource] = React.useState(null);
+  const [dragTarget, setDragTarget] = React.useState(null);
   const items = Array.isArray(equipment.attachment_checklists) ? equipment.attachment_checklists : [];
 
   async function persist(next) {
@@ -1596,6 +1681,17 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
     nextTasks[ti] = {...nextTasks[ti], label};
     const next = items.slice();
     next[ii] = {...items[ii], tasks: nextTasks};
+    await persist(next);
+  }
+  async function reorderTask(ii, fromIdx, toIdx) {
+    if (fromIdx === toIdx) return;
+    const tasks = Array.isArray(items[ii].tasks) ? items[ii].tasks : [];
+    if (fromIdx < 0 || fromIdx >= tasks.length || toIdx < 0 || toIdx >= tasks.length) return;
+    const reordered = tasks.slice();
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const next = items.slice();
+    next[ii] = {...items[ii], tasks: reordered};
     await persist(next);
   }
 
@@ -1647,44 +1743,105 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                     style={{...inpS, resize: 'vertical', marginBottom: 12}}
                   />
                   <div style={subTitle}>Tasks</div>
-                  {tasks.map((t, ti) => (
-                    <div
-                      key={ti}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 70px',
-                        gap: 8,
-                        marginBottom: 4,
-                        alignItems: 'center',
-                      }}
-                    >
-                      <input
-                        type="text"
-                        defaultValue={t.label || ''}
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          if (v && v !== (t.label || '')) editTaskLabel(i, ti, v);
+                  {tasks.map((t, ti) => {
+                    const isDragSource = dragSource && dragSource.intervalIdx === i && dragSource.taskIdx === ti;
+                    const isDragTarget =
+                      dragSource &&
+                      dragSource.intervalIdx === i &&
+                      dragTarget &&
+                      dragTarget.intervalIdx === i &&
+                      dragTarget.taskIdx === ti &&
+                      dragSource.taskIdx !== ti;
+                    return (
+                      <div
+                        // Stable key by task id (with fallback) — same fix
+                        // as ServiceIntervalEditor for the
+                        // "delete just-added task" key/index bug.
+                        key={t.id || `idx-${ti}`}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          try {
+                            e.dataTransfer.setData('text/plain', String(ti));
+                          } catch (_e) {
+                            /* setData fail is non-fatal */
+                          }
+                          setDragSource({intervalIdx: i, taskIdx: ti});
                         }}
-                        style={inpS}
-                      />
-                      <button
-                        onClick={() => removeTask(i, ti)}
-                        disabled={busy}
+                        onDragOver={(e) => {
+                          if (!dragSource || dragSource.intervalIdx !== i) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          if (!dragTarget || dragTarget.intervalIdx !== i || dragTarget.taskIdx !== ti) {
+                            setDragTarget({intervalIdx: i, taskIdx: ti});
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!dragSource || dragSource.intervalIdx !== i) return;
+                          reorderTask(i, dragSource.taskIdx, ti);
+                          setDragSource(null);
+                          setDragTarget(null);
+                        }}
+                        onDragEnd={() => {
+                          setDragSource(null);
+                          setDragTarget(null);
+                        }}
                         style={{
-                          padding: '3px 8px',
-                          borderRadius: 5,
-                          border: '1px solid #fecaca',
-                          background: 'white',
-                          color: '#b91c1c',
-                          fontSize: 11,
-                          cursor: 'pointer',
-                          fontFamily: 'inherit',
+                          display: 'grid',
+                          gridTemplateColumns: '20px 1fr 70px',
+                          gap: 8,
+                          marginBottom: 4,
+                          padding: '2px 4px',
+                          alignItems: 'center',
+                          background: isDragTarget ? '#fef3c7' : 'transparent',
+                          opacity: isDragSource ? 0.4 : 1,
+                          border: isDragTarget ? '1px dashed #f59e0b' : '1px solid transparent',
+                          borderRadius: 4,
                         }}
                       >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                        <span
+                          aria-hidden="true"
+                          title="Drag to reorder"
+                          style={{
+                            fontSize: 14,
+                            color: '#9ca3af',
+                            cursor: 'grab',
+                            textAlign: 'center',
+                            userSelect: 'none',
+                            lineHeight: 1,
+                          }}
+                        >
+                          ≡
+                        </span>
+                        <input
+                          type="text"
+                          defaultValue={t.label || ''}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v && v !== (t.label || '')) editTaskLabel(i, ti, v);
+                          }}
+                          style={inpS}
+                        />
+                        <button
+                          onClick={() => removeTask(i, ti)}
+                          disabled={busy}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 5,
+                            border: '1px solid #fecaca',
+                            background: 'white',
+                            color: '#b91c1c',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
                   <div
                     style={{
                       display: 'grid',
