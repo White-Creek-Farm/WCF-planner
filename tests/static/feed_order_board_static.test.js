@@ -111,7 +111,7 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).toMatch(/Save Order/);
     expect(pigSrc).toMatch(/commitActiveOrder/);
     // Active draft lives in local state; only commitActiveOrder writes via savePigOrder.
-    expect(pigSrc).toMatch(/savePigOrder\(activeYM, raw\)/);
+    expect(pigSrc).toMatch(/savePigOrder\(activeYM, String\(valueToSave\)\)/);
     expect(pigSrc).not.toMatch(/onChange:\s*function\s*\(e\)\s*\{\s*savePigOrder/);
   });
 
@@ -121,10 +121,10 @@ describe('PigFeedView — minimal ledger contract', () => {
   });
 
   it('only the most-recently-saved month exposes an Edit button', () => {
-    expect(pigSrc).toMatch(/isMostRecentSavedNonActive/);
-    expect(pigSrc).toMatch(/ym === mostRecentSavedYM/);
-    // Edit is only rendered when isMostRecentSavedNonActive is truthy.
-    expect(pigSrc).toMatch(/isMostRecentSavedNonActive\s*&&[\s\S]*?Edit/);
+    expect(pigSrc).toMatch(/isMostRecentSavedCard/);
+    expect(pigSrc).toMatch(/ym === mostRecentSavedNonActiveYM/);
+    // Edit is only rendered when isMostRecentSavedCard is truthy.
+    expect(pigSrc).toMatch(/isMostRecentSavedCard\s*&&[\s\S]*?Edit/);
   });
 
   it('clicking Edit pre-loads the persisted value into the draft (no DB write until Save Order)', () => {
@@ -141,13 +141,90 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).toMatch(/Start of Month[\s\S]*?Consumed[\s\S]*?Ordered[\s\S]*?End of Month/);
   });
 
-  it('only the last 6 saved months + the active card render — no future or collapsed months', () => {
-    expect(pigSrc).toMatch(/savedOrderYMs\.slice\(-6\)/);
-    expect(pigSrc).toMatch(/visibleCardYMs/);
-    // No collapse / expand groups, no separate past/future sections.
+  it('active card renders before saved history; older cards live behind Show older months', () => {
+    // renderCard(activeYM) is the first slot emitted; mostRecentSaved is
+    // second; older saved months sit behind a Show older months toggle.
+    expect(pigSrc).toMatch(/renderCard\(activeYM\)/);
+    expect(pigSrc).toMatch(/mostRecentSavedNonActiveYM && renderCard\(mostRecentSavedNonActiveYM\)/);
+    expect(pigSrc).toMatch(/showOlderMonths && olderSavedYMs\.map\(\(ym\) => renderCard\(ym\)\)/);
+    // The active card slot appears in the JSX before the most-recent-saved slot.
+    const activeIdx = pigSrc.indexOf('renderCard(activeYM)');
+    const mostRecentIdx = pigSrc.indexOf('mostRecentSavedNonActiveYM && renderCard');
+    const olderIdx = pigSrc.indexOf('showOlderMonths && olderSavedYMs.map');
+    expect(activeIdx).toBeGreaterThan(0);
+    expect(mostRecentIdx).toBeGreaterThan(activeIdx);
+    expect(olderIdx).toBeGreaterThan(mostRecentIdx);
+  });
+
+  it('Show older months toggle is rendered between the most-recent-saved card and older cards', () => {
+    expect(pigSrc).toMatch(/Show older months/);
+    expect(pigSrc).toMatch(/Hide older months/);
+    expect(pigSrc).toMatch(/setShowOlderMonths/);
+    // The toggle is only rendered when there are older months to show.
+    expect(pigSrc).toMatch(/olderSavedYMs\.length > 0 &&[\s\S]*?Show older months/);
+  });
+
+  it('saved month cap (last 6) and older newest-first selection are preserved', () => {
+    // Up to 5 older saved months render newest-first when expanded
+    // (mostRecentSaved + 5 older = 6 total saved on screen).
+    expect(pigSrc).toMatch(/savedExcludingActive\.slice\(0, -1\)\.slice\(-5\)\.reverse\(\)/);
+    // No legacy collapse / expand groups, no separate past/future sections.
     expect(pigSrc).not.toMatch(/UPCOMING MONTHS/);
     expect(pigSrc).not.toMatch(/PAST MONTHS/);
     expect(pigSrc).not.toMatch(/pigFeedExpandedMonths/);
+  });
+
+  it('most-recent-saved card has its own visual treatment (distinct from older cards)', () => {
+    // Stronger border + lighter green header background for the
+    // most-recent-saved card; older cards stay plain grey.
+    expect(pigSrc).toMatch(/isMostRecentSavedCard/);
+    expect(pigSrc).toMatch(/'2px solid #a7f3d0'/);
+    expect(pigSrc).toMatch(/'#f0fdf4'/);
+    // LAST SAVED chip on the most-recent-saved card header.
+    expect(pigSrc).toMatch(/LAST SAVED/);
+  });
+
+  it('Order for tile keeps amber styling even when recommendation is 0 lbs', () => {
+    // Amber background + amber border are not gated on a positive value.
+    expect(pigSrc).toMatch(
+      /\{\s*\/\* Order for \[active\][\s\S]*?background: '#fffbeb'[\s\S]*?border: '2px solid #fde68a'/,
+    );
+    expect(pigSrc).not.toMatch(/background:\s*recommendedOrder[\s\S]*?'#fffbeb'\s*:\s*'white'/);
+  });
+
+  it('zero-recommendation Save 0 path is enabled with a blank input', () => {
+    // commitActiveOrder accepts an empty draft when recommendedOrder === 0.
+    expect(pigSrc).toMatch(/if \(recommendedOrder !== 0\) return;[\s\S]*?valueToSave = 0;/);
+    // Button label flips to "Save 0" in that state.
+    expect(pigSrc).toMatch(/zeroSavePath\s*=\s*!draftHasValue && recommendedOrder === 0/);
+    expect(pigSrc).toMatch(/buttonLabel\s*=\s*zeroSavePath \? 'Save 0' : 'Save Order'/);
+    expect(pigSrc).toMatch(/saveEnabled\s*=\s*draftHasValue \|\| zeroSavePath/);
+  });
+
+  it('active Ordered input is never prefilled from the recommendation', () => {
+    // No JSX attribute (placeholder=, value=, defaultValue=) on any element
+    // pulls from recommendedOrder. The recommendation lives only in the
+    // top Order-for tile; the input itself starts visually blank.
+    expect(pigSrc).not.toMatch(/placeholder=\{[^{}]*recommendedOrder/);
+    expect(pigSrc).not.toMatch(/value=\{[^{}]*recommendedOrder/);
+    expect(pigSrc).not.toMatch(/defaultValue=\{[^{}]*recommendedOrder/);
+    // The active input's value attribute is literally `activeOrderDraft`,
+    // confirming the operator's typed string is the only source.
+    expect(pigSrc).toMatch(/value=\{activeOrderDraft\}/);
+  });
+
+  it('physical-count form does NOT expose an editable date input', () => {
+    // The "what is on site now" rule — no backdated count saves.
+    expect(pigSrc).not.toMatch(/id="pig-feed-count-date"/);
+    expect(pigSrc).not.toMatch(/countDateInput/);
+  });
+
+  it('save count handler stamps today (not a user-provided date) and labels the checkbox by today month', () => {
+    expect(pigSrc).toMatch(/savePigFeedCount\(countLbsInput, todayDate, countIncludesInput\)/);
+    // countMonthShort derives from todayDate, not from a count date input.
+    expect(pigSrc).toMatch(
+      /const \[y, m\] = todayDate\.split\('-'\)\.map\(Number\);[\s\S]*?return new Date\(y, m - 1, 1\)\.toLocaleDateString\('en-US', \{month: 'short'\}\)/,
+    );
   });
 });
 

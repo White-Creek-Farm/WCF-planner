@@ -140,7 +140,6 @@ export default function PigFeedView({
     .filter(([, v]) => v != null && v !== '' && parseFloat(v) >= 0)
     .map(([k]) => k)
     .sort();
-  const mostRecentSavedYM = savedOrderYMs.length ? savedOrderYMs[savedOrderYMs.length - 1] : null;
   function firstUnsavedFrom(ym) {
     let cur = ym;
     while ((feedOrders.pig || {})[cur] != null) cur = addMonthsYM(cur, 1);
@@ -183,8 +182,21 @@ export default function PigFeedView({
 
   function commitActiveOrder() {
     const raw = (activeOrderDraft || '').trim();
-    if (raw === '') return;
-    savePigOrder(activeYM, raw);
+    // Two valid commit paths:
+    //   1. Operator typed a value — save the typed number (including 0).
+    //   2. Operator left the input blank AND the recommendation is exactly
+    //      0 — explicit "Save 0" path so the active month can advance
+    //      without forcing the operator to type "0".
+    let valueToSave;
+    if (raw === '') {
+      if (recommendedOrder !== 0) return;
+      valueToSave = 0;
+    } else {
+      const n = parseFloat(raw);
+      if (!Number.isFinite(n) || n < 0) return;
+      valueToSave = n;
+    }
+    savePigOrder(activeYM, String(valueToSave));
     setEditingMonthYM(null);
     setActiveOrderDraft('');
   }
@@ -409,25 +421,29 @@ export default function PigFeedView({
   }
 
   // ── Visible monthly cards ────────────────────────────────────────────────
-  // Up to 6 most-recently-saved months + the active editable card. When
-  // editing the most-recently-saved month, that month IS the active card
-  // and doesn't double-render.
-  const last6Saved = savedOrderYMs.slice(-6);
-  const visibleSavedYMs =
-    editingMonthYM != null && last6Saved.includes(editingMonthYM)
-      ? last6Saved.filter((ym) => ym !== editingMonthYM)
-      : last6Saved;
-  const visibleCardYMs = [...visibleSavedYMs];
-  if (!visibleCardYMs.includes(activeYM)) visibleCardYMs.push(activeYM);
+  // Order: active card first, then the most recent saved month (when not
+  // already active), then up to 5 older saved months behind a Show older
+  // months collapse. Total cap of 6 saved months on screen.
+  const [showOlderMonths, setShowOlderMonths] = React.useState(false);
+  const savedExcludingActive = savedOrderYMs.filter((ym) => ym !== activeYM);
+  const mostRecentSavedNonActiveYM = savedExcludingActive.length
+    ? savedExcludingActive[savedExcludingActive.length - 1]
+    : null;
+  // Older = everything before mostRecentSavedNonActiveYM (sorted ASC). Take
+  // the 5 most recent of those, render newest-first when expanded.
+  const olderSavedYMs = savedExcludingActive.slice(0, -1).slice(-5).reverse();
+  // (Card render slots are emitted directly from activeYM /
+  // mostRecentSavedNonActiveYM / olderSavedYMs inside the JSX below so the
+  // "Show older months" toggle can sit between them.)
 
-  // ── Count-includes-month checkbox label ──────────────────────────────────
-  // Drives off the count date's month so the operator sees the right month
-  // name. The state lives in a local input until Save Count fires.
+  // ── Count-includes-current-month checkbox ────────────────────────────────
+  // Physical count is "what is on site now," not a backdated bookkeeping
+  // tool — the save handler always uses today's date. The checkbox label
+  // therefore reads from today's month, not from an editable date input.
   const [countLbsInput, setCountLbsInput] = React.useState(inv && inv.count != null ? String(inv.count) : '');
-  const [countDateInput, setCountDateInput] = React.useState(inv && inv.date ? inv.date : todayDate);
   const [countIncludesInput, setCountIncludesInput] = React.useState(!!(inv && inv.includesCurrentMonthDelivery));
   const countMonthShort = (() => {
-    const [y, m] = (countDateInput || todayDate).split('-').map(Number);
+    const [y, m] = todayDate.split('-').map(Number);
     return new Date(y, m - 1, 1).toLocaleDateString('en-US', {month: 'short'});
   })();
 
@@ -496,27 +512,21 @@ export default function PigFeedView({
             </div>
           </div>
 
-          {/* Order for [active] */}
+          {/* Order for [active] — amber treatment regardless of value so the
+              tile keeps its visual weight even when recommendation is 0 lbs. */}
           <div
             style={{
               ...tileShellS,
-              background: recommendedOrder != null && recommendedOrder > 0 ? '#fffbeb' : 'white',
-              border: recommendedOrder != null && recommendedOrder > 0 ? '2px solid #fde68a' : '1px solid #e5e7eb',
+              background: '#fffbeb',
+              border: '2px solid #fde68a',
             }}
           >
-            <div
-              style={{
-                ...tileLabelS,
-                color: recommendedOrder != null && recommendedOrder > 0 ? '#92400e' : '#6b7280',
-              }}
-            >
-              {'Order for ' + activeLabel}
-            </div>
+            <div style={{...tileLabelS, color: '#92400e'}}>{'Order for ' + activeLabel}</div>
             <div
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: recommendedOrder != null ? (recommendedOrder > 0 ? '#92400e' : '#065f46') : '#9ca3af',
+                color: recommendedOrder != null ? '#92400e' : '#9ca3af',
                 lineHeight: 1,
               }}
             >
@@ -569,22 +579,6 @@ export default function PigFeedView({
                 }}
               />
             </div>
-            <div>
-              <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3}}>Date</label>
-              <input
-                id="pig-feed-count-date"
-                type="date"
-                value={countDateInput}
-                onChange={(e) => setCountDateInput(e.target.value)}
-                style={{
-                  fontSize: 13,
-                  padding: '7px 10px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 6,
-                  fontFamily: 'inherit',
-                }}
-              />
-            </div>
             <label
               style={{
                 display: 'inline-flex',
@@ -617,7 +611,9 @@ export default function PigFeedView({
                   alert('Enter the lbs on hand.');
                   return;
                 }
-                savePigFeedCount(countLbsInput, countDateInput || todayDate, countIncludesInput);
+                // Physical count is "what is on site right now" — always
+                // stamps today's date. No backdated bookkeeping.
+                savePigFeedCount(countLbsInput, todayDate, countIncludesInput);
               }}
               style={{
                 padding: '7px 16px',
@@ -638,334 +634,398 @@ export default function PigFeedView({
           </div>
         </div>
 
-        {/* Monthly cards: last 6 saved + 1 active editable */}
+        {/* Monthly cards: active first, then last saved, then older behind a collapse */}
         <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
           <div style={{fontSize: 14, fontWeight: 700, color: '#085041'}}>Monthly Pig Feed Ledger</div>
-          {visibleCardYMs.map((ym) => {
-            const md = monthlyData.find((m) => m.ym === ym);
-            if (!md) return null;
-            const isActive = ym === activeYM;
-            const lg = isActive ? activeCardLg : pigLedger[ym];
-            const savedVal = (feedOrders.pig || {})[ym];
-            const isSaved = savedVal != null && savedVal !== '';
-            const isMostRecentSavedNonActive = !isActive && ym === mostRecentSavedYM;
-            const projGroups = projectedFeedByGroup(ym);
-            const actualGroups = actualFeedByGroup(ym);
-            return (
-              <div
-                key={ym}
-                style={{
-                  background: 'white',
-                  border: isActive ? '2px solid #085041' : '1px solid #e5e7eb',
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Header */}
+          {(() => {
+            function renderCard(ym) {
+              const md = monthlyData.find((m) => m.ym === ym);
+              if (!md) return null;
+              const isActive = ym === activeYM;
+              const lg = isActive ? activeCardLg : pigLedger[ym];
+              const savedVal = (feedOrders.pig || {})[ym];
+              const isSaved = savedVal != null && savedVal !== '';
+              const projGroups = projectedFeedByGroup(ym);
+              const actualGroups = actualFeedByGroup(ym);
+              const isMostRecentSavedCard = !isActive && ym === mostRecentSavedNonActiveYM;
+              // Visual hierarchy: active gets the dark green border + green
+              // tinted header; most-recent-saved gets a lighter green border
+              // + faint green header so it still reads as the "current"
+              // ledger anchor; older months are plain grey.
+              const cardBorder = isActive
+                ? '2px solid #085041'
+                : isMostRecentSavedCard
+                  ? '2px solid #a7f3d0'
+                  : '1px solid #e5e7eb';
+              const cardHeaderBg = isActive ? '#ecfdf5' : isMostRecentSavedCard ? '#f0fdf4' : 'white';
+              return (
                 <div
+                  key={ym}
                   style={{
-                    padding: '10px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    background: isActive ? '#ecfdf5' : 'white',
+                    background: 'white',
+                    border: cardBorder,
+                    borderRadius: 12,
+                    overflow: 'hidden',
                   }}
                 >
-                  <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{ymLabel(ym)}</span>
-                  {isActive && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: '#065f46',
-                        background: '#d1fae5',
-                        padding: '1px 8px',
-                        borderRadius: 10,
-                      }}
-                    >
-                      ACTIVE
-                    </span>
-                  )}
-                </div>
-
-                {/* Equation row: Start − Consumed + Ordered = End */}
-                <div
-                  style={{
-                    padding: '8px 16px 6px',
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 14px 1.2fr 14px 1.4fr 14px 1fr',
-                    gap: 8,
-                    alignItems: 'end',
-                  }}
-                >
-                  {/* Start */}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: '#6b7280',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                        marginBottom: 2,
-                      }}
-                    >
-                      Start of Month
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 600,
-                        color: lg && lg.start >= 0 ? '#374151' : '#b91c1c',
-                      }}
-                    >
-                      {lg ? lg.start.toLocaleString() : '—'}
-                    </div>
-                  </div>
-                  <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'−'}</div>
-                  {/* Consumed */}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: '#6b7280',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                        marginBottom: 2,
-                      }}
-                    >
-                      Consumed
-                    </div>
-                    <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
-                      {lg ? lg.consumed.toLocaleString() : '—'}
-                    </div>
-                    {lg && md.isCurrent && lg.projCons > 0 && (
-                      <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>
-                        {lg.actualCons.toLocaleString() + ' actual + ' + lg.projCons.toLocaleString() + ' proj'}
-                      </div>
+                  {/* Header */}
+                  <div
+                    style={{
+                      padding: '10px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      background: cardHeaderBg,
+                    }}
+                  >
+                    <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{ymLabel(ym)}</span>
+                    {isActive && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: '#065f46',
+                          background: '#d1fae5',
+                          padding: '1px 8px',
+                          borderRadius: 10,
+                        }}
+                      >
+                        ACTIVE
+                      </span>
                     )}
-                    {lg && md.isFuture && <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>projected</div>}
+                    {isMostRecentSavedCard && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: '#065f46',
+                          background: '#d1fae5',
+                          padding: '1px 8px',
+                          borderRadius: 10,
+                        }}
+                      >
+                        LAST SAVED
+                      </span>
+                    )}
                   </div>
-                  <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'+'}</div>
-                  {/* Ordered */}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: '#6b7280',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                        marginBottom: 2,
-                      }}
-                    >
-                      Ordered
-                    </div>
-                    {isActive ? (
-                      <div style={{display: 'flex', gap: 6, alignItems: 'center'}}>
-                        <input
-                          type="number"
-                          min="0"
-                          step="100"
-                          value={activeOrderDraft}
-                          onChange={(e) => setActiveOrderDraft(e.target.value)}
-                          style={{
-                            width: '100%',
-                            fontSize: 14,
-                            padding: '4px 8px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: 6,
-                            textAlign: 'right',
-                            fontFamily: 'inherit',
-                            fontWeight: 600,
-                            boxSizing: 'border-box',
-                          }}
-                        />
-                        <button
-                          onClick={commitActiveOrder}
-                          disabled={(activeOrderDraft || '').trim() === ''}
-                          style={{
-                            padding: '5px 10px',
-                            borderRadius: 6,
-                            border: 'none',
-                            background: (activeOrderDraft || '').trim() === '' ? '#9ca3af' : '#085041',
-                            color: 'white',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: (activeOrderDraft || '').trim() === '' ? 'not-allowed' : 'pointer',
-                            fontFamily: 'inherit',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Save Order
-                        </button>
+
+                  {/* Equation row: Start − Consumed + Ordered = End */}
+                  <div
+                    style={{
+                      padding: '8px 16px 6px',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 14px 1.2fr 14px 1.4fr 14px 1fr',
+                      gap: 8,
+                      alignItems: 'end',
+                    }}
+                  >
+                    {/* Start */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          marginBottom: 2,
+                        }}
+                      >
+                        Start of Month
                       </div>
-                    ) : (
-                      <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                        <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
-                          {isSaved ? Number(savedVal).toLocaleString() : '—'}
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 600,
+                          color: lg && lg.start >= 0 ? '#374151' : '#b91c1c',
+                        }}
+                      >
+                        {lg ? lg.start.toLocaleString() : '—'}
+                      </div>
+                    </div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'−'}</div>
+                    {/* Consumed */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          marginBottom: 2,
+                        }}
+                      >
+                        Consumed
+                      </div>
+                      <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
+                        {lg ? lg.consumed.toLocaleString() : '—'}
+                      </div>
+                      {lg && md.isCurrent && lg.projCons > 0 && (
+                        <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>
+                          {lg.actualCons.toLocaleString() + ' actual + ' + lg.projCons.toLocaleString() + ' proj'}
                         </div>
-                        {isMostRecentSavedNonActive && (
-                          <button
-                            onClick={() => editMonth(ym)}
-                            style={{
-                              fontSize: 11,
-                              padding: '3px 8px',
-                              borderRadius: 5,
-                              border: '1px solid #d1d5db',
-                              background: 'white',
-                              color: '#4b5563',
-                              cursor: 'pointer',
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Edit
-                          </button>
+                      )}
+                      {lg && md.isFuture && <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>projected</div>}
+                    </div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'+'}</div>
+                    {/* Ordered */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          marginBottom: 2,
+                        }}
+                      >
+                        Ordered
+                      </div>
+                      {isActive ? (
+                        (() => {
+                          // Button rules:
+                          //   • Draft has a number → "Save Order" enabled, saves the typed value.
+                          //   • Draft blank AND recommendation === 0 → "Save 0" enabled, saves 0.
+                          //   • Otherwise disabled (operator must type a number).
+                          const draftHasValue = (activeOrderDraft || '').trim() !== '';
+                          const zeroSavePath = !draftHasValue && recommendedOrder === 0;
+                          const saveEnabled = draftHasValue || zeroSavePath;
+                          const buttonLabel = zeroSavePath ? 'Save 0' : 'Save Order';
+                          return (
+                            <div style={{display: 'flex', gap: 6, alignItems: 'center'}}>
+                              <input
+                                type="number"
+                                min="0"
+                                step="100"
+                                value={activeOrderDraft}
+                                onChange={(e) => setActiveOrderDraft(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  fontSize: 14,
+                                  padding: '4px 8px',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 6,
+                                  textAlign: 'right',
+                                  fontFamily: 'inherit',
+                                  fontWeight: 600,
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                              <button
+                                onClick={commitActiveOrder}
+                                disabled={!saveEnabled}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: 6,
+                                  border: 'none',
+                                  background: saveEnabled ? '#085041' : '#9ca3af',
+                                  color: 'white',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: saveEnabled ? 'pointer' : 'not-allowed',
+                                  fontFamily: 'inherit',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {buttonLabel}
+                              </button>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                          <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
+                            {isSaved ? Number(savedVal).toLocaleString() : '—'}
+                          </div>
+                          {isMostRecentSavedCard && (
+                            <button
+                              onClick={() => editMonth(ym)}
+                              style={{
+                                fontSize: 11,
+                                padding: '3px 8px',
+                                borderRadius: 5,
+                                border: '1px solid #d1d5db',
+                                background: 'white',
+                                color: '#4b5563',
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>arrives end of mo.</div>
+                    </div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'='}</div>
+                    {/* End */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          marginBottom: 2,
+                        }}
+                      >
+                        End of Month
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 700,
+                          color: lg && lg.end > 0 ? '#065f46' : '#b91c1c',
+                        }}
+                      >
+                        {lg ? lg.end.toLocaleString() : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Variance: Proj vs Actual daily rates */}
+                  {(() => {
+                    const projDaily = Math.round(md.projTotal / md.daysInMonth);
+                    const daysElapsed = md.isFuture ? 0 : md.isCurrent ? now.getDate() : md.daysInMonth;
+                    const actualDaily = daysElapsed > 0 ? Math.round(md.actual / daysElapsed) : 0;
+                    const dailyVar = daysElapsed > 0 ? actualDaily - projDaily : null;
+                    let moVar = null;
+                    if (!md.isFuture && daysElapsed > 0) {
+                      if (md.isCurrent) moVar = Math.round(actualDaily * md.daysInMonth) - md.projTotal;
+                      else moVar = md.actual - md.projTotal;
+                    }
+                    return (
+                      <div style={{padding: '2px 16px 8px', display: 'flex', gap: 16, fontSize: 11, color: '#6b7280'}}>
+                        <span>
+                          {'Proj: ' + projDaily.toLocaleString() + '/day (' + md.projTotal.toLocaleString() + ' mo)'}
+                        </span>
+                        {!md.isFuture && (
+                          <span>
+                            {'Actual: ' +
+                              actualDaily.toLocaleString() +
+                              '/day' +
+                              (md.isCurrent
+                                ? ' (' + md.actual.toLocaleString() + ' so far)'
+                                : ' (' + md.actual.toLocaleString() + ' mo)')}
+                          </span>
+                        )}
+                        {dailyVar != null && dailyVar !== 0 && (
+                          <span style={{fontWeight: 600, color: dailyVar > 0 ? '#b91c1c' : '#065f46'}}>
+                            {(dailyVar > 0 ? '+' : '') + dailyVar.toLocaleString() + '/day'}
+                          </span>
+                        )}
+                        {moVar != null && moVar !== 0 && (
+                          <span style={{fontWeight: 600, color: moVar > 0 ? '#b91c1c' : '#065f46'}}>
+                            {(moVar > 0 ? '+' : '') + moVar.toLocaleString() + ' mo' + (md.isCurrent ? ' est.' : '')}
+                          </span>
                         )}
                       </div>
-                    )}
-                    <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>arrives end of mo.</div>
-                  </div>
-                  <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'='}</div>
-                  {/* End */}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: '#6b7280',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                        marginBottom: 2,
-                      }}
-                    >
-                      End of Month
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        color: lg && lg.end > 0 ? '#065f46' : '#b91c1c',
-                      }}
-                    >
-                      {lg ? lg.end.toLocaleString() : '—'}
-                    </div>
+                    );
+                  })()}
+
+                  {/* Per-group breakdown — always visible */}
+                  <div style={{borderTop: '1px solid #f3f4f6', padding: '8px 16px 10px'}}>
+                    <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+                      <thead>
+                        <tr style={{borderBottom: '1px solid #e5e7eb'}}>
+                          <th style={{padding: '4px 10px', textAlign: 'left', fontWeight: 600, color: '#6b7280'}}>
+                            Group
+                          </th>
+                          <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                            Proj/day
+                          </th>
+                          <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                            Actual/day
+                          </th>
+                          <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                            Variance/day
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const gDaysElapsed = md.isFuture ? 0 : md.isCurrent ? now.getDate() : md.daysInMonth;
+                          return projGroups.map((pg, gi) => {
+                            let actualLbs = 0;
+                            if (pg.label === 'SOWS') actualLbs = actualGroups['SOWS'] || 0;
+                            else if (pg.label === 'BOARS') actualLbs = actualGroups['BOARS'] || 0;
+                            else {
+                              Object.entries(actualGroups).forEach((e2) => {
+                                const low = e2[0].toLowerCase().trim();
+                                if (pg.subNames && pg.subNames.length > 0) {
+                                  if (pg.subNames.includes(low)) actualLbs += e2[1];
+                                } else if (pg.mainName && low === pg.mainName) {
+                                  actualLbs += e2[1];
+                                }
+                              });
+                            }
+                            actualLbs = Math.round(actualLbs);
+                            const projDay = Math.round(pg.projected / md.daysInMonth);
+                            const actualDay = gDaysElapsed > 0 ? Math.round(actualLbs / gDaysElapsed) : 0;
+                            const gVar = md.isFuture ? null : gDaysElapsed > 0 ? actualDay - projDay : null;
+                            return (
+                              <tr key={gi} style={{borderBottom: '1px solid #f0f0f0'}}>
+                                <td style={{padding: '4px 10px', fontWeight: 500, color: '#374151'}}>{pg.label}</td>
+                                <td style={{padding: '4px 10px', textAlign: 'right', color: '#6b7280'}}>
+                                  {projDay.toLocaleString()}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: '4px 10px',
+                                    textAlign: 'right',
+                                    fontWeight: 600,
+                                    color: md.isFuture ? '#9ca3af' : '#111827',
+                                  }}
+                                >
+                                  {md.isFuture ? '—' : actualDay.toLocaleString()}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: '4px 10px',
+                                    textAlign: 'right',
+                                    fontWeight: 600,
+                                    color: gVar == null ? '#9ca3af' : gVar > 0 ? '#b91c1c' : '#065f46',
+                                  }}
+                                >
+                                  {gVar == null ? '—' : (gVar > 0 ? '+' : '') + gVar.toLocaleString()}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-
-                {/* Variance: Proj vs Actual daily rates */}
-                {(() => {
-                  const projDaily = Math.round(md.projTotal / md.daysInMonth);
-                  const daysElapsed = md.isFuture ? 0 : md.isCurrent ? now.getDate() : md.daysInMonth;
-                  const actualDaily = daysElapsed > 0 ? Math.round(md.actual / daysElapsed) : 0;
-                  const dailyVar = daysElapsed > 0 ? actualDaily - projDaily : null;
-                  let moVar = null;
-                  if (!md.isFuture && daysElapsed > 0) {
-                    if (md.isCurrent) moVar = Math.round(actualDaily * md.daysInMonth) - md.projTotal;
-                    else moVar = md.actual - md.projTotal;
-                  }
-                  return (
-                    <div style={{padding: '2px 16px 8px', display: 'flex', gap: 16, fontSize: 11, color: '#6b7280'}}>
-                      <span>
-                        {'Proj: ' + projDaily.toLocaleString() + '/day (' + md.projTotal.toLocaleString() + ' mo)'}
-                      </span>
-                      {!md.isFuture && (
-                        <span>
-                          {'Actual: ' +
-                            actualDaily.toLocaleString() +
-                            '/day' +
-                            (md.isCurrent
-                              ? ' (' + md.actual.toLocaleString() + ' so far)'
-                              : ' (' + md.actual.toLocaleString() + ' mo)')}
-                        </span>
-                      )}
-                      {dailyVar != null && dailyVar !== 0 && (
-                        <span style={{fontWeight: 600, color: dailyVar > 0 ? '#b91c1c' : '#065f46'}}>
-                          {(dailyVar > 0 ? '+' : '') + dailyVar.toLocaleString() + '/day'}
-                        </span>
-                      )}
-                      {moVar != null && moVar !== 0 && (
-                        <span style={{fontWeight: 600, color: moVar > 0 ? '#b91c1c' : '#065f46'}}>
-                          {(moVar > 0 ? '+' : '') + moVar.toLocaleString() + ' mo' + (md.isCurrent ? ' est.' : '')}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Per-group breakdown — always visible */}
-                <div style={{borderTop: '1px solid #f3f4f6', padding: '8px 16px 10px'}}>
-                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
-                    <thead>
-                      <tr style={{borderBottom: '1px solid #e5e7eb'}}>
-                        <th style={{padding: '4px 10px', textAlign: 'left', fontWeight: 600, color: '#6b7280'}}>
-                          Group
-                        </th>
-                        <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
-                          Proj/day
-                        </th>
-                        <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
-                          Actual/day
-                        </th>
-                        <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
-                          Variance/day
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const gDaysElapsed = md.isFuture ? 0 : md.isCurrent ? now.getDate() : md.daysInMonth;
-                        return projGroups.map((pg, gi) => {
-                          let actualLbs = 0;
-                          if (pg.label === 'SOWS') actualLbs = actualGroups['SOWS'] || 0;
-                          else if (pg.label === 'BOARS') actualLbs = actualGroups['BOARS'] || 0;
-                          else {
-                            Object.entries(actualGroups).forEach((e2) => {
-                              const low = e2[0].toLowerCase().trim();
-                              if (pg.subNames && pg.subNames.length > 0) {
-                                if (pg.subNames.includes(low)) actualLbs += e2[1];
-                              } else if (pg.mainName && low === pg.mainName) {
-                                actualLbs += e2[1];
-                              }
-                            });
-                          }
-                          actualLbs = Math.round(actualLbs);
-                          const projDay = Math.round(pg.projected / md.daysInMonth);
-                          const actualDay = gDaysElapsed > 0 ? Math.round(actualLbs / gDaysElapsed) : 0;
-                          const gVar = md.isFuture ? null : gDaysElapsed > 0 ? actualDay - projDay : null;
-                          return (
-                            <tr key={gi} style={{borderBottom: '1px solid #f0f0f0'}}>
-                              <td style={{padding: '4px 10px', fontWeight: 500, color: '#374151'}}>{pg.label}</td>
-                              <td style={{padding: '4px 10px', textAlign: 'right', color: '#6b7280'}}>
-                                {projDay.toLocaleString()}
-                              </td>
-                              <td
-                                style={{
-                                  padding: '4px 10px',
-                                  textAlign: 'right',
-                                  fontWeight: 600,
-                                  color: md.isFuture ? '#9ca3af' : '#111827',
-                                }}
-                              >
-                                {md.isFuture ? '—' : actualDay.toLocaleString()}
-                              </td>
-                              <td
-                                style={{
-                                  padding: '4px 10px',
-                                  textAlign: 'right',
-                                  fontWeight: 600,
-                                  color: gVar == null ? '#9ca3af' : gVar > 0 ? '#b91c1c' : '#065f46',
-                                }}
-                              >
-                                {gVar == null ? '—' : (gVar > 0 ? '+' : '') + gVar.toLocaleString()}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              );
+            }
+            return (
+              <>
+                {renderCard(activeYM)}
+                {mostRecentSavedNonActiveYM && renderCard(mostRecentSavedNonActiveYM)}
+                {olderSavedYMs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOlderMonths((s) => !s)}
+                    style={{
+                      alignSelf: 'flex-start',
+                      padding: '6px 12px',
+                      background: 'transparent',
+                      border: '1px solid #d1d5db',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: '#4b5563',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {showOlderMonths ? '▼ Hide older months' : '▶ Show older months (' + olderSavedYMs.length + ')'}
+                  </button>
+                )}
+                {showOlderMonths && olderSavedYMs.map((ym) => renderCard(ym))}
+              </>
             );
-          })}
+          })()}
         </div>
 
         {/* Feed rates reference */}
