@@ -1,25 +1,53 @@
-﻿// ============================================================================
-// src/pig/PigFeedView.jsx  —  Phase 2 Round 6
+// ============================================================================
+// src/pig/PigFeedView.jsx
 // ----------------------------------------------------------------------------
-// Pig feed planning view. Pig entity arrays come from usePig(); the feed-
-// cost rates come from useFeedCosts(). Feed-inventory state + the sbSave
-// persistence helper still live in App and come in as props (these
-// weren't lifted to a context in Round 0).
+// Minimal pig feed ledger. Answers two questions:
+//   1. How much feed do I have right now?
+//   2. How much do I need to order for the next open month?
+//
+// Layout:
+//   • Four top tiles: Actual On Hand · End of [prev] Est. · Order for
+//     [active] · Need Thru [active+1].
+//   • Physical-count input directly below, with a "Count includes [month]
+//     order" checkbox derived from the count date's month.
+//   • Up to 6 most-recently-saved monthly cards plus exactly one active
+//     editable card. No collapsed sections, no future months past active.
+//   • Each monthly card reads as an equation: Start − Consumed + Ordered
+//     = End.
+//   • Feed Rate Reference at the bottom.
+//
+// Math contracts:
+//   • Daily projected pig burn comes from feedPlanner.pigDailyBurnLbs so
+//     feeder counts are ledger-correct (transfers + mortality subtracted
+//     via pigFeederSubCurrentCount).
+//   • Per-group breakdown uses pigFeederSubCurrentCount and
+//     pigFeederLbsPerDayAtAge directly so the table matches reality.
+//   • Recommended Order for [active] = max(0, Need Thru [active+1] − End
+//     of [prev] Est.). No carryover subtext, no hidden formula.
+//   • Top tiles do NOT track the active draft — they update only on Save
+//     Order. The active card's End-of-Month estimate updates live while
+//     typing for that card only.
+//   • Physical count is ground truth. Actual On Hand = latest count +
+//     orders that actually arrived after the count − feed consumed after
+//     the count. The "Count includes [month] order" checkbox avoids
+//     double-count when the count was taken after that month's delivery.
+//
+// Active-month workflow:
+//   • activeOrderYM is the first month at or after today's month with no
+//     saved order. Saving advances it forward by one.
+//   • editingMonthYM lets the operator rewind to the most-recently-saved
+//     month and adjust. Edit pre-loads the draft locally; the persisted
+//     value is unchanged until Save Order writes again. Only the most
+//     recently saved month exposes Edit.
+//
+// Helpers from src/lib/feedPlanner.js are intentionally retained as the
+// load-bearing source of pig burn + ledger-derived counts; the visual
+// layer is simple but the count source is correct.
 // ============================================================================
 import React from 'react';
-import {sb} from '../lib/supabase.js';
-import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
-import {S} from '../lib/styles.js';
-import {calcBreedingTimeline} from '../lib/pig.js';
-import {
-  pigDailyBurnLbs,
-  onHandFromSnapshot,
-  isSnapshotStale,
-  suggestOrder,
-  STALE_SNAPSHOT_DAYS,
-  LEAD_TIME_DAYS,
-  RESERVE_DAYS,
-} from '../lib/feedPlanner.js';
+import {fmt, todayISO} from '../lib/dateUtils.js';
+import {calcBreedingTimeline, pigTransfersForBatch, pigMortalityForBatch} from '../lib/pig.js';
+import {pigDailyBurnLbs, pigFeederSubCurrentCount, pigFeederLbsPerDayAtAge} from '../lib/feedPlanner.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
@@ -36,88 +64,56 @@ export default function PigFeedView({
   setPigFeedInventory,
   sbSave,
 }) {
-  const [pigFeedExpandedMonths, setPigFeedExpandedMonths] = React.useState(new Set());
-  const [showPigLegacyLedger, setShowPigLegacyLedger] = React.useState(false);
-  const [confirmPigSuggested, setConfirmPigSuggested] = React.useState(false);
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {breeders, feederGroups, farrowingRecs, breedingCycles} = usePig();
   const {pigDailys} = useDailysRecent();
   const {feedCosts} = useFeedCosts();
   const {setView} = useUI();
-  // ── PIG FEED PLANNING ──
-  // Compute nursing sow count for a given date
-  function nursingSowsOnDate(dateISO) {
-    let count = 0;
-    breedingCycles.forEach((c) => {
-      const tl = calcBreedingTimeline(c.exposureStart);
-      if (!tl) return;
-      // Check each farrowing record for this cycle
-      farrowingRecs.forEach((r) => {
-        if (r.group !== c.group || !r.farrowingDate) return;
-        const rd = new Date(r.farrowingDate + 'T12:00:00');
-        const wStart = new Date(tl.farrowingStart + 'T12:00:00');
-        const wEnd = addDays(tl.farrowingEnd, 14);
-        if (rd >= wStart && rd <= wEnd) {
-          // This record belongs to this cycle
-          if (r.farrowingDate <= dateISO && tl.weaningEnd >= dateISO) count++;
-        }
-      });
-    });
-    return count;
+
+  // Operator draft for the active editable month + optional "edit the
+  // most-recently-saved month" rewind. The persisted feedOrders map is
+  // not touched until Save Order runs.
+  const [editingMonthYM, setEditingMonthYM] = React.useState(null);
+  const [activeOrderDraft, setActiveOrderDraft] = React.useState('');
+
+  // ── Date utilities ────────────────────────────────────────────────────────
+  function addMonthsYM(ym, delta) {
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function ymLabel(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
+  }
+  function ymShort(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', {month: 'short'});
   }
 
-  // Compute projected daily feed for a given date
+  // ── Ledger-correct daily burn via feedPlanner ─────────────────────────────
   function projectedDailyFeed(dateISO) {
-    const totalActiveSows = breeders.filter((b) => !b.archived && (b.sex === 'Sow' || b.sex === 'Gilt')).length;
-    const totalBoars = breeders.filter((b) => !b.archived && b.sex === 'Boar').length;
-    const nursing = nursingSowsOnDate(dateISO);
-    const nonNursing = Math.max(0, totalActiveSows - nursing);
-    const sowFeed = nonNursing * 5 + nursing * 12;
-    const boarFeed = totalBoars * 5;
-    // Feeder pigs: use active batches with age on that date
-    let feederFeed = 0;
-    feederGroups
-      .filter((g) => g.status === 'active')
-      .forEach((g) => {
-        const cycle = breedingCycles.find((c) => c.id === g.cycleId);
-        const tl = cycle ? calcBreedingTimeline(cycle.exposureStart) : null;
-        const birthDate = tl ? tl.farrowingStart : g.startDate || null;
-        if (!birthDate) return;
-        const ageMs = new Date(dateISO + 'T12:00:00') - new Date(birthDate + 'T12:00:00');
-        if (ageMs < 0) return;
-        const ageMonths = ageMs / 86400000 / 30.44;
-        const processed = (g.processingTrips || []).reduce(function (s, t) {
-          return s + (parseInt(t.pigCount) || 0);
-        }, 0);
-        const pigCount = Math.max(0, (parseInt(g.originalPigCount) || 0) - processed);
-        feederFeed += pigCount * Math.max(1, ageMonths);
-      });
-    return {
-      sowFeed: Math.round(sowFeed),
-      boarFeed: Math.round(boarFeed),
-      feederFeed: Math.round(feederFeed),
-      total: Math.round(sowFeed + boarFeed + feederFeed),
-      nursing,
-      nonNursing,
-    };
+    return pigDailyBurnLbs(dateISO, {feederGroups, breedingCycles, breeders, farrowingRecs});
   }
 
-  // Build monthly data for past 6 months + next 3 months
+  // ── Calendar window ───────────────────────────────────────────────────────
+  // Wider than the visible range so the running ledger has plenty of
+  // anchor room behind today + the active month.
   const now = new Date();
   const months = [];
-  for (let i = -6; i <= 3; i++) {
+  for (let i = -12; i <= 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
   }
   const thisYM = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const todayDate = todayISO();
 
   const monthlyData = months.map((ym) => {
     const [y, m] = ym.split('-').map(Number);
     const daysInMonth = new Date(y, m, 0).getDate();
     const midDate = ym + '-15';
     const proj = projectedDailyFeed(midDate);
-    const projTotal = proj.total * daysInMonth;
-    // Actual consumption from pig_dailys
+    const projTotal = proj.totalLbs * daysInMonth;
     const actual = pigDailys
       .filter((d) => d.date && d.date.startsWith(ym))
       .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
@@ -137,12 +133,31 @@ export default function PigFeedView({
     };
   });
 
-  // Current month snapshot
-  const curProj = projectedDailyFeed(todayISO());
+  const curProj = projectedDailyFeed(todayDate);
 
+  // ── Active-month resolution ──────────────────────────────────────────────
+  const savedOrderYMs = Object.entries(feedOrders.pig || {})
+    .filter(([, v]) => v != null && v !== '' && parseFloat(v) >= 0)
+    .map(([k]) => k)
+    .sort();
+  const mostRecentSavedYM = savedOrderYMs.length ? savedOrderYMs[savedOrderYMs.length - 1] : null;
+  function firstUnsavedFrom(ym) {
+    let cur = ym;
+    while ((feedOrders.pig || {})[cur] != null) cur = addMonthsYM(cur, 1);
+    return cur;
+  }
+  const autoActiveYM = firstUnsavedFrom(thisYM);
+  const activeYM = editingMonthYM != null ? editingMonthYM : autoActiveYM;
+  const prevYM = addMonthsYM(activeYM, -1);
+  const nextYM = addMonthsYM(activeYM, 1);
+  const prevLabel = ymShort(prevYM);
+  const activeLabel = ymShort(activeYM);
+  const nextLabel = ymShort(nextYM);
+
+  // ── Persistence wrappers ─────────────────────────────────────────────────
   function savePigOrder(ym, val) {
-    // Empty string = clear the order (delete key). Any number (including 0) = save as decision made.
-    var pigOrders = {...(feedOrders.pig || {})};
+    // Empty string = clear. Any number (including 0) = save as decision made.
+    const pigOrders = {...(feedOrders.pig || {})};
     if (val === '' || val == null) {
       delete pigOrders[ym];
     } else {
@@ -152,172 +167,192 @@ export default function PigFeedView({
     setFeedOrders(next);
     sbSave('ppp-feed-orders-v1', next);
   }
-
-  function savePigFeedCount(count, date) {
-    // New count writes are flat {count, date}. The legacy
-    // includesCurrentMonthDelivery flag is no longer operator-facing;
-    // helpers below still tolerate it on old persisted rows.
+  function savePigFeedCount(count, date, includesCurrentMonthDelivery) {
+    // includesCurrentMonthDelivery is the operator's "count was taken
+    // after this month's order had arrived" toggle. Stored so the ledger
+    // doesn't double-count that order. Helpers below also tolerate old
+    // persisted rows that already carry the flag.
     const inv = {
       count: parseFloat(count) || 0,
-      date: date || todayISO(),
+      date: date || todayDate,
+      includesCurrentMonthDelivery: !!includesCurrentMonthDelivery,
     };
     setPigFeedInventory(inv);
     sbSave('ppp-pig-feed-inventory-v1', inv);
   }
 
-  // ── Feed on Hand calculation ──
-  // Orders arrive at END of month — current month's order hasn't arrived yet.
-  // Actual On Hand = orders arrived (past months) - consumption since tracking started
-  // End of Month Est = orders through current month - consumption through end of month (actual + projected)
-  const inv = pigFeedInventory; // {count, date} or null
-  const todayDate = todayISO();
-  var pigOrderMonths = Object.keys(feedOrders.pig || {})
-    .filter(function (k) {
-      return (parseFloat((feedOrders.pig || {})[k]) || 0) > 0;
-    })
-    .sort();
-  var firstPigOrderYM = pigOrderMonths.length > 0 ? pigOrderMonths[0] : '9999-99';
-  // Only count consumption from when tracking started
-  var totalPigConsumed = pigDailys
-    .filter(function (d) {
-      return d.date && d.date.substring(0, 7) >= firstPigOrderYM;
-    })
-    .reduce(function (s, d) {
-      return s + (parseFloat(d.feed_lbs) || 0);
-    }, 0);
-  // Orders that have ARRIVED = past months only (current month arrives at end of month)
-  var ordersArrived = Object.entries(feedOrders.pig || {}).reduce(function (s, e) {
-    if (e[0] < thisYM && e[0] >= firstPigOrderYM) return s + (parseFloat(e[1]) || 0);
-    return s;
-  }, 0);
-  // All orders through current month (including current month's pending delivery)
-  var ordersThroughCurrent = Object.entries(feedOrders.pig || {}).reduce(function (s, e) {
-    if (e[0] <= thisYM) return s + (parseFloat(e[1]) || 0);
-    return s;
-  }, 0);
-  // Projected remaining consumption for rest of current month
-  var curMonthDaysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
-  var projRemainingThisMonth = curMonthDaysLeft > 0 ? Math.round(curProj.total * curMonthDaysLeft) : 0;
-  // End of month estimate (current month's order arrives, minus all consumption including projected)
-  var endOfMonthEst =
-    firstPigOrderYM !== '9999-99' ? Math.round(ordersThroughCurrent - totalPigConsumed - projRemainingThisMonth) : null;
-  // Suggested order — auto-detect: if current month has no order yet, show current month; otherwise show next
-  var curMonthHasOrder = (feedOrders.pig || {})[thisYM] != null;
-  var orderTargetOffset = curMonthHasOrder ? 1 : 0;
-  var orderTargetMonth = new Date(now.getFullYear(), now.getMonth() + orderTargetOffset, 1);
-  var orderTargetYM = orderTargetMonth.getFullYear() + '-' + String(orderTargetMonth.getMonth() + 1).padStart(2, '0');
-  var orderTargetLabel = orderTargetMonth.toLocaleDateString('en-US', {month: 'short'});
-  // Need covers target month + month after (order arrives end of target month, must last through month after)
-  var nextMonth2 = new Date(now.getFullYear(), now.getMonth() + orderTargetOffset + 1, 1);
-  var nextYM = nextMonth2.getFullYear() + '-' + String(nextMonth2.getMonth() + 1).padStart(2, '0');
-  var orderTargetData = monthlyData.find(function (m) {
-    return m.ym === orderTargetYM;
-  });
-  var nextMonthData = monthlyData.find(function (m) {
-    return m.ym === nextYM;
-  });
-  var monthAfterNext0 = new Date(now.getFullYear(), now.getMonth() + orderTargetOffset + 1, 1);
-  var monthAfterNextYM0 = monthAfterNext0.getFullYear() + '-' + String(monthAfterNext0.getMonth() + 1).padStart(2, '0');
-  var monthAfterNextData0 = monthlyData.find(function (m) {
-    return m.ym === monthAfterNextYM0;
-  });
-  // Base for suggested order: if ordering for current month, use previous month end; if ordering for next month, use current month end
-  var orderBaseEst = curMonthHasOrder
-    ? endOfMonthEst
-    : (function () {
-        // End of previous month = start of current month in ledger terms (before current month consumption/orders)
-        var prevEnd =
-          Object.entries(feedOrders.pig || {}).reduce(function (s, e) {
-            if (e[0] < thisYM) return s + (parseFloat(e[1]) || 0);
-            return s;
-          }, 0) -
-          pigDailys
-            .filter(function (d) {
-              return d.date && d.date.substring(0, 7) >= firstPigOrderYM && d.date.substring(0, 7) < thisYM;
-            })
-            .reduce(function (s, d) {
-              return s + (parseFloat(d.feed_lbs) || 0);
-            }, 0);
-        return firstPigOrderYM !== '9999-99' ? Math.round(prevEnd) : null;
-      })();
-  var twoMonthNeed0 =
-    (orderTargetData ? orderTargetData.projTotal : 0) + (monthAfterNextData0 ? monthAfterNextData0.projTotal : 0);
-  var suggestedOrder = orderBaseEst != null ? Math.max(0, twoMonthNeed0 - orderBaseEst) : null;
+  function commitActiveOrder() {
+    const raw = (activeOrderDraft || '').trim();
+    if (raw === '') return;
+    savePigOrder(activeYM, raw);
+    setEditingMonthYM(null);
+    setActiveOrderDraft('');
+  }
+  function editMonth(ym) {
+    setEditingMonthYM(ym);
+    const cur = (feedOrders.pig || {})[ym];
+    setActiveOrderDraft(cur != null ? String(cur) : '');
+  }
 
-  var feedOnHand = null;
-  var physCountAdjustment = null;
-  if (inv) {
-    // Physical count path — orders arrived since count (exclude current month)
-    var invYM = inv.date.substring(0, 7);
-    var ordersSinceCount = Object.entries(feedOrders.pig || {}).reduce(function (s, e) {
-      if (e[0] > invYM && e[0] < thisYM) return s + (parseFloat(e[1]) || 0);
+  // ── Running ledger ───────────────────────────────────────────────────────
+  // Start − Consumed + Ordered = End, anchored either by the physical count
+  // (if present) or the first saved order month.
+  const inv = pigFeedInventory;
+  const pigOrderMonths = Object.keys(feedOrders.pig || {})
+    .filter((k) => (parseFloat((feedOrders.pig || {})[k]) || 0) > 0)
+    .sort();
+  const firstPigOrderYM = pigOrderMonths.length > 0 ? pigOrderMonths[0] : '9999-99';
+  const invYMConst = inv && inv.date ? inv.date.substring(0, 7) : null;
+
+  const pigLedger = {};
+  let runBal = 0;
+  const allMonthsSorted = monthlyData.slice().sort((a, b) => a.ym.localeCompare(b.ym));
+  let countApplied = false;
+  for (let i = 0; i < allMonthsSorted.length; i++) {
+    const md = allMonthsSorted[i];
+    // Pre-anchor: no count, no orders yet for this month → leave null.
+    if (md.ym < firstPigOrderYM && (!invYMConst || md.ym < invYMConst)) {
+      pigLedger[md.ym] = null;
+      continue;
+    }
+    let lgStart = runBal;
+    let lgCountMonth = false;
+    let lgCountAdj = null;
+    if (inv && !countApplied && invYMConst) {
+      if (invYMConst === md.ym) {
+        const thisMonthOrderForAdj = parseFloat(md.ordered) || 0;
+        const systemEstThisMonth = runBal + (inv.includesCurrentMonthDelivery ? thisMonthOrderForAdj : 0);
+        lgCountAdj = Math.round(inv.count - systemEstThisMonth);
+        lgStart = inv.count;
+        lgCountMonth = true;
+        countApplied = true;
+        const cAfter = pigDailys
+          .filter((d) => d.date && d.date > inv.date && d.date.startsWith(md.ym))
+          .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
+        let pRem = 0;
+        if (md.isCurrent) {
+          const dl = md.daysInMonth - now.getDate();
+          if (dl > 0) pRem = Math.round(curProj.totalLbs * dl);
+        }
+        const lgCons = Math.round(cAfter + pRem);
+        const lgOrd = inv.includesCurrentMonthDelivery ? 0 : parseFloat(md.ordered) || 0;
+        const lgEnd = Math.round(lgStart - lgCons + lgOrd);
+        pigLedger[md.ym] = {
+          start: lgStart,
+          consumed: lgCons,
+          actualCons: Math.round(cAfter),
+          projCons: Math.round(pRem),
+          ordered: lgOrd,
+          rawOrdered: parseFloat(md.ordered) || 0,
+          end: lgEnd,
+          countMonth: true,
+          countAdj: lgCountAdj,
+        };
+        runBal = lgEnd;
+        continue;
+      } else if (invYMConst < md.ym) {
+        lgStart = inv.count;
+        countApplied = true;
+      }
+    }
+    let lgActual = md.actual;
+    let lgProj = 0;
+    if (md.isCurrent) {
+      const dl = md.daysInMonth - now.getDate();
+      if (dl > 0) lgProj = Math.round(curProj.totalLbs * dl);
+    } else if (md.isFuture) {
+      lgProj = md.projTotal;
+      lgActual = 0;
+    }
+    const lgCons2 = Math.round(lgActual + lgProj);
+    const lgOrd2 = parseFloat(md.ordered) || 0;
+    const lgEnd2 = Math.round(lgStart - lgCons2 + lgOrd2);
+    pigLedger[md.ym] = {
+      start: Math.round(lgStart),
+      consumed: lgCons2,
+      actualCons: Math.round(lgActual),
+      projCons: Math.round(lgProj),
+      ordered: lgOrd2,
+      end: lgEnd2,
+      countMonth: lgCountMonth,
+      countAdj: lgCountAdj,
+    };
+    runBal = lgEnd2;
+  }
+
+  // ── Actual On Hand (top tile) ────────────────────────────────────────────
+  // Only orders that actually arrived after the count, with the count-
+  // month order excluded if the operator's checkbox says it was already
+  // absorbed into the count.
+  let feedOnHand = null;
+  let physCountAdjustment = null;
+  if (inv && invYMConst) {
+    const ordersArrivedAfterCount = Object.entries(feedOrders.pig || {}).reduce((s, e) => {
+      const ym = e[0];
+      const v = parseFloat(e[1]) || 0;
+      if (ym > invYMConst && ym < thisYM) return s + v;
+      if (ym === invYMConst && !inv.includesCurrentMonthDelivery && ym < thisYM) return s + v;
       return s;
     }, 0);
-    var consumedSinceCount = pigDailys
-      .filter(function (d) {
-        return d.date && d.date > inv.date;
-      })
-      .reduce(function (s, d) {
-        return s + (parseFloat(d.feed_lbs) || 0);
-      }, 0);
-    feedOnHand = Math.round(inv.count + ordersSinceCount - consumedSinceCount);
-    // Calculate what system estimated at time of count vs what was actually counted.
-    // Orders that had arrived by inv.date = months strictly before invYM (those arrived
-    // end-of-prior-month), plus invYM's own order only if the count says delivery is included.
-    // Mirrors the ledger's lgCountAdj logic so past-dated counts compare apples-to-apples.
-    var adjOrdersAtCount = Object.entries(feedOrders.pig || {}).reduce(function (s, e) {
-      if (e[0] < firstPigOrderYM) return s;
-      if (e[0] < invYM) return s + (parseFloat(e[1]) || 0);
-      if (e[0] === invYM && inv.includesCurrentMonthDelivery) return s + (parseFloat(e[1]) || 0);
+    const consumedSinceCount = pigDailys
+      .filter((d) => d.date && d.date > inv.date)
+      .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
+    feedOnHand = Math.round(inv.count + ordersArrivedAfterCount - consumedSinceCount);
+    const adjOrdersAtCount = Object.entries(feedOrders.pig || {}).reduce((s, e) => {
+      const ym = e[0];
+      const v = parseFloat(e[1]) || 0;
+      if (ym < firstPigOrderYM) return s;
+      if (ym < invYMConst) return s + v;
+      if (ym === invYMConst && inv.includesCurrentMonthDelivery) return s + v;
       return s;
     }, 0);
-    var systemEstAtCount = Math.round(
+    const systemEstAtCount = Math.round(
       adjOrdersAtCount -
         pigDailys
-          .filter(function (d) {
-            return d.date && d.date.substring(0, 7) >= firstPigOrderYM && d.date <= inv.date;
-          })
-          .reduce(function (s, d) {
-            return s + (parseFloat(d.feed_lbs) || 0);
-          }, 0),
+          .filter((d) => d.date && d.date.substring(0, 7) >= firstPigOrderYM && d.date <= inv.date)
+          .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0),
     );
     physCountAdjustment = Math.round(inv.count - systemEstAtCount);
-    // Recalculate end of month est anchored from physical count
-    // Include current month's order — it arrives end of month (after any mid-month count)
-    // ...UNLESS the count already absorbed this month's delivery (skip count's own month)
-    var ordSinceCountThruMonth = Object.entries(feedOrders.pig || {}).reduce(function (s, e) {
-      if (e[0] < invYM || e[0] > thisYM) return s;
-      if (e[0] === invYM && inv.includesCurrentMonthDelivery) return s;
-      return s + (parseFloat(e[1]) || 0);
-    }, 0);
-    endOfMonthEst = Math.round(inv.count + ordSinceCountThruMonth - consumedSinceCount - projRemainingThisMonth);
-    // Recalculate suggested order — must cover next TWO months (order arrives end of next month, need to last through month after)
-    var monthAfterNext = new Date(now.getFullYear(), now.getMonth() + 2, 1);
-    var monthAfterNextYM = monthAfterNext.getFullYear() + '-' + String(monthAfterNext.getMonth() + 1).padStart(2, '0');
-    var monthAfterNextData = monthlyData.find(function (m) {
-      return m.ym === monthAfterNextYM;
-    });
-    var twoMonthNeed =
-      (nextMonthData ? nextMonthData.projTotal : 0) + (monthAfterNextData ? monthAfterNextData.projTotal : 0);
-    suggestedOrder = endOfMonthEst != null ? Math.max(0, twoMonthNeed - endOfMonthEst) : null;
   } else if (firstPigOrderYM !== '9999-99') {
+    const ordersArrived = Object.entries(feedOrders.pig || {}).reduce((s, e) => {
+      return e[0] < thisYM && e[0] >= firstPigOrderYM ? s + (parseFloat(e[1]) || 0) : s;
+    }, 0);
+    const totalPigConsumed = pigDailys
+      .filter((d) => d.date && d.date.substring(0, 7) >= firstPigOrderYM)
+      .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
     feedOnHand = Math.round(ordersArrived - totalPigConsumed);
   }
 
-  // Per-group projected feed for a given month
+  // ── Top-tile derived numbers ─────────────────────────────────────────────
+  const endOfPrevLg = pigLedger[prevYM];
+  const endOfPrevEst = endOfPrevLg ? endOfPrevLg.end : null;
+  const activeMd = monthlyData.find((m) => m.ym === activeYM);
+  const nextMd = monthlyData.find((m) => m.ym === nextYM);
+  const needThruNext = (activeMd ? activeMd.projTotal : 0) + (nextMd ? nextMd.projTotal : 0);
+  const recommendedOrder = endOfPrevEst != null ? Math.max(0, needThruNext - endOfPrevEst) : null;
+
+  // Live End-of-Month estimate for the active card only, splicing the
+  // typed draft into the ledger's saved value.
+  const activeLg = pigLedger[activeYM];
+  const activeDraftN = parseFloat(activeOrderDraft);
+  const activeCardLg =
+    activeLg && Number.isFinite(activeDraftN) && activeDraftN >= 0
+      ? {
+          ...activeLg,
+          ordered: Math.round(activeDraftN),
+          end: Math.round(activeLg.start - activeLg.consumed + activeDraftN),
+        }
+      : activeLg;
+
+  // ── Per-group breakdown via feedPlanner helpers ──────────────────────────
   function projectedFeedByGroup(ym) {
     const [y, m] = ym.split('-').map(Number);
     const daysInMonth = new Date(y, m, 0).getDate();
     const midDate = ym + '-15';
-    const totalActiveSows = breeders.filter((b) => !b.archived && (b.sex === 'Sow' || b.sex === 'Gilt')).length;
-    const totalBoars = breeders.filter((b) => !b.archived && b.sex === 'Boar').length;
-    const nursing = nursingSowsOnDate(midDate);
-    const nonNursing = Math.max(0, totalActiveSows - nursing);
-    const sowFeed = (nonNursing * 5 + nursing * 12) * daysInMonth;
-    const boarFeed = totalBoars * 5 * daysInMonth;
+    const proj = projectedDailyFeed(midDate);
     const groups = [
-      {label: 'SOWS', projected: Math.round(sowFeed)},
-      {label: 'BOARS', projected: Math.round(boarFeed)},
+      {label: 'SOWS', projected: Math.round((proj.sowLbs || 0) * daysInMonth)},
+      {label: 'BOARS', projected: Math.round((proj.boarLbs || 0) * daysInMonth)},
     ];
     feederGroups
       .filter((g) => g.status === 'active')
@@ -326,15 +361,30 @@ export default function PigFeedView({
         const tl = cycle ? calcBreedingTimeline(cycle.exposureStart) : null;
         const birthDate = tl ? tl.farrowingStart : g.startDate || null;
         if (!birthDate) return;
-        const ageMs = new Date(midDate + 'T12:00:00') - new Date(birthDate + 'T12:00:00');
-        if (ageMs < 0) return;
-        const ageMonths = ageMs / 86400000 / 30.44;
-        const processed2 = (g.processingTrips || []).reduce(function (s, t) {
-          return s + (parseInt(t.pigCount) || 0);
-        }, 0);
-        const pigCount = Math.max(0, (parseInt(g.originalPigCount) || 0) - processed2);
-        const feed = pigCount * Math.max(1, ageMonths) * daysInMonth;
-        // Use sub-batch names if available, otherwise main batch name
+        const ageDays = Math.floor((new Date(midDate + 'T12:00:00') - new Date(birthDate + 'T12:00:00')) / 86400000);
+        if (ageDays < 0) return;
+        const ratePerPig = pigFeederLbsPerDayAtAge(ageDays);
+        const subs = Array.isArray(g.subBatches) ? g.subBatches : [];
+        let pigCount = 0;
+        if (subs.length === 0) {
+          // Legacy parent-only batch: mirror pigDailyBurnLbs' parent path
+          // exactly (started − trips − transfers − mortality) so the visible
+          // group row matches the top-tile burn.
+          const giltCount = parseInt(g.giltCount) || parseInt(g.originalPigCount) || 0;
+          const boarCount = parseInt(g.boarCount) || 0;
+          const started = giltCount + boarCount;
+          const tripPigs = (g.processingTrips || []).reduce((s, t) => s + (parseInt(t.pigCount) || 0), 0);
+          const transfers = pigTransfersForBatch(breeders, g.batchName);
+          const mortality = pigMortalityForBatch(g);
+          pigCount = Math.max(0, started - tripPigs - transfers.count - mortality);
+        } else {
+          subs
+            .filter((s2) => s2.status !== 'processed')
+            .forEach((sub) => {
+              pigCount += pigFeederSubCurrentCount(g, sub, breeders);
+            });
+        }
+        const feed = pigCount * ratePerPig * daysInMonth;
         const activeSubs = (g.subBatches || []).filter((s2) => s2.status === 'active');
         const label = activeSubs.length > 0 ? activeSubs.map((s2) => s2.name).join(', ') : g.batchName;
         groups.push({
@@ -348,7 +398,6 @@ export default function PigFeedView({
     return groups;
   }
 
-  // Actual feed by group for a month from pig_dailys
   function actualFeedByGroup(ym) {
     const monthDailys = pigDailys.filter((d) => d.date && d.date.startsWith(ym));
     const byLabel = {};
@@ -359,61 +408,42 @@ export default function PigFeedView({
     return byLabel;
   }
 
-  // Expandable month rows — uses top-level state (React hooks can't be inside conditionals)
-  const expandedMonths = pigFeedExpandedMonths;
-  function toggleMonth(ym) {
-    setPigFeedExpandedMonths((s) => {
-      const n = new Set(s);
-      n.has(ym) ? n.delete(ym) : n.add(ym);
-      return n;
-    });
-  }
+  // ── Visible monthly cards ────────────────────────────────────────────────
+  // Up to 6 most-recently-saved months + the active editable card. When
+  // editing the most-recently-saved month, that month IS the active card
+  // and doesn't double-render.
+  const last6Saved = savedOrderYMs.slice(-6);
+  const visibleSavedYMs =
+    editingMonthYM != null && last6Saved.includes(editingMonthYM)
+      ? last6Saved.filter((ym) => ym !== editingMonthYM)
+      : last6Saved;
+  const visibleCardYMs = [...visibleSavedYMs];
+  if (!visibleCardYMs.includes(activeYM)) visibleCardYMs.push(activeYM);
 
-  // ── Snapshot-anchored order board (feedPlanner.js) ──
-  // First-screen answer to "How much feed do I need to order?". Burn rate
-  // comes from pigDailyBurnLbs (ledger-derived feeder counts + sows/boars).
-  // On-hand is snapshot − consumed-since-snapshot via pig_dailys actuals.
-  const pigBurnFn = function pigBurnFn(dateISO) {
-    return pigDailyBurnLbs(dateISO, {feederGroups, breedingCycles, breeders, farrowingRecs}).totalLbs;
+  // ── Count-includes-month checkbox label ──────────────────────────────────
+  // Drives off the count date's month so the operator sees the right month
+  // name. The state lives in a local input until Save Count fires.
+  const [countLbsInput, setCountLbsInput] = React.useState(inv && inv.count != null ? String(inv.count) : '');
+  const [countDateInput, setCountDateInput] = React.useState(inv && inv.date ? inv.date : todayDate);
+  const [countIncludesInput, setCountIncludesInput] = React.useState(!!(inv && inv.includesCurrentMonthDelivery));
+  const countMonthShort = (() => {
+    const [y, m] = (countDateInput || todayDate).split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', {month: 'short'});
+  })();
+
+  const tileShellS = {
+    background: 'white',
+    border: '1px solid #e5e7eb',
+    borderRadius: 12,
+    padding: '14px 16px',
   };
-  const pigConsumedFn = function pigConsumedFn(fromISO, toISO_) {
-    return pigDailys
-      .filter((d) => d.date && d.date > fromISO && d.date <= toISO_)
-      .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
+  const tileLabelS = {
+    fontSize: 11,
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
   };
-  const hasPigSnapshot = !!(pigFeedInventory && pigFeedInventory.date);
-  const pigOnHand = hasPigSnapshot
-    ? onHandFromSnapshot({
-        snapshotLbs: parseFloat(pigFeedInventory.count) || 0,
-        snapshotDateISO: pigFeedInventory.date,
-        todayISO: todayDate,
-        consumedLbsFn: pigConsumedFn,
-        burnRateFn: pigBurnFn,
-      })
-    : null;
-  const pigSnapshotStale = hasPigSnapshot
-    ? isSnapshotStale({snapshotDateISO: pigFeedInventory.date, todayISO: todayDate})
-    : false;
-  const pigSuggestion = suggestOrder({
-    onHandLbs: pigOnHand == null ? 0 : pigOnHand,
-    todayISO: todayDate,
-    burnRateFn: pigBurnFn,
-  });
-  const pigCurrentMonthOrder = (feedOrders.pig || {})[thisYM];
-  const pigCurrentMonthHasOrder = pigCurrentMonthOrder != null && pigCurrentMonthOrder !== '';
-  function applyPigSuggestion() {
-    if (!pigSuggestion || pigSuggestion.suggestedOrderLbs <= 0) return;
-    if (pigCurrentMonthHasOrder && !confirmPigSuggested) {
-      setConfirmPigSuggested(true);
-      return;
-    }
-    savePigOrder(thisYM, String(pigSuggestion.suggestedOrderLbs));
-    setConfirmPigSuggested(false);
-  }
-  const thisMonthLabel = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-US', {
-    month: 'short',
-    year: 'numeric',
-  });
 
   return (
     <div>
@@ -428,359 +458,90 @@ export default function PigFeedView({
           gap: '1.25rem',
         }}
       >
-        {/* Snapshot-anchored order board — first-screen "How much feed do I need to order?" */}
-        <div
-          style={{
-            background: 'white',
-            border: '2px solid #085041',
-            borderRadius: 12,
-            padding: '14px 18px',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: '#085041',
-              textTransform: 'uppercase',
-              letterSpacing: 0.8,
-              fontWeight: 700,
-              marginBottom: 12,
-            }}
-          >
-            Feed order
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1.1fr 0.9fr 1fr 1.2fr 1.4fr',
-              gap: 14,
-              alignItems: 'center',
-            }}
-          >
-            {/* Est on hand */}
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  marginBottom: 3,
-                }}
-              >
-                Est on hand
-              </div>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: hasPigSnapshot ? '#111827' : '#9ca3af',
-                  fontStyle: hasPigSnapshot ? 'normal' : 'italic',
-                  lineHeight: 1,
-                }}
-              >
-                {pigOnHand != null ? Math.round(pigOnHand).toLocaleString() + ' lbs' : 'No count'}
-              </div>
-              <div style={{fontSize: 10, color: '#9ca3af', marginTop: 3}}>
-                {hasPigSnapshot ? 'Counted ' + fmt(pigFeedInventory.date) : 'estimated'}
-              </div>
-            </div>
-            {/* Days runway */}
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  marginBottom: 3,
-                }}
-              >
-                Days runway
-              </div>
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: pigSuggestion && pigSuggestion.orderIsLate ? '#b91c1c' : '#111827',
-                  lineHeight: 1,
-                }}
-              >
-                {pigSuggestion ? pigSuggestion.daysOfRunway : '—'}
-              </div>
-              <div style={{fontSize: 10, color: '#9ca3af', marginTop: 3}}>
-                {LEAD_TIME_DAYS + 'd lead + ' + RESERVE_DAYS.default + 'd reserve'}
-              </div>
-            </div>
-            {/* Order by */}
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  marginBottom: 3,
-                }}
-              >
-                Order by
-              </div>
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: pigSuggestion && pigSuggestion.orderIsLate ? '#b91c1c' : '#111827',
-                  lineHeight: 1.1,
-                }}
-              >
-                {pigSuggestion ? fmt(pigSuggestion.orderByDateISO) : '—'}
-              </div>
-              {pigSuggestion && pigSuggestion.orderIsLate && (
-                <div style={{fontSize: 10, color: '#b91c1c', fontWeight: 600, marginTop: 3}}>Late — order now</div>
-              )}
-            </div>
-            {/* Suggested */}
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  marginBottom: 3,
-                }}
-              >
-                Suggested
-              </div>
-              <div
-                style={{
-                  fontSize: 26,
-                  fontWeight: 700,
-                  color: pigSuggestion && pigSuggestion.suggestedOrderLbs > 0 ? '#92400e' : '#065f46',
-                  fontStyle: hasPigSnapshot ? 'normal' : 'italic',
-                  lineHeight: 1,
-                }}
-              >
-                {pigSuggestion
-                  ? pigSuggestion.suggestedOrderLbs > 0
-                    ? pigSuggestion.suggestedOrderLbs.toLocaleString() + ' lbs'
-                    : 'Surplus'
-                  : '—'}
-              </div>
-              <div style={{fontSize: 10, color: '#9ca3af', marginTop: 3}}>
-                {hasPigSnapshot
-                  ? pigSnapshotStale
-                    ? 'Recount soon (>' + STALE_SNAPSHOT_DAYS + 'd)'
-                    : 'rounded to 50 lbs'
-                  : 'estimated — enter count'}
-              </div>
-            </div>
-            {/* Use suggested action */}
-            <div>
-              <button
-                type="button"
-                onClick={applyPigSuggestion}
-                disabled={!pigSuggestion || pigSuggestion.suggestedOrderLbs <= 0}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: confirmPigSuggested ? '#b91c1c' : '#085041',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: pigSuggestion && pigSuggestion.suggestedOrderLbs > 0 ? 'pointer' : 'not-allowed',
-                  opacity: pigSuggestion && pigSuggestion.suggestedOrderLbs > 0 ? 1 : 0.5,
-                  fontFamily: 'inherit',
-                }}
-              >
-                {!pigSuggestion || pigSuggestion.suggestedOrderLbs <= 0
-                  ? 'No order needed'
-                  : confirmPigSuggested
-                    ? 'Confirm: replace ' +
-                      (parseFloat(pigCurrentMonthOrder) || 0).toLocaleString() +
-                      ' → ' +
-                      pigSuggestion.suggestedOrderLbs.toLocaleString()
-                    : pigCurrentMonthHasOrder
-                      ? 'Use suggested (replace ' + (parseFloat(pigCurrentMonthOrder) || 0).toLocaleString() + ')'
-                      : 'Use suggested'}
-              </button>
-              <div style={{fontSize: 10, color: '#9ca3af', marginTop: 5, textAlign: 'center'}}>
-                {'Writes to ' + thisMonthLabel + ' order'}
-              </div>
-            </div>
-          </div>
-          {(pigSnapshotStale || !hasPigSnapshot) && (
+        {/* 4 top tiles */}
+        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
+          {/* Actual On Hand */}
+          <div style={tileShellS}>
+            <div style={tileLabelS}>Actual On Hand</div>
             <div
               style={{
-                marginTop: 12,
-                padding: '8px 12px',
-                background: hasPigSnapshot ? '#fef3c7' : '#f3f4f6',
-                border: hasPigSnapshot ? '1px solid #fde68a' : '1px dashed #d1d5db',
-                borderRadius: 8,
-                fontSize: 12,
-                color: hasPigSnapshot ? '#92400e' : '#4b5563',
+                fontSize: 28,
+                fontWeight: 700,
+                color: feedOnHand != null ? (feedOnHand > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
+                lineHeight: 1,
               }}
             >
-              {hasPigSnapshot
-                ? 'Snapshot is more than ' + STALE_SNAPSHOT_DAYS + ' days old — recount recommended for accuracy.'
-                : 'No physical count on file — the suggestion above is estimated. Enter the lbs on hand below for a precise order.'}
+              {feedOnHand != null ? feedOnHand.toLocaleString() + ' lbs' : '—'}
             </div>
-          )}
+            {inv && <div style={{fontSize: 11, color: '#9ca3af', marginTop: 6}}>{'Count: ' + fmt(inv.date)}</div>}
+            {inv && physCountAdjustment != null && physCountAdjustment !== 0 && (
+              <div style={{fontSize: 10, color: physCountAdjustment > 0 ? '#065f46' : '#b91c1c', marginTop: 2}}>
+                {'Adj ' + (physCountAdjustment > 0 ? '+' : '') + physCountAdjustment.toLocaleString() + ' vs system'}
+              </div>
+            )}
+          </div>
+
+          {/* End of [prev] Est */}
+          <div style={tileShellS}>
+            <div style={tileLabelS}>{'End of ' + prevLabel + ' Est.'}</div>
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: endOfPrevEst != null ? (endOfPrevEst > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
+                lineHeight: 1,
+              }}
+            >
+              {endOfPrevEst != null ? endOfPrevEst.toLocaleString() + ' lbs' : '—'}
+            </div>
+          </div>
+
+          {/* Order for [active] */}
+          <div
+            style={{
+              ...tileShellS,
+              background: recommendedOrder != null && recommendedOrder > 0 ? '#fffbeb' : 'white',
+              border: recommendedOrder != null && recommendedOrder > 0 ? '2px solid #fde68a' : '1px solid #e5e7eb',
+            }}
+          >
+            <div
+              style={{
+                ...tileLabelS,
+                color: recommendedOrder != null && recommendedOrder > 0 ? '#92400e' : '#6b7280',
+              }}
+            >
+              {'Order for ' + activeLabel}
+            </div>
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: recommendedOrder != null ? (recommendedOrder > 0 ? '#92400e' : '#065f46') : '#9ca3af',
+                lineHeight: 1,
+              }}
+            >
+              {recommendedOrder != null ? recommendedOrder.toLocaleString() + ' lbs' : '—'}
+            </div>
+          </div>
+
+          {/* Need Thru [next] */}
+          <div style={tileShellS}>
+            <div style={tileLabelS}>{'Need Thru ' + nextLabel}</div>
+            <div style={{fontSize: 28, fontWeight: 700, color: '#111827', lineHeight: 1}}>
+              {needThruNext.toLocaleString() + ' lbs'}
+            </div>
+            <div style={{fontSize: 11, color: '#9ca3af', marginTop: 6}}>
+              {(activeMd ? activeMd.projTotal.toLocaleString() : '0') +
+                ' (' +
+                activeLabel +
+                ') + ' +
+                (nextMd ? nextMd.projTotal.toLocaleString() : '0') +
+                ' (' +
+                nextLabel +
+                ')'}
+            </div>
+          </div>
         </div>
-
-        {/* Show/hide legacy monthly ledger */}
-        <button
-          type="button"
-          onClick={() => setShowPigLegacyLedger((s) => !s)}
-          style={{
-            alignSelf: 'flex-start',
-            padding: '6px 12px',
-            background: 'transparent',
-            border: '1px solid #d1d5db',
-            borderRadius: 6,
-            fontSize: 12,
-            color: '#4b5563',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          {showPigLegacyLedger ? '▼ Hide monthly ledger' : '▶ Show monthly ledger'}
-        </button>
-
-        {/* 4 top tiles — big numbers (legacy ledger) */}
-        {showPigLegacyLedger && (
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
-            {/* Actual On Hand */}
-            <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.8,
-                  marginBottom: 4,
-                }}
-              >
-                Actual On Hand
-              </div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: feedOnHand != null ? (feedOnHand > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
-                  lineHeight: 1,
-                }}
-              >
-                {feedOnHand != null ? feedOnHand.toLocaleString() + ' lbs' : '\u2014'}
-              </div>
-              {inv && <div style={{fontSize: 11, color: '#9ca3af', marginTop: 6}}>{'Count: ' + fmt(inv.date)}</div>}
-              {inv && physCountAdjustment != null && physCountAdjustment !== 0 && (
-                <div style={{fontSize: 10, color: physCountAdjustment > 0 ? '#065f46' : '#b91c1c', marginTop: 2}}>
-                  {'Adj ' + (physCountAdjustment > 0 ? '+' : '') + physCountAdjustment.toLocaleString() + ' vs system'}
-                </div>
-              )}
-              {!inv && feedOnHand != null && curProj.total > 0 && (
-                <div style={{fontSize: 11, color: '#065f46', fontWeight: 600, marginTop: 4}}>
-                  {'~' + Math.max(0, Math.round(feedOnHand / curProj.total)) + ' days remaining'}
-                </div>
-              )}
-            </div>
-            {/* End of Month Est */}
-            <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.8,
-                  marginBottom: 4,
-                }}
-              >
-                End of Month Est.
-              </div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: endOfMonthEst != null ? (endOfMonthEst > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
-                  lineHeight: 1,
-                }}
-              >
-                {endOfMonthEst != null ? endOfMonthEst.toLocaleString() + ' lbs' : '\u2014'}
-              </div>
-              <div style={{fontSize: 11, color: '#6b7280', marginTop: 6}}>
-                {'Incl. ' + ((feedOrders.pig || {})[thisYM] || 0).toLocaleString() + ' arriving'}
-              </div>
-            </div>
-            {/* Suggested Order */}
-            <div
-              style={{
-                background: suggestedOrder > 0 ? '#fffbeb' : 'white',
-                border: suggestedOrder > 0 ? '2px solid #fde68a' : '1px solid #e5e7eb',
-                borderRadius: 12,
-                padding: '14px 16px',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 11,
-                  color: suggestedOrder > 0 ? '#92400e' : '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.8,
-                  marginBottom: 4,
-                }}
-              >
-                {'Order for ' + orderTargetLabel}
-              </div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: suggestedOrder != null ? (suggestedOrder > 0 ? '#92400e' : '#065f46') : '#9ca3af',
-                  lineHeight: 1,
-                }}
-              >
-                {suggestedOrder != null
-                  ? suggestedOrder > 0
-                    ? suggestedOrder.toLocaleString() + ' lbs'
-                    : 'Surplus'
-                  : '\u2014'}
-              </div>
-              <div style={{fontSize: 11, color: '#6b7280', marginTop: 6}}>
-                {'Carryover: ' + (orderBaseEst != null ? orderBaseEst.toLocaleString() : '\u2014') + ' lbs'}
-              </div>
-            </div>
-            {/* Need thru */}
-            <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.8,
-                  marginBottom: 4,
-                }}
-              >
-                {'Need thru ' + monthAfterNext0.toLocaleDateString('en-US', {month: 'short'})}
-              </div>
-              <div style={{fontSize: 28, fontWeight: 700, color: '#111827', lineHeight: 1}}>
-                {twoMonthNeed0.toLocaleString() + ' lbs'}
-              </div>
-              <div style={{fontSize: 11, color: '#9ca3af', marginTop: 6}}>
-                {(orderTargetData ? orderTargetData.projTotal.toLocaleString() : '0') +
-                  ' (' +
-                  orderTargetLabel +
-                  ') + ' +
-                  (monthAfterNextData0 ? monthAfterNextData0.projTotal.toLocaleString() : '0') +
-                  ' (' +
-                  monthAfterNext0.toLocaleDateString('en-US', {month: 'short'}) +
-                  ')'}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Physical count input */}
         <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '12px 20px'}}>
@@ -796,7 +557,8 @@ export default function PigFeedView({
                 min="0"
                 step="100"
                 placeholder="e.g. 5000"
-                defaultValue={inv ? inv.count : ''}
+                value={countLbsInput}
+                onChange={(e) => setCountLbsInput(e.target.value)}
                 style={{
                   fontSize: 13,
                   padding: '7px 10px',
@@ -812,7 +574,8 @@ export default function PigFeedView({
               <input
                 id="pig-feed-count-date"
                 type="date"
-                defaultValue={inv ? inv.date : todayDate}
+                value={countDateInput}
+                onChange={(e) => setCountDateInput(e.target.value)}
                 style={{
                   fontSize: 13,
                   padding: '7px 10px',
@@ -822,15 +585,39 @@ export default function PigFeedView({
                 }}
               />
             </div>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '7px 12px',
+                border: '1px solid #d1d5db',
+                borderRadius: 6,
+                background: '#f9fafb',
+                fontSize: 12,
+                color: '#000',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.2,
+              }}
+            >
+              <input
+                id="pig-feed-count-includes-delivery"
+                type="checkbox"
+                checked={countIncludesInput}
+                onChange={(e) => setCountIncludesInput(e.target.checked)}
+                style={{cursor: 'pointer', margin: 0, accentColor: '#000'}}
+              />
+              {'Count includes ' + countMonthShort + ' order'}
+            </label>
             <button
               onClick={() => {
-                const el = document.getElementById('pig-feed-count-input');
-                const dl = document.getElementById('pig-feed-count-date');
-                if (!el || !el.value) {
+                if (!countLbsInput) {
                   alert('Enter the lbs on hand.');
                   return;
                 }
-                savePigFeedCount(el.value, dl ? dl.value : todayDate);
+                savePigFeedCount(countLbsInput, countDateInput || todayDate, countIncludesInput);
               }}
               style={{
                 padding: '7px 16px',
@@ -851,402 +638,287 @@ export default function PigFeedView({
           </div>
         </div>
 
-        {/* Monthly summary — card per month, current first, collapsible past/future (legacy ledger) */}
-        {showPigLegacyLedger &&
-          (function () {
-            function fmtMonth2(ym) {
-              var p = ym.split('-').map(Number);
-              return new Date(p[0], p[1] - 1, 1).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
-            }
+        {/* Monthly cards: last 6 saved + 1 active editable */}
+        <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+          <div style={{fontSize: 14, fontWeight: 700, color: '#085041'}}>Monthly Pig Feed Ledger</div>
+          {visibleCardYMs.map((ym) => {
+            const md = monthlyData.find((m) => m.ym === ym);
+            if (!md) return null;
+            const isActive = ym === activeYM;
+            const lg = isActive ? activeCardLg : pigLedger[ym];
+            const savedVal = (feedOrders.pig || {})[ym];
+            const isSaved = savedVal != null && savedVal !== '';
+            const isMostRecentSavedNonActive = !isActive && ym === mostRecentSavedYM;
+            const projGroups = projectedFeedByGroup(ym);
+            const actualGroups = actualFeedByGroup(ym);
+            return (
+              <div
+                key={ym}
+                style={{
+                  background: 'white',
+                  border: isActive ? '2px solid #085041' : '1px solid #e5e7eb',
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    background: isActive ? '#ecfdf5' : 'white',
+                  }}
+                >
+                  <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{ymLabel(ym)}</span>
+                  {isActive && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#065f46',
+                        background: '#d1fae5',
+                        padding: '1px 8px',
+                        borderRadius: 10,
+                      }}
+                    >
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
 
-            // ── Build running inventory ledger ──
-            // START → CONSUMED → ORDERED (arrives end of month) → END
-            var pigLedger = {};
-            var runBal = 0;
-            var allMonthsSorted = monthlyData.slice().sort(function (a, b) {
-              return a.ym.localeCompare(b.ym);
-            });
-            var countApplied = false;
-            for (var mi3 = 0; mi3 < allMonthsSorted.length; mi3++) {
-              var md3 = allMonthsSorted[mi3];
-              if (md3.ym < firstPigOrderYM) {
-                pigLedger[md3.ym] = null;
-                continue;
-              }
-              var lgStart = runBal;
-              var lgCountMonth = false;
-              var lgCountAdj = null;
-              // Physical count override
-              if (inv && !countApplied) {
-                var invYM3 = inv.date.substring(0, 7);
-                if (invYM3 === md3.ym) {
-                  // When count includes this month's delivery, the system-side comparison must
-                  // include that order too (else a perfect count shows a phantom adjustment).
-                  var thisMonthOrderForAdj = parseFloat(md3.ordered) || 0;
-                  var systemEstThisMonth = runBal + (inv.includesCurrentMonthDelivery ? thisMonthOrderForAdj : 0);
-                  lgCountAdj = Math.round(inv.count - systemEstThisMonth);
-                  lgStart = inv.count;
-                  lgCountMonth = true;
-                  countApplied = true;
-                  var cAfter = pigDailys
-                    .filter(function (d) {
-                      return d.date && d.date > inv.date && d.date.startsWith(md3.ym);
-                    })
-                    .reduce(function (s, d) {
-                      return s + (parseFloat(d.feed_lbs) || 0);
-                    }, 0);
-                  var pRem = 0;
-                  if (md3.isCurrent) {
-                    var dl4 = md3.daysInMonth - now.getDate();
-                    if (dl4 > 0) pRem = Math.round(curProj.total * dl4);
-                  }
-                  var lgCons = Math.round(cAfter + pRem);
-                  // When delivery is already absorbed into the count value, don't add this month's order again.
-                  var lgOrd = inv.includesCurrentMonthDelivery ? 0 : parseFloat(md3.ordered) || 0;
-                  var lgEnd = Math.round(lgStart - lgCons + lgOrd);
-                  pigLedger[md3.ym] = {
-                    start: lgStart,
-                    consumed: lgCons,
-                    actualCons: Math.round(cAfter),
-                    projCons: Math.round(pRem),
-                    ordered: lgOrd,
-                    rawOrdered: parseFloat(md3.ordered) || 0,
-                    end: lgEnd,
-                    countMonth: true,
-                    countAdj: lgCountAdj,
-                  };
-                  runBal = lgEnd;
-                  continue;
-                } else if (invYM3 < md3.ym) {
-                  lgStart = inv.count;
-                  countApplied = true;
-                }
-              }
-              var lgActual = md3.actual;
-              var lgProj = 0;
-              if (md3.isCurrent) {
-                var dl5 = md3.daysInMonth - now.getDate();
-                if (dl5 > 0) lgProj = Math.round(curProj.total * dl5);
-              } else if (md3.isFuture) {
-                lgProj = md3.projTotal;
-                lgActual = 0;
-              }
-              var lgCons2 = Math.round(lgActual + lgProj);
-              var lgOrd2 = parseFloat(md3.ordered) || 0;
-              var lgEnd2 = Math.round(lgStart - lgCons2 + lgOrd2);
-              pigLedger[md3.ym] = {
-                start: Math.round(lgStart),
-                consumed: lgCons2,
-                actualCons: Math.round(lgActual),
-                projCons: Math.round(lgProj),
-                ordered: lgOrd2,
-                end: lgEnd2,
-                countMonth: lgCountMonth,
-                countAdj: lgCountAdj,
-              };
-              runBal = lgEnd2;
-            }
-
-            function renderPigMonthCard(md2) {
-              var lg = pigLedger[md2.ym];
-              if (!lg) return null;
-              var projGroups = projectedFeedByGroup(md2.ym);
-              var actualGroups = actualFeedByGroup(md2.ym);
-              var variance = !md2.isFuture && md2.actual > 0 ? md2.actual - md2.projTotal : null;
-              return React.createElement(
-                'div',
-                {
-                  key: md2.ym,
-                  style: {
-                    background: 'white',
-                    border: md2.isCurrent ? '2px solid #085041' : '1px solid #e5e7eb',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                  },
-                },
-                // Header
-                React.createElement(
-                  'div',
-                  {
-                    style: {
-                      padding: '10px 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      background: md2.isCurrent ? '#ecfdf5' : md2.isFuture ? '#f8fafc' : 'white',
-                    },
-                  },
-                  React.createElement(
-                    'span',
-                    {style: {fontSize: 14, fontWeight: 700, color: '#111827'}},
-                    fmtMonth2(md2.ym),
-                  ),
-                  md2.isCurrent &&
-                    React.createElement(
-                      'span',
-                      {
-                        style: {
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: '#065f46',
-                          background: '#d1fae5',
-                          padding: '1px 8px',
-                          borderRadius: 10,
-                        },
-                      },
-                      'NOW',
-                    ),
-                  md2.isFuture && React.createElement('span', {style: {fontSize: 10, color: '#9ca3af'}}, 'projected'),
-                  lg.countMonth &&
-                    lg.countAdj != null &&
-                    lg.countAdj !== 0 &&
-                    React.createElement(
-                      'span',
-                      {
-                        style: {
-                          fontSize: 10,
-                          fontWeight: 600,
-                          color: lg.countAdj > 0 ? '#065f46' : '#b91c1c',
-                          background: lg.countAdj > 0 ? '#ecfdf5' : '#fef2f2',
-                          padding: '1px 8px',
-                          borderRadius: 10,
-                        },
-                      },
-                      'Count adj ' + (lg.countAdj > 0 ? '+' : '') + lg.countAdj.toLocaleString(),
-                    ),
-                ),
-                // Ledger row — START / CONSUMED / ORDERED / END
-                React.createElement(
-                  'div',
-                  {
-                    style: {
-                      padding: '8px 16px 6px',
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1.2fr 1fr 1fr',
-                      gap: 10,
-                    },
-                  },
-                  // START
-                  React.createElement(
-                    'div',
-                    null,
-                    React.createElement(
-                      'div',
-                      {
-                        style: {
-                          fontSize: 10,
-                          color: '#6b7280',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                          marginBottom: 2,
-                        },
-                      },
-                      'Start of Month',
-                    ),
-                    React.createElement(
-                      'div',
-                      {style: {fontSize: 16, fontWeight: 600, color: lg.start >= 0 ? '#374151' : '#b91c1c'}},
-                      lg.start.toLocaleString(),
-                    ),
-                  ),
-                  // CONSUMED
-                  React.createElement(
-                    'div',
-                    null,
-                    React.createElement(
-                      'div',
-                      {
-                        style: {
-                          fontSize: 10,
-                          color: '#6b7280',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                          marginBottom: 2,
-                        },
-                      },
-                      'Consumed',
-                    ),
-                    React.createElement(
-                      'div',
-                      {style: {fontSize: 16, fontWeight: 600, color: '#111827'}},
-                      lg.consumed.toLocaleString(),
-                    ),
-                    md2.isCurrent && lg.projCons > 0
-                      ? React.createElement(
-                          'div',
-                          {style: {fontSize: 10, color: '#9ca3af', marginTop: 1}},
-                          lg.actualCons.toLocaleString() + ' actual + ' + lg.projCons.toLocaleString() + ' proj',
-                        )
-                      : null,
-                    md2.isFuture
-                      ? React.createElement('div', {style: {fontSize: 10, color: '#9ca3af', marginTop: 1}}, 'projected')
-                      : null,
-                  ),
-                  // ORDERED (input)
-                  React.createElement(
-                    'div',
-                    null,
-                    React.createElement(
-                      'div',
-                      {
-                        style: {
-                          fontSize: 10,
-                          color: '#6b7280',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                          marginBottom: 2,
-                        },
-                      },
-                      'Ordered',
-                    ),
-                    React.createElement('input', {
-                      type: 'number',
-                      min: '0',
-                      step: '100',
-                      value: md2.ordered != null && md2.ordered !== '' ? md2.ordered : '',
-                      onChange: function (e) {
-                        savePigOrder(md2.ym, e.target.value);
-                      },
-                      onClick: function (e) {
-                        e.stopPropagation();
-                      },
-                      placeholder: '0',
-                      style: {
-                        width: '100%',
-                        fontSize: 14,
-                        padding: '4px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: 6,
-                        textAlign: 'right',
-                        fontFamily: 'inherit',
+                {/* Equation row: Start − Consumed + Ordered = End */}
+                <div
+                  style={{
+                    padding: '8px 16px 6px',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 14px 1.2fr 14px 1.4fr 14px 1fr',
+                    gap: 8,
+                    alignItems: 'end',
+                  }}
+                >
+                  {/* Start */}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                        marginBottom: 2,
+                      }}
+                    >
+                      Start of Month
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 16,
                         fontWeight: 600,
-                        boxSizing: 'border-box',
-                      },
-                    }),
-                    React.createElement(
-                      'div',
-                      {style: {fontSize: 10, color: '#9ca3af', marginTop: 1}},
-                      'arrives end of mo.',
-                    ),
-                  ),
-                  // END OF MONTH
-                  React.createElement(
-                    'div',
-                    null,
-                    React.createElement(
-                      'div',
-                      {
-                        style: {
-                          fontSize: 10,
-                          color: '#6b7280',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                          marginBottom: 2,
-                        },
-                      },
-                      'End of Month',
-                    ),
-                    React.createElement(
-                      'div',
-                      {style: {fontSize: 16, fontWeight: 700, color: lg.end > 0 ? '#065f46' : '#b91c1c'}},
-                      lg.end.toLocaleString(),
-                    ),
-                  ),
-                ),
-                // Projected vs Actual — daily rates + extrapolated monthly variance
-                (function () {
-                  var projDaily = Math.round(md2.projTotal / md2.daysInMonth);
-                  var daysElapsed = md2.isFuture ? 0 : md2.isCurrent ? now.getDate() : md2.daysInMonth;
-                  var actualDaily = daysElapsed > 0 ? Math.round(md2.actual / daysElapsed) : 0;
-                  var dailyVar = daysElapsed > 0 ? actualDaily - projDaily : null;
-                  // Monthly variance: for completed months use actual totals, for current month extrapolate daily rate to full month
-                  var moVar = null;
-                  if (!md2.isFuture && daysElapsed > 0) {
-                    if (md2.isCurrent) moVar = Math.round(actualDaily * md2.daysInMonth) - md2.projTotal;
-                    else moVar = md2.actual - md2.projTotal;
+                        color: lg && lg.start >= 0 ? '#374151' : '#b91c1c',
+                      }}
+                    >
+                      {lg ? lg.start.toLocaleString() : '—'}
+                    </div>
+                  </div>
+                  <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'−'}</div>
+                  {/* Consumed */}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                        marginBottom: 2,
+                      }}
+                    >
+                      Consumed
+                    </div>
+                    <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
+                      {lg ? lg.consumed.toLocaleString() : '—'}
+                    </div>
+                    {lg && md.isCurrent && lg.projCons > 0 && (
+                      <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>
+                        {lg.actualCons.toLocaleString() + ' actual + ' + lg.projCons.toLocaleString() + ' proj'}
+                      </div>
+                    )}
+                    {lg && md.isFuture && <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>projected</div>}
+                  </div>
+                  <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'+'}</div>
+                  {/* Ordered */}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                        marginBottom: 2,
+                      }}
+                    >
+                      Ordered
+                    </div>
+                    {isActive ? (
+                      <div style={{display: 'flex', gap: 6, alignItems: 'center'}}>
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={activeOrderDraft}
+                          onChange={(e) => setActiveOrderDraft(e.target.value)}
+                          style={{
+                            width: '100%',
+                            fontSize: 14,
+                            padding: '4px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: 6,
+                            textAlign: 'right',
+                            fontFamily: 'inherit',
+                            fontWeight: 600,
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                        <button
+                          onClick={commitActiveOrder}
+                          disabled={(activeOrderDraft || '').trim() === ''}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: 6,
+                            border: 'none',
+                            background: (activeOrderDraft || '').trim() === '' ? '#9ca3af' : '#085041',
+                            color: 'white',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: (activeOrderDraft || '').trim() === '' ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Save Order
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                        <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
+                          {isSaved ? Number(savedVal).toLocaleString() : '—'}
+                        </div>
+                        {isMostRecentSavedNonActive && (
+                          <button
+                            onClick={() => editMonth(ym)}
+                            style={{
+                              fontSize: 11,
+                              padding: '3px 8px',
+                              borderRadius: 5,
+                              border: '1px solid #d1d5db',
+                              background: 'white',
+                              color: '#4b5563',
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>arrives end of mo.</div>
+                  </div>
+                  <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'='}</div>
+                  {/* End */}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                        marginBottom: 2,
+                      }}
+                    >
+                      End of Month
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: lg && lg.end > 0 ? '#065f46' : '#b91c1c',
+                      }}
+                    >
+                      {lg ? lg.end.toLocaleString() : '—'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Variance: Proj vs Actual daily rates */}
+                {(() => {
+                  const projDaily = Math.round(md.projTotal / md.daysInMonth);
+                  const daysElapsed = md.isFuture ? 0 : md.isCurrent ? now.getDate() : md.daysInMonth;
+                  const actualDaily = daysElapsed > 0 ? Math.round(md.actual / daysElapsed) : 0;
+                  const dailyVar = daysElapsed > 0 ? actualDaily - projDaily : null;
+                  let moVar = null;
+                  if (!md.isFuture && daysElapsed > 0) {
+                    if (md.isCurrent) moVar = Math.round(actualDaily * md.daysInMonth) - md.projTotal;
+                    else moVar = md.actual - md.projTotal;
                   }
-                  return React.createElement(
-                    'div',
-                    {style: {padding: '2px 16px 8px', display: 'flex', gap: 16, fontSize: 11, color: '#6b7280'}},
-                    React.createElement(
-                      'span',
-                      null,
-                      'Proj: ' + projDaily.toLocaleString() + '/day (' + md2.projTotal.toLocaleString() + ' mo)',
-                    ),
-                    !md2.isFuture &&
-                      React.createElement(
-                        'span',
-                        null,
-                        'Actual: ' +
-                          actualDaily.toLocaleString() +
-                          '/day' +
-                          (md2.isCurrent
-                            ? ' (' + md2.actual.toLocaleString() + ' so far)'
-                            : ' (' + md2.actual.toLocaleString() + ' mo)'),
-                      ),
-                    dailyVar != null &&
-                      dailyVar !== 0 &&
-                      React.createElement(
-                        'span',
-                        {style: {fontWeight: 600, color: dailyVar > 0 ? '#b91c1c' : '#065f46'}},
-                        (dailyVar > 0 ? '+' : '') + dailyVar.toLocaleString() + '/day',
-                      ),
-                    moVar != null &&
-                      moVar !== 0 &&
-                      React.createElement(
-                        'span',
-                        {style: {fontWeight: 600, color: moVar > 0 ? '#b91c1c' : '#065f46'}},
-                        (moVar > 0 ? '+' : '') + moVar.toLocaleString() + ' mo' + (md2.isCurrent ? ' est.' : ''),
-                      ),
+                  return (
+                    <div style={{padding: '2px 16px 8px', display: 'flex', gap: 16, fontSize: 11, color: '#6b7280'}}>
+                      <span>
+                        {'Proj: ' + projDaily.toLocaleString() + '/day (' + md.projTotal.toLocaleString() + ' mo)'}
+                      </span>
+                      {!md.isFuture && (
+                        <span>
+                          {'Actual: ' +
+                            actualDaily.toLocaleString() +
+                            '/day' +
+                            (md.isCurrent
+                              ? ' (' + md.actual.toLocaleString() + ' so far)'
+                              : ' (' + md.actual.toLocaleString() + ' mo)')}
+                        </span>
+                      )}
+                      {dailyVar != null && dailyVar !== 0 && (
+                        <span style={{fontWeight: 600, color: dailyVar > 0 ? '#b91c1c' : '#065f46'}}>
+                          {(dailyVar > 0 ? '+' : '') + dailyVar.toLocaleString() + '/day'}
+                        </span>
+                      )}
+                      {moVar != null && moVar !== 0 && (
+                        <span style={{fontWeight: 600, color: moVar > 0 ? '#b91c1c' : '#065f46'}}>
+                          {(moVar > 0 ? '+' : '') + moVar.toLocaleString() + ' mo' + (md.isCurrent ? ' est.' : '')}
+                        </span>
+                      )}
+                    </div>
                   );
-                })(),
-                // Per-group breakdown
-                React.createElement(
-                  'div',
-                  {style: {borderTop: '1px solid #f3f4f6', padding: '8px 16px 10px'}},
-                  React.createElement(
-                    'table',
-                    {style: {width: '100%', borderCollapse: 'collapse', fontSize: 11}},
-                    React.createElement(
-                      'thead',
-                      null,
-                      React.createElement(
-                        'tr',
-                        {style: {borderBottom: '1px solid #e5e7eb'}},
-                        React.createElement(
-                          'th',
-                          {style: {padding: '4px 10px', textAlign: 'left', fontWeight: 600, color: '#6b7280'}},
-                          'Group',
-                        ),
-                        React.createElement(
-                          'th',
-                          {style: {padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}},
-                          'Proj/day',
-                        ),
-                        React.createElement(
-                          'th',
-                          {style: {padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}},
-                          'Actual/day',
-                        ),
-                        React.createElement(
-                          'th',
-                          {style: {padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}},
-                          'Variance/day',
-                        ),
-                      ),
-                    ),
-                    React.createElement(
-                      'tbody',
-                      null,
-                      (function () {
-                        var gDaysElapsed = md2.isFuture ? 0 : md2.isCurrent ? now.getDate() : md2.daysInMonth;
-                        return projGroups.map(function (pg, gi) {
-                          var actualLbs = 0;
+                })()}
+
+                {/* Per-group breakdown — always visible */}
+                <div style={{borderTop: '1px solid #f3f4f6', padding: '8px 16px 10px'}}>
+                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
+                    <thead>
+                      <tr style={{borderBottom: '1px solid #e5e7eb'}}>
+                        <th style={{padding: '4px 10px', textAlign: 'left', fontWeight: 600, color: '#6b7280'}}>
+                          Group
+                        </th>
+                        <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                          Proj/day
+                        </th>
+                        <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                          Actual/day
+                        </th>
+                        <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                          Variance/day
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const gDaysElapsed = md.isFuture ? 0 : md.isCurrent ? now.getDate() : md.daysInMonth;
+                        return projGroups.map((pg, gi) => {
+                          let actualLbs = 0;
                           if (pg.label === 'SOWS') actualLbs = actualGroups['SOWS'] || 0;
                           else if (pg.label === 'BOARS') actualLbs = actualGroups['BOARS'] || 0;
                           else {
-                            Object.entries(actualGroups).forEach(function (e2) {
-                              var low = e2[0].toLowerCase().trim();
+                            Object.entries(actualGroups).forEach((e2) => {
+                              const low = e2[0].toLowerCase().trim();
                               if (pg.subNames && pg.subNames.length > 0) {
                                 if (pg.subNames.includes(low)) actualLbs += e2[1];
                               } else if (pg.mainName && low === pg.mainName) {
@@ -1255,223 +927,46 @@ export default function PigFeedView({
                             });
                           }
                           actualLbs = Math.round(actualLbs);
-                          var projDay = Math.round(pg.projected / md2.daysInMonth);
-                          var actualDay = gDaysElapsed > 0 ? Math.round(actualLbs / gDaysElapsed) : 0;
-                          var gVar = md2.isFuture ? null : gDaysElapsed > 0 ? actualDay - projDay : null;
-                          return React.createElement(
-                            'tr',
-                            {key: gi, style: {borderBottom: '1px solid #f0f0f0'}},
-                            React.createElement(
-                              'td',
-                              {style: {padding: '4px 10px', fontWeight: 500, color: '#374151'}},
-                              pg.label,
-                            ),
-                            React.createElement(
-                              'td',
-                              {style: {padding: '4px 10px', textAlign: 'right', color: '#6b7280'}},
-                              projDay.toLocaleString(),
-                            ),
-                            React.createElement(
-                              'td',
-                              {
-                                style: {
+                          const projDay = Math.round(pg.projected / md.daysInMonth);
+                          const actualDay = gDaysElapsed > 0 ? Math.round(actualLbs / gDaysElapsed) : 0;
+                          const gVar = md.isFuture ? null : gDaysElapsed > 0 ? actualDay - projDay : null;
+                          return (
+                            <tr key={gi} style={{borderBottom: '1px solid #f0f0f0'}}>
+                              <td style={{padding: '4px 10px', fontWeight: 500, color: '#374151'}}>{pg.label}</td>
+                              <td style={{padding: '4px 10px', textAlign: 'right', color: '#6b7280'}}>
+                                {projDay.toLocaleString()}
+                              </td>
+                              <td
+                                style={{
                                   padding: '4px 10px',
                                   textAlign: 'right',
                                   fontWeight: 600,
-                                  color: md2.isFuture ? '#9ca3af' : '#111827',
-                                },
-                              },
-                              md2.isFuture ? '\u2014' : actualDay.toLocaleString(),
-                            ),
-                            React.createElement(
-                              'td',
-                              {
-                                style: {
+                                  color: md.isFuture ? '#9ca3af' : '#111827',
+                                }}
+                              >
+                                {md.isFuture ? '—' : actualDay.toLocaleString()}
+                              </td>
+                              <td
+                                style={{
                                   padding: '4px 10px',
                                   textAlign: 'right',
                                   fontWeight: 600,
                                   color: gVar == null ? '#9ca3af' : gVar > 0 ? '#b91c1c' : '#065f46',
-                                },
-                              },
-                              gVar == null ? '\u2014' : (gVar > 0 ? '+' : '') + gVar.toLocaleString(),
-                            ),
+                                }}
+                              >
+                                {gVar == null ? '—' : (gVar > 0 ? '+' : '') + gVar.toLocaleString()}
+                              </td>
+                            </tr>
                           );
                         });
-                      })(),
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            var currentMonth = monthlyData.filter(function (m) {
-              return m.isCurrent;
-            });
-            var futureMonths = monthlyData.filter(function (m) {
-              return m.isFuture;
-            });
-            var pastMonths = monthlyData
-              .filter(function (m) {
-                return !m.isCurrent && !m.isFuture;
-              })
-              .reverse();
-            var pastByYear = {};
-            pastMonths.forEach(function (m) {
-              var yr = m.ym.substring(0, 4);
-              if (!pastByYear[yr]) pastByYear[yr] = [];
-              pastByYear[yr].push(m);
-            });
-            var pastYears = Object.keys(pastByYear).sort().reverse();
-
-            var secToggle = pigFeedExpandedMonths;
-            function togSec(key) {
-              setPigFeedExpandedMonths(function (s) {
-                var n = new Set(s);
-                n.has(key) ? n.delete(key) : n.add(key);
-                return n;
-              });
-            }
-
-            return React.createElement(
-              'div',
-              {style: {display: 'flex', flexDirection: 'column', gap: '1.25rem'}},
-              React.createElement(
-                'div',
-                {style: {fontSize: 14, fontWeight: 700, color: '#085041'}},
-                'Monthly Pig Feed Summary',
-              ),
-              currentMonth.length > 0 && React.createElement('div', null, currentMonth.map(renderPigMonthCard)),
-              futureMonths.length > 0 &&
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'div',
-                    {
-                      onClick: function () {
-                        togSec('future');
-                      },
-                      style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        cursor: 'pointer',
-                        padding: '8px 0',
-                        marginBottom: 6,
-                      },
-                    },
-                    React.createElement(
-                      'span',
-                      {style: {fontSize: 10, color: '#9ca3af'}},
-                      secToggle.has('future') ? '\u25bc' : '\u25b6',
-                    ),
-                    React.createElement(
-                      'span',
-                      {style: {fontSize: 13, fontWeight: 600, color: '#4b5563'}},
-                      'UPCOMING MONTHS',
-                    ),
-                    React.createElement(
-                      'span',
-                      {style: {fontSize: 11, color: '#9ca3af'}},
-                      '(' + futureMonths.length + ')',
-                    ),
-                  ),
-                  secToggle.has('future') &&
-                    React.createElement(
-                      'div',
-                      {style: {display: 'flex', flexDirection: 'column', gap: 10}},
-                      futureMonths.map(renderPigMonthCard),
-                    ),
-                ),
-              pastYears.length > 0 &&
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'div',
-                    {
-                      onClick: function () {
-                        togSec('past');
-                      },
-                      style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        cursor: 'pointer',
-                        padding: '8px 0',
-                        marginBottom: 6,
-                      },
-                    },
-                    React.createElement(
-                      'span',
-                      {style: {fontSize: 10, color: '#9ca3af'}},
-                      secToggle.has('past') ? '\u25bc' : '\u25b6',
-                    ),
-                    React.createElement(
-                      'span',
-                      {style: {fontSize: 13, fontWeight: 600, color: '#4b5563'}},
-                      'PAST MONTHS',
-                    ),
-                    React.createElement(
-                      'span',
-                      {style: {fontSize: 11, color: '#9ca3af'}},
-                      '(' + pastMonths.length + ')',
-                    ),
-                  ),
-                  secToggle.has('past') &&
-                    React.createElement(
-                      'div',
-                      {style: {display: 'flex', flexDirection: 'column', gap: 14}},
-                      pastYears.map(function (yr) {
-                        var yearMonths = pastByYear[yr];
-                        var yearKey = 'past-' + yr;
-                        return React.createElement(
-                          'div',
-                          {key: yr},
-                          pastYears.length > 1 &&
-                            React.createElement(
-                              'div',
-                              {
-                                onClick: function () {
-                                  togSec(yearKey);
-                                },
-                                style: {
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 6,
-                                  cursor: 'pointer',
-                                  padding: '4px 0',
-                                  marginBottom: 6,
-                                },
-                              },
-                              React.createElement(
-                                'span',
-                                {style: {fontSize: 10, color: '#9ca3af'}},
-                                secToggle.has(yearKey) ? '\u25bc' : '\u25b6',
-                              ),
-                              React.createElement(
-                                'span',
-                                {style: {fontSize: 12, fontWeight: 600, color: '#6b7280'}},
-                                yr,
-                              ),
-                              React.createElement(
-                                'span',
-                                {style: {fontSize: 11, color: '#9ca3af'}},
-                                '(' + yearMonths.length + ' months)',
-                              ),
-                            ),
-                          (pastYears.length === 1 || secToggle.has(yearKey)) &&
-                            React.createElement(
-                              'div',
-                              {style: {display: 'flex', flexDirection: 'column', gap: 10}},
-                              yearMonths.map(renderPigMonthCard),
-                            ),
-                        );
-                      }),
-                    ),
-                ),
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             );
-          })()}
+          })}
+        </div>
 
         {/* Feed rates reference */}
         <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 20px'}}>
