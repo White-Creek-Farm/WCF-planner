@@ -174,12 +174,14 @@ export default function BroilerFeedView({
     setFeedOrders(next);
     sbSave('ppp-feed-orders-v1', next);
   }
-  function savePoultryFeedCount(type, count, date, includesCurrentMonthDelivery) {
+  function savePoultryFeedCount(type, count, date) {
+    // New count writes are flat {count, date} per feed type. The legacy
+    // includesCurrentMonthDelivery flag is no longer operator-facing;
+    // helpers below still tolerate it on old persisted rows.
     var inv = {...(poultryFeedInventory || {})};
     inv[type] = {
       count: parseFloat(count) || 0,
       date: date || todayDate,
-      includesCurrentMonthDelivery: !!includesCurrentMonthDelivery,
     };
     setPoultryFeedInventory(inv);
     sbSave('ppp-poultry-feed-inventory-v1', inv);
@@ -259,7 +261,6 @@ export default function BroilerFeedView({
             countAdj: cAdj,
             proj: md4[projKey],
             actual: md4[actualKey],
-            deliveryInCount: !!pInv2.includesCurrentMonthDelivery,
           };
           runBal2 = en;
           continue;
@@ -991,7 +992,7 @@ export default function BroilerFeedView({
                   alert('Enter the lbs on hand.');
                   return;
                 }
-                savePoultryFeedCount(countType, el.value, dl ? dl.value : todayDate, false);
+                savePoultryFeedCount(countType, el.value, dl ? dl.value : todayDate);
                 el.value = '';
               }}
               style={{
@@ -1255,13 +1256,6 @@ export default function BroilerFeedView({
                                 fontFamily: 'inherit',
                               },
                             }),
-                            lg && lg.deliveryInCount
-                              ? React.createElement(
-                                  'div',
-                                  {style: {fontSize: 9, color: '#065f46', fontStyle: 'italic', marginTop: 1}},
-                                  '(in count)',
-                                )
-                              : null,
                           ),
                           React.createElement(
                             'td',

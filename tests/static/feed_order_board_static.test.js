@@ -75,24 +75,41 @@ describe('Feed order board — uses feedPlanner helper, not duplicated math', ()
     expect(broilerSrc).toMatch(/layerDailys: allLayerDailys/);
   });
 
-  it('Legacy includesCurrentMonthDelivery storage tolerance is preserved (not removed from the file)', () => {
-    expect(pigSrc).toMatch(/includesCurrentMonthDelivery/);
-    expect(broilerSrc).toMatch(/includesCurrentMonthDelivery/);
+  it('Legacy includesCurrentMonthDelivery read tolerance is preserved on persisted rows', () => {
+    // Reconciliation math still has to handle old inventory rows that were
+    // saved with this flag = true. The reads below cover that branch.
+    expect(pigSrc).toMatch(/inv\.includesCurrentMonthDelivery/);
+    expect(broilerSrc).toMatch(/pInv2\.includesCurrentMonthDelivery/);
   });
 
   it('Operator-facing physical-count input must NOT expose the Includes-current-month-delivery checkbox', () => {
-    // Visible label/id were removed from the new count flow. Helpers still
-    // tolerate old persisted rows that carry the flag (covered by the test
-    // above), but the operator can no longer set it true from this surface.
     expect(pigSrc).not.toMatch(/Includes this month's feed delivery/);
     expect(broilerSrc).not.toMatch(/Includes this month's feed delivery/);
     expect(pigSrc).not.toMatch(/pig-feed-count-includes-delivery/);
     expect(broilerSrc).not.toMatch(/poultry-feed-count-includes-delivery/);
   });
 
-  it('Save handlers in the new count flow pass false (not a checkbox value) for the legacy flag', () => {
-    expect(pigSrc).toMatch(/savePigFeedCount\(el\.value, dl \? dl\.value : todayDate, false\)/);
-    expect(broilerSrc).toMatch(/savePoultryFeedCount\(countType, el\.value, dl \? dl\.value : todayDate, false\)/);
+  it('New save handlers do NOT take or pass the legacy flag, and do NOT write it into new inventory rows', () => {
+    // Signature: third arg is gone.
+    expect(pigSrc).toMatch(/function savePigFeedCount\(count, date\)/);
+    expect(broilerSrc).toMatch(/function savePoultryFeedCount\(type, count, date\)/);
+    // Call sites no longer pass a third arg (true OR false).
+    expect(pigSrc).not.toMatch(/savePigFeedCount\([^)]*,\s*(?:true|false)\s*\)/);
+    expect(broilerSrc).not.toMatch(/savePoultryFeedCount\([^)]*,\s*(?:true|false)\s*\)/);
+    // The new inventory objects assembled by the save handlers must not
+    // include the legacy flag as a written key.
+    expect(pigSrc).not.toMatch(/includesCurrentMonthDelivery:\s*!!includesCurrentMonthDelivery/);
+    expect(broilerSrc).not.toMatch(/includesCurrentMonthDelivery:\s*!!includesCurrentMonthDelivery/);
+  });
+
+  it('Legacy operator-facing labels for the delivery-in-count concept are gone', () => {
+    expect(pigSrc).not.toMatch(/Delivery included in count/);
+    expect(pigSrc).not.toMatch(/'\(in count\)'/);
+    expect(broilerSrc).not.toMatch(/Delivery included in count/);
+    expect(broilerSrc).not.toMatch(/'\(in count\)'/);
+    // The internal-only ledger field that only fed those labels is also gone.
+    expect(pigSrc).not.toMatch(/deliveryInCount/);
+    expect(broilerSrc).not.toMatch(/deliveryInCount/);
   });
 
   it('No-snapshot state still surfaces a suggestion (estimated), per Codex direction', () => {

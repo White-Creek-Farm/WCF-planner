@@ -153,11 +153,13 @@ export default function PigFeedView({
     sbSave('ppp-feed-orders-v1', next);
   }
 
-  function savePigFeedCount(count, date, includesCurrentMonthDelivery) {
+  function savePigFeedCount(count, date) {
+    // New count writes are flat {count, date}. The legacy
+    // includesCurrentMonthDelivery flag is no longer operator-facing;
+    // helpers below still tolerate it on old persisted rows.
     const inv = {
       count: parseFloat(count) || 0,
       date: date || todayISO(),
-      includesCurrentMonthDelivery: !!includesCurrentMonthDelivery,
     };
     setPigFeedInventory(inv);
     sbSave('ppp-pig-feed-inventory-v1', inv);
@@ -709,9 +711,7 @@ export default function PigFeedView({
                 {endOfMonthEst != null ? endOfMonthEst.toLocaleString() + ' lbs' : '\u2014'}
               </div>
               <div style={{fontSize: 11, color: '#6b7280', marginTop: 6}}>
-                {inv && inv.includesCurrentMonthDelivery && inv.date && inv.date.substring(0, 7) === thisYM
-                  ? 'Delivery included in count'
-                  : 'Incl. ' + ((feedOrders.pig || {})[thisYM] || 0).toLocaleString() + ' arriving'}
+                {'Incl. ' + ((feedOrders.pig || {})[thisYM] || 0).toLocaleString() + ' arriving'}
               </div>
             </div>
             {/* Suggested Order */}
@@ -830,7 +830,7 @@ export default function PigFeedView({
                   alert('Enter the lbs on hand.');
                   return;
                 }
-                savePigFeedCount(el.value, dl ? dl.value : todayDate, false);
+                savePigFeedCount(el.value, dl ? dl.value : todayDate);
               }}
               style={{
                 padding: '7px 16px',
@@ -914,7 +914,6 @@ export default function PigFeedView({
                     end: lgEnd,
                     countMonth: true,
                     countAdj: lgCountAdj,
-                    deliveryInCount: !!inv.includesCurrentMonthDelivery,
                   };
                   runBal = lgEnd;
                   continue;
@@ -1126,15 +1125,8 @@ export default function PigFeedView({
                     }),
                     React.createElement(
                       'div',
-                      {
-                        style: {
-                          fontSize: 10,
-                          color: lg.deliveryInCount ? '#065f46' : '#9ca3af',
-                          marginTop: 1,
-                          fontStyle: lg.deliveryInCount ? 'italic' : 'normal',
-                        },
-                      },
-                      lg.deliveryInCount ? '(in count)' : 'arrives end of mo.',
+                      {style: {fontSize: 10, color: '#9ca3af', marginTop: 1}},
+                      'arrives end of mo.',
                     ),
                   ),
                   // END OF MONTH
