@@ -180,7 +180,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         label: `${b.name} enters brooder`,
         date: live.brooderIn,
         color: '#065f46',
-        icon: '🐣',
+        iconKey: ANIMAL_ICON_KEYS.broiler,
       });
     if (live.schoonerIn >= todayStr && live.schoonerIn <= in30)
       weekEvents.push({
@@ -188,7 +188,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         label: `${b.name} moves to schooner`,
         date: live.schoonerIn,
         color: '#a16207',
-        icon: '🐔',
+        iconKey: ANIMAL_ICON_KEYS.broiler,
       });
     if (b.processingDate >= todayStr && b.processingDate <= in30)
       weekEvents.push({
@@ -196,7 +196,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         label: `${b.name} processing day`,
         date: b.processingDate,
         color: '#7f1d1d',
-        icon: '📅',
+        iconKey: ANIMAL_ICON_KEYS.broiler,
       });
     // 4-week weight reminder
     if (b.hatchDate) {
@@ -207,7 +207,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           label: `${b.name} — record 4-week weights`,
           date: wk4date,
           color: '#854d0e',
-          icon: '⚖️',
+          iconKey: PLANNER_ICON_KEYS.weighins,
           reminder: true,
         });
     }
@@ -220,7 +220,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           label: `${b.name} — record 6-week weights`,
           date: wk6date,
           color: '#854d0e',
-          icon: '⚖️',
+          iconKey: PLANNER_ICON_KEYS.weighins,
           reminder: true,
         });
     }
@@ -238,7 +238,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         label: `${lbl} farrowing window opens`,
         date: tl.farrowingStart,
         color: '#1e40af',
-        icon: '🐷',
+        iconKey: ANIMAL_ICON_KEYS.pig,
       });
     if (tl.farrowingEnd >= todayStr && tl.farrowingEnd <= in30)
       weekEvents.push({
@@ -246,7 +246,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         label: `${lbl} farrowing window closes`,
         date: tl.farrowingEnd,
         color: '#be185d',
-        icon: '🐷',
+        iconKey: ANIMAL_ICON_KEYS.pig,
       });
     // Sows due in window
     if (tl.farrowingStart <= in30 && tl.farrowingEnd >= todayStr) {
@@ -261,7 +261,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           label: `${pending.length} sow${pending.length > 1 ? 's' : ''} due to farrow (${lbl})`,
           date: tl.farrowingStart,
           color: '#1e40af',
-          icon: '🌱',
+          iconKey: ANIMAL_ICON_KEYS.pig,
         });
     }
   });
@@ -280,7 +280,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         label: `${g.batchName} hitting ~6 months`,
         date: sixMonths,
         color: '#92400e',
-        icon: '🐖',
+        iconKey: ANIMAL_ICON_KEYS.pig,
       });
   });
 
@@ -1196,7 +1196,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                     cursor: e.reminder ? 'pointer' : 'default',
                   }}
                 >
-                  <span style={{fontSize: 18}}>{e.icon}</span>
+                  <PlannerIcon iconKey={e.iconKey} size={18} />
                   <div style={{flex: 1}}>
                     <div
                       style={{
