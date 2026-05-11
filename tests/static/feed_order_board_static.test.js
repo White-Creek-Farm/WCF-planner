@@ -249,16 +249,53 @@ describe('BroilerFeedView — minimal ledger contract', () => {
     expect(broilerSrc).not.toMatch(/STALE_SNAPSHOT_DAYS/);
   });
 
-  it('renders the four contract top tiles with per-type split subtext', () => {
+  it('renders the four contract top tiles with three stacked per-type rows (no big total)', () => {
     expect(broilerSrc).toMatch(/Actual On Hand/);
     expect(broilerSrc).toMatch(/'End of ' \+ prevLabel \+ ' Est\.'/);
     expect(broilerSrc).toMatch(/'Order for ' \+ activeLabel/);
     expect(broilerSrc).toMatch(/'Need Thru ' \+ nextLabel/);
-    // Total is the big number; per-type split renders underneath each tile.
-    expect(broilerSrc).toMatch(/fmtSplit\(actualOnHand\)/);
-    expect(broilerSrc).toMatch(/fmtSplit\(endOfPrev\)/);
-    expect(broilerSrc).toMatch(/fmtSplit\(recommendedOrder\)/);
-    expect(broilerSrc).toMatch(/fmtSplit\(needThruNext\)/);
+    // Each tile renders three stacked per-type rows via the shared
+    // renderTileRows helper. The helper drives off TILE_TYPE_ROWS so
+    // Starter / Grower / Layer Feed each scan on their own line.
+    expect(broilerSrc).toMatch(/const TILE_TYPE_ROWS\s*=\s*\[/);
+    expect(broilerSrc).toMatch(/\{key:\s*'starter',\s*label:\s*'Starter'/);
+    expect(broilerSrc).toMatch(/\{key:\s*'grower',\s*label:\s*'Grower'/);
+    expect(broilerSrc).toMatch(/\{key:\s*'layer',\s*label:\s*'Layer Feed'/);
+    expect(broilerSrc).toMatch(/function renderTileRows\(perType, valueColorFn\)/);
+    expect(broilerSrc).toMatch(/renderTileRows\(actualOnHand,/);
+    expect(broilerSrc).toMatch(/renderTileRows\(endOfPrev,/);
+    expect(broilerSrc).toMatch(/renderTileRows\(recommendedOrder, \(\) => '#92400e'\)/);
+    expect(broilerSrc).toMatch(/renderTileRows\(needThruNext,/);
+  });
+
+  it('no big-total-first display or compressed split string in poultry tiles', () => {
+    // No total intermediates feeding the tiles.
+    expect(broilerSrc).not.toMatch(/actualOnHandTotal/);
+    expect(broilerSrc).not.toMatch(/endOfPrevTotal/);
+    expect(broilerSrc).not.toMatch(/recommendedOrderTotal/);
+    expect(broilerSrc).not.toMatch(/needThruNextTotal/);
+    expect(broilerSrc).not.toMatch(/actualOnHandHasAny/);
+    expect(broilerSrc).not.toMatch(/endOfPrevHasAny/);
+    expect(broilerSrc).not.toMatch(/recommendedOrderHasAny/);
+    // No compressed "Starter · Grower · Layer" split string.
+    expect(broilerSrc).not.toMatch(/fmtSplit/);
+    expect(broilerSrc).not.toMatch(/'Starter ' \+/);
+    expect(broilerSrc).not.toMatch(/' · Grower '/);
+    expect(broilerSrc).not.toMatch(/' · Layer '/);
+  });
+
+  it('Ordered label/value/input are grouped in the same right-aligned column', () => {
+    // The Ordered cell wrapper itself owns textAlign right so the
+    // ORDERED label sits directly above its value/input rather than
+    // hanging off to the left.
+    expect(broilerSrc).toMatch(
+      /\{\/\* Ordered cell[\s\S]*?<div style=\{\{textAlign: 'right'\}\}>[\s\S]*?Ordered[\s\S]*?rowShowsInput \?/,
+    );
+    // The Ordered column is now the same width as the other equation
+    // cells so the saved value (e.g. 4,000) doesn't strand far from the
+    // ORDERED label above it.
+    expect(broilerSrc).toMatch(/gridTemplateColumns: '90px 1fr 14px 1fr 14px 1fr 14px 1fr'/);
+    expect(broilerSrc).not.toMatch(/gridTemplateColumns: '90px 1fr 14px 1fr 14px 1\.4fr 14px 1fr'/);
   });
 
   it('Order for tile keeps amber styling regardless of recommended total', () => {

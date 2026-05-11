@@ -363,8 +363,6 @@ export default function BroilerFeedView({
   const TYPE_KEYS = ['starter', 'grower', 'layer'];
   // Actual On Hand per type — count + arrived-after-count − consumed-since-count.
   const actualOnHand = {};
-  let actualOnHandTotal = 0;
-  let actualOnHandHasAny = false;
   TYPE_KEYS.forEach((type) => {
     const orderKey = type === 'layer' ? 'layerfeed' : type;
     const inv = poultryFeedInventory && poultryFeedInventory[type];
@@ -372,7 +370,6 @@ export default function BroilerFeedView({
       actualOnHand[type] = null;
       return;
     }
-    actualOnHandHasAny = true;
     const invYM = inv.date.substring(0, 7);
     const ftKey = type === 'starter' ? 'STARTER' : type === 'grower' ? 'GROWER' : 'LAYER';
     const ordersArrivedAfterCount = Object.entries(feedOrders[orderKey] || {}).reduce((s, e) => {
@@ -386,51 +383,73 @@ export default function BroilerFeedView({
       .filter((d) => d.date && d.date > inv.date && d.feed_type === ftKey)
       .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
     actualOnHand[type] = Math.round(inv.count + ordersArrivedAfterCount - consumedSinceCount);
-    actualOnHandTotal += actualOnHand[type];
   });
   const endOfPrev = {};
-  let endOfPrevTotal = 0;
-  let endOfPrevHasAny = false;
   TYPE_KEYS.forEach((type) => {
     const lg = pLedger[type][prevYM];
     endOfPrev[type] = lg ? lg.end : null;
-    if (lg) {
-      endOfPrevTotal += lg.end;
-      endOfPrevHasAny = true;
-    }
   });
   const needThruNext = {};
-  let needThruNextTotal = 0;
   TYPE_KEYS.forEach((type) => {
     const projKey = type === 'starter' ? 'starter' : type === 'grower' ? 'grower' : 'layerFeed';
     const a = monthlyData.find((m) => m.ym === activeYM);
     const n = monthlyData.find((m) => m.ym === nextYM);
     needThruNext[type] = (a ? a[projKey] : 0) + (n ? n[projKey] : 0);
-    needThruNextTotal += needThruNext[type];
   });
   const recommendedOrder = {};
-  let recommendedOrderTotal = 0;
-  let recommendedOrderHasAny = false;
   TYPE_KEYS.forEach((type) => {
     if (endOfPrev[type] == null) {
       recommendedOrder[type] = null;
       return;
     }
-    const r = Math.max(0, needThruNext[type] - endOfPrev[type]);
-    recommendedOrder[type] = r;
-    recommendedOrderTotal += r;
-    recommendedOrderHasAny = true;
+    recommendedOrder[type] = Math.max(0, needThruNext[type] - endOfPrev[type]);
   });
 
-  function fmtSplit(per) {
-    return (
-      'Starter ' +
-      (per.starter != null ? per.starter.toLocaleString() : '—') +
-      ' · Grower ' +
-      (per.grower != null ? per.grower.toLocaleString() : '—') +
-      ' · Layer ' +
-      (per.layer != null ? per.layer.toLocaleString() : '—')
-    );
+  // Top tiles render three stacked per-type rows so each feed type's
+  // value scans on its own. The order matches the active card's per-type
+  // row order.
+  const TILE_TYPE_ROWS = [
+    {key: 'starter', label: 'Starter', color: '#1d4ed8'},
+    {key: 'grower', label: 'Grower', color: '#085041'},
+    {key: 'layer', label: 'Layer Feed', color: '#78350f'},
+  ];
+  function renderTileRows(perType, valueColorFn) {
+    return TILE_TYPE_ROWS.map((row) => {
+      const val = perType[row.key];
+      const missing = val == null;
+      return (
+        <div
+          key={row.key}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            padding: '3px 0',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              color: row.color,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: 0.3,
+            }}
+          >
+            {row.label}
+          </span>
+          <span
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: missing ? '#9ca3af' : valueColorFn(val),
+            }}
+          >
+            {missing ? '—' : val.toLocaleString() + ' lbs'}
+          </span>
+        </div>
+      );
+    });
   }
 
   // ── Active-card live overrides for End-of-Month while typing ────────────
@@ -669,9 +688,9 @@ export default function BroilerFeedView({
                 key={row.key}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '90px 1fr 14px 1fr 14px 1.4fr 14px 1fr',
+                  gridTemplateColumns: '90px 1fr 14px 1fr 14px 1fr 14px 1fr',
                   gap: 8,
-                  alignItems: 'center',
+                  alignItems: 'end',
                   padding: '6px 0',
                   borderTop: '1px solid #f3f4f6',
                 }}
@@ -695,8 +714,19 @@ export default function BroilerFeedView({
                   </div>
                 </div>
                 <div style={{fontSize: 14, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'+'}</div>
-                <div>
-                  <div style={{fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}}>
+                {/* Ordered cell: label sits directly above the value/input
+                    (both right-aligned) so saved values like 4,000 read as
+                    being IN the Ordered column rather than floating. */}
+                <div style={{textAlign: 'right'}}>
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: '#9ca3af',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                      marginBottom: 2,
+                    }}
+                  >
                     Ordered
                   </div>
                   {rowShowsInput ? (
@@ -719,7 +749,7 @@ export default function BroilerFeedView({
                       }}
                     />
                   ) : (
-                    <div style={{fontSize: 13, fontWeight: 600, color: '#111827', textAlign: 'right'}}>
+                    <div style={{fontSize: 13, fontWeight: 600, color: '#111827'}}>
                       {isSaved ? Number(savedVal).toLocaleString() : '—'}
                     </div>
                   )}
@@ -818,63 +848,31 @@ export default function BroilerFeedView({
           gap: '1.25rem',
         }}
       >
-        {/* 4 top tiles */}
+        {/* 4 top tiles — three per-type rows stacked inside each tile so
+            each feed type's number scans on its own. No big totals. */}
         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
           {/* Actual On Hand */}
           <div style={tileShellS}>
             <div style={tileLabelS}>Actual On Hand</div>
-            <div
-              style={{
-                fontSize: 26,
-                fontWeight: 700,
-                color: actualOnHandHasAny ? (actualOnHandTotal > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
-                lineHeight: 1,
-              }}
-            >
-              {actualOnHandHasAny ? actualOnHandTotal.toLocaleString() + ' lbs' : '—'}
-            </div>
-            <div style={{fontSize: 10, color: '#9ca3af', marginTop: 6}}>{fmtSplit(actualOnHand)}</div>
+            {renderTileRows(actualOnHand, (v) => (v > 0 ? '#065f46' : '#b91c1c'))}
           </div>
 
           {/* End of [prev] Est */}
           <div style={tileShellS}>
             <div style={tileLabelS}>{'End of ' + prevLabel + ' Est.'}</div>
-            <div
-              style={{
-                fontSize: 26,
-                fontWeight: 700,
-                color: endOfPrevHasAny ? (endOfPrevTotal > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
-                lineHeight: 1,
-              }}
-            >
-              {endOfPrevHasAny ? endOfPrevTotal.toLocaleString() + ' lbs' : '—'}
-            </div>
-            <div style={{fontSize: 10, color: '#9ca3af', marginTop: 6}}>{fmtSplit(endOfPrev)}</div>
+            {renderTileRows(endOfPrev, (v) => (v > 0 ? '#065f46' : '#b91c1c'))}
           </div>
 
           {/* Order for [active] — amber regardless of value */}
           <div style={{...tileShellS, background: '#fffbeb', border: '2px solid #fde68a'}}>
             <div style={{...tileLabelS, color: '#92400e'}}>{'Order for ' + activeLabel}</div>
-            <div
-              style={{
-                fontSize: 26,
-                fontWeight: 700,
-                color: recommendedOrderHasAny ? '#92400e' : '#9ca3af',
-                lineHeight: 1,
-              }}
-            >
-              {recommendedOrderHasAny ? recommendedOrderTotal.toLocaleString() + ' lbs' : '—'}
-            </div>
-            <div style={{fontSize: 10, color: '#92400e', marginTop: 6}}>{fmtSplit(recommendedOrder)}</div>
+            {renderTileRows(recommendedOrder, () => '#92400e')}
           </div>
 
           {/* Need Thru [next] */}
           <div style={tileShellS}>
             <div style={tileLabelS}>{'Need Thru ' + nextLabel}</div>
-            <div style={{fontSize: 26, fontWeight: 700, color: '#111827', lineHeight: 1}}>
-              {needThruNextTotal.toLocaleString() + ' lbs'}
-            </div>
-            <div style={{fontSize: 10, color: '#9ca3af', marginTop: 6}}>{fmtSplit(needThruNext)}</div>
+            {renderTileRows(needThruNext, () => '#111827')}
           </div>
         </div>
 
