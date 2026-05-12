@@ -1,12 +1,23 @@
 # Netlify _redirects — first match wins, top-to-bottom.
 #
-# Equipment-hub install routes (2026-05-06 PWA install hotfix). Serve the
-# equipment HTML — same React app, different <link rel="manifest"> — so iOS
-# Safari / Android Chrome read start_url=/equipment at HTML parse time,
-# before any JS runs. The dynamic in-React applyManifestHref() helper stays
-# as defensive runtime sync but is NOT relied on for install. /fueling* is
-# the legacy alias and gets the same treatment for operators with old
-# bookmarks who tap Add to Home Screen.
+# Hub-install routes (PWA install: separate HTMLs each link a hub-specific
+# <link rel="manifest"> so iOS Safari / Android Chrome read the right
+# start_url at HTML parse time, before any JS runs). Without these, Add to
+# Home Screen captures whatever manifest index.html links — which is the
+# generic root manifest. The dynamic in-React applyManifestHref() helper
+# stays as defensive runtime sync but is NOT relied on for install.
+#
+# /dailys serves the daily-reports hub (start_url=/dailys).
+# /equipment serves the equipment/fueling hub (start_url=/equipment).
+# /webforms is the legacy daily-reports alias.
+# /fueling is the legacy equipment alias.
+# Legacy aliases need their own rules so Add to Home Screen reads the right
+# manifest at HTML parse time; the client-side alias in routes.js then
+# navigates to the canonical path after the app boots.
+/dailys          /dailys.html     200
+/dailys/*        /dailys.html     200
+/webforms        /dailys.html     200
+/webforms/*      /dailys.html     200
 /equipment       /equipment.html  200
 /equipment/*     /equipment.html  200
 /fueling         /equipment.html  200

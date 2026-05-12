@@ -1,7 +1,7 @@
 {
-  "name": "WCF Planner",
-  "short_name": "WCF",
-  "start_url": "/",
+  "name": "WCF Planner — Daily Reports",
+  "short_name": "WCF Dailys",
+  "start_url": "/dailys",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

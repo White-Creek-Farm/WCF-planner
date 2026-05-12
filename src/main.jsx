@@ -256,22 +256,32 @@ try {
   /* no history API / locked-down browser — skip */
 }
 
-// ── MANIFEST HREF SWAP (2026-05-06 public-URL rename) ──
-// Two static manifests live in public/: manifest.webmanifest (start_url
-// /dailys, the operator daily-reports hub) and manifest-equipment.webmanifest
-// (start_url /equipment, the operator equipment/fueling hub). When the user
-// is on /equipment* or the legacy /fueling*, link[rel="manifest"] points at
-// the equipment manifest so Add to Home Screen and the install banner pick
-// up the equipment-hub start_url. Otherwise it points at the default daily
-// manifest. The helper runs at module scope (correct href before first
-// paint) AND inside an App useEffect keyed on location.pathname (so SPA
-// navigation between hubs keeps the link in sync without a full reload).
+// ── MANIFEST HREF SWAP ──
+// Three static manifests live in public/:
+//   - manifest.webmanifest          (start_url /)         — authenticated app root
+//   - manifest-dailys.webmanifest   (start_url /dailys)   — operator daily-reports hub
+//   - manifest-equipment.webmanifest (start_url /equipment) — equipment/fueling hub
+// The link[rel="manifest"] href tracks the active hub:
+//   - /equipment* or /fueling*    → equipment manifest
+//   - /dailys* or /webforms*      → dailys manifest
+//   - everything else             → root manifest
+// The HTML <link> tag is the install source-of-truth (Add to Home Screen
+// snapshots it at HTML parse time), so Netlify _redirects routes hub URLs
+// to dedicated HTMLs that bake in the right manifest link before any JS
+// runs. This helper is defensive runtime sync: it also runs at module
+// scope (correct href before first paint when arriving via the SPA
+// fallback) AND inside an App useEffect keyed on location.pathname (so
+// SPA navigation between hubs keeps the link in sync without a reload).
 function applyManifestHref(pathname) {
   try {
     const link = document.querySelector('link[rel="manifest"]');
     if (!link) return;
-    const isEquipment = pathname.startsWith('/equipment') || pathname.startsWith('/fueling');
-    const next = isEquipment ? '/manifest-equipment.webmanifest' : '/manifest.webmanifest';
+    let next = '/manifest.webmanifest';
+    if (pathname.startsWith('/equipment') || pathname.startsWith('/fueling')) {
+      next = '/manifest-equipment.webmanifest';
+    } else if (pathname.startsWith('/dailys') || pathname.startsWith('/webforms')) {
+      next = '/manifest-dailys.webmanifest';
+    }
     if (link.getAttribute('href') !== next) link.setAttribute('href', next);
   } catch (e) {
     /* no DOM / locked-down browser — skip */
