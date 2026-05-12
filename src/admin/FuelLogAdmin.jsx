@@ -425,15 +425,16 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
 
   async function del() {
     if (!r.id) return;
-    if (!confirm('Delete this fuel supply entry?')) return;
-    setBusy(true);
-    const {error} = await sb.from('fuel_supplies').delete().eq('id', r.id);
-    setBusy(false);
-    if (error) {
-      setErr(error.message);
-      return;
-    }
-    onSaved();
+    window._wcfConfirmDelete('Delete this fuel supply entry?', async () => {
+      setBusy(true);
+      const {error} = await sb.from('fuel_supplies').delete().eq('id', r.id);
+      setBusy(false);
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      onSaved();
+    });
   }
 
   const inp = {

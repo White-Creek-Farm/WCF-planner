@@ -255,27 +255,25 @@ export default function EquipmentMaterialsEditor({equipment}) {
   }
 
   async function removeMaterial(material) {
-    if (
-      !window.confirm(
-        `Delete material "${material.material_name}"?\n\nThis removes it from every future cycle. The admin can re-add it later.`,
-      )
-    ) {
-      return;
-    }
-    setBusy(true);
-    setErr('');
-    const {error} = await sb.from('equipment_service_materials').delete().eq('id', material.id);
-    setBusy(false);
-    if (error) {
-      setErr('Delete failed: ' + error.message);
-      return;
-    }
-    setMaterials((prev) => prev.filter((m) => m.id !== material.id));
-    setClearsByMat((prev) => {
-      const next = new Map(prev);
-      next.delete(material.id);
-      return next;
-    });
+    window._wcfConfirmDelete(
+      `Delete material "${material.material_name}"? This removes it from every future cycle. The admin can re-add it later.`,
+      async () => {
+        setBusy(true);
+        setErr('');
+        const {error} = await sb.from('equipment_service_materials').delete().eq('id', material.id);
+        setBusy(false);
+        if (error) {
+          setErr('Delete failed: ' + error.message);
+          return;
+        }
+        setMaterials((prev) => prev.filter((m) => m.id !== material.id));
+        setClearsByMat((prev) => {
+          const next = new Map(prev);
+          next.delete(material.id);
+          return next;
+        });
+      },
+    );
   }
 
   async function unclearMaterial(material) {

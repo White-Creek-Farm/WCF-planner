@@ -728,15 +728,16 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
   async function removeOne(idx) {
     const entry = manuals[idx];
     if (!entry) return;
-    if (!confirm('Remove "' + (entry.title || 'this manual') + '"?')) return;
-    if (entry.type === 'pdf' && entry.path) {
-      try {
-        await sb.storage.from('equipment-maintenance-docs').remove([entry.path]);
-      } catch (e) {
-        /*ignore*/
+    window._wcfConfirmDelete('Remove "' + (entry.title || 'this manual') + '"?', async () => {
+      if (entry.type === 'pdf' && entry.path) {
+        try {
+          await sb.storage.from('equipment-maintenance-docs').remove([entry.path]);
+        } catch (e) {
+          /*ignore*/
+        }
       }
-    }
-    await persist(manuals.filter((_, i) => i !== idx));
+      await persist(manuals.filter((_, i) => i !== idx));
+    });
   }
 
   return (
@@ -927,15 +928,16 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
   async function removeOne(idx) {
     const entry = docs[idx];
     if (!entry) return;
-    if (!confirm('Remove "' + (entry.title || 'this document') + '"?')) return;
-    if (entry.type === 'pdf' && entry.path) {
-      try {
-        await sb.storage.from('equipment-maintenance-docs').remove([entry.path]);
-      } catch (e) {
-        /*ignore*/
+    window._wcfConfirmDelete('Remove "' + (entry.title || 'this document') + '"?', async () => {
+      if (entry.type === 'pdf' && entry.path) {
+        try {
+          await sb.storage.from('equipment-maintenance-docs').remove([entry.path]);
+        } catch (e) {
+          /*ignore*/
+        }
       }
-    }
-    await persist(docs.filter((_, i) => i !== idx));
+      await persist(docs.filter((_, i) => i !== idx));
+    });
   }
 
   return (
@@ -1285,8 +1287,9 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
     setNewLabel('');
   }
   async function removeOne(idx) {
-    if (!confirm('Remove this interval + all its tasks?')) return;
-    await persist(intervals.filter((_, i) => i !== idx));
+    window._wcfConfirmDelete('Remove this interval + all its tasks?', async () => {
+      await persist(intervals.filter((_, i) => i !== idx));
+    });
   }
   async function editLabel(idx, label) {
     const next = intervals.slice();

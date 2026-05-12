@@ -215,25 +215,24 @@ function PdfLink({path}) {
 function BillDetail({bill, lines, onChanged}) {
   const [busy, setBusy] = React.useState(false);
   async function del() {
-    if (
-      !confirm(
-        'Delete this bill (and its ' +
-          lines.length +
-          ' line item' +
-          (lines.length === 1 ? '' : 's') +
-          ')? PDF will also be removed from storage.',
-      )
-    )
-      return;
-    setBusy(true);
-    if (bill.pdf_path) await sb.storage.from('fuel-bills').remove([bill.pdf_path]);
-    const {error} = await sb.from('fuel_bills').delete().eq('id', bill.id);
-    setBusy(false);
-    if (error) {
-      alert('Delete failed: ' + error.message);
-      return;
-    }
-    onChanged();
+    window._wcfConfirmDelete(
+      'Delete this bill (and its ' +
+        lines.length +
+        ' line item' +
+        (lines.length === 1 ? '' : 's') +
+        ')? PDF will also be removed from storage.',
+      async () => {
+        setBusy(true);
+        if (bill.pdf_path) await sb.storage.from('fuel-bills').remove([bill.pdf_path]);
+        const {error} = await sb.from('fuel_bills').delete().eq('id', bill.id);
+        setBusy(false);
+        if (error) {
+          alert('Delete failed: ' + error.message);
+          return;
+        }
+        onChanged();
+      },
+    );
   }
   const td = {fontSize: 11, padding: '5px 10px', color: '#111827'};
   const th = {

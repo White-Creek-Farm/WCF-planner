@@ -114,21 +114,20 @@ export default function EquipmentDetail({
     const label =
       (target.attachment_name ? target.attachment_name + ' — ' : '') +
       (target.label || target.interval + (target.kind === 'km' ? 'k' : 'h'));
-    if (
-      !confirm(
-        'Remove the "' +
-          label +
-          '" entry from this fueling row?\n\nThis only deletes that one interval entry. Photos, fillup ticks, comments, and other intervals on this row stay intact.',
-      )
-    )
-      return;
-    const next = completed.filter((_, i) => i !== intervalIdx);
-    setFuelingPatches((p) => ({...p, [fueling.id]: {...(p[fueling.id] || {}), service_intervals_completed: next}}));
-    const {error} = await sb
-      .from('equipment_fuelings')
-      .update({service_intervals_completed: next})
-      .eq('id', fueling.id);
-    if (error) alert('Save failed: ' + error.message);
+    window._wcfConfirmDelete(
+      'Remove the "' +
+        label +
+        '" entry from this fueling row? This only deletes that one interval entry. Photos, fillup ticks, comments, and other intervals on this row stay intact.',
+      async () => {
+        const next = completed.filter((_, i) => i !== intervalIdx);
+        setFuelingPatches((p) => ({...p, [fueling.id]: {...(p[fueling.id] || {}), service_intervals_completed: next}}));
+        const {error} = await sb
+          .from('equipment_fuelings')
+          .update({service_intervals_completed: next})
+          .eq('id', fueling.id);
+        if (error) alert('Save failed: ' + error.message);
+      },
+    );
   }
 
   // Toggle a sub-task within a recorded interval completion on a historical
@@ -200,18 +199,20 @@ export default function EquipmentDetail({
     }, 800);
   }
   async function deleteFueling(fuelingId) {
-    if (!confirm('Delete this fueling entry? This cannot be undone.')) return;
-    const {error} = await sb.from('equipment_fuelings').delete().eq('id', fuelingId);
-    if (error) {
-      alert('Delete failed: ' + error.message);
-      return;
-    }
-    onReload();
+    window._wcfConfirmDelete('Delete this fueling entry? This cannot be undone.', async () => {
+      const {error} = await sb.from('equipment_fuelings').delete().eq('id', fuelingId);
+      if (error) {
+        alert('Delete failed: ' + error.message);
+        return;
+      }
+      onReload();
+    });
   }
   async function deleteMaintenance(id) {
-    if (!confirm('Delete this maintenance event?')) return;
-    await sb.from('equipment_maintenance_events').delete().eq('id', id);
-    onReload();
+    window._wcfConfirmDelete('Delete this maintenance event?', async () => {
+      await sb.from('equipment_maintenance_events').delete().eq('id', id);
+      onReload();
+    });
   }
 
   const sectionTitle = {
