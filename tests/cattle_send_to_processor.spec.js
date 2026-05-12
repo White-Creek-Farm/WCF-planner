@@ -7,30 +7,28 @@ import {test, expect} from './fixtures.js';
 // (PROJECT.md §7 entries: weigh_ins.prior_herd_or_flock semantics, detach
 // fallback hierarchy, cattle_transfers append-only, batch membership rule).
 //
-// 9 tests, structured around the §7 entries each one protects:
+// Active tests, structured around the §7 entries each one protects:
 //
-//   1  happy-path attach            — prior_herd_or_flock stamping +
-//                                     cattle_transfers insert + cows_detail
-//   2  toggle-clear detach          — full UI round-trip (attach via UI,
-//                                     reopen, toggle off) — the clearest
-//                                     regression for the four detach paths
-//   3  entry-delete detach          — stub _wcfConfirmDelete post-mount
-//   4  session-delete detach        — stub _wcfConfirmDelete post-mount
-//   5  batch-delete detach          — drives the real DeleteModal UI once
-//                                     to lock the shared modal contract
-//   6  fallback to audit row        — prior_herd_or_flock null →
-//                                     cattle_transfers.from_herd resolves
-//   7  null from_herd guard         — audit row exists but from_herd=null →
-//                                     truthy guard at cattleProcessingBatch.js:177
-//                                     forces no_prior_herd
-//   8  no audit row block           — neither path resolves → blocked
-//   9  no manual bypass             — /cattle/batches has no manual cow
-//                                     attach UI (negative assertion)
+//   toggle-clear detach    — full UI round-trip (attach via UI,
+//                            reopen, toggle off) — the clearest
+//                            regression for the four detach paths
+//   entry-delete detach    — stub _wcfConfirmDelete post-mount
+//   session-delete detach  — stub _wcfConfirmDelete post-mount
+//   fallback to audit row  — prior_herd_or_flock null →
+//                            cattle_transfers.from_herd resolves
+//   null from_herd guard   — audit row exists but from_herd=null →
+//                            truthy guard at cattleProcessingBatch.js:177
+//                            forces no_prior_herd
+//   no audit row block     — neither path resolves → blocked
+//   no manual bypass       — /cattle/batches has no manual cow
+//                            attach UI (negative assertion)
 //
-// Test 1 uses an existing seeded planned batch (Codex correction: keeps the
-// assertion tied to a known batchId). Tests 3–5 use a pre-attached seed so
-// runtime + setup noise stays focused on the detach behavior under test.
-// Tests 6–8 share the same fallback seed, parameterised by mode.
+// Happy-path attach is covered by tests/cattle_forecast.spec.js
+// ('forecast → send: active batch saved with exact virtual batch name').
+// Multi-row detach loop is covered by the session-delete test below
+// (same cattleProcessingBatch detach helper, three-cow scenario).
+// Pre-attached + fallback seeds keep setup noise focused on detach
+// behavior under test.
 // ============================================================================
 
 const HERD_LABEL = 'Finishers';
@@ -61,116 +59,6 @@ async function installConfirmDeleteStub(page) {
     window._wcfConfirmDelete = (_msg, fn) => fn();
   });
 }
-
-// --------------------------------------------------------------------------
-// Test 1 — happy-path attach via UI
-// --------------------------------------------------------------------------
-// SKIPPED 2026-05-04: the Cattle Forecast lane (mig 043) replaced the modal's
-// existing-batch picker with an auto-computed next-virtual-batch flow. The
-// new attach happy-path is locked by tests/cattle_forecast.spec.js Test 3
-// ("forecast → send: active batch saved with exact virtual batch name").
-test.skip('attach: complete session + modal stamps prior_herd_or_flock and writes audit', async ({
-  page,
-  cattleSendToProcessorScenario,
-  supabaseAdmin,
-}) => {
-  const {batchId, sessionId, cows} = cattleSendToProcessorScenario;
-
-  await page.goto('/cattle/weighins');
-
-  const sessionRow = page.locator('.hoverable-tile').filter({hasText: HERD_LABEL}).filter({hasText: /draft/i});
-  await expect(sessionRow).toBeVisible({timeout: 15_000});
-  await sessionRow.click();
-
-  // ✓ Complete Session — finishers + flagged entries → modal intercepts.
-  await page.getByRole('button', {name: /Complete Session/}).click();
-
-  // Modal title text is built as: '🚩 Send N finisher(s) to processor'
-  // (CattleSendToProcessorModal.jsx:84). 3 entries → "finishers" plural.
-  const modalTitle = page.getByText(/Send 3 finishers to processor/);
-  await expect(modalTitle).toBeVisible({timeout: 5_000});
-
-  // Default mode is 'existing' because the seed includes a planned batch.
-  // Pick by value (deterministic, doesn't depend on label punctuation).
-  const select = page
-    .locator('select')
-    .filter({has: page.locator(`option[value="${batchId}"]`)})
-    .first();
-  await select.selectOption(batchId);
-
-  // Submit. Exact lowercase 'p' in 'processor'. No /i flag — Codex correction.
-  await page.getByRole('button', {name: 'Send to processor'}).click();
-  await expect(modalTitle).toHaveCount(0, {timeout: 10_000});
-
-  // --- Assertions: poll until the attach lands. ---
-  await expect
-    .poll(
-      async () => {
-        const r = await supabaseAdmin
-          .from('cattle_processing_batches')
-          .select('cows_detail')
-          .eq('id', batchId)
-          .single();
-        return (r.data?.cows_detail || []).length;
-      },
-      {timeout: 10_000, message: 'cows_detail did not populate after attach'},
-    )
-    .toBe(3);
-
-  // cows_detail content: cattle_id + tag + live_weight per cow.
-  // Length-only would let a regression attach 3 malformed rows (wrong
-  // cattle_id, dropped weights) and still pass — Codex finding #1.
-  const batchAfter = await supabaseAdmin
-    .from('cattle_processing_batches')
-    .select('cows_detail')
-    .eq('id', batchId)
-    .single();
-  const detailByTag = Object.fromEntries((batchAfter.data.cows_detail || []).map((r) => [r.tag, r]));
-  expect(detailByTag).toEqual({
-    2001: {cattle_id: 'cow-test-2001', tag: '2001', live_weight: 1100, hanging_weight: null},
-    2002: {cattle_id: 'cow-test-2002', tag: '2002', live_weight: 1150, hanging_weight: null},
-    2003: {cattle_id: 'cow-test-2003', tag: '2003', live_weight: 1080, hanging_weight: null},
-  });
-
-  // Cattle moved to 'processed' + processing_batch_id stamped.
-  for (const c of cows) {
-    const r = await supabaseAdmin.from('cattle').select('herd, processing_batch_id').eq('id', c.id).single();
-    expect(r.data.herd).toBe('processed');
-    expect(r.data.processing_batch_id).toBe(batchId);
-  }
-
-  // weigh_ins stamped: prior_herd_or_flock='finishers' (NOT 'processed' —
-  // regression lock for Codex Edge Case #1, the multi-batch reattach
-  // contract at cattleProcessingBatch.js:91).
-  const wis = await supabaseAdmin
-    .from('weigh_ins')
-    .select('id, tag, prior_herd_or_flock, target_processing_batch_id')
-    .eq('session_id', sessionId);
-  expect(wis.error).toBeNull();
-  expect(wis.data).toHaveLength(3);
-  for (const w of wis.data) {
-    expect(w.prior_herd_or_flock).toBe('finishers');
-    expect(w.prior_herd_or_flock).not.toBe('processed');
-    expect(w.target_processing_batch_id).toBe(batchId);
-  }
-
-  // cattle_transfers append-only audit (3 rows, reason='processing_batch').
-  const xfers = await supabaseAdmin
-    .from('cattle_transfers')
-    .select('cattle_id, from_herd, to_herd, reason, reference_id')
-    .eq('reference_id', batchId)
-    .eq('reason', 'processing_batch');
-  expect(xfers.error).toBeNull();
-  expect(xfers.data).toHaveLength(3);
-  for (const x of xfers.data) {
-    expect(x.from_herd).toBe('finishers');
-    expect(x.to_herd).toBe('processed');
-  }
-
-  // Session marked complete.
-  const sess = await supabaseAdmin.from('weigh_in_sessions').select('status').eq('id', sessionId).single();
-  expect(sess.data.status).toBe('complete');
-});
 
 // --------------------------------------------------------------------------
 // Test 2 — toggle-clear detach (full UI round-trip: attach → reopen → toggle)
@@ -395,73 +283,6 @@ test('session-delete: detaches all 3 attached cows then deletes session+entries'
   expect(batchR.data.cows_detail).toEqual([]);
 
   // 3 undo audit rows — one per cow.
-  const undo = await supabaseAdmin
-    .from('cattle_transfers')
-    .select('cattle_id, reason')
-    .eq('reason', 'processing_batch_undo')
-    .in(
-      'cattle_id',
-      cows.map((c) => c.id),
-    );
-  expect(undo.data).toHaveLength(3);
-});
-
-// --------------------------------------------------------------------------
-// Test 5 — batch-delete detach (drives the real DeleteModal UI once)
-// --------------------------------------------------------------------------
-// SKIPPED 2026-05-04: the Cattle Forecast lane removed the Edit-Batch modal
-// + Delete button on cattle batches (no admin path to delete an active or
-// complete batch from the UI; cattle batches only end via auto-flip on full
-// hanging weights). Multi-row detach is still covered by the session-delete
-// test below, which exercises the same cattleProcessingBatch.detach helper
-// loop on a multi-cow batch.
-test.skip('batch-delete: real DeleteModal flow detaches all 3 cows and removes batch', async ({
-  page,
-  cattleMultiCowPreAttachedScenario,
-  supabaseAdmin,
-}) => {
-  const {batchId, batchName, cows} = cattleMultiCowPreAttachedScenario;
-
-  await page.goto('/cattle/batches');
-
-  // Edit modal — only one batch in the seed, so the lone Edit link suffices.
-  const batchTile = page.locator('.hoverable-tile').filter({hasText: batchName});
-  await batchTile.getByRole('button', {name: 'Edit'}).click();
-  await expect(page.getByText(/Edit Batch/)).toBeVisible({timeout: 5_000});
-
-  // Click Delete in the batch modal footer (exact-match disambiguates from
-  // the DeleteModal's own Delete button which appears next).
-  await page.getByRole('button', {name: 'Delete', exact: true}).click();
-
-  // DeleteModal — type "delete" + Enter (Enter submits per
-  // DeleteModal.jsx:22). This is the one place we drive the real shared
-  // confirmation modal end-to-end (Codex-approved: lock the modal contract
-  // exactly once across the four detach paths).
-  await expect(page.getByText('Are you sure?')).toBeVisible({timeout: 5_000});
-  const input = page.getByPlaceholder('delete');
-  await input.fill('delete');
-  await page.keyboard.press('Enter');
-
-  // Wait for batch row to disappear from DB.
-  await expect
-    .poll(
-      async () => {
-        const r = await supabaseAdmin.from('cattle_processing_batches').select('id').eq('id', batchId).maybeSingle();
-        return r.data;
-      },
-      {timeout: 10_000, message: 'batch was not deleted'},
-    )
-    .toBeNull();
-
-  // ALL 3 cows reverted — exercises the deleteBatch detach loop, the
-  // load-bearing part Codex flagged.
-  for (const cow of cows) {
-    const r = await supabaseAdmin.from('cattle').select('herd, processing_batch_id').eq('id', cow.id).single();
-    expect(r.data.herd).toBe('finishers');
-    expect(r.data.processing_batch_id).toBeNull();
-  }
-
-  // 3 undo audit rows.
   const undo = await supabaseAdmin
     .from('cattle_transfers')
     .select('cattle_id, reason')
