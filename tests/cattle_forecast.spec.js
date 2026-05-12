@@ -851,7 +851,7 @@ test('batches: active auto-flips to complete on full hanging weights; reopen res
   // state survives the auto-flip), so its detail panel re-renders along
   // with the section. Clicking the tile header again would TOGGLE IT
   // CLOSED — don't.
-  await page.locator('[data-batches-section="completed"]').locator('> div').first().click();
+  await page.locator('[data-batches-section="processed"]').locator('> div').first().click();
   const completedTile = page.locator('[data-batch-row="' + batchId + '"]');
   await expect(completedTile).toHaveAttribute('data-batch-status', 'complete');
 

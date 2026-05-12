@@ -143,9 +143,11 @@ test('central editor: add propagates to fuel supply public form', async ({page, 
     await anonPage.goto('/fueling/supply');
     await expect(anonPage.getByText('Fuel Supply Log')).toBeVisible({timeout: 15_000});
     await expect(anonPage.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+    // The roster fetch on /fueling/supply is async after mount. Snapshotting
+    // option texts the instant the boot loader clears races the fetch in CI.
+    // Poll the specific option into existence instead.
     const teamSelect = anonPage.getByRole('combobox').first();
-    const optionTexts = await teamSelect.locator('option').allTextContents();
-    expect(optionTexts).toContain('NEWGUY');
+    await expect(teamSelect.locator('option', {hasText: 'NEWGUY'})).toHaveCount(1, {timeout: 15_000});
   } finally {
     await anonContext.close();
   }
