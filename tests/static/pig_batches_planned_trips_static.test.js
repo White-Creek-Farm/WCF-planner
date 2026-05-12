@@ -224,3 +224,130 @@ describe('Commit 4a — calcAgeRange numeric bounds extension', () => {
     expect(fn[0]).toMatch(/maxDays:/);
   });
 });
+
+// ============================================================================
+// Pig planned-trip locks lane — sidecar + handler-level neighbor guards
+// ============================================================================
+
+describe('Pig planned-trip locks — sidecar persistence', () => {
+  it('uses app_store key ppp-pig-planned-trip-locks-v1', () => {
+    expect(viewSrc).toMatch(/['"]ppp-pig-planned-trip-locks-v1['"]/);
+  });
+
+  it('does not expand the six-key plannedProcessingTrips shape', () => {
+    // The sidecar lives in a separate app_store key so persisted trip
+    // rows stay byte-identical (id, date, sex, subBatchId, plannedCount,
+    // order). The forecast allocator still returns only those six keys
+    // — that lock is in the prior commit-4a block. Here, just make sure
+    // no handler writes additional keys onto a planned trip when
+    // persisting feederGroups.
+    expect(viewSrc).not.toMatch(/plannedProcessingTrips:\s*[\s\S]*?lockedAt:/);
+    expect(viewSrc).not.toMatch(/plannedProcessingTrips:\s*[\s\S]*?lockedByName:/);
+    expect(viewSrc).not.toMatch(/plannedProcessingTrips:\s*[\s\S]*?locked:\s*true/);
+  });
+
+  it('locks read from / write to the sidecar key, not to ppp-feeders-v1', () => {
+    // The lockPlannedTrip helper upserts to ppp-pig-planned-trip-locks-v1.
+    expect(viewSrc).toMatch(/upsert\(\{key:\s*'ppp-pig-planned-trip-locks-v1',\s*data:\s*next\}/);
+    // Lock records carry the four documented fields.
+    expect(viewSrc).toMatch(/locked:\s*true/);
+    expect(viewSrc).toMatch(/lockedByName/);
+    expect(viewSrc).toMatch(/lockedByUserId/);
+    expect(viewSrc).toMatch(/lockedAt/);
+  });
+
+  it('lock display name falls back authState.name → user.email → "Unknown"', () => {
+    expect(viewSrc).toMatch(
+      /\(authState && authState\.name\)\s*\|\|\s*\(authState && authState\.user && authState\.user\.email\)\s*\|\|\s*'Unknown'/,
+    );
+  });
+});
+
+describe('Pig planned-trip locks — neighbor mutation guards live in handlers', () => {
+  // Codex's correction: the locked state must block mutations end-to-end,
+  // not just hide JSX affordances. Each handler refuses early before
+  // touching feederGroups.
+  const dateHandler = viewSrc.match(/function setPlannedTripDateById\([\s\S]*?persistFeeders\(nb\);\s*\}/);
+  const shiftHandler = viewSrc.match(/function shiftPlannedTripDateById\([\s\S]*?\}\s*\n/);
+  const moveHandler = viewSrc.match(/function movePlannedTripPigsById\([\s\S]*?persistFeeders\(nb\);\s*\}/);
+  const addHandler = viewSrc.match(/function addPlannedTripById\([\s\S]*?return \{ok: true\};\s*\}/);
+  const deleteHandler = viewSrc.match(/function deletePlannedTripById\([\s\S]*?return \{ok: true\};\s*\}/);
+
+  it('setPlannedTripDateById refuses when target trip is locked', () => {
+    expect(dateHandler[0]).toMatch(/if \(isTripLocked\(tripId\)\) return;/);
+  });
+
+  it('shiftPlannedTripDateById refuses when target trip is locked', () => {
+    expect(shiftHandler[0]).toMatch(/if \(isTripLocked\(tripId\)\) return;/);
+  });
+
+  it('movePlannedTripPigsById refuses when source OR target is locked', () => {
+    expect(moveHandler[0]).toMatch(/if \(isTripLocked\(fromTripId\) \|\| isTripLocked\(toTripId\)\) return;/);
+  });
+
+  it('addPlannedTripById refuses when any trip in the (subBatchId, sex) chain is locked', () => {
+    expect(addHandler[0]).toMatch(/isChainLocked\(fg\.plannedProcessingTrips \|\| \[\], subBatchId, sex\)/);
+    expect(addHandler[0]).toMatch(/return \{error:\s*'chain locked'\};/);
+  });
+
+  it('deletePlannedTripById refuses when target OR reconciliation recipient is locked', () => {
+    expect(deleteHandler[0]).toMatch(/if \(isTripLocked\(tripId\)\) return \{error:\s*'locked'\};/);
+    expect(deleteHandler[0]).toMatch(/deleteReconciliationRecipient/);
+    expect(deleteHandler[0]).toMatch(
+      /if \(recipient && isTripLocked\(recipient\.id\)\) return \{error:\s*'recipient locked'\};/,
+    );
+  });
+
+  it('isChainLocked helper returns true if any same-sex chain trip is locked', () => {
+    const fn = viewSrc.match(/function isChainLocked\([\s\S]*?\}\s*\n/);
+    expect(fn, 'expected isChainLocked helper').not.toBeNull();
+    expect(fn[0]).toMatch(/subBatchId === subBatchId && t\.sex === sex/);
+    expect(fn[0]).toMatch(/\.some\(\(t\) => isTripLocked\(t\.id\)\)/);
+  });
+});
+
+describe('Pig planned-trip locks — UI affordances', () => {
+  it('locked trip card renders the "Locked by user: <name>" badge', () => {
+    expect(viewSrc).toMatch(/'Locked by user: '\s*\+\s*\(lockEntry\.lockedByName \|\| 'Unknown'\)/);
+    expect(viewSrc).toMatch(/data-planned-trip-locked-by/);
+  });
+
+  it('locked trips hide date / move / delete affordances', () => {
+    // The date-controls row is gated on !tripLocked && isManager.
+    expect(viewSrc).toMatch(/\{!tripLocked && isManager && \(\s*<div style=\{\{display: 'inline-flex'/);
+    // The move + delete row is also gated on !tripLocked.
+    expect(viewSrc).toMatch(/\{!tripLocked && isManager && \(nextSameSex \|\| prevSameSex \|\| canDelete\)/);
+    // The date input only renders when not locked.
+    expect(viewSrc).toMatch(/\{!tripLocked && isEditingDate && \(/);
+  });
+
+  it('admin/management get an inline Lock button on unlocked trips', () => {
+    expect(viewSrc).toMatch(/data-planned-trip-lock=/);
+    expect(viewSrc).toMatch(/onClick=\{\(\) => lockPlannedTrip\(t\.id\)\}/);
+  });
+
+  it('Unlock uses an inline two-step warning — no window.confirm', () => {
+    // The two-step path: Unlock button toggles unlockingTripId; the
+    // warning panel renders when unlockingTripId === t.id.
+    expect(viewSrc).toMatch(/data-planned-trip-unlock=/);
+    expect(viewSrc).toMatch(/data-planned-trip-unlock-warning=/);
+    expect(viewSrc).toMatch(/data-planned-trip-unlock-cancel=/);
+    expect(viewSrc).toMatch(/data-planned-trip-unlock-confirm=/);
+    // Exact Codex warning copy. Tolerant of Prettier reflow that may break
+    // the JSX text across multiple lines.
+    expect(viewSrc).toMatch(
+      /This trip has already been scheduled with the processor\.\s+Only unlock if[\s\S]*?rescheduled with the processor\./,
+    );
+    // No window.confirm anywhere in the unlock path.
+    const unlockBlock = viewSrc.match(/data-planned-trip-unlock-warning[\s\S]*?Confirm unlock[\s\S]*?<\/button>/);
+    expect(unlockBlock, 'expected unlock warning JSX').not.toBeNull();
+    expect(unlockBlock[0]).not.toMatch(/window\.confirm/);
+  });
+
+  it('Add gilt/boar trip buttons disable when the corresponding chain has a locked trip', () => {
+    expect(viewSrc).toMatch(/giltChainLocked\s*=\s*isChainLocked\([\s\S]*?g\.plannedProcessingTrips[\s\S]*?'gilt'/);
+    expect(viewSrc).toMatch(/boarChainLocked\s*=\s*isChainLocked\([\s\S]*?g\.plannedProcessingTrips[\s\S]*?'boar'/);
+    expect(viewSrc).toMatch(/disabled=\{giltChainLocked\}/);
+    expect(viewSrc).toMatch(/disabled=\{boarChainLocked\}/);
+  });
+});

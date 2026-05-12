@@ -19,7 +19,7 @@
 //     DB status). actual_process_date = weigh_in_sessions.date (NOT today).
 // ---------------------------------------------------------------------------
 import React from 'react';
-import {createProcessingBatch, attachEntriesToBatch} from '../lib/cattleProcessingBatch.js';
+import {createProcessingBatch, attachEntriesToBatch, promoteScheduledBatch} from '../lib/cattleProcessingBatch.js';
 import {buildForecast, checkProcessorGate} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
 
@@ -53,7 +53,9 @@ export default function CattleSendToProcessorModal({
           sb.from('cattle_processing_batches').select('*'),
         ]);
         if (cancelled) return;
-        const realBatches = batchesR.data || [];
+        const allBatches = batchesR.data || [];
+        const realBatches = allBatches.filter((b) => b.status === 'active' || b.status === 'complete');
+        const scheduledBatches = allBatches.filter((b) => b.status === 'scheduled');
         const f = buildForecast({
           cattle: cattleList || [],
           weighIns: weighIns || [],
@@ -61,9 +63,12 @@ export default function CattleSendToProcessorModal({
           includes,
           hidden,
           realBatches,
+          scheduledBatches,
           todayMs: Date.now(),
         });
-        setForecast({...f, _realBatches: realBatches});
+        // Stash all batch rows on the forecast so the promote path can
+        // grab the underlying scheduled row when promoting.
+        setForecast({...f, _realBatches: realBatches, _scheduledBatches: scheduledBatches});
         setLoading(false);
       } catch (e) {
         if (!cancelled) {
@@ -89,10 +94,33 @@ export default function CattleSendToProcessorModal({
     ? checkProcessorGate({selectedTags, nextProcessorBatch: next})
     : {ok: false, reason: 'no_next_batch', blockedTags: []};
 
-  // Surface the gate result to the operator in real-time (no Submit needed).
+  // Codex 2026-05-12 correction: outside-projection tags are a WARNING
+  // when there's a valid next batch (scheduled or virtual). Ronnie can
+  // intentionally send a cow not in the projection or skip a projected
+  // cow; only the actually-sent entries move to processed via
+  // attachEntriesToBatch. Hard-block is reserved for true no-batch cases.
+  //
+  // Codex 2026-05-12 (round 2): when next.source === 'scheduled', a
+  // forecast that has zero projected animals for the scheduled month
+  // is ALSO a warning, not a block. The scheduled row is a real
+  // processor booking — actual sent cattle still override projection.
+  // For a virtual next batch, empty_next_batch stays a hard block
+  // (there's no row to attach to).
+  const hasNextBatch = !!next;
+  const isScheduledNext = hasNextBatch && next.source === 'scheduled';
+  const isEmptyScheduled = isScheduledNext && !gate.ok && gate.reason === 'empty_next_batch';
+  const outsideTagsWarning =
+    hasNextBatch && !gate.ok && gate.reason === 'tags_outside_next_batch'
+      ? gate.blockedTags
+      : isEmptyScheduled
+        ? selectedTags.slice()
+        : [];
+  const hardBlocked = !hasNextBatch || (!gate.ok && gate.reason !== 'tags_outside_next_batch' && !isEmptyScheduled);
+
+  // Surface the outside-projection tags in real-time (no Submit needed).
   React.useEffect(() => {
-    setGateBlocked(gate.ok ? [] : gate.blockedTags);
-  }, [gate.ok, gate.blockedTags.join(',')]);
+    setGateBlocked(outsideTagsWarning);
+  }, [outsideTagsWarning.join(',')]);
 
   async function go() {
     setErr('');
@@ -100,22 +128,37 @@ export default function CattleSendToProcessorModal({
       setErr('Send-to-Processor is restricted to management/admin.');
       return;
     }
-    if (!gate.ok) {
+    if (hardBlocked) {
       setErr(
         gate.reason === 'no_next_batch'
           ? 'No next planned batch — there are no cattle eligible for processing yet.'
           : gate.reason === 'empty_next_batch'
             ? 'The next planned batch is empty.'
-            : 'Some selected tags are not in the next planned batch. Adjust hide/unhide in Forecast first.',
+            : 'Cannot send: forecast has no valid next batch yet.',
       );
       return;
     }
     setBusy(true);
     try {
-      const batch = await createProcessingBatch(sb, {
-        name: next.name,
-        processingDate: sessionDate,
-      });
+      // Promote-or-create: when nextProcessorBatch is sourced from a
+      // scheduled DB row, UPDATE that row to active and inherit its id
+      // + name + planned_process_date. Cattle move via attachEntriesToBatch
+      // exactly as before; the scheduled row's name is reused so the
+      // operator never sees a different number than what was scheduled.
+      // Otherwise, fall back to inserting a fresh active row.
+      let batch;
+      if (next.source === 'scheduled' && next.scheduledId) {
+        const scheduledRow = (forecast?._scheduledBatches || []).find((b) => b.id === next.scheduledId);
+        if (!scheduledRow) {
+          throw new Error('Scheduled batch ' + next.scheduledId + ' missing from forecast.');
+        }
+        batch = await promoteScheduledBatch(sb, scheduledRow, {processingDate: sessionDate});
+      } else {
+        batch = await createProcessingBatch(sb, {
+          name: next.name,
+          processingDate: sessionDate,
+        });
+      }
       const {attached, skipped} = await attachEntriesToBatch(sb, {
         batch,
         entries: flaggedEntries,
@@ -213,18 +256,23 @@ export default function CattleSendToProcessorModal({
 
         {!loading && gateBlocked.length > 0 && (
           <div
-            data-send-modal-blocked
+            data-send-modal-outside-tags
+            data-send-modal-outside-reason={isEmptyScheduled ? 'empty_scheduled' : 'outside_projection'}
             style={{
               padding: '10px 12px',
               borderRadius: 8,
-              background: '#fef2f2',
-              border: '1px solid #fca5a5',
-              color: '#991b1b',
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              color: '#92400e',
               fontSize: 12,
               marginBottom: 12,
             }}
           >
-            <div style={{fontWeight: 700, marginBottom: 4}}>Blocked: tags outside the next planned batch</div>
+            <div style={{fontWeight: 700, marginBottom: 4}}>
+              {isEmptyScheduled
+                ? 'Heads up: no projected cattle for this scheduled batch'
+                : 'Heads up: tags outside the projected cohort'}
+            </div>
             <div style={{display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6}}>
               {gateBlocked.map((t) => (
                 <span
@@ -235,24 +283,26 @@ export default function CattleSendToProcessorModal({
                     padding: '2px 8px',
                     borderRadius: 999,
                     background: 'white',
-                    color: '#991b1b',
-                    border: '1px solid #fca5a5',
+                    color: '#92400e',
+                    border: '1px solid #fde68a',
                   }}
                 >
                   #{t}
                 </span>
               ))}
             </div>
-            <div style={{fontSize: 11, color: '#7f1d1d'}}>
-              Adjust hide/unhide in the Forecast tab so the next planned batch matches the cattle you want to send. The
-              whole send is blocked until every selected tag is in the next batch.
+            <div style={{fontSize: 11, color: '#78350f'}}>
+              {isEmptyScheduled
+                ? 'No cattle are currently projected for this scheduled batch. The actual cattle you send override the projection — only the selected entries move to processed.'
+                : "These tags aren't in the next batch's projected cohort. The actual cattle you send override the projection — only the selected entries move to processed. Confirm if you intend to send them anyway."}
             </div>
           </div>
         )}
 
-        {!loading && next && gate.ok && (
+        {!loading && next && !hardBlocked && (
           <div style={{fontSize: 12, color: '#374151', marginBottom: 12}}>
-            This will create active batch <strong>{next.name}</strong> and send <strong>{flaggedEntries.length}</strong>{' '}
+            This will {next.source === 'scheduled' ? 'promote scheduled batch' : 'create active batch'}{' '}
+            <strong>{next.name}</strong> and send <strong>{flaggedEntries.length}</strong>{' '}
             {flaggedEntries.length === 1 ? 'cow' : 'cattle'} to processor. Processing date will be set to{' '}
             <strong>{sessionDate}</strong>.
           </div>
@@ -293,17 +343,17 @@ export default function CattleSendToProcessorModal({
           </button>
           <button
             onClick={go}
-            disabled={busy || loading || !gate.ok || !canSend}
+            disabled={busy || loading || hardBlocked || !canSend}
             data-send-modal-confirm
             style={{
               padding: '8px 16px',
               borderRadius: 7,
               border: 'none',
-              background: busy || loading || !gate.ok || !canSend ? '#9ca3af' : '#991b1b',
+              background: busy || loading || hardBlocked || !canSend ? '#9ca3af' : '#991b1b',
               color: 'white',
               fontWeight: 700,
               fontSize: 12,
-              cursor: busy || loading || !gate.ok || !canSend ? 'not-allowed' : 'pointer',
+              cursor: busy || loading || hardBlocked || !canSend ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit',
             }}
           >

@@ -65,13 +65,15 @@ const CattleHomeView = ({
       // Forecast tile — next processor batch + current-year ready count.
       if (settings && cR.data) {
         try {
+          const allBatches = bR.data || [];
           const f = buildForecast({
             cattle: cR.data,
             weighIns: wAll || [],
             settings,
             includes,
             hidden,
-            realBatches: bR.data || [],
+            realBatches: allBatches.filter((b) => b.status === 'active' || b.status === 'complete'),
+            scheduledBatches: allBatches.filter((b) => b.status === 'scheduled'),
             todayMs: Date.now(),
           });
           setForecastTile({

@@ -372,7 +372,9 @@ Layers:
 
 - Dedicated Supabase tables, not `app_store`.
 - Herds: `mommas`, `backgrounders`, `finishers`, `bulls`; outcomes: `processed`, `deceased`, `sold`.
-- Cattle processing batches are entered through `send_to_processor` on finishers weigh-in entries.
+- Cattle processing batch workflow: Planned (virtual forecast) → Scheduled (`status='scheduled'`, processor date booked, cattle remain forecast-eligible) → Active (Send-to-Processor promotes or creates) → Processed (UI label; storage value stays `status='complete'`).
+- Scheduled batches never update `cattle.herd` or `cattle.processing_batch_id` — cattle move only when Send-to-Processor flips a row to `active`. Migration 054 added `'scheduled'` to the status CHECK alongside `'active'` and `'complete'`.
+- Cattle processing batches enter `active` either by Send-to-Processor promoting a matching scheduled row OR creating a fresh active row when no scheduled match exists. UI surfaces "Processed" for `status='complete'` rows — DB value is unchanged so RPC + JS comparisons stay stable.
 - `loadCattleWeighInsCached` uses the two-query pattern. No `!inner` join rewrite.
 - Old tag source strings are load-bearing: `import`, `weigh_in`, `manual`.
 

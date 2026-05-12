@@ -1,19 +1,30 @@
-// CattleBatchesView — three-section layout introduced with the Cattle
-// Forecast build (mig 043). Going forward the only DB-stored batch statuses
-// are 'active' and 'complete'. "Planned" batches are virtual/computed by the
-// shared Forecast helper, displayed here as a read-only collapsed section
-// at the top so admin can see what the next 12 months look like.
+// CattleBatchesView — four-section layout introduced with the
+// Planned/Scheduled/Active/Processed workflow (mig 054). DB-stored batch
+// statuses are now 'active', 'complete', and 'scheduled'. "Planned"
+// batches remain virtual/computed by the shared Forecast helper. Once
+// a planned batch is scheduled with the processor, a real DB row with
+// status='scheduled' moves it into the Scheduled section.
 //
 // Sections (top→bottom):
-//   - Show Planned Batches    — collapsed, virtual, next 12 months
-//   - Active                  — default visible, real DB rows, hanging-weight editor
-//   - Show Completed Batches  — collapsed, real DB rows, finalized
+//   - Planned                 — virtual, future months, dynamic forecast
+//   - Scheduled               — DB rows status='scheduled', date booked
+//                               with processor; cattle remain forecast-
+//                               eligible until Send-to-Processor promotes
+//                               this row to 'active'.
+//   - Active                  — DB rows status='active', hanging-weight editor
+//   - Processed               — UI label for DB rows status='complete'.
+//                               Storage value stays 'complete' to keep
+//                               existing RPC and JS comparisons stable.
 //
-// Real batches are CREATED ONLY through Send-to-Processor at WeighIns.
-// The + New Batch button is gone. Manual edit-in-place (rename + processing
-// cost + notes + hanging weights) is restricted to management/admin via UI.
-// Auto-flip: when every cow in an active batch has hanging_weight > 0, the
-// batch promotes to 'complete'. Reopen drops it back to 'active'.
+// Active batches are CREATED either by:
+//   1) Send-to-Processor promoting a matching scheduled row to 'active'.
+//   2) Send-to-Processor inserting fresh when no matching scheduled row
+//      exists.
+// Scheduled batches do NOT update cattle.herd or
+// cattle.processing_batch_id — that move happens only when Send-to-
+// Processor flips a scheduled row to active and attaches the actually-
+// sent cattle. Auto-flip from active→complete (and reopen back to
+// active) is unchanged.
 import React from 'react';
 import UsersModal from '../auth/UsersModal.jsx';
 import {loadCattleWeighInsCached, invalidateCattleWeighInsCache} from '../lib/cattleCache.js';
@@ -63,6 +74,12 @@ const CattleBatchesView = ({
   const [showCompleted, setShowCompleted] = useState(false);
   const [renameDraft, setRenameDraft] = useState({}); // batchId → string
   const [renameErr, setRenameErr] = useState({}); // batchId → reason
+  // Local date drafts when scheduling a virtual batch (keyed by virtual
+  // batch name) or editing a scheduled row's planned_process_date
+  // (keyed by row id).
+  const [scheduleDateDraft, setScheduleDateDraft] = useState({});
+  const [scheduledDateDraft, setScheduledDateDraft] = useState({}); // scheduled row id → ISO date
+  const [unschedulingBatchId, setUnschedulingBatchId] = useState(null);
 
   async function loadAll() {
     const [bR, cR, wAll, calR, settings, inc, hid] = await Promise.all([
@@ -92,24 +109,44 @@ const CattleBatchesView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Compute virtual planned batches via the shared helper. Restrict the
-  // visible window to the next 12 months per the build packet.
-  const virtualPlanned = useMemo(() => {
-    if (!forecastSettings) return [];
-    const f = buildForecast({
+  // Compute the forecast once with split realBatches / scheduledBatches.
+  // Scheduled rows reserve their batch name + date but do NOT remove
+  // cattle from forecast eligibility — animals stay dynamic until
+  // Send-to-Processor promotes the scheduled row to active.
+  const forecast = useMemo(() => {
+    if (!forecastSettings) return null;
+    const realBatchesOnly = batches.filter((b) => b.status === 'active' || b.status === 'complete');
+    const scheduledBatchesOnly = batches.filter((b) => b.status === 'scheduled');
+    return buildForecast({
       cattle,
       weighIns,
       settings: forecastSettings,
       includes: heiferIncludes,
       hidden,
-      realBatches: batches,
+      realBatches: realBatchesOnly,
+      scheduledBatches: scheduledBatchesOnly,
       todayMs: Date.now(),
     });
+  }, [cattle, weighIns, forecastSettings, heiferIncludes, hidden, batches]);
+
+  // Virtual planned batches (next 12 months, excluding any already
+  // scheduled — buildForecast handles that suppression).
+  const virtualPlanned = useMemo(() => {
+    if (!forecast) return [];
     const nowYm = new Date().toISOString().slice(0, 7);
     const limitMs = Date.now() + 365 * 86400000;
     const limitYm = new Date(limitMs).toISOString().slice(0, 7);
-    return f.virtualBatches.filter((vb) => vb.monthKey >= nowYm && vb.monthKey <= limitYm);
-  }, [cattle, weighIns, forecastSettings, heiferIncludes, hidden, batches]);
+    return forecast.virtualBatches.filter((vb) => vb.monthKey >= nowYm && vb.monthKey <= limitYm);
+  }, [forecast]);
+
+  // Enriched scheduled batches, sorted chronologically by their
+  // planned_process_date.
+  const scheduledList = useMemo(() => {
+    if (!forecast) return [];
+    return forecast.scheduledBatches
+      .slice()
+      .sort((a, b) => (a.planned_process_date || '').localeCompare(b.planned_process_date || ''));
+  }, [forecast]);
 
   function cowsDetailOf(b) {
     return Array.isArray(b.cows_detail) ? b.cows_detail : [];
@@ -220,6 +257,69 @@ const CattleBatchesView = ({
     await loadAll();
   }
 
+  // ── Scheduled batch handlers (mig 054) ──────────────────────────────────
+  // Inserting a scheduled row reserves the virtual batch's name + processor
+  // date but never updates cattle.herd or cattle.processing_batch_id —
+  // cattle stay forecast-eligible. Unschedule removes the row; the matching
+  // virtual batch reappears under Planned on the next build.
+  async function scheduleVirtualBatch(vb) {
+    if (!canEdit) return;
+    const date = (scheduleDateDraft[vb.name] || '').trim();
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      alert('Pick a processor date (YYYY-MM-DD) before scheduling.');
+      return;
+    }
+    const rowId = 'cpb-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    const row = {
+      id: rowId,
+      name: vb.name,
+      planned_process_date: date,
+      status: 'scheduled',
+      cows_detail: [],
+      documents: [],
+    };
+    const r = await sb.from('cattle_processing_batches').insert(row).select().single();
+    if (r.error) {
+      alert('Schedule failed: ' + r.error.message);
+      return;
+    }
+    setBatches((prev) => [r.data, ...prev]);
+    setScheduleDateDraft((prev) => {
+      const x = {...prev};
+      delete x[vb.name];
+      return x;
+    });
+  }
+  async function updateScheduledDate(batchId, nextDate) {
+    if (!canEdit) return;
+    if (!nextDate || !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) return;
+    const target = batches.find((b) => b.id === batchId);
+    if (!target || target.status !== 'scheduled') return;
+    const r = await sb.from('cattle_processing_batches').update({planned_process_date: nextDate}).eq('id', batchId);
+    if (r.error) {
+      alert('Date update failed: ' + r.error.message);
+      return;
+    }
+    setBatches((prev) => prev.map((b) => (b.id === batchId ? {...b, planned_process_date: nextDate} : b)));
+  }
+  async function unscheduleBatch(batchId) {
+    if (!canEdit) return;
+    const target = batches.find((b) => b.id === batchId);
+    // Defense in depth — only scheduled rows can be unscheduled. Active
+    // or complete rows must never lose their cows_detail through this path.
+    if (!target || target.status !== 'scheduled') {
+      setUnschedulingBatchId(null);
+      return;
+    }
+    const r = await sb.from('cattle_processing_batches').delete().eq('id', batchId);
+    if (r.error) {
+      alert('Unschedule failed: ' + r.error.message);
+      return;
+    }
+    setBatches((prev) => prev.filter((b) => b.id !== batchId));
+    setUnschedulingBatchId(null);
+  }
+
   const active = batches.filter((b) => b.status === 'active');
   const completed = batches.filter((b) => b.status === 'complete');
 
@@ -241,7 +341,7 @@ const CattleBatchesView = ({
           <div style={{fontSize: 16, fontWeight: 700, color: '#111827'}} data-cattle-batches-root>
             Processing Batches{' '}
             <span style={{fontSize: 13, fontWeight: 400, color: '#6b7280'}}>
-              {active.length} active · {completed.length} complete
+              {scheduledList.length} scheduled · {active.length} active · {completed.length} processed
             </span>
           </div>
           {!canEdit && (
@@ -323,14 +423,223 @@ const CattleBatchesView = ({
                       </span>
                     )}
                     <span style={{flex: 1}} />
-                    <span style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>
-                      Created when sent to processor at WeighIns
-                    </span>
+                    {canEdit ? (
+                      <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
+                        <input
+                          data-virtual-batch-schedule-date={vb.name}
+                          type="date"
+                          value={scheduleDateDraft[vb.name] || ''}
+                          onChange={(e) => setScheduleDateDraft((prev) => ({...prev, [vb.name]: e.target.value}))}
+                          style={{
+                            fontSize: 11,
+                            padding: '3px 6px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: 5,
+                            fontFamily: 'inherit',
+                          }}
+                          title="Processor date for this batch"
+                        />
+                        <button
+                          data-virtual-batch-schedule={vb.name}
+                          onClick={() => scheduleVirtualBatch(vb)}
+                          disabled={!scheduleDateDraft[vb.name]}
+                          style={{
+                            fontSize: 11,
+                            padding: '4px 10px',
+                            borderRadius: 5,
+                            border: 'none',
+                            background: scheduleDateDraft[vb.name] ? '#085041' : '#9ca3af',
+                            color: 'white',
+                            cursor: scheduleDateDraft[vb.name] ? 'pointer' : 'not-allowed',
+                            fontFamily: 'inherit',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Schedule
+                        </button>
+                      </span>
+                    ) : (
+                      <span style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>
+                        Created when sent to processor at WeighIns
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </CollapsibleSection>
+        )}
+
+        {/* Scheduled batches — date booked with processor, cattle remain
+            forecast-eligible until Send-to-Processor promotes the row. */}
+        {!loading && scheduledList.length > 0 && (
+          <div style={{marginTop: 12}} data-scheduled-section>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#92400e',
+                letterSpacing: 0.4,
+                textTransform: 'uppercase',
+                marginBottom: 8,
+              }}
+            >
+              Scheduled ({scheduledList.length})
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
+              {scheduledList.map((sb2) => {
+                const isUnsched = unschedulingBatchId === sb2.id;
+                const dateValue =
+                  scheduledDateDraft[sb2.id] != null ? scheduledDateDraft[sb2.id] : sb2.planned_process_date || '';
+                return (
+                  <div
+                    key={sb2.id}
+                    data-scheduled-batch={sb2.name}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                      padding: '8px 10px',
+                      background: 'white',
+                      border: '1px solid #fde68a',
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  >
+                    <strong style={{color: '#92400e'}}>{sb2.name}</strong>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        padding: '1px 6px',
+                        background: '#fffbeb',
+                        color: '#92400e',
+                        border: '1px solid #fde68a',
+                        borderRadius: 4,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Scheduled
+                    </span>
+                    <span style={{color: '#6b7280'}}>
+                      {sb2.animalIds.length} {sb2.animalIds.length === 1 ? 'cow' : 'cows'} forecast
+                    </span>
+                    {sb2.projectedTotalLbs > 0 && (
+                      <span style={{color: '#065f46', fontWeight: 600}}>
+                        {Math.round(sb2.projectedTotalLbs).toLocaleString()} lb projected
+                      </span>
+                    )}
+                    {canEdit ? (
+                      <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                        <input
+                          data-scheduled-batch-date={sb2.name}
+                          type="date"
+                          value={dateValue}
+                          onChange={(e) => setScheduledDateDraft((prev) => ({...prev, [sb2.id]: e.target.value}))}
+                          onBlur={(e) => {
+                            const next = e.target.value;
+                            if (next && next !== sb2.planned_process_date) updateScheduledDate(sb2.id, next);
+                          }}
+                          style={{
+                            fontSize: 11,
+                            padding: '3px 6px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: 5,
+                            fontFamily: 'inherit',
+                          }}
+                          title="Processor date (saves on blur)"
+                        />
+                      </span>
+                    ) : (
+                      <span style={{color: '#6b7280'}}>
+                        {sb2.planned_process_date ? fmt(sb2.planned_process_date) : '—'}
+                      </span>
+                    )}
+                    <span style={{flex: 1}} />
+                    <span style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>
+                      Cattle remain forecast-backed until sent from WeighIns
+                    </span>
+                    {canEdit && !isUnsched && (
+                      <button
+                        data-scheduled-batch-unschedule={sb2.name}
+                        onClick={() => setUnschedulingBatchId(sb2.id)}
+                        style={{
+                          fontSize: 11,
+                          padding: '3px 10px',
+                          borderRadius: 5,
+                          border: '1px solid #fde68a',
+                          background: 'white',
+                          color: '#92400e',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                        title="Remove the scheduled date booking (cattle keep their herd)"
+                      >
+                        Unschedule
+                      </button>
+                    )}
+                    {canEdit && isUnsched && (
+                      <span
+                        data-scheduled-batch-unschedule-warning={sb2.name}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          flexBasis: '100%',
+                          padding: '6px 8px',
+                          background: '#fef3c7',
+                          border: '1px solid #fde68a',
+                          borderRadius: 6,
+                          color: '#78350f',
+                          fontSize: 11,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <span style={{flex: '1 1 100%'}}>
+                          Unscheduling will remove this date booking. Cattle stay in their herds and reappear under
+                          Planned. Only do this if you have rescheduled or cancelled with the processor.
+                        </span>
+                        <button
+                          data-scheduled-batch-unschedule-cancel={sb2.name}
+                          onClick={() => setUnschedulingBatchId(null)}
+                          style={{
+                            fontSize: 11,
+                            padding: '3px 10px',
+                            borderRadius: 5,
+                            border: '1px solid #d1d5db',
+                            background: 'white',
+                            color: '#4b5563',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          data-scheduled-batch-unschedule-confirm={sb2.name}
+                          onClick={() => unscheduleBatch(sb2.id)}
+                          style={{
+                            fontSize: 11,
+                            padding: '3px 10px',
+                            borderRadius: 5,
+                            border: 'none',
+                            background: '#b91c1c',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Confirm unschedule
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Active batches (default visible, middle) */}
@@ -391,22 +700,24 @@ const CattleBatchesView = ({
           </div>
         )}
 
-        {/* Completed batches (collapsed, bottom) */}
+        {/* Processed batches (collapsed, bottom). UI label is "Processed";
+            DB storage value stays 'complete' to keep RPC + JS comparisons
+            stable. */}
         {!loading && (
           <div style={{marginTop: 14}}>
             <CollapsibleSection
-              label="Show Completed Batches"
+              label="Show Processed Batches"
               count={completed.length}
               expanded={showCompleted}
               onToggle={() => setShowCompleted((v) => !v)}
               color="#f3f4f6"
               border="#d1d5db"
               text="#374151"
-              dataKey="completed"
+              dataKey="processed"
             >
               {completed.length === 0 ? (
                 <div style={{padding: '0.75rem', color: '#9ca3af', fontSize: 12, fontStyle: 'italic'}}>
-                  No completed batches yet.
+                  No processed batches yet.
                 </div>
               ) : (
                 <div style={{display: 'flex', flexDirection: 'column', gap: 10, padding: '0.5rem 0'}}>

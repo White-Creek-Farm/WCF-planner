@@ -27,10 +27,35 @@ function findCowByAnyTag(cattleList, tag) {
   );
 }
 
-// Create a new ACTIVE processing batch from a Send-to-Processor flow.
-// Mig 043 retired the 'planned' DB status; planned batches are virtual now,
-// so any batch that reaches the database is already active. The processing
-// date is the weigh_in_sessions.date, NOT the system date.
+// Promote an existing SCHEDULED row to ACTIVE. Used by Send-to-Processor
+// when the next forecast batch already has a status='scheduled' row
+// (the operator booked a date with the processor ahead of time). Sets
+// status='active' and actual_process_date to the weigh-in session date,
+// then returns the updated row so attachEntriesToBatch can append
+// cows_detail to it. cows_detail starts as whatever was on the
+// scheduled row (normally '[]'), preserving any prior shape.
+export async function promoteScheduledBatch(sb, scheduledRow, {processingDate}) {
+  if (!scheduledRow || !scheduledRow.id) {
+    throw new Error('promoteScheduledBatch: missing scheduled row');
+  }
+  if (scheduledRow.status && scheduledRow.status !== 'scheduled') {
+    throw new Error('promoteScheduledBatch: row is not in scheduled state');
+  }
+  const update = {
+    status: 'active',
+    actual_process_date: processingDate || null,
+  };
+  const {error} = await sb.from('cattle_processing_batches').update(update).eq('id', scheduledRow.id);
+  if (error) throw new Error('Could not promote scheduled batch: ' + error.message);
+  return {...scheduledRow, ...update};
+}
+
+// Create a new ACTIVE processing batch from a Send-to-Processor flow when
+// no matching scheduled row exists. Mig 054 added 'scheduled' as a valid
+// status alongside 'active' and 'complete'; planned batches stay virtual.
+// Send-to-Processor either PROMOTES a scheduled row (via
+// promoteScheduledBatch above) or CREATES a fresh active row here. The
+// processing date is the weigh_in_sessions.date, NOT the system date.
 // Returns the inserted row. No cows_detail yet -- attachEntriesToBatch
 // handles that in the next step.
 export async function createProcessingBatch(sb, {name, processingDate}) {

@@ -206,13 +206,20 @@ const CattleForecastView = ({
   // (n cattle ~500, n months ~48 → ~24k iterations).
   const forecast = useMemo(() => {
     if (!settings) return null;
+    // Split scheduled rows out of realBatches so buildForecast can
+    // suppress matching virtual batches and reserve their names. mig 054
+    // added 'scheduled' as a valid status; until that migration runs,
+    // this filter is a no-op (no scheduled rows exist).
+    const realActiveOrComplete = (realBatches || []).filter((b) => b.status === 'active' || b.status === 'complete');
+    const scheduledOnly = (realBatches || []).filter((b) => b.status === 'scheduled');
     return buildForecast({
       cattle,
       weighIns,
       settings,
       includes,
       hidden,
-      realBatches,
+      realBatches: realActiveOrComplete,
+      scheduledBatches: scheduledOnly,
       todayMs: Date.now(),
     });
   }, [cattle, weighIns, settings, includes, hidden, realBatches]);

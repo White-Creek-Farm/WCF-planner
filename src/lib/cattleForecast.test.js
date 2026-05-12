@@ -550,6 +550,35 @@ describe('buildVirtualBatchNames', () => {
     const v = buildVirtualBatchNames({realBatches: [], virtualMonths: buckets(['2027-04'])});
     expect(v[0].name).toBe('C-27-01');
   });
+  it('scheduled rows reserve their slot without renumbering earlier unscheduled virtuals', () => {
+    // Codex 2026-05-12 correction: scheduling July as C-26-03 must NOT
+    // push May/June virtual batches to C-26-04 / C-26-05. New virtual
+    // months always fill the lowest available slot; a later scheduled
+    // batch is just a reservation, not a counter bump.
+    const scheduled = [{name: 'C-26-03', planned_process_date: '2026-07-15', status: 'scheduled'}];
+    // virtualMonths excludes July (it's reserved by the scheduled row).
+    const v = buildVirtualBatchNames({
+      realBatches: [],
+      scheduledBatches: scheduled,
+      virtualMonths: buckets(['2026-05', '2026-06', '2026-08']),
+    });
+    expect(v.map((x) => x.name)).toEqual(['C-26-01', 'C-26-02', 'C-26-04']);
+  });
+  it('real bumps the cursor floor; scheduled reservations are just skipped', () => {
+    // Real C-26-02 is already complete (in the past — cursor floor 3);
+    // scheduled C-26-04 reserves slot 4 (future booking). Virtual June
+    // is the first to assign from floor → 03. July would naturally
+    // take 04 but that's reserved → bump to 05. September naturally
+    // takes 06.
+    const real = [{name: 'C-26-02', actual_process_date: '2026-05-15', status: 'complete'}];
+    const scheduled = [{name: 'C-26-04', planned_process_date: '2026-08-15', status: 'scheduled'}];
+    const v = buildVirtualBatchNames({
+      realBatches: real,
+      scheduledBatches: scheduled,
+      virtualMonths: buckets(['2026-06', '2026-07', '2026-09']),
+    });
+    expect(v.map((x) => x.name)).toEqual(['C-26-03', 'C-26-05', 'C-26-06']);
+  });
 });
 
 describe('validateRealBatchRename', () => {

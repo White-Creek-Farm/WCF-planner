@@ -153,6 +153,14 @@ export default function PigBatchesView({
   const [addingTripDate, setAddingTripDate] = React.useState('');
   const [addingTripCount, setAddingTripCount] = React.useState('');
   const [addingTripError, setAddingTripError] = React.useState('');
+  // Planned-trip locks sidecar (Codex pig planned trips lane). Sidecar
+  // key: ppp-pig-planned-trip-locks-v1. Shape:
+  //   { [tripId]: { locked: true, lockedByName, lockedByUserId, lockedAt } }
+  // Locks ride OUTSIDE plannedProcessingTrips so the documented six-key
+  // shape (id, date, sex, subBatchId, plannedCount, order) is preserved
+  // byte-identical on persisted rows.
+  const [plannedTripLocks, setPlannedTripLocks] = React.useState({});
+  const [unlockingTripId, setUnlockingTripId] = React.useState(null);
   React.useEffect(() => {
     sb.from('app_store')
       .select('data')
@@ -163,6 +171,19 @@ export default function PigBatchesView({
           setGlobalAdgRow(data.data);
         } else {
           setGlobalAdgRow({manualValue: null, updatedAt: null, updatedBy: null});
+        }
+      });
+  }, []);
+  React.useEffect(() => {
+    sb.from('app_store')
+      .select('data')
+      .eq('key', 'ppp-pig-planned-trip-locks-v1')
+      .maybeSingle()
+      .then(({data}) => {
+        if (data && data.data && typeof data.data === 'object') {
+          setPlannedTripLocks(data.data);
+        } else {
+          setPlannedTripLocks({});
         }
       });
   }, []);
@@ -294,6 +315,75 @@ export default function PigBatchesView({
       });
   }
 
+  // ── Planned-trip lock helpers (Codex pig planned trips lane) ────────────
+  // Locked trips block MANUAL /pig/batches edits end-to-end — guards live
+  // INSIDE the handlers, not only in JSX, so neighbor moves and chain-
+  // additions also respect the lock. Send-to-Trip fulfillment from
+  // /pig/weighins is intentionally NOT gated by these locks: when an
+  // operator sends pigs to a planned trip, the fulfillment flow may
+  // reconcile a locked trip's plannedCount (decrement, or remove the
+  // trip outright if all its planned pigs are processed) per the
+  // existing planned/processing trip contract. The lock only forbids
+  // manual date / count / add / delete mutation in this view — the
+  // processor date a trip was scheduled with stays intact through
+  // fulfillment.
+  function isTripLocked(tripId) {
+    if (!tripId) return false;
+    const entry = plannedTripLocks && plannedTripLocks[tripId];
+    return !!(entry && entry.locked);
+  }
+  function isChainLocked(plannedTrips, subBatchId, sex) {
+    if (!Array.isArray(plannedTrips)) return false;
+    return plannedTrips.filter((t) => t.subBatchId === subBatchId && t.sex === sex).some((t) => isTripLocked(t.id));
+  }
+  function persistPlannedTripLocks(next) {
+    sb.from('app_store')
+      .upsert({key: 'ppp-pig-planned-trip-locks-v1', data: next}, {onConflict: 'key'})
+      .then(({error}) => {
+        if (error) console.warn('persistPlannedTripLocks error:', error.message || error);
+      });
+  }
+  function lockPlannedTrip(tripId) {
+    if (!isManager) return;
+    if (!tripId) return;
+    const name = (authState && authState.name) || (authState && authState.user && authState.user.email) || 'Unknown';
+    const userId = (authState && authState.user && authState.user.id) || null;
+    const record = {locked: true, lockedByName: name, lockedByUserId: userId, lockedAt: new Date().toISOString()};
+    const next = {...(plannedTripLocks || {}), [tripId]: record};
+    setPlannedTripLocks(next);
+    persistPlannedTripLocks(next);
+  }
+  function unlockPlannedTrip(tripId) {
+    if (!isManager) return;
+    if (!tripId) return;
+    const next = {...(plannedTripLocks || {})};
+    delete next[tripId];
+    setPlannedTripLocks(next);
+    persistPlannedTripLocks(next);
+    setUnlockingTripId(null);
+  }
+  // Reconciliation recipient for a delete — mirrors
+  // deletePlannedTripWithReconciliation: pigs flow onto the NEXT chain
+  // trip, falling back to PREVIOUS if the deleted trip is last in the
+  // (subBatchId, sex) chain. Returns the recipient trip object, or null.
+  function deleteReconciliationRecipient(plannedTrips, tripId) {
+    if (!Array.isArray(plannedTrips)) return null;
+    const target = plannedTrips.find((t) => t.id === tripId);
+    if (!target) return null;
+    const chain = plannedTrips
+      .filter((t) => t.subBatchId === target.subBatchId && t.sex === target.sex)
+      .slice()
+      .sort((a, b) => {
+        const dA = a.date || '';
+        const dB = b.date || '';
+        if (dA === dB) return (a.order || 0) - (b.order || 0);
+        return dA.localeCompare(dB);
+      });
+    const idx = chain.findIndex((t) => t.id === tripId);
+    if (idx < 0) return null;
+    return chain[idx + 1] || chain[idx - 1] || null;
+  }
+
   // Planned-trip date edit for a single trip. Updates the matching trip's
   // date field and persists. Other fields are preserved via {...t}; the
   // persistable shape stays minimal (id, date, sex, subBatchId,
@@ -301,6 +391,7 @@ export default function PigBatchesView({
   // render with the new daysUntil.
   function setPlannedTripDateById(groupId, tripId, newDate) {
     if (!isManager) return;
+    if (isTripLocked(tripId)) return; // Lock guard: target trip locked.
     if (typeof newDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return;
     const nb = feederGroups.map((fg) => {
       if (fg.id !== groupId) return fg;
@@ -316,6 +407,7 @@ export default function PigBatchesView({
 
   function shiftPlannedTripDateById(groupId, tripId, currentDate, deltaDays) {
     if (!isManager) return;
+    if (isTripLocked(tripId)) return; // Lock guard: target trip locked.
     if (typeof currentDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(currentDate)) return;
     const nextDate = toISO(addDays(currentDate, deltaDays));
     if (editingPlannedTripId === tripId) setEditingPlannedTripDate(nextDate);
@@ -329,6 +421,11 @@ export default function PigBatchesView({
   // guard remains as defense in depth. Single-pig moves only for v1
   // (Codex W1); zero-count trips stay visible (Codex W2).
   function movePlannedTripPigsById(groupId, fromTripId, toTripId) {
+    if (!isManager) return;
+    // Lock guard: blocked when source OR target is locked. Mirrors Codex's
+    // neighbor-mutation rule — even a lock on the receiving trip prevents
+    // an indirect change.
+    if (isTripLocked(fromTripId) || isTripLocked(toTripId)) return;
     const fg = feederGroups.find((g) => g.id === groupId);
     if (!fg) return;
     const r = movePigsBetweenTrips(fg.plannedProcessingTrips || [], fromTripId, toTripId, 1);
@@ -345,8 +442,16 @@ export default function PigBatchesView({
   // Date is whatever the user typed; recalculateProjections sorts by
   // date+order so out-of-order dates still render correctly.
   function addPlannedTripById(groupId, {subBatchId, sex, date, plannedCount}) {
+    if (!isManager) return {error: 'gated'};
     const fg = feederGroups.find((g) => g.id === groupId);
     if (!fg) return {error: 'group not found'};
+    // Lock guard: disable Add when ANY existing trip in the same
+    // (subBatchId, sex) chain is locked — Codex's "if the add would draw
+    // pigs from a locked trip, block it; safest UI is disable Add for
+    // that sex chain when any trip in that chain is locked."
+    if (isChainLocked(fg.plannedProcessingTrips || [], subBatchId, sex)) {
+      return {error: 'chain locked'};
+    }
     const r = addPlannedTrip(fg.plannedProcessingTrips || [], {subBatchId, sex, date, plannedCount});
     if (r.error) return r;
     const nb = feederGroups.map((g) => (g.id !== groupId ? g : {...g, plannedProcessingTrips: r.trips}));
@@ -358,8 +463,16 @@ export default function PigBatchesView({
   // moves its plannedCount onto the NEXT chain trip (or PREVIOUS if last).
   // Refuses when chain has only one trip.
   function deletePlannedTripById(groupId, tripId) {
+    if (!isManager) return {error: 'gated'};
     const fg = feederGroups.find((g) => g.id === groupId);
     if (!fg) return {error: 'group not found'};
+    // Lock guard: refuse when the deleted trip OR its reconciliation
+    // recipient is locked. Codex's neighbor-mutation rule applies
+    // because delete reconciles the deleted trip's plannedCount onto
+    // the next (or previous) chain trip.
+    if (isTripLocked(tripId)) return {error: 'locked'};
+    const recipient = deleteReconciliationRecipient(fg.plannedProcessingTrips || [], tripId);
+    if (recipient && isTripLocked(recipient.id)) return {error: 'recipient locked'};
     const r = deletePlannedTripWithReconciliation(fg.plannedProcessingTrips || [], tripId);
     if (r.error) {
       console.warn('deletePlannedTripById:', r.error);
@@ -2790,56 +2903,92 @@ export default function PigBatchesView({
                                     )}
                                   </div>
                                 ) : (
-                                  <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
-                                    {(parseInt(sb.giltCount) || 0) > 0 && (
-                                      <button
-                                        data-planned-trip-add-button={`${sb.id}-gilt`}
-                                        onClick={() => {
-                                          setAddingTripFor({groupId: g.id, subBatchId: sb.id, sex: 'gilt'});
-                                          setAddingTripDate(new Date().toISOString().slice(0, 10));
-                                          setAddingTripCount('');
-                                          setAddingTripError('');
-                                        }}
-                                        style={{
-                                          fontSize: 10,
-                                          padding: '3px 10px',
-                                          borderRadius: 5,
-                                          border: '1px solid #1d4ed8',
-                                          background: 'white',
-                                          color: '#1d4ed8',
-                                          cursor: 'pointer',
-                                          fontFamily: 'inherit',
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        + Add gilt trip
-                                      </button>
-                                    )}
-                                    {(parseInt(sb.boarCount) || 0) > 0 && (
-                                      <button
-                                        data-planned-trip-add-button={`${sb.id}-boar`}
-                                        onClick={() => {
-                                          setAddingTripFor({groupId: g.id, subBatchId: sb.id, sex: 'boar'});
-                                          setAddingTripDate(new Date().toISOString().slice(0, 10));
-                                          setAddingTripCount('');
-                                          setAddingTripError('');
-                                        }}
-                                        style={{
-                                          fontSize: 10,
-                                          padding: '3px 10px',
-                                          borderRadius: 5,
-                                          border: '1px solid #1d4ed8',
-                                          background: 'white',
-                                          color: '#1d4ed8',
-                                          cursor: 'pointer',
-                                          fontFamily: 'inherit',
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        + Add boar trip
-                                      </button>
-                                    )}
-                                  </div>
+                                  (() => {
+                                    // Codex pig planned trips lane: when ANY trip in a
+                                    // (subBatchId, sex) chain is locked, disable Add for
+                                    // that chain — an add would draw pigs from the locked
+                                    // chain's plannedCount reservoir.
+                                    const giltChainLocked = isChainLocked(
+                                      g.plannedProcessingTrips || [],
+                                      sb.id,
+                                      'gilt',
+                                    );
+                                    const boarChainLocked = isChainLocked(
+                                      g.plannedProcessingTrips || [],
+                                      sb.id,
+                                      'boar',
+                                    );
+                                    return (
+                                      <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                                        {(parseInt(sb.giltCount) || 0) > 0 && (
+                                          <button
+                                            data-planned-trip-add-button={`${sb.id}-gilt`}
+                                            data-planned-trip-add-locked={giltChainLocked ? 'true' : 'false'}
+                                            disabled={giltChainLocked}
+                                            onClick={() => {
+                                              if (giltChainLocked) return;
+                                              setAddingTripFor({groupId: g.id, subBatchId: sb.id, sex: 'gilt'});
+                                              setAddingTripDate(new Date().toISOString().slice(0, 10));
+                                              setAddingTripCount('');
+                                              setAddingTripError('');
+                                            }}
+                                            style={{
+                                              fontSize: 10,
+                                              padding: '3px 10px',
+                                              borderRadius: 5,
+                                              border: '1px solid #1d4ed8',
+                                              background: giltChainLocked ? '#f3f4f6' : 'white',
+                                              color: giltChainLocked ? '#9ca3af' : '#1d4ed8',
+                                              cursor: giltChainLocked ? 'not-allowed' : 'pointer',
+                                              fontFamily: 'inherit',
+                                              fontWeight: 600,
+                                              opacity: giltChainLocked ? 0.6 : 1,
+                                            }}
+                                            title={
+                                              giltChainLocked
+                                                ? 'Gilt chain has a locked trip — unlock first'
+                                                : undefined
+                                            }
+                                          >
+                                            + Add gilt trip
+                                          </button>
+                                        )}
+                                        {(parseInt(sb.boarCount) || 0) > 0 && (
+                                          <button
+                                            data-planned-trip-add-button={`${sb.id}-boar`}
+                                            data-planned-trip-add-locked={boarChainLocked ? 'true' : 'false'}
+                                            disabled={boarChainLocked}
+                                            onClick={() => {
+                                              if (boarChainLocked) return;
+                                              setAddingTripFor({groupId: g.id, subBatchId: sb.id, sex: 'boar'});
+                                              setAddingTripDate(new Date().toISOString().slice(0, 10));
+                                              setAddingTripCount('');
+                                              setAddingTripError('');
+                                            }}
+                                            style={{
+                                              fontSize: 10,
+                                              padding: '3px 10px',
+                                              borderRadius: 5,
+                                              border: '1px solid #1d4ed8',
+                                              background: boarChainLocked ? '#f3f4f6' : 'white',
+                                              color: boarChainLocked ? '#9ca3af' : '#1d4ed8',
+                                              cursor: boarChainLocked ? 'not-allowed' : 'pointer',
+                                              fontFamily: 'inherit',
+                                              fontWeight: 600,
+                                              opacity: boarChainLocked ? 0.6 : 1,
+                                            }}
+                                            title={
+                                              boarChainLocked
+                                                ? 'Boar chain has a locked trip — unlock first'
+                                                : undefined
+                                            }
+                                          >
+                                            + Add boar trip
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })()
                                 )}
                               </div>
                             )}
@@ -2875,14 +3024,24 @@ export default function PigBatchesView({
                                     const sameSexChainCount = plannedProjected.filter((ct) => ct.sex === t.sex).length;
                                     const canDelete = isManager && sameSexChainCount > 1;
                                     const isEditingDate = editingPlannedTripId === t.id;
+                                    // Lock state for this card. Locked trips hide every
+                                    // mutation affordance (date, ±1d, move, delete) so
+                                    // operators can only re-enable mutation by going
+                                    // through the inline two-step unlock.
+                                    const lockEntry = plannedTripLocks && plannedTripLocks[t.id];
+                                    const tripLocked = !!(lockEntry && lockEntry.locked);
+                                    const lockedByLabel = tripLocked
+                                      ? 'Locked by user: ' + (lockEntry.lockedByName || 'Unknown')
+                                      : null;
                                     return (
                                       <div
                                         key={t.id}
                                         data-planned-trip-id={t.id}
                                         data-planned-trip-sex={t.sex}
+                                        data-planned-trip-locked={tripLocked ? 'true' : 'false'}
                                         style={{
-                                          background: 'white',
-                                          border: '1px solid #e5e7eb',
+                                          background: tripLocked ? '#f9fafb' : 'white',
+                                          border: tripLocked ? '1px solid #cbd5f5' : '1px solid #e5e7eb',
                                           borderRadius: 6,
                                           padding: '6px 10px',
                                           fontSize: 11,
@@ -2901,7 +3060,31 @@ export default function PigBatchesView({
                                           }}
                                         >
                                           <span style={{fontWeight: 700, color: '#111827'}}>{fmt(t.date)}</span>
-                                          {isManager && (
+                                          {tripLocked && (
+                                            <span
+                                              data-planned-trip-locked-by={t.id}
+                                              style={{
+                                                fontSize: 10,
+                                                fontWeight: 700,
+                                                padding: '2px 8px',
+                                                borderRadius: 10,
+                                                background: '#eef2ff',
+                                                color: '#3730a3',
+                                                border: '1px solid #c7d2fe',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                              }}
+                                              title={
+                                                lockEntry && lockEntry.lockedAt
+                                                  ? 'Locked ' + fmt(lockEntry.lockedAt)
+                                                  : undefined
+                                              }
+                                            >
+                                              🔒 {lockedByLabel}
+                                            </span>
+                                          )}
+                                          {!tripLocked && isManager && (
                                             <div style={{display: 'inline-flex', gap: 3, alignItems: 'center'}}>
                                               <button
                                                 data-planned-trip-edit-date={t.id}
@@ -2967,9 +3150,26 @@ export default function PigBatchesView({
                                               >
                                                 1d→
                                               </button>
+                                              <button
+                                                data-planned-trip-lock={t.id}
+                                                onClick={() => lockPlannedTrip(t.id)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 6px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #c7d2fe',
+                                                  background: 'white',
+                                                  color: '#3730a3',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                                title="Lock this planned trip (mark scheduled with the processor)"
+                                              >
+                                                🔒 Lock
+                                              </button>
                                             </div>
                                           )}
-                                          {isEditingDate && (
+                                          {!tripLocked && isEditingDate && (
                                             <input
                                               data-planned-trip-date-input={t.id}
                                               type="date"
@@ -3053,7 +3253,7 @@ export default function PigBatchesView({
                                           First trip: forward only. Last trip: back only.
                                           Middle trips: both. Disabled when this trip has
                                           0 pigs to give. */}
-                                        {isManager && (nextSameSex || prevSameSex || canDelete) && (
+                                        {!tripLocked && isManager && (nextSameSex || prevSameSex || canDelete) && (
                                           <div style={{display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap'}}>
                                             {prevSameSex && (
                                               <button
@@ -3118,6 +3318,91 @@ export default function PigBatchesView({
                                             )}
                                           </div>
                                         )}
+                                        {/* Locked trip — admin/management can unlock via a
+                                          two-step inline confirmation. No window.confirm. */}
+                                        {tripLocked &&
+                                          isManager &&
+                                          (unlockingTripId === t.id ? (
+                                            <div
+                                              data-planned-trip-unlock-warning={t.id}
+                                              style={{
+                                                display: 'flex',
+                                                gap: 6,
+                                                flexWrap: 'wrap',
+                                                marginTop: 4,
+                                                padding: '6px 8px',
+                                                border: '1px solid #fecaca',
+                                                background: '#fef2f2',
+                                                borderRadius: 6,
+                                                alignItems: 'center',
+                                              }}
+                                            >
+                                              <span
+                                                style={{
+                                                  color: '#991b1b',
+                                                  fontSize: 11,
+                                                  lineHeight: 1.3,
+                                                  flex: '1 1 100%',
+                                                }}
+                                              >
+                                                This trip has already been scheduled with the processor. Only unlock if
+                                                you have rescheduled with the processor.
+                                              </span>
+                                              <button
+                                                data-planned-trip-unlock-cancel={t.id}
+                                                onClick={() => setUnlockingTripId(null)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 8px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #d1d5db',
+                                                  background: 'white',
+                                                  color: '#4b5563',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                              >
+                                                Cancel
+                                              </button>
+                                              <button
+                                                data-planned-trip-unlock-confirm={t.id}
+                                                onClick={() => unlockPlannedTrip(t.id)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 10px',
+                                                  borderRadius: 5,
+                                                  border: 'none',
+                                                  background: '#b91c1c',
+                                                  color: 'white',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                  fontWeight: 600,
+                                                }}
+                                              >
+                                                Confirm unlock
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div style={{display: 'flex', marginTop: 4}}>
+                                              <button
+                                                data-planned-trip-unlock={t.id}
+                                                onClick={() => setUnlockingTripId(t.id)}
+                                                style={{
+                                                  fontSize: 10,
+                                                  padding: '2px 8px',
+                                                  borderRadius: 5,
+                                                  border: '1px solid #c7d2fe',
+                                                  background: 'white',
+                                                  color: '#3730a3',
+                                                  cursor: 'pointer',
+                                                  fontFamily: 'inherit',
+                                                }}
+                                                title="Unlock this planned trip (requires confirmation)"
+                                              >
+                                                🔓 Unlock
+                                              </button>
+                                            </div>
+                                          ))}
                                       </div>
                                     );
                                   })}

@@ -437,7 +437,23 @@ export function flagsForCow({cow, history, adgResult, weightMax}) {
 //                           in v1 — inclusion is herd-level not settings-level)}
 //   includes            — Set of cattle.id of momma-heifer inclusions
 //   hidden              — array of {cattle_id, month_key} hide rows
-//   realBatches         — cattle_processing_batches rows (active + complete)
+//   realBatches         — cattle_processing_batches rows that have moved
+//                          past the planning stage (status='active' or
+//                          'complete'). These remove their cows_detail
+//                          animals from the forecast eligibility pool
+//                          because cattle.herd flips to 'processed' on
+//                          Send-to-Processor.
+//   scheduledBatches    — cattle_processing_batches rows with
+//                          status='scheduled'. These reserve a batch
+//                          name + planned_process_date on the forecast
+//                          but DO NOT remove cattle from the eligibility
+//                          pool. Eligibility is decided strictly by
+//                          herd === 'finishers'/'backgrounders' (or the
+//                          momma-steer/heifer rules) — scheduled status
+//                          never touches cattle.herd, so cattle stay
+//                          forecast-eligible and dynamic until Send-to-
+//                          Processor actually promotes the row to
+//                          'active'.
 //   todayMs             — anchor for projections
 export function buildForecast({
   cattle = [],
@@ -446,6 +462,7 @@ export function buildForecast({
   includes = new Set(),
   hidden = [],
   realBatches = [],
+  scheduledBatches = [],
   todayMs = Date.now(),
 }) {
   const displayMin = Number.isFinite(settings.displayMin) ? settings.displayMin : FORECAST_DISPLAY_WEIGHT_MIN_DEFAULT;
@@ -649,6 +666,12 @@ export function buildForecast({
     // when actual is null) falls in this month. Surfaced on the tile so
     // operators see projected + actual side-by-side per Codex 2026-05-04.
     actualBatches: [],
+    // Scheduled batches (status='scheduled') whose planned_process_date
+    // falls in this month. Distinct from actualBatches so the UI can
+    // render a separate Scheduled affordance and so the virtual-batch
+    // generation can suppress its own virtual row for this month — the
+    // scheduled row already reserves the slot.
+    scheduledBatches: [],
   }));
   const bucketByKey = new Map(monthBuckets.map((b) => [b.monthKey, b]));
   for (const r of animalRows) {
@@ -676,14 +699,34 @@ export function buildForecast({
     }
   }
 
-  // Attach real (active|complete) batches to their month bucket.
+  // Attach real (active|complete) batches to their month bucket. Defensive
+  // status filter: callers SHOULD partition scheduled rows into
+  // scheduledBatches, but if a scheduled row leaks into realBatches we
+  // still skip it here so it never lands as an actualBatch.
   for (const rb of realBatches || []) {
     if (!rb) continue;
+    if (rb.status === 'scheduled') continue;
     const dt = rb.actual_process_date || rb.planned_process_date;
     if (!dt) continue;
     const mk = String(dt).slice(0, 7);
     const bucket = bucketByKey.get(mk);
     if (bucket) bucket.actualBatches.push(rb);
+  }
+
+  // Attach scheduled batches to their month bucket. Scheduled rows do NOT
+  // remove cattle from the forecast — they only reserve the batch
+  // name/date for the upcoming cohort. eligibilityFor / monthBucket
+  // assignment above already handled cattle inclusion strictly by
+  // herd === 'finishers'/'backgrounders' (or momma-steer/heifer-include
+  // rules), so animalIds for this month are unchanged.
+  for (const sb of scheduledBatches || []) {
+    if (!sb) continue;
+    if (sb.status && sb.status !== 'scheduled') continue;
+    const dt = sb.planned_process_date;
+    if (!dt) continue;
+    const mk = String(dt).slice(0, 7);
+    const bucket = bucketByKey.get(mk);
+    if (bucket) bucket.scheduledBatches.push(sb);
   }
 
   // ── summary ────────────────────────────────────────────────────────────────
@@ -727,20 +770,78 @@ export function buildForecast({
     watchlistCount: watchlist.length,
   };
 
-  // ── virtual batches (one per non-empty month) ─────────────────────────────
-  const virtualMonths = monthBuckets.filter((b) => b.count > 0);
+  // ── virtual batches (one per non-empty month WITHOUT a scheduled row) ───
+  // A scheduled batch already reserves the slot for its month, so virtual
+  // batch generation skips those buckets. Sequence numbering still counts
+  // scheduled names so the next virtual batch picks the right next-up
+  // number for the year.
+  const virtualMonths = monthBuckets.filter((b) => b.count > 0 && (b.scheduledBatches || []).length === 0);
   const virtualBatches = buildVirtualBatchNames({
     realBatches,
+    scheduledBatches,
     virtualMonths,
     todayMs,
     cattle,
     animalRowsById: new Map(animalRows.map((r) => [r.cow.id, r])),
   });
 
+  // Enrich scheduled batches with the matching month bucket's cohort so
+  // the Scheduled section can render a live count of forecast-eligible
+  // cattle for each scheduled row. animalIds are recomputed every build
+  // so cattle that herd-moved or got hidden naturally drop out.
+  const scheduledBatchesEnriched = (scheduledBatches || [])
+    .filter((sb) => sb && (sb.status === 'scheduled' || sb.status == null))
+    .map((sb) => {
+      const dt = sb.planned_process_date;
+      const mk = dt ? String(dt).slice(0, 7) : null;
+      const bucket = mk ? bucketByKey.get(mk) : null;
+      const animalIds = bucket ? bucket.animalIds.slice() : [];
+      let projectedTotalLbs = 0;
+      const rowsById = new Map(animalRows.map((r) => [r.cow.id, r]));
+      for (const cid of animalIds) {
+        const r = rowsById.get(cid);
+        if (r && r.projectedWeightAtReady != null) projectedTotalLbs += r.projectedWeightAtReady;
+      }
+      return {
+        id: sb.id,
+        name: sb.name,
+        planned_process_date: sb.planned_process_date,
+        status: sb.status || 'scheduled',
+        monthKey: mk,
+        label: mk ? monthLabel(mk) : null,
+        animalIds,
+        projectedTotalLbs,
+      };
+    });
+
   // ── next processor batch (gate for Send-to-Processor) ─────────────────────
+  // Scheduled rows count as next-up cohorts — if a scheduled batch is
+  // earlier than the first remaining virtual, the gate prefers it. The
+  // scheduledBatch flag tells the caller whether to promote-or-create.
   let nextProcessorBatch = null;
-  if (virtualBatches.length > 0) {
-    const first = virtualBatches[0];
+  const candidatePool = [
+    ...scheduledBatchesEnriched.map((sb) => ({
+      source: 'scheduled',
+      scheduledId: sb.id,
+      name: sb.name,
+      monthKey: sb.monthKey,
+      label: sb.label,
+      animalIds: sb.animalIds,
+      projectedTotalLbs: sb.projectedTotalLbs,
+    })),
+    ...virtualBatches.map((vb) => ({
+      source: 'virtual',
+      scheduledId: null,
+      name: vb.name,
+      monthKey: vb.monthKey,
+      label: vb.label,
+      animalIds: vb.animalIds,
+      projectedTotalLbs: vb.projectedTotalLbs,
+    })),
+  ];
+  candidatePool.sort((a, b) => (a.monthKey || '').localeCompare(b.monthKey || ''));
+  if (candidatePool.length > 0) {
+    const first = candidatePool[0];
     const allowedTagSet = new Set();
     for (const cid of first.animalIds) {
       const cow = cattle.find((c) => c.id === cid);
@@ -754,10 +855,20 @@ export function buildForecast({
       allowedTagSet,
       projectedTotalLbs: first.projectedTotalLbs,
       currentYearTotalForecast: readyByYear[todayYear] || 0,
+      source: first.source,
+      scheduledId: first.scheduledId,
     };
   }
 
-  return {summary, monthBuckets, animalRows, watchlist, virtualBatches, nextProcessorBatch};
+  return {
+    summary,
+    monthBuckets,
+    animalRows,
+    watchlist,
+    virtualBatches,
+    scheduledBatches: scheduledBatchesEnriched,
+    nextProcessorBatch,
+  };
 }
 
 // ── virtual-batch naming ──────────────────────────────────────────────────────
@@ -801,36 +912,72 @@ export function highestStoredNumberForYear(realBatches, yy) {
 
 // Compute the next real (active) batch name to assign at WeighIns
 // Send-to-Processor time. Uses the calendar year of `processingDateISO`
-// (= weigh_in_sessions.date). New year starts at 01.
-export function nextRealBatchName(realBatches, processingDateISO) {
+// (= weigh_in_sessions.date). New year starts at 01. Scheduled rows
+// reserve their own names, so callers should pass them via
+// scheduledBatches so the chosen next-name skips past any reservations.
+export function nextRealBatchName(realBatches, processingDateISO, scheduledBatches = []) {
   const dt = isoDateAtUtcNoon(processingDateISO);
   if (dt == null) return null;
   const yy = new Date(dt).getUTCFullYear() % 100;
-  const next = highestStoredNumberForYear(realBatches, yy) + 1;
+  const realMax = highestStoredNumberForYear(realBatches, yy);
+  const schedMax = highestStoredNumberForYear(scheduledBatches, yy);
+  const next = Math.max(realMax, schedMax) + 1;
   return formatBatchName(yy, next);
 }
 
 // Build virtual batch names + cohorts from the month buckets. Each
-// non-empty month becomes one virtual batch. Names continue contiguously
-// from the highest stored real-batch number IN THE SAME YEAR, and reset
-// to 01 on year change.
-export function buildVirtualBatchNames({realBatches, virtualMonths, animalRowsById}) {
-  // Track per-year sequence as we walk months in horizon order. The
-  // starting sequence for a year is the highest stored real-batch number
-  // for that year (so the first virtual within an already-active year
-  // starts at +1, and the first virtual in a fresh year starts at 01 if
-  // there are no real batches for that year yet).
+// non-empty month becomes one virtual batch.
+//
+// Chronological-within-year naming (Codex 2026-05-12 correction):
+//   - Real (active/complete) batches anchor the cursor FLOOR for the
+//     year — they're already in the past, so any new virtual batch in
+//     that year must come AFTER the highest stored real sequence.
+//   - Scheduled batches reserve their slot only — they don't push
+//     earlier virtual months to higher numbers. A scheduled C-26-03 in
+//     July leaves C-26-01 / C-26-02 available for May / June virtuals
+//     that come online later. The virtual sequence walks chronologically
+//     from (realMax + 1) and skips over any scheduled reservation.
+//
+// The two rules diverge because real batches represent past reality
+// (you can't squeeze a new batch in before C-26-02 once C-26-02 has
+// happened) while scheduled batches are a future booking that hasn't
+// processed yet.
+export function buildVirtualBatchNames({realBatches, scheduledBatches = [], virtualMonths, animalRowsById}) {
   const out = [];
-  const startedSeqByYear = new Map();
+  // Reservations per year from scheduled rows ONLY — these are the
+  // slots virtual numbering must skip (without bumping the cursor floor).
+  const scheduledReservedByYear = new Map();
+  for (const sb of scheduledBatches || []) {
+    const p = parseBatchName(sb && sb.name);
+    if (!p) continue;
+    if (!scheduledReservedByYear.has(p.yy)) scheduledReservedByYear.set(p.yy, new Set());
+    scheduledReservedByYear.get(p.yy).add(p.n);
+  }
+  // Cursor floor per year from real rows: new virtual numbers must
+  // come after the highest stored real sequence. realMax is computed
+  // lazily per encountered year.
+  const cursorByYear = new Map();
+  function nextSeqFor(yy) {
+    const reserved = scheduledReservedByYear.get(yy) || new Set();
+    let next = cursorByYear.get(yy);
+    if (next == null) {
+      const realMax = highestStoredNumberForYear(realBatches, yy);
+      next = realMax + 1;
+    }
+    while (reserved.has(next)) next += 1;
+    cursorByYear.set(yy, next + 1);
+    return next;
+  }
+  // virtualMonths is already sorted by monthKey ascending (buildForecast
+  // builds it from displayHorizon, which iterates Jan → Dec per year),
+  // so walking it directly yields chronological assignment within each
+  // year and a fresh seq=01 start at year boundaries when there are no
+  // real or scheduled rows in the new year.
   for (const bucket of virtualMonths || []) {
     const p = parseMonthKey(bucket.monthKey);
     if (!p) continue;
     const yy = p.year % 100;
-    if (!startedSeqByYear.has(yy)) {
-      startedSeqByYear.set(yy, highestStoredNumberForYear(realBatches, yy));
-    }
-    const seq = startedSeqByYear.get(yy) + 1;
-    startedSeqByYear.set(yy, seq);
+    const seq = nextSeqFor(yy);
     const name = formatBatchName(yy, seq);
     let projectedTotalLbs = 0;
     if (animalRowsById) {

@@ -224,23 +224,21 @@ test('forecast → send: active batch saved with exact virtual batch name', asyn
 });
 
 // --------------------------------------------------------------------------
-// Test 4 — Modal gate blocks tags outside the Forecast tab's next batch.
+// Test 4 — Outside-projection tags are a warning, not a hard block.
 // --------------------------------------------------------------------------
-test('forecast → send: gate blocks tags outside next batch and lists them', async ({
+// Codex 2026-05-12: Ronnie can send a cow that the forecast didn't project,
+// and unsent projected cows stay in their herd / forecast. The modal must
+// surface an amber warning for outside-projection tags but keep Confirm
+// enabled, and attachEntriesToBatch's "selected entries only" semantics
+// guarantee only the actually-sent cattle move to processed.
+test('forecast → send: outside-projection tags warn but do not block; sent cow attaches; unsent projected cow stays', async ({
   page,
   cattleForecastSendFlowScenario,
   supabaseAdmin,
 }) => {
-  // Hide F-HIDE in its assigned month so its tag drops OUT of next.allowedTagSet.
-  // Easiest path: pre-hide via API at the cow's projected month. The
-  // exact month doesn't matter — any hide row pushes F-HIDE off the next
-  // bucket. Pick a bucket the helper will treat as eligible-but-hidden.
-  // Since F-HIDE's projection isn't deterministic across spec runs, we
-  // hide it in EVERY future month via the addHidden API. The helper's
-  // ALL_ELIGIBLE_HIDDEN watchlist reason then guarantees F-HIDE never
-  // appears in any bucket's animalIds.
+  // Hide F-HIDE in every future month so its tag drops OUT of every
+  // bucket's animalIds and therefore out of next.allowedTagSet.
   const months = [];
-  // 18 months out is plenty.
   for (let i = 0; i < 18; i++) {
     const d = new Date('2026-05-04T12:00:00Z');
     d.setUTCMonth(d.getUTCMonth() + i);
@@ -250,27 +248,145 @@ test('forecast → send: gate blocks tags outside next batch and lists them', as
     await supabaseAdmin.from('cattle_forecast_hidden').insert({cattle_id: 'F-HIDE', month_key: mk, hidden_by: 'test'});
   }
 
+  // Unflag F-AT-MAX (tag 1002) so she's a PROJECTED cow that the operator
+  // intentionally did NOT send. After confirm she must remain in her
+  // original herd ('finishers') with no processing_batch_id.
+  await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).eq('id', 'wi-send-F-AT-MAX');
+
   await page.goto('/cattle/weighins');
   const draftRow = page.locator('.hoverable-tile').filter({hasText: /draft/i}).first();
   await expect(draftRow).toBeVisible({timeout: 15_000});
   await draftRow.click();
   await page.getByRole('button', {name: /Complete Session/}).click();
 
-  // Modal renders with three flagged cows including F-HIDE (tag 1003), but
-  // F-HIDE is hidden in every month so its tag is NOT in the next batch's
-  // allowedTagSet. The whole send must be blocked.
+  // Modal renders with the remaining flagged cows. F-HIDE (tag 1003) is
+  // hidden in every month so its tag is NOT in the next batch's
+  // allowedTagSet — the modal must show an amber warning, NOT block.
   const modal = page.locator('[data-cattle-send-modal]');
   await expect(modal).toBeVisible({timeout: 5_000});
-  const blocked = page.locator('[data-send-modal-blocked]');
-  await expect(blocked).toBeVisible();
-  await expect(blocked).toContainText('1003');
-  // Confirm button is disabled.
-  await expect(page.locator('[data-send-modal-confirm]')).toBeDisabled();
+  const outsideWarn = page.locator('[data-send-modal-outside-tags]');
+  await expect(outsideWarn).toBeVisible();
+  await expect(outsideWarn).toContainText('1003');
+  await expect(outsideWarn).toContainText(/outside the projected cohort/i);
+  // The hard-block panel is gone.
+  await expect(page.locator('[data-send-modal-blocked]')).toHaveCount(0);
+  // Confirm button is enabled (warning, not block).
+  await expect(page.locator('[data-send-modal-confirm]')).toBeEnabled();
 
-  // No DB batch was created.
-  const r = await supabaseAdmin.from('cattle_processing_batches').select('id');
+  // Click Confirm — actual sent cattle override the projection. Only
+  // flagged entries move to processed.
+  await page.locator('[data-send-modal-confirm]').click();
+  await expect(modal).toBeHidden({timeout: 10_000});
+
+  // One active batch was created.
+  const r = await supabaseAdmin.from('cattle_processing_batches').select('id, status, cows_detail');
   expect(r.error).toBeNull();
-  expect(r.data?.length || 0).toBe(0);
+  expect(r.data?.length || 0).toBe(1);
+  const batch = r.data[0];
+  expect(batch.status).toBe('active');
+
+  // The sent F-HIDE cow's id is in cows_detail and her herd is now 'processed'.
+  const sentCowIds = (Array.isArray(batch.cows_detail) ? batch.cows_detail : []).map((row) => row.cattle_id);
+  expect(sentCowIds).toContain('F-HIDE');
+  const hideCowR = await supabaseAdmin.from('cattle').select('herd, processing_batch_id').eq('id', 'F-HIDE').single();
+  expect(hideCowR.data.herd).toBe('processed');
+  expect(hideCowR.data.processing_batch_id).toBe(batch.id);
+
+  // F-AT-MAX (projected but UNflagged) must stay in finishers — actual
+  // sent cattle override projection in both directions.
+  expect(sentCowIds).not.toContain('F-AT-MAX');
+  const atMaxR = await supabaseAdmin.from('cattle').select('herd, processing_batch_id').eq('id', 'F-AT-MAX').single();
+  expect(atMaxR.data.herd).toBe('finishers');
+  expect(atMaxR.data.processing_batch_id).toBeNull();
+});
+
+// --------------------------------------------------------------------------
+// Test 4b — Scheduled row promotes to active instead of inserting a new row.
+// --------------------------------------------------------------------------
+// Codex 2026-05-12 (round 3): the risky path is "scheduled row promotes
+// instead of inserting fresh." Pre-seed a scheduled row, send a subset
+// from weigh-ins, confirm the same DB id flips to status='active',
+// cows_detail picks up only the actually-sent entries, no second row
+// with the same name is inserted, and an unflagged projected cow stays
+// in her original herd.
+test('send-to-processor: scheduled row promotes to active; same id; only sent cattle move', async ({
+  page,
+  cattleForecastSendFlowScenario,
+  supabaseAdmin,
+}) => {
+  // Pre-seed: scheduled row named C-26-01 (first batch of 2026 since the
+  // seed has no real batches) with planned_process_date matching the
+  // session date so buildForecast surfaces it as the next-up batch via
+  // source='scheduled'. cows_detail starts empty — promotion attaches.
+  const scheduledId = 'cpb-test-scheduled-01';
+  const scheduledName = 'C-26-01';
+  const plannedDate = '2026-05-04';
+  await supabaseAdmin.from('cattle_processing_batches').insert({
+    id: scheduledId,
+    name: scheduledName,
+    planned_process_date: plannedDate,
+    status: 'scheduled',
+    cows_detail: [],
+    documents: [],
+  });
+
+  // Unflag F-AT-MAX (tag 1002) so she's a projected cow the operator
+  // chose NOT to send. After promotion she must stay in finishers.
+  await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).eq('id', 'wi-send-F-AT-MAX');
+
+  await page.goto('/cattle/weighins');
+  const draftRow = page.locator('.hoverable-tile').filter({hasText: /draft/i}).first();
+  await expect(draftRow).toBeVisible({timeout: 15_000});
+  await draftRow.click();
+  await page.getByRole('button', {name: /Complete Session/}).click();
+
+  // Modal renders with the scheduled batch name. The summary line on a
+  // promote path reads "promote scheduled batch" instead of "create
+  // active batch".
+  const modal = page.locator('[data-cattle-send-modal]');
+  await expect(modal).toBeVisible({timeout: 5_000});
+  await expect(modal).toContainText(scheduledName);
+  await expect(modal).toContainText(/promote scheduled batch/i);
+  await expect(page.locator('[data-send-modal-confirm]')).toBeEnabled();
+  await page.locator('[data-send-modal-confirm]').click();
+  await expect(modal).toBeHidden({timeout: 10_000});
+
+  // No duplicate row with the same name was inserted — the scheduled id
+  // is unique. Only one row exists, and it's now active.
+  const r = await supabaseAdmin
+    .from('cattle_processing_batches')
+    .select('id, status, name, actual_process_date, planned_process_date, cows_detail')
+    .eq('name', scheduledName);
+  expect(r.error).toBeNull();
+  expect(r.data?.length || 0).toBe(1);
+  const batch = r.data[0];
+  expect(batch.id).toBe(scheduledId);
+  expect(batch.status).toBe('active');
+  expect(batch.actual_process_date).toBe(plannedDate);
+  expect(batch.planned_process_date).toBe(plannedDate);
+
+  // cows_detail contains the actually-sent cattle (F1 + F-HIDE — F-HIDE
+  // is still in her original herd because the seed doesn't hide her in
+  // this spec). F-AT-MAX was unflagged so she must NOT appear in the
+  // batch.
+  const sentCowIds = (Array.isArray(batch.cows_detail) ? batch.cows_detail : []).map((row) => row.cattle_id);
+  expect(sentCowIds).toContain('F1');
+  expect(sentCowIds).toContain('F-HIDE');
+  expect(sentCowIds).not.toContain('F-AT-MAX');
+
+  // F-AT-MAX (projected but unflagged) remains in finishers, no
+  // processing_batch_id.
+  const atMaxR = await supabaseAdmin.from('cattle').select('herd, processing_batch_id').eq('id', 'F-AT-MAX').single();
+  expect(atMaxR.data.herd).toBe('finishers');
+  expect(atMaxR.data.processing_batch_id).toBeNull();
+
+  // The two sent cattle moved to processed and point at the promoted batch.
+  const sentR = await supabaseAdmin.from('cattle').select('id, herd, processing_batch_id').in('id', ['F1', 'F-HIDE']);
+  expect(sentR.error).toBeNull();
+  for (const row of sentR.data || []) {
+    expect(row.herd).toBe('processed');
+    expect(row.processing_batch_id).toBe(scheduledId);
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -624,9 +740,9 @@ test('forecast: admin can save settings + open Include Heifers modal', async ({p
 });
 
 // --------------------------------------------------------------------------
-// Test 6 — Batches tab: three sections, no + New Batch.
+// Test 6 — Batches tab: four sections, no + New Batch.
 // --------------------------------------------------------------------------
-test('batches: three sections (planned / active / completed); + New Batch removed', async ({
+test('batches: four sections (planned / scheduled / active / processed); + New Batch removed', async ({
   page,
   cattleForecastScenario,
 }) => {
@@ -641,14 +757,20 @@ test('batches: three sections (planned / active / completed); + New Batch remove
   await expect(plannedSection).toBeVisible();
   await expect(plannedSection).toContainText('Show Planned Batches');
 
+  // Scheduled section only renders when at least one scheduled row exists;
+  // by default the seed has none, so the data-scheduled-section anchor
+  // should be absent.
+  await expect(page.locator('[data-scheduled-section]')).toHaveCount(0);
+
   // Active section header rendered with count parenthesized; seed has zero
   // active batches by default.
   await expect(page.getByText(/^Active \(0\)/)).toBeVisible();
 
-  // Completed section header (collapsed).
-  const completedSection = page.locator('[data-batches-section="completed"]');
-  await expect(completedSection).toBeVisible();
-  await expect(completedSection).toContainText('Show Completed Batches');
+  // Processed section header (collapsed). UI label is "Processed"; the
+  // underlying DB status value stays 'complete'.
+  const processedSection = page.locator('[data-batches-section="processed"]');
+  await expect(processedSection).toBeVisible();
+  await expect(processedSection).toContainText('Show Processed Batches');
 
   // Expand Planned — should show at least one virtual planned batch tile.
   await plannedSection.locator('> div').first().click();
