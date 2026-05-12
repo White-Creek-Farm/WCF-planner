@@ -146,8 +146,7 @@ function SetPasswordScreen({onDone, prefilledEmail}) {
         }}
       >
         <div style={{textAlign: 'center', marginBottom: '2rem'}}>
-          <div style={{fontSize: 22, fontWeight: 700, color: '#085041'}}>Set Your Password</div>
-          <div style={{fontSize: 13, color: '#9ca3af', marginTop: 4}}>White Creek Farm</div>
+          <div style={{fontSize: 22, fontWeight: 700, color: '#085041'}}>WCF Planner</div>
           {prefilledEmail && <div style={{fontSize: 12, color: '#6b7280', marginTop: 8}}>{prefilledEmail}</div>}
         </div>
         {done ? (
