@@ -4,7 +4,7 @@
 
 Live URL: https://wcfplanner.com
 
-Last updated: 2026-05-09
+Last updated: 2026-05-12
 
 This file is the project-specific source of truth: current build state, architecture, routes, data contracts, domain rules, and active roadmap. Workflow SOP, gate rules, validation requirements, and prompt relay rules live in [HO.md](HO.md). Session narratives live in git log and [archive/SESSION_LOG.md](archive/SESSION_LOG.md).
 
@@ -35,29 +35,20 @@ Use this order when opening the repo cold:
 | Task assignees | Task Center mutation dropdowns use `tasks_public_assignee_availability`. Hidden profiles are excluded from New Task/Reassign/Recurring/System Rule modals. Read-only history/group labels still display hidden or inactive names when already assigned. |
 | Header | Dark bar groups Dailys + Equipment under "Webforms"; Equipment routes to public `/equipment`. Tasks is visually separated from webform links. |
 | Planner icons | `public/icons/planner/*.png` supplies program/action/equipment icons. Use `PlannerIcon`, `PlannerIconLabel`, and `plannerIconUrl`; do not reference the OneDrive source folder in app code. |
-| Pig planned trips | `/pig/batches` supports admin/management add/delete/move/date-step planned trips. `/pig/weighins` send-to-processor flow targets planned trips and reconciles exact, under-pull, residual, and over-pull cases. Farm team is read-only on planned/processing trip mutations. |
+| Pig planned trips | `/pig/batches` supports admin/management add/delete/move/date-step planned trips, plus lock/unlock via a sidecar key (`ppp-pig-planned-trip-locks-v1`). Locked trips reject manual date/count/add/delete edits in `/pig/batches`. `/pig/weighins` Send-to-Trip fulfillment still reconciles `plannedCount`/removal against a locked trip without changing the scheduled date. Farm team is read-only on planned/processing trip mutations. |
 | Pig processor controls | Completed pig weigh-in sessions still expose processor-send controls for authorized users when unsent entries exist. |
-| Layer dashboard | Main layer dashboard shows lifetime active-batch cost metrics. Rolling 30/90/120 windows and lbs/doz were removed from that dashboard. Layer group/batch detail views keep their own existing metrics. |
+| Cattle processing workflow | Planned (virtual forecast) → Scheduled (`status='scheduled'`, processor date booked) → Active (Send-to-Processor promotes scheduled or creates fresh) → Processed (UI label; `status='complete'` in storage). Migration 054 widened the status CHECK to include `'scheduled'`. |
+| Layer dashboard | Main layer dashboard shows lifetime active-batch cost metrics. Layer group/batch detail views keep their own metrics. |
 | Equipment admin | Equipment checklist/materials text edits preserve focus and do not reload/reorder the screen on every textbox click. Drag reorder and checklist rows remain stable. |
-| Feed planner math | `src/lib/feedPlanner.js` landed as pure helper/test foundation. It is not yet wired into `/pig/feed` or `/broiler/feed` UI. |
+| Feed planner | `/pig/feed` and `/broiler/feed` ship as minimal ledger screens backed by `src/lib/feedPlanner.js`. Pig view shows four top tiles plus active-month workflow; poultry view shows Starter / Grower / Layer Feed as separate tile stacks. Active month + most recently saved month stay expanded; older saved months collapse. Save advances to the next month; physical-count snapshots anchor the math. |
+| Broiler public weigh-ins | Public `/weighins` (anon) cannot read `app_store.ppp-v4` under RLS. Week 4/6 completion stamps `week4Lbs`/`week6Lbs` on the matching batch through the `stamp_broiler_batch_avg` SECURITY DEFINER RPC (migration 055). Public form file is statically locked against `app_store`/`ppp-v4` literals and against importing `writeBroilerBatchAvg`. |
 
 ### Active Roadmap
 
-1. **Feed order board UI** for `/pig/feed` and `/broiler/feed`.
-   - Goal: answer "How much feed do I need to order?"
-   - Use `src/lib/feedPlanner.js`.
-   - Snapshot-anchored counts, stale-count warning at 21 days, 7-day lead time, 30-day reserve, round suggested orders up to nearest 50 lb.
-   - No planning-month/cycle picker.
-   - "Use suggested" writes to the current calendar month in `ppp-feed-orders-v1`.
-   - Existing retro/backfill monthly order entry must remain in a collapsed ledger.
-
-2. **Remove operator-facing `includesCurrentMonthDelivery`** after the snapshot order board covers the old cases.
-   - Keep helpers tolerant of legacy rows.
-   - Separate commit so old-data regressions are bisectable.
-
-3. **CI Actions secrets** remain a repo-admin task.
-   - Required secrets are listed in [HO.md](HO.md).
-   - Without them, Playwright e2e in GitHub Actions fails at the test-database guard.
+1. **Project-wide browser-dialog cleanup.** Start with destructive `window.confirm` / `confirm` / `window.prompt` flows; replace with `DeleteModal`, inline two-step, or typed confirmation. Informational `window.alert` cleanup is a separate follow-up pass.
+2. **CI flake hardening.** Latest verified blocker: main CI run `25736097941` on `0226c41` failed at `tests/cattle_forecast.spec.js:785` with `locator.click: Timeout 10000ms exceeded`. Local pass on the same SHA. Re-check the run before fixing — env race or selector-stability candidate, not a confirmed code defect.
+3. **Script/archive hygiene.** Audit `scripts/` references against `package.json`, `.github`, `tests`, `src`, `PROJECT.md`, and `HO.md`; archive confirmed one-shot/manual scripts into `scripts/archive/` with a short README. Separate commit, not bundled with docs or feature lanes.
+4. **Incremental lint/test hygiene.** Touched-file warning cleanup, skipped-test review (incl. the two `.skip` bodies in `tests/cattle_send_to_processor.spec.js`), no broad churn pass without explicit approval.
 
 ---
 
@@ -187,10 +178,13 @@ Do not alias `/equipment/<slug>` to `/fleet/<slug>`. It is now the public equipm
 
 | File | Purpose |
 |---|---|
-| `src/lib/feedPlanner.js` | Snapshot-anchored feed order math; pure helper for next feed UI lane. |
+| `src/lib/feedPlanner.js` | Snapshot-anchored feed order math; powers the `/pig/feed` and `/broiler/feed` minimal ledger screens. |
 | `src/lib/pigForecast.js` | Pig planned-trip projection/add/delete/move/send reconciliation helpers. |
 | `src/lib/pig.js` | Pig breeding timeline, slug, transfer/mortality/trip ledger helpers. |
-| `src/lib/broiler.js` | Broiler/layer schedules, feed projection, status/timeline helpers. |
+| `src/lib/broiler.js` | Broiler/layer schedules, feed projection, status/timeline helpers. Admin-side `writeBroilerBatchAvg` / `recomputeBroilerBatchWeekAvg` live here. |
+| `src/lib/broilerBatchMeta.js` | Public broiler batch mirror (`buildBroilerPublicMirror`, `deriveBroilerColumnLabels`) — anon-safe source for `/weighins` schooner labels. |
+| `src/lib/cattleForecast.js` | Cattle Planned/Scheduled forecast math; chronological virtual-batch name assignment with reserved scheduled slots. |
+| `src/lib/cattleProcessingBatch.js` | Cattle processing batch CRUD: `createProcessingBatch`, `attachEntriesToBatch`, `promoteScheduledBatch`, `detachCowFromBatch`. |
 | `src/lib/layerHousing.js` | Layer housing anchor and projected count math. |
 | `src/lib/tasksCenterApi.js` | Read helpers for `/tasks`, including assignable-profile filtering. |
 | `src/lib/tasksCenterMutationsApi.js` | Tasks v2 mutation/storage/signed-url wrappers. |
@@ -243,6 +237,7 @@ Nine prod tables are hand-created and must be seeded in test bootstrap before mi
 | `ppp-pig-feed-inventory-v1` | Pig physical feed count snapshot. |
 | `ppp-poultry-feed-inventory-v1` | Poultry physical feed count snapshots by starter/grower/layerfeed. |
 | `ppp-pig-global-adg-v1` | Pig planned-trip global ADG control. |
+| `ppp-pig-planned-trip-locks-v1` | Sidecar for pig planned-trip locks. Holds only lock state; persisted planned trips in `ppp-feeders-v1.plannedProcessingTrips` remain exactly six keys (`id`, `date`, `sex`, `subBatchId`, `plannedCount`, `order`). |
 | `ppp-missed-cleared-v1` | Cleared missed-report alerts. |
 | `ppp-webforms-v1` | Webform configuration mirror. |
 
@@ -273,12 +268,17 @@ Nine prod tables are hand-created and must be seeded in test bootstrap before mi
 
 ### Feed Planning
 
-Current UI:
+Current UI (`/pig/feed` and `/broiler/feed`):
 
-- `/pig/feed` and `/broiler/feed` still use the legacy feed tabs.
-- `src/lib/feedPlanner.js` is the new pure math foundation and is covered by unit tests.
+- Minimal monthly ledger backed by `src/lib/feedPlanner.js`.
+- Four top tiles in this order: **Actual On Hand**, **End of [prev] Est.**, **Order for [active]**, **Need Thru [active+1]**. Pig has a single stack; poultry repeats the same four-tile pattern per feed type (Starter, Grower, Layer Feed).
+- Active month is always expanded with an editable Ordered/Delivered row. Save commits the row and advances the active month forward.
+- Most-recently-saved non-active month stays expanded with an Edit affordance. All older saved months collapse into a drill-down list.
+- Physical count input stamps `todayDate` on save; the operator cannot backdate from the UI. The "Count includes [month] order" checkbox writes `includesCurrentMonthDelivery` on the snapshot row so the math knows whether the current month's delivery is already inside the operator's count.
+- Stale-count banner appears after 21 days without a fresh physical count.
+- Pig view also surfaces a static "Feed Rate Reference" panel (sow/boar/nursing rates) at the bottom of the screen.
 
-New helper contracts:
+Helper contracts (`src/lib/feedPlanner.js`):
 
 - `LEAD_TIME_DAYS = 7`.
 - `RESERVE_DAYS = {default: 30}`.
@@ -287,17 +287,8 @@ New helper contracts:
 - Feed types: `pig`, `starter`, `grower`, `layerfeed`.
 - Days of runway walks forward day-by-day; never use `onHand / todayBurn`.
 - Snapshot counts are anchors: today's on-hand = snapshot lbs minus consumption since snapshot date.
-- Pig feeder count is ledger-derived through pig helpers, not persisted `currentCount`.
+- Pig feeder count is ledger-derived through pig helpers (parent-only math), not persisted `currentCount`.
 - Poultry projection uses existing broiler/layer schedule helpers: `getFeedSchedule`, `LAYER_FEED_SCHEDULE`, `LAYER_FEED_PER_DAY`, `computeProjectedCount`.
-
-Next UI lane:
-
-- Put the order answer first.
-- No planning cycle picker.
-- No-snapshot values must look visually estimated and prompt for a count.
-- Stale snapshots show a recount warning after 21 days.
-- Suggested orders commit to the current calendar month in `ppp-feed-orders-v1`.
-- Keep the monthly ledger/backfill inputs in a collapsed drill-down.
 
 ### Tasks v2
 
@@ -335,17 +326,18 @@ Core model:
 - Feeder group started counts are authoritative.
 - Sub-batches partition parent gilt/boar counts and are single-sex.
 - Current count is ledger-derived: started minus processing-trip sub-attributions, breeding transfers, and mortality.
-- Processing trips originate from weigh-ins via Send-to-Processor.
+- Processing trips originate from weigh-ins via Send-to-Trip (pig terminology); cattle/sheep use Send-to-Processor.
 - `processingTrips[].subAttributions` must be stamped as `{subId, subBatchName, sex, count}`.
 
 Planned trips:
 
-- Persisted planned-trip shape is exactly `{id, date, sex, subBatchId, plannedCount, order}`.
+- Persisted planned-trip shape is exactly `{id, date, sex, subBatchId, plannedCount, order}`. Lock state lives in the `ppp-pig-planned-trip-locks-v1` sidecar, never on the trip row.
 - Derived projection/warning/ready fields are not persisted.
-- Admin/management can add, delete, move counts, and date-step planned trips.
+- Admin/management can add, delete, move counts, date-step, lock, and unlock planned trips.
 - Delete reconciles count to next trip, falling back to previous.
 - Move forward moves the lightest pig from current to next; move back moves the heaviest pig from current to previous.
 - First trip cannot move backward; last trip cannot move forward; middle trips can move either way.
+- Locks block manual date/count/add/delete edits in `/pig/batches`. Send-to-Trip fulfillment from `/pig/weighins` is NOT lock-gated — it can reconcile `plannedCount` and removals against a locked trip but cannot change the scheduled date.
 - `/pig/weighins` sends selected pigs to the next planned trip in that chain and reconciles exact, under-pull, residual, over-pull, and exhausted-chain cases.
 
 Slug rule:
@@ -358,8 +350,9 @@ Broiler:
 
 - Batches live in `ppp-v4`.
 - Feed schedules live in `src/lib/broiler.js`.
-- Week 4/6 weigh-ins write averages back to batch records when sessions complete.
-- `broiler_batch_meta` is the public weigh-in source; public forms must not read `app_store.ppp-v4`.
+- Week 4/6 weigh-ins write averages back to batch records (`week4Lbs`/`week6Lbs`) when sessions complete.
+- Public `/weighins` (anon) cannot read `app_store.ppp-v4` under RLS. On the read side, `broiler_batch_meta` in `webform_config` is the public source (see `src/lib/broilerBatchMeta.js`). On the write side, week 4/6 public completion calls the `stamp_broiler_batch_avg` SECURITY DEFINER RPC from migration 055; the public form file is statically locked against `app_store`/`ppp-v4` literals and against importing `writeBroilerBatchAvg`.
+- Admin paths (`LivestockWeighInsView`) still call `writeBroilerBatchAvg` and `recomputeBroilerBatchWeekAvg` directly because authenticated has SELECT/UPDATE on `app_store`. The admin helper coerces `broiler_week` via `Number()` so JSON-roundtripped sessions still gate correctly.
 
 Layers:
 
@@ -428,19 +421,28 @@ Read this section before editing related files.
 
 ### Pig
 
-- Planned trips persist exactly six keys: `id`, `date`, `sex`, `subBatchId`, `plannedCount`, `order`.
+- Planned trips persist exactly six keys: `id`, `date`, `sex`, `subBatchId`, `plannedCount`, `order`. Lock state must NEVER be added to this shape; it lives in the `ppp-pig-planned-trip-locks-v1` sidecar.
 - `ppp-feeders-v1` remains the planned/processing trip persistence key.
 - `ppp-pig-global-adg-v1` shape remains `{manualValue, updatedAt, updatedBy}`.
 - `processingTrips[].subAttributions` is required for attribution-aware ledger math.
 - `weigh_ins.sent_to_trip_id` and `sent_to_group_id` must be stamped on processor send.
 - Farm team cannot mutate planned/processing trip state.
+- Locked planned trips reject manual date/count/add/delete edits in `/pig/batches`. `/pig/weighins` Send-to-Trip fulfillment is NOT gated by the lock — it can reconcile `plannedCount`/removal against a locked trip, but cannot change the scheduled date.
+
+### Broiler
+
+- Public `/weighins` must not import `writeBroilerBatchAvg` and must not contain `app_store`/`ppp-v4` literals. The static lock at `tests/static/weighinswebform_no_app_store.test.js` enforces both.
+- Public week 4/6 completion must route through `sb.rpc('stamp_broiler_batch_avg', {session_id_in})` (migration 055). The RPC is `SECURITY DEFINER`, strict `status='complete'`, takes `FOR UPDATE` on the `ppp-v4` row, and returns `applied:false` (not RAISE) for benign no-ops.
+- No new direct GRANTs on `app_store` for anon. The RPC is the only anon-reachable surface that mutates the broiler batch store.
 
 ### Feed
 
-- New feed order logic must use `feedPlanner.js`, not rebuild separate math inside views.
+- Feed order logic uses `feedPlanner.js`; views must not rebuild separate math.
 - Pig count derives from ledger helpers, not stored/current UI fields.
-- Poultry burn must stay tied to existing broiler/layer schedule helpers.
-- Snapshot rows may carry legacy flags; helpers tolerate them but UI should move away from them.
+- Poultry burn stays tied to existing broiler/layer schedule helpers.
+- Active month is always editable; saved months are read-only unless the most recently saved non-active month is opened via the Edit affordance.
+- `ppp-feed-orders-v1` per-row keys persist as written (`starter`, `grower`, `layerfeed` for poultry; `pig` for pig).
+- `includesCurrentMonthDelivery` is a live snapshot-row flag, written by the "Count includes [month] order" checkbox in the minimal ledger. Helpers must keep treating it as load-bearing and stay tolerant of legacy rows that already carry it.
 
 ### Equipment
 
@@ -501,21 +503,20 @@ Current lint baseline is warnings-only. Do not add errors. When changing a lane,
 
 | Commit | Summary |
 |---|---|
+| `544be95` | Broiler public week-avg stamp routed through `stamp_broiler_batch_avg` SECDEF RPC (migration 055). |
+| `0226c41` | Cattle scheduled batches (Planned → Scheduled → Active → Processed) and pig planned-trip lock sidecar (migration 054). |
+| `76ebbdc` | Poultry feed: per-feed-type stacked tiles + ordered column alignment hotfix. |
+| `f6057de` | Poultry feed ledger rebuild (`/broiler/feed` minimal ledger). |
+| `da8dd7d` | Pig feed ledger hotfixes: card order, Save 0, color hierarchy, physical count date. |
+| `160322c` | Pig feed ledger rebuild (`/pig/feed` minimal ledger). |
+| `611e77e` | Offline weigh-in test: content-based row locators replace `.nth()` after weight-desc sort landed. |
+| `3872ee2` | Removed operator-facing `includesCurrentMonthDelivery` checkbox (later superseded by the minimal-ledger rebuild, which re-introduced it as "Count includes [month] order"). |
+| `c0733a2` | Home dashboard Next-30 planner icon hotfix. |
+| `1abeaa2` | Initial snapshot-anchored feed order board on `/pig/feed` and `/broiler/feed` (later rebuilt into the minimal ledger). |
 | `7e50211` | Feed planner pure math helper and tests. |
 | `226c039` | Layer active-batch lifetime metrics. |
 | `8cef90e` | Pig planned-trip autosave date steppers. |
 | `57fd7b7` | Equipment checklist row/focus stability. |
-| `d7c522d` | Planner-wide PNG icon set. |
-| `5cd008a` | Restored pig processor-send controls on completed weigh-ins. |
-| `2bf38ef` | Header webforms grouping, Equipment label, Tasks divider, task-assignee availability mapping, larger task photo icons. |
-| `be57d89` | Pig planned processing trips manual add/delete/move and planned-trip-driven send flow. |
-| `4e04132` | Tasks digest shared cron-secret auth. |
-| `102aa5b` | Tasks T10/T11 route retirement and digest rebrand. |
-| `53831e7` | Tasks T8/T9 due-date edits, assign/delete, recurring/system admin. |
-| `a2052ce` | Tasks T6/T7 New Task, Complete Task, photo lightbox. |
-| `c25f61b` | Tasks T5 System Tasks tab. |
-| `e7c9650` | Tasks T3/T4 Header badge, Completed and Recurring tabs. |
-| `86b4557` | Equipment admin text-save reload hotfix. |
 
 For older migration history and rationale, use git log plus `archive/SESSION_LOG.md`.
 
