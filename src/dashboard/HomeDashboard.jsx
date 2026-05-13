@@ -687,8 +687,10 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           gap: '1.5rem',
         }}
       >
-        {/* Nav cards — 3 cols × 2 rows fits all 6 programs without bloating the page */}
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10}}>
+        {/* Nav cards — 3 cols × 2 rows on desktop, 2 cols × 3 rows on mobile
+            (mobile column swap lives in the HTML <style> block keyed off
+            data-home-grid="programs") so the program labels don't clip. */}
+        <div data-home-grid="programs" style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10}}>
           {[
             {
               label: 'Broilers',
@@ -830,6 +832,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 ANIMALS ON FARM
               </div>
               <div
+                data-home-grid="animals"
                 style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: 16, alignItems: 'center'}}
               >
                 <div style={{textAlign: 'center'}}>

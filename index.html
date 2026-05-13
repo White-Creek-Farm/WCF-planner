@@ -121,6 +121,26 @@
   @media(max-width:400px){.grid2{grid-template-columns:1fr}}
   .hoverable-tile:hover{background:#f0fdf4 !important;}
   .hoverable-row:hover td{background:#f0fdf4 !important;}
+
+  /* Authenticated home (HomeDashboard) responsive grids. Inline styles
+     set the desktop column counts; the media query swaps them on narrow
+     phones so program labels and animal counts don't clip. !important is
+     required to win against the inline grid-template-columns. */
+  @media (max-width: 600px) {
+    [data-home-grid="programs"] {
+      grid-template-columns: 1fr 1fr !important;
+    }
+    [data-home-grid="animals"] {
+      grid-template-columns: 1fr 1fr 1fr !important;
+      gap: 12px !important;
+    }
+    /* "Total Animals" carries a left divider that only makes sense as a
+       desktop 6th column; suppress it when the cell wraps into row 2. */
+    [data-home-grid="animals"] > :last-child {
+      border-left: none !important;
+      padding-left: 0 !important;
+    }
+  }
 </style>
 <script>
   // Select all text in number inputs on focus so typing replaces the 0 immediately
