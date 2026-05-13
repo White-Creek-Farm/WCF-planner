@@ -76,11 +76,16 @@ const AddFeedWebform = ({sb}) => {
   React.useEffect(function () {
     sb.from('cattle_feed_inputs')
       .select('*')
-      .eq('status', 'active')
       .order('category')
       .order('name')
       .then(function (res) {
-        if (res && res.data) setCattleFeedInputs(res.data);
+        if (res && res.data) {
+          setCattleFeedInputs(
+            res.data.filter(function (f) {
+              return f.status !== 'inactive';
+            }),
+          );
+        }
       });
   }, []);
 

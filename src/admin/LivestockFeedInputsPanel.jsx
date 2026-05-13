@@ -596,7 +596,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
             <span style={{fontSize: 12, color: '#6b7280'}}>{expanded ? '\u25bc' : '\u25b6'}</span>
             <div>
               <div style={{fontSize: 15, fontWeight: 700, color: '#111827'}}>
-                {'Livestock Feed Inputs '}
+                {'Cattle & Sheep Inputs '}
                 <span style={{fontSize: 12, fontWeight: 400, color: '#6b7280'}}>{'(' + feeds.length + ')'}</span>
               </div>
               {!expanded && (
@@ -631,9 +631,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
         {expanded && (
           <>
             <div style={{fontSize: 12, color: '#6b7280', marginTop: 8}}>
-              Master list of every hay, pellet, liquid, mineral, and supplement used on-farm. Nutrition values are
-              snapshotted onto daily reports at submit time {'\u2014'} editing a feed here doesn{'\u2019'}t rewrite
-              historical reports.
+              Master list of every cattle and sheep hay, pellet, liquid, mineral, and supplement used on-farm. Nutrition
+              values are snapshotted onto daily reports at submit time {'\u2014'} editing an input here doesn{'\u2019'}t
+              rewrite historical reports.
             </div>
             {!showForm && (
               <div style={{marginTop: 10}}>

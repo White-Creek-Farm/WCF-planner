@@ -1036,7 +1036,7 @@ function canDeleteAnything(role) {
 // Admin \u2192 Cost by Month. Aggregates feed spend across programs by month.
 // Pig/Broiler/Layer multiply feed_lbs by the per-lb rates in FeedCostsPanel.
 // Cattle multiplies each daily's feed-line qty by the matching feed-input
-// cost_per_unit from the Livestock Feed Inputs panel.
+// cost_per_unit from the Cattle & Sheep Inputs panel.
 // Current costs are used for all rows (no per-month historical cost ledger),
 // so retroactive price changes affect historical totals.
 // Phase 2 Round 4: FeedCostByMonthPanel moved to C:\Users\Ronni\WCF-planner\src\admin\FeedCostByMonthPanel.jsx.

@@ -100,13 +100,13 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
         <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4}}>Feed Cost by Month</div>
         <div style={{fontSize: 12, color: '#6b7280', marginBottom: 14}}>
           Aggregated from daily reports. Broiler / Layer / Pig rates come from <strong>Feed Costs</strong> above. Cattle
-          cost per feed comes from the <strong>Livestock Feed Inputs</strong> panel (cost per unit + freight amortized
+          cost per feed comes from the <strong>Cattle & Sheep Inputs</strong> panel (cost per unit + freight amortized
           across units per truck). Current costs apply to all months \u2014 no per-month historical ledger.
         </div>
         {loading && <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af'}}>{'Loading\u2026'}</div>}
         {!loading && rows.length === 0 && (
           <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
-            No daily reports with matching feed costs yet. Fill in feed costs above and in Livestock Feed Inputs to
+            No daily reports with matching feed costs yet. Fill in feed costs above and in Cattle & Sheep Inputs to
             populate this view.
           </div>
         )}

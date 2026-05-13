@@ -176,11 +176,10 @@ const WebformHub = ({
   useEffect(() => {
     sb.from('cattle_feed_inputs')
       .select('*')
-      .eq('status', 'active')
       .order('category')
       .order('name')
       .then(({data}) => {
-        if (data) setCattleFeedInputs(data);
+        if (data) setCattleFeedInputs(data.filter((f) => f.status !== 'inactive'));
       });
   }, []);
 

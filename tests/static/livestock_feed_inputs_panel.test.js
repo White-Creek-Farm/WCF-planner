@@ -6,8 +6,15 @@ import {describe, expect, it} from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const src = fs.readFileSync(path.join(ROOT, 'src/admin/LivestockFeedInputsPanel.jsx'), 'utf8');
+const webformHubSrc = fs.readFileSync(path.join(ROOT, 'src/webforms/WebformHub.jsx'), 'utf8');
+const addFeedWebformSrc = fs.readFileSync(path.join(ROOT, 'src/webforms/AddFeedWebform.jsx'), 'utf8');
 
 describe('LivestockFeedInputsPanel active/inactive feed visibility', () => {
+  it('labels the admin panel as Cattle & Sheep Inputs', () => {
+    expect(src).toMatch(/'Cattle & Sheep Inputs '/);
+    expect(src).not.toMatch(/'Livestock Feed Inputs '/);
+  });
+
   it('opens the master feed panel by default so active feeds are immediately visible', () => {
     expect(src).toMatch(/const \[expanded, setExpanded\] = React\.useState\(true\);/);
     expect(src).not.toMatch(/const \[expanded, setExpanded\] = React\.useState\(false\);/);
@@ -57,5 +64,13 @@ describe('LivestockFeedInputsPanel active/inactive feed visibility', () => {
     expect(closeBody).toMatch(/const changed = JSON\.stringify\(form\) !== JSON\.stringify\(originalForm\);/);
     expect(closeBody).toMatch(/if \(changed\) await saveFeed\(form, editingId\);/);
     expect(closeBody).toMatch(/await saveFeed\(form, null\);/);
+  });
+
+  it('maps inactive status to cattle and sheep public webform dropdowns', () => {
+    for (const formSrc of [webformHubSrc, addFeedWebformSrc]) {
+      expect(formSrc).toMatch(/from\('cattle_feed_inputs'\)/);
+      expect(formSrc).toMatch(/setCattleFeedInputs\([\s\S]*?\.filter\([\s\S]*?f\.status !== 'inactive'/);
+      expect(formSrc).not.toMatch(/\.eq\('status', 'active'\)/);
+    }
   });
 });
