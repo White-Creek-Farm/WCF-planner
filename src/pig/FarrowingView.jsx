@@ -17,6 +17,8 @@ import {
   getReadableText,
 } from '../lib/pig.js';
 import UsersModal from '../auth/UsersModal.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
@@ -38,6 +40,7 @@ export default function FarrowingView({Header, loadUsers, persistFarrowing, conf
     setFarrowFilter,
   } = usePig();
   const {setView} = useUI();
+  const [notice, setNotice] = React.useState(null);
   const cycleSeqMap = buildCycleSeqMap(breedingCycles);
   const QUALITY_OPTS = ['', 'excellent', 'average', 'poor'];
   const LOCATION_OPTS = ['', 'inside-hut', 'outside-hut', 'inside-pen', 'outside-pen'];
@@ -74,8 +77,9 @@ export default function FarrowingView({Header, loadUsers, persistFarrowing, conf
   };
 
   function saveFarrowForm() {
+    setNotice(null);
     if (!farrowForm.sow) {
-      alert('Please enter a sow number.');
+      setNotice({kind: 'error', message: 'Please enter a sow number.'});
       return;
     }
     const rec = {
@@ -389,6 +393,7 @@ export default function FarrowingView({Header, loadUsers, persistFarrowing, conf
               </div>
               <button
                 onClick={() => {
+                  setNotice(null);
                   setShowFarrowForm(false);
                   setEditFarrowId(null);
                 }}
@@ -398,6 +403,7 @@ export default function FarrowingView({Header, loadUsers, persistFarrowing, conf
               </button>
             </div>
             <div style={{padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10}}>
+              <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
               {/* Auto-resolve cycle from farrowing date */}
               {(function () {
                 // Find matching cycle based on farrowing date
@@ -727,6 +733,7 @@ export default function FarrowingView({Header, loadUsers, persistFarrowing, conf
               )}
               <button
                 onClick={() => {
+                  setNotice(null);
                   setShowFarrowForm(false);
                   setEditFarrowId(null);
                 }}

@@ -1,6 +1,8 @@
 // Phase 2 Round 3 extraction (verbatim).
 import React from 'react';
 import {S} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 
 const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatches, layerHousings}) => {
   const {useState, useEffect, useRef} = React;
@@ -23,6 +25,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(EMPTY_LG);
   const [originalForm, setOriginalForm] = useState(null);
+  const [notice, setNotice] = useState(null);
   const layerAutoSaveTimer = useRef(null);
   const [recentDailys, setRecentDailys] = useState([]);
   const sorted = [...layerGroups].sort((a, b) =>
@@ -64,6 +67,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
 
   function closeLayerForm() {
     clearTimeout(layerAutoSaveTimer.current);
+    setNotice(null);
     if (editId && originalForm) {
       const LAYER_KEYS = [
         'name',
@@ -102,6 +106,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
   }
 
   function save() {
+    setNotice(null);
     const grp = {
       ...form,
       id: editId || Date.now().toString(),
@@ -114,7 +119,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
       perLbGritCost: parseFloat(form.perLbGritCost) || 0,
     };
     if (!grp.name.trim()) {
-      alert('Group name is required.');
+      setNotice({kind: 'error', message: 'Group name is required.'});
       return;
     }
     persistLayerGroups(editId ? layerGroups.map((g) => (g.id === editId ? grp : g)) : [...layerGroups, grp]);
@@ -124,6 +129,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
     setOriginalForm(null);
   }
   function openEdit(g) {
+    setNotice(null);
     const f = {
       ...EMPTY_LG,
       ...g,
@@ -248,6 +254,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
           </div>
           <button
             onClick={() => {
+              setNotice(null);
               setForm(EMPTY_LG);
               setEditId(null);
               setShowForm(true);
@@ -436,6 +443,9 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
                 overflowY: 'auto',
               }}
             >
+              <div style={{gridColumn: '1/-1'}}>
+                <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
+              </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={S.label}>Group Name *</label>
                 <input

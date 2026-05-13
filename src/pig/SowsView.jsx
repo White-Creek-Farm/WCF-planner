@@ -11,6 +11,8 @@ import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, PIG_GROUPS, PIG_GROUP_COLORS} from '../lib/pig.js';
 import UsersModal from '../auth/UsersModal.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
@@ -27,6 +29,7 @@ export default function SowsView({
 }) {
   const [leaderboardExpanded, setLeaderboardExpanded] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
+  const [notice, setNotice] = React.useState(null);
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {
     breedingCycles,
@@ -118,13 +121,14 @@ export default function SowsView({
   }
 
   function saveBreeder() {
+    setNotice(null);
     if (!breederForm.tag.trim()) {
-      alert('Please enter a tag number.');
+      setNotice({kind: 'error', message: 'Please enter a tag number.'});
       return;
     }
     const dup = breeders.find((b) => b.tag.trim() === breederForm.tag.trim() && b.id !== editBreederId);
     if (dup) {
-      alert(`Tag #${breederForm.tag} already exists.`);
+      setNotice({kind: 'error', message: `Tag #${breederForm.tag} already exists.`});
       return;
     }
     const pig = {
@@ -334,6 +338,7 @@ export default function SowsView({
         {/* Tile header */}
         <div
           onClick={() => {
+            setNotice(null);
             setBreederForm({
               tag: pig.tag,
               sex: pig.sex,
@@ -761,6 +766,7 @@ export default function SowsView({
         <div style={{display: 'flex', justifyContent: 'flex-end'}}>
           <button
             onClick={() => {
+              setNotice(null);
               setBreederForm({
                 tag: '',
                 sex: 'Sow',
@@ -796,6 +802,7 @@ export default function SowsView({
         {showBreederForm && (
           <div
             onClick={() => {
+              setNotice(null);
               setShowBreederForm(false);
               setEditBreederId(null);
             }}
@@ -844,6 +851,7 @@ export default function SowsView({
                 </div>
                 <button
                   onClick={() => {
+                    setNotice(null);
                     setShowBreederForm(false);
                     setEditBreederId(null);
                   }}
@@ -861,6 +869,7 @@ export default function SowsView({
                 </button>
               </div>
               <div style={{padding: '16px 20px'}}>
+                <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
                 <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
                   <div>
                     <label style={S.label}>Tag #</label>
@@ -993,6 +1002,7 @@ export default function SowsView({
                   )}
                   <button
                     onClick={() => {
+                      setNotice(null);
                       setShowBreederForm(false);
                       setEditBreederId(null);
                     }}

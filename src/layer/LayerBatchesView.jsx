@@ -12,6 +12,8 @@ import {toISO, addDays} from '../lib/dateUtils.js';
 import {computeProjectedCount, computeLayerFeedCost} from '../lib/layerHousing.js';
 import {BROODERS, SCHOONERS, BROODER_CLEANOUT, SCHOONER_CLEANOUT, overlaps} from '../lib/broiler.js';
 import {S} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 
 const LayerBatchesView = ({
   sb,
@@ -38,6 +40,7 @@ const LayerBatchesView = ({
   const [loading, setLoading] = useState(true);
   const [batchStats, setBatchStats] = useState({});
   const [housingStats, setHousingStats] = useState({});
+  const [notice, setNotice] = useState(null);
   const [rawLayerDailys, setRawLayerDailys] = useState([]); // for projected count calc
   const [selectedBatchId, setSelectedBatchId] = useState(null);
   const [retHomePeriod, setRetHomePeriod] = useState(30); // Rolling window: 30, 90, or 180 days
@@ -472,10 +475,11 @@ const LayerBatchesView = ({
 
   // Retire housing
   async function retireHousing(h) {
+    setNotice(null);
     const updated = {...h, status: 'retired', retired_date: todayStr()};
     const {error} = await sb.from('layer_housings').upsert(updated, {onConflict: 'id'});
     if (error) {
-      alert('Could not retire: ' + error.message);
+      setNotice({kind: 'error', message: 'Could not retire: ' + error.message});
       return;
     }
     setLayerHousings(layerHousings.map((x) => (x.id === h.id ? updated : x)));
@@ -507,6 +511,7 @@ const LayerBatchesView = ({
     <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
       <Header />
       <div style={{padding: '1rem', maxWidth: 1100, margin: '0 auto'}}>
+        <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         {/* BATCH LIST */}
         {!selectedBatchId && (
           <>

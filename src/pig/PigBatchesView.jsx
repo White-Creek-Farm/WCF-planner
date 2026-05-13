@@ -40,6 +40,8 @@ import {
 } from '../lib/pigForecast.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
@@ -63,6 +65,10 @@ export default function PigBatchesView({
   const [showSubForm, setShowSubForm] = React.useState(null); // batchId or null
   const [subForm, setSubForm] = React.useState({name: '', giltCount: 0, boarCount: 0, originalPigCount: 0, notes: ''});
   const [editSubId, setEditSubId] = React.useState(null);
+  // Inline notice shared across this view's modals + page-level actions
+  // (mortality, sub-batch, feeder form, ADG input). Cleared on each
+  // action entry; failure paths set + return.
+  const [notice, setNotice] = React.useState(null);
   const [showArchBatches, setShowArchBatches] = React.useState(false);
   // Tracks whether the parent modal's partition editor has unsaved sub-batch
   // count changes. closeFeederForm reads this so a fast close (<1.5s) still
@@ -575,14 +581,16 @@ export default function PigBatchesView({
   const [mortalityBusy, setMortalityBusy] = React.useState(false);
   const [expandedMortality, setExpandedMortality] = React.useState(null);
   function openMortalityModal(batchId) {
+    setNotice(null);
     setMortalityModal({batchId});
     setMortalityForm({sub_batch_id: '', count: '', comment: ''});
   }
   async function saveMortality() {
     if (!mortalityModal) return;
+    setNotice(null);
     const count = parseInt(mortalityForm.count);
     if (!Number.isFinite(count) || count <= 0) {
-      alert('Enter a count of 1 or more.');
+      setNotice({kind: 'error', message: 'Enter a count of 1 or more.'});
       return;
     }
     setMortalityBusy(true);
@@ -607,7 +615,7 @@ export default function PigBatchesView({
     try {
       await sb.from('app_store').upsert({key: 'ppp-feeders-v1', data: nb}, {onConflict: 'key'});
     } catch (e) {
-      alert('Save failed: ' + (e.message || 'unknown'));
+      setNotice({kind: 'error', message: 'Save failed: ' + (e.message || 'unknown')});
       setMortalityBusy(false);
       return;
     }
@@ -617,6 +625,7 @@ export default function PigBatchesView({
   async function deleteMortality(batchId, entryId) {
     if (!window._wcfConfirmDelete) return;
     window._wcfConfirmDelete('Delete this mortality entry?', async () => {
+      setNotice(null);
       const nb = feederGroups.map((g) =>
         g.id === batchId ? {...g, pigMortalities: (g.pigMortalities || []).filter((m) => m.id !== entryId)} : g,
       );
@@ -624,7 +633,7 @@ export default function PigBatchesView({
       try {
         await sb.from('app_store').upsert({key: 'ppp-feeders-v1', data: nb}, {onConflict: 'key'});
       } catch (e) {
-        alert('Delete failed: ' + (e.message || 'unknown'));
+        setNotice({kind: 'error', message: 'Delete failed: ' + (e.message || 'unknown')});
       }
     });
   }
@@ -750,6 +759,7 @@ export default function PigBatchesView({
   }
 
   function updSub(batchId, k, v) {
+    setNotice(null);
     const next = {...subForm, [k]: v};
     setSubForm(next);
     if (!next.name || !next.name.trim()) return;
@@ -765,7 +775,7 @@ export default function PigBatchesView({
       if (!editSubId) {
         const err = validateNewSub(batchId, next);
         if (err) {
-          alert(err);
+          setNotice({kind: 'error', message: err});
           return;
         }
       }
@@ -790,6 +800,7 @@ export default function PigBatchesView({
 
   function closeSubForm(batchId) {
     clearTimeout(subAutoSaveTimer.current);
+    setNotice(null);
     // Flush any pending changes synchronously on close, but only if the
     // form is in a valid persistable shape.
     if (subForm.name && subForm.name.trim()) {
@@ -806,14 +817,15 @@ export default function PigBatchesView({
   }
 
   function saveSubBatch(batchId) {
+    setNotice(null);
     if (!subForm.name.trim()) {
-      alert('Please enter a sub-batch name.');
+      setNotice({kind: 'error', message: 'Please enter a sub-batch name.'});
       return;
     }
     if (!editSubId) {
       const err = validateNewSub(batchId, subForm);
       if (err) {
-        alert(err);
+        setNotice({kind: 'error', message: err});
         return;
       }
     }
@@ -987,6 +999,7 @@ export default function PigBatchesView({
   }
   function closeFeederForm() {
     clearTimeout(pigAutoSaveTimer.current);
+    setNotice(null);
     if (editFeederId && originalFeederForm) {
       const FEEDER_KEYS = [
         'batchName',
@@ -1046,6 +1059,9 @@ export default function PigBatchesView({
   return (
     <div>
       <Header />
+      <div style={{padding: '0 12px'}}>
+        <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
+      </div>
       {/* Global ADG (commit 4a). Manual override + live system estimate.
         Manager-and-above (admin role for v1) can edit; operators read-only.
         Persists to app_store ppp-pig-global-adg-v1. No reset button per
@@ -1125,9 +1141,10 @@ export default function PigBatchesView({
               />
               <button
                 onClick={() => {
+                  setNotice(null);
                   const v = parseFloat(adgInput);
                   if (!isFinite(v) || v <= 0) {
-                    alert('Enter a positive number for Global ADG.');
+                    setNotice({kind: 'error', message: 'Enter a positive number for Global ADG.'});
                     return;
                   }
                   persistGlobalAdg(v);
@@ -1181,7 +1198,10 @@ export default function PigBatchesView({
           const subs = (target.subBatches || []).filter((s) => s.status === 'active');
           return (
             <div
-              onClick={() => setMortalityModal(null)}
+              onClick={() => {
+                setNotice(null);
+                setMortalityModal(null);
+              }}
               style={{
                 position: 'fixed',
                 top: 0,
@@ -1219,7 +1239,10 @@ export default function PigBatchesView({
                     {'💀 Record Mortality — ' + target.batchName}
                   </div>
                   <button
-                    onClick={() => setMortalityModal(null)}
+                    onClick={() => {
+                      setNotice(null);
+                      setMortalityModal(null);
+                    }}
                     style={{
                       background: 'none',
                       border: 'none',
@@ -1233,6 +1256,7 @@ export default function PigBatchesView({
                   </button>
                 </div>
                 <div style={{padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12}}>
+                  <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
                   <div>
                     <label style={S.label}>Sub-batch (optional)</label>
                     <select
@@ -1384,6 +1408,7 @@ export default function PigBatchesView({
             )}
             <button
               onClick={() => {
+                setNotice(null);
                 setFeederForm({
                   batchName: '',
                   cycleId: '',
@@ -1572,6 +1597,7 @@ export default function PigBatchesView({
                 </button>
               </div>
               <div style={{padding: '16px 20px'}}>
+                <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
                 <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
                   <div style={{gridColumn: '1/-1'}}>
                     <label style={S.label}>
@@ -1852,8 +1878,9 @@ export default function PigBatchesView({
                   {!editFeederId && (
                     <button
                       onClick={() => {
+                        setNotice(null);
                         if (!feederForm.batchName) {
-                          alert('Please enter a batch name.');
+                          setNotice({kind: 'error', message: 'Please enter a batch name.'});
                           return;
                         }
                         const grp = {id: String(Date.now()), processingTrips: [], subBatches: [], ...feederForm};
@@ -2141,6 +2168,7 @@ export default function PigBatchesView({
                         </button>
                         <button
                           onClick={() => {
+                            setNotice(null);
                             const f = {
                               batchName: g.batchName,
                               cycleId: g.cycleId || '',
@@ -2374,6 +2402,7 @@ export default function PigBatchesView({
                       ) : (
                         <button
                           onClick={() => {
+                            setNotice(null);
                             setShowSubForm(g.id);
                             setEditSubId(null);
                             setSubForm({name: '', sex: 'Gilts', count: 0, notes: ''});
@@ -2454,6 +2483,9 @@ export default function PigBatchesView({
                           </button>
                         </div>
                         <div style={{padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+                          <div style={{gridColumn: '1/-1'}}>
+                            <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
+                          </div>
                           <div style={{gridColumn: '1/-1'}}>
                             <label style={S.label}>Sub-batch name *</label>
                             <input
@@ -2719,6 +2751,7 @@ export default function PigBatchesView({
                             <button
                               onClick={() => {
                                 clearTimeout(subAutoSaveTimer.current);
+                                setNotice(null);
                                 setShowSubForm(g.id);
                                 setEditSubId(sb.id);
                                 setSubForm({
