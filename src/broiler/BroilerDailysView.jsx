@@ -351,6 +351,7 @@ const BroilerDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingE
                       className="hoverable-tile"
                     >
                       <div
+                        data-mobile-1col="1"
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '90px 110px 90px 150px 90px 1fr',
@@ -582,6 +583,7 @@ const BroilerDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingE
               </button>
             </div>
             <div
+              data-mobile-1col="1"
               style={{
                 padding: '16px 20px',
                 display: 'grid',

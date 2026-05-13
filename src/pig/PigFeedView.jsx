@@ -475,7 +475,7 @@ export default function PigFeedView({
         }}
       >
         {/* 4 top tiles */}
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
+        <div data-mobile-2col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
           {/* Actual On Hand */}
           <div style={tileShellS}>
             <div style={tileLabelS}>Actual On Hand</div>
@@ -709,8 +709,12 @@ export default function PigFeedView({
                     )}
                   </div>
 
-                  {/* Equation row: Start − Consumed + Ordered = End */}
+                  {/* Equation row: Start − Consumed + Ordered = End.
+                      data-mobile-hscroll lets the row scroll horizontally
+                      inside its parent on narrow viewports so the page
+                      itself doesn't gain horizontal scroll. */}
                   <div
+                    data-mobile-hscroll="1"
                     style={{
                       padding: '8px 16px 6px',
                       display: 'grid',

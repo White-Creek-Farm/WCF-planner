@@ -121,7 +121,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
       {DeleteConfirmModal}
       {ConfirmActionModal}
       {/* ── Dark top bar ── */}
-      <div style={S.header}>
+      <div data-header-bar="1" style={S.header}>
         <button
           onClick={() => {
             setShowForm(false);
@@ -370,14 +370,17 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
             </button>
           </div>
         )}
-        <div style={{fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, opacity: 0.75, marginLeft: 'auto'}}>
+        <div
+          data-header-userinfo="1"
+          style={{fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, opacity: 0.75, marginLeft: 'auto'}}
+        >
           {saveStatus === 'saving' && <span style={{color: '#a7f3d0', fontWeight: 500}}>Saving…</span>}
           {saveStatus === 'saved' && <span style={{color: '#a7f3d0', fontWeight: 500}}>✓ Saved</span>}
           {saveStatus === 'error' && (
             <span style={{color: '#fca5a5', fontWeight: 500}}>⚠ Save failed — check connection</span>
           )}
           {!saveStatus && authState?.name && (
-            <span>
+            <span data-header-username="1">
               {authState.name} · <span style={{textTransform: 'capitalize'}}>{authState?.role}</span>
             </span>
           )}
@@ -472,6 +475,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
       {/* ── Light sub-nav bar — only in section views ── */}
       {inSection && (
         <div
+          data-header-subnav="1"
           style={{
             background: 'white',
             borderBottom: '1px solid #e5e7eb',

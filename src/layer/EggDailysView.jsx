@@ -293,6 +293,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
                   className="hoverable-tile"
                 >
                   <div
+                    data-mobile-1col="1"
                     style={{display: 'grid', gridTemplateColumns: '90px 100px 90px 1fr', alignItems: 'center', gap: 12}}
                   >
                     <span style={{fontSize: 12, color: '#6b7280'}}>{fmt(d.date)}</span>
@@ -406,6 +407,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
               </button>
             </div>
             <div
+              data-mobile-1col="1"
               style={{
                 padding: '16px 20px',
                 display: 'grid',

@@ -392,6 +392,7 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
                       className="hoverable-tile"
                     >
                       <div
+                        data-mobile-1col="1"
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '90px 130px 90px 150px 90px 90px 1fr',
@@ -636,6 +637,7 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
               </button>
             </div>
             <div
+              data-mobile-1col="1"
               style={{
                 padding: '16px 20px',
                 display: 'grid',

@@ -128,10 +128,19 @@
   .hoverable-tile:hover{background:#f0fdf4 !important;}
   .hoverable-row:hover td{background:#f0fdf4 !important;}
 
-  /* Authenticated home (HomeDashboard) responsive grids. Inline styles
-     set the desktop column counts; the media query swaps them on narrow
-     phones so program labels and animal counts don't clip. !important is
-     required to win against the inline grid-template-columns. */
+  /* Authenticated-app mobile overrides. Public webforms set their own
+     layout above and intentionally don't carry these data-* hooks, so
+     these rules only apply to logged-in surfaces. !important is required
+     to win against inline styles set by JSX.
+     Hooks used:
+       data-home-grid     HomeDashboard program/animals grids
+       data-header-bar    Dark top header bar (Header.jsx)
+       data-header-userinfo  Save-status + username container
+       data-header-username  Just the name·role span
+       data-header-subnav    Light section sub-nav bar
+       data-mobile-hscroll   Wide row container → horizontal scroll
+       data-mobile-1col      Multi-col grid → single column on mobile
+       data-mobile-2col      Wide multi-col grid → 2 columns on mobile */
   @media (max-width: 600px) {
     [data-home-grid="programs"] {
       grid-template-columns: 1fr 1fr !important;
@@ -140,11 +149,36 @@
       grid-template-columns: 1fr 1fr 1fr !important;
       gap: 12px !important;
     }
-    /* "Total Animals" carries a left divider that only makes sense as a
-       desktop 6th column; suppress it when the cell wraps into row 2. */
     [data-home-grid="animals"] > :last-child {
       border-left: none !important;
       padding-left: 0 !important;
+    }
+    [data-header-bar="1"] {
+      padding: 8px 12px !important;
+      gap: 6px !important;
+    }
+    [data-header-username="1"] {
+      display: none !important;
+    }
+    [data-header-subnav="1"] {
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      scrollbar-width: none;
+      padding: 8px 12px !important;
+    }
+    [data-header-subnav="1"]::-webkit-scrollbar {
+      display: none;
+    }
+    [data-mobile-hscroll="1"] {
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+    [data-mobile-1col="1"] {
+      grid-template-columns: 1fr !important;
+    }
+    [data-mobile-2col="1"] {
+      grid-template-columns: 1fr 1fr !important;
     }
   }
 </style>

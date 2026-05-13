@@ -343,6 +343,7 @@ const PigDailysView = ({
                       className="hoverable-tile"
                     >
                       <div
+                        data-mobile-1col="1"
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '90px 120px 90px 130px 90px 90px 1fr',
@@ -546,6 +547,7 @@ const PigDailysView = ({
               </button>
             </div>
             <div
+              data-mobile-1col="1"
               style={{
                 padding: '16px 20px',
                 display: 'grid',

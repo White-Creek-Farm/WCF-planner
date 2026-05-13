@@ -686,6 +686,7 @@ export default function BroilerFeedView({
             return (
               <div
                 key={row.key}
+                data-mobile-hscroll="1"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '90px 1fr 14px 1fr 14px 1fr 14px 1fr',
@@ -850,7 +851,7 @@ export default function BroilerFeedView({
       >
         {/* 4 top tiles — three per-type rows stacked inside each tile so
             each feed type's number scans on its own. No big totals. */}
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
+        <div data-mobile-2col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
           {/* Actual On Hand */}
           <div style={tileShellS}>
             <div style={tileLabelS}>Actual On Hand</div>
