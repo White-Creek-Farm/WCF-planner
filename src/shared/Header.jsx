@@ -123,6 +123,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
       {/* ── Dark top bar ── */}
       <div data-header-bar="1" style={S.header}>
         <button
+          data-header-brand="1"
           onClick={() => {
             setShowForm(false);
             setShowBreedForm(false);
@@ -385,7 +386,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
             </span>
           )}
         </div>
-        <div style={{display: 'flex', gap: 6, alignItems: 'center', position: 'relative'}}>
+        <div data-header-action-group="1" style={{display: 'flex', gap: 6, alignItems: 'center', position: 'relative'}}>
           {authState?.user && (
             <div style={{position: 'relative'}}>
               <button

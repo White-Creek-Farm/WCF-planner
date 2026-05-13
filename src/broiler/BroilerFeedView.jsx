@@ -689,7 +689,7 @@ export default function BroilerFeedView({
             return (
               <div
                 key={row.key}
-                data-mobile-hscroll="1"
+                data-mobile-stack-equation="1"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '90px 1fr 14px 1fr 14px 1fr 14px 1fr',

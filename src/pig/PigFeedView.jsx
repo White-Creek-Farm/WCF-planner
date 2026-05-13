@@ -719,11 +719,12 @@ export default function PigFeedView({
                   </div>
 
                   {/* Equation row: Start − Consumed + Ordered = End.
-                      data-mobile-hscroll lets the row scroll horizontally
-                      inside its parent on narrow viewports so the page
-                      itself doesn't gain horizontal scroll. */}
+                      data-mobile-stack-equation flips the 7-col grid into a
+                      vertical flex stack at narrow widths so each value
+                      reads on its own line — the prior compressed grid
+                      was unreadable at 390px even with horizontal scroll. */}
                   <div
-                    data-mobile-hscroll="1"
+                    data-mobile-stack-equation="1"
                     style={{
                       padding: '8px 16px 6px',
                       display: 'grid',

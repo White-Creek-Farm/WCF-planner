@@ -154,7 +154,10 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
         )}
       </div>
 
-      <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden'}}>
+      <div
+        data-mobile-hscroll="1"
+        style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden'}}
+      >
         <div
           style={{
             display: 'grid',
@@ -168,6 +171,7 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
             textTransform: 'uppercase',
             letterSpacing: 0.5,
             borderBottom: '1px solid #e5e7eb',
+            minWidth: 700,
           }}
         >
           <div>Date</div>
@@ -203,6 +207,7 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
                 fontSize: 12,
                 borderBottom: i < Math.min(500, filtered.length) - 1 ? '1px solid #f3f4f6' : 'none',
                 fontVariantNumeric: 'tabular-nums',
+                minWidth: 700,
               }}
             >
               <div style={{color: '#111827'}}>{fmt(f.date)}</div>

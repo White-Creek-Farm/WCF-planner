@@ -157,6 +157,31 @@
       padding: 8px 12px !important;
       gap: 6px !important;
     }
+    /* Reorder header children at mobile widths so the layout resolves into
+       two predictable rows: brand + (save-status) + burger/sign-out on
+       row 1, then the Webforms+Tasks nav strip on row 2. Without these
+       order tweaks marginLeft:auto on user-info pushed the action group
+       to the right of row 2 and left Tasks orphaned on the left of row 2
+       with a big gap between — visually ragged. */
+    [data-header-bar="1"] [data-header-brand="1"] {
+      order: 1;
+    }
+    [data-header-bar="1"] [data-header-userinfo="1"] {
+      order: 2;
+      margin-left: 0 !important;
+    }
+    [data-header-bar="1"] [data-header-action-group="1"] {
+      order: 3;
+      margin-left: auto !important;
+    }
+    [data-header-bar="1"] [data-header-webforms-group="1"] {
+      order: 4;
+      margin-left: 0 !important;
+    }
+    [data-header-bar="1"] [data-header-tasks-divider="1"] {
+      order: 5;
+      margin-left: 0 !important;
+    }
     [data-header-username="1"] {
       display: none !important;
     }
@@ -179,6 +204,27 @@
     }
     [data-mobile-2col="1"] {
       grid-template-columns: 1fr 1fr !important;
+    }
+    /* Feed-ledger equation rows: at narrow widths the desktop 7-/8-col
+       grid compresses into unreadable 30px columns. Flip to a vertical
+       stack so each value (and the operator that prefixes it) gets its
+       own line, with the start/consumed/ordered/end content reading
+       naturally top-to-bottom. */
+    [data-mobile-stack-equation="1"] {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 4px !important;
+    }
+    [data-mobile-stack-equation="1"] > * {
+      text-align: left !important;
+    }
+    /* Broiler BatchForm side nav arrows are position:fixed and overlap
+       the modal body on narrow viewports. Hide on mobile — the user
+       can still cycle batches by closing and tapping the next row in
+       the list. */
+    [data-batchform-side-nav="1"] {
+      display: none !important;
     }
   }
 </style>

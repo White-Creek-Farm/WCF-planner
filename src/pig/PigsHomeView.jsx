@@ -281,7 +281,7 @@ export default function PigsHomeView({Header, loadUsers}) {
           gap: '1.5rem',
         }}
       >
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10}}>
+        <div data-mobile-2col="1" style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10}}>
           <StatTile
             label="Pigs on Farm"
             val={pigsOnFarm > 0 ? pigsOnFarm.toLocaleString() : '\u2014'}

@@ -110,6 +110,7 @@ export default function BatchForm({
             const prev = idx > 0 ? sorted[idx - 1] : null;
             const next = idx < sorted.length - 1 ? sorted[idx + 1] : null;
             const sideBtn = (on, label, onClick) => ({
+              'data-batchform-side-nav': '1',
               style: {
                 position: 'fixed',
                 top: '50%',
@@ -334,7 +335,10 @@ export default function BatchForm({
               <div style={{color: '#083d30', fontWeight: 600, fontSize: 12, marginBottom: 8}}>
                 Step 1 — Enter your target processing date
               </div>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8}}>
+              <div
+                data-mobile-1col="1"
+                style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8}}
+              >
                 <div>
                   <label style={{...S.label, color: '#085041'}}>Breed</label>
                   <select value={form.breed} onChange={(e) => upd('breed', e.target.value)}>
@@ -440,6 +444,7 @@ export default function BatchForm({
               </div>
               {tl && (
                 <div
+                  data-mobile-1col="1"
                   style={{
                     marginTop: 8,
                     borderTop: '1px solid #B5D4F4',
@@ -573,7 +578,7 @@ export default function BatchForm({
               <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
                 BROODER & SCHOONER
               </div>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
+              <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
                 <div>
                   <label style={S.label}>Date In Brooder</label>
                   <input type="date" value={form.brooderIn} onChange={(e) => upd('brooderIn', e.target.value)} />
@@ -715,7 +720,7 @@ export default function BatchForm({
                 if (stats.legacy) {
                   // Legacy B-24-* batches: keep editable fields (no daily reports exist)
                   return (
-                    <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
+                    <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
                       <div>
                         <label style={S.label}>Brooder Feed (lbs)</label>
                         <input
@@ -768,7 +773,7 @@ export default function BatchForm({
                   </div>
                 );
                 return (
-                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
+                  <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
                     {ro('Starter Feed', stats.starterFeed, ' lbs')}
                     {ro('Grower Feed', stats.growerFeed, ' lbs')}
                     {ro('Grit', stats.gritLbs, ' lbs')}
@@ -828,7 +833,7 @@ export default function BatchForm({
               <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
                 PROCESSING
               </div>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+              <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
                 <div>
                   <label style={S.label}>Birds to Processor</label>
                   <input
@@ -910,7 +915,7 @@ export default function BatchForm({
               <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
                 PRODUCTION TOTALS
               </div>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+              <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
                 <div>
                   <label style={S.label}>Total Lbs — Whole Birds</label>
                   <input
