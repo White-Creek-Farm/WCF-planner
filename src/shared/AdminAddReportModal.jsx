@@ -190,11 +190,15 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   React.useEffect(() => {
     // Loaded for both cattle and sheep (sheep reuses the master list via herd_scope).
     if (formType !== 'cattle' && formType !== 'sheep') return;
+    // Admin "Add Report" is a pure new-record flow (insert, not update), so a
+    // load-time client filter is safe and mirrors the public webform pattern.
+    // Drop the server-side `status === 'active'` predicate so legacy null/blank
+    // rows fall through as eligible, then exclude rows where status is
+    // explicitly 'inactive'.
     sb.from('cattle_feed_inputs')
       .select('*')
-      .eq('status', 'active')
       .then(({data}) => {
-        if (data) setCattleFeedInputs(data);
+        if (data) setCattleFeedInputs(data.filter((f) => f.status !== 'inactive'));
       });
   }, [formType]);
   // Sheep: cattle-parity shape — feeds + minerals jsonb, matching sheep_dailys

@@ -694,8 +694,16 @@ const CattleDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEd
                   </button>
                 </div>
                 {form.feeds.map((r, ri) => {
+                  // Selection list excludes inactive inputs (status === 'inactive'); legacy
+                  // null/blank status falls through as eligible. feedInputs itself stays
+                  // unfiltered so the save-time .find() lookups above and the fiRow
+                  // placeholder lookup below still resolve historical rows that already
+                  // reference an inactive feed.
                   const feedsForHerd = feedInputs.filter(
-                    (f) => f.category !== 'mineral' && (!form.herd || (f.herd_scope || []).includes(form.herd)),
+                    (f) =>
+                      f.status !== 'inactive' &&
+                      f.category !== 'mineral' &&
+                      (!form.herd || (f.herd_scope || []).includes(form.herd)),
                   );
                   const fiRow = feedInputs.find((x) => x.id === r.feedId);
                   return (
@@ -803,7 +811,10 @@ const CattleDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEd
                   </button>
                 </div>
                 {form.minerals.map((r, ri) => {
-                  const minerals = feedInputs.filter((f) => f.category === 'mineral');
+                  // Same selection-vs-history split as the feed dropdown above:
+                  // inactive minerals are excluded from new selections but stay
+                  // resolvable via the historical .find() lookups.
+                  const minerals = feedInputs.filter((f) => f.status !== 'inactive' && f.category === 'mineral');
                   return (
                     <div
                       key={ri}

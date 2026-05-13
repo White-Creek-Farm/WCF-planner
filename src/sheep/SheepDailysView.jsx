@@ -88,9 +88,14 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
         }
         setLoading(false);
       });
+    // Load the unfiltered cattle/sheep input list (no server-side status
+    // filter); the dropdown filters below exclude inactive inputs from new
+    // selections while the historical .find() lookups still resolve saved
+    // sheep records that reference now-inactive feeds. Legacy null/blank
+    // status falls through as eligible. The herd_scope sub-filter keeps the
+    // loaded array small to rows usable by at least one sheep flock.
     sb.from('cattle_feed_inputs')
       .select('*')
-      .eq('status', 'active')
       .order('category')
       .order('name')
       .then(({data}) => {
@@ -710,8 +715,14 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                   </button>
                 </div>
                 {form.feeds.map((r, ri) => {
+                  // Selection list excludes inactive inputs; historical lookups
+                  // above still resolve saved feeds that have since been
+                  // deactivated. Legacy null/blank status falls through.
                   const feedsForFlock = feedInputs.filter(
-                    (f) => f.category !== 'mineral' && (!form.flock || (f.herd_scope || []).includes(form.flock)),
+                    (f) =>
+                      f.status !== 'inactive' &&
+                      f.category !== 'mineral' &&
+                      (!form.flock || (f.herd_scope || []).includes(form.flock)),
                   );
                   const fiRow = feedInputs.find((x) => x.id === r.feedId);
                   return (
@@ -795,7 +806,9 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                   </button>
                 </div>
                 {form.minerals.map((r, ri) => {
-                  const minerals = feedInputs.filter((f) => f.category === 'mineral');
+                  // Mirror the feed dropdown: inactive minerals are not offered
+                  // for new selections; historical .find() lookups resolve them.
+                  const minerals = feedInputs.filter((f) => f.status !== 'inactive' && f.category === 'mineral');
                   return (
                     <div
                       key={ri}
