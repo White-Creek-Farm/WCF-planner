@@ -14,7 +14,7 @@ import {describe, it, expect} from 'vitest';
 //   (b) `user_delete` was previously deploy-only — Ronnie pasted that
 //       block live, then it survived only because no one redeployed.
 //       Codex C4 BLOCKER 0 forced restoration to source. This file locks
-//       all six handlers so a future deploy can't silently drop one again.
+//       all handlers so a future deploy can't silently drop one again.
 //
 // Every handler must:
 //   - Match its `if (type === '<name>')` branch.
@@ -40,10 +40,11 @@ const src = fs.readFileSync(path.join(ROOT, 'supabase-functions/rapid-processor.
 // survive the strip.
 const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*/gm, '');
 
-describe('rapid-processor.ts — six handler branches present', () => {
+describe('rapid-processor.ts — seven handler branches present', () => {
   const handlers = [
     'egg_report',
     'starter_feed_check',
+    'user_create',
     'user_welcome',
     'password_reset',
     'user_delete',
@@ -55,6 +56,56 @@ describe('rapid-processor.ts — six handler branches present', () => {
       expect(code).toMatch(re);
     });
   }
+});
+
+describe('rapid-processor.ts — account emails use noreply and admin-created users skip Supabase signup mail', () => {
+  const userCreateIdx = code.indexOf("if (type === 'user_create')");
+  const userCreateSlice = userCreateIdx >= 0 ? code.slice(userCreateIdx, userCreateIdx + 4500) : '';
+  const userWelcomeIdx = code.indexOf("if (type === 'user_welcome')");
+  const userWelcomeSlice = userWelcomeIdx >= 0 ? code.slice(userWelcomeIdx, userWelcomeIdx + 1600) : '';
+  const passwordResetIdx = code.indexOf("if (type === 'password_reset')");
+  const passwordResetSlice = passwordResetIdx >= 0 ? code.slice(passwordResetIdx, passwordResetIdx + 1600) : '';
+  const eggReportIdx = code.indexOf("if (type === 'egg_report')");
+  const eggReportSlice = eggReportIdx >= 0 ? code.slice(eggReportIdx, eggReportIdx + 1200) : '';
+  const starterFeedIdx = code.indexOf("if (type === 'starter_feed_check')");
+  const starterFeedSlice = starterFeedIdx >= 0 ? code.slice(starterFeedIdx, starterFeedIdx + 3000) : '';
+  const tasksSummaryIdx = code.indexOf("if (type === 'tasks_weekly_summary')");
+  const tasksSummarySlice = tasksSummaryIdx >= 0 ? code.slice(tasksSummaryIdx, tasksSummaryIdx + 3500) : '';
+
+  it('defines separate sender constants for reports and account emails', () => {
+    expect(code).toMatch(/const\s+FROM\s*=\s*'WCF Planner <reports@wcfplanner\.com>'/);
+    expect(code).toMatch(/const\s+AUTH_FROM\s*=\s*'WCF Planner <noreply@wcfplanner\.com>'/);
+  });
+
+  it('user_create uses admin.createUser with email_confirm true, not public signup email', () => {
+    expect(userCreateIdx).toBeGreaterThan(-1);
+    expect(userCreateSlice).toMatch(/admin\.auth\.admin\.createUser\(/);
+    expect(userCreateSlice).toMatch(/email_confirm:\s*true/);
+    expect(userCreateSlice).not.toMatch(/signUp\(/);
+  });
+
+  it('user_create is admin-gated before createUser or sendEmail', () => {
+    const isAdminIdx = userCreateSlice.indexOf("rpc('is_admin')");
+    const createUserIdx = userCreateSlice.indexOf('admin.auth.admin.createUser');
+    const sendEmailIdx = userCreateSlice.indexOf('sendEmail(');
+    expect(isAdminIdx).toBeGreaterThan(-1);
+    expect(createUserIdx).toBeGreaterThan(-1);
+    expect(sendEmailIdx).toBeGreaterThan(-1);
+    expect(isAdminIdx).toBeLessThan(createUserIdx);
+    expect(isAdminIdx).toBeLessThan(sendEmailIdx);
+  });
+
+  it('welcome and password reset emails send from AUTH_FROM', () => {
+    expect(userCreateSlice).toMatch(/from:\s*AUTH_FROM/);
+    expect(userWelcomeSlice).toMatch(/from:\s*AUTH_FROM/);
+    expect(passwordResetSlice).toMatch(/from:\s*AUTH_FROM/);
+  });
+
+  it('operational report emails stay on reports@', () => {
+    expect(eggReportSlice).toMatch(/from:\s*FROM/);
+    expect(starterFeedSlice).toMatch(/from:\s*FROM/);
+    expect(tasksSummarySlice).toMatch(/from:\s*FROM/);
+  });
 });
 
 describe('rapid-processor.ts — user_delete admin gate (Codex C4 re-review BLOCKER 1)', () => {

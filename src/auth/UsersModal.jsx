@@ -9,9 +9,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   const [addEmail, setAddEmail] = React.useState('');
   const [addName, setAddName] = React.useState('');
   const [addRole, setAddRole] = React.useState('farm_team');
-  // No password field — Supabase signUp requires one, so we generate a
-  // throwaway under the hood. The user immediately overwrites it via the
-  // "Set my Password" link in the welcome email. Admin never sees or types it.
+  // No password field. The admin-only edge function creates the auth account
+  // with a throwaway password, then sends a password-set link to the user.
   const [umMsg, setUmMsg] = React.useState('');
   const [umErr, setUmErr] = React.useState('');
   const [umLoading, setUmLoading] = React.useState(false);
@@ -36,38 +35,18 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     setUmErr('');
     setUmMsg('');
     try {
-      // Throwaway password — long + random so it can't be guessed and meets
-      // any complexity requirement. The user picks the real one via the
-      // welcome email's "Set my Password" link, which overwrites this.
-      const tempPw = 'wcf_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
-      const {data, error} = await sb.auth.signUp({
-        email: addEmail.trim(),
-        password: tempPw,
-        options: {data: {full_name: addName.trim()}},
+      const {error} = await sb.functions.invoke('rapid-processor', {
+        body: {type: 'user_create', data: {email: addEmail.trim(), name: addName.trim(), role: addRole}},
       });
       if (error) throw error;
-      if (data?.user) {
-        await sb
-          .from('profiles')
-          .upsert(
-            {id: data.user.id, email: addEmail.trim(), full_name: addName.trim(), role: addRole},
-            {onConflict: 'id'},
-          );
-        // Send branded welcome email via our own edge function (which generates a password reset link)
-        await sb.functions
-          .invoke('rapid-processor', {
-            body: {type: 'user_welcome', data: {email: addEmail.trim(), name: addName.trim(), role: addRole}},
-          })
-          .catch((e) => console.warn('Welcome email failed:', e));
-        setUmMsg(
-          '\u2705 Invite sent to ' + addEmail.trim() + '. They\u2019ll set their password via the link in the email.',
-        );
-        setAddEmail('');
-        setAddName('');
-        setAddRole('farm_team');
-        loadUsers();
-        setUmTab('users');
-      }
+      setUmMsg(
+        '\u2705 Invite sent to ' + addEmail.trim() + '. They\u2019ll set their password via the link in the email.',
+      );
+      setAddEmail('');
+      setAddName('');
+      setAddRole('farm_team');
+      loadUsers();
+      setUmTab('users');
     } catch (e) {
       setUmErr('Error: ' + (e.message || 'Unknown error'));
     }

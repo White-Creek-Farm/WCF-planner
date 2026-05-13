@@ -14,6 +14,15 @@ function stripComments(text) {
 const code = stripComments(src);
 
 describe('UsersModal self name editing', () => {
+  it('creates new users through the admin edge function, not public auth.signUp', () => {
+    const createUserBody =
+      code.match(/async function createUser[\s\S]*?\n\s*async function sendPasswordReset/)?.[0] || '';
+
+    expect(createUserBody).toMatch(/type:\s*'user_create'/);
+    expect(createUserBody).not.toMatch(/auth\.signUp/);
+    expect(createUserBody).not.toMatch(/type:\s*'user_welcome'/);
+  });
+
   it('uses AuthContext so self name edits refresh the signed-in header name', () => {
     expect(code).toMatch(/from '\.\.\/contexts\/AuthContext\.jsx'/);
     expect(code).toMatch(/useAuth\(\)/);

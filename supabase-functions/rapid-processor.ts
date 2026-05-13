@@ -21,6 +21,7 @@ const SUPABASE_SERVICE_ROLE_KEY = envTrim('SUPABASE_SERVICE_ROLE_KEY');
 // auth, both functions read it via envTrim so byte-equal compare aligns.
 const TASKS_CRON_SECRET = envTrim('TASKS_CRON_SECRET');
 const FROM = 'WCF Planner <reports@wcfplanner.com>';
+const AUTH_FROM = 'WCF Planner <noreply@wcfplanner.com>';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -225,7 +226,7 @@ function welcomeEmailHtml(name: string, email: string, role: string, resetLink: 
 
     <!-- Footer note -->
     <div style="border-top:1px solid #e8e4dc;padding-top:16px;text-align:center;">
-      <span style="color:#999;font-size:11px;font-family:Arial,sans-serif;">Questions? Reply to this email.</span>
+      <span style="color:#999;font-size:11px;font-family:Arial,sans-serif;">Questions? Contact White Creek Farm management.</span>
     </div>
   `;
   return brandedEmail({title: '🌾 Welcome to WCF Planner', subtitle: 'Your account is ready', bodyHtml, isTest});
@@ -263,7 +264,7 @@ function passwordResetHtml(name: string, resetLink: string, isTest: boolean) {
 
     <!-- Footer note -->
     <div style="border-top:1px solid #e8e4dc;padding-top:16px;text-align:center;">
-      <span style="color:#999;font-size:11px;font-family:Arial,sans-serif;">WCF Planner · Questions? Reply to this email.</span>
+      <span style="color:#999;font-size:11px;font-family:Arial,sans-serif;">WCF Planner · This mailbox is not monitored.</span>
     </div>
   `;
   return brandedEmail({title: '🔑 Password Reset', subtitle: 'WCF Planner', bodyHtml, isTest});
@@ -411,6 +412,69 @@ serve(async (req) => {
       });
     }
 
+    // ─── USER CREATE — admin creates auth account + sends welcome ───
+    if (type === 'user_create') {
+      const authHeader = req.headers.get('authorization');
+      if (!authHeader) {
+        return new Response(JSON.stringify({error: 'unauthorized'}), {
+          status: 401,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {persistSession: false, autoRefreshToken: false},
+        global: {headers: {Authorization: authHeader}},
+      });
+      const {data: isAdminData, error: isAdminErr} = await userClient.rpc('is_admin');
+      if (isAdminErr || isAdminData !== true) {
+        return new Response(JSON.stringify({error: 'forbidden'}), {
+          status: 403,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+
+      const email = String(data?.email || '').trim();
+      const name = String(data?.name || '').trim();
+      const role = data?.role || 'farm_team';
+      if (!email) throw new Error('email required');
+
+      const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const tempPw = `wcf_${crypto.randomUUID()}_${crypto.randomUUID()}`;
+      const {data: created, error: createError} = await admin.auth.admin.createUser({
+        email,
+        password: tempPw,
+        email_confirm: true,
+        user_metadata: {full_name: name},
+      });
+      if (createError) throw new Error(createError.message);
+      if (!created?.user?.id) throw new Error('user create returned no id');
+
+      const {error: profileError} = await admin
+        .from('profiles')
+        .upsert({id: created.user.id, email, full_name: name, role}, {onConflict: 'id'});
+      if (profileError) throw new Error(profileError.message);
+
+      const {data: linkData, error: linkError} = await admin.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+        options: {redirectTo: 'https://wcfplanner.com'},
+      });
+      if (linkError) throw new Error(linkError.message);
+      const resetLink = linkData.properties?.action_link || 'https://wcfplanner.com';
+
+      const res = await sendEmail({
+        from: AUTH_FROM,
+        to: test_to ? [test_to] : [email],
+        ...(test_to ? {} : {bcc: ['ronnie@whitecreek.farm']}),
+        subject: test_to ? `[TEST] Welcome to WCF Planner` : `Welcome to WCF Planner`,
+        html: welcomeEmailHtml(name, email, role, resetLink, !!test_to),
+      });
+      const result = await res.json();
+      return new Response(JSON.stringify({ok: true, user: {id: created.user.id, email}, result}), {
+        headers: {...corsHeaders, 'Content-Type': 'application/json'},
+      });
+    }
+
     // ─── USER WELCOME — sent when admin creates a new user ───
     if (type === 'user_welcome') {
       if (!data.email) throw new Error('email required');
@@ -425,7 +489,7 @@ serve(async (req) => {
       const resetLink = linkData.properties?.action_link || 'https://wcfplanner.com';
 
       const res = await sendEmail({
-        from: FROM,
+        from: AUTH_FROM,
         to: test_to ? [test_to] : [data.email],
         ...(test_to ? {} : {bcc: ['ronnie@whitecreek.farm']}),
         subject: test_to ? `[TEST] Welcome to WCF Planner` : `Welcome to WCF Planner`,
@@ -450,7 +514,7 @@ serve(async (req) => {
       const resetLink = linkData.properties?.action_link || 'https://wcfplanner.com';
 
       const res = await sendEmail({
-        from: FROM,
+        from: AUTH_FROM,
         to: test_to ? [test_to] : [data.email],
         subject: test_to ? `[TEST] Reset your WCF Planner password` : `Reset your WCF Planner password`,
         html: passwordResetHtml(data.name || '', resetLink, !!test_to),
