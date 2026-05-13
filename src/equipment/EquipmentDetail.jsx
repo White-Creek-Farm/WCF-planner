@@ -16,6 +16,8 @@ import {
 } from '../lib/equipment.js';
 import EquipmentMaintenanceModal from './EquipmentMaintenanceModal.jsx';
 import ManualsCard from './ManualsCard.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 
 export default function EquipmentDetail({
   sb,
@@ -42,6 +44,9 @@ export default function EquipmentDetail({
   // (which collapses the expanded row + scrolls the page). DB save happens
   // in the background; on next page load the data is already in sync.
   const [fuelingPatches, setFuelingPatches] = React.useState({});
+  // Inline notice for inline-edit save / delete / status failures across
+  // the spec panel, fueling rows, interval entries, and the status toggle.
+  const [notice, setNotice] = React.useState(null);
   function withPatch(f) {
     const p = fuelingPatches[f.id];
     return p ? {...f, ...p} : f;
@@ -66,9 +71,10 @@ export default function EquipmentDetail({
   // inline-edit UX.
   const saveTimers = React.useRef({});
   async function patchEq(fields) {
+    setNotice(null);
     const {error} = await sb.from('equipment').update(fields).eq('id', eq.id);
     if (error) {
-      alert('Save failed: ' + error.message);
+      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
       return;
     }
     onReload();
@@ -91,6 +97,7 @@ export default function EquipmentDetail({
   // local state immediately and patches the row in the background. No reload,
   // so the expanded row stays open and the page doesn't scroll.
   async function toggleFillupItem(fueling, item) {
+    setNotice(null);
     const merged = withPatch(fueling);
     const current = Array.isArray(merged.every_fillup_check) ? merged.every_fillup_check : [];
     const has = current.some((c) => c && c.id === item.id);
@@ -99,7 +106,7 @@ export default function EquipmentDetail({
       : [...current, {id: item.id, label: item.label, ok: true}];
     setFuelingPatches((p) => ({...p, [fueling.id]: {...(p[fueling.id] || {}), every_fillup_check: next}}));
     const {error} = await sb.from('equipment_fuelings').update({every_fillup_check: next}).eq('id', fueling.id);
-    if (error) alert('Save failed: ' + error.message);
+    if (error) setNotice({kind: 'error', message: 'Save failed: ' + error.message});
   }
 
   // Delete a single interval entry from a fueling row's
@@ -119,13 +126,14 @@ export default function EquipmentDetail({
         label +
         '" entry from this fueling row? This only deletes that one interval entry. Photos, fillup ticks, comments, and other intervals on this row stay intact.',
       async () => {
+        setNotice(null);
         const next = completed.filter((_, i) => i !== intervalIdx);
         setFuelingPatches((p) => ({...p, [fueling.id]: {...(p[fueling.id] || {}), service_intervals_completed: next}}));
         const {error} = await sb
           .from('equipment_fuelings')
           .update({service_intervals_completed: next})
           .eq('id', fueling.id);
-        if (error) alert('Save failed: ' + error.message);
+        if (error) setNotice({kind: 'error', message: 'Save failed: ' + error.message});
       },
     );
   }
@@ -135,6 +143,7 @@ export default function EquipmentDetail({
   // equipment config in case admin added/removed tasks since the original
   // submission.
   async function toggleIntervalTask(fueling, intervalIdx, taskId, currentTasks) {
+    setNotice(null);
     const merged = withPatch(fueling);
     const completed = Array.isArray(merged.service_intervals_completed) ? merged.service_intervals_completed : [];
     const target = completed[intervalIdx];
@@ -151,7 +160,7 @@ export default function EquipmentDetail({
       .from('equipment_fuelings')
       .update({service_intervals_completed: next})
       .eq('id', fueling.id);
-    if (error) alert('Save failed: ' + error.message);
+    if (error) setNotice({kind: 'error', message: 'Save failed: ' + error.message});
   }
 
   const sortedFuelings = [...(fuelings || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -177,6 +186,7 @@ export default function EquipmentDetail({
   // and editing independently.
   const fuelingTimers = React.useRef({});
   function queueFuelingSave(fuelingId, field, rawValue, parser) {
+    setNotice(null);
     const key = fuelingId + ':' + field;
     if (fuelingTimers.current[key]) clearTimeout(fuelingTimers.current[key]);
     fuelingTimers.current[key] = setTimeout(async () => {
@@ -192,7 +202,7 @@ export default function EquipmentDetail({
         .update({[field]: next})
         .eq('id', fuelingId);
       if (error) {
-        alert('Save failed: ' + error.message);
+        setNotice({kind: 'error', message: 'Save failed: ' + error.message});
         return;
       }
       onReload();
@@ -200,9 +210,10 @@ export default function EquipmentDetail({
   }
   async function deleteFueling(fuelingId) {
     window._wcfConfirmDelete('Delete this fueling entry? This cannot be undone.', async () => {
+      setNotice(null);
       const {error} = await sb.from('equipment_fuelings').delete().eq('id', fuelingId);
       if (error) {
-        alert('Delete failed: ' + error.message);
+        setNotice({kind: 'error', message: 'Delete failed: ' + error.message});
         return;
       }
       onReload();
@@ -235,6 +246,7 @@ export default function EquipmentDetail({
 
   return (
     <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+      <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       {/* Header tile */}
       <div
         style={{background: 'white', border: '2px solid ' + EQUIPMENT_COLOR, borderRadius: 12, padding: '14px 20px'}}
@@ -266,10 +278,11 @@ export default function EquipmentDetail({
           )}
           <button
             onClick={async () => {
+              setNotice(null);
               const next = eq.status === 'sold' ? 'active' : 'sold';
               const {error} = await sb.from('equipment').update({status: next}).eq('id', eq.id);
               if (error) {
-                alert('Status update failed: ' + error.message);
+                setNotice({kind: 'error', message: 'Status update failed: ' + error.message});
                 return;
               }
               onReload();

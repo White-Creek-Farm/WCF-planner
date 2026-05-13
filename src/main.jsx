@@ -2585,7 +2585,13 @@ function App() {
       await sb.from('pig_dailys').delete().eq('id', id);
       setPigDailys((prev) => prev.filter((d) => d.id !== id));
     } catch (e) {
-      alert('Could not delete record: ' + e.message);
+      // Mirror persistDaily's failure surface — the Header's save-status
+      // indicator renders "⚠ Save failed — check connection" inline when
+      // saveStatus === 'error', so the operator sees the failure without a
+      // native dialog.
+      console.error('deleteDaily error:', e);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(''), 4000);
     }
   }
   function persistArchived(nb) {

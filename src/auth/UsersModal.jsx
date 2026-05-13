@@ -78,13 +78,15 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     window._wcfConfirm(
       'Send a password reset email to ' + email + '?',
       async () => {
+        setUmErr('');
+        setUmMsg('');
         try {
           await sb.functions.invoke('rapid-processor', {
             body: {type: 'password_reset', data: {email, name: name || ''}},
           });
-          alert('✅ Password reset email sent to ' + email);
+          setUmMsg('✅ Password reset email sent to ' + email);
         } catch (e) {
-          alert('Error sending reset email: ' + (e.message || 'Unknown error'));
+          setUmErr('Error sending reset email: ' + (e.message || 'Unknown error'));
         }
       },
       'Send',

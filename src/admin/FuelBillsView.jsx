@@ -7,6 +7,8 @@
 
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 
 const FUEL_TYPES = [
   {value: 'diesel', label: 'Diesel'},
@@ -179,12 +181,14 @@ export default function FuelBillsView() {
 
 function PdfLink({path}) {
   const [url, setUrl] = React.useState(null);
+  const [openNotice, setOpenNotice] = React.useState(null);
   async function open(e) {
     e.stopPropagation();
+    setOpenNotice(null);
     if (!url) {
       const {data, error} = await sb.storage.from('fuel-bills').createSignedUrl(path, 600);
       if (error) {
-        alert('Cannot open PDF: ' + error.message);
+        setOpenNotice({kind: 'error', message: 'Cannot open PDF: ' + error.message});
         return;
       }
       setUrl(data.signedUrl);
@@ -194,26 +198,30 @@ function PdfLink({path}) {
     }
   }
   return (
-    <button
-      onClick={open}
-      style={{
-        fontSize: 11,
-        color: '#1d4ed8',
-        background: 'none',
-        border: 'none',
-        textDecoration: 'underline',
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        padding: 0,
-      }}
-    >
-      📄 View
-    </button>
+    <div style={{display: 'inline-flex', flexDirection: 'column', gap: 4}}>
+      <button
+        onClick={open}
+        style={{
+          fontSize: 11,
+          color: '#1d4ed8',
+          background: 'none',
+          border: 'none',
+          textDecoration: 'underline',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          padding: 0,
+        }}
+      >
+        📄 View
+      </button>
+      {openNotice && <InlineNotice notice={openNotice} onDismiss={() => setOpenNotice(null)} />}
+    </div>
   );
 }
 
 function BillDetail({bill, lines, onChanged}) {
   const [busy, setBusy] = React.useState(false);
+  const [deleteNotice, setDeleteNotice] = React.useState(null);
   async function del() {
     window._wcfConfirmDelete(
       'Delete this bill (and its ' +
@@ -222,12 +230,13 @@ function BillDetail({bill, lines, onChanged}) {
         (lines.length === 1 ? '' : 's') +
         ')? PDF will also be removed from storage.',
       async () => {
+        setDeleteNotice(null);
         setBusy(true);
         if (bill.pdf_path) await sb.storage.from('fuel-bills').remove([bill.pdf_path]);
         const {error} = await sb.from('fuel_bills').delete().eq('id', bill.id);
         setBusy(false);
         if (error) {
-          alert('Delete failed: ' + error.message);
+          setDeleteNotice({kind: 'error', message: 'Delete failed: ' + error.message});
           return;
         }
         onChanged();
@@ -246,6 +255,7 @@ function BillDetail({bill, lines, onChanged}) {
   };
   return (
     <div style={{padding: '14px 18px'}}>
+      <InlineNotice notice={deleteNotice} onDismiss={() => setDeleteNotice(null)} />
       <div
         style={{
           display: 'grid',

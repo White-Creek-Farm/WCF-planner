@@ -9,11 +9,17 @@
 
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from './InlineNotice.jsx';
 
 export default function DailyPhotoThumbnails({photos}) {
   const list = Array.isArray(photos) ? photos : [];
   const [urls, setUrls] = React.useState({}); // path → signedUrl
   const [errs, setErrs] = React.useState({}); // path → message
+  // Click-open failure is surfaced inline beneath the thumbnail grid so the
+  // host modal doesn't need to thread a notice setter through; cleared on
+  // each new open attempt.
+  const [openNotice, setOpenNotice] = React.useState(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -38,11 +44,12 @@ export default function DailyPhotoThumbnails({photos}) {
   }, [JSON.stringify(list.map((p) => p && p.path))]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openFull(path) {
+    setOpenNotice(null);
     // Re-fetch the signed URL on click — the modal may have been open longer
     // than the original 10-min expiry window.
     const {data, error} = await sb.storage.from('daily-photos').createSignedUrl(path, 600);
     if (error) {
-      alert('Cannot open photo: ' + error.message);
+      setOpenNotice({kind: 'error', message: 'Cannot open photo: ' + error.message});
       return;
     }
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
@@ -94,6 +101,11 @@ export default function DailyPhotoThumbnails({photos}) {
           );
         })}
       </div>
+      {openNotice && (
+        <div style={{marginTop: 8}}>
+          <InlineNotice notice={openNotice} onDismiss={() => setOpenNotice(null)} />
+        </div>
+      )}
     </div>
   );
 }
