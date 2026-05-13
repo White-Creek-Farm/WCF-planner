@@ -21,6 +21,8 @@ import {
 import {setPublicAssigneeHidden} from '../lib/tasks.js';
 import {loadPublicAssigneeAvailability, savePublicAssigneeAvailability} from '../lib/tasksAdminApi.js';
 import UsersModal from '../auth/UsersModal.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 import FeedCostsPanel from '../admin/FeedCostsPanel.jsx';
 import FeedCostByMonthPanel from '../admin/FeedCostByMonthPanel.jsx';
 import LivestockFeedInputsPanel from '../admin/LivestockFeedInputsPanel.jsx';
@@ -635,6 +637,10 @@ export default function WebformsAdminView({
   const [editWfId, setEditWfId] = React.useState(null);
   const [editFieldId, setEditFieldId] = React.useState(null);
   const [wfFieldForm, setWfFieldForm] = React.useState({label: '', type: 'text', required: false, options: []});
+  // Inline notice for the wf-field add form's validation (label required +
+  // button_toggle option count). Renders inside the add-field form so the
+  // operator sees it on the surface that triggered the action.
+  const [wfFieldNotice, setWfFieldNotice] = React.useState(null);
   const [newTeamMember, setNewTeamMember] = React.useState('');
   const [addingTo, setAddingTo] = React.useState(null);
   const [editFldLbl, setEditFldLbl] = React.useState(null);
@@ -742,12 +748,13 @@ export default function WebformsAdminView({
     );
   }
   function saveNewField(si) {
+    setWfFieldNotice(null);
     if (!wfFieldForm.label.trim()) {
-      alert('Enter a field label.');
+      setWfFieldNotice({kind: 'error', message: 'Enter a field label.'});
       return;
     }
     if (wfFieldForm.type === 'button_toggle' && (!wfFieldForm.options || wfFieldForm.options.length < 2)) {
-      alert('Add at least 2 button options.');
+      setWfFieldNotice({kind: 'error', message: 'Add at least 2 button options.'});
       return;
     }
     const nf = {id: 'c-' + Date.now(), ...wfFieldForm, system: false, enabled: true};
@@ -1087,7 +1094,10 @@ export default function WebformsAdminView({
                       )}
                       <div style={{display: 'flex', gap: 6, alignItems: 'center'}}>
                         <button
-                          onClick={() => setAddingTo(addingTo === si ? null : si)}
+                          onClick={() => {
+                            setWfFieldNotice(null);
+                            setAddingTo(addingTo === si ? null : si);
+                          }}
                           style={{
                             fontSize: 11,
                             padding: '3px 10px',
@@ -1124,6 +1134,7 @@ export default function WebformsAdminView({
                         <div style={{fontSize: 12, fontWeight: 600, color: '#1d4ed8', marginBottom: 10}}>
                           Add field to "{sec.title}"
                         </div>
+                        <InlineNotice notice={wfFieldNotice} onDismiss={() => setWfFieldNotice(null)} />
                         <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginBottom: 10}}>
                           <div>
                             <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3}}>
@@ -1271,6 +1282,7 @@ export default function WebformsAdminView({
                           </button>
                           <button
                             onClick={() => {
+                              setWfFieldNotice(null);
                               setAddingTo(null);
                               setWfFieldForm({label: '', type: 'text', required: false, options: []});
                               setNewOpt('');

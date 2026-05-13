@@ -1,6 +1,8 @@
 // Phase 2 Round 4 extraction (verbatim).
 import React from 'react';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
 
 const LivestockFeedInputsPanel = ({sb}) => {
   const [feeds, setFeeds] = React.useState([]);
@@ -19,6 +21,13 @@ const LivestockFeedInputsPanel = ({sb}) => {
   const [testForm, setTestForm] = React.useState(null);
   const [editingTestId, setEditingTestId] = React.useState(null);
   const [uploadingTest, setUploadingTest] = React.useState(false);
+  // Two inline notices: `notice` covers feed save / delete failures
+  // (rendered both on the main panel and inside the feed edit form so
+  // it is visible on whichever surface fired); `testNotice` covers test
+  // upload / save / validation failures and renders inside the test
+  // sub-form where the action happened.
+  const [notice, setNotice] = React.useState(null);
+  const [testNotice, setTestNotice] = React.useState(null);
 
   const EMPTY_FEED = {
     id: '',
@@ -75,12 +84,14 @@ const LivestockFeedInputsPanel = ({sb}) => {
   }
 
   function openAdd() {
+    setNotice(null);
     setForm({...EMPTY_FEED});
     setOriginalForm({...EMPTY_FEED});
     setEditingId(null);
     setShowForm(true);
   }
   function openEdit(feed) {
+    setNotice(null);
     const f = {
       ...EMPTY_FEED,
       ...feed,
@@ -114,6 +125,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     setFeedTests(data || []);
   }
   function openTestForm() {
+    setTestNotice(null);
     const today = new Date().toISOString().slice(0, 10);
     setTestForm({
       effective_date: today,
@@ -128,6 +140,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     setShowTestForm(true);
   }
   function openEditTest(t) {
+    setTestNotice(null);
     setTestForm({
       effective_date: t.effective_date || '',
       moisture_pct: t.moisture_pct != null ? String(t.moisture_pct) : '',
@@ -145,6 +158,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
   // Open the edit modal AND the upload form in one click (used by the card's quick "Upload Test" button)
   function openUploadForFeed(feed) {
     openEdit(feed);
+    setTestNotice(null);
     const today = new Date().toISOString().slice(0, 10);
     setTestForm({
       effective_date: today,
@@ -160,8 +174,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
   }
   async function saveTest() {
     if (!testForm || !editingId) return;
+    setTestNotice(null);
     if (!testForm.effective_date) {
-      alert('Effective date is required.');
+      setTestNotice({kind: 'error', message: 'Effective date is required.'});
       return;
     }
     setUploadingTest(true);
@@ -171,7 +186,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     if (testForm.file) {
       const file = testForm.file;
       if (file.size > 20 * 1024 * 1024) {
-        alert('PDF exceeds 20 MB limit.');
+        setTestNotice({kind: 'error', message: 'PDF exceeds 20 MB limit.'});
         setUploadingTest(false);
         return;
       }
@@ -181,7 +196,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
         .from('cattle-feed-pdfs')
         .upload(path, file, {cacheControl: '3600', upsert: false});
       if (upErr) {
-        alert('Upload failed: ' + upErr.message);
+        setTestNotice({kind: 'error', message: 'Upload failed: ' + upErr.message});
         setUploadingTest(false);
         return;
       }
@@ -210,7 +225,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     if (editingTestId) {
       const {error} = await sb.from('cattle_feed_tests').update(payload).eq('id', editingTestId);
       if (error) {
-        alert('Could not save test: ' + error.message);
+        setTestNotice({kind: 'error', message: 'Could not save test: ' + error.message});
         setUploadingTest(false);
         return;
       }
@@ -220,7 +235,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
       rec = {id: testId, feed_input_id: editingId, ...payload};
       const {error} = await sb.from('cattle_feed_tests').insert(rec);
       if (error) {
-        alert('Could not save test: ' + error.message);
+        setTestNotice({kind: 'error', message: 'Could not save test: ' + error.message});
         setUploadingTest(false);
         return;
       }
@@ -273,6 +288,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     window._wcfConfirmDelete(
       'Permanently delete this feed? All historical test results and PDFs will be removed. Daily reports already submitted keep their snapshot values. This cannot be undone.',
       async () => {
+        setNotice(null);
         const {data: tests} = await sb.from('cattle_feed_tests').select('pdf_path').eq('feed_input_id', id);
         const pdfPaths = (tests || []).map((t) => t.pdf_path).filter(Boolean);
         if (pdfPaths.length > 0) {
@@ -284,7 +300,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
         }
         const {error} = await sb.from('cattle_feed_inputs').delete().eq('id', id);
         if (error) {
-          alert('Could not delete: ' + error.message);
+          setNotice({kind: 'error', message: 'Could not delete: ' + error.message});
           return;
         }
         await loadFeeds();
@@ -308,6 +324,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
   }
 
   async function saveFeed(feedData, id) {
+    setNotice(null);
     setSaving(true);
     const rec = {
       name: (feedData.name || '').trim(),
@@ -329,7 +346,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     } else {
       if (!rec.name) {
         setSaving(false);
-        alert('Feed name is required.');
+        setNotice({kind: 'error', message: 'Feed name is required.'});
         return null;
       }
       rec.id = rec.name
@@ -338,14 +355,14 @@ const LivestockFeedInputsPanel = ({sb}) => {
         .replace(/^-|-$/g, '');
       if (!rec.id) {
         setSaving(false);
-        alert('Feed name must contain letters or numbers.');
+        setNotice({kind: 'error', message: 'Feed name must contain letters or numbers.'});
         return null;
       }
     }
     const {error} = await sb.from('cattle_feed_inputs').upsert(rec, {onConflict: 'id'});
     if (error) {
       setSaving(false);
-      alert('Could not save: ' + error.message);
+      setNotice({kind: 'error', message: 'Could not save: ' + error.message});
       return null;
     }
     setSaving(false);
@@ -356,6 +373,8 @@ const LivestockFeedInputsPanel = ({sb}) => {
 
   async function closeForm() {
     clearTimeout(autoSaveTimer.current);
+    setNotice(null);
+    setTestNotice(null);
     if (editingId && form && originalForm) {
       const changed = JSON.stringify(form) !== JSON.stringify(originalForm);
       if (changed) await saveFeed(form, editingId);
@@ -369,6 +388,8 @@ const LivestockFeedInputsPanel = ({sb}) => {
   }
   function cancelForm() {
     clearTimeout(autoSaveTimer.current);
+    setNotice(null);
+    setTestNotice(null);
     setShowForm(false);
     setEditingId(null);
     setForm(null);
@@ -440,6 +461,11 @@ const LivestockFeedInputsPanel = ({sb}) => {
               snapshotted onto daily reports at submit time {'\u2014'} editing a feed here doesn{'\u2019'}t rewrite
               historical reports.
             </div>
+            {!showForm && (
+              <div style={{marginTop: 10}}>
+                <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
+              </div>
+            )}
             <div style={{height: 1, background: '#e5e7eb', margin: '14px 0'}} />
 
             {/* Filter chips */}
@@ -718,6 +744,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 overflowY: 'auto',
               }}
             >
+              <div style={{gridColumn: '1/-1'}}>
+                <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
+              </div>
               {/* Identity */}
               <div style={{gridColumn: '1/-1'}}>
                 <label style={lbl}>Name *</label>
@@ -947,6 +976,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                       <div style={{fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 8}}>
                         {editingTestId ? 'Edit Test Result' : 'New Test Result'}
                       </div>
+                      <InlineNotice notice={testNotice} onDismiss={() => setTestNotice(null)} />
                       <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8}}>
                         <div>
                           <label style={lbl}>Effective Date *</label>
@@ -1060,6 +1090,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         <button
                           type="button"
                           onClick={() => {
+                            setTestNotice(null);
                             setShowTestForm(false);
                             setTestForm(null);
                             setEditingTestId(null);
