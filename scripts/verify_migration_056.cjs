@@ -66,9 +66,7 @@ const {createClient} = require('@supabase/supabase-js');
 
   try {
     // Seed
-    const lbIns = await sbAdmin
-      .from('layer_batches')
-      .insert({id: lbId, name: 'L-PROBE-01', status: 'active'});
+    const lbIns = await sbAdmin.from('layer_batches').insert({id: lbId, name: 'L-PROBE-01', status: 'active'});
     if (lbIns.error) throw new Error('seed layer_batches: ' + lbIns.error.message);
 
     const lhActiveIns = await sbAdmin.from('layer_housings').insert({
@@ -129,11 +127,7 @@ const {createClient} = require('@supabase/supabase-js');
       let actualBlocked = !!r.error;
       if (!r.error) {
         // Defensive: re-read to confirm the column did not change.
-        const {data} = await sbAdmin
-          .from('layer_housings')
-          .select('status')
-          .eq('id', lhActiveId)
-          .maybeSingle();
+        const {data} = await sbAdmin.from('layer_housings').select('status').eq('id', lhActiveId).maybeSingle();
         actualBlocked = data && data.status === 'active';
       }
       record(

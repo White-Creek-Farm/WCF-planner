@@ -36,13 +36,29 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     setUmErr('');
     setUmMsg('');
     try {
-      const {error} = await sb.functions.invoke('rapid-processor', {
+      const {data: fnData, error} = await sb.functions.invoke('rapid-processor', {
         body: {type: 'user_create', data: {email: addEmail.trim(), name: addName.trim(), role: addRole}},
       });
       if (error) throw error;
-      setUmMsg(
-        '\u2705 Invite sent to ' + addEmail.trim() + '. They\u2019ll set their password via the link in the email.',
-      );
+      // The auth account succeeded if we reached this branch. Welcome
+      // email is best-effort \u2014 when rapid-processor returns
+      // welcomeEmailDelivered:false the account IS usable, but we must
+      // not show a green "Invite sent" \u2014 surface the Resend error and
+      // tell the admin to use Send Password Reset on the user row.
+      if (fnData && fnData.welcomeEmailDelivered === false) {
+        const reason = fnData.emailError || 'unknown error';
+        setUmErr(
+          'Account created for ' +
+            addEmail.trim() +
+            ', but the welcome email failed: ' +
+            reason +
+            '. Use Send Password Reset on the new user row to deliver a working link.',
+        );
+      } else {
+        setUmMsg(
+          '\u2705 Invite sent to ' + addEmail.trim() + '. They\u2019ll set their password via the link in the email.',
+        );
+      }
       setAddEmail('');
       setAddName('');
       setAddRole('farm_team');

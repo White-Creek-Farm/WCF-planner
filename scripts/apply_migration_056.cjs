@@ -210,12 +210,7 @@ const {createClient} = require('@supabase/supabase-js');
         .eq('id', lhRetiredRows[0].id)
         .maybeSingle();
       const actualBlock = !after || (after.current_count !== 0 && after.current_count_date !== '2026-01-01');
-      record(
-        'anon UPDATE layer_housings (retired row, policy block)',
-        'blocked',
-        actualBlock ? 'blocked' : 'ok',
-        null,
-      );
+      record('anon UPDATE layer_housings (retired row, policy block)', 'blocked', actualBlock ? 'blocked' : 'ok', null);
     }
   } else {
     record('anon UPDATE layer_housings (retired row, policy block)', 'blocked', 'no_retired_row_to_probe', null);

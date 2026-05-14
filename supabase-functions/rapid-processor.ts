@@ -413,10 +413,22 @@ serve(async (req) => {
     }
 
     // ─── USER CREATE — admin creates auth account + sends welcome ───
+    //
+    // Each step (createUser, profileUpsert, generateLink, sendEmail) is
+    // wrapped in its own try so the response body identifies WHICH step
+    // failed and includes a "partial" hint when prior steps already
+    // mutated state. The client unwrapEdgeFunctionError helper surfaces
+    // the labeled message verbatim so admins know whether to retry,
+    // repair, or just resend the welcome email manually.
+    //
+    // sendEmail is non-fatal: if Resend rejects after the auth account
+    // is already created, we return ok:true with welcomeEmailDelivered:
+    // false + emailError so UsersModal can render a warning instead of
+    // a false "Invite sent" success.
     if (type === 'user_create') {
       const authHeader = req.headers.get('authorization');
       if (!authHeader) {
-        return new Response(JSON.stringify({error: 'unauthorized'}), {
+        return new Response(JSON.stringify({error: 'unauthorized', step: 'auth'}), {
           status: 401,
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
@@ -427,8 +439,23 @@ serve(async (req) => {
       });
       const {data: isAdminData, error: isAdminErr} = await userClient.rpc('is_admin');
       if (isAdminErr || isAdminData !== true) {
-        return new Response(JSON.stringify({error: 'forbidden'}), {
+        return new Response(JSON.stringify({error: 'forbidden', step: 'is_admin'}), {
           status: 403,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+
+      // Config preflight — fail fast with a clear message if a secret
+      // didn't load. Only the NAMES of missing vars are returned; values
+      // are never logged or echoed.
+      const missingEnv: string[] = [];
+      if (!SUPABASE_URL) missingEnv.push('SUPABASE_URL');
+      if (!SUPABASE_ANON_KEY) missingEnv.push('SUPABASE_ANON_KEY');
+      if (!SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
+      if (!RESEND_API_KEY) missingEnv.push('RESEND_API_KEY');
+      if (missingEnv.length > 0) {
+        return new Response(JSON.stringify({error: `config: missing env ${missingEnv.join(', ')}`, step: 'config'}), {
+          status: 500,
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       }
@@ -436,43 +463,141 @@ serve(async (req) => {
       const email = String(data?.email || '').trim();
       const name = String(data?.name || '').trim();
       const role = data?.role || 'farm_team';
-      if (!email) throw new Error('email required');
+      if (!email) {
+        return new Response(JSON.stringify({error: 'email required', step: 'input'}), {
+          status: 400,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
 
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       const tempPw = `wcf_${crypto.randomUUID()}_${crypto.randomUUID()}`;
-      const {data: created, error: createError} = await admin.auth.admin.createUser({
-        email,
-        password: tempPw,
-        email_confirm: true,
-        user_metadata: {full_name: name},
-      });
-      if (createError) throw new Error(createError.message);
-      if (!created?.user?.id) throw new Error('user create returned no id');
 
-      const {error: profileError} = await admin
-        .from('profiles')
-        .upsert({id: created.user.id, email, full_name: name, role}, {onConflict: 'id'});
-      if (profileError) throw new Error(profileError.message);
+      // Step 1: createUser. Failure here is the cleanest case — no
+      // mutation happened, so the admin can fix inputs and retry.
+      let createdUserId: string;
+      try {
+        const r = await admin.auth.admin.createUser({
+          email,
+          password: tempPw,
+          email_confirm: true,
+          user_metadata: {full_name: name},
+        });
+        if (r.error) throw new Error(r.error.message || String(r.error));
+        if (!r.data?.user?.id) throw new Error('createUser returned no user id');
+        createdUserId = r.data.user.id;
+      } catch (e) {
+        return new Response(
+          JSON.stringify({error: `createUser: ${e instanceof Error ? e.message : String(e)}`, step: 'createUser'}),
+          {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
 
-      const {data: linkData, error: linkError} = await admin.auth.admin.generateLink({
-        type: 'recovery',
-        email,
-        options: {redirectTo: 'https://wcfplanner.com'},
-      });
-      if (linkError) throw new Error(linkError.message);
-      const resetLink = linkData.properties?.action_link || 'https://wcfplanner.com';
+      // Step 2: profileUpsert. If this fails the auth account exists but
+      // is orphaned from profiles — admin must NOT retry blindly because
+      // that would either succeed-with-collision (duplicate auth) or just
+      // re-fail. Surface that explicitly.
+      try {
+        const r = await admin
+          .from('profiles')
+          .upsert({id: createdUserId, email, full_name: name, role}, {onConflict: 'id'});
+        if (r.error) throw new Error(r.error.message || String(r.error));
+      } catch (e) {
+        return new Response(
+          JSON.stringify({
+            error: `profileUpsert: ${e instanceof Error ? e.message : String(e)}`,
+            step: 'profileUpsert',
+            partial: {authUserId: createdUserId, email, profileCreated: false},
+            hint: 'Auth account exists but profile row failed; do NOT retry Add User. Ask CC to repair the profiles row OR remove the orphan auth user.',
+          }),
+          {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
 
-      const res = await sendEmail({
-        from: AUTH_FROM,
-        to: test_to ? [test_to] : [email],
-        ...(test_to ? {} : {bcc: ['ronnie@whitecreek.farm']}),
-        subject: test_to ? `[TEST] Welcome to WCF Planner` : `Welcome to WCF Planner`,
-        html: welcomeEmailHtml(name, email, role, resetLink, !!test_to),
-      });
-      const result = await res.json();
-      return new Response(JSON.stringify({ok: true, user: {id: created.user.id, email}, result}), {
-        headers: {...corsHeaders, 'Content-Type': 'application/json'},
-      });
+      // Step 3: generateLink. Both auth + profile exist by now; if this
+      // step fails, the user can still set a password via manual reset.
+      let resetLink = 'https://wcfplanner.com';
+      try {
+        const r = await admin.auth.admin.generateLink({
+          type: 'recovery',
+          email,
+          options: {redirectTo: 'https://wcfplanner.com'},
+        });
+        if (r.error) throw new Error(r.error.message || String(r.error));
+        resetLink = r.data?.properties?.action_link || resetLink;
+      } catch (e) {
+        return new Response(
+          JSON.stringify({
+            error: `generateLink: ${e instanceof Error ? e.message : String(e)}`,
+            step: 'generateLink',
+            partial: {authUserId: createdUserId, email, profileCreated: true, recoveryLinkCreated: false},
+            hint: 'Auth + profile exist but the recovery link failed; do NOT retry Add User. Use Send Password Reset on the user row instead.',
+          }),
+          {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+
+      // Step 4: sendEmail. NON-FATAL — auth account is already usable.
+      // Return ok:true with welcomeEmailDelivered:false so UsersModal can
+      // render a warning instead of a false success.
+      //
+      // Hardening (Codex revision 4): AbortController 10s timeout so a
+      // hung Resend cannot exhaust the function budget; res.text() then
+      // defensive JSON.parse so a non-JSON body still surfaces the real
+      // error; res.ok gate so a structured error body is not treated as
+      // success.
+      let welcomeEmailDelivered = true;
+      let emailError: string | null = null;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            from: AUTH_FROM,
+            to: test_to ? [test_to] : [email],
+            ...(test_to ? {} : {bcc: ['ronnie@whitecreek.farm']}),
+            subject: test_to ? `[TEST] Welcome to WCF Planner` : `Welcome to WCF Planner`,
+            html: welcomeEmailHtml(name, email, role, resetLink, !!test_to),
+          }),
+          signal: controller.signal,
+        });
+        const bodyText = await res.text();
+        let bodyJson: Record<string, unknown> | null = null;
+        try {
+          bodyJson = bodyText ? JSON.parse(bodyText) : null;
+        } catch (_jsonErr) {
+          bodyJson = null;
+        }
+        if (!res.ok) {
+          welcomeEmailDelivered = false;
+          const parsedMsg =
+            (bodyJson && typeof bodyJson.message === 'string' && bodyJson.message) ||
+            (bodyJson && typeof bodyJson.error === 'string' && bodyJson.error) ||
+            bodyText ||
+            `HTTP ${res.status}`;
+          emailError = `Resend ${res.status}: ${parsedMsg}`;
+        }
+      } catch (e) {
+        welcomeEmailDelivered = false;
+        const isAbort = e instanceof Error && e.name === 'AbortError';
+        emailError = isAbort
+          ? 'Resend timed out after 10s'
+          : `Resend fetch failed: ${e instanceof Error ? e.message : String(e)}`;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          user: {id: createdUserId, email},
+          welcomeEmailDelivered,
+          ...(welcomeEmailDelivered ? {} : {emailError: `sendEmail: ${emailError}`, step: 'sendEmail'}),
+        }),
+        {headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+      );
     }
 
     // ─── USER WELCOME — sent when admin creates a new user ───

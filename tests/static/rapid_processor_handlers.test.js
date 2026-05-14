@@ -60,7 +60,12 @@ describe('rapid-processor.ts — seven handler branches present', () => {
 
 describe('rapid-processor.ts — account emails use noreply and admin-created users skip Supabase signup mail', () => {
   const userCreateIdx = code.indexOf("if (type === 'user_create')");
-  const userCreateSlice = userCreateIdx >= 0 ? code.slice(userCreateIdx, userCreateIdx + 4500) : '';
+  // Widened from 4500 to 9000 chars: the hardening pass split createUser /
+  // profileUpsert / generateLink / sendEmail into their own try blocks
+  // with labeled errors + partial-state hints, which roughly doubled the
+  // branch length. The downstream from:AUTH_FROM / Resend assertions
+  // still need to fall inside the slice.
+  const userCreateSlice = userCreateIdx >= 0 ? code.slice(userCreateIdx, userCreateIdx + 9000) : '';
   const userWelcomeIdx = code.indexOf("if (type === 'user_welcome')");
   const userWelcomeSlice = userWelcomeIdx >= 0 ? code.slice(userWelcomeIdx, userWelcomeIdx + 1600) : '';
   const passwordResetIdx = code.indexOf("if (type === 'password_reset')");
@@ -84,10 +89,14 @@ describe('rapid-processor.ts — account emails use noreply and admin-created us
     expect(userCreateSlice).not.toMatch(/signUp\(/);
   });
 
-  it('user_create is admin-gated before createUser or sendEmail', () => {
+  it('user_create is admin-gated before createUser or the Resend email send', () => {
     const isAdminIdx = userCreateSlice.indexOf("rpc('is_admin')");
     const createUserIdx = userCreateSlice.indexOf('admin.auth.admin.createUser');
-    const sendEmailIdx = userCreateSlice.indexOf('sendEmail(');
+    // Hardening pass inlined the Resend fetch (instead of sendEmail()
+    // helper) so the call timeout + defensive body parse can be applied
+    // per-call. Anchor the ordering check to the Resend URL literal,
+    // which is unique to the email step.
+    const sendEmailIdx = userCreateSlice.indexOf('api.resend.com/emails');
     expect(isAdminIdx).toBeGreaterThan(-1);
     expect(createUserIdx).toBeGreaterThan(-1);
     expect(sendEmailIdx).toBeGreaterThan(-1);
