@@ -1,11 +1,24 @@
 // ============================================================================
-// src/shared/Header.jsx  —  Phase 2 Round 6 tail
+// src/shared/Header.jsx  —  Phase 2 Round 6 tail + Notifications Center prep
 // ----------------------------------------------------------------------------
 // The top nav bar + program sub-nav. Reads view/menu state from UIContext,
 // auth/save-status from AuthContext, form open-state booleans from
 // BatchesContext + PigContext. A handful of App-only things come as props:
 // two App helpers (signOut, loadUsers) and the built-up DeleteConfirmModal
 // React element (depends on App's deleteConfirm state).
+//
+// 2026-05-14 navigation prep for the future Notifications Center:
+//   - Webforms group (Dailys + Equipment text buttons) moved out of the
+//     dark bar into the hamburger menu. The menu is the single broader-
+//     navigation surface for every logged-in role.
+//   - Tasks converted from a text button to an icon-only white circle on
+//     the green bar; existing count badge and click behavior preserved.
+//   - Notifications placeholder icon button added next to Tasks. NO fake
+//     data, NO badge until the storage lane lands — this slot reserves
+//     header layout so the Notifications Center can drop in without
+//     another header refactor.
+//   - Sign Out moved into the hamburger; the only top-bar exit point now
+//     is via the menu. Keeps the header light at mobile widths.
 //
 // App() wraps this in a local `Header` factory closure so every extracted
 // view can keep receiving `Header` as a zero-arg prop — no ripple changes
@@ -22,6 +35,134 @@ import {TASK_CHANGE_EVENT} from '../lib/tasksCenterMutationsApi.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
+
+// Shared white-button shape for header action icons (Tasks, Notifications,
+// Hamburger). 2026-05-14 Codex direction: actual white buttons on the
+// green header, not translucent outline-on-green. 36×36 hit target meets
+// WCAG 2.5.5 (Level AAA = 24px / Level AA = 44px; 36px is a deliberate
+// middle ground that keeps mobile usable without dominating the bar).
+// Brand-green stroke (#085041) on solid white reads cleanly as an action
+// group; the active state uses a subtle light-green tint that mirrors
+// the palette used elsewhere in the app.
+const HEADER_ICON_BTN = {
+  width: 36,
+  height: 36,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  position: 'relative',
+  padding: 0,
+  borderRadius: 8,
+  border: '1px solid rgba(255,255,255,.55)',
+  background: '#ffffff',
+  color: '#085041',
+  cursor: 'pointer',
+  fontSize: 16,
+  lineHeight: 1,
+  fontFamily: 'inherit',
+};
+
+const HEADER_ICON_BTN_ACTIVE = {
+  ...HEADER_ICON_BTN,
+  background: '#ecfdf5',
+  border: '1px solid #ffffff',
+  boxShadow: '0 0 0 1px rgba(255,255,255,.6)',
+};
+
+// Red badge for unread/open counts on header icons. White border so the
+// badge pops cleanly off the white button.
+const HEADER_BADGE = {
+  position: 'absolute',
+  top: -4,
+  right: -4,
+  padding: '0 5px',
+  minWidth: 16,
+  height: 16,
+  lineHeight: '16px',
+  fontSize: 10,
+  fontWeight: 700,
+  borderRadius: 999,
+  background: '#dc2626',
+  color: 'white',
+  textAlign: 'center',
+  border: '1px solid #ffffff',
+};
+
+// Inline monochrome SVG icons that use currentColor so the parent button's
+// `color` style controls the stroke. Avoids the "mixed white-on-colored-
+// tile" anti-pattern of dropping a colored PNG inside a white button.
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+function CheckmarkIcon({size = 18}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M5 12l5 5L20 7" />
+    </svg>
+  );
+}
+
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+function BellIcon({size = 18}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+// Hamburger menu item shape. Generic; section labels override `style`.
+const MENU_ITEM_BTN = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  width: '100%',
+  padding: '10px 16px',
+  border: 'none',
+  background: 'none',
+  cursor: 'pointer',
+  fontSize: 13,
+  textAlign: 'left',
+  color: '#111827',
+  fontFamily: 'inherit',
+};
+
+const MENU_SECTION_LABEL = {
+  display: 'block',
+  padding: '8px 16px 4px',
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: 0.6,
+  textTransform: 'uppercase',
+  color: '#6b7280',
+};
+
+const MENU_DIVIDER = {
+  height: 1,
+  background: '#f3f4f6',
+  margin: '4px 0',
+};
 
 export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, ConfirmActionModal}) {
   const {authState, saveStatus, setShowUsers} = useAuth();
@@ -116,6 +257,21 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
+
+  // Common navigation reset: every header-driven setView must also close
+  // any open broiler/pig form drawers so they don't leak into the next
+  // view. Extracted here so the hamburger menu's eight destinations don't
+  // each have to repeat the three setShow*(false) calls.
+  function go(nextView) {
+    setShowForm(false);
+    setShowBreedForm(false);
+    setShowFarrowForm(false);
+    setView(nextView);
+    setShowMenu(false);
+  }
+
+  const isAdmin = authState?.role === 'admin';
+
   return (
     <div className="no-print">
       {DeleteConfirmModal}
@@ -124,12 +280,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
       <div data-header-bar="1" style={S.header}>
         <button
           data-header-brand="1"
-          onClick={() => {
-            setShowForm(false);
-            setShowBreedForm(false);
-            setShowFarrowForm(false);
-            setView('home');
-          }}
+          onClick={() => go('home')}
           style={{
             background: 'none',
             border: 'none',
@@ -240,137 +391,6 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
             </span>
           )}
         </button>
-        {/* Webforms group: Dailys + Equipment public webform hubs sit
-            inside a labeled wrapper so operators read them as one
-            group. Tasks button sits OUTSIDE this group with a divider
-            so it doesn't read as another webform link. */}
-        <div data-header-webforms-group="1" style={{display: 'flex', gap: 6, alignItems: 'center', marginLeft: 16}}>
-          <span
-            data-header-webforms-label="1"
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 0.6,
-              textTransform: 'uppercase',
-              color: 'rgba(255,255,255,.55)',
-              paddingRight: 4,
-            }}
-          >
-            Webforms
-          </span>
-          <button
-            onClick={() => {
-              setShowForm(false);
-              setShowBreedForm(false);
-              setShowFarrowForm(false);
-              setView('webformhub');
-            }}
-            style={{
-              padding: '5px 12px',
-              borderRadius: 7,
-              border: '1px solid rgba(255,255,255,.3)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-              background: view === 'webformhub' ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.1)',
-              color: 'white',
-              fontFamily: 'inherit',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            📝 Dailys
-          </button>
-          <button
-            data-header-webforms-equipment="1"
-            onClick={() => {
-              setShowForm(false);
-              setShowBreedForm(false);
-              setShowFarrowForm(false);
-              setView('fuelingHub');
-            }}
-            style={{
-              padding: '5px 12px',
-              borderRadius: 7,
-              border: '1px solid rgba(255,255,255,.3)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-              background: view === 'fuelingHub' ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.1)',
-              color: 'white',
-              fontFamily: 'inherit',
-              whiteSpace: 'nowrap',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <PlannerIcon iconKey="tractor" size={16} />
-            Equipment
-          </button>
-        </div>
-        {/* Visual divider: separates the Webforms group from the Tasks
-            destination so the Tasks button reads as its own
-            navigation, not another webform link. */}
-        {authState?.user && (
-          <div data-header-tasks-divider="1" style={{display: 'flex', alignItems: 'center', marginLeft: 8}}>
-            <div
-              style={{
-                width: 1,
-                height: 20,
-                background: 'rgba(255,255,255,.25)',
-                marginRight: 10,
-              }}
-            />
-            <button
-              data-tasks-header-link="1"
-              onClick={() => {
-                setShowForm(false);
-                setShowBreedForm(false);
-                setShowFarrowForm(false);
-                setView('tasks');
-              }}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 7,
-                border: '1px solid rgba(255,255,255,.3)',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 500,
-                background: view === 'tasks' ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.1)',
-                color: 'white',
-                fontFamily: 'inherit',
-                whiteSpace: 'nowrap',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <PlannerIcon iconKey="checkmark" size={16} />
-              Tasks
-              {myDueCount > 0 && (
-                <span
-                  data-tasks-header-badge={myDueCount}
-                  aria-label={`${myDueCount} tasks due or overdue`}
-                  style={{
-                    display: 'inline-block',
-                    padding: '0 6px',
-                    minWidth: 16,
-                    height: 16,
-                    lineHeight: '16px',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    borderRadius: 999,
-                    background: '#dc2626',
-                    color: 'white',
-                    textAlign: 'center',
-                  }}
-                >
-                  {myDueCount}
-                </span>
-              )}
-            </button>
-          </div>
-        )}
         <div
           data-header-userinfo="1"
           style={{fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, opacity: 0.75, marginLeft: 'auto'}}
@@ -386,21 +406,59 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
             </span>
           )}
         </div>
-        <div data-header-action-group="1" style={{display: 'flex', gap: 6, alignItems: 'center', position: 'relative'}}>
+        {/* Right-side icon group: Tasks, Notifications placeholder, Hamburger.
+            Each is a 36x36 white-on-green button with a translucent border.
+            On mobile the index.html @media rule reorders them via flex order
+            so the brand stays first and these icons stay visible without
+            wrapping under the brand. */}
+        <div
+          data-header-action-group="1"
+          style={{display: 'flex', gap: 6, alignItems: 'center', marginLeft: 8, position: 'relative'}}
+        >
+          {authState?.user && (
+            <button
+              data-tasks-header-link="1"
+              aria-label={`Tasks${myDueCount > 0 ? ` (${myDueCount} due or overdue)` : ''}`}
+              title="Tasks"
+              onClick={() => go('tasks')}
+              style={view === 'tasks' ? HEADER_ICON_BTN_ACTIVE : HEADER_ICON_BTN}
+            >
+              <CheckmarkIcon size={18} />
+              {myDueCount > 0 && (
+                <span data-tasks-header-badge={myDueCount} style={HEADER_BADGE}>
+                  {myDueCount}
+                </span>
+              )}
+            </button>
+          )}
+          {/* Notifications placeholder — layout slot for the future
+              Notifications Center lane. No real notification source is
+              wired yet; deliberately renders WITHOUT a badge so a stale
+              "0" or "N" can't mislead operators. The button is reachable
+              and announces its placeholder state via aria-label; clicking
+              it is a no-op until the Notifications Center ships. */}
+          {authState?.user && (
+            <button
+              data-notifications-header-link="1"
+              data-notifications-placeholder="1"
+              aria-label="Notifications (coming soon)"
+              title="Notifications (coming soon)"
+              onClick={() => {
+                /* Notifications Center not yet implemented — placeholder slot only. */
+              }}
+              style={HEADER_ICON_BTN}
+            >
+              <BellIcon size={18} />
+            </button>
+          )}
           {authState?.user && (
             <div style={{position: 'relative'}}>
               <button
+                data-header-menu-toggle="1"
+                aria-label="Menu"
+                aria-expanded={showMenu ? 'true' : 'false'}
                 onClick={() => setShowMenu((m) => !m)}
-                style={{
-                  padding: '5px 10px',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,.3)',
-                  cursor: 'pointer',
-                  fontSize: 15,
-                  background: 'rgba(255,255,255,.1)',
-                  color: 'white',
-                  lineHeight: 1,
-                }}
+                style={showMenu ? HEADER_ICON_BTN_ACTIVE : HEADER_ICON_BTN}
               >
                 ☰
               </button>
@@ -412,6 +470,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
               )}
               {showMenu && (
                 <div
+                  data-header-menu="1"
                   style={{
                     position: 'absolute',
                     right: 0,
@@ -421,56 +480,71 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                     borderRadius: 10,
                     boxShadow: '0 8px 24px rgba(0,0,0,.15)',
                     zIndex: 200,
-                    minWidth: 160,
+                    minWidth: 220,
                     overflow: 'hidden',
+                    fontFamily: 'inherit',
                   }}
                 >
-                  {/* T11 retired the legacy My Tasks / Tasks Center
-                      burger entries — the dark-bar ✅ Tasks button is
-                      the single canonical destination. The Users entry
-                      stays for admin user management. */}
-                  {authState?.role === 'admin' && (
-                    <button
-                      onClick={() => {
-                        setShowUsers(true);
-                        loadUsers();
-                        setShowMenu(false);
-                      }}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        padding: '10px 16px',
-                        border: 'none',
-                        background: 'none',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        textAlign: 'left',
-                        color: '#111827',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      👥 Users
-                    </button>
+                  <button data-header-menu-item="home" onClick={() => go('home')} style={MENU_ITEM_BTN}>
+                    <span aria-hidden="true">🏠</span> Home
+                  </button>
+
+                  <div style={MENU_DIVIDER} />
+                  <span style={MENU_SECTION_LABEL}>Webforms</span>
+                  <button data-header-menu-item="dailys" onClick={() => go('webformhub')} style={MENU_ITEM_BTN}>
+                    <span aria-hidden="true">📝</span> Dailys
+                  </button>
+                  <button data-header-menu-item="addfeed" onClick={() => go('addfeed')} style={MENU_ITEM_BTN}>
+                    <span aria-hidden="true">🌾</span> Add Feed
+                  </button>
+                  <button data-header-menu-item="weighins" onClick={() => go('weighins')} style={MENU_ITEM_BTN}>
+                    <span aria-hidden="true">⚖️</span> Weigh-Ins
+                  </button>
+                  <button data-header-menu-item="equipment" onClick={() => go('fuelingHub')} style={MENU_ITEM_BTN}>
+                    <PlannerIcon iconKey="tractor" size={16} /> Equipment
+                  </button>
+                  <button data-header-menu-item="fuel-supply" onClick={() => go('fuelSupply')} style={MENU_ITEM_BTN}>
+                    <span aria-hidden="true">⛽</span> Fuel Supply
+                  </button>
+                  <button data-header-menu-item="submit-task" onClick={() => go('tasksWebform')} style={MENU_ITEM_BTN}>
+                    <span aria-hidden="true">✅</span> Submit a Task
+                  </button>
+
+                  {isAdmin && (
+                    <>
+                      <div style={MENU_DIVIDER} />
+                      <button data-header-menu-item="admin" onClick={() => go('webforms')} style={MENU_ITEM_BTN}>
+                        <span aria-hidden="true">⚙️</span> Admin
+                      </button>
+                      <button
+                        data-header-menu-item="users"
+                        onClick={() => {
+                          setShowUsers(true);
+                          loadUsers();
+                          setShowMenu(false);
+                        }}
+                        style={MENU_ITEM_BTN}
+                      >
+                        <span aria-hidden="true">👥</span> Users
+                      </button>
+                    </>
                   )}
+
+                  <div style={MENU_DIVIDER} />
+                  <button
+                    data-header-menu-item="sign-out"
+                    onClick={() => {
+                      setShowMenu(false);
+                      signOut();
+                    }}
+                    style={{...MENU_ITEM_BTN, color: '#b91c1c'}}
+                  >
+                    <span aria-hidden="true">🚪</span> Sign Out
+                  </button>
                 </div>
               )}
             </div>
           )}
-          <button
-            onClick={signOut}
-            style={{
-              padding: '5px 12px',
-              borderRadius: 8,
-              border: '1px solid rgba(255,255,255,.3)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-              background: 'rgba(255,255,255,.1)',
-              color: 'white',
-            }}
-          >
-            Sign Out
-          </button>
         </div>
       </div>
       {/* ── Light sub-nav bar — only in section views ── */}
@@ -487,15 +561,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
             flexWrap: 'wrap',
           }}
         >
-          <button
-            onClick={() => {
-              setShowForm(false);
-              setShowBreedForm(false);
-              setShowFarrowForm(false);
-              setView('home');
-            }}
-            style={ghostBtn}
-          >
+          <button onClick={() => go('home')} style={ghostBtn}>
             ⌂ Home
           </button>
           <div style={{width: 1, height: 20, background: '#e5e7eb', margin: '0 4px'}} />

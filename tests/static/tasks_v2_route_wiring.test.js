@@ -243,9 +243,13 @@ describe('Tasks v2 T3 — Header Tasks button + own due/past-due badge', () => {
     expect(headerJsx).toMatch(/export default function Header\(\s*\{\s*sb\s*,/);
   });
 
-  it('Header Tasks button has data-tasks-header-link and navigates to setView("tasks")', () => {
+  it('Header Tasks button has data-tasks-header-link and navigates to the tasks view', () => {
     expect(headerJsx).toMatch(/data-tasks-header-link="1"/);
-    expect(headerJsx).toMatch(/data-tasks-header-link="1"[\s\S]*?onClick={[\s\S]*?setView\(\s*['"]tasks['"]\s*\)/);
+    // Post-Notifications-prep (2026-05-14): the Tasks button click handler
+    // now uses the shared go(view) helper instead of inline setView. go()
+    // closes any open form drawers + closes the burger before delegating
+    // to setView, so the route guarantee still holds.
+    expect(headerJsx).toMatch(/data-tasks-header-link="1"[\s\S]*?onClick=\{\(\) => go\(\s*['"]tasks['"]\s*\)\}/);
   });
 
   it('Header badge has data-tasks-header-badge and renders only when count > 0', () => {
@@ -1054,31 +1058,15 @@ describe('Tasks v2 T11 — legacy route retirement', () => {
 //      third webform link.
 // ============================================================================
 
-describe('Header — Webforms grouping + Equipment rename + Tasks divider', () => {
-  it('Header has a webforms group with a "Webforms" label', () => {
-    expect(headerJsx).toMatch(/data-header-webforms-group="1"/);
-    expect(headerJsx).toMatch(/data-header-webforms-label="1"[\s\S]*?>\s*Webforms\s*</);
-  });
-
-  it('Header renames Fueling to Equipment but keeps fuelingHub routing', () => {
-    expect(headerJsx).toMatch(/data-header-webforms-equipment="1"/);
-    // The label text is "Equipment". The leading 🚜 emoji was replaced by
-    // the PlannerIcon tractor PNG when the planner-wide icon set landed,
-    // so we lock the label as literal "Equipment" rather than the old
-    // "🚜 Equipment" string.
-    expect(headerJsx).toMatch(/data-header-webforms-equipment="1"[\s\S]*?>\s*Equipment\s*</);
-    // setView('fuelingHub') is still the click target so the underlying
-    // view + URL doesn't shift just because the label changed.
-    expect(headerJsx).toMatch(/data-header-webforms-equipment="1"[\s\S]*?setView\(\s*['"]fuelingHub['"]\s*\)/);
-    // Negative lock: the old label string must not still be in the file.
-    expect(headerJsx).not.toMatch(/⛽\s*Fueling/);
-  });
-
-  it('Header puts a visual divider between the Webforms group and the Tasks button', () => {
-    // The divider wrapper sits before the data-tasks-header-link button.
-    expect(headerJsx).toMatch(/data-header-tasks-divider="1"[\s\S]*?data-tasks-header-link="1"/);
-  });
-});
+// Pre-2026-05-14 the dark bar carried a Webforms group (data-header-
+// webforms-group, data-header-webforms-equipment) and a visual divider
+// (data-header-tasks-divider) before the Tasks button. The Notifications
+// Center prep refactor moved every webform destination into the
+// hamburger menu and dropped the divider — the new dark bar is brand +
+// status + Tasks icon + Notifications placeholder + hamburger.
+// tests/static/header_nav_static.test.js locks the new shape and the
+// negative locks (no -group / -equipment / -tasks-divider). The block
+// that used to live here has been retired.
 
 // ============================================================================
 // Task Center assignee availability mapping.
