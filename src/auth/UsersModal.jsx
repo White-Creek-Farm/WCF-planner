@@ -3,6 +3,7 @@ import React, {useState} from 'react';
 import {sb} from '../lib/supabase.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
+import {unwrapEdgeFunctionError} from '../lib/edgeErrors.js';
 function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUsers}) {
   const {setAuthState} = useAuth() || {};
   const [umTab, setUmTab] = React.useState('users');
@@ -48,7 +49,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
       loadUsers();
       setUmTab('users');
     } catch (e) {
-      setUmErr('Error: ' + (e.message || 'Unknown error'));
+      const msg = await unwrapEdgeFunctionError(e);
+      setUmErr('Error: ' + msg);
     }
     setUmLoading(false);
   }
@@ -60,12 +62,14 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
         setUmErr('');
         setUmMsg('');
         try {
-          await sb.functions.invoke('rapid-processor', {
+          const {error} = await sb.functions.invoke('rapid-processor', {
             body: {type: 'password_reset', data: {email, name: name || ''}},
           });
+          if (error) throw error;
           setUmMsg('✅ Password reset email sent to ' + email);
         } catch (e) {
-          setUmErr('Error sending reset email: ' + (e.message || 'Unknown error'));
+          const msg = await unwrapEdgeFunctionError(e);
+          setUmErr('Error sending reset email: ' + msg);
         }
       },
       'Send',
@@ -121,16 +125,17 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
           const {error: fnErr} = await sb.functions.invoke('rapid-processor', {
             body: {type: 'user_delete', data: {id: userId, email}},
           });
-          if (fnErr) throw new Error(fnErr.message || 'Edge function error');
+          if (fnErr) throw fnErr;
           await sb.from('profiles').delete().eq('id', userId);
           setAllUsers((prev) => prev.filter((p) => p.id !== userId));
           setUmMsg('\u2705 Deleted ' + email + '. Email is now free to re-invite.');
         } catch (e) {
+          const msg = await unwrapEdgeFunctionError(e);
           setUmErr(
             'Could not delete ' +
               email +
               ': ' +
-              (e.message || 'Unknown error') +
+              msg +
               '. The auth account stays. Add the user_delete handler to your rapid-processor edge function to enable hard delete.',
           );
         }
