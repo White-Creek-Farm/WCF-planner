@@ -151,11 +151,17 @@ test.describe('Tasks v2 T5 — System Tasks tab', () => {
     const tab = page.locator('[data-tasks-tab="system"]');
     await expect(tab).toBeVisible();
 
-    // All four built-in rules render as cards.
+    // Active rules render directly under the Active rules sub-section.
     await expect(tab.locator('[data-system-rule="broiler-4wk-weighin"]')).toBeVisible();
     await expect(tab.locator('[data-system-rule="broiler-6wk-weighin"]')).toBeVisible();
-    await expect(tab.locator('[data-system-rule="clean-brooder"]')).toBeVisible();
     await expect(tab.locator('[data-system-rule="pig-6mo-weighin"]')).toBeVisible();
+
+    // clean-brooder is seeded inactive in this fixture. Under the Codex
+    // 2026-05-13 remaining-tabs pass, inactive rules sit behind a
+    // collapsible Inactive rules toggle (collapsed by default); expand
+    // it once so the card is in the DOM.
+    await tab.locator('[data-system-inactive-toggle="1"]').click();
+    await expect(tab.locator('[data-system-rule="clean-brooder"]')).toBeVisible();
 
     // Active/inactive pills surface correctly.
     await expect(tab.locator('[data-system-rule="broiler-4wk-weighin"] [data-rule-state="active"]')).toBeVisible();

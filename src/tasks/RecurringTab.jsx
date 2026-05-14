@@ -1,14 +1,30 @@
 // Task Center — Recurring tab. Tasks v2.
 //
-// Lists recurring task_templates (active first, alphabetical) as
-// collapsible cards. Each card shows recurrence + interval + first
-// due date + active/inactive state + open-instance count. Expanding
-// a card reveals the open task_instances generated from that
-// template (designation='recurring', status='open'). Orphan
-// instances (designation='recurring' but template_id is NULL —
-// possible after the parent template was deleted via the
-// SET NULL FK in mig 050) are grouped at the bottom under
+// Lists recurring task_templates as collapsible cards. Each card shows
+// recurrence + interval + first due date + active/inactive state +
+// open-instance count. Expanding a card reveals the open
+// task_instances generated from that template (designation='recurring',
+// status='open'). Orphan instances (designation='recurring' but
+// template_id is NULL — possible after the parent template was deleted
+// via the SET NULL FK in mig 050) are grouped at the bottom under
 // "Orphaned recurring tasks".
+//
+// Layout (Codex 2026-05-13 Operator Clarity remaining-tabs pass):
+//
+//   Active templates (N): templates with active=true. Conservative
+//                         pre-expand — templates with ≥1 open instance
+//                         expand by default so operators see what's
+//                         outstanding without an extra click. Templates
+//                         with zero opens stay collapsed.
+//
+//   Inactive templates (N): templates with active=false. The entire
+//                           sub-section collapses by default behind a
+//                           toggle; clicking the toggle reveals the
+//                           inactive list. Per-template expand state
+//                           still follows the same conservative
+//                           pre-expand rule once the sub-section is open.
+//
+//   Orphaned recurring tasks (N): unchanged. Surfaces only when present.
 //
 // Reads stay open to every authenticated user (transparency RLS);
 // admin write controls are gated by isAdmin:
@@ -51,6 +67,42 @@ const SECTION_HEADER = {
   margin: '14px 0 8px',
   textTransform: 'uppercase',
   letterSpacing: 0.4,
+};
+const SUBSECTION_HEADER = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#4b5563',
+  margin: '10px 0 6px',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+};
+const SUBSECTION_DOT_ACTIVE = {
+  display: 'inline-block',
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  background: '#10b981',
+};
+const INACTIVE_TOGGLE_BTN = {
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '9px 10px',
+  borderRadius: 8,
+  border: '1px solid #e5e7eb',
+  background: '#f9fafb',
+  color: '#374151',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  fontSize: 12,
+  fontWeight: 700,
+  textAlign: 'left',
+  marginTop: 6,
+  marginBottom: 6,
 };
 const GROUP_HEADER = {
   background: 'white',
@@ -111,9 +163,10 @@ function InstanceLine({ti}) {
         justifyContent: 'space-between',
         alignItems: 'baseline',
         gap: 10,
+        flexWrap: 'wrap',
       }}
     >
-      <div style={{fontSize: 13, color: '#111827', fontWeight: 500}}>{ti.title}</div>
+      <div style={{fontSize: 13, color: '#111827', fontWeight: 500, flex: '1 1 200px', minWidth: 0}}>{ti.title}</div>
       <div style={{...SUB, whiteSpace: 'nowrap'}}>
         Due <span data-due-date={ti.due_date}>{fmt(ti.due_date)}</span>
       </div>
@@ -260,7 +313,12 @@ export default function RecurringTab({sb, authState}) {
   const [assignableProfiles, setAssignableProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
-  const [expanded, setExpanded] = React.useState({});
+  // Manual per-template expand overrides. Empty by default; falls back to
+  // the openCount-based auto-expand rule below.
+  const [expandedOverride, setExpandedOverride] = React.useState({});
+  // Whole inactive sub-section toggle. Collapsed by default — inactive
+  // templates rarely need scanning and shouldn't dominate the page.
+  const [showInactive, setShowInactive] = React.useState(false);
   const [editTarget, setEditTarget] = React.useState(null); // null | template | 'new'
   const [deleteTarget, setDeleteTarget] = React.useState(null);
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -308,9 +366,22 @@ export default function RecurringTab({sb, authState}) {
   }, []);
 
   const grouped = groupRecurringByTemplate(templates, openInstances);
+  const activeBuckets = grouped.templates.filter((b) => b.template.active);
+  const inactiveBuckets = grouped.templates.filter((b) => !b.template.active);
 
-  function toggle(key) {
-    setExpanded((prev) => ({...prev, [key]: !prev[key]}));
+  // Conservative pre-expand: templates with ≥1 open instance expand by
+  // default so operators see what's outstanding. Templates with zero
+  // opens stay collapsed (no work to scan). Manual toggle in
+  // expandedOverride wins over the default.
+  function isTemplateOpen(b) {
+    const key = b.template.id;
+    if (Object.prototype.hasOwnProperty.call(expandedOverride, key)) return !!expandedOverride[key];
+    return b.openCount >= 1;
+  }
+  function toggle(b) {
+    const key = b.template.id;
+    const current = isTemplateOpen(b);
+    setExpandedOverride((prev) => ({...prev, [key]: !current}));
   }
   function startNew() {
     setEditTarget('new');
@@ -320,6 +391,94 @@ export default function RecurringTab({sb, authState}) {
   }
   function startDelete(tpl) {
     setDeleteTarget(tpl);
+  }
+
+  function renderTemplateCard(b) {
+    const key = b.template.id;
+    const isOpen = isTemplateOpen(b);
+    const assigneeName = nameFor(b.template.assignee_profile_id, profiles);
+    return (
+      <div key={key} data-recurring-template={key}>
+        <button type="button" onClick={() => toggle(b)} style={GROUP_HEADER}>
+          <div style={{display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0}}>
+            <div style={{fontSize: 14, fontWeight: 600, color: '#111827', wordBreak: 'break-word'}}>
+              {b.template.title}
+              {b.template.active ? (
+                <span data-template-state="active" style={PILL_ACTIVE}>
+                  Active
+                </span>
+              ) : (
+                <span data-template-state="inactive" style={PILL_INACTIVE}>
+                  Inactive
+                </span>
+              )}
+            </div>
+            <div style={SUB}>
+              {recurrenceLabel(b.template)}
+              {assigneeName && <> · {assigneeName}</>}
+              {b.template.first_due_date && <> · First due {fmt(b.template.first_due_date)}</>}
+              {' · '}
+              <span data-template-open-count={b.openCount}>{b.openCount}</span> open
+            </div>
+          </div>
+          <span
+            data-tasks-group-state={isOpen ? 'expanded' : 'collapsed'}
+            style={{fontSize: 13, color: '#6b7280', marginLeft: 8}}
+          >
+            {isOpen ? '▾' : '▸'}
+          </span>
+        </button>
+        {isOpen && (
+          <div data-recurring-template-body={key} style={{paddingLeft: 8, marginBottom: 8}}>
+            {isAdmin && (
+              <div style={{display: 'flex', gap: 6, padding: '4px 8px 8px'}}>
+                <button
+                  type="button"
+                  data-recurring-edit-button={key}
+                  onClick={() => startEdit(b.template)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    background: 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  data-recurring-delete-button={key}
+                  onClick={() => startDelete(b.template)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #b91c1c',
+                    background: 'white',
+                    color: '#b91c1c',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+            {b.instances.length === 0 ? (
+              <div style={{...SUB, padding: '4px 8px'}}>No open instances.</div>
+            ) : (
+              b.instances.map((ti) => <InstanceLine key={ti.id} ti={ti} />)
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -368,98 +527,43 @@ export default function RecurringTab({sb, authState}) {
       ) : (
         <>
           <div style={SECTION_HEADER}>Recurring templates ({grouped.templates.length})</div>
+
           {grouped.templates.length === 0 ? (
             <div style={CARD}>
               <div style={{fontSize: 13, color: '#374151'}}>No recurring templates configured.</div>
             </div>
           ) : (
-            grouped.templates.map((b) => {
-              const key = b.template.id;
-              const isOpen = !!expanded[key];
-              const assigneeName = nameFor(b.template.assignee_profile_id, profiles);
-              return (
-                <div key={key} data-recurring-template={key}>
-                  <button type="button" onClick={() => toggle(key)} style={GROUP_HEADER}>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: 2, flex: 1}}>
-                      <div style={{fontSize: 14, fontWeight: 600, color: '#111827'}}>
-                        {b.template.title}
-                        {b.template.active ? (
-                          <span data-template-state="active" style={PILL_ACTIVE}>
-                            Active
-                          </span>
-                        ) : (
-                          <span data-template-state="inactive" style={PILL_INACTIVE}>
-                            Inactive
-                          </span>
-                        )}
-                      </div>
-                      <div style={SUB}>
-                        {recurrenceLabel(b.template)}
-                        {assigneeName && <> · {assigneeName}</>}
-                        {b.template.first_due_date && <> · First due {fmt(b.template.first_due_date)}</>}
-                        {' · '}
-                        <span data-template-open-count={b.openCount}>{b.openCount}</span> open
-                      </div>
-                    </div>
-                    <span
-                      data-tasks-group-state={isOpen ? 'expanded' : 'collapsed'}
-                      style={{fontSize: 13, color: '#6b7280', marginLeft: 8}}
-                    >
-                      {isOpen ? '▾' : '▸'}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div data-recurring-template-body={key} style={{paddingLeft: 8, marginBottom: 8}}>
-                      {isAdmin && (
-                        <div style={{display: 'flex', gap: 6, padding: '4px 8px 8px'}}>
-                          <button
-                            type="button"
-                            data-recurring-edit-button={key}
-                            onClick={() => startEdit(b.template)}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: 6,
-                              border: '1px solid #d1d5db',
-                              background: 'white',
-                              color: '#374151',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 500,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            data-recurring-delete-button={key}
-                            onClick={() => startDelete(b.template)}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: 6,
-                              border: '1px solid #b91c1c',
-                              background: 'white',
-                              color: '#b91c1c',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                      {b.instances.length === 0 ? (
-                        <div style={{...SUB, padding: '4px 8px'}}>No open instances.</div>
-                      ) : (
-                        b.instances.map((ti) => <InstanceLine key={ti.id} ti={ti} />)
-                      )}
-                    </div>
-                  )}
+            <>
+              <div data-recurring-section="active">
+                <div style={SUBSECTION_HEADER}>
+                  <span style={SUBSECTION_DOT_ACTIVE} aria-hidden="true" />
+                  Active templates ({activeBuckets.length})
                 </div>
-              );
-            })
+                {activeBuckets.length === 0 ? (
+                  <div style={CARD}>
+                    <div style={{fontSize: 13, color: '#374151'}}>No active templates.</div>
+                  </div>
+                ) : (
+                  activeBuckets.map(renderTemplateCard)
+                )}
+              </div>
+
+              {inactiveBuckets.length > 0 && (
+                <div data-recurring-section="inactive">
+                  <button
+                    type="button"
+                    data-recurring-inactive-toggle="1"
+                    data-recurring-inactive-state={showInactive ? 'expanded' : 'collapsed'}
+                    onClick={() => setShowInactive((v) => !v)}
+                    style={INACTIVE_TOGGLE_BTN}
+                  >
+                    <span style={{fontSize: 13, color: '#6b7280'}}>{showInactive ? '▾' : '▸'}</span>
+                    Inactive templates ({inactiveBuckets.length})
+                  </button>
+                  {showInactive && <div style={{marginTop: 8}}>{inactiveBuckets.map(renderTemplateCard)}</div>}
+                </div>
+              )}
+            </>
           )}
 
           {grouped.orphans.length > 0 && (

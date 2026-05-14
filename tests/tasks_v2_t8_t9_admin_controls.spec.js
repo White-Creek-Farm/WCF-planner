@@ -394,9 +394,14 @@ test.describe('Tasks v2 T9 — Assign / Delete / Admin controls', () => {
     await signInAsSimon(page);
     await page.goto('/tasks');
 
-    // Recurring tab — Simon sees templates but no admin controls.
+    // Recurring tab — Simon sees templates but no admin controls. The
+    // simon-visible template is seeded inactive (active=false), so under
+    // the 2026-05-13 remaining-tabs pass it lives behind the collapsible
+    // Inactive templates toggle (collapsed by default); expand it once
+    // so the card is in the DOM before locating it.
     await page.locator('[data-tasks-tab-button="recurring"]').click();
     const recurringTab = page.locator('[data-tasks-tab="recurring"]');
+    await recurringTab.locator('[data-recurring-inactive-toggle="1"]').click();
     await expect(recurringTab.locator('[data-recurring-template="tpl-t9-simon-visible"]')).toBeVisible();
     await expect(recurringTab.locator('[data-recurring-new-button="1"]')).toHaveCount(0);
     await expect(recurringTab.locator('[data-recurring-edit-button="tpl-t9-simon-visible"]')).toHaveCount(0);

@@ -308,10 +308,15 @@ test.describe('Tasks v2 T4 — Recurring tab', () => {
     const tab = page.locator('[data-tasks-tab="recurring"]');
     await expect(tab).toBeVisible();
 
-    // Both seeded templates render as collapsible cards.
+    // Both seeded templates render as cards. The active template lives
+    // under the Active templates sub-section; the inactive template
+    // lives inside the Inactive templates collapsed group — expand the
+    // group toggle once so its body is in the DOM before locating the
+    // inactive card.
     const activeCard = tab.locator('[data-recurring-template="tpl-spec-active"]');
-    const inactiveCard = tab.locator('[data-recurring-template="tpl-spec-inactive"]');
     await expect(activeCard).toBeVisible();
+    await tab.locator('[data-recurring-inactive-toggle="1"]').click();
+    const inactiveCard = tab.locator('[data-recurring-template="tpl-spec-inactive"]');
     await expect(inactiveCard).toBeVisible();
 
     // Active pill on the active template, Inactive pill on the inactive one.
@@ -322,15 +327,17 @@ test.describe('Tasks v2 T4 — Recurring tab', () => {
     await expect(activeCard.locator('[data-template-open-count]')).toHaveAttribute('data-template-open-count', '2');
     await expect(inactiveCard.locator('[data-template-open-count]')).toHaveAttribute('data-template-open-count', '0');
 
-    // Bodies start collapsed.
-    await expect(tab.locator('[data-recurring-template-body="tpl-spec-active"]')).toHaveCount(0);
-
-    // Expand the active template — both instances appear.
-    await activeCard.locator('button').first().click();
+    // Conservative pre-expand rule (Codex 2026-05-13 remaining-tabs pass):
+    // templates with ≥1 open instance auto-expand. The active template
+    // here has 2 open instances, so its body is already in the DOM —
+    // no manual click needed. The inactive template has 0 opens so it
+    // stays collapsed inside the inactive group.
+    await expect(activeCard.locator('[data-tasks-group-state="expanded"]')).toBeVisible();
     const activeBody = tab.locator('[data-recurring-template-body="tpl-spec-active"]');
     await expect(activeBody).toBeVisible();
     await expect(activeBody.locator('[data-task-row="tic-t34-recurring-a"]')).toBeVisible();
     await expect(activeBody.locator('[data-task-row="tic-t34-recurring-b"]')).toBeVisible();
+    await expect(tab.locator('[data-recurring-template-body="tpl-spec-inactive"]')).toHaveCount(0);
 
     // Orphan group at the bottom contains the orphan instance.
     const orphans = tab.locator('[data-recurring-orphans="1"]');

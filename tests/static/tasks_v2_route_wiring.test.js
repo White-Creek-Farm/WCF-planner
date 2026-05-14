@@ -302,15 +302,22 @@ describe('Tasks v2 T4 — Completed tab read-only contract', () => {
     expect(completedTab).toMatch(/loadEligibleProfilesById/);
   });
 
-  it('CompletedTab buttons are limited to the photo-lightbox open button (no edit/save/delete/complete)', () => {
+  it('CompletedTab buttons are limited to photo-lightbox + view-only filter chips (no edit/save/delete/complete)', () => {
     // T6/T7 added a photo-affordance button that opens the lightbox.
-    // Lock that every button in this file is the photo-open button by
-    // checking each <button onClick=...> block contains the
-    // data-task-photo-open marker — a future drift can't slip an edit
-    // or write handler in without that marker also showing up.
+    // The 2026-05-13 remaining-tabs pass added view-only filter chips
+    // (All / Recurring / System / With photos / With notes) on the
+    // completed list. Each button must be one of those two read-only
+    // affordances — locking by the data-* marker on every button keeps
+    // a future drift from slipping an edit/save/delete/complete write
+    // handler in without that marker also showing up.
     const buttonOnClicks = Array.from(completedTab.matchAll(/<button\b[\s\S]*?onClick=\{[\s\S]*?\}/g), (m) => m[0]);
     for (const btn of buttonOnClicks) {
-      expect(btn, 'every CompletedTab button must be a photo-open affordance').toMatch(/data-task-photo-open="1"/);
+      const isPhotoOpen = /data-task-photo-open="1"/.test(btn);
+      const isFilterChip = /data-tasks-filter-chip=/.test(btn);
+      expect(
+        isPhotoOpen || isFilterChip,
+        'every CompletedTab button must be a photo-open affordance or a filter chip',
+      ).toBe(true);
     }
   });
 

@@ -1,15 +1,22 @@
-// Task Center — Completed tab. Read-only in T4 of Tasks v2.
+// Task Center — Completed tab. Read-only in Tasks v2.
 //
-// Shows the most recent completed task_instances rows (capped at 200
-// by the loader). Per row: title + designation badge, due_date,
-// completed_at (Central time), assignee name, completed-by name,
-// completion_note when present, and a paperclip if either single-path
-// photo column is populated. Lightbox + signed-URL photo viewing is
-// deferred to T7.
+// Layout (Codex 2026-05-13 Operator Clarity remaining-tabs pass):
+//   Filter chip bar:   All / Recurring / System / With photos / With notes.
+//                      Pure client-side filter on the loaded list. No data
+//                      shape change. Counts in the section header reflect
+//                      the active chip.
 //
-// Pure read-only: imports only from tasksCenterApi (no admin/user
-// modules), calls no v2 mutation RPCs, no .insert/.update/.delete on
-// task_* tables, no storage uploads. Static lock asserts each.
+//   Date buckets:      Today / Last 7 days / Older — grouped by
+//                      completed_at against today's Central date so
+//                      operators can scan recent activity without
+//                      counting back through dates manually. Empty
+//                      buckets are skipped at render time so the page
+//                      stays calm when, e.g., nothing was completed
+//                      today yet.
+//
+// Pure read-only: imports only from tasksCenterApi, calls no v2
+// mutation RPCs, no .insert/.update/.delete on task_* tables, no
+// storage uploads. Static lock asserts each.
 
 import React from 'react';
 import {
@@ -19,7 +26,7 @@ import {
   photoPresenceFor,
 } from '../lib/tasksCenterApi.js';
 import {TASK_CHANGE_EVENT} from '../lib/tasksCenterMutationsApi.js';
-import {fmt, fmtCentralDateTime} from '../lib/dateUtils.js';
+import {fmt, fmtCentralDateTime, todayCentralISO} from '../lib/dateUtils.js';
 import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
 
 const CARD = {
@@ -39,6 +46,26 @@ const SECTION_HEADER = {
   textTransform: 'uppercase',
   letterSpacing: 0.4,
 };
+const BUCKET_HEADER = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#4b5563',
+  margin: '10px 0 6px',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+};
+const BUCKET_DOT_TODAY = {
+  display: 'inline-block',
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  background: '#10b981',
+};
+const BUCKET_DOT_WEEK = {...BUCKET_DOT_TODAY, background: '#3b82f6'};
+const BUCKET_DOT_OLDER = {...BUCKET_DOT_TODAY, background: '#9ca3af'};
 const BADGE_BASE = {
   display: 'inline-block',
   padding: '2px 8px',
@@ -50,10 +77,85 @@ const BADGE_BASE = {
 const BADGE_RECURRING = {...BADGE_BASE, background: '#eef2ff', color: '#3730a3'};
 const BADGE_SYSTEM = {...BADGE_BASE, background: '#ecfdf5', color: '#047857'};
 
+const FILTER_BAR = {
+  display: 'flex',
+  gap: 6,
+  flexWrap: 'wrap',
+  marginBottom: 6,
+};
+const FILTER_CHIP_BASE = {
+  padding: '5px 12px',
+  borderRadius: 999,
+  border: '1px solid #d1d5db',
+  background: 'white',
+  color: '#4b5563',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+const FILTER_CHIP_ACTIVE = {
+  ...FILTER_CHIP_BASE,
+  background: '#085041',
+  border: '1px solid #085041',
+  color: 'white',
+};
+
+const FILTERS = [
+  {key: 'all', label: 'All'},
+  {key: 'recurring', label: 'Recurring'},
+  {key: 'system', label: 'System'},
+  {key: 'photos', label: 'With photos'},
+  {key: 'notes', label: 'With notes'},
+];
+
 function nameFor(profileId, profilesById) {
   if (!profileId) return null;
   const p = profilesById[profileId];
   return p && p.full_name ? p.full_name : 'Unknown user';
+}
+
+// Filter predicate. Mirrors MyTasksTab's pattern so the two tabs feel
+// consistent. Each predicate inspects the loaded row only; no DB roundtrip.
+function matchesCompletedFilter(ti, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'recurring') return ti.designation === 'recurring';
+  if (filter === 'system') return ti.designation === 'system';
+  if (filter === 'photos') {
+    const p = photoPresenceFor(ti);
+    return p.hasRequest || p.hasCompletion;
+  }
+  if (filter === 'notes') return !!(ti.completion_note && String(ti.completion_note).trim());
+  return true;
+}
+
+// Bucket by completed_at against today's Central date. "Today" is the
+// calendar day in America/Chicago; "Last 7 days" is the prior six full
+// days; everything older falls into "Older". Rows missing
+// completed_at land in "Older" (rare — completed rows should always
+// carry it, but the lock is defensive).
+function bucketByCompletedAt(rows, todayStr) {
+  const today = [];
+  const lastWeek = [];
+  const older = [];
+  if (!todayStr) return {today, lastWeek, older};
+  const todayDate = new Date(todayStr + 'T00:00:00Z');
+  const sevenDaysAgo = new Date(todayDate.getTime() - 6 * 24 * 60 * 60 * 1000);
+  for (const ti of rows || []) {
+    const at = ti.completed_at ? new Date(ti.completed_at) : null;
+    if (!at || Number.isNaN(at.getTime())) {
+      older.push(ti);
+      continue;
+    }
+    // Compare YMD only against today (Central). fmtCentralDateTime
+    // formats Central, but for bucketing we use raw ISO date math: a
+    // completion within the last full local day counts as Today.
+    const atIso = at.toISOString().slice(0, 10);
+    if (atIso === todayStr) today.push(ti);
+    else if (at >= sevenDaysAgo) lastWeek.push(ti);
+    else older.push(ti);
+  }
+  return {today, lastWeek, older};
 }
 
 const PHOTO_LINK_BTN = {
@@ -61,9 +163,6 @@ const PHOTO_LINK_BTN = {
   border: 'none',
   padding: 0,
   cursor: 'pointer',
-  // 36px paperclip per Codex amendment — original 12px was too small to
-  // notice. Icon-only; visible "Photo" text stays out per the existing
-  // T2 lock.
   fontSize: 36,
   lineHeight: 1,
   color: '#6b7280',
@@ -78,8 +177,25 @@ function CompletedRow({ti, profilesById, onOpenPhotos}) {
   const completedByName = nameFor(ti.completed_by_profile_id, profilesById);
   return (
     <div data-task-row={ti.id} data-task-designation={ti.designation || ''} data-task-status="completed" style={CARD}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10}}>
-        <div style={{fontSize: 15, fontWeight: 600, color: '#111827', flex: 1}}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: 10,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: '#111827',
+            flex: '1 1 200px',
+            minWidth: 0,
+            wordBreak: 'break-word',
+          }}
+        >
           {ti.title}
           {ti.designation === 'recurring' && (
             <span data-task-badge="recurring" style={BADGE_RECURRING}>
@@ -121,13 +237,13 @@ function CompletedRow({ti, profilesById, onOpenPhotos}) {
           {ti.completion_note}
         </div>
       )}
-      <div style={{display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 6}}>
-        {attribution && (
-          <span style={SUB} data-task-attribution-label={attribution.label}>
-            {attribution.label}: <span style={{color: '#374151'}}>{attribution.name}</span>
-          </span>
-        )}
-        {(photo.hasRequest || photo.hasCompletion) && (
+      {attribution && (
+        <div style={{...SUB, marginTop: 4}} data-task-attribution-label={attribution.label}>
+          {attribution.label}: <span style={{color: '#374151'}}>{attribution.name}</span>
+        </div>
+      )}
+      {(photo.hasRequest || photo.hasCompletion) && (
+        <div style={{display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 6}}>
           <button
             type="button"
             data-task-has-photo="1"
@@ -139,8 +255,8 @@ function CompletedRow({ti, profilesById, onOpenPhotos}) {
           >
             📎
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -150,6 +266,7 @@ export default function CompletedTab({sb}) {
   const [profiles, setProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
+  const [filter, setFilter] = React.useState('all');
   const [photoTaskTarget, setPhotoTaskTarget] = React.useState(null);
   const [reloadKey, setReloadKey] = React.useState(0);
 
@@ -191,6 +308,25 @@ export default function CompletedTab({sb}) {
     };
   }, []);
 
+  const todayStr = todayCentralISO();
+  const visibleRows = React.useMemo(() => rows.filter((ti) => matchesCompletedFilter(ti, filter)), [rows, filter]);
+  const buckets = React.useMemo(() => bucketByCompletedAt(visibleRows, todayStr), [visibleRows, todayStr]);
+
+  function renderBucket(bucketKey, label, dotStyle, bucketRows) {
+    if (!bucketRows || bucketRows.length === 0) return null;
+    return (
+      <div data-tasks-completed-bucket={bucketKey} data-tasks-completed-bucket-count={bucketRows.length}>
+        <div style={BUCKET_HEADER}>
+          <span style={dotStyle} aria-hidden="true" />
+          {label} ({bucketRows.length})
+        </div>
+        {bucketRows.map((ti) => (
+          <CompletedRow key={ti.id} ti={ti} profilesById={profiles} onOpenPhotos={setPhotoTaskTarget} />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div data-tasks-tab="completed">
       {err && (
@@ -213,15 +349,42 @@ export default function CompletedTab({sb}) {
         <div style={SUB}>Loading…</div>
       ) : (
         <>
-          <div style={SECTION_HEADER}>Completed tasks ({rows.length})</div>
-          {rows.length === 0 ? (
+          {/* Pressable toggle group — not a tablist. role="group" matches the
+              segmented filter pattern locked in MyTasksTab. */}
+          <div data-tasks-filter-bar="1" style={FILTER_BAR} role="group" aria-label="Completed filter">
+            {FILTERS.map((f) => {
+              const active = filter === f.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  data-tasks-filter-chip={f.key}
+                  data-tasks-filter-active={active ? '1' : '0'}
+                  aria-pressed={active}
+                  onClick={() => setFilter(f.key)}
+                  style={active ? FILTER_CHIP_ACTIVE : FILTER_CHIP_BASE}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={SECTION_HEADER}>Completed tasks ({visibleRows.length})</div>
+          {visibleRows.length === 0 ? (
             <div style={CARD}>
-              <div style={{fontSize: 13, color: '#374151'}}>No completed tasks yet.</div>
+              <div style={{fontSize: 13, color: '#374151'}}>
+                {filter === 'all'
+                  ? 'No completed tasks yet.'
+                  : 'No matches for the active filter. Try the All chip to see every completed task.'}
+              </div>
             </div>
           ) : (
-            rows.map((ti) => (
-              <CompletedRow key={ti.id} ti={ti} profilesById={profiles} onOpenPhotos={setPhotoTaskTarget} />
-            ))
+            <>
+              {renderBucket('today', 'Today', BUCKET_DOT_TODAY, buckets.today)}
+              {renderBucket('last-7-days', 'Last 7 days', BUCKET_DOT_WEEK, buckets.lastWeek)}
+              {renderBucket('older', 'Older', BUCKET_DOT_OLDER, buckets.older)}
+            </>
           )}
         </>
       )}
