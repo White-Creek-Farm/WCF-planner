@@ -2,13 +2,14 @@
 import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {formatBroilerBatchLabel, splitSchooners} from '../lib/broilerBatchMeta.js';
 import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
-const BroilerDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit, refreshDailys}) => {
+const BroilerDailysView = ({sb, fmt, Header, authState, batches, pendingEdit, setPendingEdit, refreshDailys}) => {
   const {useState, useEffect} = React;
   const todayStr = () => {
     const d = new Date();
@@ -19,7 +20,6 @@ const BroilerDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingE
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [batches, setBatches] = useState([]);
   const [fBatch, setFBatch] = useState('');
   const [fTeam, setFTeam] = useState('');
   const [fFrom, setFFrom] = useState('');
@@ -189,6 +189,14 @@ const BroilerDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingE
     });
   }
 
+  const batchMeta = batches
+    .filter((b) => b.status === 'active')
+    .map((b) => ({
+      name: b.name,
+      schooners: splitSchooners(b.schooner),
+      brooder: b.brooder || null,
+      brooderOut: b.brooderOut || null,
+    }));
   const batchOpts = [...new Set(records.map((r) => r.batch_label).filter(Boolean))].sort();
   const teamOpts = [...new Set(records.map((r) => r.team_member).filter(Boolean))].sort();
   let filtered = records.filter(
@@ -644,7 +652,7 @@ const BroilerDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingE
                     .filter((b) => b.status === 'active')
                     .map((b) => (
                       <option key={b.name} value={b.name}>
-                        {b.name}
+                        {formatBroilerBatchLabel(b.name, batchMeta)}
                       </option>
                     ))}
                   {batchOpts

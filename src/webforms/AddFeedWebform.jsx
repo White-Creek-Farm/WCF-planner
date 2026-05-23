@@ -22,6 +22,7 @@
 import React from 'react';
 import {loadRoster} from '../lib/teamMembers.js';
 import {loadAvailability, availableNamesFor} from '../lib/teamAvailability.js';
+import {formatBroilerBatchLabel} from '../lib/broilerBatchMeta.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
@@ -34,6 +35,7 @@ const AddFeedWebform = ({sb}) => {
   const [wfSettings, setWfSettings] = React.useState({});
   const [housingBatchMap, setHousingBatchMap] = React.useState({});
   const [broilerGroups, setBroilerGroups] = React.useState([]);
+  const [broilerMeta, setBroilerMeta] = React.useState([]);
   const [pigGroups, setPigGroups] = React.useState([]);
   const [layerGroupNames, setLayerGroupNames] = React.useState([]);
   const [layerBatchIdMap, setLayerBatchIdMap] = React.useState({});
@@ -100,6 +102,7 @@ const AddFeedWebform = ({sb}) => {
     Promise.all([
       sb.from('webform_config').select('data').eq('key', 'housing_batch_map').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'broiler_groups').maybeSingle(),
+      sb.from('webform_config').select('data').eq('key', 'broiler_batch_meta').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'active_groups').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'full_config').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'webform_settings').maybeSingle(),
@@ -108,13 +111,15 @@ const AddFeedWebform = ({sb}) => {
     ]).then(function (results) {
       var hbm = results[0],
         bg = results[1],
-        ag = results[2],
-        fc = results[3],
-        ws = results[4],
-        roster = results[5],
-        availability = results[6];
+        bbm = results[2],
+        ag = results[3],
+        fc = results[4],
+        ws = results[5],
+        roster = results[6],
+        availability = results[7];
       if (hbm && hbm.data && hbm.data.data) setHousingBatchMap(hbm.data.data);
       if (bg && bg.data && Array.isArray(bg.data.data) && bg.data.data.length > 0) setBroilerGroups(bg.data.data);
+      if (bbm && bbm.data && Array.isArray(bbm.data.data)) setBroilerMeta(bbm.data.data);
       if (ag && ag.data && Array.isArray(ag.data.data) && ag.data.data.length > 0) setPigGroups(ag.data.data);
       if (Array.isArray(roster) && roster.length > 0) {
         setAllTeamMembers(availableNamesFor('add-feed', roster, availability));
@@ -656,7 +661,8 @@ const AddFeedWebform = ({sb}) => {
           React.createElement('option', {value: ''}, 'Select...'),
           batchOpts.map(function (b) {
             var name = typeof b === 'object' ? b.name || b.label || b.value || '' : b;
-            return React.createElement('option', {key: name, value: name}, name);
+            var label = program === 'broiler' ? formatBroilerBatchLabel(name, broilerMeta) : name;
+            return React.createElement('option', {key: name, value: name}, label);
           }),
         ),
         program === 'layer' &&
