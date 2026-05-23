@@ -1,8 +1,9 @@
 // Weather data fetcher for the Home Weather card.
-// Hits the Netlify Functions proxy — never touches Tomorrow.io directly.
+// Forecast: Netlify Functions proxy (Tomorrow.io current/hourly + Open-Meteo daily).
+// Radar: RainViewer (free, no key, animated frames).
 
 const FORECAST_URL = '/.netlify/functions/weather-forecast';
-const TILE_URL = '/.netlify/functions/weather-tile';
+const RADAR_FRAMES_URL = '/.netlify/functions/weather-radar-frames';
 const CACHE_MS = 30 * 60 * 1000;
 
 let cached = null;
@@ -19,8 +20,16 @@ export async function loadForecast({force = false} = {}) {
   return data;
 }
 
-export function radarTileUrl(z, x, y) {
-  return `${TILE_URL}?z=${z}&x=${x}&y=${y}`;
+export async function loadRadarFrames() {
+  const res = await fetch(RADAR_FRAMES_URL);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.host || !data.radar) return null;
+  return data;
+}
+
+export function rainviewerTileUrl(host, framePath, z, x, y) {
+  return `${host}${framePath}/256/${z}/${x}/${y}/2/1_1.png`;
 }
 
 const WEATHER_CODES = {
