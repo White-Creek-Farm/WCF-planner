@@ -24,7 +24,12 @@ export function buildBroilerPublicMirror(batchRows) {
   const active = (batchRows || []).filter((b) => b && b.status === 'active');
   return {
     groups: active.map((b) => b.name),
-    meta: active.map((b) => ({name: b.name, schooners: splitSchooners(b.schooner)})),
+    meta: active.map((b) => ({
+      name: b.name,
+      schooners: splitSchooners(b.schooner),
+      brooder: b.brooder || null,
+      brooderOut: b.brooderOut || null,
+    })),
   };
 }
 
@@ -33,4 +38,32 @@ export function deriveBroilerColumnLabels(meta, batchId) {
   const rec = list.find((b) => b && b.name === batchId);
   if (!rec || !Array.isArray(rec.schooners)) return [];
   return rec.schooners.filter(Boolean);
+}
+
+const SCHOONER_LABELS = {
+  1: 'Schooner 1',
+  '2&3': 'Schooner 2 & 3',
+  '4&5': 'Schooner 4 & 5',
+  '6&6A': 'Schooner 6 & 6A',
+  '7&7A': 'Schooner 7 & 7A',
+};
+
+const BROODER_LABELS = {1: 'Brooder 1', 2: 'Brooder 2', 3: 'Brooder 3'};
+
+export function formatBroilerBatchLabel(name, meta) {
+  if (!name) return '';
+  const list = Array.isArray(meta) ? meta : [];
+  const rec = list.find((b) => b && b.name === name);
+  if (!rec) return name;
+  const inSchooner = rec.brooderOut && new Date(rec.brooderOut + 'T12:00:00') <= new Date();
+  if (inSchooner && rec.schooners && rec.schooners.length > 0) {
+    const raw = rec.schooners.join('&');
+    const label = SCHOONER_LABELS[raw] || 'Schooner ' + rec.schooners.join(' & ');
+    return name + ' (' + label + ')';
+  }
+  if (rec.brooder) {
+    const label = BROODER_LABELS[rec.brooder] || 'Brooder ' + rec.brooder;
+    return name + ' (' + label + ')';
+  }
+  return name;
 }

@@ -3257,6 +3257,7 @@ function App() {
       fmt,
       Header,
       authState,
+      batches,
       pendingEdit,
       setPendingEdit,
       refreshDailys,

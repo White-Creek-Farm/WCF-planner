@@ -11,11 +11,13 @@ import WcfToggle from './WcfToggle.jsx';
 import {wcfSendEmail} from '../lib/email.js';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {formatBroilerBatchLabel} from '../lib/broilerBatchMeta.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {checkDailyDuplicate, checkInSubmissionDuplicates, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
 const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   const [loadedConfig, setLoadedConfig] = React.useState(null);
   const [broilerGroupsFromDb, setBroilerGroupsFromDb] = React.useState([]);
+  const [broilerMeta, setBroilerMeta] = React.useState([]);
   const [pigGroupsFromDb, setPigGroupsFromDb] = React.useState([]);
   const [wfSettings, setWfSettings] = React.useState({});
   // {housingName: batchName} — same source as AddFeedWebform / WebformHub.
@@ -39,13 +41,15 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
     Promise.all([
       sb.from('webform_config').select('data').eq('key', 'full_config').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'broiler_groups').maybeSingle(),
+      sb.from('webform_config').select('data').eq('key', 'broiler_batch_meta').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'webform_settings').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'active_groups').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'housing_batch_map').maybeSingle(),
       loadRoster(sb),
-    ]).then(([fc, bg, ws, ag, hbm, roster]) => {
+    ]).then(([fc, bg, bbm, ws, ag, hbm, roster]) => {
       if (fc?.data?.data) setLoadedConfig(fc.data.data);
       if (Array.isArray(bg?.data?.data) && bg.data.data.length > 0) setBroilerGroupsFromDb(bg.data.data);
+      if (Array.isArray(bbm?.data?.data)) setBroilerMeta(bbm.data.data);
       if (ws?.data?.data) setWfSettings(ws.data.data);
       if (Array.isArray(ag?.data?.data) && ag.data.data.length > 0) setPigGroupsFromDb(ag.data.data);
       if (hbm?.data?.data) setHousingBatchMap(hbm.data.data);
@@ -833,7 +837,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                         <option value="">Select batch...</option>
                         {broilerGroups.map((b) => (
                           <option key={b} value={b}>
-                            {b}
+                            {formatBroilerBatchLabel(b, broilerMeta)}
                           </option>
                         ))}
                       </select>
@@ -1009,7 +1013,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                             <option value="">Select batch...</option>
                             {broilerGroups.map((b) => (
                               <option key={b} value={b}>
-                                {b}
+                                {formatBroilerBatchLabel(b, broilerMeta)}
                               </option>
                             ))}
                           </select>

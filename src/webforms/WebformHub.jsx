@@ -9,6 +9,7 @@ import {useWebformsConfig} from '../contexts/WebformsConfigContext.jsx';
 import {uploadDailyPhoto, MAX_PHOTOS_PER_REPORT} from '../lib/dailyPhotos.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
+import {formatBroilerBatchLabel} from '../lib/broilerBatchMeta.js';
 import {checkDailyDuplicate, checkInSubmissionDuplicates, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
 import DailyPhotoCapture from './DailyPhotoCapture.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
@@ -34,6 +35,7 @@ const WebformHub = ({
   const [loadedConfig, setLoadedConfig] = useState(null); // loaded from Supabase full_config
   const [showAppSetup, setShowAppSetup] = useState(false);
   const [broilerGroupsFromDb, setBroilerGroupsFromDb] = useState([]);
+  const [broilerMeta, setBroilerMeta] = useState([]);
   const [wfSettings, setWfSettings] = useState({});
   const [pigGroupsFromDb, setPigGroupsFromDb] = useState([]);
   const [housingBatchMap, setHousingBatchMap] = useState({});
@@ -41,14 +43,16 @@ const WebformHub = ({
     Promise.all([
       sb.from('webform_config').select('data').eq('key', 'full_config').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'broiler_groups').maybeSingle(),
+      sb.from('webform_config').select('data').eq('key', 'broiler_batch_meta').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'webform_settings').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'active_groups').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'housing_batch_map').maybeSingle(),
       loadRoster(sb),
       loadAvailability(sb),
-    ]).then(([fc, bg, ws, ag, hbm, roster, availability]) => {
+    ]).then(([fc, bg, bbm, ws, ag, hbm, roster, availability]) => {
       if (fc?.data?.data) setLoadedConfig(fc.data.data);
       if (Array.isArray(bg?.data?.data) && bg.data.data.length > 0) setBroilerGroupsFromDb(bg.data.data);
+      if (Array.isArray(bbm?.data?.data)) setBroilerMeta(bbm.data.data);
       if (ws?.data?.data) setWfSettings(ws.data.data);
       if (Array.isArray(ag?.data?.data) && ag.data.data.length > 0) {
         const groups = ag.data.data.map((name) => ({value: name, label: name}));
@@ -1670,7 +1674,7 @@ const WebformHub = ({
                   <option value="">Select batch...</option>
                   {broilerGroups.map((b) => (
                     <option key={b} value={b}>
-                      {b}
+                      {formatBroilerBatchLabel(b, broilerMeta)}
                     </option>
                   ))}
                 </select>
@@ -1793,7 +1797,7 @@ const WebformHub = ({
                         <option value="">Select batch...</option>
                         {broilerGroups.map((b) => (
                           <option key={b} value={b}>
-                            {b}
+                            {formatBroilerBatchLabel(b, broilerMeta)}
                           </option>
                         ))}
                       </select>

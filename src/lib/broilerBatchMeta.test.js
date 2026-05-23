@@ -64,7 +64,7 @@ describe('buildBroilerPublicMirror', () => {
   it('keeps active empty-schooner batches with schooners:[] (admin misconfig surfaces at Start Session)', () => {
     const {meta} = buildBroilerPublicMirror(sample);
     const empty = meta.find((m) => m.name === 'B-26-03');
-    expect(empty).toEqual({name: 'B-26-03', schooners: []});
+    expect(empty).toMatchObject({name: 'B-26-03', schooners: []});
   });
 
   it('parses ampersand-joined schooners into per-batch arrays', () => {
