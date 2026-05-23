@@ -144,7 +144,7 @@ const LayerBatchesView = ({
       return all;
     }
     Promise.all([
-      fetchAll('layer_dailys', 'batch_label,batch_id,feed_lbs,grit_lbs,mortality_count,date,feed_type'),
+      fetchAll('layer_dailys', 'batch_label,batch_id,feed_lbs,grit_lbs,mortality_count,layer_count,date,feed_type'),
       fetchAll(
         'egg_dailys',
         'group1_name,group1_count,group2_name,group2_count,group3_name,group3_count,group4_name,group4_count,date',
@@ -640,7 +640,10 @@ const LayerBatchesView = ({
                                         }}
                                       >
                                         🏠 {h.housing_name}
-                                        {h.current_count ? ' · ' + h.current_count + ' hens' : ''}
+                                        {(() => {
+                                          const p = computeProjectedCount(h, rawLayerDailys);
+                                          return p ? ' · ' + p.projected + ' hens' : '';
+                                        })()}
                                       </span>
                                     ))}
                                   </div>
@@ -1048,7 +1051,10 @@ const LayerBatchesView = ({
                 const s = batchStats[selectedBatch.id] || {};
                 const bHousings = layerHousings.filter((h) => h.batch_id === selectedBatch.id);
                 const orig = parseInt(selectedBatch.original_count) || 0;
-                const currentHens = bHousings.reduce((sum, h) => sum + (parseInt(h.current_count) || 0), 0);
+                const currentHens = bHousings.reduce((sum, h) => {
+                  const p = computeProjectedCount(h, rawLayerDailys);
+                  return sum + (p ? p.projected : 0);
+                }, 0);
                 // End date for time-based metrics: today if active, latest housing retired_date if retired
                 const todayISOstr = new Date().toISOString().split('T')[0];
                 let endDate = todayISOstr;
@@ -1301,9 +1307,8 @@ const LayerBatchesView = ({
                 {batchHousings.map((h) => {
                   const hs = housingStats[h.id] || {};
                   const cap = getHousingCap(h.housing_name);
-                  const util = h.current_count && cap ? Math.round((h.current_count / cap) * 100) : null;
-                  // Projected count: anchor minus mortalities since current_count_date
                   const proj = computeProjectedCount(h, rawLayerDailys);
+                  const util = proj && cap ? Math.round((proj.projected / cap) * 100) : null;
                   return (
                     <div
                       key={h.id}
