@@ -75,6 +75,16 @@ const TEST_OWNED_TABLES = [
   // a clean slate. Order: before task_instances would be redundant — keep
   // after for readability with the rest of the parents list.
   'notifications',
+  // Mig 058 activity tables. activity_mentions FK → activity_events
+  // ON DELETE CASCADE, so truncating activity_events first is sufficient;
+  // listing both keeps the whitelist explicit so a future spec that
+  // seeds mentions directly still gets a clean slate. Must reset between
+  // specs — entity_id is a plain text reference (not an FK), so rows
+  // posted against, e.g., 'tic-act-plain' in one spec survive a
+  // task_instances TRUNCATE and would inflate the next spec's chip
+  // counts (which proved to be a real cross-spec bleed).
+  'activity_mentions',
+  'activity_events',
   'task_instances',
   'task_cron_runs',
   'task_templates',

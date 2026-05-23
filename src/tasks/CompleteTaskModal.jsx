@@ -17,6 +17,8 @@
 
 import React from 'react';
 import {completeTaskInstanceV2, uploadTaskCompletionPhotos} from '../lib/tasksCenterMutationsApi.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
 
 const OVERLAY = {
   position: 'fixed',
@@ -70,7 +72,7 @@ const BTN_GHOST = {
   fontFamily: 'inherit',
 };
 
-export default function CompleteTaskModal({sb, task, isOpen, onClose, onCompleted}) {
+export default function CompleteTaskModal({sb, task, isOpen, onClose, onCompleted, authState}) {
   const [note, setNote] = React.useState('');
   const [photos, setPhotos] = React.useState([]);
   const [saving, setSaving] = React.useState(false);
@@ -229,6 +231,19 @@ export default function CompleteTaskModal({sb, task, isOpen, onClose, onComplete
           <button type="button" data-complete-task-save="1" onClick={save} disabled={saving} style={BTN_PRIMARY}>
             {saving ? 'Completing…' : 'Mark Complete'}
           </button>
+        </div>
+
+        {/* Activity panel — discussion thread + @mentions for this task. */}
+        <div data-complete-task-activity="1" style={{marginTop: 14}}>
+          <ActivityPanel
+            sb={sb}
+            authState={authState}
+            entityType="task.instance"
+            entityId={task.id}
+            entityLabel={task.title}
+            entityCtx={task}
+            mode="full"
+          />
         </div>
       </div>
     </div>

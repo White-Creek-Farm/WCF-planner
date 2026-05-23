@@ -597,6 +597,13 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                             } catch (_e) {
                               /* soft-fail */
                             }
+                            // Both 'task_completed' and 'mention' notifications
+                            // for task.instance entities carry task_instance_id
+                            // (post_activity_comment sets it when entity_type =
+                            // 'task.instance'). When Phase 2 adds non-task
+                            // entity_types, the bell will resolve route via
+                            // activityRegistry.resolveNotificationRoute using
+                            // n.activity_event_id; for now /tasks covers both.
                             if (n.task_instance_id) {
                               go('tasks');
                             }

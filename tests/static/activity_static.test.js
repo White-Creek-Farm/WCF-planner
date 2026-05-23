@@ -1,0 +1,390 @@
+// Static lock for Activity + @Mentions Phase 1 (mig 058 +
+// src/lib/activityApi.js + activityRegistry.js + Header wire-up +
+// Task Center attachment).
+//
+// What we lock:
+//   * mig 058 ships the table shapes, RLS lockdown, grant shape, the
+//     four SECDEF RPCs, the task.completed trigger, and the notifications
+//     widen (CHECK + activity_event_id column).
+//   * activityApi.js exposes the helpers + parser + change-event name.
+//   * activityRegistry.js carries the task.instance entry and the route
+//     resolver.
+//   * The UI components carry the data-* hooks the Playwright spec uses
+//     and the ActivityPanel never references the underlying tables
+//     directly.
+//   * No src/ file directly reads or writes public.activity_events /
+//     public.activity_mentions — the SECDEF RPC layer is the only path.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {describe, it, expect} from 'vitest';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '..', '..');
+
+const mig058 = fs.readFileSync(path.join(ROOT, 'supabase-migrations/058_activity_events.sql'), 'utf8');
+const apiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityApi.js'), 'utf8');
+const regSrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
+const panelSrc = fs.readFileSync(path.join(ROOT, 'src/shared/ActivityPanel.jsx'), 'utf8');
+const taSrc = fs.readFileSync(path.join(ROOT, 'src/shared/MentionTextarea.jsx'), 'utf8');
+const modalSrc = fs.readFileSync(path.join(ROOT, 'src/shared/ActivityModal.jsx'), 'utf8');
+const completeTaskModalSrc = fs.readFileSync(path.join(ROOT, 'src/tasks/CompleteTaskModal.jsx'), 'utf8');
+const myTasksTabSrc = fs.readFileSync(path.join(ROOT, 'src/tasks/MyTasksTab.jsx'), 'utf8');
+
+describe('mig 058 — activity_events table + RLS lockdown', () => {
+  it('creates activity_events with the expected columns and constraints', () => {
+    expect(mig058).toMatch(/CREATE TABLE IF NOT EXISTS public\.activity_events/);
+    for (const col of [
+      'id\\s+text PRIMARY KEY',
+      'entity_type\\s+text NOT NULL',
+      'entity_id\\s+text NOT NULL',
+      'actor_profile_id\\s+uuid REFERENCES public\\.profiles\\(id\\) ON DELETE SET NULL',
+      'event_type\\s+text NOT NULL',
+      'body\\s+text',
+      'payload\\s+jsonb NOT NULL DEFAULT',
+      'created_at\\s+timestamptz NOT NULL DEFAULT now\\(\\)',
+      'edited_at\\s+timestamptz',
+      'deleted_at\\s+timestamptz',
+    ]) {
+      expect(mig058, `missing column shape: ${col}`).toMatch(new RegExp(col));
+    }
+    expect(mig058).toMatch(
+      /CONSTRAINT activity_events_event_type_check\s+CHECK \(event_type ~ '\^\[a-z\]\[a-z0-9\._\]\+\$'\)/,
+    );
+  });
+
+  it('creates the recipient-style indexes (entity + actor + partial unread)', () => {
+    expect(mig058).toMatch(/CREATE INDEX IF NOT EXISTS activity_events_entity_idx/);
+    expect(mig058).toMatch(/CREATE INDEX IF NOT EXISTS activity_events_actor_idx/);
+    expect(mig058).toMatch(/WHERE deleted_at IS NULL/);
+  });
+
+  it('creates activity_mentions with compound PK + cascade FKs', () => {
+    expect(mig058).toMatch(/CREATE TABLE IF NOT EXISTS public\.activity_mentions/);
+    expect(mig058).toMatch(/event_id\s+text NOT NULL REFERENCES public\.activity_events\(id\) ON DELETE CASCADE/);
+    expect(mig058).toMatch(/mentioned_profile_id\s+uuid NOT NULL REFERENCES public\.profiles\(id\) ON DELETE CASCADE/);
+    expect(mig058).toMatch(/PRIMARY KEY \(event_id, mentioned_profile_id\)/);
+  });
+
+  it('locks RLS on both tables — no policies, REVOKE ALL from authenticated/anon', () => {
+    expect(mig058).toMatch(/ALTER TABLE public\.activity_events ENABLE ROW LEVEL SECURITY/);
+    expect(mig058).toMatch(/ALTER TABLE public\.activity_mentions ENABLE ROW LEVEL SECURITY/);
+    expect(mig058).toMatch(/REVOKE ALL ON public\.activity_events FROM PUBLIC, anon, authenticated/);
+    expect(mig058).toMatch(/REVOKE ALL ON public\.activity_mentions FROM PUBLIC, anon, authenticated/);
+    // Negative: no CREATE POLICY ... ON public.activity_events / activity_mentions
+    expect(mig058).not.toMatch(/CREATE POLICY[^;]*ON public\.activity_events/);
+    expect(mig058).not.toMatch(/CREATE POLICY[^;]*ON public\.activity_mentions/);
+  });
+});
+
+describe('mig 058 — profile helpers + permission resolver', () => {
+  it('adds profile_role + profile_program_access companions to is_admin', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.profile_role\(\)\s+RETURNS text/);
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.profile_program_access\(\)\s+RETURNS text\[\]/);
+  });
+
+  it('_activity_can_read fails closed and admin shortcuts true', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\._activity_can_read/);
+    // fail-closed for empty entity_type / entity_id
+    expect(mig058).toMatch(/IF p_entity_type IS NULL OR length\(trim\(p_entity_type\)\) = 0/);
+    expect(mig058).toMatch(/IF v_role = 'admin' THEN\s+RETURN true/);
+    expect(mig058).toMatch(/IF v_role = 'inactive' THEN\s+RETURN false/);
+    expect(mig058).toMatch(/-- Unknown entity_type\. Fail closed\.\s+RETURN false/);
+  });
+
+  it('_activity_can_read verifies the source row EXISTS per task.* entity type', () => {
+    // Phase 1 task.* branches must EXIST-probe the source table so fake
+    // ids cannot receive comments. The bare "IN (...)" shortcut is gone.
+    expect(mig058).not.toMatch(/p_entity_type IN \('task\.instance', 'task\.template', 'task\.system_rule'\)/);
+    expect(mig058).toMatch(
+      /p_entity_type = 'task\.instance'[\s\S]*?EXISTS \(SELECT 1 FROM public\.task_instances WHERE id = p_entity_id\)/,
+    );
+    expect(mig058).toMatch(
+      /p_entity_type = 'task\.template'[\s\S]*?EXISTS \(SELECT 1 FROM public\.task_templates WHERE id = p_entity_id\)/,
+    );
+    expect(mig058).toMatch(
+      /p_entity_type = 'task\.system_rule'[\s\S]*?EXISTS \(SELECT 1 FROM public\.task_system_rules WHERE id = p_entity_id\)/,
+    );
+  });
+
+  it('_activity_can_write blocks inactive + delegates to can_read', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\._activity_can_write/);
+    expect(mig058).toMatch(/IF v_role IS NULL OR v_role = 'inactive' THEN\s+RETURN false/);
+    expect(mig058).toMatch(/RETURN public\._activity_can_read\(p_entity_type, p_entity_id\)/);
+  });
+});
+
+describe('mig 058 — RPCs (list / count / post / edit / delete)', () => {
+  it('list_activity_events checks _activity_can_read and clamps the limit', () => {
+    // Drop-then-CREATE pattern (not CREATE OR REPLACE) because the
+    // RETURNS TABLE shape gained actor_display_name; Postgres refuses to
+    // change return shape via CREATE OR REPLACE.
+    expect(mig058).toMatch(/DROP FUNCTION IF EXISTS public\.list_activity_events\(text, text, int\);/);
+    expect(mig058).toMatch(/CREATE FUNCTION public\.list_activity_events/);
+    expect(mig058).toMatch(/IF NOT public\._activity_can_read\(p_entity_type, p_entity_id\)/);
+    expect(mig058).toMatch(/IF v_limit > 200 THEN v_limit := 200/);
+  });
+
+  it('list_activity_events returns actor_display_name resolved server-side from profiles', () => {
+    // The RPC body joins profiles by actor_profile_id and exposes the
+    // result as actor_display_name. Client renders that directly — no
+    // round-trip + no client-side join.
+    expect(mig058).toMatch(/actor_display_name\s+text,/);
+    expect(mig058).toMatch(
+      /\(SELECT full_name FROM public\.profiles WHERE id = ae\.actor_profile_id\) AS actor_display_name/,
+    );
+  });
+
+  it('count_activity_for_entity also gates on _activity_can_read', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.count_activity_for_entity/);
+    expect(mig058).toMatch(/IF NOT public\._activity_can_read\(p_entity_type, p_entity_id\)/);
+  });
+
+  it('post_activity_comment caps mentions at 10 + validates against body + rejects inactive recipients', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.post_activity_comment/);
+    // mention cap
+    expect(mig058).toMatch(/IF v_n_mentions > 10 THEN\s+RAISE EXCEPTION 'post_activity_comment: too many mentions/);
+    // mention-in-body validation (each uuid must be ANY of extracted)
+    expect(mig058).toMatch(/_extract_mention_uuids\(p_body\)/);
+    expect(mig058).toMatch(/IF NOT \(v_m = ANY\(v_extracted\)\)/);
+    // inactive rejected
+    expect(mig058).toMatch(/IF v_mention_role = 'inactive' THEN/);
+    // self-mention does NOT create notification, mention row is still recorded
+    expect(mig058).toMatch(/IF v_m = v_caller THEN\s+CONTINUE/);
+    // notification insert uses 'mention' type + activity_event_id linkage
+    expect(mig058).toMatch(/INSERT INTO public\.notifications[\s\S]*?'mention'[\s\S]*?activity_event_id/);
+  });
+
+  it('edit_activity_event is author-only and re-validates mentions', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.edit_activity_event/);
+    expect(mig058).toMatch(
+      /IF v_row\.actor_profile_id IS DISTINCT FROM v_caller THEN\s+RAISE EXCEPTION 'edit_activity_event: only the author may edit'/,
+    );
+    expect(mig058).toMatch(/IF v_row\.event_type <> 'comment\.posted'/);
+  });
+
+  it('delete_activity_event is soft-delete only, author or admin, idempotent', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.delete_activity_event/);
+    expect(mig058).toMatch(
+      /IF v_row\.deleted_at IS NOT NULL THEN\s+RETURN jsonb_build_object\('ok', true, 'idempotent_replay', true/,
+    );
+    expect(mig058).toMatch(/IF NOT v_admin AND v_row\.actor_profile_id IS DISTINCT FROM v_caller/);
+    expect(mig058).toMatch(/SET deleted_at = now\(\)/);
+    // No hard delete from this RPC
+    expect(mig058).not.toMatch(/DELETE FROM public\.activity_events/);
+  });
+
+  it('all four RPCs REVOKE from anon + GRANT to authenticated', () => {
+    for (const fn of [
+      'list_activity_events',
+      'count_activity_for_entity',
+      'post_activity_comment',
+      'edit_activity_event',
+      'delete_activity_event',
+    ]) {
+      const sig = mig058.match(new RegExp(`REVOKE ALL ON FUNCTION public\\.${fn}\\([^)]*\\) FROM PUBLIC, anon`));
+      expect(sig, `${fn}: REVOKE from anon missing`).not.toBeNull();
+      const grant = mig058.match(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}\\([^)]*\\) TO authenticated`));
+      expect(grant, `${fn}: GRANT to authenticated missing`).not.toBeNull();
+    }
+  });
+});
+
+describe('mig 058 — notifications widen + activity_event_id', () => {
+  it('widens notifications.type CHECK to include mention', () => {
+    expect(mig058).toMatch(/ALTER TABLE public\.notifications DROP CONSTRAINT IF EXISTS notifications_type_check/);
+    expect(mig058).toMatch(/CHECK \(type IN \('task_completed', 'mention'\)\)/);
+  });
+
+  it('adds nullable activity_event_id FK + index', () => {
+    expect(mig058).toMatch(
+      /ADD COLUMN IF NOT EXISTS activity_event_id text REFERENCES public\.activity_events\(id\) ON DELETE CASCADE/,
+    );
+    expect(mig058).toMatch(/CREATE INDEX IF NOT EXISTS notifications_activity_event_idx/);
+  });
+});
+
+describe('mig 058 — task.completed trigger', () => {
+  it('emits task.completed events on the open->completed transition', () => {
+    expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\._activity_emit_task_completed/);
+    expect(mig058).toMatch(/IF NEW\.status = 'completed'[\s\S]*?OLD\.status IS DISTINCT FROM 'completed'/);
+    expect(mig058).toMatch(/'task\.completed'/);
+    expect(mig058).toMatch(/CREATE TRIGGER task_instances_emit_completed/);
+  });
+});
+
+describe('src/lib/activityApi.js — helpers + parser', () => {
+  it('exports the five client helpers + change event name', () => {
+    expect(apiSrc).toMatch(/export async function listActivityEvents/);
+    expect(apiSrc).toMatch(/export async function countActivityForEntity/);
+    expect(apiSrc).toMatch(/export async function postActivityComment/);
+    expect(apiSrc).toMatch(/export async function editActivityEvent/);
+    expect(apiSrc).toMatch(/export async function deleteActivityEvent/);
+    expect(apiSrc).toMatch(/export const ACTIVITY_CHANGE_EVENT = 'wcf-activity-change'/);
+  });
+
+  it('all helpers route through .rpc() — no direct .from() on activity tables', () => {
+    // Strip JSDoc comments before scanning so the platform-contract
+    // comment that names the forbidden patterns doesn't itself trigger
+    // the lock.
+    const code = apiSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+    expect(code).not.toMatch(/\.from\(\s*['"]activity_events['"]\s*\)/);
+    expect(code).not.toMatch(/\.from\(\s*['"]activity_mentions['"]\s*\)/);
+    expect(apiSrc).toMatch(/\.rpc\('list_activity_events'/);
+    expect(apiSrc).toMatch(/\.rpc\('count_activity_for_entity'/);
+    expect(apiSrc).toMatch(/\.rpc\('post_activity_comment'/);
+    expect(apiSrc).toMatch(/\.rpc\('edit_activity_event'/);
+    expect(apiSrc).toMatch(/\.rpc\('delete_activity_event'/);
+  });
+
+  it('mention parser uses the canonical @[Name](profile:uuid) form + dedups', () => {
+    expect(apiSrc).toMatch(/export function extractMentionUuids/);
+    expect(apiSrc).toMatch(/export function renderMentionSegments/);
+    expect(apiSrc).toMatch(/export function buildMentionToken/);
+    expect(apiSrc).toMatch(/MENTION_INLINE_RE\s*=\s*\/@\\\[/);
+  });
+});
+
+describe('src/lib/activityRegistry.js — registry + route resolver', () => {
+  it('declares the task.instance entry + resolveNotificationRoute', () => {
+    expect(regSrc).toMatch(/export const ENTITY_TYPES = \{/);
+    expect(regSrc).toMatch(/TASK_INSTANCE: 'task\.instance'/);
+    // Registry uses a computed key — [ENTITY_TYPES.TASK_INSTANCE]: { ... }
+    expect(regSrc).toMatch(/\[ENTITY_TYPES\.TASK_INSTANCE\]:\s*\{/);
+    expect(regSrc).toMatch(/displayLabel:/);
+    expect(regSrc).toMatch(/route:/);
+    expect(regSrc).toMatch(/export function getActivityEntityMeta/);
+    expect(regSrc).toMatch(/export function resolveNotificationRoute/);
+  });
+});
+
+describe('src/shared/ActivityPanel.jsx — wire + data hooks', () => {
+  it('imports only the activityApi helpers (no direct table access)', () => {
+    const code = panelSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+    expect(code).not.toMatch(/\.from\(\s*['"]activity_events['"]\s*\)/);
+    expect(code).not.toMatch(/\.from\(\s*['"]activity_mentions['"]\s*\)/);
+    expect(panelSrc).toMatch(/from '\.\.\/lib\/activityApi\.js'/);
+  });
+
+  it('exposes the data-* hooks the Playwright spec uses', () => {
+    for (const hook of [
+      'data-activity-panel="1"',
+      'data-activity-mode',
+      'data-activity-entity-type',
+      'data-activity-entity-id',
+      'data-activity-compose',
+      'data-activity-post-button',
+      'data-activity-list',
+      'data-activity-event-row',
+      'data-activity-event-type',
+      'data-activity-event-actor',
+      'data-activity-deleted',
+      'data-activity-delete-button',
+      'data-activity-empty',
+      'data-activity-count',
+      'data-activity-compact-chip',
+    ]) {
+      expect(panelSrc, `missing data-* hook: ${hook}`).toContain(hook);
+    }
+  });
+
+  it('renders actor name from ev.actor_display_name with system / unknown fallback', () => {
+    // The old "User" placeholder is gone. The renderer chooses:
+    //   1. "(deleted)" when isDeleted
+    //   2. ev.actor_display_name (from the RPC's profiles join)
+    //   3. "System" when actor_profile_id is null (trigger-emitted)
+    //   4. "Unknown user" when actor_profile_id is set but the profile
+    //      has been deleted (FK SET NULL → display_name NULL)
+    expect(panelSrc).not.toMatch(/isDeleted \? '\(deleted\)' : 'User'/);
+    expect(panelSrc).toMatch(/ev\.actor_display_name/);
+    expect(panelSrc).toMatch(/ev\.actor_profile_id \? 'Unknown user' : 'System'/);
+  });
+
+  it('compact mode is a button + carries the entity id/type hooks', () => {
+    expect(panelSrc).toMatch(
+      /data-activity-compact-chip="1"[\s\S]*?data-activity-entity-type=\{entityType\}[\s\S]*?data-activity-entity-id=\{entityId\}/,
+    );
+  });
+});
+
+describe('src/shared/MentionTextarea.jsx — picker', () => {
+  it('loads eligible profiles via the canonical Tasks v2 helper', () => {
+    expect(taSrc).toMatch(/import \{loadTaskAssignableProfilesById\} from '\.\.\/lib\/tasksCenterApi\.js'/);
+  });
+  it('carries the data-* hooks for textarea + picker', () => {
+    for (const hook of [
+      'data-mention-textarea="1"',
+      'data-mention-picker="1"',
+      'data-mention-picker-item',
+      'data-mention-uuids',
+      'data-mention-count',
+    ]) {
+      expect(taSrc, `missing data-* hook: ${hook}`).toContain(hook);
+    }
+  });
+});
+
+describe('src/shared/ActivityModal.jsx — wrapper', () => {
+  it('renders ActivityPanel mode="full" and exposes data-activity-modal hook', () => {
+    expect(modalSrc).toMatch(/data-activity-modal="1"/);
+    expect(modalSrc).toMatch(/data-activity-modal-close="1"/);
+    expect(modalSrc).toMatch(/import ActivityPanel from '\.\/ActivityPanel\.jsx'/);
+    expect(modalSrc).toMatch(/mode="full"/);
+  });
+});
+
+describe('Task Center wire-up', () => {
+  it('CompleteTaskModal embeds the full ActivityPanel + accepts authState', () => {
+    expect(completeTaskModalSrc).toMatch(/import ActivityPanel from '\.\.\/shared\/ActivityPanel\.jsx'/);
+    expect(completeTaskModalSrc).toMatch(/data-complete-task-activity="1"/);
+    expect(completeTaskModalSrc).toMatch(/entityType="task\.instance"/);
+    expect(completeTaskModalSrc).toMatch(/function CompleteTaskModal\([^)]*authState[^)]*\)/);
+  });
+
+  it('MyTasksTab passes onOpenActivity + sb + authState to TaskRow and renders ActivityModal', () => {
+    expect(myTasksTabSrc).toMatch(/import ActivityModal from '\.\.\/shared\/ActivityModal\.jsx'/);
+    expect(myTasksTabSrc).toMatch(/onOpenActivity=\{setActivityTarget\}/);
+    expect(myTasksTabSrc).toMatch(/React\.createElement\(ActivityModal/);
+    expect(myTasksTabSrc).toMatch(/target:\s*activityTarget/);
+  });
+});
+
+describe('Source-wide: no direct activity table reads/writes anywhere in src/', () => {
+  // Walk src/ once and assert no .jsx/.js file references the activity
+  // tables directly. The SECDEF RPC layer is the only path.
+  const srcRoot = path.join(ROOT, 'src');
+  function walk(dir) {
+    const out = [];
+    for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...walk(p));
+      else if (entry.isFile() && /\.(jsx?|cjs|mjs)$/.test(entry.name)) out.push(p);
+    }
+    return out;
+  }
+  const files = walk(srcRoot);
+  function stripComments(src) {
+    // Remove /* ... */ block comments + // ... line comments before
+    // scanning for forbidden patterns. Same identifier-boundary safety
+    // as the prod-stability dialog static lock pattern.
+    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+  }
+  for (const file of files) {
+    const rel = path.relative(srcRoot, file);
+    it(`${rel} does not reference activity_events / activity_mentions tables directly`, () => {
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      // Forbidden: client-side .from('activity_events') or
+      // .from('activity_mentions'). RPC string literals (e.g.
+      // .rpc('list_activity_events')) are fine because the function
+      // name lives in a separate identifier namespace and the SECDEF
+      // RPCs are the only sanctioned write path.
+      expect(code, `${rel}: .from('activity_events') is forbidden`).not.toMatch(
+        /\.from\(\s*['"]activity_events['"]\s*\)/,
+      );
+      expect(code, `${rel}: .from('activity_mentions') is forbidden`).not.toMatch(
+        /\.from\(\s*['"]activity_mentions['"]\s*\)/,
+      );
+    });
+  }
+});

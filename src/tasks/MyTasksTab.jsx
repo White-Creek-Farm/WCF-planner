@@ -50,6 +50,10 @@ import {TASK_CHANGE_EVENT, fireTaskChangeEvent} from '../lib/tasksCenterMutation
 import {todayCentralISO} from '../lib/dateUtils.js';
 import CompleteTaskModal from './CompleteTaskModal.jsx';
 import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 import EditDueDateModal from './EditDueDateModal.jsx';
 import AssignTaskModal from './AssignTaskModal.jsx';
 import DeleteTaskModal from './DeleteTaskModal.jsx';
@@ -243,6 +247,9 @@ function TaskRow({
   onEditDue,
   onAssign,
   onDelete,
+  onOpenActivity,
+  sb,
+  authState,
 }) {
   const due = dueStateFor(ti, todayStr);
   const attribution = attributionFor(ti);
@@ -310,6 +317,18 @@ function TaskRow({
             📎
           </button>
         )}
+        {onOpenActivity && sb && (
+          <ActivityPanel
+            sb={sb}
+            authState={authState}
+            entityType="task.instance"
+            entityId={ti.id}
+            entityLabel={ti.title}
+            entityCtx={ti}
+            mode="compact"
+            onCompactClick={(target) => onOpenActivity(target)}
+          />
+        )}
         {canComplete && (
           <button
             type="button"
@@ -372,6 +391,10 @@ export default function MyTasksTab({sb, authState}) {
   const [expandedOverride, setExpandedOverride] = React.useState({});
   const [filter, setFilter] = React.useState('all');
   const [completeTaskTarget, setCompleteTaskTarget] = React.useState(null);
+  // Activity Center modal — opened when a task row's compact 💬 chip is
+  // clicked. Carries enough context to render the full Activity panel
+  // for that task without re-resolving the row.
+  const [activityTarget, setActivityTarget] = React.useState(null);
   const [photoTaskTarget, setPhotoTaskTarget] = React.useState(null);
   const [editDueTarget, setEditDueTarget] = React.useState(null);
   const [assignTarget, setAssignTarget] = React.useState(null);
@@ -536,6 +559,9 @@ export default function MyTasksTab({sb, authState}) {
             onEditDue={setEditDueTarget}
             onAssign={setAssignTarget}
             onDelete={setDeleteTarget}
+            onOpenActivity={setActivityTarget}
+            sb={sb}
+            authState={authState}
           />
         ))}
       </div>
@@ -652,6 +678,9 @@ export default function MyTasksTab({sb, authState}) {
                             onEditDue={setEditDueTarget}
                             onAssign={setAssignTarget}
                             onDelete={setDeleteTarget}
+                            onOpenActivity={setActivityTarget}
+                            sb={sb}
+                            authState={authState}
                           />
                         ))}
                       </div>
@@ -666,6 +695,7 @@ export default function MyTasksTab({sb, authState}) {
 
       {React.createElement(CompleteTaskModal, {
         sb,
+        authState,
         task: completeTaskTarget,
         isOpen: !!completeTaskTarget,
         onClose: () => setCompleteTaskTarget(null),
@@ -674,6 +704,12 @@ export default function MyTasksTab({sb, authState}) {
           fireTaskChangeEvent();
           setReloadKey((k) => k + 1);
         },
+      })}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
       })}
       {React.createElement(TaskPhotoLightbox, {
         sb,
