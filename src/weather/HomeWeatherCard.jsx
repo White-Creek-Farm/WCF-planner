@@ -112,10 +112,12 @@ export default function HomeWeatherCard() {
   const currentFrame = radarFrames && radarFrames.radar[frameIdx];
   const frameTimeLabel = currentFrame
     ? (() => {
-        const now = Math.floor(Date.now() / 1000);
-        const diff = Math.round((currentFrame.time - now) / 60);
-        if (Math.abs(diff) < 2) return 'Now';
-        return diff > 0 ? `+${diff}m` : `${diff}m`;
+        const d = new Date(currentFrame.time * 1000);
+        const h = d.getHours();
+        const m = d.getMinutes();
+        const suffix = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
       })()
     : '';
   const dailyLabel =
