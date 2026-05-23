@@ -2,6 +2,7 @@
 import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -107,7 +108,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
     setShowForm(true);
   }
   const [showAddModal, setShowAddModal] = useState(false);
-  function save() {
+  async function save() {
     setNotice(null);
     const g1 = form.group1Count !== '' ? parseInt(form.group1Count) : 0;
     const g2 = form.group2Count !== '' ? parseInt(form.group2Count) : 0;
@@ -144,18 +145,27 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
       setShowForm(false);
       setEditId(null);
     } else {
-      sb.from('egg_dailys')
+      try {
+        const dupe = await checkDailyDuplicate(sb, 'egg_dailys', rec);
+        if (dupe) {
+          setNotice({kind: 'error', message: formatDuplicateError('egg_dailys', rec)});
+          return;
+        }
+      } catch (e) {
+        setNotice({kind: 'error', message: e.message || 'Could not verify duplicate report.'});
+        return;
+      }
+      const {data, error} = await sb
+        .from('egg_dailys')
         .insert({...rec, submitted_at: new Date().toISOString()})
         .select()
-        .single()
-        .then(({data, error}) => {
-          if (error) {
-            setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-          } else if (data) {
-            setRecords((p) => [data, ...p]);
-            refreshDailys && refreshDailys('egg');
-          }
-        });
+        .single();
+      if (error) {
+        setNotice({kind: 'error', message: 'Save failed: ' + error.message});
+      } else if (data) {
+        setRecords((p) => [data, ...p]);
+        refreshDailys && refreshDailys('egg');
+      }
       setShowForm(false);
       setEditId(null);
     }

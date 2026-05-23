@@ -9,6 +9,7 @@ import {useWebformsConfig} from '../contexts/WebformsConfigContext.jsx';
 import {uploadDailyPhoto, MAX_PHOTOS_PER_REPORT} from '../lib/dailyPhotos.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
+import {checkDailyDuplicate, checkInSubmissionDuplicates, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
 import DailyPhotoCapture from './DailyPhotoCapture.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 import AppSetupModal from './AppSetupModal.jsx';
@@ -630,6 +631,26 @@ const WebformHub = ({
         photos: [],
       };
       const recs = [primary, ...extraBroilerGroups.filter((g) => g.batchLabel).map(buildExtraRec)];
+      try {
+        const inSubB = checkInSubmissionDuplicates('poultry_dailys', recs);
+        if (inSubB) {
+          setSubmitting(false);
+          setErr(formatDuplicateError('poultry_dailys', inSubB));
+          return;
+        }
+        for (const r of recs) {
+          const dupe = await checkDailyDuplicate(sb, 'poultry_dailys', r);
+          if (dupe) {
+            setSubmitting(false);
+            setErr(formatDuplicateError('poultry_dailys', r));
+            return;
+          }
+        }
+      } catch (e) {
+        setSubmitting(false);
+        setErr(e.message || 'Could not verify duplicate report.');
+        return;
+      }
       const {error} = await sb.from('poultry_dailys').insert(recs);
       setSubmitting(false);
       if (error) {
@@ -670,6 +691,12 @@ const WebformHub = ({
         comments: bForm.comments || null,
       };
       if (bPhotos.length > 0) payload.photos = bPhotos; // raw File[]; hook compresses + sanitizes
+      const dupe = await checkDailyDuplicate(sb, 'poultry_dailys', payload);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('poultry_dailys', payload));
+        return;
+      }
       const result = await broilerHook.submit(payload);
       if (result.state === 'synced') {
         if (payload.feed_type === 'STARTER' && parseFloat(payload.feed_lbs) > 0) {
@@ -803,6 +830,26 @@ const WebformHub = ({
           photos: [],
         })),
     ];
+    try {
+      const inSubL = checkInSubmissionDuplicates('layer_dailys', recs);
+      if (inSubL) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('layer_dailys', inSubL));
+        return;
+      }
+      for (const r of recs) {
+        const dupe = await checkDailyDuplicate(sb, 'layer_dailys', r);
+        if (dupe) {
+          setSubmitting(false);
+          setErr(formatDuplicateError('layer_dailys', r));
+          return;
+        }
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {error} = await sb.from('layer_dailys').insert(recs.length === 1 ? recs[0] : recs);
     setSubmitting(false);
     if (error) {
@@ -924,6 +971,26 @@ const WebformHub = ({
         photos: [],
       };
       const recs = [primary, ...extraPigGroups.filter((g) => g.batchLabel).map(buildExtraRec)];
+      try {
+        const inSubP = checkInSubmissionDuplicates('pig_dailys', recs);
+        if (inSubP) {
+          setSubmitting(false);
+          setErr(formatDuplicateError('pig_dailys', inSubP));
+          return;
+        }
+        for (const r of recs) {
+          const dupe = await checkDailyDuplicate(sb, 'pig_dailys', r);
+          if (dupe) {
+            setSubmitting(false);
+            setErr(formatDuplicateError('pig_dailys', r));
+            return;
+          }
+        }
+      } catch (e) {
+        setSubmitting(false);
+        setErr(e.message || 'Could not verify duplicate report.');
+        return;
+      }
       const {error} = await sb.from('pig_dailys').insert(recs);
       setSubmitting(false);
       if (error) {
@@ -958,6 +1025,12 @@ const WebformHub = ({
         issues: pForm.issues || null,
       };
       if (pPhotos.length > 0) payload.photos = pPhotos;
+      const dupe = await checkDailyDuplicate(sb, 'pig_dailys', payload);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('pig_dailys', payload));
+        return;
+      }
       const result = await pigHook.submit(payload);
       if (pPhotos.length > 0) {
         const statusFor = result.state === 'synced' ? 'uploaded' : result.state === 'queued' ? 'queued' : 'failed';
@@ -1023,6 +1096,18 @@ const WebformHub = ({
       dozens_on_hand: eForm.dozensOnHand !== '' ? parseFloat(eForm.dozensOnHand) : null,
       comments: eForm.comments || null,
     };
+    try {
+      const dupe = await checkDailyDuplicate(sb, 'egg_dailys', rec);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('egg_dailys', rec));
+        return;
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {error} = await sb.from('egg_dailys').insert(rec);
     setSubmitting(false);
     if (error) {
@@ -1117,6 +1202,12 @@ const WebformHub = ({
         issues: cForm.issues || null,
       };
       if (cPhotos.length > 0) payload.photos = cPhotos;
+      const dupe = await checkDailyDuplicate(sb, 'cattle_dailys', payload);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('cattle_dailys', payload));
+        return;
+      }
       const result = await cattleHook.submit(payload);
       if (cPhotos.length > 0) {
         const statusFor = result.state === 'synced' ? 'uploaded' : result.state === 'queued' ? 'queued' : 'failed';
@@ -1188,6 +1279,12 @@ const WebformHub = ({
         comments: sForm.comments || null,
       };
       if (shPhotos.length > 0) payload.photos = shPhotos;
+      const dupe = await checkDailyDuplicate(sb, 'sheep_dailys', payload);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('sheep_dailys', payload));
+        return;
+      }
       const result = await sheepHook.submit(payload);
       if (shPhotos.length > 0) {
         const statusFor = result.state === 'synced' ? 'uploaded' : result.state === 'queued' ? 'queued' : 'failed';

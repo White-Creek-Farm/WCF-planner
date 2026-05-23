@@ -2,6 +2,7 @@
 import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -172,6 +173,16 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
       setShowForm(false);
       setEditId(null);
     } else {
+      try {
+        const dupe = await checkDailyDuplicate(sb, 'layer_dailys', rec);
+        if (dupe) {
+          setNotice({kind: 'error', message: formatDuplicateError('layer_dailys', rec)});
+          return;
+        }
+      } catch (e) {
+        setNotice({kind: 'error', message: e.message || 'Could not verify duplicate report.'});
+        return;
+      }
       const {data, error} = await sb
         .from('layer_dailys')
         .insert({...rec, submitted_at: new Date().toISOString()})

@@ -12,6 +12,7 @@ import {wcfSendEmail} from '../lib/email.js';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
+import {checkDailyDuplicate, checkInSubmissionDuplicates, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
 const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   const [loadedConfig, setLoadedConfig] = React.useState(null);
   const [broilerGroupsFromDb, setBroilerGroupsFromDb] = React.useState([]);
@@ -285,6 +286,26 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
           comments: g.comments || null,
         })),
     ];
+    try {
+      const inSub = checkInSubmissionDuplicates('poultry_dailys', recs);
+      if (inSub) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('poultry_dailys', inSub));
+        return;
+      }
+      for (const r of recs) {
+        const dupe = await checkDailyDuplicate(sb, 'poultry_dailys', r);
+        if (dupe) {
+          setSubmitting(false);
+          setErr(formatDuplicateError('poultry_dailys', r));
+          return;
+        }
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {data, error} = await sb.from('poultry_dailys').insert(recs).select();
     setSubmitting(false);
     if (error) {
@@ -361,6 +382,26 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
           comments: g.comments || null,
         })),
     ];
+    try {
+      const inSubL = checkInSubmissionDuplicates('layer_dailys', recs);
+      if (inSubL) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('layer_dailys', inSubL));
+        return;
+      }
+      for (const r of recs) {
+        const dupe = await checkDailyDuplicate(sb, 'layer_dailys', r);
+        if (dupe) {
+          setSubmitting(false);
+          setErr(formatDuplicateError('layer_dailys', r));
+          return;
+        }
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {data, error} = await sb.from('layer_dailys').insert(recs).select();
     setSubmitting(false);
     if (error) {
@@ -412,6 +453,18 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       dozens_on_hand: eForm.dozensOnHand !== '' ? parseFloat(eForm.dozensOnHand) : null,
       comments: eForm.comments || null,
     };
+    try {
+      const dupe = await checkDailyDuplicate(sb, 'egg_dailys', rec);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('egg_dailys', rec));
+        return;
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {data, error} = await sb.from('egg_dailys').insert(rec).select().single();
     setSubmitting(false);
     if (error) {
@@ -472,6 +525,26 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
           issues: g.issues || null,
         })),
     ];
+    try {
+      const inSubP = checkInSubmissionDuplicates('pig_dailys', recs);
+      if (inSubP) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('pig_dailys', inSubP));
+        return;
+      }
+      for (const r of recs) {
+        const dupe = await checkDailyDuplicate(sb, 'pig_dailys', r);
+        if (dupe) {
+          setSubmitting(false);
+          setErr(formatDuplicateError('pig_dailys', r));
+          return;
+        }
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {data, error} = await sb.from('pig_dailys').insert(recs).select();
     setSubmitting(false);
     if (error) {
@@ -531,6 +604,18 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       issues: cForm.issues || null,
       source: 'admin_add_report',
     };
+    try {
+      const dupe = await checkDailyDuplicate(sb, 'cattle_dailys', rec);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('cattle_dailys', rec));
+        return;
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {data, error} = await sb.from('cattle_dailys').insert(rec).select();
     setSubmitting(false);
     if (error) {
@@ -594,6 +679,18 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       comments: sForm.comments || null,
       source: 'admin_add_report',
     };
+    try {
+      const dupe = await checkDailyDuplicate(sb, 'sheep_dailys', rec);
+      if (dupe) {
+        setSubmitting(false);
+        setErr(formatDuplicateError('sheep_dailys', rec));
+        return;
+      }
+    } catch (e) {
+      setSubmitting(false);
+      setErr(e.message || 'Could not verify duplicate report.');
+      return;
+    }
     const {data, error} = await sb.from('sheep_dailys').insert(rec).select();
     setSubmitting(false);
     if (error) {
