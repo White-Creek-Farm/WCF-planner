@@ -84,13 +84,19 @@ describe('mig 058 — profile helpers + permission resolver', () => {
     expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.profile_program_access\(\)\s+RETURNS text\[\]/);
   });
 
-  it('_activity_can_read fails closed and admin shortcuts true', () => {
+  it('_activity_can_read fails closed; admin DOES NOT bypass entity existence', () => {
     expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\._activity_can_read/);
     // fail-closed for empty entity_type / entity_id
     expect(mig058).toMatch(/IF p_entity_type IS NULL OR length\(trim\(p_entity_type\)\) = 0/);
-    expect(mig058).toMatch(/IF v_role = 'admin' THEN\s+RETURN true/);
     expect(mig058).toMatch(/IF v_role = 'inactive' THEN\s+RETURN false/);
-    expect(mig058).toMatch(/-- Unknown entity_type\. Fail closed\.\s+RETURN false/);
+    // Admin short-circuit was REMOVED in the blocker 1 fix. The per-type
+    // EXISTS probe (asserted in the sibling test below) now runs for every
+    // role, so a fake / typo / deleted id is rejected even for admins.
+    // Phase 2 entity types that need program-access checks can re-add an
+    // admin bypass AFTER the EXISTS probe; this test pins that the bypass
+    // does NOT live above the existence gate.
+    expect(mig058).not.toMatch(/v_role = 'admin' THEN\s+RETURN true/);
+    expect(mig058).toMatch(/-- Unknown entity_type\. Fail closed/);
   });
 
   it('_activity_can_read verifies the source row EXISTS per task.* entity type', () => {
@@ -130,9 +136,15 @@ describe('mig 058 — RPCs (list / count / post / edit / delete)', () => {
     // The RPC body joins profiles by actor_profile_id and exposes the
     // result as actor_display_name. Client renders that directly — no
     // round-trip + no client-side join.
+    //
+    // profiles.id MUST be table-qualified — bare `id` inside the subquery
+    // collides with the function's RETURNS TABLE column named `id`,
+    // raising "column reference id is ambiguous" at runtime (silent in
+    // PostgREST → empty data → panel renders "No activity yet" even though
+    // the row exists). The qualifier on the alias closes that hole.
     expect(mig058).toMatch(/actor_display_name\s+text,/);
     expect(mig058).toMatch(
-      /\(SELECT full_name FROM public\.profiles WHERE id = ae\.actor_profile_id\) AS actor_display_name/,
+      /\(SELECT p\.full_name FROM public\.profiles p WHERE p\.id = ae\.actor_profile_id\) AS actor_display_name/,
     );
   });
 
