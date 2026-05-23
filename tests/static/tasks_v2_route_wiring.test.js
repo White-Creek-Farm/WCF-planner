@@ -186,17 +186,24 @@ describe('Tasks v2 T2 — read-only contract on T2 components and helper', () =>
 
   // Codex T2 round-2 fix #3: photo indicator is icon-only in
   // collapsed rows (Ronnie's lock — only icon unless expanded).
-  // Expanded details land in T3+; until then, the visible label
-  // text "Photo" must not render alongside the paperclip.
+  // The Activity-Phase-1 polish replaced the paperclip with a photo
+  // icon and switched the aria-label/title to a concrete photo count
+  // ("1 photo" / "2 photos"). The "no extra visible word" rule still
+  // applies — only the glyph, with the count carried in metadata.
   it('MyTasksTab photo indicator is icon-only with title/aria-label, no visible "Photo" text', () => {
-    // The data attribute marker stays so tests can find it; the
-    // visible content must be only the paperclip glyph and the
-    // accessibility metadata.
     expect(myTasksTab).toMatch(/data-task-has-photo="1"/);
-    expect(myTasksTab).toMatch(/aria-label="Task has at least one photo"/);
-    expect(myTasksTab).toMatch(/title="Task has at least one photo"/);
-    // Negative lock: no "Photo" word inside the indicator span.
-    expect(myTasksTab).not.toMatch(/📎\s+Photo/);
+    expect(myTasksTab).toMatch(/data-task-photo-count=\{count\}/);
+    // Label is now a template string for "{count} photos" / "1 photo".
+    expect(myTasksTab).toMatch(/const label = count === 1 \? '1 photo' : `\$\{count\} photos`/);
+    expect(myTasksTab).toMatch(/aria-label=\{label\}/);
+    expect(myTasksTab).toMatch(/title=\{label\}/);
+    // Negative locks: no inline "Photo" word, and no paperclip glyph
+    // in live render code (the doc comment up top mentions the
+    // historical paperclip — strip comments before the negative scan
+    // so the lock doesn't trip on its own context).
+    const code = myTasksTab.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+    expect(code).not.toMatch(/🖼\s+Photo/);
+    expect(code).not.toContain('📎');
   });
 });
 

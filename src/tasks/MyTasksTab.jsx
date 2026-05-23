@@ -20,8 +20,10 @@
 //                      tasks expands so the filter shows its work.
 //
 // Row-level controls (T6-T9):
-//   - Photo affordance (📎) opens TaskPhotoLightbox; visible when the
-//     row carries request_photo_path or completion_photo_path.
+//   - Photo affordance (🖼) opens TaskPhotoLightbox; visible when the
+//     row carries request_photo_path or completion_photo_path. The
+//     button's aria-label / title carries the explicit photo count
+//     ("1 photo" / "2 photos") for accessibility.
 //   - Complete button (T7) — admin OR caller-as-assignee on open rows.
 //   - Edit Due button (T8) — admin OR caller-as-assignee on open rows.
 //     Modal mirrors the regular-user 2/2 cap from the RPC.
@@ -166,7 +168,7 @@ const PHOTO_LINK_BTN = {
   border: 'none',
   padding: 0,
   cursor: 'pointer',
-  // 36px paperclip per Codex amendment — original 12px was too small to
+  // 36px icon per Codex amendment — original 12px was too small to
   // notice. Icon-only; visible "Photo" text stays out per the existing
   // T2 lock.
   fontSize: 36,
@@ -304,19 +306,35 @@ function TaskRow({
         </div>
       )}
       <div style={{display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}>
-        {(photo.hasRequest || photo.hasCompletion) && (
-          <button
-            type="button"
-            data-task-has-photo="1"
-            data-task-photo-open="1"
-            onClick={() => onOpenPhotos && onOpenPhotos(ti)}
-            title="Task has at least one photo"
-            aria-label="Task has at least one photo"
-            style={PHOTO_LINK_BTN}
-          >
-            📎
-          </button>
-        )}
+        {(photo.hasRequest || photo.hasCompletion) &&
+          (() => {
+            // Photo polish (Codex pre-polish review): the only attachment
+            // kind today is a photo (request_photo_path + completion_
+            // photo_path). The icon used to be a paperclip 📎 which reads
+            // as a generic file — switch to the framed-picture 🖼 emoji
+            // so operators see at a glance that the attachment is an
+            // image. Thumbnail rendering needs a signed URL per row
+            // (private bucket), which we deliberately skip here — the
+            // list view should never make N storage calls just to render
+            // chips. If/when a non-photo attachment kind ships, branch
+            // back to 📎 for that case only.
+            const count = (photo.hasRequest ? 1 : 0) + (photo.hasCompletion ? 1 : 0);
+            const label = count === 1 ? '1 photo' : `${count} photos`;
+            return (
+              <button
+                type="button"
+                data-task-has-photo="1"
+                data-task-photo-open="1"
+                data-task-photo-count={count}
+                onClick={() => onOpenPhotos && onOpenPhotos(ti)}
+                title={label}
+                aria-label={label}
+                style={PHOTO_LINK_BTN}
+              >
+                🖼
+              </button>
+            );
+          })()}
         {onOpenActivity && sb && (
           <ActivityPanel
             sb={sb}

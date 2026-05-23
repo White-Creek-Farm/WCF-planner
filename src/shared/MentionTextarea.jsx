@@ -1,23 +1,37 @@
 // MentionTextarea — plain <textarea> with an @-triggered profile picker.
 //
-// Storage format (inline, reversible):
+// User-visible format (per Codex polish review):
+//   The textarea contains ONLY plain "@DisplayName" text — uuids are
+//   never shown. The structured mention identity travels in the parent's
+//   `mentions` state array (deduped uuids).
+//
+// Why this matters: mig 058's original wire format was
 //   @[Display Name](profile:<uuid>)
-// The server-side _extract_mention_uuids and the client-side
-// extractMentionUuids in activityApi.js BOTH parse this same form.
+// which leaked uuids into the visible composer and the rendered
+// timeline. Mig 060 dropped the body-must-contain-uuid validation; the
+// server now trusts p_mentions[] outright. So the textarea inserts a
+// plain "@DisplayName " on pick and tracks the picked uuid alongside.
 //
 // Props:
 //   sb         supabase client (used to load eligible profiles via
 //              tasksCenterApi's loadTaskAssignableProfilesById — single
 //              source of truth for "who is mentionable")
 //   value      current body text (string)
-//   mentions   current mention uuids ([uuid])
-//   onChange   ({body, mentions}) called on every keystroke / pick /
-//              programmatic update
+//   mentions   current mention uuids ([uuid]) — authoritative; parent owns
+//   onChange   ({body, mentions}) called on every keystroke / pick
 //   placeholder
 //   disabled
+//
+// Behavior:
+//   - Typing updates body. mentions[] is NOT re-derived from body — it is
+//     only mutated on explicit picks.
+//   - Picking from popover REPLACES the partial "@query" with the picked
+//     "@FullName ", appends the uuid to mentions[] if not already present.
+//   - Deleting "@FullName" text after picking does NOT remove the uuid
+//     from mentions[]. Per Codex: explicit pick = authoritative intent.
+//     The renderer simply won't chip what isn't in the body anymore.
 import React from 'react';
 import {loadTaskAssignableProfilesById} from '../lib/tasksCenterApi.js';
-import {extractMentionUuids, buildMentionToken} from '../lib/activityApi.js';
 
 const TEXTAREA_STYLE = {
   width: '100%',
@@ -98,14 +112,12 @@ export default function MentionTextarea({sb, value = '', mentions = [], onChange
     };
   }, [sb]);
 
-  function emit(nextBody) {
-    const next = {body: nextBody, mentions: extractMentionUuids(nextBody)};
-    if (onChange) onChange(next);
-    return next;
+  function emit(nextBody, nextMentions) {
+    if (onChange) onChange({body: nextBody, mentions: nextMentions});
   }
 
   // After every change, scan back from the caret for an @<query> token
-  // (only if no closing ']' or whitespace breaks it). If found, open the
+  // (only if no whitespace/punctuation breaks it). If found, open the
   // popover with the matching profiles.
   function updateMentionState() {
     const ta = taRef.current;
@@ -118,14 +130,14 @@ export default function MentionTextarea({sb, value = '', mentions = [], onChange
       return;
     }
     const seg = before.slice(at + 1);
-    // If the @ is already closed off with a paren-pair, we're inside an
-    // existing mention token — don't re-trigger.
-    if (/[\s\])(]/.test(seg)) {
+    // Allow letters / digits / apostrophe / spaces inside the query so
+    // users can type "@Test Adm" before picking — sortedNames in the
+    // popover match against the lowercased full_name with includes().
+    // Anything else (newline, punctuation) closes the popover.
+    if (/[\n\t\r.,!?;:)\](){}<>/\\]/.test(seg)) {
       setOpen(false);
       return;
     }
-    // Allow alphanumerics + dot + apostrophe + space (rare in name picker
-    // but doesn't hurt). Cap query length.
     if (seg.length > 32) {
       setOpen(false);
       return;
@@ -144,16 +156,19 @@ export default function MentionTextarea({sb, value = '', mentions = [], onChange
     const at = before.lastIndexOf('@');
     if (at === -1) return;
     const head = before.slice(0, at);
-    const token = buildMentionToken(profile);
-    const nextBody = head + token + ' ' + after;
-    emit(nextBody);
+    const display = profile.full_name || profile.name || 'Unknown';
+    // Plain "@DisplayName " — uuid stays out of the visible body.
+    // Trailing space puts the caret past the chip so users can keep typing.
+    const inserted = '@' + display + ' ';
+    const nextBody = head + inserted + after;
+    const nextMentions = mentions.includes(profile.id) ? mentions : [...mentions, profile.id];
+    emit(nextBody, nextMentions);
     setOpen(false);
     setQuery('');
-    // Restore caret after the inserted token + trailing space.
     requestAnimationFrame(() => {
       const ta2 = taRef.current;
       if (!ta2) return;
-      const pos = (head + token + ' ').length;
+      const pos = (head + inserted).length;
       ta2.focus();
       ta2.setSelectionRange(pos, pos);
     });
@@ -189,7 +204,8 @@ export default function MentionTextarea({sb, value = '', mentions = [], onChange
         placeholder={placeholder || 'Comment…'}
         disabled={disabled}
         onChange={(e) => {
-          emit(e.target.value);
+          // Body changes do not mutate mentions[]; the picker owns that.
+          emit(e.target.value, mentions);
           requestAnimationFrame(updateMentionState);
         }}
         onKeyDown={onKeyDown}

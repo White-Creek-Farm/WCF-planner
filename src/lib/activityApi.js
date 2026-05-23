@@ -1,7 +1,8 @@
 // Activity + @Mentions client API — read + comment + edit + soft-delete.
 //
-// Backed by 4 SECURITY DEFINER RPCs in mig 058:
+// Backed by 4 SECURITY DEFINER RPCs (mig 058 + mig 060 contract change):
 //   list_activity_events(entity_type, entity_id, limit)
+//     → returns rows with mentioned_profile_ids[] + mentioned_profile_names[]
 //   post_activity_comment(entity_type, entity_id, body, entity_label, mentions[])
 //   edit_activity_event(event_id, body, mentions[])
 //   delete_activity_event(event_id)
@@ -12,11 +13,17 @@
 // also rejects any such reference in src/. The RPC layer is the only
 // path; the SECDEF resolver re-checks the source entity's read gate.
 //
-// Mention notifications fan out server-side inside post_activity_comment
-// and edit_activity_event. The frontend only supplies the list of
-// mentioned profile ids; the RPC validates each id actually appears
-// inline in the body (so a malicious client cannot notify arbitrary
-// profiles) and rejects inactive recipients.
+// Mention contract (mig 060):
+//   * The visible body is freeform plain text. Users only ever see
+//     "@DisplayName" — uuids are NEVER shown.
+//   * p_mentions[] is the AUTHORITATIVE mention identity. The server
+//     validates each uuid (exists + not inactive + ≤10 cap + caller has
+//     write permission) and fans out notifications. The body text is no
+//     longer parsed for uuid tokens.
+//   * Renderer chips "@Name" spans by matching mentioned_profile_names[]
+//     returned from list_activity_events. Best-effort: ambiguous names
+//     (two teammates with the same display name) all render as chips;
+//     notifications still go to whichever uuid the user picked.
 
 export const ACTIVITY_CHANGE_EVENT = 'wcf-activity-change';
 
@@ -30,11 +37,10 @@ export function fireActivityChangeEvent(entityType, entityId) {
 }
 
 /**
- * List activity events for one entity (newest first). Returns rows with
- * a `mentioned_profile_ids` array column the renderer uses to render
- * @mention chips. Soft-deleted rows are INCLUDED so the panel can show
- * "(comment deleted)" placeholders in place; the deleted_at column tells
- * the renderer which is which.
+ * List activity events for one entity (newest first). Each row carries
+ * both `mentioned_profile_ids` and `mentioned_profile_names` arrays
+ * (same length, same order) for chip rendering. Soft-deleted rows are
+ * INCLUDED so the panel can render "(comment deleted)" placeholders.
  */
 export async function listActivityEvents(sb, entityType, entityId, {limit = 50} = {}) {
   if (!sb) return [];
@@ -65,8 +71,8 @@ export async function countActivityForEntity(sb, entityType, entityId) {
 
 /**
  * Post a comment. `mentions` is the array of profile uuids the user
- * picked from the @ popover; the RPC validates each uuid actually
- * appears in the body's `@[Name](profile:uuid)` markup.
+ * picked from the @ popover — the authoritative mention identity. The
+ * visible body is freeform plain text; uuids never appear in it.
  *
  * `entityLabel` is included so the resulting `mention` notifications
  * can render "X mentioned you on <label>" without having to round-trip
@@ -117,65 +123,87 @@ export async function deleteActivityEvent(sb, eventId) {
   return data;
 }
 
-// ── Mention parsing / rendering helpers (pure functions, exported for
-// reuse + testing) ──────────────────────────────────────────────────────
-
-// Match @[Display Name](profile:<uuid>). The display name allows any
-// non-newline characters except ']' (which would close the bracket
-// group). UUID is the standard 36-char hyphenated form.
-const MENTION_INLINE_RE =
-  /@\[([^\]\n]+)\]\(profile:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\)/g;
+// ── Mention rendering helper (pure, exported for reuse + testing) ──────
 
 /**
- * Extract the unique profile uuids referenced in a comment body. Mirrors
- * the server-side _extract_mention_uuids exactly. Order preserved
- * first-appearance.
+ * Split a comment body into renderable segments. Each "@Name" span whose
+ * Name matches an entry in mentionedProfileNames becomes a chip; the
+ * rest is plain text.
+ *
+ * Output is an array of:
+ *   {type: 'text', text: '...'}
+ *   {type: 'mention', display: 'Mak', profileId: 'uuid-or-null'}
+ *
+ * Multi-word names work (the picker inserts the full literal string).
+ * Longest-match-wins so "@Test Admin" doesn't get partially eaten by
+ * "@Test" if both names exist.
+ *
+ * Ambiguous case: if two mentioned profiles share the same display
+ * name, all "@Name" spans chip with the FIRST profileId in the array.
+ * The notification fan-out (server-side) is unaffected — every uuid
+ * the user picked is notified separately. profileId may be null if
+ * the renderer is called without the ids array (text-only chipping).
  */
-export function extractMentionUuids(body) {
+export function renderMentionSegments(body, mentionedProfileNames = [], mentionedProfileIds = []) {
   if (!body || typeof body !== 'string') return [];
-  const seen = new Set();
+  if (!Array.isArray(mentionedProfileNames) || mentionedProfileNames.length === 0) {
+    return [{type: 'text', text: body}];
+  }
+  // Pair name → first profile id. Names array can contain duplicates;
+  // keep the first occurrence so the chip carries a stable id.
+  const nameToId = new Map();
+  for (let i = 0; i < mentionedProfileNames.length; i++) {
+    const n = mentionedProfileNames[i];
+    if (!n || nameToId.has(n)) continue;
+    nameToId.set(n, mentionedProfileIds[i] || null);
+  }
+  // Longest-match-wins so multi-word names beat shorter substrings.
+  const sortedNames = [...nameToId.keys()].filter((n) => n.length > 0).sort((a, b) => b.length - a.length);
+  if (sortedNames.length === 0) return [{type: 'text', text: body}];
+
   const out = [];
-  let m;
-  // RegExp objects with the `g` flag are stateful; use a fresh one.
-  const re = new RegExp(MENTION_INLINE_RE.source, 'g');
-  while ((m = re.exec(body)) !== null) {
-    const uuid = m[2].toLowerCase();
-    if (!seen.has(uuid)) {
-      seen.add(uuid);
-      out.push(uuid);
+  let i = 0;
+  while (i < body.length) {
+    if (body[i] !== '@') {
+      // Accumulate plain text until the next '@'.
+      let j = i + 1;
+      while (j < body.length && body[j] !== '@') j++;
+      out.push({type: 'text', text: body.slice(i, j)});
+      i = j;
+      continue;
+    }
+    // body[i] === '@' — try to match a known mention name starting here.
+    let matched = null;
+    for (const name of sortedNames) {
+      if (body.startsWith('@' + name, i)) {
+        // Word-boundary on the right side: next char must be end-of-string
+        // or non-name punctuation so "@Nick" doesn't match inside "@Nickname".
+        const tailIdx = i + 1 + name.length;
+        const tail = body[tailIdx];
+        if (tail === undefined || /[\s.,!?;:)\]}'"-]/.test(tail)) {
+          matched = name;
+          break;
+        }
+      }
+    }
+    if (matched) {
+      out.push({type: 'mention', display: matched, profileId: nameToId.get(matched)});
+      i += 1 + matched.length;
+    } else {
+      // Lone @ not followed by a known mention — render as plain text.
+      out.push({type: 'text', text: '@'});
+      i += 1;
     }
   }
-  return out;
-}
-
-/**
- * Split a comment body into renderable segments. Output is an array of
- *   {type: 'text', text: '...'}
- *   {type: 'mention', display: 'Mak', profileId: 'uuid'}
- * The renderer maps text segments to plain text and mention segments to
- * a styled chip.
- */
-export function renderMentionSegments(body) {
-  if (!body || typeof body !== 'string') return [];
-  const out = [];
-  let last = 0;
-  const re = new RegExp(MENTION_INLINE_RE.source, 'g');
-  let m;
-  while ((m = re.exec(body)) !== null) {
-    if (m.index > last) out.push({type: 'text', text: body.slice(last, m.index)});
-    out.push({type: 'mention', display: m[1], profileId: m[2].toLowerCase()});
-    last = re.lastIndex;
+  // Collapse adjacent text segments for cleaner output.
+  const collapsed = [];
+  for (const seg of out) {
+    const last = collapsed[collapsed.length - 1];
+    if (seg.type === 'text' && last && last.type === 'text') {
+      last.text += seg.text;
+    } else {
+      collapsed.push(seg);
+    }
   }
-  if (last < body.length) out.push({type: 'text', text: body.slice(last)});
-  return out;
-}
-
-/**
- * Build the canonical inline mention string from a picked profile.
- *   buildMentionToken({id, full_name}) → '@[Mak](profile:abc-...)'
- */
-export function buildMentionToken(profile) {
-  if (!profile || !profile.id) return '';
-  const display = (profile.full_name || profile.name || 'Unknown').replace(/[\]\n]/g, '');
-  return `@[${display}](profile:${profile.id})`;
+  return collapsed;
 }

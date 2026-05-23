@@ -24,6 +24,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const mig058 = fs.readFileSync(path.join(ROOT, 'supabase-migrations/058_activity_events.sql'), 'utf8');
+const mig060 = fs.readFileSync(path.join(ROOT, 'supabase-migrations/060_activity_mention_contract.sql'), 'utf8');
 const apiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityApi.js'), 'utf8');
 const regSrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
 const panelSrc = fs.readFileSync(path.join(ROOT, 'src/shared/ActivityPanel.jsx'), 'utf8');
@@ -153,18 +154,15 @@ describe('mig 058 — RPCs (list / count / post / edit / delete)', () => {
     expect(mig058).toMatch(/IF NOT public\._activity_can_read\(p_entity_type, p_entity_id\)/);
   });
 
-  it('post_activity_comment caps mentions at 10 + validates against body + rejects inactive recipients', () => {
+  it('post_activity_comment (mig 058 base) caps mentions, rejects inactive, self-mention rule', () => {
+    // Mig 058 defines the original RPC. Mig 060 replaces it to drop the
+    // body-uuid validation — the assertions about that drop live in the
+    // "mig 060" describe block below. Everything OTHER than the body-
+    // uuid check is pinned here against mig 058's definition.
     expect(mig058).toMatch(/CREATE OR REPLACE FUNCTION public\.post_activity_comment/);
-    // mention cap
     expect(mig058).toMatch(/IF v_n_mentions > 10 THEN\s+RAISE EXCEPTION 'post_activity_comment: too many mentions/);
-    // mention-in-body validation (each uuid must be ANY of extracted)
-    expect(mig058).toMatch(/_extract_mention_uuids\(p_body\)/);
-    expect(mig058).toMatch(/IF NOT \(v_m = ANY\(v_extracted\)\)/);
-    // inactive rejected
     expect(mig058).toMatch(/IF v_mention_role = 'inactive' THEN/);
-    // self-mention does NOT create notification, mention row is still recorded
     expect(mig058).toMatch(/IF v_m = v_caller THEN\s+CONTINUE/);
-    // notification insert uses 'mention' type + activity_event_id linkage
     expect(mig058).toMatch(/INSERT INTO public\.notifications[\s\S]*?'mention'[\s\S]*?activity_event_id/);
   });
 
@@ -250,11 +248,68 @@ describe('src/lib/activityApi.js — helpers + parser', () => {
     expect(apiSrc).toMatch(/\.rpc\('delete_activity_event'/);
   });
 
-  it('mention parser uses the canonical @[Name](profile:uuid) form + dedups', () => {
-    expect(apiSrc).toMatch(/export function extractMentionUuids/);
+  it('mention renderer uses name-array chipping; no uuid token markup', () => {
+    // Mig 060 retired the `@[Name](profile:uuid)` wire format. The
+    // renderer now receives mentioned_profile_names (resolved server-
+    // side in list_activity_events) and chips literal "@Name" spans.
+    // The token regex + token-builder + token-extractor are gone — if
+    // they reappear, the visible body would leak uuids again.
     expect(apiSrc).toMatch(/export function renderMentionSegments/);
-    expect(apiSrc).toMatch(/export function buildMentionToken/);
-    expect(apiSrc).toMatch(/MENTION_INLINE_RE\s*=\s*\/@\\\[/);
+    // New signature accepts mentioned_profile_names + ids.
+    expect(apiSrc).toMatch(/renderMentionSegments\(body, mentionedProfileNames[^)]*mentionedProfileIds/);
+    // Negative locks on the dead token format and helpers.
+    expect(apiSrc).not.toMatch(/export function extractMentionUuids/);
+    expect(apiSrc).not.toMatch(/export function buildMentionToken/);
+    expect(apiSrc).not.toMatch(/MENTION_INLINE_RE/);
+    // No regex literal that matches the dead canonical form anywhere.
+    expect(apiSrc).not.toMatch(/@\\\[\(/);
+  });
+});
+
+describe('mig 060 — mention contract switch (plain @Name + p_mentions[] authoritative)', () => {
+  it('list_activity_events RETURNS gains mentioned_profile_names text[]', () => {
+    expect(mig060).toMatch(/DROP FUNCTION IF EXISTS public\.list_activity_events\(text, text, int\);/);
+    expect(mig060).toMatch(/CREATE FUNCTION public\.list_activity_events/);
+    expect(mig060).toMatch(/mentioned_profile_names\s+text\[\]/);
+    // Names array is ordered to stay positionally aligned with the ids.
+    expect(mig060).toMatch(
+      /array_agg\(COALESCE\(p2\.full_name, ''\) ORDER BY am2\.created_at, am2\.mentioned_profile_id\)/,
+    );
+    // Same ORDER BY on the ids array so they pair correctly.
+    expect(mig060).toMatch(
+      /array_agg\(am\.mentioned_profile_id ORDER BY am\.created_at, am\.mentioned_profile_id\)/,
+    );
+  });
+
+  it('post_activity_comment + edit_activity_event drop body-uuid validation', () => {
+    // The dead checks: _extract_mention_uuids(p_body), v_extracted = ANY(...)
+    expect(mig060).not.toMatch(/_extract_mention_uuids\(p_body\)/);
+    expect(mig060).not.toMatch(/v_m = ANY\(v_extracted\)/);
+    // The replacement RPCs are still defined.
+    expect(mig060).toMatch(/CREATE OR REPLACE FUNCTION public\.post_activity_comment/);
+    expect(mig060).toMatch(/CREATE OR REPLACE FUNCTION public\.edit_activity_event/);
+  });
+
+  it('still enforces existence + role + cap + permission server-side', () => {
+    // Authoritative validations the server retains.
+    expect(mig060).toMatch(/post_activity_comment: authenticated caller required/);
+    expect(mig060).toMatch(/post_activity_comment: body required/);
+    expect(mig060).toMatch(/post_activity_comment: body too long/);
+    expect(mig060).toMatch(/IF NOT public\._activity_can_write\(p_entity_type, p_entity_id\)/);
+    expect(mig060).toMatch(/IF v_n_mentions > 10 THEN/);
+    expect(mig060).toMatch(/mentioned profile % not found/);
+    expect(mig060).toMatch(/mentioned profile % is inactive/);
+    // Self-mention rule preserved.
+    expect(mig060).toMatch(/IF v_m = v_caller THEN\s+CONTINUE/);
+  });
+
+  it('grants + revokes preserved on the replaced functions', () => {
+    expect(mig060).toMatch(/REVOKE ALL ON FUNCTION public\.list_activity_events\([^)]*\) FROM PUBLIC, anon/);
+    expect(mig060).toMatch(/GRANT EXECUTE ON FUNCTION public\.list_activity_events\([^)]*\) TO authenticated/);
+    expect(mig060).toMatch(/REVOKE ALL ON FUNCTION public\.post_activity_comment\([^)]*\) FROM PUBLIC, anon/);
+    expect(mig060).toMatch(/GRANT EXECUTE ON FUNCTION public\.post_activity_comment\([^)]*\) TO authenticated/);
+    expect(mig060).toMatch(/REVOKE ALL ON FUNCTION public\.edit_activity_event\([^)]*\) FROM PUBLIC, anon/);
+    expect(mig060).toMatch(/GRANT EXECUTE ON FUNCTION public\.edit_activity_event\([^)]*\) TO authenticated/);
   });
 });
 
@@ -318,6 +373,16 @@ describe('src/shared/ActivityPanel.jsx — wire + data hooks', () => {
       /data-activity-compact-chip="1"[\s\S]*?data-activity-entity-type=\{entityType\}[\s\S]*?data-activity-entity-id=\{entityId\}/,
     );
   });
+
+  it('renderEventBody passes mentioned_profile_names + ids to the renderer', () => {
+    // Mig 060 contract: chips are driven by the names array returned in
+    // list_activity_events, not by parsing the body for uuid tokens.
+    expect(panelSrc).toMatch(
+      /renderEventBody\(ev\.body, ev\.mentioned_profile_names, ev\.mentioned_profile_ids\)/,
+    );
+    // Negative: no fallback to parsing body for the dead canonical token.
+    expect(panelSrc).not.toMatch(/MENTION_INLINE_RE/);
+  });
 });
 
 describe('src/shared/MentionTextarea.jsx — picker', () => {
@@ -334,6 +399,24 @@ describe('src/shared/MentionTextarea.jsx — picker', () => {
     ]) {
       expect(taSrc, `missing data-* hook: ${hook}`).toContain(hook);
     }
+  });
+  it('inserts plain "@DisplayName " on pick — no uuid / parens leak into the textarea', () => {
+    // Polish lock: the picker's insertion string must be the user-friendly
+    // "@" + display + " " form. Any reappearance of "[Name](profile:" or
+    // a buildMentionToken import would leak uuids back into the visible
+    // composer. Strip comments first so the doc-block reference to the
+    // dead canonical token doesn't trip the negative regex.
+    expect(taSrc).toMatch(/const inserted = '@' \+ display \+ ' '/);
+    const taCode = taSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+    expect(taCode).not.toMatch(/buildMentionToken/);
+    expect(taCode).not.toMatch(/profile:\$\{profile\.id\}/);
+    expect(taCode).not.toMatch(/@\[.*\]\(profile:/);
+  });
+  it('tracks mentions via explicit picker state, NOT re-derived from body', () => {
+    // p_mentions[] is authoritative. Typing/erasing body text does not
+    // mutate mentions. The picker append step dedupes by uuid.
+    expect(taSrc).not.toMatch(/extractMentionUuids/);
+    expect(taSrc).toMatch(/mentions\.includes\(profile\.id\)/);
   });
 });
 
@@ -359,6 +442,21 @@ describe('Task Center wire-up', () => {
     expect(myTasksTabSrc).toMatch(/onOpenActivity=\{setActivityTarget\}/);
     expect(myTasksTabSrc).toMatch(/React\.createElement\(ActivityModal/);
     expect(myTasksTabSrc).toMatch(/target:\s*activityTarget/);
+  });
+
+  it('TaskRow photo indicator uses the picture icon + photo count label (paperclip retired)', () => {
+    // Polish lock: the only attachment kind on task rows today is a
+    // photo. Paperclip 📎 reads as a generic file; switched to 🖼 with a
+    // photo count label so operators see at a glance what they're
+    // opening. Paperclip stays available for non-photo attachment kinds
+    // when those ship.
+    expect(myTasksTabSrc).toMatch(/data-task-has-photo="1"/);
+    expect(myTasksTabSrc).toMatch(/data-task-photo-count=\{count\}/);
+    expect(myTasksTabSrc).toMatch(/🖼/);
+    // Negative: no paperclip in the live render path. (The doc-comment
+    // mentions both intentionally — we strip comments before scanning.)
+    const code = myTasksTabSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+    expect(code).not.toContain('📎');
   });
 });
 

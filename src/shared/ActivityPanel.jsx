@@ -157,12 +157,12 @@ function fmtRelative(iso) {
   }
 }
 
-function renderEventBody(body) {
-  const segs = renderMentionSegments(body || '');
+function renderEventBody(body, mentionedProfileNames, mentionedProfileIds) {
+  const segs = renderMentionSegments(body || '', mentionedProfileNames || [], mentionedProfileIds || []);
   if (segs.length === 0) return null;
   return segs.map((s, i) =>
     s.type === 'mention' ? (
-      <span key={i} data-mention-profile-id={s.profileId} style={MENTION_CHIP}>
+      <span key={i} data-mention-profile-id={s.profileId || ''} style={MENTION_CHIP}>
         @{s.display}
       </span>
     ) : (
@@ -423,7 +423,11 @@ export default function ActivityPanel({
                 )}
               </div>
               <div style={EVENT_BODY}>
-                {isDeleted ? <em style={{color: '#9ca3af'}}>(comment deleted)</em> : renderEventBody(ev.body)}
+                {isDeleted ? (
+                  <em style={{color: '#9ca3af'}}>(comment deleted)</em>
+                ) : (
+                  renderEventBody(ev.body, ev.mentioned_profile_names, ev.mentioned_profile_ids)
+                )}
               </div>
             </div>
           );

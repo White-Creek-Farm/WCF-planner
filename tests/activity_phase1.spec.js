@@ -215,11 +215,23 @@ test.describe('Activity Phase 1 — comments, mentions, system events', () => {
     const modal = page.locator('[data-activity-modal="1"]');
     await expect(modal).toBeVisible();
 
-    // Drive the textarea with a mention token directly. Server validates
-    // the uuid actually appears in the body, so this round-trips through
-    // the same path the popover picker would.
-    const body = `Heads up @[Mak](profile:${makId}) — please review.`;
-    await modal.locator('[data-mention-textarea="1"]').fill(body);
+    // Mig 060 contract: visible body is plain text — uuid never appears
+    // there. p_mentions[] is authoritative for who gets notified. Drive
+    // the picker UI so the test also covers MentionTextarea's insert
+    // behavior.
+    const textarea = modal.locator('[data-mention-textarea="1"]');
+    await textarea.fill('Heads up ');
+    await textarea.press('End');
+    await textarea.type('@Mak');
+    // Popover should open; pick Mak.
+    const picker = modal.locator('[data-mention-picker="1"]');
+    await expect(picker).toBeVisible({timeout: 2_000});
+    await picker.locator(`[data-mention-picker-item="${makId}"]`).click();
+    // Verify the textarea now reads plain "@Mak" with NO uuid leak.
+    await expect.poll(async () => textarea.inputValue()).toMatch(/^Heads up @Mak\s*$/);
+    expect(await textarea.inputValue()).not.toMatch(/profile:/);
+    expect(await textarea.inputValue()).not.toMatch(/\[Mak\]/);
+    await textarea.type('— please review.');
     await modal.locator('[data-activity-post-button="1"]').click();
     await expect(modal.locator('[data-activity-event-row]').first()).toBeVisible({timeout: 5_000});
 
@@ -254,6 +266,19 @@ test.describe('Activity Phase 1 — comments, mentions, system events', () => {
     expect(notifs[0].type).toBe('mention');
     expect(notifs[0].task_instance_id).toBe('tic-act-mention'); // Phase 1 shortcut
     expect(notifs[0].title).toMatch(/mentioned you on /);
+
+    // Posted body must be plain "@Mak" — no token leak server-side.
+    expect(events[0].body).toMatch(/Heads up @Mak/);
+    expect(events[0].body).not.toMatch(/profile:/);
+    expect(events[0].body).not.toMatch(/\[Mak\]/);
+
+    // Rendered chip must NOT expose the uuid in the DOM. The chip
+    // carries data-mention-profile-id, but the visible text is "@Mak".
+    const renderedRow = modal.locator('[data-activity-event-row]').first();
+    const renderedText = (await renderedRow.locator('span').allInnerTexts()).join(' ');
+    expect(renderedText).toMatch(/@Mak/);
+    expect(renderedText).not.toMatch(makId);
+    expect(renderedText).not.toMatch(/profile:/);
   });
 
   test('self-mention records the mention row but skips the notification', async ({page, supabaseAdmin, resetDb}) => {
@@ -272,8 +297,16 @@ test.describe('Activity Phase 1 — comments, mentions, system events', () => {
     const modal = page.locator('[data-activity-modal="1"]');
     await expect(modal).toBeVisible();
 
-    const body = `Note to self @[Test Admin](profile:${adminId})`;
-    await modal.locator('[data-mention-textarea="1"]').fill(body);
+    // Drive picker for "Test Admin" (the seeded full_name).
+    const textarea = modal.locator('[data-mention-textarea="1"]');
+    await textarea.fill('Note to self ');
+    await textarea.press('End');
+    await textarea.type('@Test');
+    const picker = modal.locator('[data-mention-picker="1"]');
+    await expect(picker).toBeVisible({timeout: 2_000});
+    await picker.locator(`[data-mention-picker-item="${adminId}"]`).click();
+    expect(await textarea.inputValue()).toMatch(/Note to self @Test Admin/);
+    expect(await textarea.inputValue()).not.toMatch(/profile:/);
     await modal.locator('[data-activity-post-button="1"]').click();
     await expect(modal.locator('[data-activity-event-row]').first()).toBeVisible({timeout: 5_000});
 
