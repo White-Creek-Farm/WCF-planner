@@ -49,7 +49,7 @@ export default function HomeWeatherCard() {
         return;
       }
       setRadarFrames(data);
-      setFrameIdx(data.radar.length - 1);
+      setFrameIdx(0);
       setPlaying(true);
     } catch (_e) {
       setRadarError(true);
@@ -63,10 +63,9 @@ export default function HomeWeatherCard() {
     const timer = setInterval(() => {
       setFrameIdx((i) => {
         const next = i + 1;
-        if (next >= total) return 0;
-        return next;
+        return next >= total ? 0 : next;
       });
-    }, 700);
+    }, 1000);
     return () => clearInterval(timer);
   }, [playing, radarFrames]);
 
