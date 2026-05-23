@@ -10,7 +10,7 @@ import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, todayISO, addDays, toISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
-import {computeLayerFeedCost} from '../lib/layerHousing.js';
+import {computeProjectedCount, computeLayerFeedCost} from '../lib/layerHousing.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
@@ -121,7 +121,10 @@ export default function LayersHomeView({Header, loadUsers}) {
     const cost = computeLayerFeedCost(starterFeed, growerFeed, layerFeed, costBatch);
     const hens = myHousings
       .filter((h) => h.status === 'active')
-      .reduce((s, h) => s + (parseInt(h.current_count) || 0), 0);
+      .reduce((s, h) => {
+        const p = computeProjectedCount(h, allLayerDailys);
+        return s + (p ? p.projected : 0);
+      }, 0);
     // Eggs/hen/day uses span of window
     const days = Math.max(
       1,
@@ -219,7 +222,8 @@ export default function LayersHomeView({Header, loadUsers}) {
       };
     }
     const cost = costBatchH ? computeLayerFeedCost(starterFeed, growerFeed, layerFeed, costBatchH) : null;
-    const hens = parseInt(housing.current_count) || 0;
+    const projH = computeProjectedCount(housing, allLayerDailys);
+    const hens = projH ? projH.projected : 0;
     const days = Math.max(
       1,
       Math.round((new Date(toISO + 'T12:00:00') - new Date(fromISO + 'T12:00:00')) / 86400000) + 1,
@@ -272,7 +276,10 @@ export default function LayersHomeView({Header, loadUsers}) {
 
   // Top stats
   const activeHousings = (layerHousings || []).filter((h) => h.status === 'active');
-  const totalHens = activeHousings.reduce((s, h) => s + (parseInt(h.current_count) || 0), 0);
+  const totalHens = activeHousings.reduce((s, h) => {
+    const p = computeProjectedCount(h, allLayerDailys);
+    return s + (p ? p.projected : 0);
+  }, 0);
   const last7iso = toISO(addDays(new Date(), -7));
   const totalEggsLast7 = (allEggDailys || [])
     .filter((d) => d.date >= last7iso)

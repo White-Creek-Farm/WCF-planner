@@ -67,13 +67,37 @@ export async function setHousingAnchorFromReport(sb, housingOrBatchName, newCoun
 }
 
 // Compute projected count for a housing.
-// projected = current_count - sum(mortalities reported between current_count_date and today)
+// projected = anchor - sum(mortalities reported between anchorDate and today)
+// Anchor is current_count when set; falls back to the latest matching
+// layer_dailys.layer_count so housings with no explicit anchor still
+// contribute to dashboard totals.
 // Returns {anchor, anchorDate, projected, mortSince} or null if no anchor.
 export function computeProjectedCount(housing, layerDailys) {
   if (!housing) return null;
-  const anchor = housing.current_count;
-  if (anchor == null) return null;
-  const anchorDate = housing.current_count_date || housing.start_date || null;
+  let anchor = housing.current_count;
+  let anchorDate = housing.current_count_date || housing.start_date || null;
+
+  if (anchor == null) {
+    const hName = String(housing.housing_name || '')
+      .toLowerCase()
+      .trim();
+    if (!hName) return null;
+    const latest = (layerDailys || [])
+      .filter(
+        (d) =>
+          d &&
+          d.batch_label &&
+          d.layer_count != null &&
+          parseInt(d.layer_count) > 0 &&
+          String(d.batch_label).toLowerCase().trim() === hName,
+      )
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    if (latest.length === 0) return null;
+    anchor = parseInt(latest[0].layer_count);
+    if (isNaN(anchor)) return null;
+    anchorDate = latest[0].date || null;
+  }
+
   if (!anchorDate) {
     return {anchor, anchorDate: null, projected: anchor, mortSince: 0};
   }
