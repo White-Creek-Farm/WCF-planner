@@ -59,8 +59,13 @@ export default function HomeWeatherCard() {
   React.useEffect(() => {
     if (!playing || !radarFrames) return;
     const total = radarFrames.radar.length;
+    setFrameIdx(0);
     const timer = setInterval(() => {
-      setFrameIdx((i) => (i + 1) % total);
+      setFrameIdx((i) => {
+        const next = i + 1;
+        if (next >= total) return 0;
+        return next;
+      });
     }, 700);
     return () => clearInterval(timer);
   }, [playing, radarFrames]);
