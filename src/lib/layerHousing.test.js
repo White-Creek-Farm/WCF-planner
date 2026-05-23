@@ -75,4 +75,38 @@ describe('computeProjectedCount', () => {
     expect(result).not.toBeNull();
     expect(result.anchor).toBe(115);
   });
+
+  it('current_count 0 with no date falls back to daily', () => {
+    const housing = {housing_name: 'Eggmobile 3', current_count: 0, current_count_date: null};
+    const dailys = [{batch_label: 'Eggmobile 3', date: '2026-04-10', layer_count: 115, mortality_count: 0}];
+    const result = computeProjectedCount(housing, dailys);
+    expect(result.anchor).toBe(115);
+    expect(result.anchorDate).toBe('2026-04-10');
+    expect(result.projected).toBe(115);
+  });
+
+  it('current_count 0 with older date falls back to newer daily', () => {
+    const housing = {housing_name: 'Eggmobile 3', current_count: 0, current_count_date: '2026-03-01'};
+    const dailys = [{batch_label: 'Eggmobile 3', date: '2026-04-10', layer_count: 115, mortality_count: 0}];
+    const result = computeProjectedCount(housing, dailys);
+    expect(result.anchor).toBe(115);
+    expect(result.anchorDate).toBe('2026-04-10');
+    expect(result.projected).toBe(115);
+  });
+
+  it('current_count 0 with newer date preserves intentional zero', () => {
+    const housing = {housing_name: 'Eggmobile 3', current_count: 0, current_count_date: '2026-05-01'};
+    const dailys = [{batch_label: 'Eggmobile 3', date: '2026-04-10', layer_count: 115, mortality_count: 0}];
+    const result = computeProjectedCount(housing, dailys);
+    expect(result.anchor).toBe(0);
+    expect(result.projected).toBe(0);
+  });
+
+  it('current_count 0 with no date and no matching dailys returns projected 0', () => {
+    const housing = {housing_name: 'Eggmobile 3', current_count: 0, current_count_date: null};
+    const dailys = [{batch_label: 'Eggmobile 1', date: '2026-04-10', layer_count: 200, mortality_count: 0}];
+    const result = computeProjectedCount(housing, dailys);
+    expect(result.anchor).toBe(0);
+    expect(result.projected).toBe(0);
+  });
 });

@@ -68,21 +68,22 @@ export async function setHousingAnchorFromReport(sb, housingOrBatchName, newCoun
 
 // Compute projected count for a housing.
 // projected = anchor - sum(mortalities reported between anchorDate and today)
-// Anchor is current_count when set; falls back to the latest matching
-// layer_dailys.layer_count so housings with no explicit anchor still
-// contribute to dashboard totals.
+// Anchor is current_count when positive; falls back to the latest matching
+// layer_dailys.layer_count when current_count is null, or when current_count
+// is 0 without a credible date (or with a date older than the latest daily).
 // Returns {anchor, anchorDate, projected, mortSince} or null if no anchor.
 export function computeProjectedCount(housing, layerDailys) {
   if (!housing) return null;
   let anchor = housing.current_count;
   let anchorDate = housing.current_count_date || housing.start_date || null;
 
-  if (anchor == null) {
-    const hName = String(housing.housing_name || '')
-      .toLowerCase()
-      .trim();
+  const hName = String(housing.housing_name || '')
+    .toLowerCase()
+    .trim();
+
+  function latestDailyAnchor() {
     if (!hName) return null;
-    const latest = (layerDailys || [])
+    const matches = (layerDailys || [])
       .filter(
         (d) =>
           d &&
@@ -92,10 +93,26 @@ export function computeProjectedCount(housing, layerDailys) {
           String(d.batch_label).toLowerCase().trim() === hName,
       )
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    if (latest.length === 0) return null;
-    anchor = parseInt(latest[0].layer_count);
-    if (isNaN(anchor)) return null;
-    anchorDate = latest[0].date || null;
+    if (matches.length === 0) return null;
+    const count = parseInt(matches[0].layer_count);
+    if (isNaN(count)) return null;
+    return {count, date: matches[0].date || null};
+  }
+
+  if (anchor == null || (anchor === 0 && !housing.current_count_date)) {
+    const daily = latestDailyAnchor();
+    if (!daily) {
+      if (anchor == null) return null;
+    } else {
+      anchor = daily.count;
+      anchorDate = daily.date;
+    }
+  } else if (anchor === 0 && housing.current_count_date) {
+    const daily = latestDailyAnchor();
+    if (daily && daily.date && daily.date > housing.current_count_date) {
+      anchor = daily.count;
+      anchorDate = daily.date;
+    }
   }
 
   if (!anchorDate) {
