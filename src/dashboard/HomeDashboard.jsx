@@ -22,6 +22,7 @@ import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS, PLANNER_ICON_KEYS} from '../lib/plannerIcons.js';
 import UsersModal from '../auth/UsersModal.jsx';
+import HomeWeatherCard from '../weather/HomeWeatherCard.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
@@ -789,6 +790,8 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
               </div>
             ))}
         </div>
+
+        {React.createElement(HomeWeatherCard)}
 
         {/* Webforms Admin card — admin only */}
         {authState?.role === 'admin' && (
