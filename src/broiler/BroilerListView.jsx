@@ -25,6 +25,10 @@ import UsersModal from '../auth/UsersModal.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
@@ -44,6 +48,7 @@ export default function BroilerListView({
   const {broilerDailys} = useDailysRecent();
   const {feedCosts} = useFeedCosts();
   const {setView, showAllComparison, setShowAllComparison} = useUI();
+  const [activityTarget, setActivityTarget] = React.useState(null);
 
   const role = authState?.role;
   const isAdmin = role === 'admin';
@@ -167,6 +172,21 @@ export default function BroilerListView({
                           }}
                         />
                         {b.name}
+                        <span
+                          onClick={(e) => e.stopPropagation()}
+                          style={{marginLeft: 6}}
+                          data-activity-surface="broiler.batch"
+                        >
+                          {React.createElement(ActivityPanel, {
+                            sb,
+                            authState,
+                            entityType: 'broiler.batch',
+                            entityId: b.name,
+                            entityLabel: b.name,
+                            mode: 'compact',
+                            onCompactClick: setActivityTarget,
+                          })}
+                        </span>
                       </td>
                       <td style={{padding: '8px 10px'}}>
                         <span style={S.badge(B2.bg, B2.tx)}>{b.breed}</span>
@@ -850,6 +870,12 @@ export default function BroilerListView({
           </div>
         )}
       </div>
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 }

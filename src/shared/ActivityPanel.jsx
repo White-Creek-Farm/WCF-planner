@@ -306,7 +306,7 @@ export default function ActivityPanel({
         onClick={(e) => {
           e.stopPropagation();
           if (typeof onCompactClick === 'function') {
-            onCompactClick({entityType, entityId, entityLabel: resolvedLabel, entityRoute});
+            onCompactClick({entityType, entityId, entityLabel: resolvedLabel, entityCtx, entityRoute});
           }
         }}
         style={hot ? COMPACT_CHIP_HOT : COMPACT_CHIP}

@@ -32,6 +32,10 @@ import {
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 
 const HERD_LABELS = {
   mommas: 'Mommas',
@@ -222,6 +226,7 @@ const CattleHerdsView = ({
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [expandedCow, setExpandedCow] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
   const [expandedHerds, setExpandedHerds] = useState({});
   const [cowNavStack, setCowNavStack] = useState([]);
 
@@ -1422,8 +1427,28 @@ const CattleHerdsView = ({
                         {i + 1}
                       </span>
                       <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
-                      <span style={{fontWeight: 700, fontSize: 13, color: '#111827'}}>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 13,
+                          color: '#111827',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
                         {c.tag ? '#' + c.tag : '(no tag)'}
+                        <span onClick={(e) => e.stopPropagation()} data-activity-surface="cattle.animal">
+                          {React.createElement(ActivityPanel, {
+                            sb,
+                            authState,
+                            entityType: 'cattle.animal',
+                            entityId: c.id,
+                            entityLabel: c.tag || c.id,
+                            mode: 'compact',
+                            onCompactClick: setActivityTarget,
+                          })}
+                        </span>
                       </span>
                       <span
                         style={{
@@ -1630,8 +1655,28 @@ const CattleHerdsView = ({
                                 {cowIdx + 1}
                               </span>
                               <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
-                              <span style={{fontWeight: 700, fontSize: 13, color: '#111827'}}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                  color: '#111827',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
                                 {c.tag ? '#' + c.tag : '(no tag)'}
+                                <span onClick={(e) => e.stopPropagation()} data-activity-surface="cattle.animal">
+                                  {React.createElement(ActivityPanel, {
+                                    sb,
+                                    authState,
+                                    entityType: 'cattle.animal',
+                                    entityId: c.id,
+                                    entityLabel: c.tag || c.id,
+                                    mode: 'compact',
+                                    onCompactClick: setActivityTarget,
+                                  })}
+                                </span>
                               </span>
                               <span style={{fontSize: 11, color: '#6b7280'}}>{c.sex || '—'}</span>
                               <span
@@ -2348,6 +2393,12 @@ const CattleHerdsView = ({
           </div>
         </div>
       )}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };

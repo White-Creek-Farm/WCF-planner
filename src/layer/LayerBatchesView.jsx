@@ -14,6 +14,10 @@ import {BROODERS, SCHOONERS, BROODER_CLEANOUT, SCHOONER_CLEANOUT, overlaps} from
 import {S} from '../lib/styles.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 
 const LayerBatchesView = ({
   sb,
@@ -48,6 +52,7 @@ const LayerBatchesView = ({
   const [showHousingForm, setShowHousingForm] = useState(false);
   const [editBatchId, setEditBatchId] = useState(null);
   const [editHousingId, setEditHousingId] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -585,6 +590,17 @@ const LayerBatchesView = ({
                           }}
                         >
                           <span style={{fontSize: 15, fontWeight: 700, color: bc.tx}}>{batch.name}</span>
+                          <span onClick={(e) => e.stopPropagation()} data-activity-surface="layer.batch">
+                            {React.createElement(ActivityPanel, {
+                              sb,
+                              authState,
+                              entityType: 'layer.batch',
+                              entityId: batch.id,
+                              entityLabel: batch.name,
+                              mode: 'compact',
+                              onCompactClick: setActivityTarget,
+                            })}
+                          </span>
                           <span
                             style={{
                               fontSize: 10,
@@ -1327,6 +1343,17 @@ const LayerBatchesView = ({
                         <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
                           <span style={{fontSize: 13, fontWeight: 700, color: '#111827'}}>
                             {'\ud83c\udfe0 ' + h.housing_name}
+                          </span>
+                          <span data-activity-surface="layer.housing">
+                            {React.createElement(ActivityPanel, {
+                              sb,
+                              authState,
+                              entityType: 'layer.housing',
+                              entityId: h.id,
+                              entityLabel: h.housing_name,
+                              mode: 'compact',
+                              onCompactClick: setActivityTarget,
+                            })}
                           </span>
                           <span
                             style={{
@@ -2198,6 +2225,12 @@ const LayerBatchesView = ({
           </div>
         )}
       </div>
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };

@@ -21,6 +21,10 @@ import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 
 const SheepFlocksView = ({
   sb,
@@ -48,6 +52,7 @@ const SheepFlocksView = ({
   const [breedOpts, setBreedOpts] = useState([]);
   const [originOpts, setOriginOpts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activityTarget, setActivityTarget] = useState(null);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
@@ -660,8 +665,28 @@ const SheepFlocksView = ({
                         {i + 1}
                       </span>
                       <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
-                      <span style={{fontWeight: 700, fontSize: 13, color: '#111827'}}>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 13,
+                          color: '#111827',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
                         {s.tag ? '#' + s.tag : '(no tag)'}
+                        <span onClick={(e) => e.stopPropagation()} data-activity-surface="sheep.animal">
+                          {React.createElement(ActivityPanel, {
+                            sb,
+                            authState,
+                            entityType: 'sheep.animal',
+                            entityId: s.id,
+                            entityLabel: s.tag || s.id,
+                            mode: 'compact',
+                            onCompactClick: setActivityTarget,
+                          })}
+                        </span>
                       </span>
                       <span
                         style={{
@@ -825,8 +850,28 @@ const SheepFlocksView = ({
                                 {idx + 1}
                               </span>
                               <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
-                              <span style={{fontWeight: 700, fontSize: 13, color: '#111827'}}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                  color: '#111827',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
                                 {s.tag ? '#' + s.tag : '(no tag)'}
+                                <span onClick={(e) => e.stopPropagation()} data-activity-surface="sheep.animal">
+                                  {React.createElement(ActivityPanel, {
+                                    sb,
+                                    authState,
+                                    entityType: 'sheep.animal',
+                                    entityId: s.id,
+                                    entityLabel: s.tag || s.id,
+                                    mode: 'compact',
+                                    onCompactClick: setActivityTarget,
+                                  })}
+                                </span>
                               </span>
                               <span style={{fontSize: 11, color: '#6b7280'}}>{s.sex || '—'}</span>
                               <span
@@ -1172,6 +1217,12 @@ const SheepFlocksView = ({
           </div>
         </div>
       )}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };
