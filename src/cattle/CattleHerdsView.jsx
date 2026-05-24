@@ -32,6 +32,33 @@ import {
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
+import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
+
+const CATTLE_EXCLUDE = ['herd', 'processing_batch_id'];
+const CATTLE_LABELS = {
+  tag: 'Tag',
+  sex: 'Sex',
+  breed: 'Breed',
+  origin: 'Origin',
+  birth_date: 'Birth date',
+  purchase_date: 'Purchase date',
+  purchase_amount: 'Purchase amount',
+  dam_tag: 'Dam tag',
+  sire_tag: 'Sire tag',
+  registration_num: 'Registration #',
+  pct_wagyu: '% Wagyu',
+  breeding_status: 'Breeding status',
+  breeding_blacklist: 'Breeding blacklist',
+  sale_date: 'Sale date',
+  sale_amount: 'Sale amount',
+  death_date: 'Death date',
+  death_reason: 'Death reason',
+  old_tags: 'Prior tags',
+};
+const CATTLE_FORMATTERS = {
+  old_tags: (v) => countSummary(v, 'prior tag'),
+};
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import ActivityPanel from '../shared/ActivityPanel.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -542,9 +569,25 @@ const CattleHerdsView = ({
     setNotice(null);
     let newId = editId;
     if (editId) {
-      const {error} = await sb.from('cattle').update(rec).eq('id', editId);
-      if (error) {
-        setNotice({kind: 'error', message: 'Save failed: ' + error.message});
+      const oldCow = cattle.find((c) => c.id === editId);
+      const result = await runMutation(() => sb.from('cattle').update(rec).eq('id', editId), {
+        activity: () => {
+          const changes = buildChanges(oldCow, rec, {
+            exclude: CATTLE_EXCLUDE,
+            labels: CATTLE_LABELS,
+            formatters: CATTLE_FORMATTERS,
+          });
+          if (changes.length === 0) return;
+          return recordFieldChange(sb, {
+            entityType: 'cattle.animal',
+            entityId: editId,
+            entityLabel: rec.tag || oldCow?.tag || editId,
+            changes,
+          });
+        },
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      });
+      if (!result.ok) {
         setSaving(false);
         return;
       }
@@ -564,12 +607,25 @@ const CattleHerdsView = ({
   async function patchCow(cowId, fields) {
     if (!cowId || !fields) return;
     setNotice(null);
-    const {error} = await sb.from('cattle').update(fields).eq('id', cowId);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
-    setCattle((prev) => prev.map((c) => (c.id === cowId ? {...c, ...fields} : c)));
+    const cow = cattle.find((c) => c.id === cowId);
+    const result = await runMutation(() => sb.from('cattle').update(fields).eq('id', cowId), {
+      activity: () => {
+        const changes = buildChanges(cow, fields, {
+          exclude: CATTLE_EXCLUDE,
+          labels: CATTLE_LABELS,
+          formatters: CATTLE_FORMATTERS,
+        });
+        if (changes.length === 0) return;
+        return recordFieldChange(sb, {
+          entityType: 'cattle.animal',
+          entityId: cowId,
+          entityLabel: fields.tag || cow?.tag || cowId,
+          changes,
+        });
+      },
+      onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+    });
+    if (result.ok) setCattle((prev) => prev.map((c) => (c.id === cowId ? {...c, ...fields} : c)));
   }
   async function deleteCow(id) {
     if (!window._wcfConfirmDelete) return;

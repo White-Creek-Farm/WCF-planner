@@ -25,6 +25,36 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 import ActivityPanel from '../shared/ActivityPanel.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import ActivityModal from '../shared/ActivityModal.jsx';
+import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
+import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
+
+const SHEEP_EXCLUDE = ['flock', 'processing_batch_id'];
+const SHEEP_LABELS = {
+  tag: 'Tag',
+  sex: 'Sex',
+  breed: 'Breed',
+  origin: 'Origin',
+  birth_date: 'Birth date',
+  purchase_date: 'Purchase date',
+  purchase_amount: 'Purchase amount',
+  dam_tag: 'Dam tag',
+  dam_reg_num: 'Dam reg #',
+  sire_tag: 'Sire tag',
+  sire_reg_num: 'Sire reg #',
+  registration_num: 'Registration #',
+  breeding_status: 'Breeding status',
+  breeding_blacklist: 'Breeding blacklist',
+  maternal_issue_flag: 'Maternal issue flag',
+  maternal_issue_desc: 'Maternal issue description',
+  sale_date: 'Sale date',
+  sale_amount: 'Sale amount',
+  death_date: 'Death date',
+  death_reason: 'Death reason',
+  old_tags: 'Prior tags',
+};
+const SHEEP_FORMATTERS = {
+  old_tags: (v) => countSummary(v, 'prior tag'),
+};
 
 const SheepFlocksView = ({
   sb,
@@ -312,12 +342,25 @@ const SheepFlocksView = ({
   async function patchSheep(sheepId, fields) {
     if (!sheepId || !fields) return;
     setNotice(null);
-    const {error} = await sb.from('sheep').update(fields).eq('id', sheepId);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
-    setSheep((prev) => prev.map((s) => (s.id === sheepId ? {...s, ...fields} : s)));
+    const animal = sheep.find((s) => s.id === sheepId);
+    const result = await runMutation(() => sb.from('sheep').update(fields).eq('id', sheepId), {
+      activity: () => {
+        const changes = buildChanges(animal, fields, {
+          exclude: SHEEP_EXCLUDE,
+          labels: SHEEP_LABELS,
+          formatters: SHEEP_FORMATTERS,
+        });
+        if (changes.length === 0) return;
+        return recordFieldChange(sb, {
+          entityType: 'sheep.animal',
+          entityId: sheepId,
+          entityLabel: fields.tag || animal?.tag || sheepId,
+          changes,
+        });
+      },
+      onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+    });
+    if (result.ok) setSheep((prev) => prev.map((s) => (s.id === sheepId ? {...s, ...fields} : s)));
   }
   async function deleteSheep(id) {
     window._wcfConfirmDelete(

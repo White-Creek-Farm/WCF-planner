@@ -18,6 +18,8 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 import {loadRoster, activeNames as activeNamesFromRoster} from '../lib/teamMembers.js';
 import {EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
 import EquipmentMaterialsEditor from './EquipmentMaterialsEditor.jsx';
+import {runMutation, recordFieldChange, recordStatusChange} from '../lib/entityMutations.js';
+import {countSummary, makeFieldChange} from '../lib/activityChangeDiff.js';
 
 const inpS = {
   fontSize: 12,
@@ -403,16 +405,39 @@ function IdentityEditor({equipment, onReload, onLocalPatch}) {
   async function save(col, val) {
     setNotice(null);
     const payload = typeof val === 'string' && !val.trim() ? null : val;
+    const oldVal = equipment[col];
     setBusy(true);
-    const {error} = await sb
-      .from('equipment')
-      .update({[col]: payload})
-      .eq('id', equipment.id);
+    const result = await runMutation(
+      () =>
+        sb
+          .from('equipment')
+          .update({[col]: payload})
+          .eq('id', equipment.id),
+      {
+        activity: () => {
+          if (col === 'status') {
+            return recordStatusChange(sb, {
+              entityType: 'equipment.item',
+              entityId: equipment.id,
+              entityLabel: equipment.name,
+              from: oldVal,
+              to: payload,
+            });
+          }
+          if (oldVal === payload || (oldVal == null && payload == null)) return;
+          const lbl = col === 'name' ? payload || equipment.name : equipment.name;
+          return recordFieldChange(sb, {
+            entityType: 'equipment.item',
+            entityId: equipment.id,
+            entityLabel: lbl,
+            changes: [makeFieldChange(col, col === 'serial_number' ? 'Serial number' : 'Name', oldVal, payload)],
+          });
+        },
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      },
+    );
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {[col]: payload});
   }
   return (
@@ -493,12 +518,25 @@ function TeamMembersEditor({equipment, onReload, onLocalPatch}) {
     setNotice(null);
     setBusy(true);
     const next = assigned.includes(name) ? assigned.filter((n) => n !== name) : [...assigned, name];
-    const {error} = await sb.from('equipment').update({team_members: next}).eq('id', equipment.id);
+    const result = await runMutation(() => sb.from('equipment').update({team_members: next}).eq('id', equipment.id), {
+      activity: () =>
+        recordFieldChange(sb, {
+          entityType: 'equipment.item',
+          entityId: equipment.id,
+          entityLabel: equipment.name,
+          changes: [
+            makeFieldChange(
+              'team_members',
+              'Team members',
+              countSummary(assigned, 'team member'),
+              countSummary(next, 'team member'),
+            ),
+          ],
+        }),
+      onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+    });
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {team_members: next});
   }
 
@@ -561,15 +599,28 @@ function SpecsEditor({equipment, onReload, onLocalPatch}) {
     setNotice(null);
     setBusy(true);
     const payload = typeof val === 'string' && !val.trim() ? null : val;
-    const {error} = await sb
-      .from('equipment')
-      .update({[col]: payload})
-      .eq('id', equipment.id);
+    const oldVal = equipment[col];
+    const result = await runMutation(
+      () =>
+        sb
+          .from('equipment')
+          .update({[col]: payload})
+          .eq('id', equipment.id),
+      {
+        activity: () => {
+          if (oldVal === payload || (oldVal == null && payload == null)) return;
+          return recordFieldChange(sb, {
+            entityType: 'equipment.item',
+            entityId: equipment.id,
+            entityLabel: equipment.name,
+            changes: [makeFieldChange(col, col.replace(/_/g, ' '), oldVal, payload)],
+          });
+        },
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      },
+    );
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {[col]: payload});
   }
   const FIELDS = [
@@ -686,12 +737,20 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
   async function persist(next) {
     setNotice(null);
     setBusy(true);
-    const {error} = await sb.from('equipment').update({manuals: next}).eq('id', equipment.id);
+    const result = await runMutation(() => sb.from('equipment').update({manuals: next}).eq('id', equipment.id), {
+      activity: () =>
+        recordFieldChange(sb, {
+          entityType: 'equipment.item',
+          entityId: equipment.id,
+          entityLabel: equipment.name,
+          changes: [
+            makeFieldChange('manuals', 'Manuals', countSummary(manuals, 'manual'), countSummary(next, 'manual')),
+          ],
+        }),
+      onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+    });
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {manuals: next});
   }
 
@@ -1069,16 +1128,35 @@ function WebformHelpTextEditor({equipment, onReload, onLocalPatch}) {
   async function save(col, val) {
     setNotice(null);
     const payload = (val && val.trim()) || null;
+    const oldVal = equipment[col];
     setBusy(true);
-    const {error} = await sb
-      .from('equipment')
-      .update({[col]: payload})
-      .eq('id', equipment.id);
+    const result = await runMutation(
+      () =>
+        sb
+          .from('equipment')
+          .update({[col]: payload})
+          .eq('id', equipment.id),
+      {
+        activity: () => {
+          if (oldVal === payload || (oldVal == null && payload == null)) return;
+          const label =
+            col === 'operator_notes'
+              ? 'Operator notes'
+              : col === 'fuel_gallons_help'
+                ? 'Fuel gallons help'
+                : col.replace(/_/g, ' ');
+          return recordFieldChange(sb, {
+            entityType: 'equipment.item',
+            entityId: equipment.id,
+            entityLabel: equipment.name,
+            changes: [makeFieldChange(col, label, oldVal, payload)],
+          });
+        },
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      },
+    );
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {[col]: payload});
   }
   const taS = {...inpS, resize: 'vertical'};
@@ -1131,12 +1209,28 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
   async function persist(next) {
     setNotice(null);
     setBusy(true);
-    const {error} = await sb.from('equipment').update({every_fillup_items: next}).eq('id', equipment.id);
+    const result = await runMutation(
+      () => sb.from('equipment').update({every_fillup_items: next}).eq('id', equipment.id),
+      {
+        activity: () =>
+          recordFieldChange(sb, {
+            entityType: 'equipment.item',
+            entityId: equipment.id,
+            entityLabel: equipment.name,
+            changes: [
+              makeFieldChange(
+                'every_fillup_items',
+                'Every-fillup items',
+                countSummary(items, 'item'),
+                countSummary(next, 'item'),
+              ),
+            ],
+          }),
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      },
+    );
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {every_fillup_items: next});
   }
   async function addOne() {
@@ -1161,17 +1255,27 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
   }
   async function editFillupHelp(help) {
     setNotice(null);
+    const payload = help || null;
+    const oldVal = equipment.every_fillup_help || null;
     setBusy(true);
-    const {error} = await sb
-      .from('equipment')
-      .update({every_fillup_help: help || null})
-      .eq('id', equipment.id);
+    const result = await runMutation(
+      () => sb.from('equipment').update({every_fillup_help: payload}).eq('id', equipment.id),
+      {
+        activity: () => {
+          if (oldVal === payload) return;
+          return recordFieldChange(sb, {
+            entityType: 'equipment.item',
+            entityId: equipment.id,
+            entityLabel: equipment.name,
+            changes: [makeFieldChange('every_fillup_help', 'Every-fillup help', oldVal, payload)],
+          });
+        },
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      },
+    );
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
-    applySavedEquipmentPatch(onLocalPatch, onReload, {every_fillup_help: help || null});
+    if (!result.ok) return;
+    applySavedEquipmentPatch(onLocalPatch, onReload, {every_fillup_help: payload});
   }
 
   return (
@@ -1296,12 +1400,28 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
   async function persist(next) {
     setNotice(null);
     setBusy(true);
-    const {error} = await sb.from('equipment').update({service_intervals: next}).eq('id', equipment.id);
+    const result = await runMutation(
+      () => sb.from('equipment').update({service_intervals: next}).eq('id', equipment.id),
+      {
+        activity: () =>
+          recordFieldChange(sb, {
+            entityType: 'equipment.item',
+            entityId: equipment.id,
+            entityLabel: equipment.name,
+            changes: [
+              makeFieldChange(
+                'service_intervals',
+                'Service intervals',
+                countSummary(intervals, 'interval'),
+                countSummary(next, 'interval'),
+              ),
+            ],
+          }),
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      },
+    );
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {service_intervals: next});
   }
   async function addOne() {
@@ -1680,12 +1800,28 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
   async function persist(next) {
     setNotice(null);
     setBusy(true);
-    const {error} = await sb.from('equipment').update({attachment_checklists: next}).eq('id', equipment.id);
+    const result = await runMutation(
+      () => sb.from('equipment').update({attachment_checklists: next}).eq('id', equipment.id),
+      {
+        activity: () =>
+          recordFieldChange(sb, {
+            entityType: 'equipment.item',
+            entityId: equipment.id,
+            entityLabel: equipment.name,
+            changes: [
+              makeFieldChange(
+                'attachment_checklists',
+                'Attachment checklists',
+                countSummary(items, 'checklist'),
+                countSummary(next, 'checklist'),
+              ),
+            ],
+          }),
+        onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+      },
+    );
     setBusy(false);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
-    }
+    if (!result.ok) return;
     applySavedEquipmentPatch(onLocalPatch, onReload, {attachment_checklists: next});
   }
   async function editHelpText(idx, help_text) {
