@@ -21,7 +21,7 @@ import EquipmentMaintenanceModal from './EquipmentMaintenanceModal.jsx';
 import ManualsCard from './ManualsCard.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
-import {recordStatusChange} from '../lib/activityApi.js';
+import {runMutation, recordStatusChange} from '../lib/entityMutations.js';
 
 export default function EquipmentDetail({
   sb,
@@ -307,23 +307,18 @@ export default function EquipmentDetail({
               setNotice(null);
               const prev = eq.status;
               const next = prev === 'sold' ? 'active' : 'sold';
-              const {error} = await sb.from('equipment').update({status: next}).eq('id', eq.id);
-              if (error) {
-                setNotice({kind: 'error', message: 'Status update failed: ' + error.message});
-                return;
-              }
-              try {
-                await recordStatusChange(sb, {
-                  entityType: 'equipment.item',
-                  entityId: eq.id,
-                  entityLabel: eq.name,
-                  from: prev,
-                  to: next,
-                });
-              } catch (_e) {
-                // Best-effort — don't block status toggle on activity failure
-              }
-              onReload();
+              const result = await runMutation(() => sb.from('equipment').update({status: next}).eq('id', eq.id), {
+                activity: () =>
+                  recordStatusChange(sb, {
+                    entityType: 'equipment.item',
+                    entityId: eq.id,
+                    entityLabel: eq.name,
+                    from: prev,
+                    to: next,
+                  }),
+                onError: (msg) => setNotice({kind: 'error', message: 'Status update failed: ' + msg}),
+              });
+              if (result.ok) onReload();
             }}
             style={{
               marginLeft: 'auto',

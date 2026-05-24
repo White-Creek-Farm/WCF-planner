@@ -571,8 +571,10 @@ describe('Activity Layer — pilot surface: layer batch notes (field.updated)', 
 describe('Activity Layer — pilot surface: equipment status (status.changed)', () => {
   const eqSrc = fs.readFileSync(path.join(ROOT, 'src/equipment/EquipmentDetail.jsx'), 'utf8');
 
-  it('imports recordStatusChange from activityApi', () => {
-    expect(eqSrc).toContain("import {recordStatusChange} from '../lib/activityApi.js'");
+  it('imports runMutation + recordStatusChange from entityMutations', () => {
+    expect(eqSrc).toContain("from '../lib/entityMutations.js'");
+    expect(eqSrc).toContain('runMutation');
+    expect(eqSrc).toContain('recordStatusChange');
   });
 
   it('fires status change event on equipment status toggle', () => {
