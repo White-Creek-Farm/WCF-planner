@@ -27,8 +27,8 @@ only when Ronnie explicitly assigns it.
 - Production: `https://wcfplanner.com`
 - Deploy: Netlify auto-deploy from `main`
 - Production source: `origin/main` via Netlify auto-deploy.
-- Latest confirmed shipped checkpoint: `8ac5668 feat(resilience): add
-  ErrorBoundary, global error capture, and durable reporting`.
+- Latest confirmed shipped checkpoint: `478e3b8 feat(activity): add change
+  logging for cattle, sheep, and equipment edits`.
 - PROD migrations live: `057` notifications, `058` activity events,
   `060` mention contract, `062` activity entity expansion, `063`
   notification activity resolution, `064` activity Phase 2 entities, `065`
@@ -55,6 +55,7 @@ only when Ronnie explicitly assigns it.
 | Daily soft-delete + restore | Live. Transactional SECDEF RPCs `soft_delete_daily_report` / `restore_daily_report` (admin-only). 6 daily entity types registered. `deleted_at`/`deleted_by` on all 6 daily tables. All read sites filtered. Admin Recently Deleted tab with restore. `record.deleted`/`record.restored` Activity events with human-readable labels. |
 | Daily per-record Activity UI | Live. Compact Activity chips + ActivityModal on all 6 authenticated daily views; entity types already registered; no daily notes/issues/comments replacement. |
 | Error Resilience Phase 1 | Live. App-root ErrorBoundary, global `error` and `unhandledrejection` capture, and durable redacted client error events through `record_client_error` SECDEF RPC / `client_error_events` table. |
+| Activity change logging | Live. Routine field edits on `cattle.animal`, `sheep.animal`, and `equipment.item` now record `field.updated`/`status.changed` Activity events through the existing Activity Layer. Delete, restore, lifecycle/move actions, equipment child records, and admin-only documents remain deferred. |
 | Hamburger cleanup | Live. Hamburger has Home, Activity, Webforms: Dailys/Equipment, Admin/Users, Sign Out. |
 | Home farrow window wording | Live. Misleading `N pending` text removed from Home Next 30 Days farrowing windows. |
 | Tasks v2 | Canonical at `/tasks`; old `/my-tasks` and `/admin/tasks` are aliases. |
@@ -74,26 +75,23 @@ Stash numbers can change if new stashes are added; always verify with
 
 ## Active Roadmap
 
-1. Activity change logging on already-wired high-value surfaces —
-   cattle/sheep animal field edits, equipment detail edits. Use `runMutation`
-   where it fits.
-2. Stash hygiene — inspect and drop superseded stashes per Parked WIP table.
-3. Delete/restore strategy design for non-daily domains — cattle first
+1. Stash hygiene — inspect and drop superseded stashes per Parked WIP table.
+2. Delete/restore strategy design for non-daily domains — cattle first
    candidate. Design per-domain model before implementation.
-4. Cattle soft-delete/audit implementation — only after strategy design is
+3. Cattle soft-delete/audit implementation — only after strategy design is
    approved. Follow the daily SECDEF RPC pattern.
-5. Audit-grade SECDEF RPCs — cattle/sheep lifecycle/status/move actions where
+4. Audit-grade SECDEF RPCs — cattle/sheep lifecycle/status/move actions where
    mutation + Activity must be atomic.
-6. Critical workflow Playwright matrix — define coverage targets, write specs
+5. Critical workflow Playwright matrix — define coverage targets, write specs
    for highest-risk uncovered paths.
-7. Incremental mutation cleanup — domain by domain per Identity Map. Choose
+6. Incremental mutation cleanup — domain by domain per Identity Map. Choose
    direct / `runMutation` / SECDEF per entity risk.
-8. Shared UI extraction — extract filter bar, tile row, loading/empty/error
+7. Shared UI extraction — extract filter bar, tile row, loading/empty/error
    patterns from views that repeat them 3+ times.
-9. Deferred: code-splitting — only when field-device measurements or
+8. Deferred: code-splitting — only when field-device measurements or
    operator pain justify it.
-10. Deferred: TypeScript — gradual `allowJs` + JSDoc approach if/when
-    started.
+9. Deferred: TypeScript — gradual `allowJs` + JSDoc approach if/when
+   started.
 
 ---
 
@@ -184,11 +182,11 @@ mutation helpers, or delete/restore support.
 | pig.batch | group id | batchName | `app_store` ppp-feeders-v1 | direct (upsert) | TBD | partial |
 | layer.batch | UUID | name | `layer_batches` | direct | hard-cascade (housings) | partial |
 | layer.housing | UUID | housing_name | `layer_housings` | direct | hard (via batch cascade) | partial |
-| cattle.animal | UUID | tag | `cattle` | direct | hard-cascade (weigh-ins, calving, comments, transfers) | partial — delete unlogged |
-| sheep.animal | UUID | tag | `sheep` | direct | hard-orphan (children remain) | partial — delete unlogged |
+| cattle.animal | UUID | tag | `cattle` | direct + `runMutation` | hard-cascade (weigh-ins, calving, comments, transfers) | comments + routine field.updated; delete unlogged |
+| sheep.animal | UUID | tag | `sheep` | direct + `runMutation` | hard-orphan (children remain) | comments + routine field.updated; delete unlogged |
 | cattle.processing | UUID | batch name | `cattle_processing_batches` | direct | hard (scheduled only) | partial |
 | sheep.processing | UUID | batch name | `sheep_processing_batches` | direct | hard | partial |
-| equipment.item | UUID | name | `equipment` | mixed — status via `runMutation`, other fields direct | record itself not deletable; child fuelings/maintenance hard-delete | comments + pilot field/status change events |
+| equipment.item | UUID | name | `equipment` | mixed — status + admin fields via `runMutation`, inline detail fields direct | record itself not deletable; child fuelings/maintenance hard-delete | comments + routine field.updated + status.changed; documents/child records excluded |
 
 ### Sub-Entities — No Activity Wiring
 
@@ -228,12 +226,14 @@ deep-links, or per-record audit trails until identity decisions are made.
 
 These are hardening priorities, not reasons to rewrite.
 
-- Hard-delete data loss and audit blindness outside daily reports. Cattle
-  hard-delete cascades destroy weigh-ins, calving records, comments, and
-  transfers permanently. Sheep hard-delete orphans children. Equipment
-  sub-records, weigh-in sessions, breeding/lambing records, and task
-  templates hard-delete with no Activity logging and no recovery path. See
-  the Record Identity Map for per-entity delete behavior.
+- Hard-delete data loss and audit blindness. Routine field edits on
+  cattle/sheep/equipment now log Activity events, but delete, restore,
+  and lifecycle/move actions remain unlogged. Cattle hard-delete cascades
+  destroy weigh-ins, calving records, comments, and transfers permanently.
+  Sheep hard-delete orphans children. Equipment sub-records, weigh-in
+  sessions, breeding/lambing records, and task templates hard-delete with
+  no Activity logging and no recovery path. See the Record Identity Map
+  for per-entity delete behavior.
 - Direct client mutations are the dominant write pattern (~200 call sites in
   `src`). Direct calls are not automatically wrong; the missing piece is
   per-entity write semantics specifying which paths should be direct,
