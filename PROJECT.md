@@ -26,7 +26,7 @@ only when Ronnie explicitly assigns it.
 
 - Production: `https://wcfplanner.com`
 - Deploy: Netlify auto-deploy from `main`
-- Latest live commit: `7417121 feat(dailys): add soft-delete restore activity audit`
+- Latest live commit: `c85611e docs: update PROJECT.md for daily soft-delete + session wrap`
 - PROD migrations live: `057` notifications, `058` activity events,
   `060` mention contract, `062` activity entity expansion, `063`
   notification activity resolution, `064` activity Phase 2 entities, `065`
@@ -111,8 +111,9 @@ These are hardening priorities, not reasons to rewrite.
 - `app_store` JSON entities need stable IDs before they can participate in
   Activity, deep-links, and audit trails as cleanly as table-backed rows.
 - Playwright coverage is strong in several domains but does not yet cover every
-  high-frequency operator path. Daily report create/edit/delete/restore should
-  be mandatory coverage when that lane resumes.
+  high-frequency operator path. Daily delete/restore has focused Playwright
+  verification; durable create/edit/delete/restore spec coverage is still a
+  future hardening target.
 
 ---
 
