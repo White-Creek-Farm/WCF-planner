@@ -30,6 +30,7 @@ import LivestockFeedInputsPanel from '../admin/LivestockFeedInputsPanel.jsx';
 import NutritionTargetsPanel from '../admin/NutritionTargetsPanel.jsx';
 import EquipmentWebformsAdmin from '../admin/EquipmentWebformsAdmin.jsx';
 import FuelLogAdmin from '../admin/FuelLogAdmin.jsx';
+import RecentlyDeletedDailyReports from '../admin/RecentlyDeletedDailyReports.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useWebformsConfig} from '../contexts/WebformsConfigContext.jsx';
@@ -634,6 +635,7 @@ export default function WebformsAdminView({
   confirmDelete,
   adminTab,
   setAdminTab,
+  refreshDailys,
 }) {
   const [editWfId, setEditWfId] = React.useState(null);
   const [editFieldId, setEditFieldId] = React.useState(null);
@@ -802,6 +804,7 @@ export default function WebformsAdminView({
           {id: 'fuellog', label: 'Fuel Log'},
           {id: 'feedcosts', label: 'Feed'},
           {id: 'costsbymonth', label: 'Cost by Month'},
+          {id: 'deleted', label: 'Deleted'},
         ].map((t) => {
           const active = adminTab === t.id && !editWfId;
           return (
@@ -839,12 +842,17 @@ export default function WebformsAdminView({
           <FuelLogAdmin />
         </div>
       )}
+      {adminTab === 'deleted' && (
+        <div style={{padding: '1rem', maxWidth: 900, margin: '0 auto'}}>
+          <RecentlyDeletedDailyReports refreshDailys={refreshDailys} />
+        </div>
+      )}
       <div
         style={{
           padding: '1rem',
           maxWidth: 720,
           margin: '0 auto',
-          display: adminTab === 'equipment' || adminTab === 'fuellog' ? 'none' : 'block',
+          display: adminTab === 'equipment' || adminTab === 'fuellog' || adminTab === 'deleted' ? 'none' : 'block',
         }}
       >
         {showUsers && (

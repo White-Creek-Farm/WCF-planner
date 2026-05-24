@@ -39,7 +39,7 @@ const SheepHomeView = ({
       const wR = sessIds.length > 0 ? await sb.from('weigh_ins').select('*').in('session_id', sessIds) : {data: []};
       const [sR, dR] = await Promise.all([
         sb.from('sheep').select('*'),
-        sb.from('sheep_dailys').select('*').gte('date', cutoff120),
+        sb.from('sheep_dailys').select('*').is('deleted_at', null).gte('date', cutoff120),
       ]);
       if (sR.data) setSheep(sR.data);
       if (dR.data) setDailys(dR.data);

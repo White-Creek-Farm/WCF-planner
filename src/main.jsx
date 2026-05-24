@@ -26,6 +26,7 @@ import {VIEW_TO_PATH, PATH_TO_VIEW, HASH_COMPAT, ALIASES_EXACT, ALIASES_PREFIX} 
 import {sb} from './lib/supabase.js';
 import {wcfSendEmail} from './lib/email.js';
 import {wcfSelectAll} from './lib/pagination.js';
+import {softDeleteDailyReport} from './lib/dailyReportsApi.js';
 
 // Phase 2.0.1: AuthContext owns the auth-related useState hooks. App() reads
 // them via useAuth(); effects + helpers + derived values stay in App.
@@ -1409,6 +1410,7 @@ function App() {
         const {data} = await sb
           .from('poultry_dailys')
           .select('*')
+          .is('deleted_at', null)
           .order('date', {ascending: false})
           .order('submitted_at', {ascending: false})
           .range(from, from + 999);
@@ -1423,6 +1425,7 @@ function App() {
     const cutoff = toISO(addDays(new Date(), -45));
     sb.from('layer_dailys')
       .select('*')
+      .is('deleted_at', null)
       .gte('date', cutoff)
       .order('date', {ascending: false})
       .then(({data}) => {
@@ -1430,6 +1433,7 @@ function App() {
       });
     sb.from('egg_dailys')
       .select('*')
+      .is('deleted_at', null)
       .gte('date', cutoff)
       .order('date', {ascending: false})
       .then(({data}) => {
@@ -1439,6 +1443,7 @@ function App() {
     const cutoff14 = toISO(addDays(new Date(), -14));
     sb.from('cattle_dailys')
       .select('*')
+      .is('deleted_at', null)
       .gte('date', cutoff14)
       .order('date', {ascending: false})
       .then(({data}) => {
@@ -1446,6 +1451,7 @@ function App() {
       });
     sb.from('sheep_dailys')
       .select('*')
+      .is('deleted_at', null)
       .gte('date', cutoff14)
       .order('date', {ascending: false})
       .then(({data}) => {
@@ -1472,6 +1478,7 @@ function App() {
           const {data} = await sb
             .from(table)
             .select('*')
+            .is('deleted_at', null)
             .order('date', {ascending: false})
             .range(off, off + PAGE - 1);
           if (!data || data.length === 0) break;
@@ -1499,6 +1506,7 @@ function App() {
         const {data} = await sb
           .from('poultry_dailys')
           .select('*')
+          .is('deleted_at', null)
           .order('date', {ascending: false})
           .order('submitted_at', {ascending: false})
           .range(from, from + 999);
@@ -1511,7 +1519,12 @@ function App() {
     }
     const cutoff = toISO(addDays(new Date(), -45));
     if (want('layer')) {
-      const {data} = await sb.from('layer_dailys').select('*').gte('date', cutoff).order('date', {ascending: false});
+      const {data} = await sb
+        .from('layer_dailys')
+        .select('*')
+        .is('deleted_at', null)
+        .gte('date', cutoff)
+        .order('date', {ascending: false});
       if (data) setLayerDailysRecent(data);
       const fetchAll = async () => {
         const PAGE = 1000;
@@ -1521,6 +1534,7 @@ function App() {
           const {data} = await sb
             .from('layer_dailys')
             .select('*')
+            .is('deleted_at', null)
             .order('date', {ascending: false})
             .range(off, off + PAGE - 1);
           if (!data || data.length === 0) break;
@@ -1533,7 +1547,12 @@ function App() {
       setAllLayerDailys(await fetchAll());
     }
     if (want('egg')) {
-      const {data} = await sb.from('egg_dailys').select('*').gte('date', cutoff).order('date', {ascending: false});
+      const {data} = await sb
+        .from('egg_dailys')
+        .select('*')
+        .is('deleted_at', null)
+        .gte('date', cutoff)
+        .order('date', {ascending: false});
       if (data) setEggDailysRecent(data);
       const fetchAll = async () => {
         const PAGE = 1000;
@@ -1543,6 +1562,7 @@ function App() {
           const {data} = await sb
             .from('egg_dailys')
             .select('*')
+            .is('deleted_at', null)
             .order('date', {ascending: false})
             .range(off, off + PAGE - 1);
           if (!data || data.length === 0) break;
@@ -1555,7 +1575,7 @@ function App() {
       setAllEggDailys(await fetchAll());
     }
     if (want('pig')) {
-      const {data} = await sb.from('pig_dailys').select('*').order('date', {ascending: false});
+      const {data} = await sb.from('pig_dailys').select('*').is('deleted_at', null).order('date', {ascending: false});
       if (data) setPigDailys(data);
     }
   }
@@ -2283,6 +2303,7 @@ function App() {
           const {data: page, error: pageErr} = await sb
             .from('pig_dailys')
             .select('*')
+            .is('deleted_at', null)
             .order('date', {ascending: false})
             .range(from, from + pageSize - 1);
           if (pageErr || !page || page.length === 0) break;
@@ -2298,6 +2319,7 @@ function App() {
       const poultryDailysPromise = sb
         .from('poultry_dailys')
         .select('*')
+        .is('deleted_at', null)
         .order('date', {ascending: false})
         .order('submitted_at', {ascending: false})
         .limit(2000)
@@ -2584,13 +2606,11 @@ function App() {
   }
   async function deleteDaily(id) {
     try {
-      await sb.from('pig_dailys').delete().eq('id', id);
+      const rec = pigDailys.find((d) => d.id === id);
+      const label = rec ? rec.date + (rec.batch_label ? ' · ' + rec.batch_label : '') : id;
+      await softDeleteDailyReport(sb, 'pig_dailys', id, label);
       setPigDailys((prev) => prev.filter((d) => d.id !== id));
     } catch (e) {
-      // Mirror persistDaily's failure surface — the Header's save-status
-      // indicator renders "⚠ Save failed — check connection" inline when
-      // saveStatus === 'error', so the operator sees the failure without a
-      // native dialog.
       console.error('deleteDaily error:', e);
       setSaveStatus('error');
       setTimeout(() => setSaveStatus(''), 4000);
@@ -3565,6 +3585,7 @@ function App() {
       confirmDelete,
       adminTab,
       setAdminTab,
+      refreshDailys,
     });
 
   // ── PIG DAILY WEBFORM (public, no auth) ──

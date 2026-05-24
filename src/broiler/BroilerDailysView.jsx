@@ -4,6 +4,7 @@ import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {formatBroilerBatchLabel, splitSchooners} from '../lib/broilerBatchMeta.js';
 import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
+import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -49,6 +50,7 @@ const BroilerDailysView = ({sb, fmt, Header, authState, batches, pendingEdit, se
   useEffect(() => {
     sb.from('poultry_dailys')
       .select('*')
+      .is('deleted_at', null)
       .order('date', {ascending: false})
       .order('submitted_at', {ascending: false})
       .range(0, PAGE - 1)
@@ -77,6 +79,7 @@ const BroilerDailysView = ({sb, fmt, Header, authState, batches, pendingEdit, se
       const next = page + 1;
       sb.from('poultry_dailys')
         .select('*')
+        .is('deleted_at', null)
         .order('date', {ascending: false})
         .order('submitted_at', {ascending: false})
         .range(next * PAGE, (next + 1) * PAGE - 1)
@@ -176,14 +179,12 @@ const BroilerDailysView = ({sb, fmt, Header, authState, batches, pendingEdit, se
     }
   }
   function del(id) {
-    window._wcfConfirmDelete?.('Delete this daily report? This cannot be undone.', () => {
-      sb.from('poultry_dailys')
-        .delete()
-        .eq('id', id)
-        .then(() => {
-          refreshDailys && refreshDailys('broiler');
-        });
+    window._wcfConfirmDelete?.('Delete this daily report?', async () => {
+      const rec = records.find((r) => r.id === id);
+      const label = rec ? rec.date + (rec.batch_label ? ' · ' + rec.batch_label : '') : id;
+      await softDeleteDailyReport(sb, 'poultry_dailys', id, label);
       setRecords((p) => p.filter((r) => r.id !== id));
+      refreshDailys && refreshDailys('broiler');
       setShowForm(false);
       setEditId(null);
     });
@@ -813,7 +814,7 @@ const BroilerDailysView = ({sb, fmt, Header, authState, batches, pendingEdit, se
               <button onClick={save} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && (
+              {editId && authState?.role === 'admin' && (
                 <button onClick={() => del(editId)} style={S.btnDanger}>
                   Delete
                 </button>

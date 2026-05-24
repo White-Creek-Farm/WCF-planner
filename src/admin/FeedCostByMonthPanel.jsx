@@ -12,10 +12,14 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
     (async () => {
       setLoading(true);
       const [pd, ld, pg, cd, cfiRes] = await Promise.all([
-        wcfSelectAll((f, t) => sb.from('poultry_dailys').select('date,feed_lbs,feed_type').range(f, t)),
-        wcfSelectAll((f, t) => sb.from('layer_dailys').select('date,feed_lbs,feed_type').range(f, t)),
-        wcfSelectAll((f, t) => sb.from('pig_dailys').select('date,feed_lbs').range(f, t)),
-        wcfSelectAll((f, t) => sb.from('cattle_dailys').select('date,feeds').range(f, t)),
+        wcfSelectAll((f, t) =>
+          sb.from('poultry_dailys').select('date,feed_lbs,feed_type').is('deleted_at', null).range(f, t),
+        ),
+        wcfSelectAll((f, t) =>
+          sb.from('layer_dailys').select('date,feed_lbs,feed_type').is('deleted_at', null).range(f, t),
+        ),
+        wcfSelectAll((f, t) => sb.from('pig_dailys').select('date,feed_lbs').is('deleted_at', null).range(f, t)),
+        wcfSelectAll((f, t) => sb.from('cattle_dailys').select('date,feeds').is('deleted_at', null).range(f, t)),
         sb.from('cattle_feed_inputs').select('name,cost_per_unit,freight_per_truck,units_per_truck'),
       ]);
       const cfi = (cfiRes && cfiRes.data) || [];

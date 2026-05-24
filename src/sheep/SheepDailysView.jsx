@@ -7,6 +7,7 @@
 import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
+import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -71,6 +72,7 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
   useEffect(() => {
     sb.from('sheep_dailys')
       .select('*')
+      .is('deleted_at', null)
       .order('date', {ascending: false})
       .order('submitted_at', {ascending: false})
       .range(0, PAGE - 1)
@@ -111,6 +113,7 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
       const next = page + 1;
       sb.from('sheep_dailys')
         .select('*')
+        .is('deleted_at', null)
         .order('date', {ascending: false})
         .order('submitted_at', {ascending: false})
         .range(next * PAGE, (next + 1) * PAGE - 1)
@@ -214,8 +217,10 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
 
   function del(id) {
     if (!window._wcfConfirmDelete) return;
-    window._wcfConfirmDelete('Delete this daily report? This cannot be undone.', async () => {
-      await sb.from('sheep_dailys').delete().eq('id', id);
+    window._wcfConfirmDelete('Delete this daily report?', async () => {
+      const rec = records.find((r) => r.id === id);
+      const label = rec ? rec.date + (rec.flock ? ' · ' + rec.flock : '') : id;
+      await softDeleteDailyReport(sb, 'sheep_dailys', id, label);
       setRecords((p) => p.filter((r) => r.id !== id));
       refreshDailys && refreshDailys('sheep');
       setShowForm(false);
@@ -955,7 +960,7 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
               <button onClick={saveEdit} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && (
+              {editId && authState?.role === 'admin' && (
                 <button onClick={() => del(editId)} style={S.btnDanger}>
                   Delete
                 </button>

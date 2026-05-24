@@ -21,7 +21,7 @@ export async function checkDailyDuplicate(sb, table, record) {
   for (const f of fields) {
     if (!record[f] && record[f] !== 0) return null;
   }
-  let query = sb.from(table).select('id,date').limit(1);
+  let query = sb.from(table).select('id,date').is('deleted_at', null).limit(1);
   if (TABLES_WITH_ADD_FEED.has(table)) {
     query = query.or('source.is.null,source.neq.add_feed_webform');
   }

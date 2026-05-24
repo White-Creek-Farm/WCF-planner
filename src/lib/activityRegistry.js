@@ -17,6 +17,12 @@ export const ENTITY_TYPES = {
   PIG_BATCH: 'pig.batch',
   CATTLE_PROCESSING: 'cattle.processing',
   SHEEP_PROCESSING: 'sheep.processing',
+  POULTRY_DAILY: 'poultry.daily',
+  LAYER_DAILY: 'layer.daily',
+  EGG_DAILY: 'egg.daily',
+  PIG_DAILY: 'pig.daily',
+  CATTLE_DAILY: 'cattle.daily',
+  SHEEP_DAILY: 'sheep.daily',
 };
 
 export const ACTIVITY_REGISTRY = {
@@ -70,6 +76,36 @@ export const ACTIVITY_REGISTRY = {
     route: (_id) => '/sheep/batches',
     program: 'sheep',
   },
+  [ENTITY_TYPES.POULTRY_DAILY]: {
+    displayLabel: (id, ctx) => (ctx && ctx.date ? ctx.date + (ctx.batch_label ? ' · ' + ctx.batch_label : '') : id),
+    route: (_id) => '/broiler/dailys',
+    program: 'broiler',
+  },
+  [ENTITY_TYPES.LAYER_DAILY]: {
+    displayLabel: (id, ctx) => (ctx && ctx.date ? ctx.date + (ctx.batch_label ? ' · ' + ctx.batch_label : '') : id),
+    route: (_id) => '/layer/dailys',
+    program: 'layer',
+  },
+  [ENTITY_TYPES.EGG_DAILY]: {
+    displayLabel: (id, ctx) => (ctx && ctx.date ? ctx.date : id),
+    route: (_id) => '/layer/eggs',
+    program: 'layer',
+  },
+  [ENTITY_TYPES.PIG_DAILY]: {
+    displayLabel: (id, ctx) => (ctx && ctx.date ? ctx.date + (ctx.batch_label ? ' · ' + ctx.batch_label : '') : id),
+    route: (_id) => '/pig/dailys',
+    program: 'pig',
+  },
+  [ENTITY_TYPES.CATTLE_DAILY]: {
+    displayLabel: (id, ctx) => (ctx && ctx.date ? ctx.date + (ctx.herd ? ' · ' + ctx.herd : '') : id),
+    route: (_id) => '/cattle/dailys',
+    program: 'cattle',
+  },
+  [ENTITY_TYPES.SHEEP_DAILY]: {
+    displayLabel: (id, ctx) => (ctx && ctx.date ? ctx.date + (ctx.flock ? ' · ' + ctx.flock : '') : id),
+    route: (_id) => '/sheep/dailys',
+    program: 'sheep',
+  },
 };
 
 export function getActivityEntityMeta(entityType) {
@@ -102,13 +138,19 @@ export function routeToView(routePath) {
   const VIEW_MAP = {
     '/tasks': 'tasks',
     '/broiler/batches': 'list',
+    '/broiler/dailys': 'broilerdailys',
     '/layer': 'layersHome',
     '/layer/batches': 'layerbatches',
+    '/layer/dailys': 'layerdailys',
+    '/layer/eggs': 'eggdailys',
     '/pig/batches': 'pigbatches',
+    '/pig/dailys': 'pigdailys',
     '/cattle/batches': 'cattlebatches',
-    '/sheep/batches': 'sheepbatches',
     '/cattle/herds': 'cattleherds',
+    '/cattle/dailys': 'cattledailys',
+    '/sheep/batches': 'sheepbatches',
     '/sheep/flocks': 'sheepflocks',
+    '/sheep/dailys': 'sheepdailys',
     '/fleet': 'equipmentHome',
     '/admin': 'webforms',
   };

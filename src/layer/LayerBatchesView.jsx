@@ -163,6 +163,7 @@ const LayerBatchesView = ({
         const {data, error} = await sb
           .from(table)
           .select(columns)
+          .is('deleted_at', null)
           .range(offset, offset + PAGE - 1);
         if (error || !data || data.length === 0) {
           done = true;

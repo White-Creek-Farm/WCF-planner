@@ -3,6 +3,7 @@ import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
+import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -45,6 +46,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
   useEffect(() => {
     sb.from('egg_dailys')
       .select('*')
+      .is('deleted_at', null)
       .order('date', {ascending: false})
       .range(0, PAGE - 1)
       .then(({data}) => {
@@ -72,6 +74,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
       const next = page + 1;
       sb.from('egg_dailys')
         .select('*')
+        .is('deleted_at', null)
         .order('date', {ascending: false})
         .range(next * PAGE, (next + 1) * PAGE - 1)
         .then(({data}) => {
@@ -171,14 +174,11 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
     }
   }
   function del(id) {
-    window._wcfConfirmDelete?.('Delete this egg daily report? This cannot be undone.', () => {
-      sb.from('egg_dailys')
-        .delete()
-        .eq('id', id)
-        .then(() => {
-          refreshDailys && refreshDailys('egg');
-        });
+    window._wcfConfirmDelete?.('Delete this daily report?', async () => {
+      const rec = records.find((r) => r.id === id);
+      await softDeleteDailyReport(sb, 'egg_dailys', id, rec ? rec.date : id);
       setRecords((p) => p.filter((r) => r.id !== id));
+      refreshDailys && refreshDailys('egg');
       setShowForm(false);
       setEditId(null);
     });
@@ -535,7 +535,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
               <button onClick={save} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && (
+              {editId && authState?.role === 'admin' && (
                 <button onClick={() => del(editId)} style={S.btnDanger}>
                   Delete
                 </button>

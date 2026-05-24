@@ -17,6 +17,12 @@ const ENTITY_TYPE_LABELS = {
   'sheep.animal': 'Sheep',
   'sheep.processing': 'Sheep Batch',
   'equipment.item': 'Equipment',
+  'poultry.daily': 'Broiler Daily',
+  'layer.daily': 'Layer Daily',
+  'egg.daily': 'Egg Daily',
+  'pig.daily': 'Pig Daily',
+  'cattle.daily': 'Cattle Daily',
+  'sheep.daily': 'Sheep Daily',
 };
 
 const EVENT_TYPE_LABELS = {
@@ -41,6 +47,12 @@ const ENTITY_FILTERS = [
   {value: 'sheep.animal', label: 'Sheep'},
   {value: 'sheep.processing', label: 'Sheep Processing'},
   {value: 'equipment.item', label: 'Equipment'},
+  {value: 'poultry.daily', label: 'Broiler Daily'},
+  {value: 'layer.daily', label: 'Layer Daily'},
+  {value: 'egg.daily', label: 'Egg Daily'},
+  {value: 'pig.daily', label: 'Pig Daily'},
+  {value: 'cattle.daily', label: 'Cattle Daily'},
+  {value: 'sheep.daily', label: 'Sheep Daily'},
 ];
 
 export default function ActivityLogView({Header}) {

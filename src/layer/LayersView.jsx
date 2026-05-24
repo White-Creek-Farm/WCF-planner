@@ -35,6 +35,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
   useEffect(() => {
     sb.from('layer_dailys')
       .select('batch_label,feed_lbs,grit_lbs,layer_count,date,team_member,comments,mortality_count')
+      .is('deleted_at', null)
       .order('date', {ascending: false})
       .limit(200)
       .then(({data}) => {

@@ -3,6 +3,7 @@ import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
+import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -49,6 +50,7 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
   useEffect(() => {
     sb.from('layer_dailys')
       .select('*')
+      .is('deleted_at', null)
       .order('date', {ascending: false})
       .range(0, PAGE - 1)
       .then(({data}) => {
@@ -76,6 +78,7 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
       const next = page + 1;
       sb.from('layer_dailys')
         .select('*')
+        .is('deleted_at', null)
         .order('date', {ascending: false})
         .range(next * PAGE, (next + 1) * PAGE - 1)
         .then(({data}) => {
@@ -227,11 +230,13 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
     }
   }
   function del(id) {
-    window._wcfConfirmDelete?.('Delete this daily report? This cannot be undone.', async () => {
+    window._wcfConfirmDelete?.('Delete this daily report?', async () => {
       // Note: deleting a report does NOT roll back the housing anchor automatically
       // because anchors might have been overwritten by later reports. If the user needs
       // to correct an anchor, they should submit a new report with the corrected count.
-      await sb.from('layer_dailys').delete().eq('id', id);
+      const rec = records.find((r) => r.id === id);
+      const label = rec ? rec.date + (rec.batch_label ? ' · ' + rec.batch_label : '') : id;
+      await softDeleteDailyReport(sb, 'layer_dailys', id, label);
       setRecords((p) => p.filter((r) => r.id !== id));
       refreshDailys && refreshDailys('layer');
       setShowForm(false);
@@ -885,7 +890,7 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
               <button onClick={save} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && (
+              {editId && authState?.role === 'admin' && (
                 <button onClick={() => del(editId)} style={S.btnDanger}>
                   Delete
                 </button>

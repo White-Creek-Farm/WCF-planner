@@ -3,6 +3,7 @@ import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
+import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -163,14 +164,12 @@ const PigDailysView = ({
     }
   }
   function del(id) {
-    window._wcfConfirmDelete?.('Delete this daily report? This cannot be undone.', () => {
-      sb.from('pig_dailys')
-        .delete()
-        .eq('id', id)
-        .then(() => {
-          refreshDailys && refreshDailys('pig');
-        });
+    window._wcfConfirmDelete?.('Delete this daily report?', async () => {
+      const rec = pigDailys.find((r) => r.id === id);
+      const label = rec ? rec.date + (rec.batch_label ? ' · ' + rec.batch_label : '') : id;
+      await softDeleteDailyReport(sb, 'pig_dailys', id, label);
       setPigDailys((p) => p.filter((r) => r.id !== id));
+      refreshDailys && refreshDailys('pig');
       setShowForm(false);
       setEditId(null);
     });
@@ -706,7 +705,7 @@ const PigDailysView = ({
               <button onClick={save} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && (
+              {editId && authState?.role === 'admin' && (
                 <button onClick={() => del(editId)} style={S.btnDanger}>
                   Delete
                 </button>
