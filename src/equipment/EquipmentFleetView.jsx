@@ -25,6 +25,27 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
   const {authState} = useAuth();
   const [showAdd, setShowAdd] = React.useState(false);
   const [activityTarget, setActivityTarget] = React.useState(null);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'equipment.item') return;
+      const eq = (equipment || []).find((x) => x.id === dl.entityId);
+      if (eq) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({
+          entityType: 'equipment.item',
+          entityId: eq.id,
+          entityLabel: eq.name,
+          entityCtx: {slug: eq.slug},
+        });
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [equipment]);
+
   if (!equipment || equipment.length === 0) {
     return (
       <div

@@ -204,7 +204,7 @@ describe('src/shared/Header.jsx — notifications bell + dropdown', () => {
 
   it('row click marks-read then routes via resolveNotificationRoute', () => {
     expect(headerSrc).toMatch(/if \(unread\) await markNotificationRead\(sb, n\.id\)/);
-    expect(headerSrc).toContain('resolveNotificationRoute(n)');
+    expect(headerSrc).toContain('resolveNotificationRoute(');
     expect(headerSrc).toContain('routeToView');
   });
 

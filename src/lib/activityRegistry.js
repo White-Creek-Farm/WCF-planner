@@ -29,12 +29,12 @@ export const ACTIVITY_REGISTRY = {
   },
   [ENTITY_TYPES.LAYER_BATCH]: {
     displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
-    route: (_id) => '/layer',
+    route: (_id) => '/layer/batches',
     program: 'layer',
   },
   [ENTITY_TYPES.LAYER_HOUSING]: {
     displayLabel: (id, ctx) => (ctx && ctx.housing_name ? ctx.housing_name : id),
-    route: (_id) => '/layer',
+    route: (_id) => '/layer/batches',
     program: 'layer',
   },
   [ENTITY_TYPES.CATTLE_ANIMAL]: {
@@ -85,6 +85,7 @@ export function routeToView(routePath) {
     '/tasks': 'tasks',
     '/broiler/batches': 'list',
     '/layer': 'layersHome',
+    '/layer/batches': 'layerbatches',
     '/cattle/herds': 'cattleherds',
     '/sheep/flocks': 'sheepflocks',
     '/fleet': 'equipmentHome',

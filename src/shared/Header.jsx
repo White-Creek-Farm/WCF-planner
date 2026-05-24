@@ -598,12 +598,20 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                             } catch (_e) {
                               /* soft-fail */
                             }
-                            const route = resolveNotificationRoute(n);
+                            const route = resolveNotificationRoute(n, n.activity_entity_type, n.activity_entity_id);
                             const {view: targetView, search} = routeToView(route);
-                            if (search && typeof window !== 'undefined') {
-                              window._wcfDeepLink = search;
+                            if (typeof window !== 'undefined') {
+                              if (search) window._wcfDeepLink = search;
+                              if (n.activity_entity_type && n.activity_entity_type !== 'task.instance') {
+                                window._wcfEntityDeepLink = {
+                                  entityType: n.activity_entity_type,
+                                  entityId: n.activity_entity_id,
+                                  entityLabel: n.activity_entity_label || n.activity_entity_id,
+                                };
+                              }
                               try {
                                 window.dispatchEvent(new CustomEvent('wcf-task-deep-link'));
+                                window.dispatchEvent(new CustomEvent('wcf-entity-deep-link'));
                               } catch (_ignored) {
                                 /* CustomEvent not supported */
                               }

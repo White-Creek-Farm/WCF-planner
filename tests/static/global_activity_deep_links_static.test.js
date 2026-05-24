@@ -157,7 +157,7 @@ describe('notification deep-link infrastructure', () => {
 
   it('Header imports and uses resolveNotificationRoute', () => {
     expect(headerSrc).toContain('resolveNotificationRoute');
-    expect(headerSrc).toContain('resolveNotificationRoute(n)');
+    expect(headerSrc).toContain('resolveNotificationRoute(');
   });
 
   it('Header does not reference setAdminTab', () => {

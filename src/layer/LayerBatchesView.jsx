@@ -53,6 +53,30 @@ const LayerBatchesView = ({
   const [editBatchId, setEditBatchId] = useState(null);
   const [editHousingId, setEditHousingId] = useState(null);
   const [activityTarget, setActivityTarget] = useState(null);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || (dl.entityType !== 'layer.batch' && dl.entityType !== 'layer.housing')) return;
+      if (dl.entityType === 'layer.batch') {
+        const b = (layerBatches || []).find((x) => x.id === dl.entityId);
+        if (b) {
+          window._wcfEntityDeepLink = null;
+          setActivityTarget({entityType: 'layer.batch', entityId: b.id, entityLabel: b.name});
+        }
+      } else {
+        const h = (layerHousings || []).find((x) => x.id === dl.entityId);
+        if (h) {
+          window._wcfEntityDeepLink = null;
+          setActivityTarget({entityType: 'layer.housing', entityId: h.id, entityLabel: h.housing_name});
+        }
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [layerBatches, layerHousings]);
+
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
 
