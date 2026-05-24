@@ -9,6 +9,10 @@ import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
 const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, setPendingEdit, refreshDailys}) => {
   const {useState, useEffect} = React;
@@ -42,6 +46,7 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
   };
   const [form, setForm] = useState(EMPTY);
   const [notice, setNotice] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
 
   const PAGE = 1000;
   const [page, setPage] = useState(0);
@@ -94,6 +99,25 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
         });
     }
   }, [hasMore, page]);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'layer.daily') return;
+      const rec = records.find((r) => r.id === dl.entityId);
+      if (rec) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({
+          entityType: 'layer.daily',
+          entityId: rec.id,
+          entityLabel: rec.date + (rec.batch_label ? ' · ' + rec.batch_label : ''),
+        });
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [records]);
 
   const [editSource, setEditSource] = useState(null);
   function openEdit(d) {
@@ -464,6 +488,17 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
                             </span>
                           )}
                           <DailyPhotoChip photos={d.photos} />
+                          <span onClick={(e) => e.stopPropagation()} data-activity-surface="layer.daily">
+                            {React.createElement(ActivityPanel, {
+                              sb,
+                              authState,
+                              entityType: 'layer.daily',
+                              entityId: d.id,
+                              entityLabel: d.date + (d.batch_label ? ' \u00b7 ' + d.batch_label : ''),
+                              mode: 'compact',
+                              onCompactClick: setActivityTarget,
+                            })}
+                          </span>
                         </span>
                         <span
                           style={{
@@ -908,6 +943,12 @@ const LayerDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, 
           </div>
         </div>
       )}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };

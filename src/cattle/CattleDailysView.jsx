@@ -8,6 +8,10 @@ import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 const CattleDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit, refreshDailys}) => {
   const {useState, useEffect} = React;
   const todayStr = () => {
@@ -23,6 +27,7 @@ const CattleDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEd
   const [editSource, setEditSource] = useState(null);
   const [form, setForm] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
   const [fHerd, setFHerd] = useState('');
   const [fTeam, setFTeam] = useState('');
@@ -109,6 +114,25 @@ const CattleDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEd
         });
     }
   }, [hasMore, page]);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'cattle.daily') return;
+      const rec = records.find((r) => r.id === dl.entityId);
+      if (rec) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({
+          entityType: 'cattle.daily',
+          entityId: rec.id,
+          entityLabel: rec.date + (rec.herd ? ' · ' + rec.herd : ''),
+        });
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [records]);
 
   function openEdit(d) {
     setNotice(null);
@@ -467,6 +491,17 @@ const CattleDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEd
                             </span>
                           )}
                           <DailyPhotoChip photos={d.photos} />
+                          <span onClick={(e) => e.stopPropagation()} data-activity-surface="cattle.daily">
+                            {React.createElement(ActivityPanel, {
+                              sb,
+                              authState,
+                              entityType: 'cattle.daily',
+                              entityId: d.id,
+                              entityLabel: d.date + (d.herd ? ' \u00b7 ' + d.herd : ''),
+                              mode: 'compact',
+                              onCompactClick: setActivityTarget,
+                            })}
+                          </span>
                         </span>
                         <span
                           style={{
@@ -994,6 +1029,12 @@ const CattleDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEd
           </div>
         </div>
       )}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };

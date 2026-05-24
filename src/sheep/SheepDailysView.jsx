@@ -13,6 +13,10 @@ import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 
 // "nothing to report" sentinels — don't render these as a comment badge.
 // Public-webform placeholder now tells the team to enter "0"; this covers
@@ -39,6 +43,7 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
   const [editSource, setEditSource] = useState(null);
   const [form, setForm] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
   const [fFlock, setFFlock] = useState('');
   const [fTeam, setFTeam] = useState('');
@@ -130,6 +135,25 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
         });
     }
   }, [hasMore, page]);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'sheep.daily') return;
+      const rec = records.find((r) => r.id === dl.entityId);
+      if (rec) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({
+          entityType: 'sheep.daily',
+          entityId: rec.id,
+          entityLabel: rec.date + (rec.flock ? ' · ' + rec.flock : ''),
+        });
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [records]);
 
   function openEdit(d) {
     setNotice(null);
@@ -498,6 +522,17 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                             </span>
                           )}
                           <DailyPhotoChip photos={d.photos} />
+                          <span onClick={(e) => e.stopPropagation()} data-activity-surface="sheep.daily">
+                            {React.createElement(ActivityPanel, {
+                              sb,
+                              authState,
+                              entityType: 'sheep.daily',
+                              entityId: d.id,
+                              entityLabel: d.date + (d.flock ? ' · ' + d.flock : ''),
+                              mode: 'compact',
+                              onCompactClick: setActivityTarget,
+                            })}
+                          </span>
                         </span>
                         <span
                           style={{
@@ -980,6 +1015,12 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
           </div>
         </div>
       )}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };

@@ -7,6 +7,10 @@ import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, setPendingEdit, refreshDailys}) => {
   const {useState, useEffect} = React;
   const todayStr = () => {
@@ -38,6 +42,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
   };
   const [form, setForm] = useState(EMPTY);
   const [notice, setNotice] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
 
   const PAGE = 1000;
   const [page, setPage] = useState(0);
@@ -90,6 +95,21 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
         });
     }
   }, [hasMore, page]);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'egg.daily') return;
+      const rec = records.find((r) => r.id === dl.entityId);
+      if (rec) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({entityType: 'egg.daily', entityId: rec.id, entityLabel: rec.date});
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [records]);
 
   function openEdit(d) {
     setNotice(null);
@@ -347,6 +367,17 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
                           {'\ud83d\udce6 ' + d.dozens_on_hand + ' doz on hand'}
                         </span>
                       )}
+                      <span onClick={(e) => e.stopPropagation()} data-activity-surface="egg.daily">
+                        {React.createElement(ActivityPanel, {
+                          sb,
+                          authState,
+                          entityType: 'egg.daily',
+                          entityId: d.id,
+                          entityLabel: d.date,
+                          mode: 'compact',
+                          onCompactClick: setActivityTarget,
+                        })}
+                      </span>
                     </span>
                   </div>
                   {comment && (
@@ -553,6 +584,12 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
           </div>
         </div>
       )}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };
