@@ -202,9 +202,10 @@ describe('src/shared/Header.jsx — notifications bell + dropdown', () => {
     }
   });
 
-  it('row click marks-read then goes to /tasks when task_instance_id is set', () => {
+  it('row click marks-read then routes via resolveNotificationRoute', () => {
     expect(headerSrc).toMatch(/if \(unread\) await markNotificationRead\(sb, n\.id\)/);
-    expect(headerSrc).toMatch(/if \(n\.task_instance_id\) \{\s*go\('tasks'\)/);
+    expect(headerSrc).toContain('resolveNotificationRoute(n)');
+    expect(headerSrc).toContain('routeToView');
   });
 
   it('does NOT keep the old placeholder onClick (no-op stub gone)', () => {

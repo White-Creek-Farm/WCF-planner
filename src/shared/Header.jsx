@@ -28,6 +28,7 @@ import React from 'react';
 import {S} from '../lib/styles.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
+import {resolveNotificationRoute, routeToView} from '../lib/activityRegistry.js';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {countMyOpenDueOrPastTasks} from '../lib/tasksCenterApi.js';
@@ -597,16 +598,17 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                             } catch (_e) {
                               /* soft-fail */
                             }
-                            // Both 'task_completed' and 'mention' notifications
-                            // for task.instance entities carry task_instance_id
-                            // (post_activity_comment sets it when entity_type =
-                            // 'task.instance'). When Phase 2 adds non-task
-                            // entity_types, the bell will resolve route via
-                            // activityRegistry.resolveNotificationRoute using
-                            // n.activity_event_id; for now /tasks covers both.
-                            if (n.task_instance_id) {
-                              go('tasks');
+                            const route = resolveNotificationRoute(n);
+                            const {view: targetView, search} = routeToView(route);
+                            if (search && typeof window !== 'undefined') {
+                              window._wcfDeepLink = search;
+                              try {
+                                window.dispatchEvent(new CustomEvent('wcf-task-deep-link'));
+                              } catch (_ignored) {
+                                /* CustomEvent not supported */
+                              }
                             }
+                            go(targetView);
                           }}
                           style={{
                             display: 'block',

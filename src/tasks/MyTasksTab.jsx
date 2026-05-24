@@ -392,7 +392,7 @@ function TaskRow({
   );
 }
 
-export default function MyTasksTab({sb, authState}) {
+export default function MyTasksTab({sb, authState, deepLinkTaskId, deepLinkNonce, onDeepLinkMiss, onDeepLinkHandled}) {
   const [tasks, setTasks] = React.useState([]);
   // profiles is the unfiltered display map (for row name rendering).
   // assignableProfiles is the filtered subset for write-modal dropdowns
@@ -447,6 +447,21 @@ export default function MyTasksTab({sb, authState}) {
       cancelled = true;
     };
   }, [sb, reloadKey]);
+
+  React.useEffect(() => {
+    if (!deepLinkTaskId || loading) return;
+    const task = tasks.find((t) => t.id === deepLinkTaskId);
+    if (task) {
+      setActivityTarget({entityType: 'task.instance', entityId: task.id, entityLabel: task.title, entityCtx: task});
+      setTimeout(() => {
+        const el = document.querySelector(`[data-task-row="${task.id}"]`);
+        if (el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
+      }, 200);
+      if (onDeepLinkHandled) onDeepLinkHandled();
+    } else if (onDeepLinkMiss) {
+      onDeepLinkMiss();
+    }
+  }, [deepLinkTaskId, deepLinkNonce, loading]);
 
   // Listen for cross-component create/complete events so a task created
   // through the +New Task modal (or completed via the Complete modal in

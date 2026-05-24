@@ -28,6 +28,10 @@ import {
 import {TASK_CHANGE_EVENT} from '../lib/tasksCenterMutationsApi.js';
 import {fmt, fmtCentralDateTime, todayCentralISO, centralISOFor} from '../lib/dateUtils.js';
 import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 
 const CARD = {
   background: 'white',
@@ -270,13 +274,14 @@ function CompletedRow({ti, profilesById, onOpenPhotos}) {
   );
 }
 
-export default function CompletedTab({sb}) {
+export default function CompletedTab({sb, authState, deepLinkTaskId, deepLinkNonce, onDeepLinkHandled}) {
   const [rows, setRows] = React.useState([]);
   const [profiles, setProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState('');
   const [filter, setFilter] = React.useState('all');
   const [photoTaskTarget, setPhotoTaskTarget] = React.useState(null);
+  const [activityTarget, setActivityTarget] = React.useState(null);
   const [reloadKey, setReloadKey] = React.useState(0);
 
   React.useEffect(() => {
@@ -299,6 +304,19 @@ export default function CompletedTab({sb}) {
       cancelled = true;
     };
   }, [sb, reloadKey]);
+
+  React.useEffect(() => {
+    if (!deepLinkTaskId || loading) return;
+    const task = rows.find((t) => t.id === deepLinkTaskId);
+    if (task) {
+      setActivityTarget({entityType: 'task.instance', entityId: task.id, entityLabel: task.title, entityCtx: task});
+      setTimeout(() => {
+        const el = document.querySelector(`[data-task-row="${task.id}"]`);
+        if (el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
+      }, 200);
+    }
+    if (onDeepLinkHandled) onDeepLinkHandled();
+  }, [deepLinkTaskId, deepLinkNonce, loading]);
 
   // A completion in MyTasksTab fires TASK_CHANGE_EVENT; refresh so the
   // newly-completed row appears at the top of this tab without waiting
@@ -402,6 +420,12 @@ export default function CompletedTab({sb}) {
         task: photoTaskTarget,
         isOpen: !!photoTaskTarget,
         onClose: () => setPhotoTaskTarget(null),
+      })}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
       })}
     </div>
   );

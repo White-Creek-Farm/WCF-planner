@@ -2,71 +2,94 @@
 // "what is this entity_type, where does its detail page live, what label
 // should we show on its notifications?".
 //
-// Server-side, the permission resolver `_activity_can_read` (mig 058)
-// carries a parallel CASE expression. Adding a new entity_type means
-// touching BOTH: register here + add a CASE branch in the SQL. The
-// static lock asserts they stay in sync per-type as the registry grows.
-//
-// Phase 1: only `task.instance`.
+// Server-side, the permission resolver `_activity_can_read` (mig 058 +
+// mig 062) carries a parallel CASE expression. Adding a new entity_type
+// means touching BOTH: register here + add a CASE branch in the SQL.
 
 export const ENTITY_TYPES = {
   TASK_INSTANCE: 'task.instance',
+  BROILER_BATCH: 'broiler.batch',
+  LAYER_BATCH: 'layer.batch',
+  LAYER_HOUSING: 'layer.housing',
+  CATTLE_ANIMAL: 'cattle.animal',
+  SHEEP_ANIMAL: 'sheep.animal',
+  EQUIPMENT_ITEM: 'equipment.item',
 };
 
 export const ACTIVITY_REGISTRY = {
   [ENTITY_TYPES.TASK_INSTANCE]: {
-    /**
-     * Human label for the entity (used in notification titles and Activity
-     * panel header). Receives (entityId, ctx). ctx is an optional bag the
-     * caller passes — for tasks it's typically the task instance row.
-     */
-    displayLabel: (id, ctx) => {
-      if (ctx && ctx.title) return ctx.title;
-      return id;
-    },
-    /**
-     * Where clicking the notification or "Open" link should route to.
-     * Tasks landing on /tasks; future entities use program-scoped paths.
-     */
-    route: (_id) => `/tasks`,
-    /**
-     * Program scope hint. null = not program-gated; future cattle.* etc.
-     * use 'cattle' here. The server resolver still enforces the actual
-     * read gate; this is just a hint for client-side filtering helpers
-     * that might be added later.
-     */
+    displayLabel: (id, ctx) => (ctx && ctx.title ? ctx.title : id),
+    route: (id) => `/tasks?task=${encodeURIComponent(id)}`,
+    program: null,
+  },
+  [ENTITY_TYPES.BROILER_BATCH]: {
+    displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
+    route: (_id) => '/broiler/batches',
+    program: 'broiler',
+  },
+  [ENTITY_TYPES.LAYER_BATCH]: {
+    displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
+    route: (_id) => '/layer',
+    program: 'layer',
+  },
+  [ENTITY_TYPES.LAYER_HOUSING]: {
+    displayLabel: (id, ctx) => (ctx && ctx.housing_name ? ctx.housing_name : id),
+    route: (_id) => '/layer',
+    program: 'layer',
+  },
+  [ENTITY_TYPES.CATTLE_ANIMAL]: {
+    displayLabel: (id, ctx) => (ctx && ctx.tag ? ctx.tag : id),
+    route: (_id) => '/cattle/herds',
+    program: 'cattle',
+  },
+  [ENTITY_TYPES.SHEEP_ANIMAL]: {
+    displayLabel: (id, ctx) => (ctx && ctx.tag ? ctx.tag : id),
+    route: (_id) => '/sheep/flocks',
+    program: 'sheep',
+  },
+  [ENTITY_TYPES.EQUIPMENT_ITEM]: {
+    displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
+    route: (_id, ctx) => (ctx && ctx.slug ? `/fleet/${ctx.slug}` : '/fleet'),
     program: null,
   },
 };
 
-/**
- * Look up a registry entry. Returns null for unknown types so callers
- * can fail gracefully instead of throwing on a new server-side type the
- * client hasn't shipped yet.
- */
 export function getActivityEntityMeta(entityType) {
   return ACTIVITY_REGISTRY[entityType] || null;
 }
 
-/**
- * Resolve a notification row's route. Notifications carry both a
- * legacy task_instance_id (existing 'task_completed' rows) and the new
- * activity_event_id (mig 058 mention rows). The Header bell calls this
- * to figure out where to send the user on click.
- */
 export function resolveNotificationRoute(notification, eventEntityType, eventEntityId) {
-  // 'mention' notifications carry an activity_event_id; we look up the
-  // entity from the event row (already fetched by the dropdown).
   if (notification && notification.type === 'mention' && eventEntityType) {
     const meta = getActivityEntityMeta(eventEntityType);
     if (meta && typeof meta.route === 'function') {
       try {
         return meta.route(eventEntityId);
       } catch (_e) {
-        /* fall through to default */
+        /* fall through */
       }
     }
   }
-  // 'task_completed' (and any other legacy type) — default to /tasks.
+  if (notification && notification.task_instance_id) {
+    if (notification.type === 'task_completed') {
+      return `/tasks?tab=completed&task=${encodeURIComponent(notification.task_instance_id)}`;
+    }
+    return `/tasks?task=${encodeURIComponent(notification.task_instance_id)}`;
+  }
   return '/tasks';
+}
+
+export function routeToView(routePath) {
+  if (!routePath) return {view: 'home', search: ''};
+  const [path, search] = routePath.split('?');
+  const VIEW_MAP = {
+    '/tasks': 'tasks',
+    '/broiler/batches': 'list',
+    '/layer': 'layersHome',
+    '/cattle/herds': 'cattleherds',
+    '/sheep/flocks': 'sheepflocks',
+    '/fleet': 'equipmentHome',
+    '/admin': 'webforms',
+  };
+  if (path.startsWith('/fleet/')) return {view: 'equipmentHome', search: search || ''};
+  return {view: VIEW_MAP[path] || 'home', search: search || ''};
 }

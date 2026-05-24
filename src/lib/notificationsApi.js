@@ -55,7 +55,9 @@ export async function loadRecentNotifications(sb, {limit = 20} = {}) {
   if (!sb) return [];
   const {data, error} = await sb
     .from('notifications')
-    .select('id, recipient_profile_id, actor_profile_id, type, task_instance_id, title, body, read_at, created_at')
+    .select(
+      'id, recipient_profile_id, actor_profile_id, type, task_instance_id, activity_event_id, title, body, read_at, created_at',
+    )
     .order('created_at', {ascending: false})
     .limit(limit);
   if (error) throw new Error(`loadRecentNotifications: ${error.message}`);
