@@ -97,6 +97,21 @@ describe('ActivityLogView', () => {
     expect(viewSrc).toContain('Loading');
     expect(viewSrc).toContain('No activity found');
   });
+
+  it('shows "(comment deleted)" for soft-deleted events instead of body', () => {
+    expect(viewSrc).toContain('(comment deleted)');
+    expect(viewSrc).toContain('r.deleted_at');
+  });
+
+  it('suppresses mentions on deleted comments', () => {
+    expect(viewSrc).toMatch(/!r\.deleted_at\s*&&\s*r\.mentioned_profile_names/);
+  });
+
+  it('has no unused imports', () => {
+    expect(viewSrc).not.toContain('routeToView');
+    expect(viewSrc).not.toContain('weatherIcon');
+    expect(viewSrc).not.toContain('useUI');
+  });
 });
 
 describe('Header hamburger menu', () => {

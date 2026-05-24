@@ -259,13 +259,20 @@ export default function ActivityLogView({Header}) {
                     r.entity_label || r.entity_id,
                   ),
                 ),
-                r.body &&
-                  React.createElement(
-                    'div',
-                    {style: {fontSize: 12, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word'}},
-                    r.body.length > 200 ? r.body.slice(0, 200) + '...' : r.body,
-                  ),
-                r.mentioned_profile_names &&
+                r.deleted_at
+                  ? React.createElement(
+                      'div',
+                      {style: {fontSize: 12, color: '#9ca3af', fontStyle: 'italic'}},
+                      '(comment deleted)',
+                    )
+                  : r.body &&
+                      React.createElement(
+                        'div',
+                        {style: {fontSize: 12, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word'}},
+                        r.body.length > 200 ? r.body.slice(0, 200) + '...' : r.body,
+                      ),
+                !r.deleted_at &&
+                  r.mentioned_profile_names &&
                   r.mentioned_profile_names.length > 0 &&
                   React.createElement(
                     'div',
