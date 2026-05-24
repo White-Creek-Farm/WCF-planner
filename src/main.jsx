@@ -198,6 +198,7 @@ import PigDailysWebform from './webforms/PigDailysWebform.jsx';
 import UnauthorizedRedirect from './shared/UnauthorizedRedirect.jsx';
 import TasksWebform from './webforms/TasksWebform.jsx';
 import TaskCenterView from './tasks/TaskCenterView.jsx';
+import ActivityLogView from './activity/ActivityLogView.jsx';
 
 // Phase 2 Round 8: equipment placeholder.
 import EquipmentHome from './equipment/EquipmentHome.jsx';
@@ -1576,6 +1577,7 @@ function App() {
     'sows',
     'webforms',
     'tasks',
+    'activity',
     'webformhub',
     'tasksWebform',
     'webform',
@@ -3543,6 +3545,14 @@ function App() {
       UnauthorizedRedirect,
       {authState, setView, requireAdmin: false, fallbackView: 'home'},
       React.createElement(TaskCenterView, {Header, sb, authState}),
+    );
+
+  // ── ACTIVITY LOG ──
+  if (view === 'activity')
+    return React.createElement(
+      UnauthorizedRedirect,
+      {authState, setView, requireAdmin: false, fallbackView: 'home'},
+      React.createElement(ActivityLogView, {Header}),
     );
 
   // ── WEBFORMS ADMIN VIEW ──

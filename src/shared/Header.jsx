@@ -709,26 +709,17 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                   <button data-header-menu-item="home" onClick={() => go('home')} style={MENU_ITEM_BTN}>
                     <span aria-hidden="true">🏠</span> Home
                   </button>
+                  <button data-header-menu-item="activity" onClick={() => go('activity')} style={MENU_ITEM_BTN}>
+                    <span aria-hidden="true">💬</span> Activity
+                  </button>
 
                   <div style={MENU_DIVIDER} />
                   <span style={MENU_SECTION_LABEL}>Webforms</span>
                   <button data-header-menu-item="dailys" onClick={() => go('webformhub')} style={MENU_ITEM_BTN}>
                     <span aria-hidden="true">📝</span> Dailys
                   </button>
-                  <button data-header-menu-item="addfeed" onClick={() => go('addfeed')} style={MENU_ITEM_BTN}>
-                    <span aria-hidden="true">🌾</span> Add Feed
-                  </button>
-                  <button data-header-menu-item="weighins" onClick={() => go('weighins')} style={MENU_ITEM_BTN}>
-                    <span aria-hidden="true">⚖️</span> Weigh-Ins
-                  </button>
                   <button data-header-menu-item="equipment" onClick={() => go('fuelingHub')} style={MENU_ITEM_BTN}>
                     <PlannerIcon iconKey="tractor" size={16} /> Equipment
-                  </button>
-                  <button data-header-menu-item="fuel-supply" onClick={() => go('fuelSupply')} style={MENU_ITEM_BTN}>
-                    <span aria-hidden="true">⛽</span> Fuel Supply
-                  </button>
-                  <button data-header-menu-item="submit-task" onClick={() => go('tasksWebform')} style={MENU_ITEM_BTN}>
-                    <span aria-hidden="true">✅</span> Submit a Task
                   </button>
 
                   {isAdmin && (

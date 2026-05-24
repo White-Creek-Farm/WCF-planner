@@ -87,6 +87,7 @@ export const VIEW_TO_PATH = {
   // to admins inside the view. Legacy /my-tasks and /admin/tasks
   // are aliases that redirect here (T11) — see ALIASES_EXACT.
   tasks: '/tasks',
+  activity: '/activity',
 
   // Public (no-auth) — these also have legacy aliases handled below.
   webformhub: '/dailys',

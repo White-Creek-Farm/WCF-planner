@@ -86,24 +86,22 @@ describe('Header — hamburger menu contents', () => {
     expect(src).toMatch(/data-header-menu-item="home"/);
   });
 
-  it('Webforms section contains all six destinations', () => {
-    expect(src).toMatch(/data-header-menu-item="dailys"/);
-    expect(src).toMatch(/data-header-menu-item="addfeed"/);
-    expect(src).toMatch(/data-header-menu-item="weighins"/);
-    expect(src).toMatch(/data-header-menu-item="equipment"/);
-    expect(src).toMatch(/data-header-menu-item="fuel-supply"/);
-    expect(src).toMatch(/data-header-menu-item="submit-task"/);
+  it('Activity follows Home in the menu', () => {
+    expect(src).toMatch(/data-header-menu-item="activity"/);
   });
 
-  it('each Webforms entry navigates via setView/go() to its canonical view name', () => {
-    // Crude but reliable: each menu item's click handler must contain
-    // the correct go(<view>) call.
+  it('Webforms section contains Dailys and Equipment only', () => {
+    expect(src).toMatch(/data-header-menu-item="dailys"/);
+    expect(src).toMatch(/data-header-menu-item="equipment"/);
+    expect(src).not.toMatch(/data-header-menu-item="addfeed"/);
+    expect(src).not.toMatch(/data-header-menu-item="weighins"/);
+    expect(src).not.toMatch(/data-header-menu-item="fuel-supply"/);
+    expect(src).not.toMatch(/data-header-menu-item="submit-task"/);
+  });
+
+  it('Webforms entries navigate to canonical view names', () => {
     expect(src).toMatch(/data-header-menu-item="dailys"\s+onClick=\{\(\) => go\('webformhub'\)\}/);
-    expect(src).toMatch(/data-header-menu-item="addfeed"\s+onClick=\{\(\) => go\('addfeed'\)\}/);
-    expect(src).toMatch(/data-header-menu-item="weighins"\s+onClick=\{\(\) => go\('weighins'\)\}/);
     expect(src).toMatch(/data-header-menu-item="equipment"\s+onClick=\{\(\) => go\('fuelingHub'\)\}/);
-    expect(src).toMatch(/data-header-menu-item="fuel-supply"\s+onClick=\{\(\) => go\('fuelSupply'\)\}/);
-    expect(src).toMatch(/data-header-menu-item="submit-task"\s+onClick=\{\(\) => go\('tasksWebform'\)\}/);
   });
 
   it('Admin entry is gated on isAdmin (authState.role === "admin")', () => {
