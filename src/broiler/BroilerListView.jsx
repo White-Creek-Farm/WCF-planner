@@ -50,6 +50,21 @@ export default function BroilerListView({
   const {setView, showAllComparison, setShowAllComparison} = useUI();
   const [activityTarget, setActivityTarget] = React.useState(null);
 
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'broiler.batch') return;
+      const b = batches.find((x) => x.name === dl.entityId);
+      if (b) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({entityType: 'broiler.batch', entityId: b.name, entityLabel: b.name});
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [batches]);
+
   const role = authState?.role;
   const isAdmin = role === 'admin';
   const isMgmt = role === 'management' || role === 'admin';

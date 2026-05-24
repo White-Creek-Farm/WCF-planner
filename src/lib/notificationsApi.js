@@ -53,6 +53,12 @@ export async function countUnreadNotifications(sb, recipientId) {
  */
 export async function loadRecentNotifications(sb, {limit = 20} = {}) {
   if (!sb) return [];
+  const {data: rpcData, error: rpcError} = await sb.rpc('list_recent_notifications', {p_limit: limit});
+  if (!rpcError && rpcData) return rpcData;
+  const MISSING_FN_CODES = ['42883', 'PGRST202'];
+  if (rpcError && !MISSING_FN_CODES.includes(rpcError.code)) {
+    throw new Error(`loadRecentNotifications: ${rpcError.message}`);
+  }
   const {data, error} = await sb
     .from('notifications')
     .select(

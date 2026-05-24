@@ -227,6 +227,22 @@ const CattleHerdsView = ({
   const [saving, setSaving] = useState(false);
   const [expandedCow, setExpandedCow] = useState(null);
   const [activityTarget, setActivityTarget] = useState(null);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'cattle.animal') return;
+      const c = cattle.find((x) => x.id === dl.entityId);
+      if (c) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({entityType: 'cattle.animal', entityId: c.id, entityLabel: c.tag || c.id});
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [cattle]);
+
   const [expandedHerds, setExpandedHerds] = useState({});
   const [cowNavStack, setCowNavStack] = useState([]);
 

@@ -54,6 +54,21 @@ const SheepFlocksView = ({
   const [loading, setLoading] = useState(true);
   const [activityTarget, setActivityTarget] = useState(null);
 
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'sheep.animal') return;
+      const s = sheep.find((x) => x.id === dl.entityId);
+      if (s) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({entityType: 'sheep.animal', entityId: s.id, entityLabel: s.tag || s.id});
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [sheep]);
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [sortBy, setSortBy] = useState('tag-asc');
