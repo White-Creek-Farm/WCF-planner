@@ -46,6 +46,10 @@ import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 
@@ -62,6 +66,23 @@ export default function PigBatchesView({
   collapsedMonths,
   setCollapsedMonths,
 }) {
+  const [activityTarget, setActivityTarget] = React.useState(null);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'pig.batch') return;
+      const g = (feederGroups || []).find((x) => x.id === dl.entityId);
+      if (g) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({entityType: 'pig.batch', entityId: g.id, entityLabel: g.batchName});
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [feederGroups]);
+
   const [showSubForm, setShowSubForm] = React.useState(null); // batchId or null
   const [subForm, setSubForm] = React.useState({name: '', giltCount: 0, boarCount: 0, originalPigCount: 0, notes: ''});
   const [editSubId, setEditSubId] = React.useState(null);
@@ -2094,6 +2115,17 @@ export default function PigBatchesView({
                       }}
                     >
                       <strong style={{fontSize: 14, color: ht}}>{g.batchName}</strong>
+                      <span onClick={(e) => e.stopPropagation()} data-activity-surface="pig.batch">
+                        {React.createElement(ActivityPanel, {
+                          sb,
+                          authState,
+                          entityType: 'pig.batch',
+                          entityId: g.id,
+                          entityLabel: g.batchName,
+                          mode: 'compact',
+                          onCompactClick: setActivityTarget,
+                        })}
+                      </span>
                       <span style={S.badge('#065f46', 'white')}>Gilts: {g.giltCount}</span>
                       <span style={S.badge('#1e40af', 'white')}>Boars: {g.boarCount}</span>
                       {currentPigCount !== null ? (
@@ -3816,6 +3848,12 @@ export default function PigBatchesView({
             );
           })}
       </div>
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 }

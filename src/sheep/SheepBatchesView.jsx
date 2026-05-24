@@ -21,6 +21,10 @@ import React from 'react';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 import {loadSheepWeighInsCached, invalidateSheepWeighInsCache} from '../lib/sheepCache.js';
 import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
 
@@ -49,6 +53,22 @@ const SheepBatchesView = ({
   // Inline notice for batch save / detach failures + per-row warnings.
   // Cleared at the start of each action handler + when opening the form.
   const [notice, setNotice] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'sheep.processing') return;
+      const b = batches.find((x) => x.id === dl.entityId);
+      if (b) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({entityType: 'sheep.processing', entityId: b.id, entityLabel: b.name});
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [batches]);
 
   async function loadAll() {
     const [bR, sR, wAll] = await Promise.all([
@@ -346,6 +366,17 @@ const SheepBatchesView = ({
                 >
                   <span style={{fontSize: 11, color: '#9ca3af'}}>{isExpanded ? '▼' : '▶'}</span>
                   <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{b.name}</span>
+                  <span onClick={(e) => e.stopPropagation()} data-activity-surface="sheep.processing">
+                    {React.createElement(ActivityPanel, {
+                      sb,
+                      authState,
+                      entityType: 'sheep.processing',
+                      entityId: b.id,
+                      entityLabel: b.name,
+                      mode: 'compact',
+                      onCompactClick: setActivityTarget,
+                    })}
+                  </span>
                   <span
                     style={{
                       fontSize: 10,
@@ -758,6 +789,12 @@ const SheepBatchesView = ({
           </div>
         </div>
       )}
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };

@@ -29,6 +29,10 @@ import React from 'react';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityPanel from '../shared/ActivityPanel.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ActivityModal from '../shared/ActivityModal.jsx';
 import {loadCattleWeighInsCached, invalidateCattleWeighInsCache} from '../lib/cattleCache.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
@@ -97,6 +101,22 @@ const CattleBatchesView = ({
   // reopen, mark-complete, rename, detach, schedule/unschedule, date
   // update). Each action handler clears at entry and writes on error.
   const [notice, setNotice] = useState(null);
+  const [activityTarget, setActivityTarget] = useState(null);
+
+  React.useEffect(() => {
+    function onEntityDeepLink() {
+      const dl = window._wcfEntityDeepLink;
+      if (!dl || dl.entityType !== 'cattle.processing') return;
+      const b = batches.find((x) => x.id === dl.entityId);
+      if (b) {
+        window._wcfEntityDeepLink = null;
+        setActivityTarget({entityType: 'cattle.processing', entityId: b.id, entityLabel: b.name});
+      }
+    }
+    onEntityDeepLink();
+    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
+    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
+  }, [batches]);
 
   async function loadAll() {
     const [bR, cR, wAll, calR, settings, inc, hid] = await Promise.all([
@@ -735,6 +755,9 @@ const CattleBatchesView = ({
                     setRenameDraft={setRenameDraft}
                     renameErr={renameErr[b.id]}
                     onSaveRename={() => saveRename(b)}
+                    sb={sb}
+                    authState={authState}
+                    onActivityClick={setActivityTarget}
                   />
                 ))}
               </div>
@@ -782,6 +805,9 @@ const CattleBatchesView = ({
                       setRenameDraft={setRenameDraft}
                       renameErr={renameErr[b.id]}
                       onSaveRename={() => saveRename(b)}
+                      sb={sb}
+                      authState={authState}
+                      onActivityClick={setActivityTarget}
                     />
                   ))}
                 </div>
@@ -790,6 +816,12 @@ const CattleBatchesView = ({
           </div>
         )}
       </div>
+      {React.createElement(ActivityModal, {
+        sb,
+        authState,
+        target: activityTarget,
+        onClose: () => setActivityTarget(null),
+      })}
     </div>
   );
 };
@@ -845,6 +877,9 @@ function BatchTile({
   setRenameDraft,
   renameErr,
   onSaveRename,
+  sb,
+  authState,
+  onActivityClick,
 }) {
   const rows = Array.isArray(batch.cows_detail) ? batch.cows_detail : [];
   const totalLive = rows.reduce((s, r) => s + (parseFloat(r.live_weight) || 0), 0);
@@ -877,6 +912,20 @@ function BatchTile({
       >
         <span style={{fontSize: 11, color: '#9ca3af'}}>{expanded ? '▼' : '▶'}</span>
         <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{batch.name}</span>
+        {sb &&
+          React.createElement(
+            'span',
+            {onClick: (e) => e.stopPropagation(), 'data-activity-surface': 'cattle.processing'},
+            React.createElement(ActivityPanel, {
+              sb,
+              authState,
+              entityType: 'cattle.processing',
+              entityId: batch.id,
+              entityLabel: batch.name,
+              mode: 'compact',
+              onCompactClick: onActivityClick,
+            }),
+          )}
         <span
           style={{
             fontSize: 10,

@@ -14,6 +14,9 @@ export const ENTITY_TYPES = {
   CATTLE_ANIMAL: 'cattle.animal',
   SHEEP_ANIMAL: 'sheep.animal',
   EQUIPMENT_ITEM: 'equipment.item',
+  PIG_BATCH: 'pig.batch',
+  CATTLE_PROCESSING: 'cattle.processing',
+  SHEEP_PROCESSING: 'sheep.processing',
 };
 
 export const ACTIVITY_REGISTRY = {
@@ -52,6 +55,21 @@ export const ACTIVITY_REGISTRY = {
     route: (_id, ctx) => (ctx && ctx.slug ? `/fleet/${ctx.slug}` : '/fleet'),
     program: null,
   },
+  [ENTITY_TYPES.PIG_BATCH]: {
+    displayLabel: (id, ctx) => (ctx && ctx.batchName ? ctx.batchName : id),
+    route: (_id) => '/pig/batches',
+    program: 'pig',
+  },
+  [ENTITY_TYPES.CATTLE_PROCESSING]: {
+    displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
+    route: (_id) => '/cattle/batches',
+    program: 'cattle',
+  },
+  [ENTITY_TYPES.SHEEP_PROCESSING]: {
+    displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
+    route: (_id) => '/sheep/batches',
+    program: 'sheep',
+  },
 };
 
 export function getActivityEntityMeta(entityType) {
@@ -86,6 +104,9 @@ export function routeToView(routePath) {
     '/broiler/batches': 'list',
     '/layer': 'layersHome',
     '/layer/batches': 'layerbatches',
+    '/pig/batches': 'pigbatches',
+    '/cattle/batches': 'cattlebatches',
+    '/sheep/batches': 'sheepbatches',
     '/cattle/herds': 'cattleherds',
     '/sheep/flocks': 'sheepflocks',
     '/fleet': 'equipmentHome',
