@@ -7,7 +7,7 @@
 import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
-import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -995,7 +995,7 @@ const SheepDailysView = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
               <button onClick={saveEdit} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && authState?.role === 'admin' && (
+              {editId && canDeleteDailyReport(authState) && (
                 <button onClick={() => del(editId)} style={S.btnDanger}>
                   Delete
                 </button>

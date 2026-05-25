@@ -27,6 +27,11 @@ export async function softDeleteDailyReport(sb, tableOrEntityType, id, entityLab
   return data;
 }
 
+export function canDeleteDailyReport(authState) {
+  const role = authState?.role;
+  return !!role && role !== 'inactive';
+}
+
 export async function restoreDailyReport(sb, tableOrEntityType, id, entityLabel) {
   if (!sb) throw new Error('restoreDailyReport: sb required');
   const entityType = resolveEntityType(tableOrEntityType);

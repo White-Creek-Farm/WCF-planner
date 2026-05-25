@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const mig067 = fs.readFileSync(path.join(ROOT, 'supabase-migrations/067_daily_soft_delete.sql'), 'utf8');
+const mig070 = fs.readFileSync(path.join(ROOT, 'supabase-migrations/070_daily_delete_all_active_roles.sql'), 'utf8');
 const registrySrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
 const apiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/dailyReportsApi.js'), 'utf8');
 const adminSrc = fs.readFileSync(path.join(ROOT, 'src/admin/RecentlyDeletedDailyReports.jsx'), 'utf8');
@@ -77,30 +78,40 @@ describe('mig 067 — _activity_can_read daily resolver branches', () => {
   });
 });
 
-describe('mig 067 — soft_delete_daily_report RPC', () => {
+describe('mig 070 — soft_delete_daily_report RPC (active-authenticated)', () => {
   it('is SECURITY DEFINER', () => {
-    expect(mig067).toMatch(/CREATE OR REPLACE FUNCTION public\.soft_delete_daily_report[\s\S]*?SECURITY DEFINER/);
+    expect(mig070).toMatch(/CREATE OR REPLACE FUNCTION public\.soft_delete_daily_report[\s\S]*?SECURITY DEFINER/);
   });
-  it('is admin-only', () => {
-    expect(mig067).toMatch(/soft_delete_daily_report: admin role required/);
+  it('requires authenticated caller', () => {
+    expect(mig070).toMatch(/soft_delete_daily_report: authenticated caller required/);
+  });
+  it('rejects null or inactive role', () => {
+    expect(mig070).toMatch(/v_role IS NULL OR v_role = 'inactive'/);
+    expect(mig070).toMatch(/caller role % cannot delete/);
+  });
+  it('does NOT enforce admin-only', () => {
+    expect(mig070).not.toMatch(/soft_delete_daily_report: admin role required/);
   });
   it('validates entity_type against allowlist', () => {
     for (const et of DAILY_ENTITY_TYPES) {
-      expect(mig067).toContain(`WHEN '${et}'`);
+      expect(mig070).toContain(`WHEN '${et}'`);
     }
   });
   it('checks record exists and is not already deleted', () => {
-    expect(mig067).toMatch(/deleted_at IS NULL/);
-    expect(mig067).toMatch(/record not found or already deleted/);
+    expect(mig070).toMatch(/deleted_at IS NULL/);
+    expect(mig070).toMatch(/record not found or already deleted/);
   });
   it('sets deleted_at + deleted_by in the same transaction as the activity event', () => {
-    expect(mig067).toContain('SET deleted_at = now(), deleted_by = $1');
-    expect(mig067).toContain("'record.deleted'");
-    expect(mig067).toMatch(/INSERT INTO public\.activity_events/);
+    expect(mig070).toContain('SET deleted_at = now(), deleted_by = $1');
+    expect(mig070).toContain("'record.deleted'");
+    expect(mig070).toMatch(/INSERT INTO public\.activity_events/);
   });
   it('REVOKE from anon + GRANT to authenticated', () => {
-    expect(mig067).toMatch(/REVOKE ALL ON FUNCTION public\.soft_delete_daily_report\([^)]*\) FROM PUBLIC, anon/);
-    expect(mig067).toMatch(/GRANT EXECUTE ON FUNCTION public\.soft_delete_daily_report\([^)]*\) TO authenticated/);
+    expect(mig070).toMatch(/REVOKE ALL ON FUNCTION public\.soft_delete_daily_report\([^)]*\) FROM PUBLIC, anon/);
+    expect(mig070).toMatch(/GRANT EXECUTE ON FUNCTION public\.soft_delete_daily_report\([^)]*\) TO authenticated/);
+  });
+  it('ends with NOTIFY pgrst reload', () => {
+    expect(mig070).toMatch(/NOTIFY pgrst, 'reload schema'/);
   });
 });
 
@@ -237,6 +248,50 @@ describe('Active-record filter audit', () => {
   it('dailyDuplicateCheck.js filters deleted records from duplicate checks', () => {
     expect(dupCheckSrc).toContain(".is('deleted_at', null)");
   });
+});
+
+// ── canDeleteDailyReport helper ─────────────────────────────────────────
+
+describe('canDeleteDailyReport helper', () => {
+  it('is exported from dailyReportsApi', () => {
+    expect(apiSrc).toMatch(/export function canDeleteDailyReport/);
+  });
+  it('rejects inactive role', () => {
+    expect(apiSrc).toContain("role !== 'inactive'");
+  });
+  it('does not gate on admin', () => {
+    const helperBody = apiSrc.match(/export function canDeleteDailyReport[\s\S]*?^}/m);
+    expect(helperBody).not.toBeNull();
+    expect(helperBody[0]).not.toContain("=== 'admin'");
+  });
+});
+
+// ── UI delete guard — all 6 views use canDeleteDailyReport ─────────────
+
+describe('Daily view delete buttons use canDeleteDailyReport, not admin-only', () => {
+  const VIEW_FILES = [
+    'src/broiler/BroilerDailysView.jsx',
+    'src/layer/LayerDailysView.jsx',
+    'src/layer/EggDailysView.jsx',
+    'src/pig/PigDailysView.jsx',
+    'src/cattle/CattleDailysView.jsx',
+    'src/sheep/SheepDailysView.jsx',
+  ];
+
+  for (const relPath of VIEW_FILES) {
+    it(`${relPath} imports canDeleteDailyReport`, () => {
+      const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8');
+      expect(src).toContain('canDeleteDailyReport');
+    });
+    it(`${relPath} uses canDeleteDailyReport for the delete guard`, () => {
+      const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8');
+      expect(src).toContain('canDeleteDailyReport(authState)');
+    });
+    it(`${relPath} does not gate delete on admin-only`, () => {
+      const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8');
+      expect(src).not.toMatch(/authState\?\.role === 'admin'[\s\S]*?Delete/);
+    });
+  }
 });
 
 // ── No hard deletes remain ──────────────────────────────────────────────

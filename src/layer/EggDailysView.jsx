@@ -3,7 +3,7 @@ import React from 'react';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError} from '../lib/dailyDuplicateCheck.js';
-import {softDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -566,7 +566,7 @@ const EggDailysView = ({sb, fmt, Header, authState, layerGroups, pendingEdit, se
               <button onClick={save} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && authState?.role === 'admin' && (
+              {editId && canDeleteDailyReport(authState) && (
                 <button onClick={() => del(editId)} style={S.btnDanger}>
                   Delete
                 </button>
