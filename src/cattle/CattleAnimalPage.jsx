@@ -71,6 +71,8 @@ export default function CattleAnimalPage({sb, fmt, authState}) {
   const navigate = useNavigate();
   const location = useLocation();
   const cattleId = location.pathname.replace('/cattle/herds/', '');
+  const fromCowId = location.state?.fromCowId || null;
+  const fromCowTag = location.state?.fromCowTag || null;
 
   const [cow, setCow] = React.useState(null);
   const [cattle, setCattle] = React.useState([]);
@@ -103,6 +105,12 @@ export default function CattleAnimalPage({sb, fmt, authState}) {
   }
 
   React.useEffect(() => {
+    setCow(null);
+    setLoading(true);
+    setNotice(null);
+    setActivityExpanded(false);
+    setActivityEvents([]);
+    setActivityCount(0);
     loadAll();
   }, [cattleId]);
 
@@ -254,7 +262,9 @@ export default function CattleAnimalPage({sb, fmt, authState}) {
 
   function navigateToCow(target) {
     if (!target || !target.id) return;
-    navigate('/cattle/herds/' + target.id);
+    navigate('/cattle/herds/' + target.id, {
+      state: {fromCowId: cow.id, fromCowTag: cow.tag || cow.id},
+    });
   }
 
   if (loading) {
@@ -312,9 +322,23 @@ export default function CattleAnimalPage({sb, fmt, authState}) {
         </button>
       </div>
 
+      <h1
+        data-record-title="1"
+        style={{
+          fontSize: 28,
+          fontWeight: 700,
+          color: '#111827',
+          margin: '0 0 12px',
+          lineHeight: 1.2,
+        }}
+      >
+        {cow.tag ? '#' + cow.tag : 'Untagged animal'}
+      </h1>
+
       {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
 
       <CowDetail
+        key={cow.id}
         cow={cow}
         ageLabel={age(cow.birth_date) || '—'}
         weighIns={cowWeighIns}
@@ -337,9 +361,9 @@ export default function CattleAnimalPage({sb, fmt, authState}) {
         onAddCalving={(data) => addCalvingRecord(cow, data)}
         onDeleteCalving={(id) => deleteCalvingRecord(id)}
         onNavigateToCow={(target) => navigateToCow(target)}
-        onNavigateBack={() => navigate(-1)}
-        canNavigateBack={true}
-        backToTag={null}
+        onNavigateBack={() => navigate('/cattle/herds/' + fromCowId)}
+        canNavigateBack={Boolean(fromCowId)}
+        backToTag={fromCowTag}
         onPatch={(fields) => patchCow(fields)}
         onClose={() => navigate('/cattle/herds')}
         originOpts={originOpts}

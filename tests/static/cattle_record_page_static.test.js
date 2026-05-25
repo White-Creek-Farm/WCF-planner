@@ -57,6 +57,18 @@ describe('CollapsibleOutcomeSections — no inline CowDetail', () => {
   });
 });
 
+describe('CattleAnimalPage — CowDetail remount on navigation', () => {
+  it('keys CowDetail by cow.id to force remount', () => {
+    expect(animalPage).toContain('key={cow.id}');
+  });
+  it('resets cow state to null on cattleId change', () => {
+    expect(animalPage).toContain('setCow(null)');
+  });
+  it('resets loading to true on cattleId change', () => {
+    expect(animalPage).toContain('setLoading(true)');
+  });
+});
+
 describe('CattleAnimalPage — record page structure', () => {
   it('renders CommentsSection', () => {
     expect(animalPage).toContain('CommentsSection');
@@ -89,6 +101,50 @@ describe('CattleAnimalPage — record page structure', () => {
   it('handles hash anchors for comment deep-links', () => {
     expect(animalPage).toContain('location.hash');
     expect(animalPage).toContain('scrollIntoView');
+  });
+});
+
+describe('CattleAnimalPage — record page title', () => {
+  it('shows tag as the page title', () => {
+    expect(animalPage).toContain("cow.tag ? '#' + cow.tag : 'Untagged animal'");
+  });
+  it('has a data-record-title marker', () => {
+    expect(animalPage).toContain('data-record-title');
+  });
+  it('does not prefix title with Cow/Bull/Steer/Heifer', () => {
+    expect(animalPage).not.toMatch(/['"](?:Cow|Bull|Steer|Heifer|Cattle)\s*#/);
+  });
+});
+
+describe('CattleAnimalPage — cow-to-cow navigation state', () => {
+  it('does not hard-code canNavigateBack={true}', () => {
+    expect(animalPage).not.toContain('canNavigateBack={true}');
+  });
+  it('derives canNavigateBack from location.state.fromCowId', () => {
+    expect(animalPage).toContain('fromCowId');
+    expect(animalPage).toContain('canNavigateBack={Boolean(fromCowId)}');
+  });
+  it('passes fromCowTag as backToTag', () => {
+    expect(animalPage).toContain('backToTag={fromCowTag}');
+  });
+  it('navigateToCow passes route state with source cow', () => {
+    expect(animalPage).toContain('fromCowId: cow.id');
+    expect(animalPage).toContain('fromCowTag: cow.tag');
+  });
+  it('onNavigateBack navigates to the source cow record page', () => {
+    expect(animalPage).toContain("navigate('/cattle/herds/' + fromCowId)");
+  });
+});
+
+describe('CowDetail — breeding blacklist UI', () => {
+  it('uses a shaded row for the blacklist control', () => {
+    expect(cowDetail).toContain('data-breeding-blacklist-row');
+  });
+  it('keeps the label on one line with whiteSpace nowrap', () => {
+    expect(cowDetail).toMatch(/breeding.blacklist[\s\S]*?whiteSpace:\s*'nowrap'/);
+  });
+  it('includes helper text inline', () => {
+    expect(cowDetail).toContain('Do not breed. Record reason in Issues.');
   });
 });
 

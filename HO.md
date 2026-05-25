@@ -1,6 +1,6 @@
 # HO - Static Workflow SOP
 
-Last updated: 2026-05-23.
+Last updated: 2026-05-25.
 
 This is the durable start-of-session workflow for Ronnie, CC (Claude Code), and
 Codex. It is not a session log and must not carry current project state.
@@ -44,26 +44,34 @@ Codex may edit docs/prompts/planning files when Ronnie asks.
 Ronnie alone approves commits, pushes, deploys, merges, destructive actions, and
 production-impacting changes.
 
-Each gate is separate:
+Gate approvals may be separate or bundled:
 
-- Commit approval does not imply push approval.
-- Push approval does not imply migration/function/Vault approval.
-- Push to `main` implies Netlify production runtime change for code-only lanes.
+- If Ronnie approves one action, stop after that action.
+- If Ronnie plainly approves a sequence, such as `commit and push`, `ship it`,
+  `push it`, or `proceed with migration and bucket`, treat the named actions as
+  approved and do not return for intermediate confirmations.
+- If the approval wording is ambiguous, ask one concise clarifying question.
+- Push to `main` implies Netlify production runtime change for code-only lanes,
+  but Netlify auto-deploy does not require a separate confirmation loop by
+  default. Check deploy status only when requested, high risk, or evidence
+  suggests failure.
 
 Production gates:
 
 | Action | Required gate |
 |---|---|
-| Push to `main` | Push approval |
-| PROD `psql` migration apply | Separate PROD apply approval |
-| Supabase Edge Function deploy | Separate deploy approval |
-| Vault secret add/rotate | Separate Vault approval |
+| Push to `main` | Push approval, or explicit bundled commit+push approval |
+| PROD `psql` migration apply | PROD apply approval, or explicit bundled approval naming the migration |
+| PROD Storage bucket create/change/delete | PROD Storage approval, or explicit bundled approval naming the bucket action |
+| Supabase Edge Function deploy | Deploy approval, or explicit bundled approval naming the function |
+| Vault secret add/rotate | Vault approval, or explicit bundled approval naming the secret action |
 | TEST DB migration apply | No separate gate inside an approved lane |
 | Validation commands | No gate |
 
 Lane approval can cover SQL writes, Vault checks, function deploys, and
 migration applies inside that lane only when the approval says so. Commit, push,
-deploy, and merge still remain separate.
+deploy, merge, PROD migration, Storage, and Vault actions can be bundled only
+when Ronnie's approval clearly names that sequence.
 
 `exec_sql` in PROD is forbidden under every approval shape.
 
@@ -114,10 +122,14 @@ If a lane touches a load-bearing contract, call that out before editing.
 3. Ronnie relays the `From Codex:` block to CC.
 4. CC builds, validates, and reports back with `From CC:`.
 5. Codex reviews and either pushes back or clears the next gate.
-6. Ronnie approves or redirects commit, push, deploy, merge, wrap, or next lane.
+6. Ronnie approves or redirects one action or a named sequence, such as commit
+   and push, deploy, merge, wrap, or next lane.
 
 After a clean checkpoint, Codex provides the next CC-ready prompt or names the
 exact blocker. Do not ask CC to choose the next scope.
+
+If Ronnie has already approved the next action in a clear bundled sequence,
+Codex provides the execution prompt instead of asking for another confirmation.
 
 Keep a working queue during the session. Hotfixes may interrupt the queue, but
 return to the paused lane afterward.
@@ -206,7 +218,8 @@ A CC-ready `From Codex:` prompt should include:
 - Likely files/areas touched.
 - Product, UX, permission, and data-model decisions.
 - Required validation.
-- Commit/push/deploy/doc gates.
+- Commit/push/deploy/doc gates, including whether current approval bundles any
+  of them.
 - Open blockers, if any.
 
 Prompts should be copyable and direct. Put the entire `From Codex:` relay in
@@ -224,6 +237,8 @@ Use these outcomes when possible:
 - `Ready for next checkpoint` - checkpoint is clean; next build step can begin.
 - `Ready to commit` - review and validation are clean for commit approval.
 - `Ready to push` - committed work is clean for push approval.
+- `Ready to commit and push` - review is clean and Ronnie has approved both
+  actions in one bundle.
 - `Pushed, next prompt follows` - push is reported complete and the next prompt
   is included.
 
@@ -312,4 +327,6 @@ do not revert them unless Ronnie explicitly asks.
 Prefer scoped staging by path. Do not stage generated reports, local env files,
 or unrelated line-ending churn.
 
-Do not update `PROJECT.md` during normal builds unless Ronnie explicitly asks.
+Do not update `PROJECT.md` during normal builds unless Ronnie explicitly asks
+for wrap/docs work or a specific `PROJECT.md` change. Do not make
+`PROJECT.md` cleanup a normal commit/push blocker.
