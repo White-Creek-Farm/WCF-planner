@@ -541,27 +541,20 @@ const CowDetail = ({
       </div>
       {/* Breeding blacklist (hidden for steers \u2014 they can't breed) */}
       {cow.sex !== 'steer' && (
-        <div
-          data-breeding-blacklist-row="1"
-          style={{
-            marginTop: 10,
-            padding: '8px 12px',
-            background: cow.breeding_blacklist ? '#fef2f2' : '#f9fafb',
-            borderRadius: 6,
-            border: '1px solid ' + (cow.breeding_blacklist ? '#fca5a5' : '#e5e7eb'),
-            boxSizing: 'border-box',
-          }}
-        >
+        <div data-breeding-blacklist-row="1" style={{marginTop: 10}}>
           <label
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 6,
               cursor: 'pointer',
-              fontSize: 13,
-              color: '#7f1d1d',
+              fontSize: 12,
+              color: 'white',
               fontWeight: 600,
               whiteSpace: 'nowrap',
+              background: '#991b1b',
+              padding: '5px 12px',
+              borderRadius: 6,
             }}
           >
             <input
