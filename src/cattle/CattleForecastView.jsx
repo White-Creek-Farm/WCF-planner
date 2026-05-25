@@ -194,7 +194,7 @@ const CattleForecastView = ({
 
   async function loadAll() {
     const [cR, wAll, calR, comR, brR, orR, bR, s, inc, hid] = await Promise.all([
-      sb.from('cattle').select('*').order('tag'),
+      sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
       loadCattleWeighInsCached(sb),
       sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
       sb.from('cattle_comments').select('*').order('created_at', {ascending: false}),

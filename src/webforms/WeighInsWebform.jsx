@@ -200,6 +200,7 @@ const WeighInsWebform = ({sb}) => {
     if (species === 'cattle') {
       sb.from('cattle')
         .select('id, tag, herd, birth_date, sex, breed, old_tags')
+        .is('deleted_at', null)
         .then(({data}) => {
           if (data) setCattleList(data);
         });

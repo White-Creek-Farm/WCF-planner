@@ -26,6 +26,7 @@ import {seedBroilerWeighInSchooners} from './scenarios/broiler_weigh_in_schooner
 import {seedAdminBroilerSessionMeta} from './scenarios/admin_broiler_session_meta_seed.js';
 import {seedCattleHerdFilters} from './scenarios/cattle_herd_filters_seed.js';
 import {seedCattleForecast, seedCattleForecastSendFlow} from './scenarios/cattle_forecast_seed.js';
+import {seedCattleSoftDelete} from './scenarios/cattle_soft_delete_seed.js';
 
 // ============================================================================
 // Per-spec fixtures: authenticated page (via global.setup storageState),
@@ -272,6 +273,14 @@ export const test = base.extend({
   cattleForecastSendFlowScenario: async ({supabaseAdmin}, use) => {
     await resetTestDatabase();
     const ids = await seedCattleForecastSendFlow(supabaseAdmin);
+    await use(ids);
+  },
+  // cattleSoftDeleteScenario — seeds cattle for soft-delete/restore workflow
+  // testing: active cow to delete, tag-conflict cow, sold/deceased for
+  // outcome-herd restore, plus child records (comment, transfer).
+  cattleSoftDeleteScenario: async ({supabaseAdmin}, use) => {
+    await resetTestDatabase();
+    const ids = await seedCattleSoftDelete(supabaseAdmin);
     await use(ids);
   },
 });

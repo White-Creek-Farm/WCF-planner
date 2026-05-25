@@ -34,6 +34,7 @@ import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
+import {softDeleteCattleAnimal, restoreCattleAnimal} from '../lib/cattleDeleteApi.js';
 
 const CATTLE_EXCLUDE = ['herd', 'processing_batch_id'];
 const CATTLE_LABELS = {
@@ -254,6 +255,10 @@ const CattleHerdsView = ({
   const [saving, setSaving] = useState(false);
   const [expandedCow, setExpandedCow] = useState(null);
   const [activityTarget, setActivityTarget] = useState(null);
+  const [deletedCattle, setDeletedCattle] = useState([]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deletedLoading, setDeletedLoading] = useState(false);
+  const [restoring, setRestoring] = useState(null);
 
   React.useEffect(() => {
     function onEntityDeepLink() {
@@ -275,7 +280,7 @@ const CattleHerdsView = ({
 
   async function loadAll() {
     const [cR, wAll, calR, comR, brR, orR, pbR] = await Promise.all([
-      sb.from('cattle').select('*').order('tag'),
+      sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
       loadCattleWeighInsCached(sb),
       sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
       sb.from('cattle_comments').select('*').order('created_at', {ascending: false}),
@@ -295,6 +300,40 @@ const CattleHerdsView = ({
   useEffect(() => {
     loadAll();
   }, []);
+
+  async function loadDeletedCattle() {
+    setDeletedLoading(true);
+    try {
+      const {data, error} = await sb
+        .from('cattle')
+        .select('id, tag, herd, deleted_at, deleted_by, sex, breed')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', {ascending: false})
+        .limit(50);
+      if (error) {
+        setNotice({kind: 'error', message: 'Could not load deleted cattle: ' + error.message});
+        return;
+      }
+      setDeletedCattle(data || []);
+    } finally {
+      setDeletedLoading(false);
+    }
+  }
+
+  async function handleRestore(cow) {
+    setRestoring(cow.id);
+    setNotice(null);
+    try {
+      await restoreCattleAnimal(sb, cow.id, cow.tag || cow.id);
+      await loadAll();
+      await loadDeletedCattle();
+      setNotice({kind: 'success', message: 'Cow #' + (cow.tag || cow.id) + ' restored.'});
+    } catch (e) {
+      const msg = e.message || String(e);
+      setNotice({kind: 'error', message: 'Restore failed: ' + msg});
+    }
+    setRestoring(null);
+  }
 
   // ── helpers (the lib owns the math; these are display-side wrappers) ──────
   function age(birth) {
@@ -629,15 +668,19 @@ const CattleHerdsView = ({
   }
   async function deleteCow(id) {
     if (!window._wcfConfirmDelete) return;
-    window._wcfConfirmDelete(
-      'Permanently delete this cow record? Weigh-ins, calving records, comments, and transfer history will also be deleted (cascade).',
-      async () => {
-        await sb.from('cattle').delete().eq('id', id);
+    const cow = cattle.find((c) => c.id === id);
+    window._wcfConfirmDelete('Delete this cow record? The record can be restored from Recently Deleted.', async () => {
+      try {
+        await softDeleteCattleAnimal(sb, id, cow?.tag || id);
         await loadAll();
+        if (authState?.role === 'admin') await loadDeletedCattle();
         closeCowForm();
         setExpandedCow(null);
-      },
-    );
+        setNotice({kind: 'success', message: 'Cow #' + (cow?.tag || id) + ' deleted.'});
+      } catch (e) {
+        setNotice({kind: 'error', message: 'Delete failed: ' + (e.message || String(e))});
+      }
+    });
   }
   async function transferCow(id, newHerd) {
     const cow = cattle.find((c) => c.id === id);
@@ -1590,7 +1633,7 @@ const CattleHerdsView = ({
                       HERD_COLORS={HERD_COLORS}
                       onEdit={() => openEdit(c)}
                       onTransfer={(newHerd) => transferCow(c.id, newHerd)}
-                      onDelete={() => deleteCow(c.id)}
+                      onDelete={authState?.role === 'admin' ? () => deleteCow(c.id) : undefined}
                       onComment={(text) => addQuickComment(c.id, c.tag, text)}
                       onEditComment={editComment}
                       onDeleteComment={deleteComment}
@@ -1815,7 +1858,7 @@ const CattleHerdsView = ({
                               HERD_COLORS={HERD_COLORS}
                               onEdit={() => openEdit(c)}
                               onTransfer={(newHerd) => transferCow(c.id, newHerd)}
-                              onDelete={() => deleteCow(c.id)}
+                              onDelete={authState?.role === 'admin' ? () => deleteCow(c.id) : undefined}
                               onComment={(text) => addQuickComment(c.id, c.tag, text)}
                               onEditComment={editComment}
                               onDeleteComment={deleteComment}
@@ -1884,7 +1927,7 @@ const CattleHerdsView = ({
                     HERD_COLORS={HERD_COLORS}
                     onEdit={() => openEdit(c)}
                     onTransfer={(newHerd) => transferCow(c.id, newHerd)}
-                    onDelete={() => deleteCow(c.id)}
+                    onDelete={authState?.role === 'admin' ? () => deleteCow(c.id) : undefined}
                     onComment={(text) => addQuickComment(c.id, c.tag, text)}
                     onEditComment={editComment}
                     onDeleteComment={deleteComment}
@@ -1909,6 +1952,107 @@ const CattleHerdsView = ({
           </div>
         )}
       </div>
+
+      {/* Recently Deleted Cattle — admin-only */}
+      {authState?.role === 'admin' && (
+        <div style={{marginTop: 14}}>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !showDeleted;
+              setShowDeleted(next);
+              if (next && deletedCattle.length === 0) loadDeletedCattle();
+            }}
+            style={{
+              fontSize: 12,
+              color: '#b91c1c',
+              background: 'white',
+              border: '1px solid #fecaca',
+              borderRadius: 8,
+              padding: '8px 14px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontWeight: 600,
+            }}
+          >
+            {showDeleted ? '▼' : '▶'} Recently Deleted ({deletedCattle.length || '…'})
+          </button>
+          {showDeleted && (
+            <div
+              style={{
+                marginTop: 8,
+                background: 'white',
+                border: '1px solid #fecaca',
+                borderRadius: 10,
+                overflow: 'hidden',
+              }}
+            >
+              {deletedLoading && (
+                <div style={{padding: '1rem', textAlign: 'center', color: '#9ca3af', fontSize: 12}}>Loading…</div>
+              )}
+              {!deletedLoading && deletedCattle.length === 0 && (
+                <div style={{padding: '1rem', textAlign: 'center', color: '#9ca3af', fontSize: 12}}>
+                  No recently deleted cattle.
+                </div>
+              )}
+              {!deletedLoading &&
+                deletedCattle.map((dc) => (
+                  <div
+                    key={dc.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 14px',
+                      borderBottom: '1px solid #fef2f2',
+                      fontSize: 12,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span style={{fontWeight: 700, color: '#111827', minWidth: 60}}>
+                      {dc.tag ? '#' + dc.tag : '(no tag)'}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        background: '#f3f4f6',
+                        color: '#6b7280',
+                      }}
+                    >
+                      {dc.herd}
+                    </span>
+                    <span style={{fontSize: 11, color: '#6b7280'}}>{dc.sex || ''}</span>
+                    <span style={{fontSize: 11, color: '#6b7280'}}>{dc.breed || ''}</span>
+                    <span style={{fontSize: 11, color: '#9ca3af', marginLeft: 'auto'}}>
+                      deleted {dc.deleted_at ? new Date(dc.deleted_at).toLocaleDateString() : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(dc)}
+                      disabled={restoring === dc.id}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 5,
+                        border: '1px solid #065f46',
+                        background: 'white',
+                        color: '#065f46',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: restoring === dc.id ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                        opacity: restoring === dc.id ? 0.5 : 1,
+                      }}
+                    >
+                      {restoring === dc.id ? 'Restoring…' : 'Restore'}
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add/Edit cow modal */}
       {showAddForm && form && (
@@ -2427,7 +2571,7 @@ const CattleHerdsView = ({
               >
                 {saving ? 'Saving…' : editId ? 'Save' : 'Add Cow'}
               </button>
-              {editId && (
+              {editId && authState?.role === 'admin' && (
                 <button
                   onClick={() => deleteCow(editId)}
                   style={{

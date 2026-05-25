@@ -1397,6 +1397,7 @@ function App() {
     if (!authState) return;
     sb.from('cattle')
       .select('*', {count: 'exact', head: true})
+      .is('deleted_at', null)
       .in('herd', ['mommas', 'backgrounders', 'finishers', 'bulls'])
       .then(({count}) => {
         if (count != null) setCattleOnFarmCount(count);
@@ -1465,6 +1466,7 @@ function App() {
     // Lightweight cattle + sheep directory (id + flock/herd only) for the missed-report active-flock check
     sb.from('cattle')
       .select('id,herd')
+      .is('deleted_at', null)
       .then(({data}) => {
         if (data) setCattleForHome(data);
       });

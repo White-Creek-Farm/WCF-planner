@@ -41,7 +41,7 @@ const CattleHomeView = ({
 
   useEffect(() => {
     Promise.all([
-      sb.from('cattle').select('*'),
+      sb.from('cattle').select('*').is('deleted_at', null),
       sb.from('cattle_dailys').select('*').is('deleted_at', null).gte('date', cutoff120),
       loadCattleWeighInsCached(sb),
       sb.from('cattle_calving_records').select('*'),

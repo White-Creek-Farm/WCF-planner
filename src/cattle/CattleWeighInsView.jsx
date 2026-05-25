@@ -73,7 +73,7 @@ const CattleWeighInsView = ({
       // Full cow rows so the Send-to-Processor modal can run the SAME
       // forecast computation the Forecast tab does (DOB-based projection,
       // sex-aware eligibility, etc. all need the full shape).
-      sb.from('cattle').select('*'),
+      sb.from('cattle').select('*').is('deleted_at', null),
     ]);
     if (sR.data) setSessions(sR.data);
     // Flat list (desc-by-entered_at via cattleCache contract) — passed to

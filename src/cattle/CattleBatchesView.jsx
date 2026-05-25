@@ -121,7 +121,7 @@ const CattleBatchesView = ({
   async function loadAll() {
     const [bR, cR, wAll, calR, settings, inc, hid] = await Promise.all([
       sb.from('cattle_processing_batches').select('*').order('actual_process_date', {ascending: false}),
-      sb.from('cattle').select('*'),
+      sb.from('cattle').select('*').is('deleted_at', null),
       loadCattleWeighInsCached(sb),
       sb.from('cattle_calving_records').select('*'),
       loadForecastSettings(sb),

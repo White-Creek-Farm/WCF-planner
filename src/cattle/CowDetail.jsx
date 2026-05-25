@@ -1515,22 +1515,24 @@ const CowDetail = ({
             Cancel
           </button>
         )}
-        <button
-          onClick={onDelete}
-          style={{
-            padding: '6px 12px',
-            borderRadius: 6,
-            border: '1px solid #F09595',
-            background: 'white',
-            color: '#b91c1c',
-            fontSize: 12,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            marginLeft: 'auto',
-          }}
-        >
-          Delete
-        </button>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid #F09595',
+              background: 'white',
+              color: '#b91c1c',
+              fontSize: 12,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              marginLeft: 'auto',
+            }}
+          >
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );

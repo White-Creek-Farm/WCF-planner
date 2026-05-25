@@ -30,7 +30,7 @@ const CattleBreedingView = ({
     const [cR, calR, ctR] = await Promise.all([
       sb.from('cattle_breeding_cycles').select('*').order('bull_exposure_start', {ascending: false}),
       sb.from('cattle_calving_records').select('*'),
-      sb.from('cattle').select('id,tag,herd'),
+      sb.from('cattle').select('id,tag,herd').is('deleted_at', null),
     ]);
     if (cR.data) setCycles(cR.data);
     if (calR.data) setCalving(calR.data);
