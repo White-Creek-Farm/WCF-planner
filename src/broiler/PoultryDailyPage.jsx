@@ -7,6 +7,8 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordActivityLog from '../shared/RecordActivityLog.jsx';
 import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
+import {buildChanges} from '../lib/activityChangeDiff.js';
 
 const fieldRow = {
   display: 'flex',
@@ -15,8 +17,57 @@ const fieldRow = {
   padding: '6px 0',
   borderBottom: '1px solid #f3f4f6',
   fontSize: 13,
+  gap: 8,
 };
-const fieldLabel = {fontWeight: 600, color: '#4b5563', fontSize: 12};
+const fieldLabel = {fontWeight: 600, color: '#4b5563', fontSize: 12, flexShrink: 0};
+const inp = {
+  fontSize: 13,
+  padding: '4px 8px',
+  border: '1px solid #d1d5db',
+  borderRadius: 6,
+  fontFamily: 'inherit',
+  width: 120,
+  boxSizing: 'border-box',
+};
+const EDIT_EXCLUDE = [
+  'id',
+  'submitted_at',
+  'client_submission_id',
+  'source',
+  'daily_submission_id',
+  'photos',
+  'deleted_at',
+  'deleted_by',
+];
+const LABELS = {
+  date: 'Date',
+  team_member: 'Team member',
+  batch_label: 'Batch',
+  feed_type: 'Feed type',
+  feed_lbs: 'Feed (lbs)',
+  grit_lbs: 'Grit (lbs)',
+  mortality_count: 'Mortality count',
+  mortality_reason: 'Mortality reason',
+  group_moved: 'Group moved',
+  waterer_checked: 'Waterer checked',
+  comments: 'Comments',
+};
+
+function initForm(r) {
+  return {
+    date: r.date || '',
+    teamMember: r.team_member || '',
+    batchLabel: r.batch_label || '',
+    feedType: r.feed_type || 'GROWER',
+    feedLbs: r.feed_lbs != null ? String(r.feed_lbs) : '',
+    gritLbs: r.grit_lbs != null ? String(r.grit_lbs) : '',
+    mortalityCount: r.mortality_count != null ? String(r.mortality_count) : '',
+    mortalityReason: r.mortality_reason || '',
+    groupMoved: r.group_moved !== false,
+    watererChecked: r.waterer_checked !== false,
+    comments: r.comments || '',
+  };
+}
 
 export default function PoultryDailyPage({sb, fmt, authState, Header}) {
   const navigate = useNavigate();
@@ -26,10 +77,15 @@ export default function PoultryDailyPage({sb, fmt, authState, Header}) {
   const [record, setRecord] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [form, setForm] = React.useState(null);
+  const [saving, setSaving] = React.useState(false);
 
   async function loadAll() {
     const {data} = await sb.from('poultry_dailys').select('*').eq('id', recordId).is('deleted_at', null).single();
-    if (data) setRecord(data);
+    if (data) {
+      setRecord(data);
+      setForm(initForm(data));
+    }
     setLoading(false);
   }
 
@@ -37,6 +93,7 @@ export default function PoultryDailyPage({sb, fmt, authState, Header}) {
     setRecord(null);
     setLoading(true);
     setNotice(null);
+    setForm(null);
     loadAll();
   }, [recordId]);
 
@@ -49,6 +106,54 @@ export default function PoultryDailyPage({sb, fmt, authState, Header}) {
       }, 200);
     }
   }, [loading, location.hash]);
+
+  async function handleSave() {
+    setNotice(null);
+    if (parseInt(form.mortalityCount) > 0 && !(form.mortalityReason || '').trim()) {
+      setNotice({kind: 'error', message: 'Mortality reason is required when mortalities are reported.'});
+      return;
+    }
+    setSaving(true);
+    const rec = {
+      date: form.date,
+      team_member: form.teamMember,
+      batch_label: form.batchLabel,
+      feed_type: form.feedType || 'GROWER',
+      feed_lbs: form.feedLbs !== '' ? parseFloat(form.feedLbs) : 0,
+      grit_lbs: form.gritLbs !== '' ? parseFloat(form.gritLbs) : 0,
+      mortality_count: form.mortalityCount !== '' ? parseInt(form.mortalityCount) : 0,
+      mortality_reason: form.mortalityReason || null,
+      group_moved: form.groupMoved,
+      waterer_checked: form.watererChecked,
+      comments: form.comments || null,
+    };
+    const entityLabel =
+      (rec.date || record.date) +
+      (rec.batch_label ? ' · ' + rec.batch_label : record.batch_label ? ' · ' + record.batch_label : '');
+    const result = await runMutation(() => sb.from('poultry_dailys').update(rec).eq('id', record.id), {
+      activity: () => {
+        const changes = buildChanges(record, rec, {exclude: EDIT_EXCLUDE, labels: LABELS});
+        if (changes.length === 0) return;
+        return recordFieldChange(sb, {
+          entityType: 'poultry.daily',
+          entityId: record.id,
+          entityLabel,
+          changes,
+        });
+      },
+      onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
+    });
+    setSaving(false);
+    if (result.ok) {
+      setRecord((prev) => ({...prev, ...rec}));
+      setNotice({kind: 'success', message: 'Saved.'});
+    }
+  }
+
+  function handleCancel() {
+    if (record) setForm(initForm(record));
+    setNotice(null);
+  }
 
   async function handleDelete() {
     if (!window._wcfConfirmDelete) return;
@@ -72,7 +177,7 @@ export default function PoultryDailyPage({sb, fmt, authState, Header}) {
     );
   }
 
-  if (!record) {
+  if (!record || !form) {
     return (
       <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
         {Header && <Header />}
@@ -101,6 +206,7 @@ export default function PoultryDailyPage({sb, fmt, authState, Header}) {
   }
 
   const entityLabel = record.date + (record.batch_label ? ' · ' + record.batch_label : '');
+  const isAddFeed = record.source === 'add_feed_webform';
 
   return (
     <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -135,57 +241,156 @@ export default function PoultryDailyPage({sb, fmt, authState, Header}) {
         {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
 
         <div
+          data-daily-edit-form="1"
           key={record.id}
           style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px'}}
         >
           <div style={fieldRow}>
             <span style={fieldLabel}>Date</span>
-            <span>{record.date || '—'}</span>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({...form, date: e.target.value})}
+              style={inp}
+            />
           </div>
           <div style={fieldRow}>
             <span style={fieldLabel}>Batch</span>
-            <span>{record.batch_label || '—'}</span>
+            <input
+              type="text"
+              value={form.batchLabel}
+              onChange={(e) => setForm({...form, batchLabel: e.target.value})}
+              style={{...inp, width: 180}}
+            />
           </div>
           <div style={fieldRow}>
             <span style={fieldLabel}>Team member</span>
-            <span>{record.team_member || '—'}</span>
-          </div>
-          <div style={fieldRow}>
-            <span style={fieldLabel}>Feed (lbs)</span>
-            <span>{record.feed_lbs != null ? record.feed_lbs : '—'}</span>
+            <input
+              type="text"
+              value={form.teamMember}
+              onChange={(e) => setForm({...form, teamMember: e.target.value})}
+              style={{...inp, width: 180}}
+            />
           </div>
           <div style={fieldRow}>
             <span style={fieldLabel}>Feed type</span>
-            <span>{record.feed_type || '—'}</span>
+            <select value={form.feedType} onChange={(e) => setForm({...form, feedType: e.target.value})} style={inp}>
+              <option value="STARTER">Starter</option>
+              <option value="GROWER">Grower</option>
+            </select>
           </div>
           <div style={fieldRow}>
-            <span style={fieldLabel}>Grit (lbs)</span>
-            <span>{record.grit_lbs != null ? record.grit_lbs : '—'}</span>
+            <span style={fieldLabel}>Feed (lbs)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={form.feedLbs}
+              onChange={(e) => setForm({...form, feedLbs: e.target.value})}
+              style={inp}
+            />
           </div>
-          <div style={fieldRow}>
-            <span style={fieldLabel}>Mortality count</span>
-            <span>{record.mortality_count != null ? record.mortality_count : '—'}</span>
-          </div>
-          {record.mortality_reason && (
-            <div style={fieldRow}>
-              <span style={fieldLabel}>Mortality reason</span>
-              <span>{record.mortality_reason}</span>
-            </div>
+          {!isAddFeed && (
+            <>
+              <div style={fieldRow}>
+                <span style={fieldLabel}>Grit (lbs)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={form.gritLbs}
+                  onChange={(e) => setForm({...form, gritLbs: e.target.value})}
+                  style={inp}
+                />
+              </div>
+              <div style={fieldRow}>
+                <span style={fieldLabel}>Mortality count</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.mortalityCount}
+                  onChange={(e) => setForm({...form, mortalityCount: e.target.value})}
+                  style={inp}
+                />
+              </div>
+              {(parseInt(form.mortalityCount) > 0 || form.mortalityReason) && (
+                <div style={fieldRow}>
+                  <span style={fieldLabel}>Mortality reason</span>
+                  <input
+                    type="text"
+                    value={form.mortalityReason}
+                    onChange={(e) => setForm({...form, mortalityReason: e.target.value})}
+                    style={{...inp, width: 220}}
+                  />
+                </div>
+              )}
+              <div style={fieldRow}>
+                <span style={fieldLabel}>Group moved</span>
+                <input
+                  type="checkbox"
+                  checked={form.groupMoved}
+                  onChange={(e) => setForm({...form, groupMoved: e.target.checked})}
+                />
+              </div>
+              <div style={fieldRow}>
+                <span style={fieldLabel}>Waterer checked</span>
+                <input
+                  type="checkbox"
+                  checked={form.watererChecked}
+                  onChange={(e) => setForm({...form, watererChecked: e.target.checked})}
+                />
+              </div>
+              <div style={fieldRow}>
+                <span style={fieldLabel}>Comments</span>
+                <textarea
+                  value={form.comments}
+                  onChange={(e) => setForm({...form, comments: e.target.value})}
+                  rows={2}
+                  style={{...inp, width: 260, resize: 'vertical'}}
+                />
+              </div>
+            </>
           )}
-          <div style={fieldRow}>
-            <span style={fieldLabel}>Group moved</span>
-            <span>{record.group_moved === false ? 'No' : 'Yes'}</span>
+
+          <div style={{display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end'}}>
+            <button
+              type="button"
+              data-daily-cancel="1"
+              onClick={handleCancel}
+              disabled={saving}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#374151',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontFamily: 'inherit',
+              }}
+            >
+              Revert
+            </button>
+            <button
+              type="button"
+              data-daily-save="1"
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid #085041',
+                background: '#085041',
+                color: 'white',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+              }}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
           </div>
-          <div style={fieldRow}>
-            <span style={fieldLabel}>Waterer checked</span>
-            <span>{record.waterer_checked === false ? 'No' : 'Yes'}</span>
-          </div>
-          {record.comments && (
-            <div style={fieldRow}>
-              <span style={fieldLabel}>Comments</span>
-              <span>{record.comments}</span>
-            </div>
-          )}
         </div>
 
         {canDeleteDailyReport(authState) && (
