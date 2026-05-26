@@ -7,7 +7,7 @@ This file is project-specific truth: current state, active roadmap,
 architecture map, and load-bearing contracts. Workflow, gates, and relay format
 live in [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-05-25.
+Last updated: 2026-05-26.
 
 ---
 
@@ -27,19 +27,19 @@ only when Ronnie explicitly assigns it.
 - Production: `https://wcfplanner.com`
 - Deploy: Netlify auto-deploy from `main`
 - Production source: `origin/main` via Netlify auto-deploy.
-- Latest confirmed shipped checkpoint: `d0071d5 feat(dailys): add record
-  pages for all 6 daily report types`.
-- Open gates: none for the cattle, sheep, or daily report record-page phases.
-  Next active targets are `equipment.item` and `task.instance` record pages.
-  Processing/batch record pages are deferred until identity/workflow design is
-  complete.
+- Latest confirmed shipped checkpoint: `6815a54 refactor(weighins): remove
+  pig inline workflow from LivestockWeighInsView`.
+- Open gates: none. Current source is clean on `main` / `origin/main`. Next
+  active build is broiler support on `/weigh-in-sessions/<id>`, followed by
+  broiler list cleanup. Processing/batch record pages remain deferred until
+  identity/workflow design is complete.
 - PROD migrations live: `057` notifications, `058` activity events,
   `060` mention contract, `062` activity entity expansion, `063`
   notification activity resolution, `064` activity Phase 2 entities, `065`
   global activity log, `066` activity change events, `067` daily soft-delete,
   `068` client error events / durable client error reporting, `069` cattle
   animal soft-delete / restore, `070` daily delete for active roles, `071`
-  comments foundation.
+  comments foundation, `072` weigh-in session Activity entity.
 - PROD migrations drafted/stashed only: `059_daily_unique_indexes.sql` is not
   applied. `061_daily_report_soft_delete_restore.sql` is superseded by `067`.
 - CI note: verify may be red from known unrelated Playwright flakes. Do not mix
@@ -128,11 +128,12 @@ Post-ship cleanup completed:
   support remains available, but that recovery surface is not part of the herds
   page.
 
-Next steps:
-1. Migrate `equipment.item` and `task.instance` to the operational record-page
-   pattern.
-2. After durable record pages exist, return to custom editable-table activity
-   lanes such as cattle forecast month hide/unhide history.
+Follow-on status:
+1. `equipment.item`, `task.instance`, all six daily report types, and
+   `weighin.session` for cattle/sheep/pig have since migrated to the
+   operational record-page pattern.
+2. Remaining near-term record-page work is broiler weigh-in session support and
+   cleanup, then focused workflow hardening.
 
 ### Shipped Checkpoint: Phase 2A/2B Record Page Rollout
 
@@ -150,11 +151,42 @@ What was built:
   daily report views. Lists now route to the durable record pages instead of
   hosting primary per-record workspaces.
 
+Follow-up shipped after the rollout:
+- Inline editing is live on all six daily record pages. Record pages open
+  directly editable; no separate edit-mode button/toggle is the site standard.
+
 Deferred from the rollout:
-- Inline editing on daily record pages. Daily pages are read-only record
-  displays for now; edit remains on the existing list modal.
 - Processing/batch record pages. These require identity and workflow design
   before migration.
+
+### Shipped Checkpoint: Equipment, Task, Daily Edit, And Weigh-In Sessions
+
+Status: live on PROD through `6815a54`. Equipment, task, daily edit, and
+cattle/sheep/pig weigh-in session record-page work is shipped.
+
+What was built:
+- `equipment.item` record pages live at `/fleet/<id>`. Fleet tiles are
+  summary/open-record surfaces only; record pages own Comments and collapsed
+  Activity history. Activity routes use durable equipment IDs.
+- `task.instance` record pages live at `/tasks/<id>`. Task list rows navigate
+  to records, legacy `?task=<id>` redirects, and notifications use direct
+  record-page routing through the explicit Header allowlist.
+- `RecordActivityLog` is the shared collapsed audit-log component across
+  migrated animal, daily, equipment, task, and weigh-in record pages.
+- All six daily record pages are immediately editable and log saved changes via
+  Activity where wired. Add Feed webform rows hide operational-only fields.
+- Migration `072_weighin_session_activity_entity.sql` is applied to PROD.
+  `weighin.session` is registered in Activity, the global Activity log, Header
+  direct-route allowlist, and notification/deep-link routing.
+- `/weigh-in-sessions/<id>` is live for cattle, sheep, and pig sessions.
+  Cattle and sheep list views are list-only navigation surfaces. Pig
+  send-to-trip and transfer-to-breeding workflows moved to the record page, and
+  pig inline workflow code was removed from `LivestockWeighInsView`.
+
+Pending from this rollout:
+- Broiler support on `/weigh-in-sessions/<id>`, then broiler list cleanup.
+- Focused authenticated Playwright for record-page save/reload, Comments hash
+  scroll, and high-risk weigh-in workflows.
 
 ### Recent Shipped Work
 
@@ -171,12 +203,13 @@ Deferred from the rollout:
 | Entity mutation helper | Live. `runMutation` standardizes client mutation errors plus optional best-effort Activity logging; it is not transactional. |
 | Daily soft-delete + restore | Live. Transactional SECDEF RPCs `soft_delete_daily_report` / `restore_daily_report`. Soft-delete is allowed for any active authenticated role; restore remains admin-only. 6 daily entity types registered. `deleted_at`/`deleted_by` on all 6 daily tables. All read sites filtered. Admin Recently Deleted tab with restore. `record.deleted`/`record.restored` Activity events with human-readable labels. |
 | Cattle soft-delete + restore | Live. Admin-only source-row soft-delete/restore for `cattle.animal` through SECDEF RPCs in migration `069`. Normal cattle reads hide deleted rows; no cattle DELETE policy remains. The herds-page Recently Deleted box was removed; restore remains a backend/admin capability for a future proper recovery surface. |
-| Daily per-record Activity UI | Retired from all 6 authenticated daily views. Daily report record pages now own Comments + collapsed Activity history. Inline editing remains on the existing list modal for now. |
+| Daily per-record Activity UI | Retired from all 6 authenticated daily views. Daily report record pages now own immediately editable fields, Comments, and collapsed Activity history. |
 | Home missed pig breeding-stock dailys | Live. Home missed-report checks include active SOWS and BOARS breeding-stock groups in addition to pig feeder groups. |
-| Operational Record Pages foundation | Live on `cattle.animal`, `sheep.animal`, and all 6 daily report entity types. Site-wide standard is dedicated pages for operational records. Tiles/lists are clean summaries only. Record pages own fields, editing, Comments, attachments, Activity log, edit history, and future related tools. Next targets are `equipment.item` and `task.instance`; processing/batch pages remain deferred for identity/workflow design. |
+| Operational Record Pages foundation | Live on `cattle.animal`, `sheep.animal`, all 6 daily report entity types, `equipment.item`, `task.instance`, and `weighin.session` for cattle/sheep/pig. Site-wide standard is dedicated pages for operational records. Tiles/lists are clean summaries only. Record pages own fields, editing, Comments, attachments, Activity log, edit history, and future related tools. Next target is broiler weigh-in session support; processing/batch pages remain deferred for identity/workflow design. |
+| Weigh-in session record pages | Live for cattle, sheep, and pig at `/weigh-in-sessions/<id>`. Cattle/sheep/pig weigh-in lists now navigate to record pages; pig send-to-trip and transfer-to-breeding moved to the record page. Broiler support and list cleanup are next. |
 | Codebase hardening and cleanup | Planned. Cleanup is a first-class roadmap track: retire deprecated UI/data paths as entities migrate, remove dead code with proof, extract shared record-page/list patterns, and document what remains intentionally legacy. |
 | Error Resilience Phase 1 | Live. App-root ErrorBoundary, global `error` and `unhandledrejection` capture, and durable redacted client error events through `record_client_error` SECDEF RPC / `client_error_events` table. |
-| Activity change logging | Live. Routine field edits on `cattle.animal`, `sheep.animal`, and `equipment.item` now record `field.updated`/`status.changed` Activity events through the existing Activity Layer. Cattle delete/restore is now transactional/audited; sheep delete/restore, lifecycle/move actions, equipment child records, and admin-only documents remain deferred. |
+| Activity change logging | Live. Routine saved edits on migrated record pages record `field.updated`/`status.changed`/lifecycle Activity events where wired, including `cattle.animal`, `sheep.animal`, `equipment.item`, daily records, task instances, and cattle/sheep/pig weigh-in sessions. Cattle delete/restore is transactional/audited; sheep delete/restore, lifecycle/move actions, equipment child records, and admin-only documents remain deferred. |
 | Stash hygiene | Complete. Three superseded WIP stashes were audited and dropped; `git stash list` verified empty and `main` matched `origin/main`. |
 | Hamburger cleanup | Live. Hamburger has Home, Activity, Webforms: Dailys/Equipment, Admin/Users, Sign Out. |
 | Home farrow window wording | Live. Misleading `N pending` text removed from Home Next 30 Days farrowing windows. |
@@ -187,40 +220,41 @@ Deferred from the rollout:
 Stash numbers can change if new stashes are added; always verify with
 `git stash list` before acting. Do not pop or drop blindly.
 
-No parked WIP stashes are expected as of 2026-05-24. The prior three
+No parked WIP stashes are expected as of 2026-05-26. The prior three
 superseded stashes were audited and dropped during stash hygiene.
 
 ---
 
 ## Active Roadmap
 
-1. Equipment and Task Record Pages - migrate `equipment.item` and
-   `task.instance` to dedicated URLs/pages using the cattle/sheep/daily-proven
-   pattern: app header, record title, details/edit workspace, Comments,
-   attachments, collapsed Activity audit log, route/deep-link support, and no
-   list-page Activity bubbles.
-2. Codebase hardening and cleanup - remove deprecated patterns as each entity
+1. Broiler weigh-in session record page - extend `/weigh-in-sessions/<id>` to
+   support broiler sessions using the same record-page standard now live for
+   cattle/sheep/pig, then clean up the broiler list so it is navigation-only.
+2. Critical weigh-in workflow hardening - focused authenticated Playwright for
+   cattle/sheep/pig/broiler session record pages, including save/reload,
+   Comments hash scroll, processor/trip flows, and list-to-record navigation.
+3. Codebase hardening and cleanup - remove deprecated patterns as each entity
    migrates, classify legacy/import/test-only code, and reduce context burn for
    future sessions.
-3. Record Page migration plan - migrate remaining operational entities to the
+4. Record Page migration plan - migrate remaining operational entities to the
    same dedicated record-page pattern in phases; no new Activity bubbles,
    inline record workspaces, or modal-based record workspaces.
-4. Sheep delete/restore strategy design - decide source-row soft-delete vs
+5. Sheep delete/restore strategy design - decide source-row soft-delete vs
    tombstone/resolver model before implementation.
-5. Audit-grade SECDEF RPCs - cattle/sheep lifecycle/status/move actions where
+6. Audit-grade SECDEF RPCs - cattle/sheep lifecycle/status/move actions where
    mutation + Activity must be atomic.
-6. Custom editable-table Activity - after record pages exist, add scoped
+7. Custom editable-table Activity - after record pages exist, add scoped
    history for operational tables such as cattle forecast month hide/unhide,
    feed forecast edits, breeding schedule edits, and similar table workflows.
-7. Critical workflow Playwright matrix - define coverage targets, write specs
+8. Critical workflow Playwright matrix - define coverage targets, write specs
    for highest-risk uncovered paths.
-8. Incremental mutation cleanup - domain by domain per Identity Map. Choose
+9. Incremental mutation cleanup - domain by domain per Identity Map. Choose
    direct / `runMutation` / SECDEF per entity risk.
-9. Shared UI extraction - extract filter bar, summary row, loading/empty/error
+10. Shared UI extraction - extract filter bar, summary row, loading/empty/error
    patterns from views that repeat them 3+ times.
-10. Deferred: code-splitting - only when field-device measurements or
+11. Deferred: code-splitting - only when field-device measurements or
    operator pain justify it.
-11. Deferred: TypeScript - gradual `allowJs` + JSDoc approach if/when
+12. Deferred: TypeScript - gradual `allowJs` + JSDoc approach if/when
    started.
 
 ---
@@ -459,7 +493,7 @@ record-page foundation.
 
 | Entity | Stable ID | Label | Storage | Mutation | Delete | Record Page | Audit |
 |---|---|---|---|---|---|---|---|
-| task.instance | text | title | `task_instances` | SECDEF RPCs | hard (RPC, validated) | Planned task phase | comments + task.completed trigger |
+| task.instance | text | title | `task_instances` | SECDEF RPCs | hard (RPC, validated) | Live | comments + task.completed trigger + routine record-page Activity |
 | poultry.daily | UUID | date + batch_label | `poultry_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
 | layer.daily | UUID | date + batch_label | `layer_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
 | egg.daily | UUID | date | `egg_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
@@ -472,20 +506,21 @@ record-page foundation.
 | layer.housing | UUID | housing_name | `layer_housings` | direct | hard (via batch cascade) | Planned batch phase | partial |
 | cattle.animal | UUID | tag | `cattle` | direct + `runMutation` + SECDEF delete/restore | soft (SECDEF, admin-only) | Live | comments + routine field.updated + deleted/restored events |
 | sheep.animal | UUID | tag | `sheep` | direct + `runMutation` | hard-orphan (children remain) | Live | comments + routine field.updated; delete unlogged |
+| weighin.session | UUID | date + species/batch/herd | `weigh_in_sessions` + `weigh_ins` | direct + app_store side effects for pig/broiler workflows | hard | Live for cattle/sheep/pig; broiler pending | comments + routine field/status/lifecycle events |
 | cattle.processing | UUID | batch name | `cattle_processing_batches` | direct | hard (scheduled only) | Planned batch/processing phase | partial |
 | sheep.processing | UUID | batch name | `sheep_processing_batches` | direct | hard | Planned batch/processing phase | partial |
-| equipment.item | UUID | name | `equipment` | mixed - status + admin fields via `runMutation`, detail fields direct | record itself not deletable; child fuelings/maintenance hard-delete | Planned equipment phase | comments + routine field.updated + status.changed; documents/child records excluded |
+| equipment.item | UUID | name | `equipment` | mixed - status + admin fields via `runMutation`, detail fields direct | record itself not deletable; child fuelings/maintenance hard-delete | Live | comments + routine field.updated + status.changed; documents/child records excluded |
 
-### Sub-Entities - No Activity Wiring
+### Sub-Entities And Child Rows
 
 | Entity | Storage | Parent | Record Page | Delete | Notes |
 |---|---|---|---|---|---|
-| weigh_in_sessions | `weigh_in_sessions` | cattle/pig/sheep | Parent/session page TBD | hard | SECDEF batch submit for creation |
+| weigh_in_sessions | `weigh_in_sessions` | cattle/pig/sheep/broiler | See primary `weighin.session` row | hard | SECDEF batch submit for creation; broiler record UI pending |
 | weigh_ins | `weigh_ins` | session | N/A child entry | hard | child entries |
-| cattle_comments | `cattle_comments` | cattle.animal | Legacy; absorb/retire in cattle phase | survives cattle soft-delete | Legacy; absorb or retire when `cattle.animal` migrates to Comments foundation. Hard-cascade only if forbidden parent hard-delete bypasses RLS. |
+| cattle_comments | `cattle_comments` | cattle.animal / legacy weigh-in notes | Legacy; do not use for new Comments | survives cattle soft-delete | Retained for legacy data and weigh-in cleanup paths; new record pages use `CommentsSection`. |
 | cattle_transfers | `cattle_transfers` | cattle.animal | Parent cattle page | survives cattle soft-delete | Parent hard-delete is blocked; transfer trail remains. |
 | cattle_calving_records | `cattle_calving_records` | cattle.animal | Parent cattle page | survives cattle soft-delete | `calf_id` remains on soft-delete; `dam_tag` is text. |
-| sheep_comments | `sheep_comments` | sheep.animal | Legacy; absorb/retire in sheep phase | hard (does not cascade) | Legacy; absorb or retire when `sheep.animal` migrates to Comments foundation. |
+| sheep_comments | `sheep_comments` | sheep.animal / legacy weigh-in notes | Legacy; do not use for new Comments | hard (does not cascade) | Retained for legacy data and weigh-in cleanup paths; new record pages use `CommentsSection`. |
 | cattle_breeding_cycles | `cattle_breeding_cycles` | cattle.animal | Parent cattle page | hard | |
 | sheep_lambing_records | `sheep_lambing_records` | sheep.animal | Parent sheep page | hard (does not cascade) | |
 | equipment_fuelings | `equipment_fuelings` | equipment.item | Parent equipment page | hard | current-reading recompute on delete |
@@ -512,35 +547,37 @@ deep-links, or per-record audit trails until identity decisions are made.
 
 ### Operational Record Page Migration Plan
 
-Phase 1 (`cattle.animal`), Phase 2A (`sheep.animal`), and Phase 2B (all six
-daily report entity types) are live. They replaced inline/list-page primary
-record workspaces with dedicated record pages and reusable Comments/Activity
+Phase 1 (`cattle.animal`), Phase 2A (`sheep.animal`), Phase 2B (all six
+daily report entity types), equipment/task, and `weighin.session` for
+cattle/sheep/pig are live. They replaced inline/list-page primary record
+workspaces with dedicated record pages and reusable Comments/Activity
 foundation.
 
-Next active phase: migrate `equipment.item` and `task.instance` before
-building custom editable-table Activity surfaces. Custom table history needs
-durable record pages to land on first.
+Next active phase: finish `weighin.session` by adding broiler support to
+`/weigh-in-sessions/<id>`, then clean up the broiler weigh-in list so it is
+also navigation-only. Custom table history should wait until durable record
+pages exist for the related entities.
 
 Planned rollout order:
 
 1. Completed: `cattle.animal`, `sheep.animal`, `poultry.daily`,
-   `layer.daily`, `egg.daily`, `pig.daily`, `cattle.daily`, and
-   `sheep.daily`.
+   `layer.daily`, `egg.daily`, `pig.daily`, `cattle.daily`, `sheep.daily`,
+   `equipment.item`, `task.instance`, and `weighin.session` for
+   cattle/sheep/pig.
 2. Shared record-page shell / contracts - extract only what is proven from
    shipped record pages: header/back/title/loading/not-found conventions,
    Comments placement, collapsed Activity audit log placement, and
    route/deep-link expectations. Keep extraction thin; do not block entity
    migration on a large design-system rewrite.
-3. `equipment.item` - migrate existing detail experience to the same
-   operational record-page shell and attach the new Comments layer.
-4. `task.instance` - make task details use the same record-page foundation
-   while preserving task RPC write contracts.
-5. Batch and processing records - `broiler.batch`, `pig.batch`,
+3. `weighin.session` broiler support - extend the existing session record page
+   to broiler grids/workflows, then retire broiler inline accordion/editing
+   from `LivestockWeighInsView`.
+4. Batch and processing records - `broiler.batch`, `pig.batch`,
    `layer.batch`, `layer.housing`, `cattle.processing`, and
    `sheep.processing`; defer until each entity has durable identity and a
    workflow-specific record-page design. Virtual planned batches and app-store
    records must not be forced into the animal/daily pattern prematurely.
-6. Custom editable-table Activity - after record pages exist, add table-scoped
+5. Custom editable-table Activity - after record pages exist, add table-scoped
    audit/history for forecast/feed/breeding workflows. First target should be
    cattle forecast month hide/unhide.
 
@@ -555,9 +592,10 @@ parallel primary experiences in place.
 These are hardening priorities, not reasons to rewrite.
 
 - Hard-delete data loss and audit blindness. Daily reports and `cattle.animal`
-  now use soft-delete/restore with Activity events. Routine field edits on
-  cattle/sheep/equipment log Activity events, but sheep delete/restore,
-  livestock lifecycle/move actions, equipment sub-records, weigh-in sessions,
+  now use soft-delete/restore with Activity events. Routine saved edits on
+  migrated record pages log Activity events where wired, including
+  cattle/sheep/pig weigh-in sessions. Sheep delete/restore, livestock
+  lifecycle/move actions, equipment sub-records, broiler weigh-in sessions,
   breeding/lambing records, and task templates still need recovery and audit
   decisions. Sheep hard-delete orphans children. See the Record Identity Map
   for per-entity delete behavior.
@@ -727,10 +765,19 @@ Authenticated:
 
 Operational record pages:
 
-- Phase 1: cattle animal record page route, shape to match the router lane
-  (for example `/cattle/herds/<id>`).
-- Future phases: each operational entity in the Record Identity Map gets a
-  stable route before its tile/list surface is considered migrated.
+- `/cattle/herds/<id>`
+- `/sheep/flocks/<id>`
+- `/broiler/dailys/<id>`
+- `/layer/dailys/<id>`
+- `/layer/eggs/<id>`
+- `/pig/dailys/<id>`
+- `/cattle/dailys/<id>`
+- `/sheep/dailys/<id>`
+- `/fleet/<id>`
+- `/tasks/<id>`
+- `/weigh-in-sessions/<id>` (cattle/sheep/pig live; broiler pending)
+- Future operational entities in the Record Identity Map get a stable route
+  before their tile/list surface is considered migrated.
 
 Public:
 
@@ -755,7 +802,7 @@ Aliases:
 | Tasks | `src/tasks/*`, `src/lib/tasks*Api.js`, `src/lib/tasksCenter*Api.js` |
 | Notifications | `src/lib/notificationsApi.js`, `src/shared/Header.jsx` |
 | Activity | `src/lib/activityApi.js`, `src/lib/activityRegistry.js`, `src/lib/globalActivityApi.js`, `src/activity/ActivityLogView.jsx`, legacy `src/shared/ActivityPanel.jsx`, legacy `src/shared/ActivityModal.jsx` |
-| Comments foundation | Planned/current lane: `src/lib/commentsApi.js`, `src/shared/CommentsSection.jsx`, and reusable record comments APIs keyed by `entity_type` + `entity_id`; `src/shared/MentionTextarea.jsx` remains the mention composer primitive unless replaced by the Comments lane. |
+| Comments foundation | `src/lib/commentsApi.js`, `src/shared/CommentsSection.jsx`, and reusable record comments APIs keyed by `entity_type` + `entity_id`; `src/shared/MentionTextarea.jsx` remains the mention composer primitive. |
 | Entity mutations | `src/lib/entityMutations.js` |
 | Daily reports API | `src/lib/dailyReportsApi.js`, `src/admin/RecentlyDeletedDailyReports.jsx` |
 | Public forms | `src/webforms/*` |
@@ -894,7 +941,8 @@ Read the relevant contract before editing its files.
 - Supported entity types are: `task.instance`, `broiler.batch`, `pig.batch`,
   `layer.batch`, `layer.housing`, `cattle.animal`, `cattle.processing`,
   `sheep.animal`, `sheep.processing`, `equipment.item`, `poultry.daily`,
-  `layer.daily`, `egg.daily`, `pig.daily`, `cattle.daily`, `sheep.daily`.
+  `layer.daily`, `egg.daily`, `pig.daily`, `cattle.daily`, `sheep.daily`,
+  `weighin.session`.
 - New entity type = one permission resolver branch, one registry entry,
   stable record route/deep-link mapping, one record page surface, and a
   mutation/error/activity plan that uses `runMutation` or a SECDEF RPC where
@@ -963,8 +1011,8 @@ Read the relevant contract before editing its files.
 - Daily Report Record Pages are live for all 6 authenticated daily entities.
   They preserve the existing soft-delete/restore contracts, move per-record
   discussion to `CommentsSection`, keep Activity as collapsed audit history,
-  and retire daily Activity chips/modal UI. Inline editing remains on the
-  existing list modal for now.
+  retire daily Activity chips/modal UI, and open directly editable without a
+  separate edit-mode button.
 - Home missed-report logic includes pig feeder groups plus active SOWS/BOARS
   breeding-stock groups derived from non-archived pig breeders.
 
@@ -977,8 +1025,9 @@ Read the relevant contract before editing its files.
 - Lock state lives only in `ppp-pig-planned-trip-locks-v1`.
 - `processingTrips[].subAttributions` must be stamped as
   `{subId, subBatchName, sex, count}`.
-- Send-to-Trip from `/pig/weighins` may reconcile a locked planned trip count,
-  but cannot change the locked date.
+- Send-to-Trip from `/weigh-in-sessions/<id>` may reconcile a locked planned
+  trip count, but cannot change the locked date. `/pig/weighins` is a list and
+  navigation surface.
 - Use `pigSlug` for sub-batch matching.
 
 ### Broiler And Layers
