@@ -618,10 +618,9 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                               setNotifOpen(false);
                               return;
                             }
-                            const {view: targetView, search} = routeToView(route);
+                            const {view: targetView} = routeToView(route);
                             if (typeof window !== 'undefined') {
-                              if (search) window._wcfDeepLink = search;
-                              if (n.activity_entity_type && n.activity_entity_type !== 'task.instance') {
+                              if (n.activity_entity_type) {
                                 window._wcfEntityDeepLink = {
                                   entityType: n.activity_entity_type,
                                   entityId: n.activity_entity_id,
@@ -629,7 +628,6 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                                 };
                               }
                               try {
-                                window.dispatchEvent(new CustomEvent('wcf-task-deep-link'));
                                 window.dispatchEvent(new CustomEvent('wcf-entity-deep-link'));
                               } catch (_ignored) {
                                 /* CustomEvent not supported */
