@@ -81,10 +81,116 @@ describe('WeighInSessionPage — CommentsSection + RecordActivityLog', () => {
   });
 });
 
-describe('WeighInSessionPage — cattle + sheep support', () => {
-  it('supports cattle and sheep, shows unsupported for others', () => {
-    expect(pageSrc).toContain("session.species !== 'cattle' && session.species !== 'sheep'");
+describe('WeighInSessionPage — cattle + sheep + pig support', () => {
+  it('supports cattle, sheep, and pig; shows unsupported for others', () => {
+    expect(pageSrc).toContain(
+      "session.species !== 'cattle' && session.species !== 'sheep' && session.species !== 'pig'",
+    );
     expect(pageSrc).toContain('data-unsupported-species');
+  });
+  it('imports pig metrics formatters', () => {
+    expect(pageSrc).toContain('formatAgeRange');
+    expect(pageSrc).toContain('formatFeedPerPig');
+    expect(pageSrc).toContain('formatGroupAdg');
+    expect(pageSrc).toContain('formatAvgWeight');
+  });
+  it('calls pig_session_metrics RPC for pig sessions', () => {
+    expect(pageSrc).toContain('pig_session_metrics');
+  });
+  it('renders sent-to-trip badge for pig entries', () => {
+    expect(pageSrc).toContain('sent_to_trip_id');
+    expect(pageSrc).toContain('Sent to trip');
+  });
+  it('renders transferred badge for pig entries', () => {
+    expect(pageSrc).toContain('transferred_to_breeding');
+    expect(pageSrc).toContain('Transferred');
+  });
+  it('locks sent/transferred pig entries as read-only', () => {
+    expect(pageSrc).toContain('isLocked');
+  });
+  it('pig saveEntry writes only weight and note, not tag or new_tag_flag', () => {
+    expect(pageSrc).toMatch(/sp === 'pig'[\s\S]*?\{weight: newWeight, note:/);
+  });
+  it('handler-level isEntryLocked guards saveEntry and deleteEntry', () => {
+    expect(pageSrc).toContain('function isEntryLocked');
+    expect(pageSrc).toMatch(/function saveEntry[\s\S]*?isEntryLocked\(e\)/);
+    expect(pageSrc).toMatch(/function deleteEntry[\s\S]*?isEntryLocked\(e\)/);
+  });
+  it('isEntryLocked checks sent_to_trip_id, transferred_to_breeding, and note marker', () => {
+    expect(pageSrc).toMatch(/isEntryLocked[\s\S]*?sent_to_trip_id/);
+    expect(pageSrc).toMatch(/isEntryLocked[\s\S]*?transferred_to_breeding/);
+    expect(pageSrc).toMatch(/isEntryLocked[\s\S]*?transferred_to_breeding/);
+  });
+  it('session select includes batch_id for pig', () => {
+    expect(pageSrc).toContain('batch_id');
+    expect(pageSrc).toMatch(/\.select\([^)]*batch_id/);
+  });
+  it('imports PigSendToTripModal', () => {
+    expect(pageSrc).toContain('PigSendToTripModal');
+  });
+  it('imports reconcilePlannedTripsForSend', () => {
+    expect(pageSrc).toContain('reconcilePlannedTripsForSend');
+  });
+  it('has send-to-trip flow', () => {
+    expect(pageSrc).toContain('sendEntriesToTrip');
+    expect(pageSrc).toContain('undoSendToTrip');
+    expect(pageSrc).toContain('selectedEntryIds');
+  });
+  it('has transfer-to-breeding flow', () => {
+    expect(pageSrc).toContain('transferToBreeding');
+    expect(pageSrc).toContain('undoTransferToBreeding');
+    expect(pageSrc).toContain('transferModal');
+  });
+  it('loads feeder groups for pig sessions', () => {
+    expect(pageSrc).toContain("'ppp-feeders-v1'");
+    expect(pageSrc).toContain('feederGroups');
+  });
+  it('has canManagePigPlannedTrips permission gate', () => {
+    expect(pageSrc).toContain('canManagePigPlannedTrips');
+  });
+  it('mounts PigSendToTripModal', () => {
+    expect(pageSrc).toContain('PigSendToTripModal');
+    expect(pageSrc).toContain('tripModal');
+  });
+  it('has transfer-to-breeding modal UI', () => {
+    expect(pageSrc).toContain('Transfer to Breeding');
+    expect(pageSrc).toContain('transferForm');
+  });
+  it('does not import pigSlug (unused)', () => {
+    expect(pageSrc).not.toContain("from '../lib/pig.js'");
+  });
+  it('sendEntriesToTrip checks app_store upsert before stamping', () => {
+    expect(pageSrc).toMatch(/sendEntriesToTrip[\s\S]*?upsertErr[\s\S]*?stampFailed/);
+  });
+  it('sendEntriesToTrip throws on stamp failure instead of closing modal', () => {
+    expect(pageSrc).toMatch(/stampFailed[\s\S]*?throw new Error/);
+  });
+  it('sendEntriesToTrip throws on app_store upsert failure before any setTripModal(null)', () => {
+    expect(pageSrc).toMatch(/upsertErr[\s\S]*?throw new Error[\s\S]*?setTripModal\(null\)/);
+  });
+  it('sendEntriesToTrip throws on all pre-mutation validation failures', () => {
+    const fn = pageSrc.match(/async function sendEntriesToTrip[\s\S]*?await loadAll\(\);\s*\}/);
+    expect(fn).not.toBeNull();
+    const body = fn[0];
+    expect(body).not.toMatch(/\breturn;/);
+  });
+  it('undoSendToTrip surfaces notice and returns on clearErr', () => {
+    expect(pageSrc).toMatch(/undoSendToTrip[\s\S]*?clearErr[\s\S]*?setNotice[\s\S]*?return/);
+  });
+  it('transferToBreeding checks breeders and feeders upserts', () => {
+    expect(pageSrc).toMatch(/transferToBreeding[\s\S]*?brUpsertErr[\s\S]*?fgUpsertErr/);
+  });
+  it('transferToBreeding keeps modal open on stamp failure', () => {
+    expect(pageSrc).toMatch(/!stampOk[\s\S]*?setTransferNotice[\s\S]*?setTransferBusy\(false\)[\s\S]*?return/);
+  });
+  it('transferToBreeding only closes modal after stamp succeeds', () => {
+    expect(pageSrc).toMatch(/stampOk[\s\S]*?return[\s\S]*?setTransferModal\(null\)/);
+  });
+  it('undoTransferToBreeding surfaces notice and returns on clearErr', () => {
+    expect(pageSrc).toMatch(/undoTransferToBreeding[\s\S]*?clearErr[\s\S]*?setTransferNotice[\s\S]*?return/);
+  });
+  it('undoTransferToBreeding checks all steps before Activity', () => {
+    expect(pageSrc).toMatch(/undoTransferToBreeding[\s\S]*?undoOk[\s\S]*?clearErr[\s\S]*?recordActivityEvent/);
   });
   it('imports SheepSendToProcessorModal', () => {
     expect(pageSrc).toContain('SheepSendToProcessorModal');

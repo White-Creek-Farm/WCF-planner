@@ -14,6 +14,15 @@ import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
 import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
 import {runMutation, recordFieldChange, recordStatusChange, recordActivityEvent} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
+import {
+  formatAgeRange,
+  formatFeedPerPig,
+  formatGroupAdg,
+  formatAvgWeight,
+  reconcilePlannedTripsForSend,
+} from '../lib/pigForecast.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
+import PigSendToTripModal from './PigSendToTripModal.jsx';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
 const FLOCK_LABELS = {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'};
@@ -85,6 +94,14 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const [entryEdits, setEntryEdits] = React.useState({});
   const [addForm, setAddForm] = React.useState({tag: '', weight: '', note: '', priorTag: ''});
   const [sessionForModal, setSessionForModal] = React.useState(null);
+  const [pigMetrics, setPigMetrics] = React.useState(null);
+  const [feederGroups, setFeederGroups] = React.useState([]);
+  const [selectedEntryIds, setSelectedEntryIds] = React.useState(new Set());
+  const [tripModal, setTripModal] = React.useState(null);
+  const [transferModal, setTransferModal] = React.useState(null);
+  const [transferForm, setTransferForm] = React.useState({tag: '', group: '1', sex: 'Gilt', birthDate: ''});
+  const [transferBusy, setTransferBusy] = React.useState(false);
+  const [transferNotice, setTransferNotice] = React.useState(null);
 
   function invalidateCache() {
     if (session && session.species === 'sheep') invalidateSheepWeighInsCache();
@@ -103,12 +120,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   async function loadAll() {
     const {data: sess} = await sb
       .from('weigh_in_sessions')
-      .select('id, species, herd, date, team_member, status, started_at, completed_at, notes')
+      .select('id, species, herd, batch_id, date, team_member, status, started_at, completed_at, notes')
       .eq('id', sessionId)
       .single();
     if (sess) setSession(sess);
     const sp = sess ? sess.species : null;
-    if (sp !== 'cattle' && sp !== 'sheep') {
+    if (sp !== 'cattle' && sp !== 'sheep' && sp !== 'pig') {
       setLoading(false);
       return;
     }
@@ -117,22 +134,40 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       setLoading(false);
       return;
     }
-    const animalQuery =
-      sp === 'cattle' ? sb.from('cattle').select('*').is('deleted_at', null) : sb.from('sheep').select('*');
-    const [{data: eData}, aR, sR] = await Promise.all([
-      sb.from('weigh_ins').select('*').eq('session_id', sessionId),
-      animalQuery,
-      sb.from('weigh_in_sessions').select('*').eq('species', sp).order('date', {ascending: false}),
-    ]);
-    const sorted = (eData || []).sort(sortEntriesByTagAsc);
+    const {data: eData} = await sb.from('weigh_ins').select('*').eq('session_id', sessionId);
+    const sorted = (eData || []).sort(
+      sp === 'pig' ? (a, b) => (parseFloat(b.weight) || 0) - (parseFloat(a.weight) || 0) : sortEntriesByTagAsc,
+    );
     setSEntries(sorted);
     const edits = {};
     for (const e of sorted) edits[e.id] = {tag: e.tag || '', weight: String(e.weight ?? ''), note: e.note || ''};
     setEntryEdits(edits);
-    if (aR.data) setAnimals(aR.data);
-    if (sR.data) setAllSessions(sR.data);
-    const allWI = sp === 'cattle' ? await loadCattleWeighInsCached(sb) : await loadSheepWeighInsCached(sb);
-    setAllEntries(allWI || []);
+    if (sp === 'cattle' || sp === 'sheep') {
+      const animalQuery =
+        sp === 'cattle' ? sb.from('cattle').select('*').is('deleted_at', null) : sb.from('sheep').select('*');
+      const [aR, sR] = await Promise.all([
+        animalQuery,
+        sb.from('weigh_in_sessions').select('*').eq('species', sp).order('date', {ascending: false}),
+      ]);
+      if (aR.data) setAnimals(aR.data);
+      if (sR.data) setAllSessions(sR.data);
+      const allWI = sp === 'cattle' ? await loadCattleWeighInsCached(sb) : await loadSheepWeighInsCached(sb);
+      setAllEntries(allWI || []);
+    }
+    if (sp === 'pig') {
+      try {
+        const {data: metricsData} = await sb.rpc('pig_session_metrics', {session_id_in: sessionId});
+        setPigMetrics(metricsData && metricsData.available !== false ? metricsData : null);
+      } catch (_e) {
+        setPigMetrics(null);
+      }
+      try {
+        const {data: fgData} = await sb.from('app_store').select('data').eq('key', 'ppp-feeders-v1').maybeSingle();
+        setFeederGroups(fgData && Array.isArray(fgData.data) ? fgData.data : []);
+      } catch (_e) {
+        setFeederGroups([]);
+      }
+    }
     setLoading(false);
   }
 
@@ -183,9 +218,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   }
 
   function sessionLabel() {
+    if (isPig) return (session.date || '') + ' · ' + (session.batch_id || 'pig');
     const groupLabels = session.species === 'sheep' ? FLOCK_LABELS : HERD_LABELS;
-    const groupKey = session.species === 'sheep' ? session.herd : session.herd;
-    return (session.date || '') + ' · ' + (groupLabels[groupKey] || groupKey || session.species);
+    return (session.date || '') + ' · ' + (groupLabels[session.herd] || session.herd || session.species);
   }
 
   async function reopenSession() {
@@ -208,12 +243,14 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
 
   async function deleteSession() {
     if (!window._wcfConfirmDelete) return;
-    window._wcfConfirmDelete(
-      'Delete this weigh-in session and all its entries? Attached cows will be detached and reverted to prior herds where possible.',
-      async () => {
-        const sessEntries = sEntries.filter((e) => e.target_processing_batch_id);
-        const blocked = [];
-        for (const e of sessEntries) {
+    const deleteMsg = isPig
+      ? 'Delete this weigh-in session and all its entries? This cannot be undone.'
+      : 'Delete this weigh-in session and all its entries? Attached animals will be detached and reverted to prior herds where possible.';
+    window._wcfConfirmDelete(deleteMsg, async () => {
+      const blocked = [];
+      if (!isPig) {
+        const batchEntries = sEntries.filter((e) => e.target_processing_batch_id);
+        for (const e of batchEntries) {
           const cow = e.tag ? animals.find((c) => c.tag === e.tag) : null;
           if (!cow) {
             blocked.push({tag: e.tag || '?', reason: 'no_cow_for_tag'});
@@ -225,18 +262,20 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           });
           if (!r.ok && r.reason !== 'not_in_batch') blocked.push({tag: e.tag || '?', reason: r.reason});
         }
-        async function finishDelete() {
-          try {
-            await recordActivityEvent(sb, {
-              entityType: 'weighin.session',
-              entityId: session.id,
-              eventType: 'record.deleted',
-              entityLabel: sessionLabel(),
-              body: 'Deleted session with ' + sEntries.length + ' entries',
-            });
-          } catch (_e) {
-            /* best-effort */
-          }
+      }
+      async function finishDelete() {
+        try {
+          await recordActivityEvent(sb, {
+            entityType: 'weighin.session',
+            entityId: session.id,
+            eventType: 'record.deleted',
+            entityLabel: sessionLabel(),
+            body: 'Deleted session with ' + sEntries.length + ' entries',
+          });
+        } catch (_e) {
+          /* best-effort */
+        }
+        if (!isPig) {
           const wis = await sb.from('weigh_ins').select('id').eq('session_id', session.id);
           const wiIds = ((wis && wis.data) || []).map((r) => r.id);
           if (wiIds.length > 0) {
@@ -247,19 +286,18 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               /* table may not exist on legacy schemas */
             }
           }
-          await sb.from('weigh_in_sessions').delete().eq('id', session.id);
-          if (session.species === 'sheep') invalidateSheepWeighInsCache();
-          else invalidateCattleWeighInsCache();
-          navigate(backInfo.path);
         }
-        if (blocked.length > 0) {
-          const lines = blocked.map((x) => '#' + x.tag + ' (' + x.reason + ')').join(', ');
-          window._wcfConfirmDelete('Some cows could not be auto-reverted: ' + lines + '. Delete anyway?', finishDelete);
-          return;
-        }
-        await finishDelete();
-      },
-    );
+        await sb.from('weigh_in_sessions').delete().eq('id', session.id);
+        invalidateCache();
+        navigate(backInfo.path);
+      }
+      if (blocked.length > 0) {
+        const lines = blocked.map((x) => '#' + x.tag + ' (' + x.reason + ')').join(', ');
+        window._wcfConfirmDelete('Some cows could not be auto-reverted: ' + lines + '. Delete anyway?', finishDelete);
+        return;
+      }
+      await finishDelete();
+    });
   }
 
   async function completeSession() {
@@ -348,14 +386,31 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     }));
   }
 
+  function isEntryLocked(e) {
+    if (e.sent_to_trip_id) return true;
+    if (e.transferred_to_breeding) return true;
+    if (/\[transferred_to_breeding/.test(e.note || '')) return true;
+    return false;
+  }
+
   async function saveEntry(e) {
+    if (isEntryLocked(e)) return;
     const ef = entryEdits[e.id] || {};
-    const newTag = (ef.tag || '').trim() || null;
     const newWeight = parseFloat(ef.weight);
     if (!Number.isFinite(newWeight) || newWeight <= 0) return;
-    const cowWithTag = newTag ? animals.find((c) => c.tag === newTag) : null;
-    const newTagFlag = newTag && !cowWithTag;
-    const updates = {tag: newTag, weight: newWeight, note: ef.note || null, new_tag_flag: newTagFlag};
+    const sp = session.species;
+    let updates;
+    let labels;
+    if (sp === 'pig') {
+      updates = {weight: newWeight, note: ef.note || null};
+      labels = {weight: 'Weight', note: 'Note'};
+    } else {
+      const newTag = (ef.tag || '').trim() || null;
+      const cowWithTag = newTag ? animals.find((c) => c.tag === newTag) : null;
+      const newTagFlag = newTag && !cowWithTag;
+      updates = {tag: newTag, weight: newWeight, note: ef.note || null, new_tag_flag: newTagFlag};
+      labels = {tag: 'Tag', weight: 'Weight', note: 'Note', new_tag_flag: 'New tag'};
+    }
     await runMutation(() => sb.from('weigh_ins').update(updates).eq('id', e.id), {
       activity: () => {
         const changes = buildChanges(e, updates, {
@@ -367,8 +422,13 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             'send_to_processor',
             'target_processing_batch_id',
             'prior_herd_or_flock',
+            'sent_to_trip_id',
+            'sent_to_group_id',
+            'transferred_to_breeding',
+            'transfer_breeder_id',
+            'feed_allocation_lbs',
           ],
-          labels: {tag: 'Tag', weight: 'Weight', note: 'Note', new_tag_flag: 'New tag'},
+          labels,
         });
         if (changes.length === 0) return;
         return recordFieldChange(sb, {
@@ -384,6 +444,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   }
 
   async function deleteEntry(e) {
+    if (isEntryLocked(e)) return;
     window._wcfConfirmDelete('Delete this weigh-in entry?', async () => {
       async function finish() {
         const {error} = await sb.from('weigh_ins').delete().eq('id', e.id);
@@ -558,6 +619,382 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     await loadAll();
   }
 
+  // ── Pig send-to-trip ──────────────────────────────────────────────────
+  const canManagePigPlannedTrips = !!(authState && (authState.role === 'admin' || authState.role === 'management'));
+
+  function resolveBatchAndSub(batchId) {
+    if (!batchId) return {parent: null, sub: null};
+    const norm = String(batchId).trim().toLowerCase();
+    for (const g of feederGroups) {
+      if ((g.batchName || '').trim().toLowerCase() === norm) return {parent: g, sub: null};
+      const sub = (g.subBatches || []).find((s) => (s.name || '').trim().toLowerCase() === norm);
+      if (sub) return {parent: g, sub};
+    }
+    return {parent: null, sub: null};
+  }
+
+  function batchFCR(parent) {
+    if (!parent) return 3.5;
+    if (parent.fcrCached && parent.fcrCached > 0) return parent.fcrCached;
+    return 3.5;
+  }
+
+  function openTripModal() {
+    const selected = sEntries.filter((e) => selectedEntryIds.has(e.id));
+    if (selected.length === 0) return;
+    setTripModal({session, entries: selected});
+  }
+
+  async function sendEntriesToTrip({groupId, sourceSubId, sourceSubSex, sendCount}) {
+    if (!tripModal || !canManagePigPlannedTrips) {
+      throw new Error('Permission denied or no active modal.');
+    }
+    const {entries: selEntries} = tripModal;
+    if (!groupId || !sourceSubId || !sourceSubSex || !selEntries || selEntries.length === 0) {
+      throw new Error('Missing required send parameters.');
+    }
+    const groups = feederGroups.slice();
+    const gi = groups.findIndex((g) => g.id === groupId);
+    if (gi < 0) throw new Error('Feeder group not found.');
+    const g = {...groups[gi]};
+    const recon = reconcilePlannedTripsForSend(g.plannedProcessingTrips || [], {
+      subBatchId: sourceSubId,
+      sex: sourceSubSex,
+      sendCount,
+      today: todayCentralISO(),
+    });
+    if (recon.error) {
+      throw new Error('Reconciliation refused: ' + recon.error);
+    }
+    const sourceSub = (g.subBatches || []).find((s) => s.id === sourceSubId);
+    if (!sourceSub) throw new Error('Source sub-batch not found.');
+    const trips = (g.processingTrips || []).slice();
+    const addWeights = selEntries.map((e) => parseFloat(e.weight) || 0).filter((w) => w > 0);
+    const sexLabel = sourceSubSex === 'boar' ? 'Boars' : 'Gilts';
+    const newTripId = String(Date.now()) + Math.random().toString(36).slice(2, 6);
+    trips.push({
+      id: newTripId,
+      date: recon.targetTripDate,
+      pigCount: selEntries.length,
+      liveWeights: addWeights.join(' '),
+      hangingWeight: 0,
+      notes: '',
+      subAttributions: [{subId: sourceSub.id, subBatchName: sourceSub.name, sex: sexLabel, count: selEntries.length}],
+    });
+    trips.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    g.processingTrips = trips;
+    g.plannedProcessingTrips = recon.updatedPlannedTrips;
+    groups[gi] = g;
+    const {error: upsertErr} = await sb
+      .from('app_store')
+      .upsert({key: 'ppp-feeders-v1', data: groups}, {onConflict: 'key'});
+    if (upsertErr) {
+      throw new Error('Send failed (app_store): ' + upsertErr.message);
+    }
+    let stampFailed = false;
+    for (const e of selEntries) {
+      const {error: stampErr} = await sb
+        .from('weigh_ins')
+        .update({sent_to_trip_id: newTripId, sent_to_group_id: groupId})
+        .eq('id', e.id);
+      if (stampErr) {
+        stampFailed = true;
+        setNotice({kind: 'error', message: 'Stamp failed for entry: ' + stampErr.message});
+        break;
+      }
+    }
+    if (stampFailed) {
+      throw new Error('One or more entry stamps failed. The trip was created but not all entries were stamped.');
+    }
+    try {
+      await recordActivityEvent(sb, {
+        entityType: 'weighin.session',
+        entityId: session.id,
+        eventType: 'field.updated',
+        entityLabel: sessionLabel(),
+        body: 'Sent ' + selEntries.length + ' entries to trip ' + recon.targetTripDate,
+      });
+    } catch (_e) {
+      /* best-effort */
+    }
+    setFeederGroups(groups);
+    setSelectedEntryIds(new Set());
+    setTripModal(null);
+    await loadAll();
+  }
+
+  async function undoSendToTrip(entry) {
+    if (!entry || !entry.sent_to_trip_id || !entry.sent_to_group_id) return;
+    if (!canManagePigPlannedTrips) return;
+    const groups = feederGroups.slice();
+    const gi = groups.findIndex((g) => g.id === entry.sent_to_group_id);
+    if (gi >= 0) {
+      const g = {...groups[gi]};
+      g.processingTrips = (g.processingTrips || []).map((t) => {
+        if (t.id !== entry.sent_to_trip_id) return t;
+        const nt = {...t};
+        nt.pigCount = Math.max(0, (parseInt(nt.pigCount) || 0) - 1);
+        const targetW = parseFloat(entry.weight);
+        const parts = (nt.liveWeights || '').split(/\s+/).filter(Boolean);
+        const idx = parts.findIndex((p) => parseFloat(p) === targetW);
+        if (idx >= 0) parts.splice(idx, 1);
+        nt.liveWeights = parts.join(' ');
+        return nt;
+      });
+      groups[gi] = g;
+      const {error: undoUpsertErr} = await sb
+        .from('app_store')
+        .upsert({key: 'ppp-feeders-v1', data: groups}, {onConflict: 'key'});
+      if (undoUpsertErr) {
+        setNotice({kind: 'error', message: 'Undo send failed (app_store): ' + undoUpsertErr.message});
+        return;
+      }
+      setFeederGroups(groups);
+    }
+    const {error: clearErr} = await sb
+      .from('weigh_ins')
+      .update({sent_to_trip_id: null, sent_to_group_id: null})
+      .eq('id', entry.id);
+    if (clearErr) {
+      setNotice({kind: 'error', message: 'Undo send failed (clear stamp): ' + clearErr.message});
+      return;
+    }
+    try {
+      await recordActivityEvent(sb, {
+        entityType: 'weighin.session',
+        entityId: session.id,
+        eventType: 'field.updated',
+        entityLabel: sessionLabel(),
+        body: 'Undid send for entry (' + (entry.weight || '?') + ' lb)',
+      });
+    } catch (_e) {
+      /* best-effort */
+    }
+    await loadAll();
+  }
+
+  // ── Pig transfer-to-breeding ────────────────────────────────────────────
+  function openTransferModal(entry) {
+    setTransferNotice(null);
+    setTransferModal({session, entry});
+    let bd = '';
+    try {
+      const sd = new Date((session.date || '') + 'T12:00:00');
+      sd.setMonth(sd.getMonth() - 6);
+      bd = sd.toISOString().slice(0, 10);
+    } catch (_e) {
+      /* defensive */
+    }
+    setTransferForm({tag: '', group: '1', sex: 'Gilt', birthDate: bd});
+  }
+
+  async function transferToBreeding() {
+    if (!transferModal) return;
+    const {session: sess, entry} = transferModal;
+    const tag = (transferForm.tag || '').trim();
+    setTransferNotice(null);
+    if (!tag) {
+      setTransferNotice({kind: 'error', message: 'Tag # is required.'});
+      return;
+    }
+    if (!transferForm.group) {
+      setTransferNotice({kind: 'error', message: 'Pick a group.'});
+      return;
+    }
+    setTransferBusy(true);
+    try {
+      const {parent, sub} = resolveBatchAndSub(sess.batch_id);
+      if (!parent) {
+        setTransferNotice({kind: 'error', message: 'Could not match this session to a feeder batch.'});
+        setTransferBusy(false);
+        return;
+      }
+      const fcr = batchFCR(parent);
+      const weight = parseFloat(entry.weight) || 0;
+      const feedAllocLbs = Math.round(weight * fcr * 10) / 10;
+      const breederId = String(Date.now()) + Math.random().toString(36).slice(2, 6);
+      const breederRec = {
+        id: breederId,
+        tag,
+        sex: transferForm.sex || 'Gilt',
+        group: transferForm.group,
+        status: transferForm.sex === 'Boar' ? 'Boar Group' : 'Sow Group',
+        breed: '',
+        origin: parent.batchName || '',
+        birthDate: transferForm.birthDate || '',
+        lastWeight: weight,
+        purchaseDate: '',
+        purchaseAmount: '',
+        notes: '',
+        archived: false,
+        weighins: [{weight, date: sess.date || new Date().toISOString().slice(0, 10)}],
+        transferredFromBatch: {
+          batchName: parent.batchName,
+          subBatchName: sub ? sub.name : null,
+          transferDate: new Date().toISOString().slice(0, 10),
+          feedAllocationLbs: feedAllocLbs,
+          fcrUsed: fcr,
+          sourceWeighInId: entry.id,
+        },
+      };
+      const brR = await sb.from('app_store').select('data').eq('key', 'ppp-breeders-v1').maybeSingle();
+      if (brR.error) {
+        setTransferNotice({kind: 'error', message: 'Could not read breeders registry: ' + brR.error.message});
+        setTransferBusy(false);
+        return;
+      }
+      const currentBreeders = brR.data && Array.isArray(brR.data.data) ? brR.data.data : [];
+      if (currentBreeders.some((b) => b.transferredFromBatch && b.transferredFromBatch.sourceWeighInId === entry.id)) {
+        setTransferNotice({kind: 'warning', message: 'This entry has already been transferred.'});
+        setTransferModal(null);
+        setTransferBusy(false);
+        await loadAll();
+        return;
+      }
+      const {error: brUpsertErr} = await sb
+        .from('app_store')
+        .upsert({key: 'ppp-breeders-v1', data: [...currentBreeders, breederRec]}, {onConflict: 'key'});
+      if (brUpsertErr) {
+        setTransferNotice({kind: 'error', message: 'Could not save new breeder: ' + brUpsertErr.message});
+        setTransferBusy(false);
+        return;
+      }
+      const updatedFG = feederGroups.map((g) =>
+        g.id !== parent.id
+          ? g
+          : {...g, feedAllocatedToTransfers: (parseFloat(g.feedAllocatedToTransfers) || 0) + feedAllocLbs},
+      );
+      setFeederGroups(updatedFG);
+      const {error: fgUpsertErr} = await sb
+        .from('app_store')
+        .upsert({key: 'ppp-feeders-v1', data: updatedFG}, {onConflict: 'key'});
+      if (fgUpsertErr) {
+        setTransferNotice({kind: 'error', message: 'Could not update feeder batch: ' + fgUpsertErr.message});
+        setTransferBusy(false);
+        return;
+      }
+      const wi = await sb
+        .from('weigh_ins')
+        .update({transferred_to_breeding: true, transfer_breeder_id: breederId, feed_allocation_lbs: feedAllocLbs})
+        .eq('id', entry.id);
+      let stampOk = !wi.error;
+      if (wi.error) {
+        const noteFallback =
+          '[transferred_to_breeding breeder=' +
+          breederId +
+          ' feed_alloc=' +
+          feedAllocLbs +
+          ' lb] ' +
+          (entry.note || '');
+        const {error: noteErr} = await sb.from('weigh_ins').update({note: noteFallback}).eq('id', entry.id);
+        stampOk = !noteErr;
+      }
+      if (!stampOk) {
+        setTransferNotice({
+          kind: 'warning',
+          message:
+            'Transfer created breeder #' +
+            tag +
+            ' and updated counts, but the weigh-in entry could not be stamped. The entry may appear unstamped until the page reloads.',
+        });
+        setTransferBusy(false);
+        return;
+      }
+      try {
+        await recordActivityEvent(sb, {
+          entityType: 'weighin.session',
+          entityId: session.id,
+          eventType: 'field.updated',
+          entityLabel: sessionLabel(),
+          body: 'Transferred entry (' + weight + ' lb) to breeding as #' + tag,
+        });
+      } catch (_e) {
+        /* best-effort */
+      }
+      setTransferModal(null);
+      setTransferBusy(false);
+      await loadAll();
+    } catch (e) {
+      setTransferNotice({kind: 'error', message: 'Transfer failed: ' + (e.message || 'unknown error')});
+      setTransferBusy(false);
+    }
+  }
+
+  async function undoTransferToBreeding(entry) {
+    if (!entry) return;
+    setTransferNotice(null);
+    const noteMarker = (entry.note || '').match(/\[transferred_to_breeding\s+breeder=([^\s\]]+)\s+feed_alloc=([\d.]+)/);
+    const breederId = entry.transfer_breeder_id || (noteMarker ? noteMarker[1] : null);
+    let feedAlloc = parseFloat(entry.feed_allocation_lbs);
+    if (!Number.isFinite(feedAlloc) || feedAlloc <= 0) feedAlloc = noteMarker ? parseFloat(noteMarker[2]) : 0;
+    if (!Number.isFinite(feedAlloc)) feedAlloc = 0;
+    if (!entry.transferred_to_breeding && !noteMarker) {
+      setTransferNotice({kind: 'warning', message: "This entry doesn't appear to be transferred."});
+      return;
+    }
+    let undoOk = true;
+    if (breederId) {
+      const brR = await sb.from('app_store').select('data').eq('key', 'ppp-breeders-v1').maybeSingle();
+      if (!brR.error) {
+        const cur = brR.data && Array.isArray(brR.data.data) ? brR.data.data : [];
+        const next = cur.filter((b) => b.id !== breederId);
+        if (next.length !== cur.length) {
+          const {error: brDelErr} = await sb
+            .from('app_store')
+            .upsert({key: 'ppp-breeders-v1', data: next}, {onConflict: 'key'});
+          if (brDelErr) {
+            setTransferNotice({kind: 'error', message: 'Undo failed (breeders): ' + brDelErr.message});
+            undoOk = false;
+          }
+        }
+      }
+    }
+    const {parent} = resolveBatchAndSub(session.batch_id);
+    if (parent && undoOk) {
+      const updated = feederGroups.map((g) =>
+        g.id !== parent.id
+          ? g
+          : {...g, feedAllocatedToTransfers: Math.max(0, (parseFloat(g.feedAllocatedToTransfers) || 0) - feedAlloc)},
+      );
+      setFeederGroups(updated);
+      const {error: fgDelErr} = await sb
+        .from('app_store')
+        .upsert({key: 'ppp-feeders-v1', data: updated}, {onConflict: 'key'});
+      if (fgDelErr) {
+        setTransferNotice({kind: 'error', message: 'Undo failed (feeders): ' + fgDelErr.message});
+        undoOk = false;
+      }
+    }
+    if (undoOk) {
+      const cleanedNote = (entry.note || '').replace(/^\[transferred_to_breeding[^\]]*\]\s*/, '') || null;
+      const {error: clearErr} = await sb
+        .from('weigh_ins')
+        .update({
+          transferred_to_breeding: false,
+          transfer_breeder_id: null,
+          feed_allocation_lbs: null,
+          note: cleanedNote,
+        })
+        .eq('id', entry.id);
+      if (clearErr) {
+        setTransferNotice({kind: 'error', message: 'Undo failed (clear stamp): ' + clearErr.message});
+        return;
+      }
+      try {
+        await recordActivityEvent(sb, {
+          entityType: 'weighin.session',
+          entityId: session.id,
+          eventType: 'field.updated',
+          entityLabel: sessionLabel(),
+          body: 'Undid transfer to breeding for entry (' + (entry.weight || '?') + ' lb)',
+        });
+      } catch (_e) {
+        /* best-effort */
+      }
+    }
+    await loadAll();
+  }
+
   if (loading) {
     return (
       <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -619,7 +1056,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     );
   }
 
-  if (session.species !== 'cattle' && session.species !== 'sheep') {
+  if (session.species !== 'cattle' && session.species !== 'sheep' && session.species !== 'pig') {
     const back = SPECIES_BACK[session.species] || {path: '/', label: 'Home'};
     return (
       <div data-unsupported-species="1" style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -649,17 +1086,21 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     );
   }
 
-  const priors = computePriors();
+  const isPig = session.species === 'pig';
+  const priors = isPig ? {} : computePriors();
   const curDate = session.date;
-  const adgs = sEntries
-    .map((e) => {
-      const p = priors[e.tag];
-      return p ? adgLbPerDay(p.weight, p.date, e.weight, curDate) : null;
-    })
-    .filter((a) => a != null);
+  const adgs = isPig
+    ? []
+    : sEntries
+        .map((e) => {
+          const p = priors[e.tag];
+          return p ? adgLbPerDay(p.weight, p.date, e.weight, curDate) : null;
+        })
+        .filter((a) => a != null);
   const avgAdg = adgs.length > 0 ? adgs.reduce((x, v) => x + v, 0) / adgs.length : null;
   const groupLabelsMap = session.species === 'sheep' ? FLOCK_LABELS : HERD_LABELS;
-  const entityLabel = (session.date || '') + ' · ' + (groupLabelsMap[session.herd] || session.herd || session.species);
+  const groupName = isPig ? session.batch_id || 'pig' : groupLabelsMap[session.herd] || session.herd || session.species;
+  const entityLabel = (session.date || '') + ' · ' + groupName;
   const backInfo = SPECIES_BACK[session.species] || {path: '/', label: 'Home'};
 
   return (
@@ -687,7 +1128,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
           <h1 data-record-title="1" style={{fontSize: 24, fontWeight: 700, color: '#111827', margin: 0}}>
-            {groupLabelsMap[session.herd] || session.herd} — {fmt(session.date)}
+            {groupName} — {fmt(session.date)}
           </h1>
           <span
             style={{
@@ -728,6 +1169,22 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 sEntries.length +
                 ')'}
             </span>
+          )}
+          {isPig && pigMetrics && (
+            <>
+              <span style={{fontSize: 11, color: '#6b7280'}}>
+                {formatAgeRange({
+                  minDays: pigMetrics.age_min_days,
+                  maxDays: pigMetrics.age_max_days,
+                  hasActual: pigMetrics.has_actual_farrowing,
+                })}
+              </span>
+              <span style={{fontSize: 11, color: '#6b7280'}}>{formatFeedPerPig(pigMetrics.feed_per_pig_lbs)}</span>
+              <span style={{fontSize: 11, color: '#6b7280'}}>{formatGroupAdg(pigMetrics.group_adg_lbs_per_day)}</span>
+              <span style={{fontSize: 11, fontWeight: 600, color: '#1e40af'}}>
+                {formatAvgWeight(pigMetrics.avg_weight_lbs)}
+              </span>
+            </>
           )}
         </div>
 
@@ -784,6 +1241,24 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           >
             Delete Session
           </button>
+          {isPig && session.status === 'draft' && canManagePigPlannedTrips && selectedEntryIds.size > 0 && (
+            <button
+              onClick={openTripModal}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid #047857',
+                background: '#047857',
+                color: 'white',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Send {selectedEntryIds.size} to Trip
+            </button>
+          )}
         </div>
 
         <div
@@ -803,8 +1278,192 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               }}
             >
               {sEntries.map((e) => {
-                const cow = animals.find((c) => c.tag === e.tag);
                 const ef = entryEdits[e.id] || {tag: e.tag || '', weight: String(e.weight ?? ''), note: e.note || ''};
+                if (isPig) {
+                  const isSent = !!e.sent_to_trip_id;
+                  const isTransferred = !!(e.transferred_to_breeding || /\[transferred_to_breeding/.test(e.note || ''));
+                  const isLocked = isSent || isTransferred;
+                  return (
+                    <div
+                      key={e.id}
+                      style={{
+                        background: isSent ? '#ecfdf5' : isTransferred ? '#eef2ff' : 'white',
+                        border: '1px solid ' + (isSent ? '#a7f3d0' : isTransferred ? '#c7d2fe' : '#e5e7eb'),
+                        borderRadius: 6,
+                        padding: '6px 10px',
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{display: 'flex', gap: 4, alignItems: 'center'}}>
+                        {!isLocked && session.status === 'draft' && canManagePigPlannedTrips && (
+                          <input
+                            type="checkbox"
+                            checked={selectedEntryIds.has(e.id)}
+                            onChange={() =>
+                              setSelectedEntryIds((prev) => {
+                                const n = new Set(prev);
+                                if (n.has(e.id)) n.delete(e.id);
+                                else n.add(e.id);
+                                return n;
+                              })
+                            }
+                          />
+                        )}
+                        {isLocked ? (
+                          <span style={{fontWeight: 600, color: '#1e40af', flex: 1}}>{e.weight} lb</span>
+                        ) : (
+                          <>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              placeholder="lb"
+                              value={ef.weight}
+                              onChange={(ev) => setEntryField(e.id, 'weight', ev.target.value)}
+                              style={{...inp, flex: '0 0 80px', minWidth: 0}}
+                            />
+                            <input
+                              type="text"
+                              placeholder="Note"
+                              value={ef.note}
+                              onChange={(ev) => setEntryField(e.id, 'note', ev.target.value)}
+                              style={{...inp, flex: 1, minWidth: 60}}
+                            />
+                          </>
+                        )}
+                        {isSent && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              background: '#d1fae5',
+                              color: '#065f46',
+                            }}
+                          >
+                            Sent to trip
+                          </span>
+                        )}
+                        {isTransferred && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              background: '#eef2ff',
+                              color: '#3730a3',
+                            }}
+                          >
+                            Transferred
+                          </span>
+                        )}
+                      </div>
+                      {isLocked && e.note && <div style={{fontSize: 11, color: '#6b7280', marginTop: 2}}>{e.note}</div>}
+                      <div
+                        style={{display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: 4, flexWrap: 'wrap'}}
+                      >
+                        {isSent && canManagePigPlannedTrips && (
+                          <button
+                            onClick={() => undoSendToTrip(e)}
+                            style={{
+                              fontSize: 10,
+                              color: '#b45309',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '2px 6px',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            Undo send
+                          </button>
+                        )}
+                        {isTransferred && (
+                          <button
+                            onClick={() => undoTransferToBreeding(e)}
+                            style={{
+                              fontSize: 10,
+                              color: '#b45309',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '2px 6px',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            Undo transfer
+                          </button>
+                        )}
+                        {!isLocked && (
+                          <>
+                            <button
+                              onClick={() => openTransferModal(e)}
+                              style={{
+                                fontSize: 10,
+                                color: '#3730a3',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              → Breeding
+                            </button>
+                            <button
+                              onClick={() => revertEntry(e)}
+                              style={{
+                                fontSize: 10,
+                                color: '#6b7280',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Revert
+                            </button>
+                            <button
+                              onClick={() => saveEntry(e)}
+                              disabled={!(parseFloat(ef.weight) > 0)}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: 'white',
+                                background: parseFloat(ef.weight) > 0 ? '#1e40af' : '#d1d5db',
+                                border: 'none',
+                                borderRadius: 4,
+                                cursor: parseFloat(ef.weight) > 0 ? 'pointer' : 'not-allowed',
+                                padding: '3px 8px',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => deleteEntry(e)}
+                              style={{
+                                fontSize: 10,
+                                color: '#b91c1c',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                const cow = animals.find((c) => c.tag === e.tag);
                 const prior = priors[e.tag];
                 const adg = prior ? adgLbPerDay(prior.weight, prior.date, e.weight, curDate) : null;
                 return (
@@ -1025,20 +1684,24 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             }}
           >
             <span style={{fontSize: 11, fontWeight: 600, color: '#1e40af'}}>+ Add entry:</span>
-            <input
-              type="text"
-              placeholder="Prior tag (swap)"
-              value={addForm.priorTag}
-              onChange={(ev) => setAddForm((f) => ({...f, priorTag: ev.target.value}))}
-              style={{...inp, width: 130, background: addForm.priorTag ? '#dbeafe' : 'white'}}
-            />
-            <input
-              type="text"
-              placeholder={addForm.priorTag ? 'New tag #' : 'Tag #'}
-              value={addForm.tag}
-              onChange={(ev) => setAddForm((f) => ({...f, tag: ev.target.value}))}
-              style={{...inp, width: 90}}
-            />
+            {!isPig && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Prior tag (swap)"
+                  value={addForm.priorTag}
+                  onChange={(ev) => setAddForm((f) => ({...f, priorTag: ev.target.value}))}
+                  style={{...inp, width: 130, background: addForm.priorTag ? '#dbeafe' : 'white'}}
+                />
+                <input
+                  type="text"
+                  placeholder={addForm.priorTag ? 'New tag #' : 'Tag #'}
+                  value={addForm.tag}
+                  onChange={(ev) => setAddForm((f) => ({...f, tag: ev.target.value}))}
+                  style={{...inp, width: 90}}
+                />
+              </>
+            )}
             <input
               type="number"
               min="0"
@@ -1070,7 +1733,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 fontFamily: 'inherit',
               }}
             >
-              {addForm.priorTag ? 'Swap + Add' : 'Add'}
+              {!isPig && addForm.priorTag ? 'Swap + Add' : 'Add'}
             </button>
           </div>
         </div>
@@ -1120,6 +1783,131 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             await finalizeComplete();
           },
         })}
+      {tripModal &&
+        React.createElement(PigSendToTripModal, {
+          session: tripModal.session,
+          selectedEntries: tripModal.entries,
+          feederGroups,
+          onClose: () => setTripModal(null),
+          onConfirm: sendEntriesToTrip,
+        })}
+      {transferModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.5)',
+            zIndex: 250,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 12,
+              padding: 18,
+              width: 'min(440px, 96vw)',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              fontFamily: 'inherit',
+            }}
+          >
+            <h3 style={{margin: '0 0 10px', fontSize: 16, color: '#111827'}}>Transfer to Breeding</h3>
+            <div style={{fontSize: 12, color: '#6b7280', marginBottom: 10}}>
+              Entry weight: {transferModal.entry.weight} lb
+            </div>
+            {transferNotice && (
+              <InlineNotice
+                kind={transferNotice.kind}
+                message={transferNotice.message}
+                onDismiss={() => setTransferNotice(null)}
+              />
+            )}
+            <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+              <label style={{fontSize: 12, fontWeight: 600}}>
+                Tag #{' '}
+                <input
+                  type="text"
+                  value={transferForm.tag}
+                  onChange={(ev) => setTransferForm((f) => ({...f, tag: ev.target.value}))}
+                  style={{...inp, width: '100%', marginTop: 2}}
+                />
+              </label>
+              <label style={{fontSize: 12, fontWeight: 600}}>
+                Sex{' '}
+                <select
+                  value={transferForm.sex}
+                  onChange={(ev) => setTransferForm((f) => ({...f, sex: ev.target.value}))}
+                  style={{...inp, width: '100%', marginTop: 2}}
+                >
+                  <option value="Gilt">Gilt</option>
+                  <option value="Boar">Boar</option>
+                </select>
+              </label>
+              <label style={{fontSize: 12, fontWeight: 600}}>
+                Group{' '}
+                <input
+                  type="text"
+                  value={transferForm.group}
+                  onChange={(ev) => setTransferForm((f) => ({...f, group: ev.target.value}))}
+                  style={{...inp, width: '100%', marginTop: 2}}
+                />
+              </label>
+              <label style={{fontSize: 12, fontWeight: 600}}>
+                Birth date (est.){' '}
+                <input
+                  type="date"
+                  value={transferForm.birthDate}
+                  onChange={(ev) => setTransferForm((f) => ({...f, birthDate: ev.target.value}))}
+                  style={{...inp, width: '100%', marginTop: 2}}
+                />
+              </label>
+            </div>
+            <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12}}>
+              <button
+                onClick={() => {
+                  setTransferModal(null);
+                  setTransferNotice(null);
+                }}
+                disabled={transferBusy}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  color: '#374151',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={transferToBreeding}
+                disabled={transferBusy}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#3730a3',
+                  color: 'white',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {transferBusy ? 'Transferring…' : 'Transfer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
