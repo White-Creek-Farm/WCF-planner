@@ -176,6 +176,22 @@ describe('CowDetail — breeding blacklist UI', () => {
   });
 });
 
+describe('CowDetail — lineage editor', () => {
+  it('keeps dam tag editable even when populated', () => {
+    expect(cowDetail).toMatch(
+      /Dam tag #:[\s\S]*?<input[\s\S]*?defaultValue=\{cow\.dam_tag \|\| ''\}[\s\S]*?onBlur=\{patchOnBlur\('dam_tag', 'text'\)\}/,
+    );
+  });
+  it('does not replace populated dam tag with read-only display text', () => {
+    expect(cowDetail).not.toContain("<strong>{'#' + cow.dam_tag}</strong>");
+  });
+  it('keeps dam View link as secondary navigation when the tag matches a cow', () => {
+    expect(cowDetail).toMatch(
+      /cow\.dam_tag && findByTag\(cow\.dam_tag\)[\s\S]*?<TagLink tag=\{cow\.dam_tag\} prefix="View " \/>/,
+    );
+  });
+});
+
 describe('CowDetail — hideComments prop and Issues wording', () => {
   it('accepts hideComments prop', () => {
     expect(cowDetail).toContain('hideComments');

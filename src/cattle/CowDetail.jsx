@@ -422,26 +422,19 @@ const CowDetail = ({
             }}
           >
             <span style={{color: '#9ca3af'}}>Dam tag #:</span>
-            {cow.dam_tag ? (
-              <span
-                style={{
-                  fontSize: 12,
-                  color: '#374151',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <strong>{'#' + cow.dam_tag}</strong>
-                {findByTag(cow.dam_tag) && (
-                  <span style={{fontSize: 11, color: '#6b7280'}}>
-                    <TagLink tag={cow.dam_tag} prefix="View " /> {'(' + (findByTag(cow.dam_tag).breed || '?') + ')'}
-                  </span>
-                )}
-              </span>
-            ) : (
-              <input type="text" defaultValue="" onBlur={patchOnBlur('dam_tag', 'text')} style={editInp} />
+            <input
+              type="text"
+              defaultValue={cow.dam_tag || ''}
+              onBlur={patchOnBlur('dam_tag', 'text')}
+              style={editInp}
+            />
+            {cow.dam_tag && findByTag(cow.dam_tag) && (
+              <>
+                <span style={{color: '#9ca3af'}}>{}</span>
+                <span style={{fontSize: 11, color: '#6b7280'}}>
+                  <TagLink tag={cow.dam_tag} prefix="View " /> {'(' + (findByTag(cow.dam_tag).breed || '?') + ')'}
+                </span>
+              </>
             )}
             <span style={{color: '#9ca3af'}}>Sire tag #:</span>
             <input

@@ -214,16 +214,12 @@ test('UI: calf herd tile shows dam tag after trigger links it', async ({page, su
 });
 
 // --------------------------------------------------------------------------
-// Test 6 — UI: CowDetail Lineage shows dam read-only when dam_tag is set
+// Test 6 — UI: CowDetail Lineage keeps dam editable when dam_tag is set
 // --------------------------------------------------------------------------
-// Locks the read-only contract: when the trigger (or any prior write) has
-// populated cattle.dam_tag, CowDetail must NOT render an editable input for
-// dam_tag. The derived #<tag> + View link is the only authoring surface.
-test('UI: CowDetail Lineage shows dam read-only with no editable input when dam_tag is set', async ({
-  page,
-  supabaseAdmin,
-  resetDb,
-}) => {
+// Locks the correction contract: when the trigger (or any prior write) has
+// populated cattle.dam_tag, CowDetail still renders an editable input for
+// dam_tag. The View link is navigation only, not the sole authoring surface.
+test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
   await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
   await supabaseAdmin.from('cattle_calving_records').insert({
@@ -247,10 +243,10 @@ test('UI: CowDetail Lineage shows dam read-only with no editable input when dam_
 
   const lineage = calfTile.locator('[data-lineage-section="1"]');
   await expect(lineage).toBeVisible({timeout: 10_000});
-  await expect(lineage).toContainText(`#${DAM.tag}`);
+  await expect(lineage.getByDisplayValue(DAM.tag)).toBeVisible();
   await expect(lineage.getByRole('button', {name: `View #${DAM.tag}`})).toBeVisible();
-  // Sire input remains; dam input must be gone.
-  await expect(lineage.locator('input[type="text"]')).toHaveCount(1);
+  // Dam and sire inputs remain editable even when dam_tag is populated.
+  await expect(lineage.locator('input[type="text"]')).toHaveCount(2);
 });
 
 // --------------------------------------------------------------------------
