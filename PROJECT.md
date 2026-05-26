@@ -27,10 +27,12 @@ only when Ronnie explicitly assigns it.
 - Production: `https://wcfplanner.com`
 - Deploy: Netlify auto-deploy from `main`
 - Production source: `origin/main` via Netlify auto-deploy.
-- Latest confirmed shipped checkpoint: `e1bce04 fix(cattle): remove
-  Recently Deleted box from herds page`.
-- Open gates: none for the cattle record page / Comments foundation phase.
-  Next active build is the sitewide Operational Record Pages rollout.
+- Latest confirmed shipped checkpoint: `d0071d5 feat(dailys): add record
+  pages for all 6 daily report types`.
+- Open gates: none for the cattle, sheep, or daily report record-page phases.
+  Next active targets are `equipment.item` and `task.instance` record pages.
+  Processing/batch record pages are deferred until identity/workflow design is
+  complete.
 - PROD migrations live: `057` notifications, `058` activity events,
   `060` mention contract, `062` activity entity expansion, `063`
   notification activity resolution, `064` activity Phase 2 entities, `065`
@@ -127,9 +129,32 @@ Post-ship cleanup completed:
   page.
 
 Next steps:
-1. Roll the operational record-page pattern across the site.
+1. Migrate `equipment.item` and `task.instance` to the operational record-page
+   pattern.
 2. After durable record pages exist, return to custom editable-table activity
    lanes such as cattle forecast month hide/unhide history.
+
+### Shipped Checkpoint: Phase 2A/2B Record Page Rollout
+
+Status: live on PROD. Sheep animal record pages and all six authenticated daily
+report record pages are shipped.
+
+What was built:
+- Dedicated sheep animal record pages at `/sheep/flocks/<id>` with app header,
+  `#tag` title, SheepDetail, CommentsSection, collapsed Activity log,
+  sheep-to-sheep navigation state, and retired inline expansion.
+- Dedicated record pages for `poultry.daily`, `layer.daily`, `egg.daily`,
+  `pig.daily`, `cattle.daily`, and `sheep.daily`, each with Comments and
+  collapsed Activity history.
+- Legacy Activity chips/modal surfaces retired from cattle, sheep, and all six
+  daily report views. Lists now route to the durable record pages instead of
+  hosting primary per-record workspaces.
+
+Deferred from the rollout:
+- Inline editing on daily record pages. Daily pages are read-only record
+  displays for now; edit remains on the existing list modal.
+- Processing/batch record pages. These require identity and workflow design
+  before migration.
 
 ### Recent Shipped Work
 
@@ -140,15 +165,15 @@ Next steps:
 | Broiler batch location labels | Live. Broiler daily/report dropdowns show current housing/location labels while storing the plain batch name. |
 | Home Weather | Live. Tomorrow.io forecast proxy, 10-day forecast, rain/freeze focus, and animated radar are on Home. |
 | Notifications Center | Live. `task_completed` and `mention` notifications use `public.notifications`; task and non-task mention deep-links are live. |
-| Activity + @Mentions | Legacy live. Comments, @mentions, compact chips, ActivityModal, and deep-links exist for 10 entity types. This UI is deprecated by the Operational Record Pages foundation and must not be expanded as the long-term pattern. |
+| Activity + @Mentions | Mixed. Comments, @mentions, and deep-links are live through operational record pages where migrated. Legacy compact Activity chips/modal remain only on unmigrated surfaces and must not be expanded as the long-term pattern. |
 | Global Activity Log | Live at `/activity`. Permission-filtered RPC reads `activity_events`; legacy comments, task completions, deleted-comment placeholders, and explicit system/change events show there today. New Comments foundation should keep comment text out of the global audit feed except for approved notification/deep-link metadata. |
 | Activity Layer foundation | Live. `record_activity_event` records allowlisted change/lifecycle events through SECDEF RPC. Layer batch notes and equipment status are pilot surfaces. |
 | Entity mutation helper | Live. `runMutation` standardizes client mutation errors plus optional best-effort Activity logging; it is not transactional. |
 | Daily soft-delete + restore | Live. Transactional SECDEF RPCs `soft_delete_daily_report` / `restore_daily_report`. Soft-delete is allowed for any active authenticated role; restore remains admin-only. 6 daily entity types registered. `deleted_at`/`deleted_by` on all 6 daily tables. All read sites filtered. Admin Recently Deleted tab with restore. `record.deleted`/`record.restored` Activity events with human-readable labels. |
 | Cattle soft-delete + restore | Live. Admin-only source-row soft-delete/restore for `cattle.animal` through SECDEF RPCs in migration `069`. Normal cattle reads hide deleted rows; no cattle DELETE policy remains. The herds-page Recently Deleted box was removed; restore remains a backend/admin capability for a future proper recovery surface. |
-| Daily per-record Activity UI | Legacy live. Compact Activity chips + ActivityModal remain on all 6 authenticated daily views until those entities move to operational record pages. Do not copy this pattern into new work. |
+| Daily per-record Activity UI | Retired from all 6 authenticated daily views. Daily report record pages now own Comments + collapsed Activity history. Inline editing remains on the existing list modal for now. |
 | Home missed pig breeding-stock dailys | Live. Home missed-report checks include active SOWS and BOARS breeding-stock groups in addition to pig feeder groups. |
-| Operational Record Pages foundation | Phase 1 live on `cattle.animal`. Site-wide standard is dedicated pages for operational records. Tiles/lists are clean summaries only. Record pages own fields, editing, Comments, attachments, Activity log, edit history, and future related tools. Next phase rolls this pattern across the rest of the app before custom editable-table Activity work. |
+| Operational Record Pages foundation | Live on `cattle.animal`, `sheep.animal`, and all 6 daily report entity types. Site-wide standard is dedicated pages for operational records. Tiles/lists are clean summaries only. Record pages own fields, editing, Comments, attachments, Activity log, edit history, and future related tools. Next targets are `equipment.item` and `task.instance`; processing/batch pages remain deferred for identity/workflow design. |
 | Codebase hardening and cleanup | Planned. Cleanup is a first-class roadmap track: retire deprecated UI/data paths as entities migrate, remove dead code with proof, extract shared record-page/list patterns, and document what remains intentionally legacy. |
 | Error Resilience Phase 1 | Live. App-root ErrorBoundary, global `error` and `unhandledrejection` capture, and durable redacted client error events through `record_client_error` SECDEF RPC / `client_error_events` table. |
 | Activity change logging | Live. Routine field edits on `cattle.animal`, `sheep.animal`, and `equipment.item` now record `field.updated`/`status.changed` Activity events through the existing Activity Layer. Cattle delete/restore is now transactional/audited; sheep delete/restore, lifecycle/move actions, equipment child records, and admin-only documents remain deferred. |
@@ -169,11 +194,11 @@ superseded stashes were audited and dropped during stash hygiene.
 
 ## Active Roadmap
 
-1. Operational Record Pages sitewide rollout - migrate remaining operational
-   records to dedicated URLs/pages using the cattle-proven pattern: app header,
-   record title, editable detail workspace, Comments, attachments, collapsed
-   Activity audit log, route/deep-link support, and retired list-page
-   workspaces.
+1. Equipment and Task Record Pages - migrate `equipment.item` and
+   `task.instance` to dedicated URLs/pages using the cattle/sheep/daily-proven
+   pattern: app header, record title, details/edit workspace, Comments,
+   attachments, collapsed Activity audit log, route/deep-link support, and no
+   list-page Activity bubbles.
 2. Codebase hardening and cleanup - remove deprecated patterns as each entity
    migrates, classify legacy/import/test-only code, and reduce context burn for
    future sessions.
@@ -435,18 +460,18 @@ record-page foundation.
 | Entity | Stable ID | Label | Storage | Mutation | Delete | Record Page | Audit |
 |---|---|---|---|---|---|---|---|
 | task.instance | text | title | `task_instances` | SECDEF RPCs | hard (RPC, validated) | Planned task phase | comments + task.completed trigger |
-| poultry.daily | UUID | date + batch_label | `poultry_dailys` | direct | soft (SECDEF) | Planned daily phase | comments + deleted/restored events |
-| layer.daily | UUID | date + batch_label | `layer_dailys` | direct | soft (SECDEF) | Planned daily phase | comments + deleted/restored events |
-| egg.daily | UUID | date | `egg_dailys` | direct | soft (SECDEF) | Planned daily phase | comments + deleted/restored events |
-| pig.daily | UUID | date + batch_label | `pig_dailys` | direct | soft (SECDEF) | Planned daily phase | comments + deleted/restored events |
-| cattle.daily | UUID | date + herd | `cattle_dailys` | direct | soft (SECDEF) | Planned daily phase | comments + deleted/restored events |
-| sheep.daily | UUID | date + flock | `sheep_dailys` | direct | soft (SECDEF) | Planned daily phase | comments + deleted/restored events |
+| poultry.daily | UUID | date + batch_label | `poultry_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
+| layer.daily | UUID | date + batch_label | `layer_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
+| egg.daily | UUID | date | `egg_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
+| pig.daily | UUID | date + batch_label | `pig_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
+| cattle.daily | UUID | date + herd | `cattle_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
+| sheep.daily | UUID | date + flock | `sheep_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
 | broiler.batch | name (string) | batch name | `app_store` ppp-v4 | direct (upsert) | TBD | Planned batch phase; needs durable ID review | partial - delete unlogged |
 | pig.batch | group id | batchName | `app_store` ppp-feeders-v1 | direct (upsert) | TBD | Planned batch phase | partial |
 | layer.batch | UUID | name | `layer_batches` | direct | hard-cascade (housings) | Planned batch phase | partial |
 | layer.housing | UUID | housing_name | `layer_housings` | direct | hard (via batch cascade) | Planned batch phase | partial |
-| cattle.animal | UUID | tag | `cattle` | direct + `runMutation` + SECDEF delete/restore | soft (SECDEF, admin-only) | Phase 1 active | comments + routine field.updated + deleted/restored events |
-| sheep.animal | UUID | tag | `sheep` | direct + `runMutation` | hard-orphan (children remain) | Planned Phase 2 | comments + routine field.updated; delete unlogged |
+| cattle.animal | UUID | tag | `cattle` | direct + `runMutation` + SECDEF delete/restore | soft (SECDEF, admin-only) | Live | comments + routine field.updated + deleted/restored events |
+| sheep.animal | UUID | tag | `sheep` | direct + `runMutation` | hard-orphan (children remain) | Live | comments + routine field.updated; delete unlogged |
 | cattle.processing | UUID | batch name | `cattle_processing_batches` | direct | hard (scheduled only) | Planned batch/processing phase | partial |
 | sheep.processing | UUID | batch name | `sheep_processing_batches` | direct | hard | Planned batch/processing phase | partial |
 | equipment.item | UUID | name | `equipment` | mixed - status + admin fields via `runMutation`, detail fields direct | record itself not deletable; child fuelings/maintenance hard-delete | Planned equipment phase | comments + routine field.updated + status.changed; documents/child records excluded |
@@ -487,35 +512,35 @@ deep-links, or per-record audit trails until identity decisions are made.
 
 ### Operational Record Page Migration Plan
 
-Phase 1 (`cattle.animal`) is live. It replaced cattle inline expansion and the
-cattle animal edit modal as the primary experience with a dedicated cattle
-record page and reusable Comments/Activity foundation.
+Phase 1 (`cattle.animal`), Phase 2A (`sheep.animal`), and Phase 2B (all six
+daily report entity types) are live. They replaced inline/list-page primary
+record workspaces with dedicated record pages and reusable Comments/Activity
+foundation.
 
-Next active phase: migrate operational record pages across the site before
+Next active phase: migrate `equipment.item` and `task.instance` before
 building custom editable-table Activity surfaces. Custom table history needs
 durable record pages to land on first.
 
 Planned rollout order:
 
-1. Shared record-page shell / contracts - extract only what is proven from
-   cattle: header/back/title/loading/not-found conventions, Comments placement,
-   collapsed Activity audit log placement, and route/deep-link expectations.
-   Keep extraction thin; do not block entity migration on a large design-system
-   rewrite.
-2. `sheep.animal` - same animal record-page pattern; design sheep
-   delete/restore before changing destructive paths.
-3. Batch and processing records - `broiler.batch`, `pig.batch`,
-   `layer.batch`, `layer.housing`, `cattle.processing`, and
-   `sheep.processing`; resolve missing stable IDs before migrating any
-   `app_store` entity that lacks durable identity.
-4. Daily reports - `poultry.daily`, `layer.daily`, `egg.daily`, `pig.daily`,
-   `cattle.daily`, and `sheep.daily`; remove daily Activity chips and make each
-   daily report open to a stable record page.
-5. `equipment.item` - migrate existing detail experience to the same
+1. Completed: `cattle.animal`, `sheep.animal`, `poultry.daily`,
+   `layer.daily`, `egg.daily`, `pig.daily`, `cattle.daily`, and
+   `sheep.daily`.
+2. Shared record-page shell / contracts - extract only what is proven from
+   shipped record pages: header/back/title/loading/not-found conventions,
+   Comments placement, collapsed Activity audit log placement, and
+   route/deep-link expectations. Keep extraction thin; do not block entity
+   migration on a large design-system rewrite.
+3. `equipment.item` - migrate existing detail experience to the same
    operational record-page shell and attach the new Comments layer.
-6. `task.instance` - make task details use the same record-page foundation
+4. `task.instance` - make task details use the same record-page foundation
    while preserving task RPC write contracts.
-7. Custom editable-table Activity - after record pages exist, add table-scoped
+5. Batch and processing records - `broiler.batch`, `pig.batch`,
+   `layer.batch`, `layer.housing`, `cattle.processing`, and
+   `sheep.processing`; defer until each entity has durable identity and a
+   workflow-specific record-page design. Virtual planned batches and app-store
+   records must not be forced into the animal/daily pattern prematurely.
+6. Custom editable-table Activity - after record pages exist, add table-scoped
    audit/history for forecast/feed/breeding workflows. First target should be
    cattle forecast month hide/unhide.
 
@@ -935,6 +960,11 @@ Read the relevant contract before editing its files.
 - Delete button visibility across all 6 daily views follows
   `canDeleteDailyReport(authState)`: any truthy role except `inactive`.
 - `dailyDuplicateCheck.js` excludes soft-deleted records from duplicate checks.
+- Daily Report Record Pages are live for all 6 authenticated daily entities.
+  They preserve the existing soft-delete/restore contracts, move per-record
+  discussion to `CommentsSection`, keep Activity as collapsed audit history,
+  and retire daily Activity chips/modal UI. Inline editing remains on the
+  existing list modal for now.
 - Home missed-report logic includes pig feeder groups plus active SOWS/BOARS
   breeding-stock groups derived from non-archived pig breeders.
 
