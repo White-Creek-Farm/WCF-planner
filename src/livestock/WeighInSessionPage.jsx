@@ -575,7 +575,11 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               'Cannot clear flag for #' +
               (e.tag || '?') +
               ': ' +
-              (r.reason === 'no_prior_herd' ? 'no prior herd recorded.' : r.reason),
+              (r.reason === 'no_prior_herd'
+                ? 'no prior herd recorded.'
+                : r.reason === 'no_prior_flock'
+                  ? 'no prior flock recorded.'
+                  : r.reason),
           });
           return;
         }
@@ -1455,7 +1459,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           )}
         </div>
 
-        {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
+        {notice && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
 
         {isBroiler &&
           (() => {
@@ -1995,6 +1999,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   return (
                     <div
                       key={e.id}
+                      data-entry-tag={e.tag || ''}
                       style={{
                         background: e.send_to_processor ? '#fef2f2' : 'white',
                         border:
@@ -2348,13 +2353,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             <div style={{fontSize: 12, color: '#6b7280', marginBottom: 10}}>
               Entry weight: {transferModal.entry.weight} lb
             </div>
-            {transferNotice && (
-              <InlineNotice
-                kind={transferNotice.kind}
-                message={transferNotice.message}
-                onDismiss={() => setTransferNotice(null)}
-              />
-            )}
+            {transferNotice && <InlineNotice notice={transferNotice} onDismiss={() => setTransferNotice(null)} />}
             <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
               <label style={{fontSize: 12, fontWeight: 600}}>
                 Tag #{' '}
