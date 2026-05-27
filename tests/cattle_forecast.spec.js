@@ -794,19 +794,23 @@ test('batches: active auto-flips to complete on full hanging weights; reopen res
   // hotfix for C-26-02/C-26-03, which landed in Processed with no date).
   const batchId = 'b-active-test-1';
   const plannedDate = '2026-05-04';
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: batchId,
-    name: 'C-26-99',
-    status: 'active',
-    actual_process_date: null,
-    planned_process_date: plannedDate,
-    cows_detail: [
-      {cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: null},
-      {cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null},
-    ],
-    total_live_weight: 2550,
-    total_hanging_weight: null,
-  });
+  const {error: insErr7} = await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: batchId,
+      name: 'C-26-99',
+      status: 'active',
+      actual_process_date: null,
+      planned_process_date: plannedDate,
+      cows_detail: [
+        {cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: null},
+        {cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null},
+      ],
+      total_live_weight: 2550,
+      total_hanging_weight: null,
+    },
+    {onConflict: 'id'},
+  );
+  expect(insErr7).toBeNull();
   // Move both cows to processed herd to satisfy the implicit "linked
   // through send-to-processor" state.
   await supabaseAdmin
@@ -874,14 +878,18 @@ test('scheduled batch record page: date edit persists after reload; unschedule n
 }) => {
   const scheduledId = 'cpb-sched-test-1';
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: scheduledId,
-    name: 'C-26-99',
-    status: 'scheduled',
-    planned_process_date: tomorrow,
-    cows_detail: [],
-    documents: [],
-  });
+  const {error: insErr7b} = await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: scheduledId,
+      name: 'C-26-99',
+      status: 'scheduled',
+      planned_process_date: tomorrow,
+      cows_detail: [],
+      documents: [],
+    },
+    {onConflict: 'id'},
+  );
+  expect(insErr7b).toBeNull();
 
   // Navigate to the record page
   await page.goto('/cattle/batches/' + scheduledId);
@@ -940,18 +948,24 @@ test('complete batch record page: weights visible + disabled; reopen unlocks edi
   supabaseAdmin,
 }) => {
   const batchId = 'b-complete-test-1';
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: batchId,
-    name: 'C-26-98',
-    status: 'complete',
-    actual_process_date: '2026-05-01',
-    cows_detail: [
-      {cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: 660},
-      {cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: 870},
-    ],
-    total_live_weight: 2550,
-    total_hanging_weight: 1530,
-  });
+  const {error: insErr} = await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: batchId,
+      name: 'C-26-98',
+      status: 'complete',
+      actual_process_date: '2026-05-01',
+      cows_detail: [
+        {cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: 660},
+        {cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: 870},
+      ],
+      total_live_weight: 2550,
+      total_hanging_weight: 1530,
+    },
+    {onConflict: 'id'},
+  );
+  expect(insErr).toBeNull();
+  const {data: verify} = await supabaseAdmin.from('cattle_processing_batches').select('id').eq('id', batchId).single();
+  expect(verify).not.toBeNull();
 
   await page.goto('/cattle/batches/' + batchId);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
@@ -966,6 +980,9 @@ test('complete batch record page: weights visible + disabled; reopen unlocks edi
   await expect(liveInput).toBeDisabled();
   await expect(hangInput).toBeDisabled();
 
+  // Name input is not present while complete
+  await expect(page.locator('[data-rename-input="' + batchId + '"]')).toHaveCount(0);
+
   // Reopen to active
   await page.locator('[data-reopen="' + batchId + '"]').click();
   await expect
@@ -978,7 +995,59 @@ test('complete batch record page: weights visible + disabled; reopen unlocks edi
     )
     .toBe('active');
 
-  // After reopen, inputs are enabled
+  // After reopen, weight inputs are enabled
+  await expect(liveInput).toBeEnabled({timeout: 5_000});
+  await expect(hangInput).toBeEnabled();
+
+  // After reopen, name input appears and is editable
+  const nameInput = page.locator('[data-rename-input="' + batchId + '"]');
+  await expect(nameInput).toBeVisible({timeout: 5_000});
+  await expect(nameInput).toBeEnabled();
+  await expect(nameInput).toHaveValue('C-26-98');
+});
+
+// --------------------------------------------------------------------------
+// Test 7d — Mobile viewport: complete batch weights visible and legible.
+// --------------------------------------------------------------------------
+test('complete batch record page mobile: weights visible and fields wide enough', async ({
+  page,
+  cattleForecastScenario,
+  supabaseAdmin,
+}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  const batchId = 'b-mobile-test-1';
+  const {error: insErr7d} = await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: batchId,
+      name: 'C-26-97',
+      status: 'complete',
+      actual_process_date: '2026-05-01',
+      cows_detail: [{cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: 660}],
+      total_live_weight: 1100,
+      total_hanging_weight: 660,
+    },
+    {onConflict: 'id'},
+  );
+  expect(insErr7d).toBeNull();
+
+  await page.goto('/cattle/batches/' + batchId);
+  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+
+  const liveInput = page.locator('[data-batch-live-weight="F1"]');
+  const hangInput = page.locator('[data-batch-hanging-weight="F1"]');
+
+  await expect(liveInput).toHaveValue('1100');
+  await expect(hangInput).toHaveValue('660');
+  await expect(liveInput).toBeDisabled();
+  await expect(hangInput).toBeDisabled();
+
+  const liveBox = await liveInput.boundingBox();
+  const hangBox = await hangInput.boundingBox();
+  expect(liveBox.width).toBeGreaterThanOrEqual(60);
+  expect(hangBox.width).toBeGreaterThanOrEqual(60);
+
+  // Reopen unlocks at mobile too
+  await page.locator('[data-reopen="' + batchId + '"]').click();
   await expect(liveInput).toBeEnabled({timeout: 5_000});
   await expect(hangInput).toBeEnabled();
 });

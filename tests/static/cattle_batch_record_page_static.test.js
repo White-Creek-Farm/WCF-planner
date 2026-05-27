@@ -93,11 +93,18 @@ describe('CattleBatchPage — scheduled batch support', () => {
 });
 
 describe('CattleBatchPage — active/complete batch support', () => {
-  it('has rename with validation', () => {
+  it('has rename with validation via blur save', () => {
     expect(pageSrc).toContain('handleSaveRename');
     expect(pageSrc).toContain('validateRealBatchRename');
     expect(pageSrc).toContain('data-rename-input');
-    expect(pageSrc).toContain('data-save-rename');
+    expect(pageSrc).toContain('onBlur={handleSaveRename}');
+  });
+  it('does not have a Save name button', () => {
+    expect(pageSrc).not.toContain('Save name');
+    expect(pageSrc).not.toContain('data-save-rename');
+  });
+  it('name input is hidden when batch is complete', () => {
+    expect(pageSrc).toMatch(/!isComplete[\s\S]*?data-rename-input/);
   });
   it('has hanging weight editing', () => {
     expect(pageSrc).toContain('data-batch-hanging-weight');
@@ -105,8 +112,14 @@ describe('CattleBatchPage — active/complete batch support', () => {
     expect(pageSrc).toContain('saveCowWeight');
   });
   it('weight inputs are disabled when batch is complete', () => {
-    expect(pageSrc).toMatch(/disabled=\{!canEdit \|\| isComplete\}[\s\S]*?data-batch-live-weight/);
-    expect(pageSrc).toMatch(/disabled=\{!canEdit \|\| isComplete\}[\s\S]*?data-batch-hanging-weight/);
+    expect(pageSrc).toMatch(/weightDisabled\s*=\s*!canEdit \|\| isComplete/);
+    expect(pageSrc).toMatch(/disabled=\{weightDisabled\}[\s\S]*?data-batch-live-weight/);
+    expect(pageSrc).toMatch(/disabled=\{weightDisabled\}[\s\S]*?data-batch-hanging-weight/);
+  });
+  it('disabled weight inputs have legible styling for mobile/iOS', () => {
+    expect(pageSrc).toContain('opacity: 1');
+    expect(pageSrc).toContain("WebkitTextFillColor: '#111827'");
+    expect(pageSrc).toContain('minWidth: 70');
   });
   it('has mark complete and reopen', () => {
     expect(pageSrc).toContain('data-mark-complete');

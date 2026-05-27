@@ -450,49 +450,37 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
           >
             {canEdit && (
               <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10}}>
-                <label style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Name:</label>
-                <input
-                  type="text"
-                  value={renameDraft}
-                  onChange={(e) => {
-                    setRenameDraft(e.target.value);
-                    setRenameErr(null);
-                  }}
-                  data-rename-input={batch.id}
-                  style={{
-                    fontSize: 13,
-                    padding: '5px 9px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 5,
-                    fontFamily: 'inherit',
-                    width: 130,
-                  }}
-                />
-                <button
-                  onClick={handleSaveRename}
-                  data-save-rename={batch.id}
-                  style={{
-                    fontSize: 11,
-                    padding: '5px 11px',
-                    borderRadius: 5,
-                    border: '1px solid #d1d5db',
-                    background: 'white',
-                    color: '#374151',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    fontWeight: 600,
-                  }}
-                >
-                  Save name
-                </button>
-                {renameErr && (
-                  <span style={{fontSize: 11, color: '#b91c1c'}} data-rename-err={batch.id}>
-                    {renameErr === 'format' && 'Use C-YY-NN'}
-                    {renameErr === 'duplicate' && 'Name already used'}
-                    {renameErr === 'sequence_gap' && 'Would skip a sequence number'}
-                    {renameErr === 'new_year_must_start_at_01' && 'New year must start at 01'}
-                    {renameErr === 'db_error' && 'Save error'}
-                  </span>
+                {!isComplete && (
+                  <>
+                    <label style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Name:</label>
+                    <input
+                      type="text"
+                      value={renameDraft}
+                      onChange={(e) => {
+                        setRenameDraft(e.target.value);
+                        setRenameErr(null);
+                      }}
+                      onBlur={handleSaveRename}
+                      data-rename-input={batch.id}
+                      style={{
+                        fontSize: 13,
+                        padding: '5px 9px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: 5,
+                        fontFamily: 'inherit',
+                        width: 130,
+                      }}
+                    />
+                    {renameErr && (
+                      <span style={{fontSize: 11, color: '#b91c1c'}} data-rename-err={batch.id}>
+                        {renameErr === 'format' && 'Use C-YY-NN'}
+                        {renameErr === 'duplicate' && 'Name already used'}
+                        {renameErr === 'sequence_gap' && 'Would skip a sequence number'}
+                        {renameErr === 'new_year_must_start_at_01' && 'New year must start at 01'}
+                        {renameErr === 'db_error' && 'Save error'}
+                      </span>
+                    )}
+                  </>
                 )}
                 <span style={{flex: 1}} />
                 {!isComplete ? (
@@ -555,138 +543,118 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
             </div>
 
             {rows.length > 0 && (
-              <div style={{border: '1px solid #f3f4f6', borderRadius: 8, overflow: 'hidden', marginBottom: 8}}>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '70px 90px 1fr 1fr 60px 28px',
-                    gap: 6,
-                    background: '#f9fafb',
-                    padding: '6px 10px',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: '#6b7280',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                    alignItems: 'center',
-                  }}
-                >
-                  <div>Tag</div>
-                  <div>Breed</div>
-                  <div>Live wt (lb)</div>
-                  <div>Hanging wt (lb)</div>
-                  <div style={{textAlign: 'right'}}>Yield</div>
-                  <div></div>
-                </div>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8}}>
                 {rows.map((r) => {
                   const cow = cattle.find((c) => c.id === r.cattle_id);
                   const lv = parseFloat(r.live_weight);
                   const hw = parseFloat(r.hanging_weight);
                   const y = lv > 0 && hw > 0 ? Math.round((hw / lv) * 1000) / 10 : null;
+                  const weightDisabled = !canEdit || isComplete;
+                  const weightStyle = {
+                    fontSize: 13,
+                    padding: '6px 8px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 5,
+                    fontFamily: 'inherit',
+                    width: '100%',
+                    minWidth: 70,
+                    boxSizing: 'border-box',
+                    background: weightDisabled ? '#f9fafb' : 'white',
+                    color: '#111827',
+                    opacity: 1,
+                    WebkitTextFillColor: '#111827',
+                  };
                   return (
                     <div
                       key={r.cattle_id}
                       data-batch-cow-row={r.cattle_id}
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '70px 90px 1fr 1fr 60px 28px',
-                        gap: 6,
-                        padding: '5px 10px',
+                        border: '1px solid #f3f4f6',
+                        borderRadius: 8,
+                        padding: '8px 10px',
                         fontSize: 12,
-                        borderTop: '1px solid #f3f4f6',
-                        alignItems: 'center',
                       }}
                     >
-                      <div style={{fontWeight: 700, color: '#111827'}}>{'#' + (r.tag || cow?.tag || '?')}</div>
-                      <div style={{fontSize: 11, color: '#6b7280'}}>{cow?.breed || '—'}</div>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        placeholder="—"
-                        value={draftVal(r.cattle_id, 'live', r.live_weight)}
-                        disabled={!canEdit || isComplete}
-                        data-batch-live-weight={r.cattle_id}
-                        onChange={(e) => setCowDraft((p) => ({...p, [draftKey(r.cattle_id, 'live')]: e.target.value}))}
-                        onBlur={(e) => {
-                          saveCowWeight(r.cattle_id, 'live_weight', e.target.value);
-                          setCowDraft((p) => {
-                            const x = {...p};
-                            delete x[draftKey(r.cattle_id, 'live')];
-                            return x;
-                          });
-                        }}
-                        style={{
-                          fontSize: 12,
-                          padding: '4px 8px',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 5,
-                          fontFamily: 'inherit',
-                          width: '100%',
-                          boxSizing: 'border-box',
-                          background: canEdit && !isComplete ? 'white' : '#f9fafb',
-                        }}
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        placeholder="—"
-                        value={draftVal(r.cattle_id, 'hanging', r.hanging_weight)}
-                        disabled={!canEdit || isComplete}
-                        data-batch-hanging-weight={r.cattle_id}
-                        onChange={(e) =>
-                          setCowDraft((p) => ({...p, [draftKey(r.cattle_id, 'hanging')]: e.target.value}))
-                        }
-                        onBlur={(e) => {
-                          saveCowWeight(r.cattle_id, 'hanging_weight', e.target.value);
-                          setCowDraft((p) => {
-                            const x = {...p};
-                            delete x[draftKey(r.cattle_id, 'hanging')];
-                            return x;
-                          });
-                        }}
-                        style={{
-                          fontSize: 12,
-                          padding: '4px 8px',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 5,
-                          fontFamily: 'inherit',
-                          width: '100%',
-                          boxSizing: 'border-box',
-                          background: canEdit && !isComplete ? 'white' : '#f9fafb',
-                        }}
-                      />
-                      <div
-                        style={{
-                          textAlign: 'right',
-                          fontSize: 11,
-                          color: y ? '#065f46' : '#9ca3af',
-                          fontWeight: y ? 600 : 400,
-                        }}
-                      >
-                        {y ? y + '%' : '—'}
+                      <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4}}>
+                        <span style={{fontWeight: 700, color: '#111827', minWidth: 50}}>
+                          {'#' + (r.tag || cow?.tag || '?')}
+                        </span>
+                        <span style={{fontSize: 11, color: '#6b7280'}}>{cow?.breed || '—'}</span>
+                        {y && <span style={{fontSize: 11, fontWeight: 600, color: '#065f46'}}>{y + '% yield'}</span>}
+                        <span style={{flex: 1}} />
+                        {canEdit && !isComplete && (
+                          <button
+                            onClick={() => handleDetach(cow || {id: r.cattle_id, tag: r.tag})}
+                            title="Detach cow from batch (reverts herd)"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#b91c1c',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              lineHeight: 1,
+                              padding: '0 2px',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
                       </div>
-                      {canEdit ? (
-                        <button
-                          onClick={() => handleDetach(cow || {id: r.cattle_id, tag: r.tag})}
-                          title="Detach cow from batch (reverts herd)"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#b91c1c',
-                            cursor: 'pointer',
-                            fontSize: 14,
-                            lineHeight: 1,
-                            padding: '0 2px',
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          ×
-                        </button>
-                      ) : (
-                        <span />
-                      )}
+                      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                        <label style={{flex: '1 1 120px', minWidth: 0}}>
+                          <div style={{fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2}}>
+                            Live wt (lb)
+                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="—"
+                            value={draftVal(r.cattle_id, 'live', r.live_weight)}
+                            disabled={weightDisabled}
+                            data-batch-live-weight={r.cattle_id}
+                            onChange={(e) =>
+                              setCowDraft((p) => ({...p, [draftKey(r.cattle_id, 'live')]: e.target.value}))
+                            }
+                            onBlur={(e) => {
+                              saveCowWeight(r.cattle_id, 'live_weight', e.target.value);
+                              setCowDraft((p) => {
+                                const x = {...p};
+                                delete x[draftKey(r.cattle_id, 'live')];
+                                return x;
+                              });
+                            }}
+                            style={weightStyle}
+                          />
+                        </label>
+                        <label style={{flex: '1 1 120px', minWidth: 0}}>
+                          <div style={{fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2}}>
+                            Hanging wt (lb)
+                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="—"
+                            value={draftVal(r.cattle_id, 'hanging', r.hanging_weight)}
+                            disabled={weightDisabled}
+                            data-batch-hanging-weight={r.cattle_id}
+                            onChange={(e) =>
+                              setCowDraft((p) => ({...p, [draftKey(r.cattle_id, 'hanging')]: e.target.value}))
+                            }
+                            onBlur={(e) => {
+                              saveCowWeight(r.cattle_id, 'hanging_weight', e.target.value);
+                              setCowDraft((p) => {
+                                const x = {...p};
+                                delete x[draftKey(r.cattle_id, 'hanging')];
+                                return x;
+                              });
+                            }}
+                            style={weightStyle}
+                          />
+                        </label>
+                      </div>
                     </div>
                   );
                 })}
