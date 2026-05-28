@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const homeSrc = fs.readFileSync(path.join(ROOT, 'src/layer/LayersHomeView.jsx'), 'utf8');
 const batchesSrc = fs.readFileSync(path.join(ROOT, 'src/layer/LayerBatchesView.jsx'), 'utf8');
+const batchPageSrc = fs.readFileSync(path.join(ROOT, 'src/layer/LayerBatchPage.jsx'), 'utf8');
+const housingPageSrc = fs.readFileSync(path.join(ROOT, 'src/layer/LayerHousingPage.jsx'), 'utf8');
 const housingSrc = fs.readFileSync(path.join(ROOT, 'src/lib/layerHousing.js'), 'utf8');
 const dashSrc = fs.readFileSync(path.join(ROOT, 'src/dashboard/HomeDashboard.jsx'), 'utf8');
 
@@ -25,19 +27,14 @@ describe('Layer dashboard active-batch lifetime stats', () => {
     );
   });
 
-  it('does not render lbs-per-dozen metrics in the layer dashboard or batches tab', () => {
+  it('does not render lbs-per-dozen metrics in the layer dashboard or record page', () => {
     expect(homeSrc).not.toMatch(/Lbs\/dozen|feedPerDoz/);
-    expect(batchesSrc).not.toMatch(/Feed \/ Dozen|feedPerDozen/);
-  });
-
-  it('does not repeat housing metrics when a batch has only one housing', () => {
-    expect(homeSrc).toMatch(/myHousings\.length > 1 && \(/);
-    expect(batchesSrc).toMatch(/batchHousings\.length > 1 && \(/);
+    expect(batchPageSrc).not.toMatch(/Feed \/ Dozen|feedPerDozen/);
   });
 
   it('keeps Cost / Dozen in the batch summary but removes the duplicate lifetime performance tile', () => {
-    expect(batchesSrc).toMatch(/Cost \/ Dozen/);
-    expect(batchesSrc).not.toMatch(/Cost \/ Dozen \(lifetime\)/);
+    expect(batchPageSrc).toMatch(/Cost \/ Dozen/);
+    expect(batchPageSrc).not.toMatch(/Cost \/ Dozen \(lifetime\)/);
   });
 });
 
@@ -57,21 +54,25 @@ describe('Layer housing count — display helper consistency', () => {
     expect(homeSrc).not.toMatch(/parseInt\(h\.current_count\)/);
   });
 
-  it('LayerBatchesView chip uses computeHousingDisplayCount', () => {
+  it('LayerBatchesView hub chip uses computeHousingDisplayCount', () => {
     expect(batchesSrc).toContain('computeHousingDisplayCount(h, rawLayerDailys)');
     expect(batchesSrc).not.toMatch(/h\.current_count\s*\?\s*['"].*hens/);
   });
 
-  it('LayerBatchesView currentHens uses computeHousingDisplayCount', () => {
-    expect(batchesSrc).toMatch(/currentHens[\s\S]*?computeHousingDisplayCount/);
-    expect(batchesSrc).not.toMatch(/currentHens[\s\S]*?parseInt\(h\.current_count\)/);
+  it('LayerBatchPage currentHens uses computeHousingDisplayCount', () => {
+    expect(batchPageSrc).toMatch(/currentHens[\s\S]*?computeHousingDisplayCount/);
+    expect(batchPageSrc).not.toMatch(/currentHens[\s\S]*?parseInt\(h\.current_count\)/);
   });
 
-  it('LayerBatchesView fetches layer_count in the dailys query', () => {
-    expect(batchesSrc).toMatch(/fetchAll\('layer_dailys'[^)]*layer_count/);
+  it('LayerBatchPage fetches layer_count in the dailys query', () => {
+    expect(batchPageSrc).toMatch(/fetchAll\('layer_dailys'[^)]*layer_count/);
   });
 
-  it('LayerBatchesView still uses computeProjectedCount for the Projected label', () => {
-    expect(batchesSrc).toMatch(/const proj = computeProjectedCount/);
+  it('LayerBatchPage uses computeProjectedCount for the Projected label', () => {
+    expect(batchPageSrc).toMatch(/const proj = computeProjectedCount/);
+  });
+
+  it('LayerHousingPage uses computeProjectedCount for the Projected label', () => {
+    expect(housingPageSrc).toMatch(/computeProjectedCount\(housing,/);
   });
 });

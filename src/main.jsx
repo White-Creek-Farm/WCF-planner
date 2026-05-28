@@ -1308,6 +1308,8 @@ function App() {
     const isSheepDailysSubpath = !exactPathView && location.pathname.startsWith('/sheep/dailys/');
     const isLayerDailysSubpath = !exactPathView && location.pathname.startsWith('/layer/dailys/');
     const isEggDailysSubpath = !exactPathView && location.pathname.startsWith('/layer/eggs/');
+    const isLayerBatchesSubpath = !exactPathView && location.pathname.startsWith('/layer/batches/');
+    const isLayerHousingsSubpath = !exactPathView && location.pathname.startsWith('/layer/housings/');
     const isTasksSubpath = !exactPathView && location.pathname.startsWith('/tasks/');
     const isWeighInSessionSubpath = !exactPathView && location.pathname.startsWith('/weigh-in-sessions/');
     const viewFromUrl = isWebformSubpath
@@ -1336,11 +1338,15 @@ function App() {
                             ? 'layerdailys'
                             : isEggDailysSubpath
                               ? 'eggdailys'
-                              : isTasksSubpath
-                                ? 'tasks'
-                                : isWeighInSessionSubpath
-                                  ? 'weighinsessions'
-                                  : exactPathView;
+                              : isLayerBatchesSubpath
+                                ? 'layerbatches'
+                                : isLayerHousingsSubpath
+                                  ? 'layerbatches'
+                                  : isTasksSubpath
+                                    ? 'tasks'
+                                    : isWeighInSessionSubpath
+                                      ? 'weighinsessions'
+                                      : exactPathView;
     if (viewFromUrl && viewFromUrl !== view) {
       syncingFromUrl.current = true;
       setView(viewFromUrl);
@@ -1393,6 +1399,9 @@ function App() {
     if (view === 'sheepdailys' && location.pathname.startsWith('/sheep/dailys/')) return;
     if (view === 'layerdailys' && location.pathname.startsWith('/layer/dailys/')) return;
     if (view === 'eggdailys' && location.pathname.startsWith('/layer/eggs/')) return;
+    // Don't clobber /layer/batches/<id> or /layer/housings/<id> sub-paths — LayerBatchesRouter owns them.
+    if (view === 'layerbatches' && location.pathname.startsWith('/layer/batches/')) return;
+    if (view === 'layerbatches' && location.pathname.startsWith('/layer/housings/')) return;
     if (view === 'tasks' && location.pathname.startsWith('/tasks/')) return;
     if (view === 'weighinsessions' && location.pathname.startsWith('/weigh-in-sessions/')) return;
     const pathFromView = VIEW_TO_PATH[view];

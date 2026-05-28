@@ -39,12 +39,12 @@ export const ACTIVITY_REGISTRY = {
   },
   [ENTITY_TYPES.LAYER_BATCH]: {
     displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
-    route: (_id) => '/layer/batches',
+    route: (id) => '/layer/batches/' + id,
     program: 'layer',
   },
   [ENTITY_TYPES.LAYER_HOUSING]: {
     displayLabel: (id, ctx) => (ctx && ctx.housing_name ? ctx.housing_name : id),
-    route: (_id) => '/layer/batches',
+    route: (id) => '/layer/housings/' + id,
     program: 'layer',
   },
   [ENTITY_TYPES.CATTLE_ANIMAL]: {
@@ -185,6 +185,8 @@ export function routeToView(routePath) {
   if (path.startsWith('/sheep/dailys/')) return {view: 'sheepdailys', search: search || ''};
   if (path.startsWith('/layer/dailys/')) return {view: 'layerdailys', search: search || ''};
   if (path.startsWith('/layer/eggs/')) return {view: 'eggdailys', search: search || ''};
+  if (path.startsWith('/layer/batches/')) return {view: 'layerbatches', search: search || ''};
+  if (path.startsWith('/layer/housings/')) return {view: 'layerbatches', search: search || ''};
   if (path.startsWith('/weigh-in-sessions/')) return {view: 'weighinsessions', search: search || ''};
   return {view: VIEW_MAP[path] || 'home', search: search || ''};
 }

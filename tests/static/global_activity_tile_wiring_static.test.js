@@ -12,14 +12,10 @@ const cattleHerds = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleHerdsView.
 const sheepFlocks = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepFlocksView.jsx'), 'utf8');
 const activityPanel = fs.readFileSync(path.join(ROOT, 'src/shared/ActivityPanel.jsx'), 'utf8');
 
-// CattleHerdsView, SheepFlocksView, and EquipmentFleetView no longer render
-// Activity chips/modal — they use dedicated record pages with inline
-// Comments + Activity sections.
-const SURFACES = [
-  {name: 'BroilerListView', src: broilerList, entity: 'broiler.batch', idField: 'b.name'},
-  {name: 'LayerBatchesView (batch)', src: layerBatches, entity: 'layer.batch', idField: 'batch.id'},
-  {name: 'LayerBatchesView (housing)', src: layerBatches, entity: 'layer.housing', idField: 'h.id'},
-];
+// CattleHerdsView, SheepFlocksView, EquipmentFleetView, SheepBatchesView, and
+// LayerBatchesView no longer render Activity chips/modal — they use dedicated
+// record pages with inline Comments + Activity sections.
+const SURFACES = [{name: 'BroilerListView', src: broilerList, entity: 'broiler.batch', idField: 'b.name'}];
 
 describe('Activity tile wiring — compact chips', () => {
   for (const s of SURFACES) {
@@ -32,10 +28,7 @@ describe('Activity tile wiring — compact chips', () => {
 });
 
 describe('Activity tile wiring — ActivityModal', () => {
-  for (const {name, src} of [
-    {name: 'BroilerListView', src: broilerList},
-    {name: 'LayerBatchesView', src: layerBatches},
-  ]) {
+  for (const {name, src} of [{name: 'BroilerListView', src: broilerList}]) {
     it(`${name} renders ActivityModal`, () => {
       expect(src).toContain('ActivityModal');
       expect(src).toContain('activityTarget');
@@ -63,29 +56,35 @@ describe('Activity tile wiring — entity IDs', () => {
   it('broiler.batch uses batch.name as entityId', () => {
     expect(broilerList).toMatch(/entityId:\s*b\.name/);
   });
-
-  it('layer.batch uses batch.id', () => {
-    expect(layerBatches).toMatch(/entityType:\s*'layer\.batch'[\s\S]*?entityId:\s*batch\.id/);
-  });
-
-  it('layer.housing uses h.id', () => {
-    expect(layerBatches).toMatch(/entityType:\s*'layer\.housing'[\s\S]*?entityId:\s*h\.id/);
-  });
 });
 
 describe('Activity tile wiring — authState', () => {
-  for (const {name, src} of [
-    {name: 'BroilerListView', src: broilerList},
-    {name: 'LayerBatchesView', src: layerBatches},
-  ]) {
+  for (const {name, src} of [{name: 'BroilerListView', src: broilerList}]) {
     it(`${name} passes authState to ActivityModal/Panel`, () => {
       expect(src).toContain('authState');
     });
   }
 });
 
+describe('LayerBatchesView — retired legacy Activity surfaces', () => {
+  it('LayerBatchesView no longer imports or renders ActivityPanel', () => {
+    expect(layerBatches).not.toContain('ActivityPanel');
+  });
+  it('LayerBatchesView no longer imports or renders ActivityModal', () => {
+    expect(layerBatches).not.toContain('ActivityModal');
+  });
+  it('LayerBatchesView has no activityTarget state', () => {
+    expect(layerBatches).not.toContain('activityTarget');
+  });
+  it('LayerBatchesView no longer listens for wcf-entity-deep-link', () => {
+    expect(layerBatches).not.toContain('wcf-entity-deep-link');
+  });
+});
+
 describe('No direct activity table access', () => {
-  const allSrc = [broilerList, layerBatches, cattleHerds, sheepFlocks];
+  const layerBatchPage = fs.readFileSync(path.join(ROOT, 'src/layer/LayerBatchPage.jsx'), 'utf8');
+  const layerHousingPage = fs.readFileSync(path.join(ROOT, 'src/layer/LayerHousingPage.jsx'), 'utf8');
+  const allSrc = [broilerList, layerBatches, cattleHerds, sheepFlocks, layerBatchPage, layerHousingPage];
   it('no view directly queries activity_events or activity_mentions', () => {
     for (const src of allSrc) {
       expect(src).not.toContain("from('activity_events')");

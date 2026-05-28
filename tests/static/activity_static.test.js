@@ -548,20 +548,20 @@ describe('Activity Layer — event type labels', () => {
 });
 
 describe('Activity Layer — pilot surface: layer batch notes (field.updated)', () => {
-  const layerSrc = fs.readFileSync(path.join(ROOT, 'src/layer/LayerBatchesView.jsx'), 'utf8');
+  const layerPageSrc = fs.readFileSync(path.join(ROOT, 'src/layer/LayerBatchPage.jsx'), 'utf8');
 
   it('imports recordFieldChange from activityApi', () => {
-    expect(layerSrc).toContain("import {recordFieldChange} from '../lib/activityApi.js'");
+    expect(layerPageSrc).toContain("import {recordFieldChange} from '../lib/activityApi.js'");
   });
 
   it('tracks initial notes via batchInitialNotesRef', () => {
-    expect(layerSrc).toContain('batchInitialNotesRef');
+    expect(layerPageSrc).toContain('batchInitialNotesRef');
   });
 
   it('fires field change event on form close when notes changed', () => {
-    expect(layerSrc).toContain('recordFieldChange(sb');
-    expect(layerSrc).toContain("field: 'notes'");
-    expect(layerSrc).toContain("label: 'Notes'");
+    expect(layerPageSrc).toContain('recordFieldChange(sb');
+    expect(layerPageSrc).toContain("field: 'notes'");
+    expect(layerPageSrc).toContain("label: 'Notes'");
   });
 });
 

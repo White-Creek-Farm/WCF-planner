@@ -85,10 +85,7 @@ describe('Header — resolved entity routing', () => {
 });
 
 describe('Per-surface deep-link handlers', () => {
-  const modalSurfaces = [
-    {name: 'BroilerListView', src: broilerList, entity: 'broiler.batch'},
-    {name: 'LayerBatchesView', src: layerBatches, entity: 'layer.batch'},
-  ];
+  const modalSurfaces = [{name: 'BroilerListView', src: broilerList, entity: 'broiler.batch'}];
 
   for (const s of modalSurfaces) {
     it(`${s.name} listens for wcf-entity-deep-link`, () => {
@@ -116,8 +113,18 @@ describe('Per-surface deep-link handlers', () => {
     expect(sheepFlocks).toContain("navigate('/sheep/flocks/'");
   });
 
-  it('LayerBatchesView also handles layer.housing deep-links', () => {
-    expect(layerBatches).toContain("'layer.housing'");
+  it('layer.batch routes by ID to record page (registry)', () => {
+    const registrySrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
+    expect(registrySrc).toMatch(/LAYER_BATCH[\s\S]*?route:\s*\(id\)\s*=>\s*'\/layer\/batches\/'\s*\+\s*id/);
+  });
+
+  it('layer.housing routes by ID to record page (registry)', () => {
+    const registrySrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
+    expect(registrySrc).toMatch(/LAYER_HOUSING[\s\S]*?route:\s*\(id\)\s*=>\s*'\/layer\/housings\/'\s*\+\s*id/);
+  });
+
+  it('LayerBatchesView no longer wires wcf-entity-deep-link', () => {
+    expect(layerBatches).not.toContain('wcf-entity-deep-link');
   });
 
   it('equipment.item routes by ID (record page, not modal)', () => {

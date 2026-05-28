@@ -45,11 +45,9 @@ describe('layerBatchStats helper module — surface', () => {
   });
 });
 
-describe('LayerBatchesView — uses the extracted helpers', () => {
-  it('imports getHousingCap, computeBatchStats, and computeHousingStats', () => {
-    expect(viewSrc).toMatch(/import\s+\{[^}]*getHousingCap[^}]*\}\s+from\s+['"]\.\/layerBatchStats\.js['"]/);
+describe('LayerBatchesView hub — uses the extracted helpers', () => {
+  it('imports computeBatchStats from layerBatchStats.js for tile stats', () => {
     expect(viewSrc).toMatch(/import\s+\{[^}]*computeBatchStats[^}]*\}\s+from\s+['"]\.\/layerBatchStats\.js['"]/);
-    expect(viewSrc).toMatch(/import\s+\{[^}]*computeHousingStats[^}]*\}\s+from\s+['"]\.\/layerBatchStats\.js['"]/);
   });
 
   it('no longer defines HOUSING_CAPS or getHousingCap inline', () => {
@@ -62,47 +60,38 @@ describe('LayerBatchesView — uses the extracted helpers', () => {
     expect(viewSrc).not.toMatch(/function\s+calcPhaseFromAge\s*\(/);
   });
 
-  it('calls computeBatchStats and computeHousingStats inside the load effect', () => {
-    expect(viewSrc).toContain('setBatchStats(computeBatchStats(');
-    expect(viewSrc).toContain('setHousingStats(computeHousingStats(');
+  it('uses computeBatchStats for hub tile stats (via useMemo, not setBatchStats)', () => {
+    expect(viewSrc).toContain('computeBatchStats(');
   });
 
-  it('preserves the existing computeProjectedCount/computeHousingDisplayCount/computeLayerFeedCost imports', () => {
-    expect(viewSrc).toContain('computeProjectedCount');
+  it('preserves the layerHousing helper imports the hub still uses', () => {
     expect(viewSrc).toContain('computeHousingDisplayCount');
     expect(viewSrc).toContain('computeLayerFeedCost');
     expect(viewSrc).toContain("from '../lib/layerHousing.js'");
   });
 });
 
-describe('LayerBatchesView — no premature record-page migration (this lane is preflight only)', () => {
-  it('still uses ActivityPanel + ActivityModal as legacy inline surfaces', () => {
-    expect(viewSrc).toContain('ActivityPanel');
-    expect(viewSrc).toContain('ActivityModal');
+describe('LayerBatchesView — migrated to record pages', () => {
+  it('no longer uses ActivityPanel or ActivityModal in the hub', () => {
+    expect(viewSrc).not.toContain('ActivityPanel');
+    expect(viewSrc).not.toContain('ActivityModal');
   });
 
-  it('still listens for wcf-entity-deep-link for layer.batch and layer.housing', () => {
-    expect(viewSrc).toContain('wcf-entity-deep-link');
-    expect(viewSrc).toContain("entityType !== 'layer.batch'");
-    expect(viewSrc).toContain("entityType !== 'layer.housing'");
+  it('no longer listens for wcf-entity-deep-link in the hub', () => {
+    expect(viewSrc).not.toContain('wcf-entity-deep-link');
   });
 
-  it('does not yet import RecordCollaborationSection', () => {
-    expect(viewSrc).not.toContain('RecordCollaborationSection');
+  it('tiles navigate to /layer/batches/<id>', () => {
+    expect(viewSrc).toContain("navigate('/layer/batches/' + batch.id)");
   });
 
-  it('does not yet introduce /layer/batches/<id> or /layer/housings/<id> routing in this view', () => {
-    expect(viewSrc).not.toContain("navigate('/layer/batches/'");
-    expect(viewSrc).not.toContain("navigate('/layer/housings/'");
+  it('activityRegistry routes layer.batch + layer.housing to per-record routes', () => {
+    expect(registrySrc).toMatch(/LAYER_BATCH[\s\S]*?route:\s*\(id\)\s*=>\s*'\/layer\/batches\/'\s*\+\s*id/);
+    expect(registrySrc).toMatch(/LAYER_HOUSING[\s\S]*?route:\s*\(id\)\s*=>\s*'\/layer\/housings\/'\s*\+\s*id/);
   });
 
-  it('activityRegistry routes for layer.batch + layer.housing still point at the list view, not a per-record route', () => {
-    expect(registrySrc).toMatch(/LAYER_BATCH[\s\S]*?route:\s*\(_id\)\s*=>\s*'\/layer\/batches'/);
-    expect(registrySrc).toMatch(/LAYER_HOUSING[\s\S]*?route:\s*\(_id\)\s*=>\s*'\/layer\/batches'/);
-  });
-
-  it('main.jsx URL adapter does not yet detect a /layer/batches/<id> or /layer/housings/<id> subpath', () => {
-    expect(mainSrc).not.toContain("location.pathname.startsWith('/layer/batches/')");
-    expect(mainSrc).not.toContain("location.pathname.startsWith('/layer/housings/')");
+  it('main.jsx URL adapter now detects /layer/batches/<id> and /layer/housings/<id> subpaths', () => {
+    expect(mainSrc).toContain("location.pathname.startsWith('/layer/batches/')");
+    expect(mainSrc).toContain("location.pathname.startsWith('/layer/housings/')");
   });
 });
