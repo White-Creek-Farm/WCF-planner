@@ -271,9 +271,13 @@ superseded stashes were audited and dropped during stash hygiene.
    direct / `runMutation` / SECDEF per entity risk.
 9. Shared UI extraction - extract filter bar, summary row, loading/empty/error
    patterns from views that repeat them 3+ times.
-10. Deferred: code-splitting - only when field-device measurements or
+10. Deferred: webform-light user identities - replace anonymous employee
+   dropdown submitter fields with lightweight authenticated identities for
+   public-style webforms. Submitter/requester identity should be hardcoded
+   from the user, and access can be disabled when an employee leaves.
+11. Deferred: code-splitting - only when field-device measurements or
    operator pain justify it.
-11. Deferred: TypeScript - gradual `allowJs` + JSDoc approach if/when
+12. Deferred: TypeScript - gradual `allowJs` + JSDoc approach if/when
    started.
 
 ---
@@ -320,6 +324,34 @@ expansion is not the primary workspace for operational records.
 This foundation applies to operational farm records, including Tasks. It does
 not apply to admin/config/setup records unless a later lane explicitly promotes
 one to an operational record.
+
+### Webform Identity And Submitter Attribution
+
+Current public webforms remain no-auth where documented. Do not break existing
+field workflows or make public routes require login as incidental scope in
+unrelated lanes.
+
+Longer-term direction: add lightweight webform identities for employees who
+only need public-style submission access, not the full authenticated planner
+app. Once that exists, webforms should hardcode submitter/requester identity
+from the logged-in lightweight user instead of asking the operator to choose an
+employee name from a dropdown.
+
+Expected end state:
+
+- Former employees can be disabled centrally so they cannot keep submitting
+  through old webform links.
+- Random discovery of public webform URLs becomes less useful because
+  meaningful submission requires an active lightweight identity.
+- Task request, daily, add-feed, weigh-in, equipment, and similar webforms can
+  remove employee submitter dropdowns where identity should be known.
+- Durable profile IDs should back requester/submitter identity, while display
+  names remain presentation only.
+
+Do not build this inside a narrow notification, task, or public-form hotfix.
+Hotfixes may add durable requester fields or server-side attribution that will
+support this future lane, but the authentication/access model change needs its
+own design, migration, validation, and rollout plan.
 
 ### Comments Foundation
 
@@ -620,9 +652,17 @@ Planned rollout order:
    app-store inline ActivityPanel workspace. Migration deferred to a
    dedicated lane (PigBatchesView is ~3860 LOC with planned-trip locks, FCR
    cache, send-to-trip attribution, mortality/sub-batches/archive paths
-   that must be split carefully). Virtual planned batches and app-store
-   records must not be forced into the animal/daily pattern prematurely.
-5. Custom editable-table Activity - after record pages exist, add table-scoped
+   that must be split carefully). Build this migration before changing
+   farrowing-driven batch creation rules. Virtual planned batches and
+   app-store records must not be forced into the animal/daily pattern
+   prematurely.
+5. Farrowing-created pig batches - after the `pig.batch` record page exists,
+   remove the generic `/pig/batches` Add Batch path for normal farm-born
+   batches. The first farrowing record for a breeding cycle should
+   idempotently create the linked pig batch, hard-link the breeding cycle,
+   and keep the cycle fixed afterward. Existing manually linked batches must
+   be preserved and not duplicated.
+6. Custom editable-table Activity - after record pages exist, add table-scoped
    audit/history for forecast/feed/breeding workflows. First target should be
    cattle forecast month hide/unhide.
 
@@ -1069,6 +1109,12 @@ Read the relevant contract before editing its files.
 
 - Feeder group started counts are authoritative.
 - Current count is ledger-derived, not persisted `currentCount`.
+- `pig.batch` record-page migration comes before changing farrowing-created
+  batch behavior. Once the record page exists, normal farm-born pig batches
+  should be created from the first farrowing record for a breeding cycle, not
+  from a generic `/pig/batches` Add Batch button. The generated batch must
+  store the breeding-cycle identity and keep it fixed; existing linked batches
+  should be detected and reused.
 - Planned-trip row shape stays exactly:
   `{id, date, sex, subBatchId, plannedCount, order}`.
 - Lock state lives only in `ppp-pig-planned-trip-locks-v1`.
