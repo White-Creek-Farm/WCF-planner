@@ -13,6 +13,7 @@ const pigBatches = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx')
 const cattleBatches = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleBatchesView.jsx'), 'utf8');
 const cattleBatchPage = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleBatchPage.jsx'), 'utf8');
 const sheepBatches = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepBatchesView.jsx'), 'utf8');
+const sheepBatchPage = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepBatchPage.jsx'), 'utf8');
 
 const NEW_TYPES = ['pig.batch', 'cattle.processing', 'sheep.processing'];
 
@@ -71,44 +72,33 @@ describe('Migration 064 — Phase 2 resolvers', () => {
   });
 });
 
-describe('Activity wiring — Phase 2 surfaces (list views with inline ActivityPanel)', () => {
-  const surfaces = [
-    {name: 'PigBatchesView', src: pigBatches, entity: 'pig.batch'},
-    {name: 'SheepBatchesView', src: sheepBatches, entity: 'sheep.processing'},
-  ];
+describe('Activity wiring — Phase 2 legacy surfaces (pig.batch remains inline ActivityPanel)', () => {
+  it('PigBatchesView renders ActivityPanel compact for pig.batch', () => {
+    expect(pigBatches).toContain("entityType: 'pig.batch'");
+    expect(pigBatches).toContain("mode: 'compact'");
+  });
 
-  for (const s of surfaces) {
-    it(`${s.name} renders ActivityPanel compact for ${s.entity}`, () => {
-      expect(s.src).toContain(`entityType: '${s.entity}'`);
-      expect(s.src).toContain("mode: 'compact'");
-    });
+  it('PigBatchesView renders ActivityModal', () => {
+    expect(pigBatches).toContain('ActivityModal');
+    expect(pigBatches).toContain('activityTarget');
+  });
 
-    it(`${s.name} renders ActivityModal`, () => {
-      expect(s.src).toContain('ActivityModal');
-      expect(s.src).toContain('activityTarget');
-    });
+  it('PigBatchesView has data-activity-surface hook', () => {
+    expect(pigBatches).toContain('pig.batch');
+    expect(pigBatches).toContain('data-activity-surface');
+  });
 
-    it(`${s.name} has data-activity-surface hook`, () => {
-      expect(s.src).toContain(s.entity);
-      expect(s.src).toContain('data-activity-surface');
-    });
+  it('PigBatchesView has stopPropagation on chip', () => {
+    expect(pigBatches).toContain('stopPropagation');
+  });
 
-    it(`${s.name} has stopPropagation on chip`, () => {
-      expect(s.src).toContain('stopPropagation');
-    });
-
-    it(`${s.name} has deep-link listener`, () => {
-      expect(s.src).toContain('wcf-entity-deep-link');
-      expect(s.src).toContain('addEventListener');
-    });
-  }
+  it('PigBatchesView has deep-link listener', () => {
+    expect(pigBatches).toContain('wcf-entity-deep-link');
+    expect(pigBatches).toContain('addEventListener');
+  });
 
   it('pig.batch uses g.id as entityId', () => {
     expect(pigBatches).toMatch(/entityId:\s*g\.id/);
-  });
-
-  it('sheep.processing uses b.id as entityId', () => {
-    expect(sheepBatches).toMatch(/entityId:\s*b\.id/);
   });
 });
 
@@ -136,5 +126,36 @@ describe('cattle.processing — migrated to record page', () => {
   it('CattleBatchesView has CattleBatchesRouter wrapper', () => {
     expect(cattleBatches).toContain('CattleBatchesRouter');
     expect(cattleBatches).toContain("location.pathname.startsWith('/cattle/batches/')");
+  });
+});
+
+describe('sheep.processing — migrated to record page', () => {
+  it('SheepBatchesView no longer has ActivityPanel, ActivityModal, or activityTarget', () => {
+    expect(sheepBatches).not.toContain('ActivityPanel');
+    expect(sheepBatches).not.toContain('ActivityModal');
+    expect(sheepBatches).not.toContain('activityTarget');
+  });
+
+  it('SheepBatchesView no longer listens for wcf-entity-deep-link', () => {
+    expect(sheepBatches).not.toContain('wcf-entity-deep-link');
+  });
+
+  it('SheepBatchPage uses RecordCollaborationSection for Comments + Activity', () => {
+    expect(sheepBatchPage).toContain('RecordCollaborationSection');
+    expect(sheepBatchPage).toContain('entityType="sheep.processing"');
+  });
+
+  it('SheepBatchPage does not use ActivityPanel or ActivityModal', () => {
+    expect(sheepBatchPage).not.toContain('ActivityPanel');
+    expect(sheepBatchPage).not.toContain('ActivityModal');
+  });
+
+  it('SheepBatchesView navigates to /sheep/batches/<id> for tile clicks', () => {
+    expect(sheepBatches).toContain("navigate('/sheep/batches/' + b.id)");
+  });
+
+  it('SheepBatchesView has SheepBatchesRouter wrapper', () => {
+    expect(sheepBatches).toContain('SheepBatchesRouter');
+    expect(sheepBatches).toContain("location.pathname.startsWith('/sheep/batches/')");
   });
 });

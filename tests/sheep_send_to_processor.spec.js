@@ -300,15 +300,12 @@ test('batch-delete: real DeleteModal flow detaches all 3 sheep and removes batch
   sheepBatchPreAttachedScenario,
   supabaseAdmin,
 }) => {
-  const {batchId, batchName, sheep} = sheepBatchPreAttachedScenario;
+  const {batchId, sheep} = sheepBatchPreAttachedScenario;
 
-  await page.goto('/sheep/batches');
+  await page.goto('/sheep/batches/' + batchId);
+  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
-  const batchTile = page.locator('.hoverable-tile').filter({hasText: batchName});
-  await batchTile.getByRole('button', {name: 'Edit'}).click();
-  await expect(page.getByText(/Edit Batch/)).toBeVisible({timeout: 5_000});
-
-  await page.getByRole('button', {name: 'Delete', exact: true}).click();
+  await page.getByRole('button', {name: 'Delete batch'}).click();
 
   await expect(page.getByText('Are you sure?')).toBeVisible({timeout: 5_000});
   const input = page.getByPlaceholder('delete');
@@ -521,7 +518,48 @@ test('no manual bypass: /sheep/batches has no manual sheep-attach UI', async ({p
 
   const tile = page.locator('.hoverable-tile').filter({hasText: batchName});
   await tile.click();
+  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 10_000});
   await expect(
-    page.getByText(/Sheep enter this batch only via the Send-to-Processor flag on a sheep weigh-in entry/i),
+    page.getByText(/Sheep enter this batch only via the Send-to-Processor flag on a sheep weigh-in entry/i).first(),
   ).toBeVisible({timeout: 5_000});
+});
+
+// --------------------------------------------------------------------------
+// Test 11 — list-to-record nav + record-page hanging weight save
+// --------------------------------------------------------------------------
+test('record page: list tile opens record page and saves hanging weight', async ({
+  page,
+  sheepBatchPreAttachedScenario,
+  supabaseAdmin,
+}) => {
+  const {batchId, batchName, sheep} = sheepBatchPreAttachedScenario;
+
+  await page.goto('/sheep/batches');
+
+  const tile = page.locator('.hoverable-tile').filter({hasText: batchName});
+  await tile.click();
+
+  await expect(page).toHaveURL(new RegExp('/sheep/batches/' + batchId + '$'));
+  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 10_000});
+
+  const targetSheep = sheep[0];
+  const input = page.locator(`[data-batch-sheep-hanging-weight="${targetSheep.id}"]`);
+  await expect(input).toBeVisible({timeout: 5_000});
+  await input.fill('72.5');
+  await input.blur();
+
+  await expect
+    .poll(
+      async () => {
+        const r = await supabaseAdmin
+          .from('sheep_processing_batches')
+          .select('sheep_detail, total_hanging_weight')
+          .eq('id', batchId)
+          .single();
+        const row = (r.data?.sheep_detail || []).find((x) => x.sheep_id === targetSheep.id);
+        return {hanging: row?.hanging_weight, total: r.data?.total_hanging_weight};
+      },
+      {timeout: 10_000, message: 'hanging weight did not persist'},
+    )
+    .toEqual({hanging: 72.5, total: 72.5});
 });

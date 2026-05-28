@@ -74,7 +74,7 @@ export const ACTIVITY_REGISTRY = {
   },
   [ENTITY_TYPES.SHEEP_PROCESSING]: {
     displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
-    route: (_id) => '/sheep/batches',
+    route: (id) => '/sheep/batches/' + id,
     program: 'sheep',
   },
   [ENTITY_TYPES.POULTRY_DAILY]: {
@@ -178,6 +178,7 @@ export function routeToView(routePath) {
   if (path.startsWith('/cattle/herds/')) return {view: 'cattleherds', search: search || ''};
   if (path.startsWith('/cattle/batches/')) return {view: 'cattlebatches', search: search || ''};
   if (path.startsWith('/sheep/flocks/')) return {view: 'sheepflocks', search: search || ''};
+  if (path.startsWith('/sheep/batches/')) return {view: 'sheepbatches', search: search || ''};
   if (path.startsWith('/broiler/dailys/')) return {view: 'broilerdailys', search: search || ''};
   if (path.startsWith('/pig/dailys/')) return {view: 'pigdailys', search: search || ''};
   if (path.startsWith('/cattle/dailys/')) return {view: 'cattledailys', search: search || ''};
