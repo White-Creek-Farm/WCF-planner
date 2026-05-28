@@ -2620,7 +2620,8 @@ export default function PigBatchesView({
 
                   {subBatches.length === 0 && showSubForm !== g.id && (
                     <div style={{fontSize: 11, color: '#9ca3af', padding: '2px 0 6px'}}>
-                      No sub-batches — daily reports go directly to this batch. Add sub-batches to split A/B groups.
+                      No sub-batches yet — daily reports start once you add a sub-batch. Add sub-batches to split A/B
+                      groups.
                     </div>
                   )}
 

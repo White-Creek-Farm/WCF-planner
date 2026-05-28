@@ -14,7 +14,13 @@ import {useNavigate} from 'react-router-dom';
 import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, toISO, addDays, todayISO} from '../lib/dateUtils.js';
 import {calcPoultryStatus, calcBroilerStatsFromDailys, calcTimeline} from '../lib/broiler.js';
-import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, calcCycleStatus} from '../lib/pig.js';
+import {
+  calcBreedingTimeline,
+  buildCycleSeqMap,
+  cycleLabel,
+  calcCycleStatus,
+  activePigFeederDailyTargets,
+} from '../lib/pig.js';
 import {computeIntervalStatus, daysSince, latestSaneReading, WARRANTY_WINDOW_DAYS} from '../lib/equipment.js';
 import {buildMaterialChecklist} from '../lib/equipmentMaterials.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
@@ -347,38 +353,21 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         if (!broilerCheck.has(b.name.toLowerCase().trim()) && !missedCleared.has(key))
           allMissed.push({key, label: b.name, iconKey: ANIMAL_ICON_KEYS.broiler, type: 'Broiler', date: checkDate});
       });
-    // Pigs — sub-batches if present, main batch otherwise.
-    // If the batch HAS sub-batches but none are active (all marked processed),
-    // skip entirely — don't fall back to flagging the parent name.
-    feederGroups
-      .filter((g) => g.status === 'active')
-      .forEach((g) => {
-        const subs = g.subBatches || [];
-        const activeSubs = subs.filter((s) => s.status === 'active');
-        if (activeSubs.length > 0) {
-          activeSubs.forEach((s) => {
-            const key = `${s.id}|${checkDate}`;
-            if (!pigCheck.has((s.name || '').toLowerCase().trim()) && !missedCleared.has(key))
-              allMissed.push({
-                key,
-                label: s.name,
-                iconKey: ANIMAL_ICON_KEYS.pig,
-                type: `Pig · ${g.batchName}`,
-                date: checkDate,
-              });
-          });
-        } else if (subs.length === 0) {
-          const key = `${g.id}|${checkDate}`;
-          if (!pigCheck.has((g.batchName || '').toLowerCase().trim()) && !missedCleared.has(key))
-            allMissed.push({
-              key,
-              label: g.batchName,
-              iconKey: ANIMAL_ICON_KEYS.pig,
-              type: 'Pig',
-              date: checkDate,
-            });
-        }
-      });
+    // Pig feeder dailys — active sub-batches of active feeder groups only.
+    // No parent-batch fallback: an active parent feeder group with no active
+    // sub-batches contributes no missed-report target (it has no daily report
+    // until an active sub-batch splits it). SOWS/BOARS are handled below.
+    activePigFeederDailyTargets(feederGroups).forEach((t) => {
+      const key = `${t.id}|${checkDate}`;
+      if (!pigCheck.has((t.name || '').toLowerCase().trim()) && !missedCleared.has(key))
+        allMissed.push({
+          key,
+          label: t.name,
+          iconKey: ANIMAL_ICON_KEYS.pig,
+          type: `Pig · ${t.parentBatchName}`,
+          date: checkDate,
+        });
+    });
     // Pig breeding stock — SOWS and BOARS are non-feeder daily targets
     const hasActiveSows = (breeders || []).some((b) => !b.archived && (b.sex === 'Sow' || b.sex === 'Gilt'));
     const hasActiveBoars = (breeders || []).some((b) => !b.archived && b.sex === 'Boar');
@@ -585,7 +574,11 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
   }
 
   const activeBroilerBatches2 = batches.filter((b) => calcPoultryStatus(b) === 'active');
-  const hasAnyActivePig = feederGroups.some((g) => g.status === 'active') || (breeders || []).some((b) => !b.archived);
+  // All-clear banner reflects ACTUAL pig daily targets: active feeder
+  // sub-batches or non-archived breeders. An active parent feeder group with
+  // no active sub-batches is not a daily target, so it no longer counts here.
+  const hasAnyActivePig =
+    activePigFeederDailyTargets(feederGroups).length > 0 || (breeders || []).some((b) => !b.archived);
   const activeLayerGroups2 = (layerGroups || []).filter((g) => g.status === 'active');
 
   // ── Admin weekly table data ──

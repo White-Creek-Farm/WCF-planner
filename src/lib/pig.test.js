@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {daysToMWD, cycleRecords, calcAgeRange} from './pig.js';
+import {daysToMWD, cycleRecords, calcAgeRange, activePigFeederDailyTargets} from './pig.js';
 
 describe('daysToMWD', () => {
   it('returns null for 0 or negative day counts', () => {
@@ -162,5 +162,97 @@ describe('calcAgeRange', () => {
     expect(out.text).toBe('Not yet born');
     expect(out.minDays).toBeNull();
     expect(out.maxDays).toBeNull();
+  });
+});
+
+describe('activePigFeederDailyTargets', () => {
+  it('returns [] for empty/missing feeder groups', () => {
+    expect(activePigFeederDailyTargets(undefined)).toEqual([]);
+    expect(activePigFeederDailyTargets(null)).toEqual([]);
+    expect(activePigFeederDailyTargets([])).toEqual([]);
+  });
+
+  it('excludes an active parent feeder group with NO sub-batches (the P-27-01 symptom)', () => {
+    const groups = [{id: 'g1', batchName: 'P-27-01', status: 'active', subBatches: []}];
+    expect(activePigFeederDailyTargets(groups)).toEqual([]);
+  });
+
+  it('excludes an active parent feeder group whose subBatches key is absent', () => {
+    const groups = [{id: 'g1', batchName: 'P-27-01', status: 'active'}];
+    expect(activePigFeederDailyTargets(groups)).toEqual([]);
+  });
+
+  it('includes active sub-batches of an active parent, with id/name/parentBatchName', () => {
+    const groups = [
+      {
+        id: 'g1',
+        batchName: 'P-26-01',
+        status: 'active',
+        subBatches: [
+          {id: 'a', name: 'P-26-01A', status: 'active'},
+          {id: 'b', name: 'P-26-01B', status: 'active'},
+        ],
+      },
+    ];
+    expect(activePigFeederDailyTargets(groups)).toEqual([
+      {id: 'a', name: 'P-26-01A', parentBatchName: 'P-26-01'},
+      {id: 'b', name: 'P-26-01B', parentBatchName: 'P-26-01'},
+    ]);
+  });
+
+  it('excludes processed/inactive sub-batches', () => {
+    const groups = [
+      {
+        id: 'g1',
+        batchName: 'P-26-01',
+        status: 'active',
+        subBatches: [
+          {id: 'a', name: 'P-26-01A', status: 'active'},
+          {id: 'b', name: 'P-26-01B', status: 'processed'},
+        ],
+      },
+    ];
+    expect(activePigFeederDailyTargets(groups)).toEqual([{id: 'a', name: 'P-26-01A', parentBatchName: 'P-26-01'}]);
+  });
+
+  it('returns [] when an active parent has sub-batches but all are inactive', () => {
+    const groups = [
+      {
+        id: 'g1',
+        batchName: 'P-26-01',
+        status: 'active',
+        subBatches: [{id: 'a', name: 'P-26-01A', status: 'processed'}],
+      },
+    ];
+    expect(activePigFeederDailyTargets(groups)).toEqual([]);
+  });
+
+  it('excludes sub-batches of an inactive parent feeder group', () => {
+    const groups = [
+      {
+        id: 'g1',
+        batchName: 'P-25-09',
+        status: 'archived',
+        subBatches: [{id: 'a', name: 'P-25-09A', status: 'active'}],
+      },
+    ];
+    expect(activePigFeederDailyTargets(groups)).toEqual([]);
+  });
+
+  it('preserves feeder-group order then sub order across multiple groups', () => {
+    const groups = [
+      {id: 'g1', batchName: 'B1', status: 'active', subBatches: [{id: 'a', name: 'B1A', status: 'active'}]},
+      {id: 'g2', batchName: 'B2', status: 'active', subBatches: []},
+      {
+        id: 'g3',
+        batchName: 'B3',
+        status: 'active',
+        subBatches: [
+          {id: 'c', name: 'B3A', status: 'active'},
+          {id: 'd', name: 'B3B', status: 'active'},
+        ],
+      },
+    ];
+    expect(activePigFeederDailyTargets(groups).map((t) => t.name)).toEqual(['B1A', 'B3A', 'B3B']);
   });
 });

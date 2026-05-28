@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const dashSrc = fs.readFileSync(path.join(ROOT, 'src/dashboard/HomeDashboard.jsx'), 'utf8');
+const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
+const pigBatchesSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
 
 describe('HomeDashboard — pig breeding stock missed dailys', () => {
   it('destructures breeders from usePig()', () => {
@@ -72,8 +74,9 @@ describe('HomeDashboard — green banner includes breeding stock', () => {
     expect(dashSrc).toContain('hasAnyActivePig');
   });
 
-  it('hasAnyActivePig includes active feeder groups', () => {
-    expect(dashSrc).toMatch(/hasAnyActivePig[\s\S]*?feederGroups\.some/);
+  it('hasAnyActivePig is driven by active feeder daily targets (no bare parent-group fallback)', () => {
+    expect(dashSrc).toMatch(/hasAnyActivePig[\s\S]*?activePigFeederDailyTargets\(feederGroups\)\.length/);
+    expect(dashSrc).not.toMatch(/hasAnyActivePig[\s\S]*?feederGroups\.some\(\(g\)\s*=>\s*g\.status === 'active'\)/);
   });
 
   it('hasAnyActivePig includes non-archived breeders', () => {
@@ -86,12 +89,39 @@ describe('HomeDashboard — green banner includes breeding stock', () => {
   });
 });
 
-describe('HomeDashboard — existing feeder group behavior unchanged', () => {
-  it('still checks feederGroups for active status', () => {
-    expect(dashSrc).toMatch(/feederGroups[\s\S]*?\.filter\(\(g\)\s*=>\s*g\.status === 'active'\)/);
+describe('HomeDashboard — pig feeder missed targets via shared helper (no parent fallback)', () => {
+  it('derives feeder missed targets from activePigFeederDailyTargets', () => {
+    expect(dashSrc).toContain('activePigFeederDailyTargets(feederGroups).forEach');
   });
 
-  it('still checks sub-batches for active status', () => {
-    expect(dashSrc).toMatch(/activeSubs\s*=\s*subs\.filter/);
+  it('labels feeder missed rows with the parent batch name from the target', () => {
+    expect(dashSrc).toMatch(/type:\s*`Pig · \$\{t\.parentBatchName\}`/);
+  });
+
+  it('no longer has the parent-batch fallback branch for subs.length === 0', () => {
+    expect(dashSrc).not.toMatch(/subs\.length === 0/);
+    expect(dashSrc).not.toMatch(/label:\s*g\.batchName/);
+  });
+});
+
+describe('main.jsx — pig webform active_groups via shared helper (no parent fallback)', () => {
+  it('builds pigGroups from SOWS/BOARS plus activePigFeederDailyTargets names', () => {
+    expect(mainSrc).toMatch(
+      /pigGroups = \[\s*'SOWS',\s*'BOARS',\s*\.\.\.activePigFeederDailyTargets\(fgs\)\.map\(\(t\) => t\.name\)/,
+    );
+  });
+
+  it('no longer falls back to the parent batchName when a group has no sub-batches', () => {
+    expect(mainSrc).not.toMatch(/\?\s*\[g\.batchName\]/);
+  });
+});
+
+describe('PigBatchesView — no-sub-batch setup copy', () => {
+  it('no longer claims daily reports go directly to the parent batch', () => {
+    expect(pigBatchesSrc).not.toMatch(/daily reports go directly to this batch/);
+  });
+
+  it('tells the operator daily reports start once a sub-batch is added', () => {
+    expect(pigBatchesSrc).toMatch(/daily reports start once you add a sub-batch/);
   });
 });

@@ -168,6 +168,7 @@ import {
   cycleLabel,
   calcCycleStatus,
   reconcileFeederGroupsFromBreeders,
+  activePigFeederDailyTargets,
 } from './lib/pig.js';
 import {detectConflicts} from './lib/conflicts.js';
 import {buildBroilerPublicMirror} from './lib/broilerBatchMeta.js';
@@ -2579,17 +2580,12 @@ function App() {
       const rawCfg = wfConfig || webformsConfig;
       const cfg = {...rawCfg, webforms: normalizeWebforms(rawCfg.webforms)};
       const fgs = feeders || feederGroups;
-      const pigGroups = [
-        'SOWS',
-        'BOARS',
-        ...fgs.flatMap((g) =>
-          g.subBatches && g.subBatches.length > 0
-            ? g.subBatches.filter((s) => s.status === 'active').map((s) => s.name)
-            : g.status === 'active'
-              ? [g.batchName]
-              : [],
-        ),
-      ];
+      // Feeder daily targets are active sub-batches of active feeder groups
+      // only — no parent-batch fallback. A parent feeder group with no active
+      // sub-batches is not a pig daily webform option (it has no daily report
+      // until an active sub-batch splits it). SOWS/BOARS stay as the fixed
+      // breeding-stock daily groups.
+      const pigGroups = ['SOWS', 'BOARS', ...activePigFeederDailyTargets(fgs).map((t) => t.name)];
       // Team-member master roster lives in webform_config.team_roster
       // (canonical) + webform_config.team_members (legacy active-name
       // mirror). saveRoster on the central admin editor writes both. This
