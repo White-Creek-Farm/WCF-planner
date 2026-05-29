@@ -79,6 +79,51 @@ describe('Daily views — navigate to record page', () => {
   }
 });
 
+describe('Daily views — pass visible-order sequence through route state (CP2)', () => {
+  const views = [
+    {name: 'BroilerDailysView', src: broilerDailys, suffix: "'batch_label'"},
+    {name: 'LayerDailysView', src: layerDailys, suffix: "'batch_label'"},
+    {name: 'PigDailysView', src: pigDailys, suffix: "'batch_label'"},
+    {name: 'CattleDailysView', src: cattleDailys, suffix: "'herd'"},
+    {name: 'SheepDailysView', src: sheepDailys, suffix: "'flock'"},
+    {name: 'EggDailysView', src: eggDailys, suffix: 'null'},
+  ];
+  for (const v of views) {
+    it(`${v.name} imports the recordSequence helpers`, () => {
+      expect(v.src).toContain("from '../lib/recordSequence.js'");
+    });
+    it(`${v.name} row click passes recordSeqNavOptions(dailySeqItems(filtered, ${v.suffix}))`, () => {
+      expect(v.src).toContain('recordSeqNavOptions(dailySeqItems(filtered, ' + v.suffix + '))');
+    });
+    it(`${v.name} row carries a data-daily-row hook`, () => {
+      expect(v.src).toContain('data-daily-row={d.id}');
+    });
+  }
+});
+
+describe('Daily record pages — render sequence navigation (CP2)', () => {
+  const pages = [
+    {name: 'PoultryDailyPage', src: poultryPage, path: '/broiler/dailys/'},
+    {name: 'PigDailyPage', src: pigPage, path: '/pig/dailys/'},
+    {name: 'CattleDailyPage', src: cattlePage, path: '/cattle/dailys/'},
+    {name: 'SheepDailyPage', src: sheepPage, path: '/sheep/dailys/'},
+    {name: 'LayerDailyPage', src: layerPage, path: '/layer/dailys/'},
+    {name: 'EggDailyPage', src: eggPage, path: '/layer/eggs/'},
+  ];
+  for (const p of pages) {
+    it(`${p.name} renders the shared RecordSequenceNav`, () => {
+      expect(p.src).toContain("from '../shared/RecordSequenceNav.jsx'");
+      expect(p.src).toContain('<RecordSequenceNav');
+    });
+    it(`${p.name} reads the sequence from route state`, () => {
+      expect(p.src).toContain('location.state?.recordSeq');
+    });
+    it(`${p.name} navigateSeq carries the sequence forward`, () => {
+      expect(p.src).toContain("navigate('" + p.path + "' + id, recordSeqNavOptions(recordSeq))");
+    });
+  }
+});
+
 describe('Daily record pages — structure', () => {
   const pages = [
     {name: 'PoultryDailyPage', src: poultryPage, entity: 'poultry.daily'},

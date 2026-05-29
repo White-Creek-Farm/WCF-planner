@@ -14,6 +14,7 @@ import {findSequenceNeighbors} from '../lib/recordSequence.js';
 
 function defaultFormatLabel(item) {
   if (!item) return '';
+  if (item.label) return item.label;
   return item.tag ? '#' + item.tag : 'Untagged';
 }
 

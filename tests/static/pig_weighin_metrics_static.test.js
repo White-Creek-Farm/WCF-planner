@@ -82,7 +82,7 @@ describe('Pig weigh-in metrics — admin LivestockWeighInsView (commit 3)', () =
   });
 
   it('pig inline accordion is removed — pig navigates to record page', () => {
-    expect(adminSrc).toContain("navigate('/weigh-in-sessions/' + s.id)");
+    expect(adminSrc).toContain("'/weigh-in-sessions/' + s.id");
     expect(adminSrc).not.toContain('addPigEntry');
     expect(adminSrc).not.toContain('deletePigEntry');
   });

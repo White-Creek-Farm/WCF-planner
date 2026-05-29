@@ -312,9 +312,42 @@ describe('WeighInSessionPage — Activity audit logging', () => {
   });
 });
 
+describe('WeighInSessionPage — record sequence navigation (CP2)', () => {
+  it('renders the shared RecordSequenceNav', () => {
+    expect(pageSrc).toContain("from '../shared/RecordSequenceNav.jsx'");
+    expect(pageSrc).toContain('<RecordSequenceNav');
+  });
+  it('reads the sequence from route state', () => {
+    expect(pageSrc).toContain('location.state?.recordSeq');
+  });
+  it('navigateSeq carries the sequence forward', () => {
+    expect(pageSrc).toContain("navigate('/weigh-in-sessions/' + id, recordSeqNavOptions(recordSeq))");
+  });
+});
+
+describe('Weigh-in list views — pass visible-order sequence with date · group label (CP2)', () => {
+  const views = [
+    {name: 'CattleWeighInsView', src: listSrc, group: 'HERD_LABELS[r.herd]'},
+    {name: 'SheepWeighInsView', src: sheepListSrc, group: 'FLOCK_LABELS[r.herd]'},
+    {name: 'LivestockWeighInsView', src: livestockSrc, group: 'r.batch_id'},
+  ];
+  for (const v of views) {
+    it(`${v.name} imports recordSeqNavOptions`, () => {
+      expect(v.src).toContain("from '../lib/recordSequence.js'");
+    });
+    it(`${v.name} builds sequence items over the visible filtered order`, () => {
+      expect(v.src).toContain('recordSeqNavOptions(');
+      expect(v.src).toContain('filtered.map((r) =>');
+    });
+    it(`${v.name} label uses date plus the ${v.group} group`, () => {
+      expect(v.src).toContain(v.group);
+    });
+  }
+});
+
 describe('CattleWeighInsView — cleaned list view', () => {
   it('navigates to /weigh-in-sessions/<id> on tile click', () => {
-    expect(listSrc).toContain("navigate('/weigh-in-sessions/' + s.id)");
+    expect(listSrc).toContain("'/weigh-in-sessions/' + s.id");
   });
   it('does not have expandedSession state', () => {
     expect(listSrc).not.toContain('expandedSession');
@@ -345,7 +378,7 @@ describe('CattleWeighInsView — cleaned list view', () => {
 
 describe('SheepWeighInsView — cleaned list view', () => {
   it('navigates to /weigh-in-sessions/<id> on tile click', () => {
-    expect(sheepListSrc).toContain("navigate('/weigh-in-sessions/' + s.id)");
+    expect(sheepListSrc).toContain("'/weigh-in-sessions/' + s.id");
   });
   it('does not have expandedSession state', () => {
     expect(sheepListSrc).not.toContain('expandedSession');
@@ -475,7 +508,7 @@ describe('WeighInSessionPage — broiler record page', () => {
 
 describe('LivestockWeighInsView — navigation-only list', () => {
   it('all tiles navigate to /weigh-in-sessions/<id>', () => {
-    expect(livestockSrc).toContain("navigate('/weigh-in-sessions/' + s.id)");
+    expect(livestockSrc).toContain("'/weigh-in-sessions/' + s.id");
   });
   it('session creation navigates to record page', () => {
     expect(livestockSrc).toContain("navigate('/weigh-in-sessions/' + rec.id)");

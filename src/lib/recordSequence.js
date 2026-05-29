@@ -6,19 +6,23 @@
 // opens, and related-record click-throughs (cow-to-cow, sheep-to-sheep) carry
 // no sequence, so the controls stay hidden.
 //
-// The list passes its ordered, visible rows; we keep a minimal {id, tag}
+// The list passes its ordered, visible rows; we keep a minimal {id, tag, label?}
 // projection (small enough to live in history state) under
 // location.state.recordSeq. Prev/Next carry the SAME sequence forward.
 
-// Project an array of record rows down to the minimal {id, tag} shape stored
-// in route state. Rows without an id are dropped. Accepts rows already in the
-// {id, tag} shape (used when carrying the sequence forward).
+// Project an array of record rows down to the minimal shape stored in route
+// state: {id, tag, label?}. Rows without an id are dropped. `label` is an
+// optional precomputed display string for records without a tag (daily
+// reports, weigh-in sessions). Accepts rows already in this shape (used when
+// carrying the sequence forward).
 export function toRecordSeq(items) {
   if (!Array.isArray(items)) return [];
   const out = [];
   for (const it of items) {
     if (!it || it.id == null) continue;
-    out.push({id: it.id, tag: it.tag == null ? null : it.tag});
+    const entry = {id: it.id, tag: it.tag == null ? null : it.tag};
+    if (it.label != null) entry.label = it.label;
+    out.push(entry);
   }
   return out;
 }
@@ -27,6 +31,18 @@ export function toRecordSeq(items) {
 // through route state. Use at the list row click and at Prev/Next.
 export function recordSeqNavOptions(items) {
   return {state: {recordSeq: toRecordSeq(items)}};
+}
+
+// Build sequence items for a daily-report list: label is the record date plus
+// an optional " · <suffix>" (batch_label / herd / flock). Pass suffixField=null
+// for date-only (egg daily). Mirrors each daily record page's title format so
+// the neighbor label matches the destination title.
+export function dailySeqItems(rows, suffixField) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((r) => ({
+    id: r.id,
+    label: (r && r.date != null ? r.date : '') + (suffixField && r && r[suffixField] ? ' · ' + r[suffixField] : ''),
+  }));
 }
 
 // Pure neighbor lookup. Returns index -1 (caller hides the controls) when

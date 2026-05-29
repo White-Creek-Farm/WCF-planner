@@ -6,6 +6,7 @@
 // "None" / "none" / "0" / "n/a" no longer render as a pill badge.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
@@ -472,7 +473,10 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                       <div style={{height: 2, background: '#9ca3af', margin: '6px 0', borderRadius: 1}} />
                     )}
                     <div
-                      onClick={() => navigate('/sheep/dailys/' + d.id)}
+                      data-daily-row={d.id}
+                      onClick={() =>
+                        navigate('/sheep/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'flock')))
+                      }
                       style={{
                         background: d.source === 'add_feed_webform' ? '#fffbeb' : shadeBg,
                         borderRadius: 8,

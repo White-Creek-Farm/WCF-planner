@@ -1,5 +1,6 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import AdminNewWeighInModal from '../shared/AdminNewWeighInModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -212,7 +213,14 @@ const LivestockWeighInsView = ({
               >
                 <div
                   data-weighin-session-tile={s.id}
-                  onClick={() => navigate('/weigh-in-sessions/' + s.id)}
+                  onClick={() =>
+                    navigate(
+                      '/weigh-in-sessions/' + s.id,
+                      recordSeqNavOptions(
+                        filtered.map((r) => ({id: r.id, label: (r.date || '') + ' · ' + (r.batch_id || species)})),
+                      ),
+                    )
+                  }
                   style={{
                     padding: '10px 16px',
                     cursor: 'pointer',

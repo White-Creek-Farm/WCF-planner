@@ -3,6 +3,9 @@ import {useNavigate, useLocation} from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
@@ -115,6 +118,12 @@ export default function SheepDailyPage({sb, fmt, authState, Header}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/sheep/dailys/', '');
+  // Originating list order (visible rows) handed through route state. Absent on
+  // direct links and notification/deep-link opens, so the controls hide.
+  const recordSeq = location.state?.recordSeq || null;
+  function navigateSeq(id) {
+    navigate('/sheep/dailys/' + id, recordSeqNavOptions(recordSeq));
+  }
 
   const [record, setRecord] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -374,6 +383,8 @@ export default function SheepDailyPage({sb, fmt, authState, Header}) {
             ← Back to Daily Reports
           </button>
         </div>
+
+        <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />
 
         <h1
           data-record-title="1"

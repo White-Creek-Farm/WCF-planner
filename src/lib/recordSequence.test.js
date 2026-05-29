@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {toRecordSeq, recordSeqNavOptions, findSequenceNeighbors} from './recordSequence.js';
+import {toRecordSeq, recordSeqNavOptions, findSequenceNeighbors, dailySeqItems} from './recordSequence.js';
 
 describe('toRecordSeq', () => {
   it('projects rows down to {id, tag}', () => {
@@ -23,6 +23,39 @@ describe('toRecordSeq', () => {
     expect(toRecordSeq(undefined)).toEqual([]);
     expect(toRecordSeq(null)).toEqual([]);
     expect(toRecordSeq('nope')).toEqual([]);
+  });
+  it('preserves an optional label and drops it when absent (CP2 contract extension)', () => {
+    expect(toRecordSeq([{id: 'a', label: '2026-05-29 · P-26-01'}])).toEqual([
+      {id: 'a', tag: null, label: '2026-05-29 · P-26-01'},
+    ]);
+    // No label key when the row carries none (keeps CP1 cattle/sheep shape).
+    expect(toRecordSeq([{id: 'a', tag: '1'}])).toEqual([{id: 'a', tag: '1'}]);
+    expect(Object.prototype.hasOwnProperty.call(toRecordSeq([{id: 'a', tag: '1'}])[0], 'label')).toBe(false);
+  });
+});
+
+describe('dailySeqItems', () => {
+  it('builds date + " · suffix" labels from the named suffix field', () => {
+    expect(
+      dailySeqItems(
+        [
+          {id: 'd1', date: '2026-05-01', batch_label: 'B-1'},
+          {id: 'd2', date: '2026-05-02', batch_label: ''},
+        ],
+        'batch_label',
+      ),
+    ).toEqual([
+      {id: 'd1', label: '2026-05-01 · B-1'},
+      {id: 'd2', label: '2026-05-02'},
+    ]);
+  });
+  it('date-only when suffixField is null (egg daily)', () => {
+    expect(dailySeqItems([{id: 'e1', date: '2026-05-03', batch_label: 'ignored'}], null)).toEqual([
+      {id: 'e1', label: '2026-05-03'},
+    ]);
+  });
+  it('returns [] for non-arrays', () => {
+    expect(dailySeqItems(null, 'herd')).toEqual([]);
   });
 });
 

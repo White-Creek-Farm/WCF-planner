@@ -1,6 +1,7 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {formatBroilerBatchLabel, splitSchooners} from '../lib/broilerBatchMeta.js';
@@ -398,7 +399,10 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                       <div style={{height: 2, background: '#9ca3af', margin: '6px 0', borderRadius: 1}} />
                     )}
                     <div
-                      onClick={() => navigate('/broiler/dailys/' + d.id)}
+                      data-daily-row={d.id}
+                      onClick={() =>
+                        navigate('/broiler/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
+                      }
                       style={{
                         background: d.source === 'add_feed_webform' ? '#fffbeb' : shadeBg,
                         borderRadius: 8,

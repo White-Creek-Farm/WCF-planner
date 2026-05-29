@@ -1,5 +1,6 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import CattleNewWeighInModal from './CattleNewWeighInModal.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
@@ -236,7 +237,17 @@ const CattleWeighInsView = ({
               <div
                 key={s.id}
                 data-weighin-session-tile={s.id}
-                onClick={() => navigate('/weigh-in-sessions/' + s.id)}
+                onClick={() =>
+                  navigate(
+                    '/weigh-in-sessions/' + s.id,
+                    recordSeqNavOptions(
+                      filtered.map((r) => ({
+                        id: r.id,
+                        label: (r.date || '') + ' · ' + (HERD_LABELS[r.herd] || r.herd || 'cattle'),
+                      })),
+                    ),
+                  )
+                }
                 className="hoverable-tile"
                 style={{
                   background: 'white',
