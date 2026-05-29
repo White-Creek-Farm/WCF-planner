@@ -26,6 +26,7 @@ const forecastSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pigForecast.js'), '
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const tileSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchHubTile.jsx'), 'utf8');
 const mortalityHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigMortality.js'), 'utf8');
+const subHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigSubBatches.js'), 'utf8');
 
 describe('Commit 4a — Global ADG persistence + role gate', () => {
   it('PigBatchesView reads/writes app_store key ppp-pig-global-adg-v1', () => {
@@ -477,5 +478,37 @@ describe('CP7 — mortality workflow extracted to usePigMortality', () => {
     expect(mortalityHookSrc).toMatch(
       /export function usePigMortality\(\{feederGroups, setFeederGroups, setNotice, authState\}\)/,
     );
+  });
+});
+
+describe('CP8 — sub-batch workflow extracted to usePigSubBatches', () => {
+  it('PigBatchesView imports and wires the usePigSubBatches hook', () => {
+    expect(viewSrc).toMatch(/import \{usePigSubBatches\} from '\.\/usePigSubBatches\.js'/);
+    // partitionDirtyRef stays view-owned (closeFeederForm reads it) and is passed in.
+    expect(viewSrc).toMatch(/usePigSubBatches\(\{[\s\S]*?partitionDirtyRef,[\s\S]*?\}\)/);
+  });
+
+  it('PigBatchesView no longer declares the moved sub-batch state/handlers directly', () => {
+    expect(viewSrc).not.toMatch(/const \[showSubForm, setShowSubForm\] = React\.useState/);
+    expect(viewSrc).not.toMatch(/const \[subForm, setSubForm\] = React\.useState/);
+    expect(viewSrc).not.toMatch(/const \[editSubId, setEditSubId\] = React\.useState/);
+    expect(viewSrc).not.toMatch(/function persistSubBatch\(/);
+    expect(viewSrc).not.toMatch(/function validateNewSub\(/);
+    expect(viewSrc).not.toMatch(/function updSubPartition\(/);
+  });
+
+  it('the hook keeps the explicit dependency signature (React-context-free)', () => {
+    expect(subHookSrc).toMatch(
+      /export function usePigSubBatches\(\{\s*feederGroups,\s*setFeederGroups,\s*persistFeeders,\s*setNotice,\s*confirmDelete,\s*subAutoSaveTimer,\s*pigAutoSaveTimer,\s*partitionDirtyRef,?\s*\}\)/,
+    );
+  });
+
+  it('the hook preserves the subBatches shape + originalPigCount invariant + validation', () => {
+    expect(subHookSrc).toContain('subBatches');
+    expect(subHookSrc).toMatch(/originalPigCount: c/);
+    expect(subHookSrc).toContain('Sub-batch name is required.');
+    expect(subHookSrc).toMatch(/available on parent batch/);
+    expect(subHookSrc).toMatch(/persistFeeders\(nb\)/);
+    expect(subHookSrc).toMatch(/partitionDirtyRef\.current = true/);
   });
 });
