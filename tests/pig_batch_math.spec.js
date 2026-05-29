@@ -78,7 +78,7 @@ test('Send-to-Trip stamps subAttributions, persists trip, ledger shows correct c
   expect(batch.fcrCached).toBeUndefined();
 
   // --- UI assertions: /pig/batches ledger math ---
-  await page.goto('/pig/batches');
+  await page.goto('/pig/batches/p2601-test');
 
   // Current count: 20 started − 5 trip − 2 transferred − 1 mortality = 12
   await expect(page.getByText(new RegExp(`Current:\\s*${expected.postTripCurrent}\\b`))).toBeVisible({timeout: 15_000});

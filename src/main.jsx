@@ -1312,6 +1312,7 @@ function App() {
     const isLayerBatchesSubpath = !exactPathView && location.pathname.startsWith('/layer/batches/');
     const isLayerHousingsSubpath = !exactPathView && location.pathname.startsWith('/layer/housings/');
     const isBroilerBatchesSubpath = !exactPathView && location.pathname.startsWith('/broiler/batches/');
+    const isPigBatchesSubpath = !exactPathView && location.pathname.startsWith('/pig/batches/');
     const isTasksSubpath = !exactPathView && location.pathname.startsWith('/tasks/');
     const isWeighInSessionSubpath = !exactPathView && location.pathname.startsWith('/weigh-in-sessions/');
     const viewFromUrl = isWebformSubpath
@@ -1346,11 +1347,13 @@ function App() {
                                   ? 'layerbatches'
                                   : isBroilerBatchesSubpath
                                     ? 'list'
-                                    : isTasksSubpath
-                                      ? 'tasks'
-                                      : isWeighInSessionSubpath
-                                        ? 'weighinsessions'
-                                        : exactPathView;
+                                    : isPigBatchesSubpath
+                                      ? 'pigbatches'
+                                      : isTasksSubpath
+                                        ? 'tasks'
+                                        : isWeighInSessionSubpath
+                                          ? 'weighinsessions'
+                                          : exactPathView;
     if (viewFromUrl && viewFromUrl !== view) {
       syncingFromUrl.current = true;
       setView(viewFromUrl);
@@ -1408,6 +1411,8 @@ function App() {
     if (view === 'layerbatches' && location.pathname.startsWith('/layer/housings/')) return;
     // Don't clobber /broiler/batches/<id> sub-paths — BroilerListRouter owns them.
     if (view === 'list' && location.pathname.startsWith('/broiler/batches/')) return;
+    // Don't clobber /pig/batches/<id> sub-paths — PigBatchesView owns them.
+    if (view === 'pigbatches' && location.pathname.startsWith('/pig/batches/')) return;
     if (view === 'tasks' && location.pathname.startsWith('/tasks/')) return;
     if (view === 'weighinsessions' && location.pathname.startsWith('/weigh-in-sessions/')) return;
     const pathFromView = VIEW_TO_PATH[view];

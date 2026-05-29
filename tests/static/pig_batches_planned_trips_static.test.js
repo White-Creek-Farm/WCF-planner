@@ -23,6 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const viewSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
 const forecastSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pigForecast.js'), 'utf8');
+const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 
 describe('Commit 4a — Global ADG persistence + role gate', () => {
   it('PigBatchesView reads/writes app_store key ppp-pig-global-adg-v1', () => {
@@ -375,5 +376,50 @@ describe('CP2 — pig.batch record-page helper extraction (no re-inlining)', () 
     expect(viewSrc).not.toMatch(/const parentStarted =/);
     expect(viewSrc).not.toMatch(/parentStarted > 0/);
     expect(viewSrc).toMatch(/computeBatchCurrentCount\(g, breeders, \{/);
+  });
+});
+
+describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', () => {
+  it('PigBatchesView reads the router hooks and derives record mode from the URL', () => {
+    expect(viewSrc).toMatch(/import \{useNavigate, useLocation\} from 'react-router-dom'/);
+    expect(viewSrc).toMatch(/const recordMode = location\.pathname\.startsWith\('\/pig\/batches\/'\)/);
+    expect(viewSrc).toMatch(
+      /const recordGroup = recordMode \? \(feederGroups \|\| \[\]\)\.find\(\(g\) => g\.id === recordId\)/,
+    );
+  });
+
+  it('uses group.id as the encoded route identity for tile navigation', () => {
+    expect(viewSrc).toMatch(/navigate\('\/pig\/batches\/' \+ encodeURIComponent\(id\)\)/);
+    expect(viewSrc).toMatch(/data-pig-batch-tile=\{g\.id\}/);
+  });
+
+  it('renders a not-found state for an unknown id', () => {
+    expect(viewSrc).toMatch(/recordMode && !recordGroup/);
+    expect(viewSrc).toMatch(/Batch not found/);
+  });
+
+  it('decodes the route id defensively (malformed %-URL -> not-found, no crash)', () => {
+    expect(viewSrc).toMatch(/try \{\s*recordId = decodeURIComponent\(recordRawId\)/);
+  });
+
+  it('hub-tile current-count fallback sorts dailys by date then submitted_at (cannot drift from the record page)', () => {
+    // Both the hub tile and the record workspace must pick the same latest
+    // daily for a parent-only batch — date desc, then submitted_at desc.
+    const tileFallback = viewSrc.match(/const rows = dailysForName\(g\.batchName\);[\s\S]*?\.sort\([\s\S]*?\);/);
+    expect(tileFallback, 'expected the hub-tile latestDailyPigCount fallback').not.toBeNull();
+    expect(tileFallback[0]).toMatch(/b\.date \|\| ''\)\.localeCompare\(a\.date/);
+    expect(tileFallback[0]).toMatch(/b\.submitted_at \|\| ''\)\.localeCompare\(a\.submitted_at/);
+  });
+
+  it('keeps Global ADG + Add Batch on the hub only (not the record page)', () => {
+    expect(viewSrc).toMatch(/\{!recordMode && \(/);
+  });
+
+  it('main.jsx wires the /pig/batches/<id> sub-path to the pigbatches view', () => {
+    expect(mainSrc).toMatch(
+      /isPigBatchesSubpath = !exactPathView && location\.pathname\.startsWith\('\/pig\/batches\/'\)/,
+    );
+    expect(mainSrc).toMatch(/isPigBatchesSubpath\s*\?\s*'pigbatches'/);
+    expect(mainSrc).toMatch(/view === 'pigbatches' && location\.pathname\.startsWith\('\/pig\/batches\/'\)\) return/);
   });
 });

@@ -51,6 +51,7 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
+import {useNavigate, useLocation} from 'react-router-dom';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -113,6 +114,27 @@ export default function PigBatchesView({
   } = usePig();
   const {pigDailys} = useDailysRecent();
   const {setView} = useUI();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Record-page routing: /pig/batches/<encodeURIComponent(group.id)> renders the
+  // single selected batch's full workspace; the bare hub renders nav-only tiles.
+  // group.id is the stable route identity; batchName stays the display label.
+  const recordMode = location.pathname.startsWith('/pig/batches/');
+  // decode in a try/catch — a malformed %-sequence (e.g. /pig/batches/%) would
+  // otherwise throw; fall back to the raw slice so it just resolves to
+  // not-found instead of crashing the view (mirrors BroilerBatchPage).
+  const recordRawId = recordMode ? location.pathname.slice('/pig/batches/'.length) : null;
+  let recordId = recordRawId;
+  if (recordMode) {
+    try {
+      recordId = decodeURIComponent(recordRawId);
+    } catch {
+      recordId = recordRawId;
+    }
+  }
+  const recordGroup = recordMode ? (feederGroups || []).find((g) => g.id === recordId) : null;
+  const goToBatch = (id) => navigate('/pig/batches/' + encodeURIComponent(id));
+  const goToHub = () => navigate('/pig/batches');
 
   React.useEffect(() => {
     function onEntityDeepLink() {
@@ -1062,131 +1084,138 @@ export default function PigBatchesView({
       {/* Global ADG (commit 4a). Manual override + live system estimate.
         Manager-and-above (admin role for v1) can edit; operators read-only.
         Persists to app_store ppp-pig-global-adg-v1. No reset button per
-        Codex; admin types a new value to change. */}
-      <div
-        style={{
-          padding: '10px 14px',
-          margin: '8px 12px',
-          background: '#f9fafb',
-          border: '1px solid #e5e7eb',
-          borderRadius: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}
-      >
-        <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-          <span style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600}}>Global ADG</span>
-          {!adgEditing && (
-            <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>
-              {effectiveAdgLbsPerDay != null
-                ? `${(Math.round(effectiveAdgLbsPerDay * 100) / 100).toFixed(2)} lb/day`
-                : '— Projection unavailable'}
+        Codex; admin types a new value to change. Hub-only — farm-wide, not per
+        batch, so it does not render on a single-batch record page. */}
+      {!recordMode && (
+        <div
+          style={{
+            padding: '10px 14px',
+            margin: '8px 12px',
+            background: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+            <span style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600}}>
+              Global ADG
             </span>
-          )}
-          {!adgEditing && globalAdgRow && globalAdgRow.manualValue != null && (
-            <span
-              style={{
-                fontSize: 10,
-                color: '#92400e',
-                background: '#fef3c7',
-                padding: '2px 8px',
-                borderRadius: 10,
-                fontWeight: 600,
-              }}
-            >
-              MANUAL
-            </span>
-          )}
-          {!adgEditing && isManager && (
-            <button
-              onClick={() => {
-                setAdgInput(effectiveAdgLbsPerDay != null ? String(Math.round(effectiveAdgLbsPerDay * 100) / 100) : '');
-                setAdgEditing(true);
-              }}
-              style={{
-                fontSize: 11,
-                padding: '3px 10px',
-                borderRadius: 6,
-                border: '1px solid #d1d5db',
-                background: 'white',
-                color: '#1d4ed8',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Edit
-            </button>
-          )}
-          {adgEditing && (
-            <>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={adgInput}
-                onChange={(e) => setAdgInput(e.target.value)}
-                placeholder="lb/day"
+            {!adgEditing && (
+              <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>
+                {effectiveAdgLbsPerDay != null
+                  ? `${(Math.round(effectiveAdgLbsPerDay * 100) / 100).toFixed(2)} lb/day`
+                  : '— Projection unavailable'}
+              </span>
+            )}
+            {!adgEditing && globalAdgRow && globalAdgRow.manualValue != null && (
+              <span
                 style={{
-                  fontSize: 13,
-                  padding: '4px 8px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 6,
-                  width: 110,
-                  fontFamily: 'inherit',
-                }}
-              />
-              <button
-                onClick={() => {
-                  setNotice(null);
-                  const v = parseFloat(adgInput);
-                  if (!isFinite(v) || v <= 0) {
-                    setNotice({kind: 'error', message: 'Enter a positive number for Global ADG.'});
-                    return;
-                  }
-                  persistGlobalAdg(v);
-                }}
-                disabled={adgSaving}
-                style={{
-                  fontSize: 11,
-                  padding: '4px 12px',
-                  borderRadius: 6,
-                  border: '1px solid #085041',
-                  background: '#085041',
-                  color: 'white',
-                  cursor: adgSaving ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
+                  fontSize: 10,
+                  color: '#92400e',
+                  background: '#fef3c7',
+                  padding: '2px 8px',
+                  borderRadius: 10,
+                  fontWeight: 600,
                 }}
               >
-                {adgSaving ? 'Saving…' : 'Save'}
-              </button>
+                MANUAL
+              </span>
+            )}
+            {!adgEditing && isManager && (
               <button
-                onClick={() => setAdgEditing(false)}
+                onClick={() => {
+                  setAdgInput(
+                    effectiveAdgLbsPerDay != null ? String(Math.round(effectiveAdgLbsPerDay * 100) / 100) : '',
+                  );
+                  setAdgEditing(true);
+                }}
                 style={{
                   fontSize: 11,
-                  padding: '4px 10px',
+                  padding: '3px 10px',
                   borderRadius: 6,
                   border: '1px solid #d1d5db',
                   background: 'white',
-                  color: '#6b7280',
+                  color: '#1d4ed8',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                 }}
               >
-                Cancel
+                Edit
               </button>
-            </>
-          )}
+            )}
+            {adgEditing && (
+              <>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={adgInput}
+                  onChange={(e) => setAdgInput(e.target.value)}
+                  placeholder="lb/day"
+                  style={{
+                    fontSize: 13,
+                    padding: '4px 8px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 6,
+                    width: 110,
+                    fontFamily: 'inherit',
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    setNotice(null);
+                    const v = parseFloat(adgInput);
+                    if (!isFinite(v) || v <= 0) {
+                      setNotice({kind: 'error', message: 'Enter a positive number for Global ADG.'});
+                      return;
+                    }
+                    persistGlobalAdg(v);
+                  }}
+                  disabled={adgSaving}
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #085041',
+                    background: '#085041',
+                    color: 'white',
+                    cursor: adgSaving ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {adgSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setAdgEditing(false)}
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    background: 'white',
+                    color: '#6b7280',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+          <div style={{fontSize: 10, color: '#6b7280'}}>
+            {systemAdgEstimate
+              ? `System estimate: ${(Math.round(systemAdgEstimate.valueLbsPerDay * 100) / 100).toFixed(2)} lb/day from ${systemAdgEstimate.sampleCount} session${systemAdgEstimate.sampleCount === 1 ? '' : 's'}`
+              : 'System estimate: — (need pig sessions with weights and known age)'}
+            {globalAdgRow && globalAdgRow.manualValue != null && globalAdgRow.updatedAt
+              ? ` · manual set ${(globalAdgRow.updatedAt || '').slice(0, 10)}`
+              : ''}
+          </div>
         </div>
-        <div style={{fontSize: 10, color: '#6b7280'}}>
-          {systemAdgEstimate
-            ? `System estimate: ${(Math.round(systemAdgEstimate.valueLbsPerDay * 100) / 100).toFixed(2)} lb/day from ${systemAdgEstimate.sampleCount} session${systemAdgEstimate.sampleCount === 1 ? '' : 's'}`
-            : 'System estimate: — (need pig sessions with weights and known age)'}
-          {globalAdgRow && globalAdgRow.manualValue != null && globalAdgRow.updatedAt
-            ? ` · manual set ${(globalAdgRow.updatedAt || '').slice(0, 10)}`
-            : ''}
-        </div>
-      </div>
+      )}
       {/* Mortality entry modal — overlay across the page */}
       {mortalityModal &&
         (() => {
@@ -1383,63 +1412,65 @@ export default function PigBatchesView({
             loadUsers={loadUsers}
           />
         )}
-        <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: 12}}>
-          <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-            {feederGroups.some((g) => g.status === 'processed') && (
+        {!recordMode && (
+          <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: 12}}>
+            <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+              {feederGroups.some((g) => g.status === 'processed') && (
+                <button
+                  onClick={() => setShowArchBatches((s) => !s)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: 'white',
+                    color: '#6b7280',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {showArchBatches ? 'Hide processed' : 'Show processed'} (
+                  {feederGroups.filter((g) => g.status === 'processed').length})
+                </button>
+              )}
               <button
-                onClick={() => setShowArchBatches((s) => !s)}
+                onClick={() => {
+                  setNotice(null);
+                  setFeederForm({
+                    batchName: '',
+                    cycleId: '',
+                    giltCount: 0,
+                    boarCount: 0,
+                    startDate: '',
+                    originalPigCount: 0,
+                    perLbFeedCost: 0,
+                    legacyFeedLbs: 0,
+                    notes: '',
+                    status: 'active',
+                  });
+                  setEditFeederId(null);
+                  setShowFeederForm(true);
+                  setActiveTripBatchId(null);
+                  setShowSubForm(null);
+                }}
                 style={{
-                  padding: '7px 14px',
+                  padding: '7px 18px',
                   borderRadius: 8,
-                  border: '1px solid #d1d5db',
-                  background: 'white',
-                  color: '#6b7280',
+                  border: 'none',
+                  background: '#085041',
+                  color: 'white',
                   cursor: 'pointer',
                   fontSize: 12,
+                  fontWeight: 600,
+                  letterSpacing: 0.1,
                   fontFamily: 'inherit',
                 }}
               >
-                {showArchBatches ? 'Hide processed' : 'Show processed'} (
-                {feederGroups.filter((g) => g.status === 'processed').length})
+                + Add Batch
               </button>
-            )}
-            <button
-              onClick={() => {
-                setNotice(null);
-                setFeederForm({
-                  batchName: '',
-                  cycleId: '',
-                  giltCount: 0,
-                  boarCount: 0,
-                  startDate: '',
-                  originalPigCount: 0,
-                  perLbFeedCost: 0,
-                  legacyFeedLbs: 0,
-                  notes: '',
-                  status: 'active',
-                });
-                setEditFeederId(null);
-                setShowFeederForm(true);
-                setActiveTripBatchId(null);
-                setShowSubForm(null);
-              }}
-              style={{
-                padding: '7px 18px',
-                borderRadius: 8,
-                border: 'none',
-                background: '#085041',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                letterSpacing: 0.1,
-                fontFamily: 'inherit',
-              }}
-            >
-              + Add Batch
-            </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Add/Edit batch form */}
         {showFeederForm && (
@@ -1916,15 +1947,110 @@ export default function PigBatchesView({
           </div>
         )}
 
-        {feederGroups.filter((g) => g.status !== 'processed').length === 0 && !showFeederForm && (
+        {!recordMode && feederGroups.filter((g) => g.status !== 'processed').length === 0 && !showFeederForm && (
           <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
             No pig batches yet — click "+ Add Batch" to get started
           </div>
         )}
 
-        {feederGroups
-          .filter((g) => showArchBatches || g.status !== 'processed')
-          .map((g) => {
+        {/* Record-page header: back link to the hub. */}
+        {recordMode && (
+          <div style={{display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0 12px'}}>
+            <button
+              onClick={goToHub}
+              style={{
+                fontSize: 13,
+                color: '#085041',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                padding: 0,
+              }}
+            >
+              {'← Pig Batches'}
+            </button>
+          </div>
+        )}
+
+        {/* Record-page not-found: unknown id in the URL. */}
+        {recordMode && !recordGroup && (
+          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
+            Batch not found.{' '}
+            <button
+              onClick={goToHub}
+              style={{color: '#085041', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit'}}
+            >
+              Back to Pig Batches
+            </button>
+          </div>
+        )}
+
+        {/* Hub: nav-only batch tiles. Clicking a tile opens the record page;
+            the full workspace (edit/mortality/sub-batches/trips) renders there. */}
+        {!recordMode &&
+          feederGroups
+            .filter((g) => showArchBatches || g.status !== 'processed')
+            .map((g) => {
+              const sc = statusColors[g.status] || statusColors.active;
+              const subs = g.subBatches || [];
+              const latestDailyPigCount =
+                subs.length > 0
+                  ? null
+                  : (() => {
+                      // Same ordering as the record workspace (date desc, then
+                      // submitted_at desc) so the hub tile and record page can't
+                      // disagree on "Current" when a parent-only batch has
+                      // multiple reports on the same date.
+                      const rows = dailysForName(g.batchName);
+                      const sorted = [...rows].sort(
+                        (a, b) =>
+                          (b.date || '').localeCompare(a.date || '') ||
+                          (b.submitted_at || '').localeCompare(a.submitted_at || '') ||
+                          0,
+                      );
+                      return sorted[0]?.pig_count ?? null;
+                    })();
+              const current = computeBatchCurrentCount(g, breeders, {latestDailyPigCount});
+              const started = (parseInt(g.giltCount) || 0) + (parseInt(g.boarCount) || 0);
+              return (
+                <div
+                  key={g.id}
+                  data-pig-batch-tile={g.id}
+                  onClick={() => goToBatch(g.id)}
+                  style={{
+                    background: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 12,
+                    padding: '12px 16px',
+                    marginBottom: 10,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px 16px',
+                    alignItems: 'center',
+                  }}
+                >
+                  <strong style={{fontSize: 14, color: '#111827'}}>{g.batchName}</strong>
+                  <span style={S.badge(sc.bg, sc.tx)}>{g.status}</span>
+                  {current !== null ? (
+                    <span style={{fontSize: 13, color: '#374151'}}>
+                      Current: <strong>{current}</strong>
+                    </span>
+                  ) : (
+                    started > 0 && <span style={{fontSize: 13, color: '#6b7280'}}>Started: {started}</span>
+                  )}
+                  <span style={{marginLeft: 'auto', fontSize: 12, color: '#085041', fontWeight: 600}}>{'Open →'}</span>
+                </div>
+              );
+            })}
+
+        {/* Record page: the selected batch's full workspace (one group). The
+            card body below is unchanged from the legacy inline render; only its
+            source is narrowed to the routed group (processed batches still open
+            via direct link). */}
+        {recordMode &&
+          (recordGroup ? [recordGroup] : []).map((g) => {
             const cycle = breedingCycles.find((c) => c.id === g.cycleId);
             const tl = cycle ? calcBreedingTimeline(cycle.exposureStart) : null;
             const sc = statusColors[g.status] || statusColors.active;
