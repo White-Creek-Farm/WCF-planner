@@ -3,6 +3,8 @@ import {useNavigate, useLocation} from 'react-router-dom';
 import CowDetail from './CowDetail.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
@@ -72,6 +74,9 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
   const cattleId = location.pathname.replace('/cattle/herds/', '');
   const fromCowId = location.state?.fromCowId || null;
   const fromCowTag = location.state?.fromCowTag || null;
+  // Originating list order (visible rows) handed through route state. Absent on
+  // direct links, notifications, and cow-to-cow click-throughs.
+  const recordSeq = location.state?.recordSeq || null;
 
   const [cow, setCow] = React.useState(null);
   const [cattle, setCattle] = React.useState([]);
@@ -232,6 +237,12 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
     });
   }
 
+  // Prev/Next within the originating list sequence — carry the sequence
+  // forward so the neighbor record keeps its controls.
+  function navigateSeq(id) {
+    navigate('/cattle/herds/' + id, recordSeqNavOptions(recordSeq));
+  }
+
   if (loading) {
     return (
       <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -296,6 +307,8 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
             ← Back to Herds
           </button>
         </div>
+
+        <RecordSequenceNav seq={recordSeq} currentId={cattleId} onNavigate={navigateSeq} />
 
         <h1
           data-record-title="1"

@@ -33,7 +33,14 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
     expect(herdsView).not.toContain("from('cattle_comments')");
   });
   it('navigates to /cattle/herds/<id> on tile click', () => {
-    expect(herdsView).toContain("navigate('/cattle/herds/' + c.id)");
+    expect(herdsView).toContain("navigate('/cattle/herds/' + c.id");
+  });
+  it('passes the visible-order sequence through route state on row click (flat + grouped)', () => {
+    // Flat mode hands the sortedFlat order; grouped mode hands the per-herd
+    // cows order. Both feed RecordSequenceNav on the record page.
+    expect(herdsView).toContain('recordSeqNavOptions(sortedFlat)');
+    expect(herdsView).toContain('recordSeqNavOptions(cows)');
+    expect(herdsView).toContain("from '../lib/recordSequence.js'");
   });
   it('imports CattleAnimalPage for hub routing', () => {
     expect(herdsView).toContain('CattleAnimalPage');
@@ -122,6 +129,29 @@ describe('CattleAnimalPage — record page title', () => {
   });
   it('does not prefix title with Cow/Bull/Steer/Heifer', () => {
     expect(animalPage).not.toMatch(/['"](?:Cow|Bull|Steer|Heifer|Cattle)\s*#/);
+  });
+});
+
+describe('CattleAnimalPage — record sequence navigation', () => {
+  it('renders the shared RecordSequenceNav', () => {
+    expect(animalPage).toContain("from '../shared/RecordSequenceNav.jsx'");
+    expect(animalPage).toContain('<RecordSequenceNav');
+  });
+  it('reads the sequence from route state', () => {
+    expect(animalPage).toContain('location.state?.recordSeq');
+  });
+  it('passes currentId + onNavigate to the sequence nav', () => {
+    expect(animalPage).toMatch(/<RecordSequenceNav[\s\S]*?currentId=\{cattleId\}[\s\S]*?onNavigate=\{navigateSeq\}/);
+  });
+  it('navigateSeq carries the sequence forward', () => {
+    expect(animalPage).toMatch(
+      /navigateSeq[\s\S]*?navigate\('\/cattle\/herds\/' \+ id, recordSeqNavOptions\(recordSeq\)\)/,
+    );
+  });
+  it('cow-to-cow click-through does NOT carry the sequence (controls hide)', () => {
+    // navigateToCow passes only fromCowId/fromCowTag — no recordSeq — so the
+    // related record renders without sequence controls.
+    expect(animalPage).toMatch(/navigateToCow[\s\S]*?state: \{fromCowId: cow\.id, fromCowTag: cow\.tag \|\| cow\.id\}/);
   });
 });
 

@@ -23,6 +23,7 @@ import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
 
 function SheepFlocksRouter(props) {
   const location = useLocation();
@@ -440,7 +441,7 @@ const SheepFlocksHub = ({
                   style={{borderBottom: i < sorted.length - 1 ? '1px solid #f3f4f6' : 'none'}}
                 >
                   <div
-                    onClick={() => navigate('/sheep/flocks/' + s.id)}
+                    onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted))}
                     style={{
                       padding: '10px 16px 10px 0',
                       display: 'grid',
@@ -610,7 +611,7 @@ const SheepFlocksHub = ({
                       return (
                         <div key={s.id} id={'sheep-' + s.id} style={{borderBottom: '1px solid #f3f4f6'}}>
                           <div
-                            onClick={() => navigate('/sheep/flocks/' + s.id)}
+                            onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep))}
                             style={{
                               padding: '10px 18px 10px 0',
                               display: 'grid',

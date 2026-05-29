@@ -33,7 +33,14 @@ describe('SheepFlocksView — no legacy Activity or inline SheepDetail', () => {
     expect(flocksView).not.toContain("from('sheep_comments').select('*')");
   });
   it('navigates to /sheep/flocks/<id> on tile click', () => {
-    expect(flocksView).toContain("navigate('/sheep/flocks/' + s.id)");
+    expect(flocksView).toContain("navigate('/sheep/flocks/' + s.id");
+  });
+  it('passes the visible-order sequence through route state on row click (flat + tile)', () => {
+    // Flat mode hands the sorted order; tile mode hands the per-flock
+    // flockSheep order. Both feed RecordSequenceNav on the record page.
+    expect(flocksView).toContain('recordSeqNavOptions(sorted)');
+    expect(flocksView).toContain('recordSeqNavOptions(flockSheep)');
+    expect(flocksView).toContain("from '../lib/recordSequence.js'");
   });
   it('imports SheepAnimalPage for hub routing', () => {
     expect(flocksView).toContain('SheepAnimalPage');
@@ -111,6 +118,29 @@ describe('SheepAnimalPage — record page title', () => {
   });
   it('has a data-record-title marker', () => {
     expect(animalPage).toContain('data-record-title');
+  });
+});
+
+describe('SheepAnimalPage — record sequence navigation', () => {
+  it('renders the shared RecordSequenceNav', () => {
+    expect(animalPage).toContain("from '../shared/RecordSequenceNav.jsx'");
+    expect(animalPage).toContain('<RecordSequenceNav');
+  });
+  it('reads the sequence from route state', () => {
+    expect(animalPage).toContain('location.state?.recordSeq');
+  });
+  it('passes currentId + onNavigate to the sequence nav', () => {
+    expect(animalPage).toMatch(/<RecordSequenceNav[\s\S]*?currentId=\{sheepId\}[\s\S]*?onNavigate=\{navigateSeq\}/);
+  });
+  it('navigateSeq carries the sequence forward', () => {
+    expect(animalPage).toMatch(
+      /navigateSeq[\s\S]*?navigate\('\/sheep\/flocks\/' \+ id, recordSeqNavOptions\(recordSeq\)\)/,
+    );
+  });
+  it('sheep-to-sheep click-through does NOT carry the sequence (controls hide)', () => {
+    expect(animalPage).toMatch(
+      /navigateToSheep[\s\S]*?state: \{fromSheepId: animal\.id, fromSheepTag: animal\.tag \|\| animal\.id\}/,
+    );
   });
 });
 

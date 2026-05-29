@@ -3,6 +3,8 @@ import {useNavigate, useLocation} from 'react-router-dom';
 import SheepDetail from './SheepDetail.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
@@ -73,6 +75,9 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
   const sheepId = location.pathname.replace('/sheep/flocks/', '');
   const fromSheepId = location.state?.fromSheepId || null;
   const fromSheepTag = location.state?.fromSheepTag || null;
+  // Originating list order (visible rows) handed through route state. Absent on
+  // direct links, notifications, and sheep-to-sheep click-throughs.
+  const recordSeq = location.state?.recordSeq || null;
 
   const [animal, setAnimal] = React.useState(null);
   const [allSheep, setAllSheep] = React.useState([]);
@@ -231,6 +236,12 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
     });
   }
 
+  // Prev/Next within the originating list sequence — carry the sequence
+  // forward so the neighbor record keeps its controls.
+  function navigateSeq(id) {
+    navigate('/sheep/flocks/' + id, recordSeqNavOptions(recordSeq));
+  }
+
   function sheepTagSet(s) {
     const set = new Set();
     if (s && s.tag) set.add(s.tag);
@@ -308,6 +319,8 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
             ← Back to Flocks
           </button>
         </div>
+
+        <RecordSequenceNav seq={recordSeq} currentId={sheepId} onNavigate={navigateSeq} />
 
         <h1
           data-record-title="1"

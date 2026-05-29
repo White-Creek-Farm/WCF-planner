@@ -34,6 +34,7 @@ import {
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 import {softDeleteCattleAnimal} from '../lib/cattleDeleteApi.js';
@@ -1404,7 +1405,7 @@ const CattleHerdsHub = ({
                   style={{borderBottom: i < sortedFlat.length - 1 ? '1px solid #f3f4f6' : 'none'}}
                 >
                   <div
-                    onClick={() => navigate('/cattle/herds/' + c.id)}
+                    onClick={() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(sortedFlat))}
                     style={{
                       padding: '10px 16px 10px 0',
                       display: 'grid',
@@ -1576,7 +1577,7 @@ const CattleHerdsHub = ({
                           style={{borderBottom: '1px solid #f3f4f6'}}
                         >
                           <div
-                            onClick={() => navigate('/cattle/herds/' + c.id)}
+                            onClick={() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(cows))}
                             style={{
                               padding: '10px 18px 10px 0',
                               display: 'grid',
