@@ -3,6 +3,9 @@ import {useNavigate, useLocation} from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {S} from '../lib/styles.js';
 import {toISO, addDays} from '../lib/dateUtils.js';
@@ -52,6 +55,11 @@ export default function LayerBatchPage({
   const navigate = useNavigate();
   const location = useLocation();
   const batchId = location.pathname.slice('/layer/batches/'.length);
+  // Originating list order handed through route state; absent on direct links.
+  const recordSeq = location.state?.recordSeq || null;
+  function navigateSeq(id) {
+    navigate('/layer/batches/' + id, recordSeqNavOptions(recordSeq));
+  }
 
   const role = authState && authState.role;
   const canEdit = role === 'admin' || role === 'management';
@@ -488,6 +496,8 @@ export default function LayerBatchPage({
           </button>
         </div>
 
+        <RecordSequenceNav seq={recordSeq} currentId={batchId} onNavigate={navigateSeq} />
+
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
           <h1 data-record-title="1" style={{fontSize: 24, fontWeight: 700, color: '#111827', margin: 0}}>
             {batch.name}
@@ -833,7 +843,12 @@ export default function LayerBatchPage({
                 <div
                   key={h.id}
                   data-layer-housing-tile={h.id}
-                  onClick={() => navigate('/layer/housings/' + h.id)}
+                  onClick={() =>
+                    navigate(
+                      '/layer/housings/' + h.id,
+                      recordSeqNavOptions(labeledSeqItems(batchHousings, 'housing_name')),
+                    )
+                  }
                   className="hoverable-tile"
                   style={{
                     background: 'white',

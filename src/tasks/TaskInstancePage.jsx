@@ -3,6 +3,9 @@ import {useNavigate, useLocation} from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {
   loadTaskInstanceById,
@@ -35,6 +38,12 @@ export default function TaskInstancePage({sb, authState, Header}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/tasks/', '');
+  // Originating list order handed through route state; absent on direct links,
+  // legacy ?task redirects, and notification deep-links.
+  const recordSeq = location.state?.recordSeq || null;
+  function navigateSeq(id) {
+    navigate('/tasks/' + id, recordSeqNavOptions(recordSeq));
+  }
 
   const [record, setRecord] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -180,6 +189,8 @@ export default function TaskInstancePage({sb, authState, Header}) {
             >
               ← Back to Task Center
             </button>
+
+            <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />
 
             <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 20px'}}>
               <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10}}>

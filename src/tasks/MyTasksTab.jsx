@@ -40,6 +40,7 @@
 
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 import {
   loadOpenTaskInstances,
   loadEligibleProfilesById,
@@ -532,6 +533,16 @@ export default function MyTasksTab({sb, authState}) {
     setExpandedOverride((prev) => ({...prev, [key]: !current}));
   }
 
+  // Visible/rendered order for record sequence nav: My-tasks buckets (overdue →
+  // today → upcoming) then ONLY the expanded other-assignee groups. Collapsed
+  // groups don't render their rows, so they are excluded from the sequence.
+  const taskSeqRows = [
+    ...(mineBuckets.overdue || []),
+    ...(mineBuckets.today || []),
+    ...(mineBuckets.upcoming || []),
+    ...otherGroups.filter((g) => isGroupOpen(g.profileId || '__unassigned__')).flatMap((g) => g.tasks),
+  ];
+
   // Reset the per-group manual overrides when the filter changes so the
   // filter-driven defaults take effect (every match expanded). Pre-existing
   // manual toggles on "all" are wiped intentionally — the filter is a
@@ -562,7 +573,7 @@ export default function MyTasksTab({sb, authState}) {
             onEditDue={setEditDueTarget}
             onAssign={setAssignTarget}
             onDelete={setDeleteTarget}
-            onNavigate={(ti) => navigate('/tasks/' + ti.id)}
+            onNavigate={(ti) => navigate('/tasks/' + ti.id, recordSeqNavOptions(labeledSeqItems(taskSeqRows, 'title')))}
           />
         ))}
       </div>
@@ -679,7 +690,9 @@ export default function MyTasksTab({sb, authState}) {
                             onEditDue={setEditDueTarget}
                             onAssign={setAssignTarget}
                             onDelete={setDeleteTarget}
-                            onNavigate={(ti) => navigate('/tasks/' + ti.id)}
+                            onNavigate={(ti) =>
+                              navigate('/tasks/' + ti.id, recordSeqNavOptions(labeledSeqItems(taskSeqRows, 'title')))
+                            }
                           />
                         ))}
                       </div>

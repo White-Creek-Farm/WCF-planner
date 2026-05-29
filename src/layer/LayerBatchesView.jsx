@@ -8,6 +8,7 @@
 // Activity via RecordCollaborationSection.
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {computeHousingDisplayCount, computeLayerFeedCost} from '../lib/layerHousing.js';
@@ -174,6 +175,8 @@ const LayerBatchesHub = ({
 
   const activeBatches = (layerBatches || []).filter((b) => b.status === 'active');
   const retiredBatches = (layerBatches || []).filter((b) => b.status === 'retired');
+  // Combined visible order (active → retired) for record sequence nav.
+  const batchSeqRows = [...activeBatches, ...retiredBatches];
   const batchColors = [
     {bg: '#ecfdf5', bd: '#a7f3d0', tx: '#065f46'},
     {bg: '#eff6ff', bd: '#bfdbfe', tx: '#1e40af'},
@@ -228,7 +231,9 @@ const LayerBatchesHub = ({
                 <div
                   key={batch.id}
                   data-layer-batch-tile={batch.id}
-                  onClick={() => navigate('/layer/batches/' + batch.id)}
+                  onClick={() =>
+                    navigate('/layer/batches/' + batch.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
+                  }
                   style={{
                     background: 'white',
                     border: '1px solid #e5e7eb',
@@ -350,7 +355,12 @@ const LayerBatchesHub = ({
                     <div
                       key={batch.id}
                       data-layer-batch-tile={batch.id}
-                      onClick={() => navigate('/layer/batches/' + batch.id)}
+                      onClick={() =>
+                        navigate(
+                          '/layer/batches/' + batch.id,
+                          recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')),
+                        )
+                      }
                       style={{
                         background: bi % 2 === 0 ? '#f9fafb' : '#f3f4f6',
                         border: '1px solid #e5e7eb',

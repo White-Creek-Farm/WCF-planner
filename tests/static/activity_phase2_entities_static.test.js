@@ -114,7 +114,7 @@ describe('cattle.processing — migrated to record page', () => {
   });
 
   it('CattleBatchesView navigates to /cattle/batches/<id> for real batches', () => {
-    expect(cattleBatches).toContain("navigate('/cattle/batches/' + b.id)");
+    expect(cattleBatches).toContain("navigate('/cattle/batches/' + b.id");
   });
 
   it('CattleBatchesView has CattleBatchesRouter wrapper', () => {
@@ -145,7 +145,7 @@ describe('sheep.processing — migrated to record page', () => {
   });
 
   it('SheepBatchesView navigates to /sheep/batches/<id> for tile clicks', () => {
-    expect(sheepBatches).toContain("navigate('/sheep/batches/' + b.id)");
+    expect(sheepBatches).toContain("navigate('/sheep/batches/' + b.id");
   });
 
   it('SheepBatchesView has SheepBatchesRouter wrapper', () => {

@@ -20,6 +20,7 @@
 
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 import {
   loadCompletedTaskInstances,
   loadEligibleProfilesById,
@@ -335,6 +336,8 @@ export default function CompletedTab({sb, authState}) {
   const todayStr = todayCentralISO();
   const visibleRows = React.useMemo(() => rows.filter((ti) => matchesCompletedFilter(ti, filter)), [rows, filter]);
   const buckets = React.useMemo(() => bucketByCompletedAt(visibleRows, todayStr), [visibleRows, todayStr]);
+  // Combined visible/rendered order for record sequence nav (today → last 7 → older).
+  const taskSeqRows = [...(buckets.today || []), ...(buckets.lastWeek || []), ...(buckets.older || [])];
 
   function renderBucket(bucketKey, label, dotStyle, bucketRows) {
     if (!bucketRows || bucketRows.length === 0) return null;
@@ -350,7 +353,7 @@ export default function CompletedTab({sb, authState}) {
             ti={ti}
             profilesById={profiles}
             onOpenPhotos={setPhotoTaskTarget}
-            onNavigate={(t) => navigate('/tasks/' + t.id)}
+            onNavigate={(t) => navigate('/tasks/' + t.id, recordSeqNavOptions(labeledSeqItems(taskSeqRows, 'title')))}
           />
         ))}
       </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -125,6 +126,10 @@ const CattleBatchesHub = ({
 
   const active = batches.filter((b) => b.status === 'active');
   const completed = batches.filter((b) => b.status === 'complete');
+  // Visible/rendered order for record sequence nav (scheduled → active → then
+  // processed ONLY when the Show Processed Batches section is expanded).
+  // Virtual/planned forecast tiles are excluded — they don't route.
+  const batchSeqRows = [...scheduledList, ...active, ...(showCompleted ? completed : [])];
 
   return (
     <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -295,7 +300,9 @@ const CattleBatchesHub = ({
                   key={sb2.id}
                   data-scheduled-batch={sb2.name}
                   data-batch-row={sb2.id}
-                  onClick={() => navigate('/cattle/batches/' + sb2.id)}
+                  onClick={() =>
+                    navigate('/cattle/batches/' + sb2.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
+                  }
                   className="hoverable-tile"
                   style={{
                     display: 'flex',
@@ -383,7 +390,9 @@ const CattleBatchesHub = ({
                       data-batch-row={b.id}
                       data-batch-name={b.name}
                       data-batch-status={b.status}
-                      onClick={() => navigate('/cattle/batches/' + b.id)}
+                      onClick={() =>
+                        navigate('/cattle/batches/' + b.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
+                      }
                       className="hoverable-tile"
                       style={{
                         background: 'white',
@@ -459,7 +468,12 @@ const CattleBatchesHub = ({
                         data-batch-row={b.id}
                         data-batch-name={b.name}
                         data-batch-status={b.status}
-                        onClick={() => navigate('/cattle/batches/' + b.id)}
+                        onClick={() =>
+                          navigate(
+                            '/cattle/batches/' + b.id,
+                            recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')),
+                          )
+                        }
                         className="hoverable-tile"
                         style={{
                           background: 'white',

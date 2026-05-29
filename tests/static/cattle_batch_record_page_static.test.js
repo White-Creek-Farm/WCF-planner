@@ -162,10 +162,10 @@ describe('CattleBatchesView — cleaned list view', () => {
     expect(listSrc).toContain('CattleBatchPage');
   });
   it('real batch tiles navigate to /cattle/batches/<id>', () => {
-    expect(listSrc).toContain("navigate('/cattle/batches/' + b.id)");
+    expect(listSrc).toContain("navigate('/cattle/batches/' + b.id");
   });
   it('scheduled batch tiles navigate to /cattle/batches/<id>', () => {
-    expect(listSrc).toContain("navigate('/cattle/batches/' + sb2.id)");
+    expect(listSrc).toContain("'/cattle/batches/' + sb2.id");
   });
   it('does not have expandedBatchId state', () => {
     expect(listSrc).not.toContain('expandedBatchId');

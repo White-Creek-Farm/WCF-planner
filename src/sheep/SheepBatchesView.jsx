@@ -8,6 +8,7 @@
 // record page.
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -106,6 +107,8 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
 
   const planned = batches.filter((b) => (b.status || 'planned') !== 'complete');
   const completed = batches.filter((b) => b.status === 'complete');
+  // Combined visible order (planned → complete) for record sequence nav.
+  const batchSeqRows = [...planned, ...completed];
 
   const inpS = {
     fontSize: 13,
@@ -199,7 +202,14 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             </div>
             <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
               {planned.map((b) => (
-                <BatchTile key={b.id} batch={b} fmt={fmt} onOpen={() => navigate('/sheep/batches/' + b.id)} />
+                <BatchTile
+                  key={b.id}
+                  batch={b}
+                  fmt={fmt}
+                  onOpen={() =>
+                    navigate('/sheep/batches/' + b.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
+                  }
+                />
               ))}
             </div>
           </div>
@@ -221,7 +231,14 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             </div>
             <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
               {completed.map((b) => (
-                <BatchTile key={b.id} batch={b} fmt={fmt} onOpen={() => navigate('/sheep/batches/' + b.id)} />
+                <BatchTile
+                  key={b.id}
+                  batch={b}
+                  fmt={fmt}
+                  onOpen={() =>
+                    navigate('/sheep/batches/' + b.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
+                  }
+                />
               ))}
             </div>
           </div>

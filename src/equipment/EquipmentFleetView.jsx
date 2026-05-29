@@ -63,6 +63,8 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
       .sort((a, b) => (a.name || '').localeCompare(b.name || '')),
   })).filter((g) => g.rows.length > 0);
   const sold = equipment.filter((e) => e.status === 'sold').sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  // Visible/rendered order (category groups, then sold) for record sequence nav.
+  const fleetSeqRows = [...grouped.flatMap((g) => g.rows), ...sold];
 
   const tile = (eq) => {
     const reading = eq.tracking_unit === 'km' ? eq.current_km : eq.current_hours;
@@ -80,7 +82,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
     return (
       <div
         key={eq.id}
-        onClick={() => onOpen(eq.slug)}
+        onClick={() => onOpen(eq.slug, fleetSeqRows)}
         className="hoverable-tile"
         style={{
           background: 'white',
@@ -210,7 +212,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
             {sold.map((eq) => (
               <div
                 key={eq.id}
-                onClick={() => onOpen(eq.slug)}
+                onClick={() => onOpen(eq.slug, fleetSeqRows)}
                 className="hoverable-tile"
                 style={{
                   background: '#f9fafb',

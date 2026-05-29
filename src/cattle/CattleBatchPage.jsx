@@ -3,6 +3,9 @@ import {useNavigate, useLocation} from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
 import {batchHasAllHangingWeights, batchMissingHangingTags, validateRealBatchRename} from '../lib/cattleForecast.js';
@@ -40,6 +43,11 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
     }).catch(() => {});
   }
   const batchId = location.pathname.slice('/cattle/batches/'.length);
+  // Originating list order handed through route state; absent on direct links.
+  const recordSeq = location.state?.recordSeq || null;
+  function navigateSeq(id) {
+    navigate('/cattle/batches/' + id, recordSeqNavOptions(recordSeq));
+  }
 
   const [batch, setBatch] = React.useState(null);
   const [allBatches, setAllBatches] = React.useState([]);
@@ -310,6 +318,8 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
             ← Back to Processing Batches
           </button>
         </div>
+
+        <RecordSequenceNav seq={recordSeq} currentId={batchId} onNavigate={navigateSeq} />
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
           <h1 data-record-title="1" style={{fontSize: 24, fontWeight: 700, color: '#111827', margin: 0}}>

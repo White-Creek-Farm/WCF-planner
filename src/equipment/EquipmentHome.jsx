@@ -17,6 +17,9 @@ import UsersModal from '../auth/UsersModal.jsx';
 import EquipmentFleetView from './EquipmentFleetView.jsx';
 import EquipmentFuelLogView from './EquipmentFuelLogView.jsx';
 import EquipmentDetail from './EquipmentDetail.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
@@ -90,6 +93,12 @@ export default function EquipmentHome({
   const activeEq = detailSlug
     ? equipment.find((e) => e.slug === detailSlug) || equipment.find((e) => e.id === detailSlug)
     : null;
+  // Originating fleet order handed through route state; absent on direct links
+  // and the equipment-tech quick-pick nav. Fleet routes are keyed by slug.
+  const recordSeq = location.state?.recordSeq || null;
+  function navigateSeq(slug) {
+    navigate('/fleet/' + slug, recordSeqNavOptions(recordSeq));
+  }
 
   const subNavBtn = (active) => ({
     padding: '7px 14px',
@@ -213,7 +222,12 @@ export default function EquipmentHome({
             equipment={equipment}
             fuelings={fuelings}
             fmt={fmt}
-            onOpen={(slug) => navigate('/fleet/' + slug)}
+            onOpen={(slug, items) =>
+              navigate(
+                '/fleet/' + slug,
+                items ? recordSeqNavOptions(labeledSeqItems(items, 'name', 'slug')) : undefined,
+              )
+            }
             onReload={loadAll}
           />
         )}
@@ -236,16 +250,19 @@ export default function EquipmentHome({
           <EquipmentFuelLogView equipment={equipment} fuelings={fuelings} fmt={fmt} />
         )}
         {!loading && !missingSchema && subView === 'detail' && activeEq && (
-          <EquipmentDetail
-            sb={sb}
-            fmt={fmt}
-            equipment={activeEq}
-            fuelings={fuelings.filter((f) => f.equipment_id === activeEq.id)}
-            maintenance={maintenance.filter((m) => m.equipment_id === activeEq.id)}
-            authState={authState}
-            isEquipmentTech={isEquipmentTech}
-            onReload={loadAll}
-          />
+          <>
+            <RecordSequenceNav seq={recordSeq} currentId={detailSlug} onNavigate={navigateSeq} />
+            <EquipmentDetail
+              sb={sb}
+              fmt={fmt}
+              equipment={activeEq}
+              fuelings={fuelings.filter((f) => f.equipment_id === activeEq.id)}
+              maintenance={maintenance.filter((m) => m.equipment_id === activeEq.id)}
+              authState={authState}
+              isEquipmentTech={isEquipmentTech}
+              onReload={loadAll}
+            />
+          </>
         )}
         {!loading && !missingSchema && subView === 'detail' && !activeEq && (
           <div

@@ -404,10 +404,13 @@ describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', ()
   });
 
   it('uses group.id as the encoded route identity for tile navigation (via PigBatchHubTile)', () => {
-    expect(viewSrc).toMatch(/navigate\('\/pig\/batches\/' \+ encodeURIComponent\(id\)\)/);
+    expect(viewSrc).toMatch(/navigate\('\/pig\/batches\/' \+ encodeURIComponent\(id\)/);
     // CP6: the hub renders the extracted presentational tile and routes on open
-    // by group.id; the tile carries the data-pig-batch-tile hook.
-    expect(viewSrc).toMatch(/<PigBatchHubTile[\s\S]*?group=\{g\}[\s\S]*?onOpen=\{\(\) => goToBatch\(g\.id\)\}/);
+    // by group.id; the tile carries the data-pig-batch-tile hook. CP3: the open
+    // call also threads the visible hub order for record sequence nav.
+    expect(viewSrc).toMatch(
+      /<PigBatchHubTile[\s\S]*?group=\{g\}[\s\S]*?onOpen=\{\(\) => goToBatch\(g\.id, visiblePigBatches\)\}/,
+    );
     expect(tileSrc).toMatch(/data-pig-batch-tile=\{group\.id\}/);
   });
 
@@ -610,7 +613,7 @@ describe('CP11 — record-page render surface extracted to PigBatchPage', () => 
     // The view delegates the single-batch workspace to PigBatchPage, gated on
     // recordMode && recordGroup, passing the group + the threaded view bundle.
     expect(viewSrc).toMatch(
-      /recordMode && recordGroup && \(?\s*<PigBatchPage\s+group=\{recordGroup\}\s+view=\{pigBatchPageView\}/,
+      /recordMode && recordGroup &&[\s\S]*?<PigBatchPage\s+group=\{recordGroup\}\s+view=\{pigBatchPageView\}/,
     );
   });
 
@@ -661,6 +664,6 @@ describe('CP11 — record-page render surface extracted to PigBatchPage', () => 
   it('the /pig/batches/<id> route contract is unchanged (view still owns routing)', () => {
     expect(viewSrc).toMatch(/import \{useNavigate, useLocation\} from 'react-router-dom'/);
     expect(viewSrc).toMatch(/const recordMode = location\.pathname\.startsWith\('\/pig\/batches\/'\)/);
-    expect(viewSrc).toMatch(/navigate\('\/pig\/batches\/' \+ encodeURIComponent\(id\)\)/);
+    expect(viewSrc).toMatch(/navigate\('\/pig\/batches\/' \+ encodeURIComponent\(id\)/);
   });
 });

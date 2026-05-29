@@ -202,7 +202,7 @@ describe('SheepBatchesView — cleaned list view', () => {
     expect(listSrc).toContain('SheepBatchPage');
   });
   it('real batch tiles navigate to /sheep/batches/<id>', () => {
-    expect(listSrc).toContain("navigate('/sheep/batches/' + b.id)");
+    expect(listSrc).toContain("navigate('/sheep/batches/' + b.id");
   });
   it('new batch save navigates to record page after insert', () => {
     expect(listSrc).toMatch(/saveNewBatch[\s\S]*?navigate\('\/sheep\/batches\/' \+ id\)/);

@@ -30,6 +30,9 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -150,7 +153,17 @@ export default function PigBatchesView({
     }
   }
   const recordGroup = recordMode ? (feederGroups || []).find((g) => g.id === recordId) : null;
-  const goToBatch = (id) => navigate('/pig/batches/' + encodeURIComponent(id));
+  // Originating list order handed through route state; absent on direct links.
+  const recordSeq = location.state?.recordSeq || null;
+  // Visible hub order (active first; processed only when shown). All visible
+  // tiles route to a record page — no virtual/planned rows for pig.
+  const visiblePigBatches = (feederGroups || []).filter((g) => showArchBatches || g.status !== 'processed');
+  const goToBatch = (id, rows) =>
+    navigate(
+      '/pig/batches/' + encodeURIComponent(id),
+      rows ? recordSeqNavOptions(labeledSeqItems(rows, 'batchName')) : undefined,
+    );
+  const navigateSeq = (id) => navigate('/pig/batches/' + encodeURIComponent(id), recordSeqNavOptions(recordSeq));
   const goToHub = () => navigate('/pig/batches');
 
   const statusColors = {active: {bg: '#085041', tx: 'white'}, processed: {bg: '#4b5563', tx: 'white'}};
@@ -1323,47 +1336,50 @@ export default function PigBatchesView({
         {/* Hub: nav-only batch tiles. Clicking a tile opens the record page;
             the full workspace (edit/mortality/sub-batches/trips) renders there. */}
         {!recordMode &&
-          feederGroups
-            .filter((g) => showArchBatches || g.status !== 'processed')
-            .map((g) => {
-              const sc = statusColors[g.status] || statusColors.active;
-              const subs = g.subBatches || [];
-              const latestDailyPigCount =
-                subs.length > 0
-                  ? null
-                  : (() => {
-                      // Same ordering as the record workspace (date desc, then
-                      // submitted_at desc) so the hub tile and record page can't
-                      // disagree on "Current" when a parent-only batch has
-                      // multiple reports on the same date.
-                      const rows = dailysForName(g.batchName);
-                      const sorted = [...rows].sort(
-                        (a, b) =>
-                          (b.date || '').localeCompare(a.date || '') ||
-                          (b.submitted_at || '').localeCompare(a.submitted_at || '') ||
-                          0,
-                      );
-                      return sorted[0]?.pig_count ?? null;
-                    })();
-              const current = computeBatchCurrentCount(g, breeders, {latestDailyPigCount});
-              const started = (parseInt(g.giltCount) || 0) + (parseInt(g.boarCount) || 0);
-              return (
-                <PigBatchHubTile
-                  key={g.id}
-                  group={g}
-                  current={current}
-                  started={started}
-                  statusColor={sc}
-                  onOpen={() => goToBatch(g.id)}
-                />
-              );
-            })}
+          visiblePigBatches.map((g) => {
+            const sc = statusColors[g.status] || statusColors.active;
+            const subs = g.subBatches || [];
+            const latestDailyPigCount =
+              subs.length > 0
+                ? null
+                : (() => {
+                    // Same ordering as the record workspace (date desc, then
+                    // submitted_at desc) so the hub tile and record page can't
+                    // disagree on "Current" when a parent-only batch has
+                    // multiple reports on the same date.
+                    const rows = dailysForName(g.batchName);
+                    const sorted = [...rows].sort(
+                      (a, b) =>
+                        (b.date || '').localeCompare(a.date || '') ||
+                        (b.submitted_at || '').localeCompare(a.submitted_at || '') ||
+                        0,
+                    );
+                    return sorted[0]?.pig_count ?? null;
+                  })();
+            const current = computeBatchCurrentCount(g, breeders, {latestDailyPigCount});
+            const started = (parseInt(g.giltCount) || 0) + (parseInt(g.boarCount) || 0);
+            return (
+              <PigBatchHubTile
+                key={g.id}
+                group={g}
+                current={current}
+                started={started}
+                statusColor={sc}
+                onOpen={() => goToBatch(g.id, visiblePigBatches)}
+              />
+            );
+          })}
 
         {/* Record page: the selected batch's full workspace (one group). The
             card body below is unchanged from the legacy inline render; only its
             source is narrowed to the routed group (processed batches still open
             via direct link). */}
-        {recordMode && recordGroup && <PigBatchPage group={recordGroup} view={pigBatchPageView} />}
+        {recordMode && recordGroup && (
+          <>
+            <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />
+            <PigBatchPage group={recordGroup} view={pigBatchPageView} />
+          </>
+        )}
       </div>
     </div>
   );

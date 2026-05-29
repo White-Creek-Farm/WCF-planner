@@ -89,7 +89,7 @@ describe('LayerBatchPage — record page structure', () => {
 
 describe('LayerBatchPage — housing summaries navigate to /layer/housings/<id>', () => {
   it('housing tiles navigate to /layer/housings/<id>', () => {
-    expect(batchPage).toContain("navigate('/layer/housings/' + h.id)");
+    expect(batchPage).toContain("'/layer/housings/' + h.id");
   });
   it('does not keep housing editing inline (no per-row Edit Housing button on tile)', () => {
     expect(batchPage).not.toMatch(/data-batch-housing-edit/);
@@ -253,7 +253,7 @@ describe('LayerBatchesView — cleaned hub', () => {
     expect(listSrc).toContain("location.pathname.startsWith('/layer/housings/')");
   });
   it('tiles navigate to /layer/batches/<id>', () => {
-    expect(listSrc).toContain("navigate('/layer/batches/' + batch.id)");
+    expect(listSrc).toContain("navigate('/layer/batches/' + batch.id");
   });
   it('no inline selected-batch workspace remains', () => {
     expect(listSrc).not.toContain('selectedBatchId');

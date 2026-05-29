@@ -196,10 +196,10 @@ describe('task deep-link — record-page routing', () => {
   });
 
   it('MyTasksTab row titles navigate to /tasks/<id>', () => {
-    expect(myTasksSrc).toContain("navigate('/tasks/' + ti.id)");
+    expect(myTasksSrc).toContain("navigate('/tasks/' + ti.id");
   });
 
   it('CompletedTab row titles navigate to /tasks/<id>', () => {
-    expect(completedSrc).toContain("navigate('/tasks/' + t.id)");
+    expect(completedSrc).toContain("navigate('/tasks/' + t.id");
   });
 });

@@ -82,7 +82,7 @@ describe('LayerBatchesView — migrated to record pages', () => {
   });
 
   it('tiles navigate to /layer/batches/<id>', () => {
-    expect(viewSrc).toContain("navigate('/layer/batches/' + batch.id)");
+    expect(viewSrc).toContain("navigate('/layer/batches/' + batch.id");
   });
 
   it('activityRegistry routes layer.batch + layer.housing to per-record routes', () => {

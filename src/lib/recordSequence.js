@@ -45,6 +45,20 @@ export function dailySeqItems(rows, suffixField) {
   }));
 }
 
+// Build sequence items for a list whose label is a single record field
+// (batch name, task title, equipment name, housing name, …). idField defaults
+// to 'id' but can be overridden for routes keyed by another field (e.g.
+// equipment routes by slug). Rows without the id field are dropped.
+export function labeledSeqItems(rows, labelField, idField = 'id') {
+  if (!Array.isArray(rows)) return [];
+  const out = [];
+  for (const r of rows) {
+    if (!r || r[idField] == null) continue;
+    out.push({id: r[idField], label: r[labelField] != null ? String(r[labelField]) : null});
+  }
+  return out;
+}
+
 // Pure neighbor lookup. Returns index -1 (caller hides the controls) when
 // there is no reliable sequence: not an array, fewer than 2 entries, or the
 // current id is not present in the sequence.

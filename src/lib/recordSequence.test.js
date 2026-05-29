@@ -1,5 +1,39 @@
 import {describe, it, expect} from 'vitest';
-import {toRecordSeq, recordSeqNavOptions, findSequenceNeighbors, dailySeqItems} from './recordSequence.js';
+import {
+  toRecordSeq,
+  recordSeqNavOptions,
+  findSequenceNeighbors,
+  dailySeqItems,
+  labeledSeqItems,
+} from './recordSequence.js';
+
+describe('labeledSeqItems', () => {
+  it('maps id + the named label field', () => {
+    expect(
+      labeledSeqItems(
+        [
+          {id: 'b1', name: 'B-1'},
+          {id: 'b2', name: 'B-2'},
+        ],
+        'name',
+      ),
+    ).toEqual([
+      {id: 'b1', label: 'B-1'},
+      {id: 'b2', label: 'B-2'},
+    ]);
+  });
+  it('supports a custom id field (e.g. equipment slug routes)', () => {
+    expect(labeledSeqItems([{id: 'uuid-1', slug: 'tractor-a', name: 'Tractor A'}], 'name', 'slug')).toEqual([
+      {id: 'tractor-a', label: 'Tractor A'},
+    ]);
+  });
+  it('drops rows missing the id field and stringifies/nulls the label', () => {
+    expect(labeledSeqItems([{name: 'no-id'}, {id: 'x', name: null}], 'name')).toEqual([{id: 'x', label: null}]);
+  });
+  it('returns [] for non-arrays', () => {
+    expect(labeledSeqItems(null, 'name')).toEqual([]);
+  });
+});
 
 describe('toRecordSeq', () => {
   it('projects rows down to {id, tag}', () => {
