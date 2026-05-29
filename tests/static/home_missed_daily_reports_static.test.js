@@ -9,6 +9,8 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const dashSrc = fs.readFileSync(path.join(ROOT, 'src/dashboard/HomeDashboard.jsx'), 'utf8');
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const pigBatchesSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
+// CP11: the sub-batch form + its no-sub-batch setup copy moved to PigBatchPage.
+const pigBatchPageSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchPage.jsx'), 'utf8');
 
 describe('HomeDashboard — pig breeding stock missed dailys', () => {
   it('destructures breeders from usePig()', () => {
@@ -116,12 +118,14 @@ describe('main.jsx — pig webform active_groups via shared helper (no parent fa
   });
 });
 
-describe('PigBatchesView — no-sub-batch setup copy', () => {
+describe('PigBatchPage — no-sub-batch setup copy', () => {
   it('no longer claims daily reports go directly to the parent batch', () => {
+    // The copy must not regress in either the view or the record page.
     expect(pigBatchesSrc).not.toMatch(/daily reports go directly to this batch/);
+    expect(pigBatchPageSrc).not.toMatch(/daily reports go directly to this batch/);
   });
 
   it('tells the operator daily reports start once a sub-batch is added', () => {
-    expect(pigBatchesSrc).toMatch(/daily reports start once you add a sub-batch/);
+    expect(pigBatchPageSrc).toMatch(/daily reports start once you add a sub-batch/);
   });
 });

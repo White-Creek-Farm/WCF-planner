@@ -10,6 +10,8 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const mig064 = fs.readFileSync(path.join(ROOT, 'supabase-migrations/064_activity_entity_phase2.sql'), 'utf8');
 const registrySrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
 const pigBatches = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
+// CP11: the RecordCollaborationSection mount moved into PigBatchPage.
+const pigBatchPage = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchPage.jsx'), 'utf8');
 const cattleBatches = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleBatchesView.jsx'), 'utf8');
 const cattleBatchPage = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleBatchPage.jsx'), 'utf8');
 const sheepBatches = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepBatchesView.jsx'), 'utf8');
@@ -83,9 +85,9 @@ describe('pig.batch — migrated to record page (CP5)', () => {
     expect(pigBatches).not.toContain('wcf-entity-deep-link');
   });
 
-  it('PigBatchesView uses RecordCollaborationSection for pig.batch Comments + Activity', () => {
-    expect(pigBatches).toContain('RecordCollaborationSection');
-    expect(pigBatches).toContain('entityType="pig.batch"');
+  it('PigBatchPage uses RecordCollaborationSection for pig.batch Comments + Activity', () => {
+    expect(pigBatchPage).toContain('RecordCollaborationSection');
+    expect(pigBatchPage).toContain('entityType="pig.batch"');
   });
 
   it('activityRegistry routes pig.batch to its record page', () => {

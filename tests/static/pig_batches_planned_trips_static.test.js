@@ -29,6 +29,10 @@ const mortalityHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigMortalit
 const subHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigSubBatches.js'), 'utf8');
 const plannedHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigPlannedTrips.js'), 'utf8');
 const procHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigProcessingTrips.js'), 'utf8');
+// CP11: the record-page workspace JSX (card + mortality modal + planned-trip UI +
+// RecordCollaborationSection) lives in PigBatchPage. Record-only assertions read
+// pageSrc; hub-only assertions stay on viewSrc.
+const pageSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchPage.jsx'), 'utf8');
 
 describe('Commit 4a — Global ADG persistence + role gate', () => {
   it('PigBatchesView reads/writes app_store key ppp-pig-global-adg-v1', () => {
@@ -43,13 +47,16 @@ describe('Commit 4a — Global ADG persistence + role gate', () => {
     expect(viewSrc).toMatch(/authState\.role === 'admin' \|\| authState\.role === 'management'/);
   });
 
-  it('imports the four pigForecast pieces commit 4a needs', () => {
-    expect(viewSrc).toMatch(/PLANNED_TRIP_MIN_SIZE/);
-    expect(viewSrc).toMatch(/PLANNED_TRIP_TARGET_WEIGHT_LBS/);
-    expect(viewSrc).toMatch(/PLANNED_TRIP_OVER_WEIGHT_WARN_LBS/);
+  it('imports the four pigForecast pieces commit 4a needs (CP11: split view hub vs record page)', () => {
+    // Hub-side (auto-allocation effect + ADG seed) stays in the view.
     expect(viewSrc).toMatch(/allocatePlannedTrips/);
-    expect(viewSrc).toMatch(/recalculateProjections/);
     expect(viewSrc).toMatch(/seedGlobalADG/);
+    expect(viewSrc).toMatch(/PLANNED_TRIP_TARGET_WEIGHT_LBS/);
+    // Planned-trip card projector pieces moved to the record page.
+    expect(pageSrc).toMatch(/PLANNED_TRIP_MIN_SIZE/);
+    expect(pageSrc).toMatch(/PLANNED_TRIP_TARGET_WEIGHT_LBS/);
+    expect(pageSrc).toMatch(/PLANNED_TRIP_OVER_WEIGHT_WARN_LBS/);
+    expect(pageSrc).toMatch(/recalculateProjections/);
   });
 
   it('does NOT add a "use system estimate" reset button (Codex Q4)', () => {
@@ -167,24 +174,21 @@ describe('Commit 4b — date edit + count move handler hard gates', () => {
     ];
     for (const attr of gatedAttrs) {
       // The attribute should appear inside an {isManager && ...} block.
-      // Loose anchor: look for "isManager" within the 12000 chars preceding
-      // the attribute usage. The Planned trips card body is large enough
-      // that the +Add and Delete affordances sit several thousand chars
-      // after their enclosing gates.
-      const idx = viewSrc.indexOf(attr);
+      // CP11: the planned-trip card JSX lives in PigBatchPage now.
+      const idx = pageSrc.indexOf(attr);
       expect(idx, `expected ${attr} to render in JSX`).toBeGreaterThan(0);
-      const window = viewSrc.slice(Math.max(0, idx - 12000), idx);
+      const window = pageSrc.slice(Math.max(0, idx - 12000), idx);
       expect(window, `expected ${attr} to be gated by isManager`).toMatch(/isManager/);
     }
   });
 
   it('date picker and day steppers autosave without explicit Save/Cancel buttons', () => {
-    expect(viewSrc).toMatch(/data-planned-trip-date-back/);
-    expect(viewSrc).toMatch(/data-planned-trip-date-forward/);
-    expect(viewSrc).toMatch(/shiftPlannedTripDateById\(/);
-    expect(viewSrc).not.toMatch(/data-planned-trip-save-date/);
+    expect(pageSrc).toMatch(/data-planned-trip-date-back/);
+    expect(pageSrc).toMatch(/data-planned-trip-date-forward/);
+    expect(pageSrc).toMatch(/shiftPlannedTripDateById\(/);
+    expect(pageSrc).not.toMatch(/data-planned-trip-save-date/);
 
-    const inputDecl = viewSrc.match(/data-planned-trip-date-input=\{t\.id\}[\s\S]*?\/>/);
+    const inputDecl = pageSrc.match(/data-planned-trip-date-input=\{t\.id\}[\s\S]*?\/>/);
     expect(inputDecl, 'expected planned-trip date input').not.toBeNull();
     expect(inputDecl[0]).toMatch(/onChange=/);
     expect(inputDecl[0]).toMatch(/setPlannedTripDateById\(/);
@@ -313,55 +317,59 @@ describe('Pig planned-trip locks — neighbor mutation guards live in handlers',
 });
 
 describe('Pig planned-trip locks — UI affordances', () => {
+  // CP11: the planned-trip UI affordances render in PigBatchPage now.
   it('locked trip card renders the "Locked by user: <name>" badge', () => {
-    expect(viewSrc).toMatch(/'Locked by user: '\s*\+\s*\(lockEntry\.lockedByName \|\| 'Unknown'\)/);
-    expect(viewSrc).toMatch(/data-planned-trip-locked-by/);
+    expect(pageSrc).toMatch(/'Locked by user: '\s*\+\s*\(lockEntry\.lockedByName \|\| 'Unknown'\)/);
+    expect(pageSrc).toMatch(/data-planned-trip-locked-by/);
   });
 
   it('locked trips hide date / move / delete affordances', () => {
     // The date-controls row is gated on !tripLocked && isManager.
-    expect(viewSrc).toMatch(/\{!tripLocked && isManager && \(\s*<div style=\{\{display: 'inline-flex'/);
+    expect(pageSrc).toMatch(/\{!tripLocked && isManager && \(\s*<div style=\{\{display: 'inline-flex'/);
     // The move + delete row is also gated on !tripLocked.
-    expect(viewSrc).toMatch(/\{!tripLocked && isManager && \(nextSameSex \|\| prevSameSex \|\| canDelete\)/);
+    expect(pageSrc).toMatch(/\{!tripLocked && isManager && \(nextSameSex \|\| prevSameSex \|\| canDelete\)/);
     // The date input only renders when not locked.
-    expect(viewSrc).toMatch(/\{!tripLocked && isEditingDate && \(/);
+    expect(pageSrc).toMatch(/\{!tripLocked && isEditingDate && \(/);
   });
 
   it('admin/management get an inline Lock button on unlocked trips', () => {
-    expect(viewSrc).toMatch(/data-planned-trip-lock=/);
-    expect(viewSrc).toMatch(/onClick=\{\(\) => lockPlannedTrip\(t\.id\)\}/);
+    expect(pageSrc).toMatch(/data-planned-trip-lock=/);
+    expect(pageSrc).toMatch(/onClick=\{\(\) => lockPlannedTrip\(t\.id\)\}/);
   });
 
   it('Unlock uses an inline two-step warning — no window.confirm', () => {
     // The two-step path: Unlock button toggles unlockingTripId; the
     // warning panel renders when unlockingTripId === t.id.
-    expect(viewSrc).toMatch(/data-planned-trip-unlock=/);
-    expect(viewSrc).toMatch(/data-planned-trip-unlock-warning=/);
-    expect(viewSrc).toMatch(/data-planned-trip-unlock-cancel=/);
-    expect(viewSrc).toMatch(/data-planned-trip-unlock-confirm=/);
+    expect(pageSrc).toMatch(/data-planned-trip-unlock=/);
+    expect(pageSrc).toMatch(/data-planned-trip-unlock-warning=/);
+    expect(pageSrc).toMatch(/data-planned-trip-unlock-cancel=/);
+    expect(pageSrc).toMatch(/data-planned-trip-unlock-confirm=/);
     // Exact Codex warning copy. Tolerant of Prettier reflow that may break
     // the JSX text across multiple lines.
-    expect(viewSrc).toMatch(
+    expect(pageSrc).toMatch(
       /This trip has already been scheduled with the processor\.\s+Only unlock if[\s\S]*?rescheduled with the processor\./,
     );
     // No window.confirm anywhere in the unlock path.
-    const unlockBlock = viewSrc.match(/data-planned-trip-unlock-warning[\s\S]*?Confirm unlock[\s\S]*?<\/button>/);
+    const unlockBlock = pageSrc.match(/data-planned-trip-unlock-warning[\s\S]*?Confirm unlock[\s\S]*?<\/button>/);
     expect(unlockBlock, 'expected unlock warning JSX').not.toBeNull();
     expect(unlockBlock[0]).not.toMatch(/window\.confirm/);
   });
 
   it('Add gilt/boar trip buttons disable when the corresponding chain has a locked trip', () => {
-    expect(viewSrc).toMatch(/giltChainLocked\s*=\s*isChainLocked\([\s\S]*?g\.plannedProcessingTrips[\s\S]*?'gilt'/);
-    expect(viewSrc).toMatch(/boarChainLocked\s*=\s*isChainLocked\([\s\S]*?g\.plannedProcessingTrips[\s\S]*?'boar'/);
-    expect(viewSrc).toMatch(/disabled=\{giltChainLocked\}/);
-    expect(viewSrc).toMatch(/disabled=\{boarChainLocked\}/);
+    expect(pageSrc).toMatch(/giltChainLocked\s*=\s*isChainLocked\([\s\S]*?g\.plannedProcessingTrips[\s\S]*?'gilt'/);
+    expect(pageSrc).toMatch(/boarChainLocked\s*=\s*isChainLocked\([\s\S]*?g\.plannedProcessingTrips[\s\S]*?'boar'/);
+    expect(pageSrc).toMatch(/disabled=\{giltChainLocked\}/);
+    expect(pageSrc).toMatch(/disabled=\{boarChainLocked\}/);
   });
 });
 
 describe('CP2 — pig.batch record-page helper extraction (no re-inlining)', () => {
   it('imports current-count ledger helpers from lib/pig.js', () => {
-    expect(viewSrc).toMatch(/computeSubLedgerCurrent/);
-    expect(viewSrc).toMatch(/computeSubCurrentCount/);
+    // CP11: the sub-level ledger helpers moved with the record card to
+    // PigBatchPage. computeBatchCurrentCount stays in the view too (hub tiles).
+    expect(pageSrc).toMatch(/computeSubLedgerCurrent/);
+    expect(pageSrc).toMatch(/computeSubCurrentCount/);
+    expect(pageSrc).toMatch(/computeBatchCurrentCount/);
     expect(viewSrc).toMatch(/computeBatchCurrentCount/);
   });
 
@@ -448,8 +456,9 @@ describe('CP6 — presentational extraction (behavior unchanged)', () => {
   });
 
   it('record page still mounts RecordCollaborationSection with the pig.batch entity contract', () => {
-    expect(viewSrc).toMatch(
-      /<RecordCollaborationSection[\s\S]*?entityType="pig\.batch"[\s\S]*?entityId=\{recordGroup\.id\}[\s\S]*?entityLabel=\{recordGroup\.batchName\}/,
+    // CP11: the RCS mount moved with the card into PigBatchPage (group prop).
+    expect(pageSrc).toMatch(
+      /<RecordCollaborationSection[\s\S]*?entityType="pig\.batch"[\s\S]*?entityId=\{group\.id\}[\s\S]*?entityLabel=\{group\.batchName\}/,
     );
   });
 
@@ -592,5 +601,66 @@ describe('CP10 — processing-trip workflow extracted to usePigProcessingTrips',
     expect(procHookSrc).toContain('Delete this processing trip? This cannot be undone.');
     expect(procHookSrc).toMatch(/\.not\('sent_to_trip_id', 'is', null\)/);
     expect(procHookSrc).toMatch(/from\('weigh_in_sessions'\)/);
+  });
+});
+
+describe('CP11 — record-page render surface extracted to PigBatchPage', () => {
+  it('PigBatchesView imports PigBatchPage and renders it only for recordGroup', () => {
+    expect(viewSrc).toMatch(/import PigBatchPage from '\.\/PigBatchPage\.jsx'/);
+    // The view delegates the single-batch workspace to PigBatchPage, gated on
+    // recordMode && recordGroup, passing the group + the threaded view bundle.
+    expect(viewSrc).toMatch(
+      /recordMode && recordGroup && \(?\s*<PigBatchPage\s+group=\{recordGroup\}\s+view=\{pigBatchPageView\}/,
+    );
+  });
+
+  it('PigBatchPage is a context-consuming component that takes {group, view}', () => {
+    expect(pageSrc).toMatch(/export default function PigBatchPage\(\{group, view\}\)/);
+    // Consumes the shared contexts directly rather than re-threading them.
+    expect(pageSrc).toMatch(/const \{authState\} = useAuth\(\)/);
+    expect(pageSrc).toMatch(/= usePig\(\)/);
+  });
+
+  it('PigBatchPage imports React (the card JSX references React.Fragment)', () => {
+    // eslint treats React as a global under the automatic JSX runtime, so an
+    // explicit React.Fragment with no import compiles + lints clean but throws
+    // ReferenceError at render. Lock the import alongside the usage.
+    expect(pageSrc).toMatch(/import React from 'react'/);
+    expect(pageSrc).toContain('React.Fragment');
+  });
+
+  it('the record-only workspace JSX now lives in PigBatchPage, not the view', () => {
+    // Mortality entry modal moved with the card.
+    expect(pageSrc).toContain('Record Mortality');
+    expect(viewSrc).not.toContain('Record Mortality');
+    // Planned-trip lock affordances moved with the card.
+    expect(pageSrc).toMatch(/data-planned-trip-lock=/);
+    expect(viewSrc).not.toMatch(/data-planned-trip-lock=/);
+    // The RecordCollaborationSection mount moved with the card.
+    expect(pageSrc).toContain('RecordCollaborationSection');
+    expect(viewSrc).not.toContain('RecordCollaborationSection');
+  });
+
+  it('PigBatchesView keeps the hub-only surfaces (Global ADG, Add Batch, archive, hub tile)', () => {
+    expect(viewSrc).toMatch(/['"]ppp-pig-global-adg-v1['"]/); // Global ADG persistence
+    expect(viewSrc).toMatch(/import PigBatchHubTile from '\.\/PigBatchHubTile\.jsx'/);
+    expect(viewSrc).toMatch(/<PigBatchHubTile/);
+    // Archive/unarchive batch handlers stay view-owned and are threaded into the page.
+    expect(viewSrc).toMatch(/archiveBatch/);
+    expect(viewSrc).toMatch(/unarchiveBatch/);
+  });
+
+  it('legacy inline activity surface stays absent from BOTH the view and the page', () => {
+    for (const src of [viewSrc, pageSrc]) {
+      expect(src).not.toContain('ActivityPanel');
+      expect(src).not.toContain('ActivityModal');
+      expect(src).not.toContain('wcf-entity-deep-link');
+    }
+  });
+
+  it('the /pig/batches/<id> route contract is unchanged (view still owns routing)', () => {
+    expect(viewSrc).toMatch(/import \{useNavigate, useLocation\} from 'react-router-dom'/);
+    expect(viewSrc).toMatch(/const recordMode = location\.pathname\.startsWith\('\/pig\/batches\/'\)/);
+    expect(viewSrc).toMatch(/navigate\('\/pig\/batches\/' \+ encodeURIComponent\(id\)\)/);
   });
 });

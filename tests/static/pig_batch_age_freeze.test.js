@@ -24,6 +24,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const src = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
+// CP11: the batch-card render path (latestTripDate + age-freeze conditional)
+// moved into PigBatchPage. The view keeps a calcAgeRange wrapper for the
+// feeder-form modal, so signature assertions stay on `src`; card-render
+// assertions read `pageSrc`.
+const pageSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchPage.jsx'), 'utf8');
 const libSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pig.js'), 'utf8');
 
 describe('PigBatchesView age freeze on processor-trip empty', () => {
@@ -42,12 +47,12 @@ describe('PigBatchesView age freeze on processor-trip empty', () => {
   });
 
   it('batch card derives latestTripDate from trips before computing ageRange', () => {
-    expect(src).toMatch(/const\s+latestTripDate\s*=\s*\n?\s*trips\s*\n?\s*\.map/);
+    expect(pageSrc).toMatch(/const\s+latestTripDate\s*=\s*\n?\s*trips\s*\n?\s*\.map/);
   });
 
   it('batch card freezes ageRange when currentPigCount === 0 AND a trip date exists', () => {
     // Conditional pins the reference to the trip date, otherwise default today.
-    expect(src).toMatch(
+    expect(pageSrc).toMatch(
       /currentPigCount\s*===\s*0\s*&&\s*latestTripDate\s*\n?\s*\?\s*calcAgeRange\(g\.cycleId,\s*new Date\(latestTripDate\s*\+\s*'T12:00:00'\)\)\s*\n?\s*:\s*calcAgeRange\(g\.cycleId\)/,
     );
   });
@@ -56,7 +61,7 @@ describe('PigBatchesView age freeze on processor-trip empty', () => {
     // The condition requires latestTripDate truthy; when trips=[], that's null
     // and calcAgeRange falls through to the default (today). Lock that the
     // freeze branch's && requires both halves, not just the count.
-    const m = src.match(
+    const m = pageSrc.match(
       /currentPigCount\s*===\s*0\s*&&\s*latestTripDate\s*\n?\s*\?\s*calcAgeRange\(g\.cycleId,\s*new Date\(latestTripDate/,
     );
     expect(m).not.toBeNull();
@@ -66,7 +71,7 @@ describe('PigBatchesView age freeze on processor-trip empty', () => {
     // The pre-hotfix call site sat between `tl = ...calcBreedingTimeline...`
     // and `const sc = statusColors...`. Make sure that exact early invocation
     // is gone — leaving it would silently shadow the freeze logic.
-    expect(src).not.toMatch(
+    expect(pageSrc).not.toMatch(
       /const tl = cycle \? calcBreedingTimeline\(cycle\.exposureStart\) : null;\s*\n\s*const ageRange = calcAgeRange\(g\.cycleId\);\s*\n\s*const sc/,
     );
   });

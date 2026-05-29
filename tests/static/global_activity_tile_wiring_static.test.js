@@ -16,6 +16,8 @@ const activityPanel = fs.readFileSync(path.join(ROOT, 'src/shared/ActivityPanel.
 // RecordCollaborationSection — none render inline Activity chips/modal. As of
 // CP5 that includes PigBatchesView (pig.batch was the last inline holdout).
 const pigBatches = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
+// CP11: RecordCollaborationSection mount moved into PigBatchPage.
+const pigBatchPage = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchPage.jsx'), 'utf8');
 
 describe('PigBatchesView — retired legacy Activity surfaces (CP5)', () => {
   it('no longer imports or renders ActivityPanel', () => {
@@ -31,8 +33,8 @@ describe('PigBatchesView — retired legacy Activity surfaces (CP5)', () => {
     expect(pigBatches).not.toContain('wcf-entity-deep-link');
   });
   it('uses RecordCollaborationSection for pig.batch Comments + Activity', () => {
-    expect(pigBatches).toContain('RecordCollaborationSection');
-    expect(pigBatches).toContain('entityType="pig.batch"');
+    expect(pigBatchPage).toContain('RecordCollaborationSection');
+    expect(pigBatchPage).toContain('entityType="pig.batch"');
   });
 });
 
