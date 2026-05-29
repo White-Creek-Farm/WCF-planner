@@ -25,6 +25,7 @@ const viewSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), '
 const forecastSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pigForecast.js'), 'utf8');
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const tileSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchHubTile.jsx'), 'utf8');
+const mortalityHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigMortality.js'), 'utf8');
 
 describe('Commit 4a — Global ADG persistence + role gate', () => {
   it('PigBatchesView reads/writes app_store key ppp-pig-global-adg-v1', () => {
@@ -451,5 +452,30 @@ describe('CP6 — presentational extraction (behavior unchanged)', () => {
     expect(viewSrc).not.toContain('ActivityPanel');
     expect(viewSrc).not.toContain('ActivityModal');
     expect(viewSrc).not.toContain('wcf-entity-deep-link');
+  });
+});
+
+describe('CP7 — mortality workflow extracted to usePigMortality', () => {
+  it('PigBatchesView imports and wires the usePigMortality hook', () => {
+    expect(viewSrc).toMatch(/import \{usePigMortality\} from '\.\/usePigMortality\.js'/);
+    expect(viewSrc).toMatch(/usePigMortality\(\{feederGroups, setFeederGroups, setNotice, authState\}\)/);
+  });
+
+  it('PigBatchesView no longer declares the mortality state/handlers directly', () => {
+    expect(viewSrc).not.toMatch(/const \[mortalityModal, setMortalityModal\] = React\.useState/);
+    expect(viewSrc).not.toMatch(/const \[mortalityForm, setMortalityForm\] = React\.useState/);
+    expect(viewSrc).not.toMatch(/const \[mortalityBusy, setMortalityBusy\] = React\.useState/);
+    expect(viewSrc).not.toMatch(/async function saveMortality\(/);
+    expect(viewSrc).not.toMatch(/async function deleteMortality\(/);
+  });
+
+  it('the hook preserves the ppp-feeders-v1 pigMortalities persisted shape + count guard', () => {
+    expect(mortalityHookSrc).toContain('pigMortalities');
+    expect(mortalityHookSrc).toMatch(/upsert\(\{key: 'ppp-feeders-v1', data: nb\}/);
+    expect(mortalityHookSrc).toMatch(/Number\.isFinite\(count\) \|\| count <= 0/);
+    // Hook is React-context-free: deps passed in explicitly.
+    expect(mortalityHookSrc).toMatch(
+      /export function usePigMortality\(\{feederGroups, setFeederGroups, setNotice, authState\}\)/,
+    );
   });
 });

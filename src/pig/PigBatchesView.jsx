@@ -58,6 +58,7 @@ import {usePig} from '../contexts/PigContext.jsx';
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import PigBatchHubTile from './PigBatchHubTile.jsx';
+import {usePigMortality} from './usePigMortality.js';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 
@@ -591,68 +592,20 @@ export default function PigBatchesView({
   // Stored as feederGroup.pigMortalities = [{id, date, sub_batch_id,
   // sub_batch_name, count, comment, team_member, created_at}]. Pure audit
   // log — current pig count keeps coming from dailys; mortality just
-  // surfaces the death history with attribution.
-  const [mortalityModal, setMortalityModal] = React.useState(null);
-  const [mortalityForm, setMortalityForm] = React.useState({sub_batch_id: '', count: '', comment: ''});
-  const [mortalityBusy, setMortalityBusy] = React.useState(false);
-  const [expandedMortality, setExpandedMortality] = React.useState(null);
-  function openMortalityModal(batchId) {
-    setNotice(null);
-    setMortalityModal({batchId});
-    setMortalityForm({sub_batch_id: '', count: '', comment: ''});
-  }
-  async function saveMortality() {
-    if (!mortalityModal) return;
-    setNotice(null);
-    const count = parseInt(mortalityForm.count);
-    if (!Number.isFinite(count) || count <= 0) {
-      setNotice({kind: 'error', message: 'Enter a count of 1 or more.'});
-      return;
-    }
-    setMortalityBusy(true);
-    const batchId = mortalityModal.batchId;
-    const subId = mortalityForm.sub_batch_id || null;
-    const target = feederGroups.find((g) => g.id === batchId);
-    const subName = subId ? ((target && target.subBatches) || []).find((s) => s.id === subId)?.name || null : null;
-    const entry = {
-      id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
-      date: todayISO(),
-      sub_batch_id: subId,
-      sub_batch_name: subName,
-      count,
-      comment: (mortalityForm.comment || '').trim() || null,
-      team_member: (authState && authState.user && authState.user.email) || 'unknown',
-      created_at: new Date().toISOString(),
-    };
-    const nb = feederGroups.map((g) =>
-      g.id === batchId ? {...g, pigMortalities: [...(g.pigMortalities || []), entry]} : g,
-    );
-    setFeederGroups(nb);
-    try {
-      await sb.from('app_store').upsert({key: 'ppp-feeders-v1', data: nb}, {onConflict: 'key'});
-    } catch (e) {
-      setNotice({kind: 'error', message: 'Save failed: ' + (e.message || 'unknown')});
-      setMortalityBusy(false);
-      return;
-    }
-    setMortalityBusy(false);
-    setMortalityModal(null);
-  }
-  async function deleteMortality(batchId, entryId) {
-    if (!window._wcfConfirmDelete) return;
-    window._wcfConfirmDelete('Delete this mortality entry?', async () => {
-      setNotice(null);
-      const nb = feederGroups.map((g) =>
-        g.id === batchId ? {...g, pigMortalities: (g.pigMortalities || []).filter((m) => m.id !== entryId)} : g,
-      );
-      setFeederGroups(nb);
-      try {
-        await sb.from('app_store').upsert({key: 'ppp-feeders-v1', data: nb}, {onConflict: 'key'});
-      } catch (e) {
-        setNotice({kind: 'error', message: 'Delete failed: ' + (e.message || 'unknown')});
-      }
-    });
-  }
+  // surfaces the death history with attribution. State + handlers live in
+  // usePigMortality (CP7); the modal + mortality-log JSX stay below.
+  const {
+    mortalityModal,
+    setMortalityModal,
+    mortalityForm,
+    setMortalityForm,
+    mortalityBusy,
+    expandedMortality,
+    setExpandedMortality,
+    openMortalityModal,
+    saveMortality,
+    deleteMortality,
+  } = usePigMortality({feederGroups, setFeederGroups, setNotice, authState});
 
   // Match pig_dailys to a name (case-insensitive) — used for both batch and sub-batch matching
   function dailysForName(name) {
