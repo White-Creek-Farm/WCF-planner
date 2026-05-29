@@ -17,6 +17,12 @@ Read order for every new session:
 Do not create extra handoff docs, session indexes, or archive notes unless
 Ronnie explicitly asks.
 
+Ronnie is using VS code for these sessions. CC is in the terminal and Codex is in the Chat window to the right. Ronnie has to copy and paste responses from Codex to CC and vice versa. In the Chat box Codex has the ability to put all reposnce to CC in a 1 click copy text box so Ronnie can make one click to copy and paste to CC. This is efficient. Apparently the terminla side of VS Code does not allow 1 click copy text box so Ronnie has to select all of CC's response and copy it to paste it in the chat to codex.
+
+If CC or Codex have any sugeestion to make this more efficient and reduce Ronnie's key strokes or clicks then suggestions are welcomed.
+
+Pushback is welcomed and encouraged. We want the best most professional build. We want to take the viewpoint of a world class developer and build the most robust logical planner based on logic and best practices. When either CC or Codex pushback they must state why and provide any source data of best practices in that push back.
+
 ## Doc Freeze Rule
 
 During normal build, hotfix, review, and validation lanes, do not edit
@@ -30,17 +36,13 @@ Docs may be updated only when Ronnie explicitly says one of:
 - update `PROJECT.md` / update `HO.md`
 - a specific named doc change
 
-If CC or Codex includes doc changes outside an explicit docs/wrap request,
-Codex must block the commit gate and ask for the docs changes to be removed
-before approval.
 
 ---
 
 ## Roles
 
 Ronnie is product owner and final decision-maker. Ronnie does not run tests,
-migrations, `psql`, deploys, or PROD verification when CC has the access to do
-it.
+migrations, `psql`, deploys, or PROD verification when CC has the access to do it. CC has CLI acces to supabase and must use it for anything that is can be used for.
 
 CC is the primary builder. CC reads the lane context, edits files, runs
 validation, applies approved Supabase work, pushes back on risk, and reports
@@ -69,8 +71,7 @@ Gate approvals may be separate or bundled:
 - If the approval wording is ambiguous, ask one concise clarifying question.
 - Push to `main` implies Netlify production runtime change for code-only lanes,
   but Netlify auto-deploy does not require a separate confirmation loop by
-  default. Check deploy status only when requested, high risk, or evidence
-  suggests failure.
+  default. Codex does not verity push but creates the next build prompt once notified by Ronnie that the push has occured.
 
 Production gates:
 

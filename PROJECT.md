@@ -7,7 +7,7 @@ This file is project-specific truth: current state, active roadmap,
 architecture map, and load-bearing contracts. Workflow, gates, and relay format
 live in [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-05-28.
+Last updated: 2026-05-29.
 
 ---
 
@@ -27,23 +27,26 @@ only when Ronnie explicitly assigns it.
 - Production: `https://wcfplanner.com`
 - Deploy: Netlify auto-deploy from `main`
 - Production source: `origin/main` via Netlify auto-deploy.
-- Latest pushed checkpoint on `origin/main`: `b33e7fe docs: add webform
-  identity roadmap + section for next-session hotfix`.
-- Latest shipped code checkpoint on `origin/main`: `967e1fe feat(broiler):
-  broiler.batch record page at /broiler/batches/<encoded name>`.
+- Latest pushed checkpoint on `origin/main`: pig.batch record-page migration,
+  decomposition, and readiness stabilization are complete per 2026-05-29
+  session relay. Verify exact hashes with `git log` when a lane needs them.
+- Latest shipped code checkpoints this session: pig daily-target hotfix,
+  broiler record-page edit hotfix, pig.batch record page + collaboration,
+  pig.batch hook decomposition, and pig.batch record-page readiness
+  stabilization.
 - Local-only ahead of `origin/main`: none expected.
-- Open gates: none for the record-page/docs wrap. The task notification +
-  weekly email hotfix is planned but not started and will require explicit
-  migration/deploy gates.
+- Open gates: none for the record-page/docs wrap. Public webform submitter
+  completion notices are not a hotfix; they are deferred to the webform-light
+  identity lane because today's public roster has no profile/email recipient.
 - Operational record-page coverage as of this wrap: live for `cattle.animal`,
   `sheep.animal`, all 6 daily report types, `equipment.item`, `task.instance`,
   `weighin.session` for all 4 species, `cattle.processing` at
   `/cattle/batches/<id>`, `sheep.processing` at `/sheep/batches/<id>`,
   `layer.batch` at `/layer/batches/<id>`, `layer.housing` at
   `/layer/housings/<id>`, and `broiler.batch` at
-  `/broiler/batches/<encoded name>`. `pig.batch` is the only legacy inline
-  ActivityPanel batch surface remaining; its record-page migration is
-  deferred to a dedicated lane.
+  `/broiler/batches/<encoded name>`, and `pig.batch` at
+  `/pig/batches/<group id>`. There is no remaining legacy inline ActivityPanel
+  operational record workspace.
   Comment-photos Storage RLS hotfix is live (migration 073).
 - PROD migrations live: `057` notifications, `058` activity events,
   `060` mention contract, `062` activity entity expansion, `063`
@@ -55,7 +58,9 @@ only when Ronnie explicitly assigns it.
   comment-photos Storage RLS.
 - PROD migrations drafted/stashed only: `059_daily_unique_indexes.sql` is not
   applied. `061_daily_report_soft_delete_restore.sql` is superseded by `067`.
-- CI note: verify may be red from known unrelated Playwright flakes. Do not mix
+- CI note: pig.batch cold-start record-page flakes were stabilized with a real
+  `feedersLoaded` readiness signal. If verify is red, investigate the current
+  failure before assuming this old pig race still applies. Do not mix unrelated
   CI-stabilization work into feature lanes.
 
 ### Shipped Checkpoint: Phase 1 Cattle Record Page + Comments Foundation
@@ -218,8 +223,8 @@ What was built:
 | Daily soft-delete + restore | Live. Transactional SECDEF RPCs `soft_delete_daily_report` / `restore_daily_report`. Soft-delete is allowed for any active authenticated role; restore remains admin-only. 6 daily entity types registered. `deleted_at`/`deleted_by` on all 6 daily tables. All read sites filtered. Admin Recently Deleted tab with restore. `record.deleted`/`record.restored` Activity events with human-readable labels. |
 | Cattle soft-delete + restore | Live. Admin-only source-row soft-delete/restore for `cattle.animal` through SECDEF RPCs in migration `069`. Normal cattle reads hide deleted rows; no cattle DELETE policy remains. The herds-page Recently Deleted box was removed; restore remains a backend/admin capability for a future proper recovery surface. |
 | Daily per-record Activity UI | Retired from all 6 authenticated daily views. Daily report record pages now own immediately editable fields, Comments, and collapsed Activity history. |
-| Home missed pig breeding-stock dailys | Live. Home missed-report checks include active SOWS and BOARS breeding-stock groups in addition to pig feeder groups. |
-| Operational Record Pages foundation | Live on `cattle.animal`, `sheep.animal`, all 6 daily report entity types, `equipment.item`, `task.instance`, `weighin.session` for all 4 species, and `cattle.processing` at `/cattle/batches/<id>`. Site-wide standard is dedicated pages for operational records. Tiles/lists are clean summaries only. Record pages own fields, editing, Comments, attachments, Activity log, edit history, and future related tools. Remaining batch/processing pages (sheep, pig, broiler, layer) deferred for identity/workflow design. |
+| Pig daily-target hotfix | Live. Pig feeder daily targets now come only from active sub-batches of active feeder groups. Parent feeder batches with zero sub-batches no longer appear in Daily Report webform active groups or Home missed-report notifications. SOWS/BOARS breeding-stock missed logic remains active. |
+| Operational Record Pages foundation | Live on `cattle.animal`, `sheep.animal`, all 6 daily report entity types, `equipment.item`, `task.instance`, `weighin.session` for all 4 species, `cattle.processing`, `sheep.processing`, `layer.batch`, `layer.housing`, `broiler.batch`, and `pig.batch`. Site-wide standard is dedicated pages for operational records. Tiles/lists are clean summaries only. Record pages own fields, editing, Comments, attachments, Activity log, edit history, and future related tools. |
 | Cattle processing batch record pages | Live at `/cattle/batches/<id>` for scheduled/active/complete rows. Virtual planned batches remain list-only. CommentsSection + RecordActivityLog. Complete batch weights are mobile-legible and read-only until reopened; active records use blur-save name editing with no Save Name button. Unschedule Activity deferred pending soft-delete strategy. ActivityPanel/ActivityModal retired from the list view. |
 | Comment-photos Storage RLS | Live. Migration 073 adds authenticated INSERT + SELECT policies on `storage.objects` for the `comment-photos` bucket. Fixes "new row violates row-level security policy" on comment photo attachments. |
 | Animal transfer handler hardening | Live. Cattle/sheep animal transfer handlers now check primary animal update errors before writing transfer audit rows, surface warning notices when audit insert fails after a successful move, and no-op when destination matches the current herd/flock. |
@@ -231,11 +236,13 @@ What was built:
 | Hamburger cleanup | Live. Hamburger has Home, Activity, Webforms: Dailys/Equipment, Admin/Users, Sign Out. |
 | Home farrow window wording | Live. Misleading `N pending` text removed from Home Next 30 Days farrowing windows. |
 | Tasks v2 | Canonical at `/tasks`; old `/my-tasks` and `/admin/tasks` are aliases. |
-| RecordCollaborationSection | Live. Shared `src/shared/RecordCollaborationSection.jsx` composes `CommentsSection` + `RecordActivityLog` for one operational entity. 12 migrated record pages (cattle/sheep animal, all 6 daily report pages, equipment, task, weigh-in-session, cattle processing batch) now mount the composite instead of importing both children directly. Spacing prop preserves prior layout (16 default, 0 on equipment/task). |
+| RecordCollaborationSection | Live. Shared `src/shared/RecordCollaborationSection.jsx` composes `CommentsSection` + `RecordActivityLog` for one operational entity. Migrated operational record pages mount the composite instead of importing both children directly, including animals, dailys, equipment, tasks, weigh-in sessions, cattle/sheep processing, layer batch/housing, broiler batch, and pig batch. Spacing prop preserves prior layout (16 default, 0 on equipment/task). |
 | Sheep processing batch record page | Live at `/sheep/batches/<id>`. `SheepBatchesView` is a navigation-only hub + router; the record page owns metadata edit (blur-save with field.updated Activity), per-sheep weight rows, detach via `detachSheepFromBatch`, and hard delete with the detach loop. Blocked-detach warnings hand off via navigation state so the hub re-surfaces them after navigate. `pinnedId` survives rename. Existing send-to-processor Playwright coverage (13 tests) intact. |
 | LayerBatchStats helper | Live. `src/layer/layerBatchStats.js` extracts `HOUSING_CAPS`, `getHousingCap`, `inRange`, `calcPhaseFromAge`, `computeBatchStats`, `computeHousingStats` as pure helpers. `LayerBatchesView` calls them instead of re-inlining stat derivation; later layer.batch + layer.housing record-page migrations reuse the same helpers. Feed phase thresholds (21 day STARTER→GROWER, 140 day GROWER→LAYER) and housing active/retired date filtering preserved verbatim. |
 | Layer batch + housing record pages | Live at `/layer/batches/<id>` and `/layer/housings/<id>`. `LayerBatchesView` is hub + router. `LayerBatchPage` owns metadata edit (autosave brooder/schooner with conflict detection, feed cost rates, notes field.updated Activity, Delete Batch with housings cascade) and renders housings as nav-only tiles. `LayerHousingPage` owns metadata edit + Retire (via `window._wcfConfirm`). `setLayerHousings` calls pass concrete arrays so `persistLayerHousings` + `syncWebformConfig` keep `housing_batch_map` / `full_config` in sync. |
-| Broiler batch record page | Live at `/broiler/batches/<encoded name>` on `origin/main` via `967e1fe`. `BroilerListView` is hub + router; row/card/timeline clicks navigate to the record page. `BroilerBatchPage` mounts `BatchForm` in embedded mode (Header skipped, modal overlay dropped) with `onClose` / `onNavigatePrev` / `onNavigateNext` overrides that drive URL navigation. `submit()` returns true/false; `closeForm()` propagates; `handleClose` guards `navigate()` so refused saves (blank name / hard conflict without override) keep the form open with `formNotice` instead of silently abandoning the user's edit. `pinnedId` + a URL-sync `navigate.replace` keep rename survival working; dirty form state cannot unmount BatchForm or replay `openEdit`. broiler.batch identity stays `batch.name` to preserve the existing Activity entityId contract; routes use `encodeURIComponent`. ActivityPanel/ActivityModal/wcf-entity-deep-link retired from BroilerListView. pig.batch remains the sole legacy inline batch ActivityPanel surface. |
+| Broiler batch record page | Live at `/broiler/batches/<encoded name>`. `BroilerListView` is hub + router; row/card/timeline clicks navigate to the record page. `BroilerBatchPage` mounts `BatchForm` in embedded mode (Header skipped, modal overlay dropped) with `onClose` / `onNavigatePrev` / `onNavigateNext` overrides that drive URL navigation. `submit()` returns true/false; `closeForm()` propagates; `handleClose` guards `navigate()` so refused saves (blank name / hard conflict without override) keep the form open with `formNotice` instead of silently abandoning the user's edit. `pinnedId` + a URL-sync `navigate.replace` keep rename survival working; dirty form state cannot unmount BatchForm or replay `openEdit`. broiler.batch identity stays `batch.name` to preserve the existing Activity entityId contract; routes use `encodeURIComponent`. ActivityPanel/ActivityModal/wcf-entity-deep-link retired from BroilerListView. 2026-05-29 hotfix restored record-page editability by forwarding `upd`, `closeForm`, `submit`, and `parseProcessorXlsx` through `BroilerListView` to `BroilerBatchPage` / `BatchForm`. |
+| Pig batch record page | Live at `/pig/batches/<group id>`. `/pig/batches` is a nav-only hub with Global ADG, Add Batch, archive toggle, and `PigBatchHubTile`; the record page owns the single-batch workspace, metadata edit, sub-batches, mortality, planned trips + locks, processing trips + FCR cache, forecast/current/FCR display, send-to-trip source display, and `RecordCollaborationSection` for `pig.batch`. ActivityPanel/ActivityModal/wcf-entity-deep-link retired for pig.batch. Workflows were split into `usePigMortality`, `usePigSubBatches`, `usePigPlannedTrips`, `usePigProcessingTrips`, and `PigBatchPage`. |
+| Pig batch readiness stabilization | Live. `PigContext.feedersLoaded` is the real readiness signal for pig hub/record pages. `loadAllData()` resolves it in the same run as feeder app_store load, including success-with-data, success-empty, returned `{error}`, hard catch, and loadUser catch; SIGNED_OUT resets it. `PigBatchesView` exposes `data-pig-feeders-loaded` and gates Loading/not-found on `feedersLoaded`, fixing the cold-start record-page race and the empty-farm Loading-forever edge. Pig Playwright specs wait via `tests/helpers/pigReady.js`. |
 
 ### Parked WIP Stash
 
@@ -252,9 +259,9 @@ superseded stashes were audited and dropped during stash hygiene.
 1. Codebase hardening and cleanup - remove deprecated patterns as each entity
    migrates, classify legacy/import/test-only code, and reduce context burn for
    future sessions.
-2. Record Page migration plan - migrate remaining operational entities to the
-   same dedicated record-page pattern in phases; no new Activity bubbles,
-   inline record workspaces, or modal-based record workspaces.
+2. Record Page foundation stewardship - keep operational entities on the
+   dedicated record-page pattern; no new Activity bubbles, inline record
+   workspaces, or modal-based record workspaces.
 3. Record-page sequence navigation - add Podio-style previous/next record
    arrows to record pages. Navigation must follow the originating view/list
    order, show the neighboring record labels, and hide or disable safely for
@@ -272,10 +279,11 @@ superseded stashes were audited and dropped during stash hygiene.
    direct / `runMutation` / SECDEF per entity risk.
 9. Shared UI extraction - extract filter bar, summary row, loading/empty/error
    patterns from views that repeat them 3+ times.
-10. Deferred: webform-light user identities - replace anonymous employee
-   dropdown submitter fields with lightweight authenticated identities for
-   public-style webforms. Submitter/requester identity should be hardcoded
-   from the user, and access can be disabled when an employee leaves.
+10. Deferred: webform-light user identities - replace anonymous public
+   webform submitter fields with lightweight authenticated field users.
+   Submitter/requester identity should come from the logged-in user, access
+   can be disabled when an employee leaves, and light users should get the
+   read-only field portal scope defined below.
 11. Deferred: code-splitting - only when field-device measurements or
    operator pain justify it.
 12. Deferred: TypeScript - gradual `allowJs` + JSDoc approach if/when
@@ -332,11 +340,34 @@ Current public webforms remain no-auth where documented. Do not break existing
 field workflows or make public routes require login as incidental scope in
 unrelated lanes.
 
-Longer-term direction: add lightweight webform identities for employees who
-only need public-style submission access, not the full authenticated planner
-app. Once that exists, webforms should hardcode submitter/requester identity
-from the logged-in lightweight user instead of asking the operator to choose an
-employee name from a dropdown.
+2026-05-29 product decision: notifying a public task submitter when the task is
+completed is deferred to this identity lane. It is not a hotfix. Today's public
+Task webform only stores a roster display name (`team_roster` entries are
+random IDs + names, not profile IDs, and names are not unique) and collects no
+email address. Do not name-match roster entries to profiles, do not add a
+requester column that nothing can deliver to, and do not build an interim
+requester-email lane unless Ronnie explicitly reopens that product direction.
+
+Longer-term direction: add lightweight authenticated identities for employees
+who need field access without the full planner/admin surface. Once that exists,
+webforms should hardcode submitter/requester identity from the logged-in
+lightweight user instead of asking the operator to choose an employee name from
+a dropdown. As the lane rolls out, public webforms should be retired rather than
+kept as a parallel primary path.
+
+Light user access model:
+
+- Authenticated, profile-backed users, distinct from public anonymous form
+  visitors.
+- Read-only access to all submitted webform results, including all daily
+  reports for all programs and all equipment fueling/checklist submissions.
+- Able to participate in tasks as real requester/submitter/assignee profiles
+  once tasks move through the identity-backed path.
+- No management/admin edit access by default; write access should be limited
+  to the field submission/task flows explicitly designed for light users.
+- Homepage should be a field portal, not the full planner dashboard: tasks
+  relevant to the user plus read-only webform result views, with no hidden
+  reliance on public URLs.
 
 Expected end state:
 
@@ -567,8 +598,8 @@ record-page foundation.
 | pig.daily | UUID | date + batch_label | `pig_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
 | cattle.daily | UUID | date + herd | `cattle_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
 | sheep.daily | UUID | date + flock | `sheep_dailys` | direct | soft (SECDEF) | Live | comments + deleted/restored events |
-| broiler.batch | name (string) | batch name | `app_store` ppp-v4 | direct (upsert) | TBD | Live at `/broiler/batches/<encoded name>` via `967e1fe`; BatchForm mounts in embedded mode under BroilerBatchPage; identity still batch.name (preserves Activity entityId contract) | partial - delete unlogged; routine field.updated via BatchForm's notes-change wiring |
-| pig.batch | group id | batchName | `app_store` ppp-feeders-v1 | direct (upsert) | TBD | Planned batch phase; sole remaining legacy inline ActivityPanel batch surface | partial |
+| broiler.batch | name (string) | batch name | `app_store` ppp-v4 | direct (upsert) | TBD | Live at `/broiler/batches/<encoded name>`; BatchForm mounts in embedded mode under BroilerBatchPage; identity still batch.name (preserves Activity entityId contract); 2026-05-29 prop-forwarding hotfix restored record-page editing | partial - delete unlogged; routine field.updated via BatchForm's notes-change wiring |
+| pig.batch | group id | batchName | `app_store` ppp-feeders-v1 | direct (upsert) | TBD | Live at `/pig/batches/<group id>`; `/pig/batches` is nav-only hub; PigBatchPage owns metadata, sub-batches, mortality, planned trips, processing trips, forecast/FCR, Comments + Activity | comments + collapsed Activity; routine field.updated coverage still partial/direct-client |
 | layer.batch | UUID | name | `layer_batches` | direct | hard-cascade (housings) | Live at `/layer/batches/<id>`; BatchForm-style metadata edit modal + housings nav tiles + Add Housing helper | comments + routine field.updated for notes + status.changed on save |
 | layer.housing | UUID | housing_name | `layer_housings` | direct | hard (via batch cascade) | Live at `/layer/housings/<id>`; metadata edit + Retire via `_wcfConfirm` | comments + routine field.updated on metadata edit |
 | cattle.animal | UUID | tag | `cattle` | direct + `runMutation` + SECDEF delete/restore | soft (SECDEF, admin-only) | Live | comments + routine field.updated + deleted/restored events |
@@ -595,7 +626,7 @@ record-page foundation.
 | fuel_bills | `fuel_bills` | admin | N/A admin/config | TBD | |
 | fuel_supplies | `fuel_supplies` | admin | N/A admin/config | TBD | |
 
-### app_store JSON - No Stable Per-Record ID
+### app_store JSON - Identity Notes
 
 | Key | Domain | Notes |
 |---|---|---|
@@ -609,19 +640,21 @@ record-page foundation.
 | `ppp-pig-feed-inventory-v1` | pig feed inventory | no per-record stable ID |
 | `ppp-poultry-feed-inventory-v1` | poultry feed inventory | no per-record stable ID |
 
-Entities without stable per-record IDs cannot participate in Activity,
-deep-links, or per-record audit trails until identity decisions are made.
+App-store entities without stable per-record IDs cannot participate in
+Activity, deep-links, or per-record audit trails until identity decisions are
+made. `pig.batch` now uses feeder group `id`; `broiler.batch` intentionally
+continues to use `batch.name` for entity identity to preserve its existing
+Activity contract.
 
 ### Operational Record Page Migration Plan
 
 Phase 1 (`cattle.animal`), Phase 2A (`sheep.animal`), Phase 2B (all six
 daily report entity types), equipment/task, `weighin.session` for
 cattle/sheep/pig/broiler, `cattle.processing`, `sheep.processing`,
-`layer.batch`, `layer.housing`, and `broiler.batch` are live. They
+`layer.batch`, `layer.housing`, `broiler.batch`, and `pig.batch` are live. They
 replaced inline/list-page primary record workspaces with dedicated
-record pages and reusable Comments/Activity foundation. `pig.batch` is
-the only operational entity still using the legacy inline ActivityPanel
-workspace.
+record pages and reusable Comments/Activity foundation. No operational record
+type should add or expand the legacy inline ActivityPanel pattern.
 
 Operational entity types with record pages:
 `cattle.animal`, `sheep.animal`, all 6 daily report entity types,
@@ -629,7 +662,8 @@ Operational entity types with record pages:
 `cattle.processing` at `/cattle/batches/<id>`, `sheep.processing` at
 `/sheep/batches/<id>`, `layer.batch` at `/layer/batches/<id>`,
 `layer.housing` at `/layer/housings/<id>`, and `broiler.batch` at
-`/broiler/batches/<encoded name>`.
+`/broiler/batches/<encoded name>`, and `pig.batch` at
+`/pig/batches/<group id>`.
 
 Planned rollout order:
 
@@ -637,7 +671,7 @@ Planned rollout order:
    `layer.daily`, `egg.daily`, `pig.daily`, `cattle.daily`, `sheep.daily`,
    `equipment.item`, `task.instance`, `weighin.session` for all species,
    `cattle.processing`, `sheep.processing`, `layer.batch`, `layer.housing`,
-   and `broiler.batch`.
+   `broiler.batch`, and `pig.batch`.
 2. Shared record-page shell / contracts - extract only what is proven from
    shipped record pages: header/back/title/loading/not-found conventions,
    Comments placement, collapsed Activity audit log placement, and
@@ -649,21 +683,15 @@ Planned rollout order:
    comes from the originating hub/list/table's current order and must display
    neighbor labels. Direct opens and notification deep-links hide or disable
    the controls unless a safe default entity order exists.
-4. Remaining batch/processing record page - `pig.batch` is the last legacy
-   app-store inline ActivityPanel workspace. Migration deferred to a
-   dedicated lane (PigBatchesView is ~3860 LOC with planned-trip locks, FCR
-   cache, send-to-trip attribution, mortality/sub-batches/archive paths
-   that must be split carefully). Build this migration before changing
-   farrowing-driven batch creation rules. Virtual planned batches and
-   app-store records must not be forced into the animal/daily pattern
-   prematurely.
-5. Farrowing-created pig batches - after the `pig.batch` record page exists,
+4. Farrowing-created pig batches - now that the `pig.batch` record page exists,
    remove the generic `/pig/batches` Add Batch path for normal farm-born
    batches. The first farrowing record for a breeding cycle should
    idempotently create the linked pig batch, hard-link the breeding cycle,
    and keep the cycle fixed afterward. Existing manually linked batches must
    be preserved and not duplicated.
-6. Custom editable-table Activity - after record pages exist, add table-scoped
+   Virtual planned batches and app-store records must not be forced into the
+   animal/daily pattern prematurely.
+5. Custom editable-table Activity - after record pages exist, add table-scoped
    audit/history for forecast/feed/breeding workflows. First target should be
    cattle forecast month hide/unhide.
 
@@ -701,11 +729,13 @@ These are hardening priorities, not reasons to rewrite.
   Activity RPC fails, the data change is already committed. Audit-critical
   paths need transactional SECDEF RPCs/triggers.
 - `app_store` JSON entities need stable per-record IDs before they can
-  participate in Activity, deep-links, and per-record audit trails.
+  participate in Activity, deep-links, and per-record audit trails. Pig feeder
+  groups now have `pig.batch` record identity via `group.id`; broiler batches
+  deliberately keep `batch.name` identity for compatibility.
 - Legacy Activity comments currently live inside `activity_events` and are
-  displayed through compact chips / ActivityModal on migrated surfaces. The new
-  foundation separates Comments from Activity and retires those UI patterns
-  entity by entity.
+  legacy audit/comment data, not the pattern for new record pages. The new
+  foundation separates Comments from Activity and the migrated operational
+  record pages have retired compact Activity chips / ActivityModal.
 - Deprecated UI paths and compatibility code will accumulate unless each
   record-page migration removes the old path it replaces. Cleanup is part of
   each migration lane, not optional polish.
@@ -761,6 +791,10 @@ These are hardening priorities, not reasons to rewrite.
   soft-delete placeholders, and visible edit history.
 - Admins can view deleted comment contents/history for audit. Normal users see
   `Comment deleted`.
+- Public Task webform submitter completion notices are deferred to the
+  webform-light identity lane. Do not name-match `team_roster` display names to
+  profiles, and do not build requester/contact fields that have no deliverable
+  recipient path unless Ronnie explicitly approves a new interim feature lane.
 - Activity Layer change/lifecycle events go through `record_activity_event`,
   use `_activity_can_write`, and avoid notification fanout unless explicitly
   requested.
@@ -1103,19 +1137,35 @@ Read the relevant contract before editing its files.
   discussion to `CommentsSection`, keep Activity as collapsed audit history,
   retire daily Activity chips/modal UI, and open directly editable without a
   separate edit-mode button.
-- Home missed-report logic includes pig feeder groups plus active SOWS/BOARS
-  breeding-stock groups derived from non-archived pig breeders.
+- Pig feeder daily targets come only from active sub-batches of active feeder
+  groups. A parent feeder batch with zero sub-batches must not appear in the
+  Daily Report webform active_groups or Home missed-report notifications.
+- Home missed-report logic also includes active SOWS/BOARS breeding-stock
+  groups derived from non-archived pig breeders.
 
 ### Pig
 
 - Feeder group started counts are authoritative.
 - Current count is ledger-derived, not persisted `currentCount`.
-- `pig.batch` record-page migration comes before changing farrowing-created
-  batch behavior. Once the record page exists, normal farm-born pig batches
-  should be created from the first farrowing record for a breeding cycle, not
-  from a generic `/pig/batches` Add Batch button. The generated batch must
-  store the breeding-cycle identity and keep it fixed; existing linked batches
-  should be detected and reused.
+- `pig.batch` record pages are live at `/pig/batches/<group id>`. The hub at
+  `/pig/batches` is navigation-only plus Global ADG, Add Batch, archived
+  toggle, and batch tiles. The record page owns metadata, sub-batches,
+  mortality, planned trips + locks, processing trips, forecast/current/FCR
+  display, send-to-trip source display, Comments, and collapsed Activity.
+- Pig batch workflows are intentionally split into `PigBatchPage`,
+  `PigBatchHubTile`, `usePigMortality`, `usePigSubBatches`,
+  `usePigPlannedTrips`, and `usePigProcessingTrips`; do not re-inline these
+  workflows into `PigBatchesView`.
+- `PigContext.feedersLoaded` is the readiness boundary for pig hub/record
+  pages. `PigBatchesView` exposes `data-pig-feeders-loaded`; pig Playwright
+  specs should wait via `tests/helpers/pigReady.js`, not `#wcf-boot-loader`.
+- Normal farm-born pig batches should be created from the first farrowing
+  record for a breeding cycle, not from a generic `/pig/batches` Add Batch
+  button. The generated batch must store the breeding-cycle identity and keep
+  it fixed; existing linked batches should be detected and reused. Add Batch
+  remains for manual/admin cases until that lane is built.
+- Global ADG is farm-wide and stays on the hub or a future pig settings
+  surface; do not duplicate it onto each pig batch record page.
 - Planned-trip row shape stays exactly:
   `{id, date, sex, subBatchId, plannedCount, order}`.
 - Lock state lives only in `ppp-pig-planned-trip-locks-v1`.
