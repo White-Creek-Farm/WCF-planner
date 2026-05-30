@@ -27,16 +27,22 @@ only when Ronnie explicitly assigns it.
 - Production: `https://wcfplanner.com`
 - Deploy: Netlify auto-deploy from `main`
 - Production source: `origin/main` via Netlify auto-deploy.
-- Latest pushed checkpoint on `origin/main`: `b848b4c`
-  `feat(pig): create farm-born batches from the first farrowing record (CP1)`.
-  Verify exact hashes with `git log` when a lane needs them.
+- Latest shipped code/test checkpoint on `origin/main`: `34ba80a`
+  `test(cattle): make forecast seed idempotent`. Cold-Boot Readiness CP1 is the
+  prior checkpoint `a84a8d3`. This excludes the eventual docs-wrap commit;
+  verify exact hashes with `git log` when a lane needs them.
 - Latest shipped code checkpoints this session: legacy ActivityModal /
   ActivityPanel composer retirement from the global Activity Log, record-page
-  sequence navigation CP1-CP4, and pig farrowing-created batch CP1.
+  sequence navigation CP1-CP4, pig farrowing-created batch CP1, Cold-Boot
+  Readiness CP1 (Cattle Forecast self-healing load), and the cattle_forecast
+  E2E seed-flake stabilization.
 - Local-only ahead of `origin/main`: none expected.
 - Open gates: none for the session wrap. Public webform submitter
   completion notices are not a hotfix; they are deferred to the webform-light
   identity lane because today's public roster has no profile/email recipient.
+- Next-session queue: no paused build lane. Start from the Active Roadmap and
+  Ronnie's chosen priority. Do not treat Cold-Boot CP2 ideas or suite-wide seed
+  idempotency as active scope until Ronnie selects that lane.
 - Operational record-page coverage as of this wrap: live for `cattle.animal`,
   `sheep.animal`, all 6 daily report types, `equipment.item`, `task.instance`,
   `weighin.session` for all 4 species, `cattle.processing` at
@@ -250,6 +256,8 @@ What was built:
 | Pig batch record page | Live at `/pig/batches/<group id>`. `/pig/batches` is a nav-only hub with Global ADG, Add Manual Batch, archive toggle, and `PigBatchHubTile`; the record page owns the single-batch workspace, metadata edit, sub-batches, mortality, planned trips + locks, processing trips + FCR cache, forecast/current/FCR display, send-to-trip source display, sequence navigation, and `RecordCollaborationSection` for `pig.batch`. ActivityPanel/ActivityModal/wcf-entity-deep-link retired for pig.batch. Workflows were split into `usePigMortality`, `usePigSubBatches`, `usePigPlannedTrips`, `usePigProcessingTrips`, and `PigBatchPage`. |
 | Pig batch readiness stabilization | Live. `PigContext.feedersLoaded` is the real readiness signal for pig hub/record pages. `loadAllData()` resolves it in the same run as feeder app_store load, including success-with-data, success-empty, returned `{error}`, hard catch, and loadUser catch; SIGNED_OUT resets it. `PigBatchesView` exposes `data-pig-feeders-loaded` and gates Loading/not-found on `feedersLoaded`, fixing the cold-start record-page race and the empty-farm Loading-forever edge. Pig Playwright specs wait via `tests/helpers/pigReady.js`. |
 | Farrowing-created pig batches | Live CP1. Saving the first farrowing record for a breeding cycle creates one `ppp-feeders-v1` farm-born `pig.batch` with deterministic id `farrowing-cycle-<cycle.id>`, `cycleId`, `farmBorn:true`, neutral `originalPigCount` from alive piglets, no fake gilt/boar split, and `startDate` from the earliest cycle farrowing date. Existing cycle-linked batches are reused untouched; later farrowing records do not duplicate or overwrite; delete/edit-away does not remove the batch. |
+| Cold-Boot Readiness CP1 (Cattle Forecast) | Live (`a84a8d3`). `CattleForecastView` self-heals a cold-boot data load instead of relying on test-side reloads. The mount-once load is split into `fetchForecastInputs` (throws on any helper failure OR any direct PostgREST response error from the six `cattle*` reads) + `applyForecastInputs`, run under bounded recovery (backoffs `[350, 800]`): an empty `cattle` spine or a thrown/errored read keeps the spinner up, drops any poisoned weigh-in cache, and re-fetches, then settles into data, a legit empty farm, or a recoverable `InlineNotice` — the page never strands on Loading. `loadAll` stays single-shot for the heifer modal. Empty-farm cost is a bounded one-time ~1.15s. Known gap: recovery keys on the `cattle` spine only; a raced empty weigh-ins read (cattle present, 0 finish candidates) is not yet covered (CP2 candidate). |
+| Cattle Forecast E2E seed-flake fix | Live (`34ba80a`, test-only). Full `tests/cattle_forecast.spec.js` intermittently failed at the seed's `cattle.insert` with `duplicate key "cattle_pkey"`. Root cause: Playwright spawns a fresh worker after any test failure, and that handoff races the shared single test DB — a dying worker's in-flight `cattle` insert lands after the new worker's TRUNCATE (verified `count=0` post-reset), so the next seed collides; this cascaded across restarts. Fix: fixed-id seed rows in `tests/scenarios/cattle_forecast_seed.js` now use idempotent `upsert(onConflict:'id')` (cattle + weigh-in sessions/weigh-ins, base + send-flow). Proven with 5 consecutive full-spec runs at 35/35, zero dup hits (prior failure rate ~2/3). |
 
 ### Parked WIP Stash
 
@@ -776,20 +784,28 @@ flake diary.
   now awaits the layer global load before `setDataLoaded(true)`, and the layer
   record pages derive their record from the loaded props instead of a per-record
   by-id read.
-- Forecast readiness lesson for tests. E2E specs must wait for real seeded data
-  (e.g. a non-zero finish-candidate count), not just shell/panel render — the
-  Cattle Forecast panel renders even with an empty raced read.
-  `CattleForecastView` loads its inputs in a mount-once `useEffect([])`, so a
-  raced empty read does not self-recover; the hide/unhide spec now waits for
-  seeded data with a bounded re-mount (reload) fallback and selects whichever
-  forecast year the target cow lands in.
+- Cattle Forecast now self-heals (CP1 shipped, `a84a8d3`). `CattleForecastView`
+  no longer depends on test-side reloads: the mount load runs under bounded
+  recovery and throws on direct PostgREST response errors too (see Recent
+  Shipped Work). The hide/unhide spec wait dropped its reload fallback and now
+  waits only on real seeded data (non-zero finish-candidate count). E2E specs
+  must still wait on real data, not shell/panel render — the panel renders even
+  on an empty raced read. Remaining CP2 gap: recovery keys on the `cattle`
+  spine; a raced empty weigh-ins read (cattle present, 0 finish candidates) is
+  not yet covered.
+- Test-infra reliability: shared-DB worker-restart race. Playwright spawns a
+  fresh worker after any test failure; with one shared test DB that handoff can
+  race reset+seed and trip fixed-id `*_pkey` duplicates (root-caused and fixed
+  for cattle_forecast via idempotent seed upsert, `34ba80a`). Other spec seeds
+  (sheep/cattle processor, etc.) still use plain fixed-id inserts and share the
+  same theoretical exposure — suite-wide seed idempotency is not yet generalized.
 - Likely future source-level robustness lane. Several views still load their own
-  data once with no recovery (e.g. `CattleForecastView`). A small scoped lane
-  could add a shared recovery — re-fetch-on-empty, or an auth/session-keyed load
-  retry that ensures the session is attached before the first read — so cold
-  boots no longer depend on test-side reloads. Validate against the public
-  webform mirror (`syncWebformConfig`) and boot-performance tradeoffs; see the
-  layer boot-coupling change in `fix(layer): eliminate cold-boot data race`.
+  data once with no recovery. A small scoped lane could add a shared recovery —
+  re-fetch-on-empty, or an auth/session-keyed load retry that ensures the session
+  is attached before the first read. Validate against the public webform mirror
+  (`syncWebformConfig`) and boot-performance tradeoffs; `CattleForecastView` CP1
+  and the layer boot-coupling change in `fix(layer): eliminate cold-boot data
+  race` are the working models.
 
 ---
 
