@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const shell = fs.readFileSync(path.join(ROOT, 'src/shared/RecordPageShell.jsx'), 'utf8');
 
 // Every operational record page migrated onto the shared chrome (CP1 animal +
-// daily pages, CP2 batch/processing/housing pages).
+// daily pages, CP2 batch/processing/housing pages, CP3 weigh-in session page).
 const pages = [
   {name: 'CattleAnimalPage', path: 'src/cattle/CattleAnimalPage.jsx'},
   {name: 'SheepAnimalPage', path: 'src/sheep/SheepAnimalPage.jsx'},
@@ -24,6 +24,7 @@ const pages = [
   {name: 'LayerBatchPage', path: 'src/layer/LayerBatchPage.jsx'},
   {name: 'LayerHousingPage', path: 'src/layer/LayerHousingPage.jsx'},
   {name: 'BroilerBatchPage', path: 'src/broiler/BroilerBatchPage.jsx'},
+  {name: 'WeighInSessionPage', path: 'src/livestock/WeighInSessionPage.jsx'},
 ];
 const srcs = {};
 for (const p of pages) {
@@ -71,6 +72,10 @@ describe('RecordPageShell — owns the shared chrome markup', () => {
   });
   it('spreads extra props onto the body wrapper (page-specific data attrs)', () => {
     expect(shell).toContain('<div {...rest}');
+  });
+  it('forwards extra props through the frame + not-found (state-specific data attrs)', () => {
+    expect(shell).toMatch(/RecordPageFrame\(\{Header, children, \.\.\.rest\}\)/);
+    expect(shell).toMatch(/RecordPageNotFound\(\{Header, backLabel, onBack, message, \.\.\.rest\}\)/);
   });
   it('defaults the loading label to the ellipsis form', () => {
     expect(shell).toContain("label = 'Loading…'");

@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForWeighInListLoaded, waitForWeighInSessionLoaded} from './helpers/weighInReady.js';
 
 // ============================================================================
 // Weigh-in session record page hardening spec
@@ -8,6 +9,10 @@ import {test, expect} from './fixtures.js';
 //
 // Uses lightweight inline seeds (supabaseAdmin inserts per test) rather than
 // dedicated seed files. Each test resets the DB and seeds its own minimal data.
+//
+// Each navigation waits on a real readiness marker (see helpers/weighInReady.js)
+// before asserting, so the spec does not race a cold Vite compile + the app's
+// farm-data load against per-assertion timeouts.
 // ============================================================================
 
 async function seedSession(supabaseAdmin, {id, species, herd, batchId, status = 'draft', broilerWeek, teamMember}) {
@@ -63,10 +68,12 @@ test('cattle list tile navigates to /weigh-in-sessions/<id>', async ({page, supa
   await seedEntry(supabaseAdmin, {id: 'nav-cattle-e1', sessionId: sess.id, tag: '100', weight: 500});
 
   await page.goto('/cattle/weighins');
+  await waitForWeighInListLoaded(page);
   await expect(page.locator(`[data-weighin-session-tile="${sess.id}"]`)).toBeVisible({timeout: 15_000});
   await page.locator(`[data-weighin-session-tile="${sess.id}"]`).click();
 
   await expect(page).toHaveURL(/\/weigh-in-sessions\/nav-cattle-1/);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 10_000});
 });
 
@@ -77,10 +84,12 @@ test('sheep list tile navigates to /weigh-in-sessions/<id>', async ({page, supab
   await seedEntry(supabaseAdmin, {id: 'nav-sheep-e1', sessionId: sess.id, tag: '200', weight: 80});
 
   await page.goto('/sheep/weighins');
+  await waitForWeighInListLoaded(page);
   await expect(page.locator(`[data-weighin-session-tile="${sess.id}"]`)).toBeVisible({timeout: 15_000});
   await page.locator(`[data-weighin-session-tile="${sess.id}"]`).click();
 
   await expect(page).toHaveURL(/\/weigh-in-sessions\/nav-sheep-1/);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 10_000});
 });
 
@@ -92,10 +101,12 @@ test('pig list tile navigates to /weigh-in-sessions/<id>', async ({page, supabas
   await seedEntry(supabaseAdmin, {id: 'nav-pig-e1', sessionId: sess.id, weight: 250});
 
   await page.goto('/pig/weighins');
+  await waitForWeighInListLoaded(page);
   await expect(page.locator(`[data-weighin-session-tile="${sess.id}"]`)).toBeVisible({timeout: 15_000});
   await page.locator(`[data-weighin-session-tile="${sess.id}"]`).click();
 
   await expect(page).toHaveURL(/\/weigh-in-sessions\/nav-pig-1/);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 10_000});
 });
 
@@ -117,10 +128,12 @@ test('broiler list tile navigates to /weigh-in-sessions/<id>', async ({page, sup
   });
 
   await page.goto('/broiler/weighins');
+  await waitForWeighInListLoaded(page);
   await expect(page.locator(`[data-weighin-session-tile="${sess.id}"]`)).toBeVisible({timeout: 15_000});
   await page.locator(`[data-weighin-session-tile="${sess.id}"]`).click();
 
   await expect(page).toHaveURL(/\/weigh-in-sessions\/nav-broiler-1/);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-testid="broiler-meta-panel"]')).toBeVisible({timeout: 10_000});
 });
 
@@ -136,6 +149,7 @@ test('cattle: edit weight + note, save, reload, persist', async ({page, supabase
   await supabaseAdmin.from('cattle').insert({id: 'cow-save-100', tag: '100', herd: 'finishers', sex: 'steer'});
 
   await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
   const entry = page.locator('[data-entry-tag="100"]');
@@ -158,6 +172,7 @@ test('cattle: edit weight + note, save, reload, persist', async ({page, supabase
 
   // Reload page and verify persistence
   await page.reload();
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
   const reEntry = page.locator('[data-entry-tag="100"]');
   await expect(reEntry.locator('input[type="number"]')).toHaveValue('555');
@@ -172,6 +187,7 @@ test('sheep: edit weight + note, save, reload, persist', async ({page, supabaseA
   await supabaseAdmin.from('sheep').insert({id: 'sheep-save-200', tag: '200', flock: 'feeders'});
 
   await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
   const entry = page.locator('[data-entry-tag="200"]');
@@ -192,6 +208,7 @@ test('sheep: edit weight + note, save, reload, persist', async ({page, supabaseA
     .toEqual({weight: 85, note: 'updated'});
 
   await page.reload();
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
   const reEntry = page.locator('[data-entry-tag="200"]');
   await expect(reEntry.locator('input[type="number"]')).toHaveValue('85');
@@ -206,6 +223,7 @@ test('pig: edit weight + note, save, reload, persist', async ({page, supabaseAdm
   await seedEntry(supabaseAdmin, {id: 'save-pig-e1', sessionId: sess.id, weight: 250, note: 'orig'});
 
   await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
   // Pig entries don't have tags, find by the entries section
@@ -226,6 +244,7 @@ test('pig: edit weight + note, save, reload, persist', async ({page, supabaseAdm
     .toEqual({weight: 260, note: 'updated'});
 
   await page.reload();
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-weighin-entries="1"] input[type="number"]').first()).toHaveValue('260');
   await expect(page.locator('[data-weighin-entries="1"] input[placeholder="Note"]').first()).toHaveValue('updated');
@@ -251,6 +270,7 @@ test('comment hash scroll: navigate to #comment-<id> scrolls target into view', 
   await supabaseAdmin.from('cattle').insert({id: 'cow-hash-100', tag: '100', herd: 'finishers', sex: 'steer'});
 
   await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
   const commentInput = page.locator('textarea[placeholder*="Add a comment"]');
@@ -265,6 +285,7 @@ test('comment hash scroll: navigate to #comment-<id> scrolls target into view', 
 
   await page.goto('/');
   await page.goto('/weigh-in-sessions/' + sess.id + '#' + commentId);
+  await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
   await expect(page.locator('#' + commentId)).toBeVisible({timeout: 10_000});
 });

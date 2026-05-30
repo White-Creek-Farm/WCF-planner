@@ -7,6 +7,16 @@ import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+/* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
+import {
+  RecordPageFrame,
+  RecordPageLoading,
+  RecordPageNotFound,
+  RecordPageBody,
+  RecordBackLink,
+  RecordTitle,
+} from '../shared/RecordPageShell.jsx';
+/* eslint-enable no-unused-vars */
 import CattleSendToProcessorModal from '../cattle/CattleSendToProcessorModal.jsx';
 import SheepSendToProcessorModal from '../sheep/SheepSendToProcessorModal.jsx';
 import {loadCattleWeighInsCached, invalidateCattleWeighInsCache} from '../lib/cattleCache.js';
@@ -1232,63 +1242,29 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   }
 
   if (loading) {
-    return (
-      <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
-        {Header && <Header />}
-        <div style={{padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 14}}>Loading…</div>
-      </div>
-    );
+    return <RecordPageLoading Header={Header} />;
   }
 
   if (accessDenied) {
     return (
-      <div data-access-denied="1" style={{minHeight: '100vh', background: '#f1f3f2'}}>
-        {Header && <Header />}
-        <div style={{padding: 24}}>
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#1d4ed8',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontFamily: 'inherit',
-              padding: 0,
-            }}
-          >
-            ← Home
-          </button>
-          <div style={{marginTop: 16, color: '#6b7280', fontSize: 14}}>You do not have access to this program.</div>
-        </div>
-      </div>
+      <RecordPageNotFound
+        Header={Header}
+        data-access-denied="1"
+        backLabel="Home"
+        onBack={() => navigate('/')}
+        message="You do not have access to this program."
+      />
     );
   }
 
   if (!session) {
     return (
-      <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
-        {Header && <Header />}
-        <div style={{padding: 24}}>
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#1d4ed8',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontFamily: 'inherit',
-              padding: 0,
-            }}
-          >
-            ← Back to Weigh-Ins
-          </button>
-          <div style={{marginTop: 16, color: '#6b7280', fontSize: 14}}>Session not found.</div>
-        </div>
-      </div>
+      <RecordPageNotFound
+        Header={Header}
+        backLabel="Back to Weigh-Ins"
+        onBack={() => navigate('/')}
+        message="Session not found."
+      />
     );
   }
 
@@ -1300,30 +1276,19 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   ) {
     const back = SPECIES_BACK[session.species] || {path: '/', label: 'Home'};
     return (
-      <div data-unsupported-species="1" style={{minHeight: '100vh', background: '#f1f3f2'}}>
-        {Header && <Header />}
-        <div style={{padding: 24}}>
-          <button
-            type="button"
-            onClick={() => navigate(back.path)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#1d4ed8',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontFamily: 'inherit',
-              padding: 0,
-            }}
-          >
-            ← Back to {back.label}
-          </button>
-          <div style={{marginTop: 16, color: '#6b7280', fontSize: 14}}>
-            {session.species.charAt(0).toUpperCase() + session.species.slice(1)} weigh-in session record pages are not
-            yet available. Use the {back.label} list view.
-          </div>
-        </div>
-      </div>
+      <RecordPageNotFound
+        Header={Header}
+        data-unsupported-species="1"
+        backLabel={'Back to ' + back.label}
+        onBack={() => navigate(back.path)}
+        message={
+          session.species.charAt(0).toUpperCase() +
+          session.species.slice(1) +
+          ' weigh-in session record pages are not yet available. Use the ' +
+          back.label +
+          ' list view.'
+        }
+      />
     );
   }
 
@@ -1354,34 +1319,16 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const backInfo = SPECIES_BACK[session.species] || {path: '/', label: 'Home'};
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
-      {Header && <Header />}
-      <div style={{maxWidth: 900, margin: '0 auto', padding: '12px 16px'}}>
-        <div style={{marginBottom: 12}}>
-          <button
-            type="button"
-            onClick={() => navigate(backInfo.path)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#1d4ed8',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontFamily: 'inherit',
-              padding: 0,
-              fontWeight: 500,
-            }}
-          >
-            ← Back to {backInfo.label}
-          </button>
-        </div>
+    <RecordPageFrame Header={Header}>
+      <RecordPageBody maxWidth={900} data-weighin-session-record-loaded="true">
+        <RecordBackLink label={'Back to ' + backInfo.label} onBack={() => navigate(backInfo.path)} />
 
         <RecordSequenceNav seq={recordSeq} currentId={sessionId} onNavigate={navigateSeq} />
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
-          <h1 data-record-title="1" style={{fontSize: 24, fontWeight: 700, color: '#111827', margin: 0}}>
+          <RecordTitle fontSize={24} margin={0}>
             {groupName} — {fmt(session.date)}
-          </h1>
+          </RecordTitle>
           <span
             style={{
               fontSize: 10,
@@ -2287,7 +2234,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           entityId={session.id}
           entityLabel={entityLabel}
         />
-      </div>
+      </RecordPageBody>
 
       {sessionForModal &&
         session.species === 'sheep' &&
@@ -2438,6 +2385,6 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           </div>
         </div>
       )}
-    </div>
+    </RecordPageFrame>
   );
 }

@@ -554,3 +554,14 @@ describe('LivestockWeighInsView — navigation-only list', () => {
     expect(livestockSrc).toContain('formatAgeRange');
   });
 });
+
+describe('Weigh-in readiness markers — CI determinism (see helpers/weighInReady.js)', () => {
+  it('record page exposes data-weighin-session-record-loaded only on the loaded body', () => {
+    expect(pageSrc).toMatch(/<RecordPageBody[^>]*data-weighin-session-record-loaded="true"/);
+  });
+  it('cattle / sheep / livestock list views expose data-weighin-list-loaded keyed on load state', () => {
+    for (const src of [listSrc, sheepListSrc, livestockSrc]) {
+      expect(src).toMatch(/data-weighin-list-loaded=\{loading \? 'false' : 'true'\}/);
+    }
+  });
+});

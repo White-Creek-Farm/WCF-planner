@@ -92,7 +92,7 @@ const LivestockWeighInsView = ({
   const totalEntries = filtered.reduce((s, sess) => s + (entries[sess.id] ? entries[sess.id].length : 0), 0);
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: '#f1f3f2'}} data-weighin-list-loaded={loading ? 'false' : 'true'}>
       {showUsers && (
         <UsersModal
           sb={sb}

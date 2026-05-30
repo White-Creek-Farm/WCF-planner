@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForWeighInListLoaded, waitForWeighInSessionLoaded} from './helpers/weighInReady.js';
 
 // ============================================================================
 // Record-page sequence navigation (CP2) — representative weigh-in path.
@@ -40,10 +41,12 @@ test.describe('Weigh-in session sequence navigation', () => {
     await seedSession(supabaseAdmin, {id: 'ws-3', herd: 'backgrounders', date: '2026-05-01'});
 
     await page.goto('/cattle/weighins');
+    await waitForWeighInListLoaded(page);
     await expect(page.locator('[data-weighin-session-tile="ws-1"]')).toBeVisible({timeout: 15_000});
     await page.locator('[data-weighin-session-tile="ws-1"]').click();
 
     await expect(page).toHaveURL(/\/weigh-in-sessions\/ws-1$/, {timeout: 10_000});
+    await waitForWeighInSessionLoaded(page);
     await expect(page.locator('[data-record-seq-nav="1"]')).toBeVisible();
     await expect(page.locator('[data-record-seq-position="1"]')).toHaveText('1 of 3');
     await expect(page.locator('[data-record-seq-prev="1"]')).toBeDisabled();
@@ -55,6 +58,7 @@ test.describe('Weigh-in session sequence navigation', () => {
 
     await nextBtn.click();
     await expect(page).toHaveURL(/\/weigh-in-sessions\/ws-2$/, {timeout: 10_000});
+    await waitForWeighInSessionLoaded(page);
     await expect(page.locator('[data-record-seq-position="1"]')).toHaveText('2 of 3');
     await expect(page.locator('[data-record-seq-prev="1"]')).toBeEnabled();
   });
@@ -66,6 +70,7 @@ test.describe('Weigh-in session sequence navigation', () => {
     await seedSession(supabaseAdmin, {id: 'ws-2', herd: 'mommas', date: '2026-05-02'});
 
     await page.goto('/weigh-in-sessions/ws-1');
+    await waitForWeighInSessionLoaded(page);
     await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
     await expect(page.locator('[data-record-seq-nav="1"]')).toHaveCount(0);
   });

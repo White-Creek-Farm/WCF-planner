@@ -78,7 +78,7 @@ const SheepWeighInsView = ({
   const matchedSessionCount = tagQ ? filtered.length : null;
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: '#f1f3f2'}} data-weighin-list-loaded={loading ? 'false' : 'true'}>
       {showUsers && (
         <UsersModal
           sb={sb}

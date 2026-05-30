@@ -21,10 +21,12 @@ const BACK_LINK_BASE = {
 };
 
 // Outer app frame: full-height neutral background plus the optional Header.
-// Used by every record-page state (loading, not-found, loaded).
-export function RecordPageFrame({Header, children}) {
+// Used by every record-page state (loading, not-found, loaded). Extra props
+// (e.g. a state-specific data attribute like data-access-denied="1") are spread
+// onto the frame's root div.
+export function RecordPageFrame({Header, children, ...rest}) {
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div {...rest} style={{minHeight: '100vh', background: '#f1f3f2'}}>
       {Header && <Header />}
       {children}
     </div>
@@ -42,10 +44,11 @@ export function RecordPageLoading({Header, label = 'Loading…'}) {
 
 // Not-found state: a plain back link above an explanatory message. The back
 // link here is intentionally lighter (no fontWeight) than the loaded-page
-// RecordBackLink, matching the existing record pages.
-export function RecordPageNotFound({Header, backLabel, onBack, message}) {
+// RecordBackLink, matching the existing record pages. Extra props (e.g. a
+// state-specific frame data attribute) are forwarded to the frame's root div.
+export function RecordPageNotFound({Header, backLabel, onBack, message, ...rest}) {
   return (
-    <RecordPageFrame Header={Header}>
+    <RecordPageFrame Header={Header} {...rest}>
       <div style={{padding: 24}}>
         <button type="button" onClick={onBack} style={BACK_LINK_BASE}>
           {'← '}
