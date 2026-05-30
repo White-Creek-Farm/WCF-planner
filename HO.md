@@ -1,6 +1,6 @@
 # HO - Static Workflow SOP
 
-Last updated: 2026-05-27.
+Last updated: 2026-05-30.
 
 This is the durable start-of-session workflow for Ronnie, CC (Claude Code), and
 Codex. It is not a session log and must not carry current project state.
@@ -71,7 +71,10 @@ Gate approvals may be separate or bundled:
 - If the approval wording is ambiguous, ask one concise clarifying question.
 - Push to `main` implies Netlify production runtime change for code-only lanes,
   but Netlify auto-deploy does not require a separate confirmation loop by
-  default. Codex does not verity push but creates the next build prompt once notified by Ronnie that the push has occured.
+  default. Codex does not verify push. The next build prompt is generated when
+  Codex approves commit, not after push verification. When Ronnie reports that
+  a push occurred, Codex should not verify it; Codex should only confirm or
+  refresh the already-generated next prompt if needed.
 
 Production gates:
 
@@ -142,8 +145,22 @@ If a lane touches a load-bearing contract, call that out before editing.
 6. Ronnie approves or redirects one action or a named sequence, such as commit
    and push, deploy, merge, wrap, or next lane.
 
-After a clean checkpoint, Codex provides the next CC-ready prompt or names the
-exact blocker. Do not ask CC to choose the next scope.
+As soon as Codex clears a commit gate (`Ready to commit`, `Ready to commit and
+push`, or equivalent), Codex must automatically include the next CC-ready build
+prompt in the same response. Ronnie should not have to ask "next prompt" after a
+commit approval.
+
+The automatically generated next build prompt is queued behind the current gate.
+It is not permission for CC to start that next build before the current commit,
+push, or clean-checkpoint handling is complete. The prompt must say that
+precondition clearly. If there is no safe next lane, Codex names the exact
+blocker instead of inventing scope.
+
+After Ronnie later reports a push, Codex does not verify the push. Codex should
+only confirm or refresh the already-generated next prompt if project state or
+Ronnie's direction changed.
+
+Do not ask CC to choose the next scope.
 
 If Ronnie has already approved the next action in a clear bundled sequence,
 Codex provides the execution prompt instead of asking for another confirmation.
@@ -194,6 +211,12 @@ box/code block so Ronnie can copy the whole prompt with one click. Keep the
 content inside the block as plain text; do not use Markdown formatting inside
 the relay text.
 
+When a Codex response contains both a current gate prompt and a queued next
+build prompt, treat them as two separate CC prompts. Each prompt gets its own
+single copyable `From Codex:` block unless Codex intentionally combines them
+into one clearly sequenced relay. Do not split one prompt across multiple
+blocks.
+
 If CC or Codex disagrees, state:
 
 - Concrete risk.
@@ -243,6 +266,10 @@ Prompts should be copyable and direct. Put the entire `From Codex:` relay in
 one copyable text box/code block; do not split one CC prompt across multiple
 blocks.
 
+When Codex approves commit, the response must also include the queued next build
+prompt. The queued prompt must include its precondition, such as "start only
+after the current checkpoint is committed/pushed or the working tree is clean."
+
 ---
 
 ## Review Outcomes
@@ -252,12 +279,15 @@ Use these outcomes when possible:
 - `Blocked` - prerequisite or major design issue.
 - `Needs fixes` - close, but changes are required before the next gate.
 - `Ready for next checkpoint` - checkpoint is clean; next build step can begin.
-- `Ready to commit` - review and validation are clean for commit approval.
+- `Ready to commit` - review and validation are clean for commit approval; Codex
+  includes the queued next build prompt in the same response.
 - `Ready to push` - committed work is clean for push approval.
 - `Ready to commit and push` - review is clean and Ronnie has approved both
-  actions in one bundle.
-- `Pushed, next prompt follows` - push is reported complete and the next prompt
-  is included.
+  actions in one bundle; Codex includes the queued next build prompt in the same
+  response.
+- `Pushed, next prompt confirmed` - push is reported complete; Codex does not
+  verify push and either confirms the already-generated next build prompt or
+  refreshes it if project state changed.
 
 ---
 
@@ -282,6 +312,7 @@ Codex:
 - Review CC plans/build reports before gates.
 - Push back on missed scope, unsafe order, weak tests, or contract drift.
 - Keep CC-facing instructions concise and copyable.
+- Automatically include the queued next build prompt whenever approving commit.
 - Do not edit source files unless Ronnie explicitly authorizes it.
 
 ---
