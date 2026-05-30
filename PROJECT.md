@@ -761,6 +761,38 @@ These are hardening priorities, not reasons to rewrite.
 
 ---
 
+## Cold-Boot Readiness Watchlist
+
+Recurring reliability theme surfaced this run. Curated and actionable — not a
+flake diary.
+
+- Cold-boot data-load / readiness race. The same intermittent cold-start failure
+  recurred across `layer`, `pig`, `weighin`, and `cattle.forecast`: a view (or
+  the app) reads its data once on mount/boot and can observe an empty /
+  not-yet-loaded result with no in-page recovery, so the surface renders empty or
+  "not found" until reload. Proven mitigation is a per-domain readiness signal
+  coupled to its data in the same render — pig `feedersLoaded` is the model;
+  `data-layer-*-loaded` and `data-weighin-*-loaded` markers follow it. main.jsx
+  now awaits the layer global load before `setDataLoaded(true)`, and the layer
+  record pages derive their record from the loaded props instead of a per-record
+  by-id read.
+- Forecast readiness lesson for tests. E2E specs must wait for real seeded data
+  (e.g. a non-zero finish-candidate count), not just shell/panel render — the
+  Cattle Forecast panel renders even with an empty raced read.
+  `CattleForecastView` loads its inputs in a mount-once `useEffect([])`, so a
+  raced empty read does not self-recover; the hide/unhide spec now waits for
+  seeded data with a bounded re-mount (reload) fallback and selects whichever
+  forecast year the target cow lands in.
+- Likely future source-level robustness lane. Several views still load their own
+  data once with no recovery (e.g. `CattleForecastView`). A small scoped lane
+  could add a shared recovery — re-fetch-on-empty, or an auth/session-keyed load
+  retry that ensures the session is attached before the first read — so cold
+  boots no longer depend on test-side reloads. Validate against the public
+  webform mirror (`syncWebformConfig`) and boot-performance tradeoffs; see the
+  layer boot-coupling change in `fix(layer): eliminate cold-boot data race`.
+
+---
+
 ## Locked Decisions
 
 - No Home Dashboard duplicate-report card.
