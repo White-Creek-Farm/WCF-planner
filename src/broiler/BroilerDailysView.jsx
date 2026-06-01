@@ -26,6 +26,7 @@ function BroilerDailysRouter(props) {
       fmt: props.fmt,
       authState: props.authState,
       Header: props.Header,
+      batches: props.batches,
     });
   }
   return React.createElement(BroilerDailysHub, props);
@@ -301,7 +302,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
           <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{...fi, width: 130}} />
           <select value={fBatch} onChange={(e) => setFBatch(e.target.value)} style={fi}>
-            <option value="">All batches</option>
+            <option value="">All groups</option>
             {batchOpts.map((b) => (
               <option key={b} value={b}>
                 {b}
@@ -672,9 +673,9 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                 </select>
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Batch</label>
+                <label style={S.label}>Group</label>
                 <select value={form.batchLabel} onChange={(e) => setForm((f) => ({...f, batchLabel: e.target.value}))}>
-                  <option value="">Select batch...</option>
+                  <option value="">Select group...</option>
                   {batches
                     .filter((b) => b.status === 'active')
                     .map((b) => (

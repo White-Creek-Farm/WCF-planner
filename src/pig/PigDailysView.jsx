@@ -25,6 +25,7 @@ function PigDailysRouter(props) {
       fmt: props.fmt,
       authState: props.authState,
       Header: props.Header,
+      feederGroups: props.feederGroups,
     });
   }
   return React.createElement(PigDailysHub, props);
@@ -277,7 +278,7 @@ const PigDailysHub = ({
           <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{...fi, width: 130}} />
           <select value={fBatch} onChange={(e) => setFBatch(e.target.value)} style={fi}>
-            <option value="">All batches</option>
+            <option value="">All groups</option>
             {fromRecords.map((b) => (
               <option key={b} value={b}>
                 {b}
@@ -626,9 +627,9 @@ const PigDailysHub = ({
                 </select>
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Pig Group / Batch</label>
+                <label style={S.label}>Pig Group</label>
                 <select value={form.batchLabel} onChange={(e) => setForm((f) => ({...f, batchLabel: e.target.value}))}>
-                  <option value="">Select...</option>
+                  <option value="">Select group...</option>
                   {groupList.map((g) => (
                     <option key={g} value={g}>
                       {g}

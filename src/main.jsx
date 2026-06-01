@@ -3827,6 +3827,8 @@ function App() {
       Header,
       authState,
       layerGroups,
+      layerBatches,
+      layerHousings,
       pendingEdit,
       setPendingEdit,
       refreshDailys,

@@ -33,6 +33,7 @@ import {fmtMDY} from '../lib/dateUtils.js';
 import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
+import {formatBroilerBatchLabel, splitSchooners} from '../lib/broilerBatchMeta.js';
 
 // Shared record-page layout primitives (responsive label/value grid via
 // fieldRowClass, control width, aligned booleans, roomy textareas).
@@ -52,7 +53,7 @@ const EDIT_EXCLUDE = [
 const LABELS = {
   date: 'Date',
   team_member: 'Team member',
-  batch_label: 'Batch',
+  batch_label: 'Group',
   feed_type: 'Feed type',
   feed_lbs: 'Feed (lbs)',
   grit_lbs: 'Grit (lbs)',
@@ -79,7 +80,24 @@ function initForm(r) {
   };
 }
 
-export default function PoultryDailyPage({sb, authState, Header}) {
+function buildBroilerGroupOptions(batches, currentLabel) {
+  const activeBatches = (batches || []).filter((b) => b && b.status === 'active');
+  const batchMeta = activeBatches.map((b) => ({
+    name: b.name,
+    schooners: splitSchooners(b.schooner),
+    brooder: b.brooder || null,
+    brooderOut: b.brooderOut || null,
+  }));
+  const options = activeBatches
+    .filter((b) => b.name)
+    .map((b) => ({value: b.name, label: formatBroilerBatchLabel(b.name, batchMeta)}));
+  if (currentLabel && !options.some((o) => o.value === currentLabel)) {
+    options.push({value: currentLabel, label: currentLabel});
+  }
+  return options;
+}
+
+export default function PoultryDailyPage({sb, authState, Header, batches = []}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/broiler/dailys/', '');
@@ -95,6 +113,10 @@ export default function PoultryDailyPage({sb, authState, Header}) {
   const [notice, setNotice] = React.useState(null);
   const [form, setForm] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
+  const groupOptions = React.useMemo(
+    () => buildBroilerGroupOptions(batches, form?.batchLabel),
+    [batches, form?.batchLabel],
+  );
 
   async function loadAll() {
     const {data} = await sb.from('poultry_dailys').select('*').eq('id', recordId).is('deleted_at', null).single();
@@ -226,13 +248,19 @@ export default function PoultryDailyPage({sb, authState, Header}) {
             />
           </div>
           <div className={fieldRowClass}>
-            <span style={fieldLabel}>Batch</span>
-            <input
-              type="text"
+            <span style={fieldLabel}>Group</span>
+            <select
               value={form.batchLabel}
               onChange={(e) => setForm({...form, batchLabel: e.target.value})}
               style={inp}
-            />
+            >
+              <option value="">Select group...</option>
+              {groupOptions.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className={fieldRowClass}>
             <span style={fieldLabel}>Team member</span>

@@ -34,6 +34,7 @@ import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsAp
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
+import {buildLayerDailyGroupOptions, resolveLayerDailyBatchId} from './layerDailyGroups.js';
 
 // Shared daily record-page layout primitives.
 const fieldRowClass = recordFieldRowClass;
@@ -48,11 +49,12 @@ const EDIT_EXCLUDE = [
   'photos',
   'deleted_at',
   'deleted_by',
+  'batch_id',
 ];
 const LABELS = {
   date: 'Date',
   team_member: 'Team member',
-  batch_label: 'Batch',
+  batch_label: 'Group',
   feed_type: 'Feed type',
   feed_lbs: 'Feed (lbs)',
   grit_lbs: 'Grit (lbs)',
@@ -81,7 +83,14 @@ function initForm(r) {
   };
 }
 
-export default function LayerDailyPage({sb, authState, Header}) {
+export default function LayerDailyPage({
+  sb,
+  authState,
+  Header,
+  layerGroups = [],
+  layerBatches = [],
+  layerHousings = [],
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/layer/dailys/', '');
@@ -97,6 +106,10 @@ export default function LayerDailyPage({sb, authState, Header}) {
   const [notice, setNotice] = React.useState(null);
   const [form, setForm] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
+  const groupOptions = React.useMemo(
+    () => buildLayerDailyGroupOptions({layerGroups, layerBatches, layerHousings, currentLabel: form?.batchLabel}),
+    [layerGroups, layerBatches, layerHousings, form?.batchLabel],
+  );
 
   async function loadAll() {
     const {data} = await sb.from('layer_dailys').select('*').eq('id', recordId).is('deleted_at', null).single();
@@ -132,10 +145,15 @@ export default function LayerDailyPage({sb, authState, Header}) {
       return;
     }
     setSaving(true);
+    const batchId =
+      form.batchLabel === record.batch_label
+        ? record.batch_id || resolveLayerDailyBatchId(form.batchLabel, {layerGroups, layerBatches, layerHousings})
+        : resolveLayerDailyBatchId(form.batchLabel, {layerGroups, layerBatches, layerHousings});
     const rec = {
       date: form.date,
       team_member: form.teamMember,
       batch_label: form.batchLabel,
+      batch_id: batchId,
       feed_type: form.feedType || 'LAYER',
       feed_lbs: form.feedLbs !== '' ? parseFloat(form.feedLbs) : 0,
       grit_lbs: form.gritLbs !== '' ? parseFloat(form.gritLbs) : 0,
@@ -255,13 +273,19 @@ export default function LayerDailyPage({sb, authState, Header}) {
             />
           </div>
           <div className={fieldRowClass}>
-            <span style={fieldLabel}>Batch</span>
-            <input
-              type="text"
+            <span style={fieldLabel}>Group</span>
+            <select
               value={form.batchLabel}
               onChange={(e) => setForm({...form, batchLabel: e.target.value})}
               style={inp}
-            />
+            >
+              <option value="">Select group...</option>
+              {groupOptions.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
           </div>
           <div className={fieldRowClass}>
             <span style={fieldLabel}>Team member</span>

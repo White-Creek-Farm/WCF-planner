@@ -1671,7 +1671,7 @@ const WebformHub = ({
                   onChange={(e) => setBForm((f) => ({...f, batchLabel: e.target.value}))}
                   style={inputStyle}
                 >
-                  <option value="">Select batch...</option>
+                  <option value="">Select group...</option>
                   {broilerGroups.map((b) => (
                     <option key={b} value={b}>
                       {formatBroilerBatchLabel(b, broilerMeta)}
@@ -1794,7 +1794,7 @@ const WebformHub = ({
                         }
                         style={inputStyle}
                       >
-                        <option value="">Select batch...</option>
+                        <option value="">Select group...</option>
                         {broilerGroups.map((b) => (
                           <option key={b} value={b}>
                             {formatBroilerBatchLabel(b, broilerMeta)}

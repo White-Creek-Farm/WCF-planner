@@ -52,7 +52,7 @@ const EDIT_EXCLUDE = [
 const LABELS = {
   date: 'Date',
   team_member: 'Team member',
-  batch_label: 'Batch',
+  batch_label: 'Group',
   pig_count: 'Pig count',
   feed_lbs: 'Feed (lbs)',
   group_moved: 'Group moved',
@@ -81,7 +81,17 @@ function initForm(r) {
   };
 }
 
-export default function PigDailyPage({sb, authState, Header}) {
+function buildPigGroupOptions(feederGroups, currentLabel) {
+  const names = [
+    ...(feederGroups || []).map((g) => g && g.batchName).filter(Boolean),
+    ...(feederGroups || []).flatMap((g) => (g?.subBatches || []).map((s) => s.name).filter(Boolean)),
+  ];
+  const values = [...new Set(names)].sort();
+  if (currentLabel && !values.includes(currentLabel)) values.push(currentLabel);
+  return values;
+}
+
+export default function PigDailyPage({sb, authState, Header, feederGroups = []}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/pig/dailys/', '');
@@ -97,6 +107,10 @@ export default function PigDailyPage({sb, authState, Header}) {
   const [notice, setNotice] = React.useState(null);
   const [form, setForm] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
+  const groupOptions = React.useMemo(
+    () => buildPigGroupOptions(feederGroups, form?.batchLabel),
+    [feederGroups, form?.batchLabel],
+  );
 
   async function loadAll() {
     const {data} = await sb.from('pig_dailys').select('*').eq('id', recordId).is('deleted_at', null).single();
@@ -234,13 +248,19 @@ export default function PigDailyPage({sb, authState, Header}) {
             />
           </div>
           <div className={fieldRowClass}>
-            <span style={fieldLabel}>Batch</span>
-            <input
-              type="text"
+            <span style={fieldLabel}>Group</span>
+            <select
               value={form.batchLabel}
               onChange={(e) => setForm({...form, batchLabel: e.target.value})}
               style={inp}
-            />
+            >
+              <option value="">Select group...</option>
+              {groupOptions.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
           </div>
           <div className={fieldRowClass}>
             <span style={fieldLabel}>Team member</span>

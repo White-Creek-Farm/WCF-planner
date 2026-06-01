@@ -14,6 +14,7 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import LayerDailyPage from './LayerDailyPage.jsx';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
+import {buildLayerDailyGroupOptions, resolveLayerDailyBatchId} from './layerDailyGroups.js';
 
 function LayerDailysRouter(props) {
   const location = useLocation();
@@ -26,12 +27,26 @@ function LayerDailysRouter(props) {
       fmt: props.fmt,
       authState: props.authState,
       Header: props.Header,
+      layerGroups: props.layerGroups,
+      layerBatches: props.layerBatches,
+      layerHousings: props.layerHousings,
     });
   }
   return React.createElement(LayerDailysHub, props);
 }
 
-const LayerDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, setPendingEdit, refreshDailys}) => {
+const LayerDailysHub = ({
+  sb,
+  fmt,
+  Header,
+  authState,
+  layerGroups,
+  layerBatches = [],
+  layerHousings = [],
+  pendingEdit,
+  setPendingEdit,
+  refreshDailys,
+}) => {
   const {useState, useEffect} = React;
   const todayStr = () => {
     const d = new Date();
@@ -146,10 +161,17 @@ const LayerDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, s
       setNotice({kind: 'error', message: 'Mortality reason is required when mortalities are reported.'});
       return;
     }
+    const existingRecord = editId ? records.find((r) => r.id === editId) : null;
+    const batchId =
+      existingRecord && form.batchLabel === existingRecord.batch_label
+        ? existingRecord.batch_id ||
+          resolveLayerDailyBatchId(form.batchLabel, {layerGroups, layerBatches, layerHousings})
+        : resolveLayerDailyBatchId(form.batchLabel, {layerGroups, layerBatches, layerHousings});
     const rec = {
       date: form.date,
       team_member: form.teamMember,
       batch_label: form.batchLabel,
+      batch_id: batchId,
       feed_type: form.feedType || 'LAYER',
       feed_lbs: form.feedLbs !== '' ? parseFloat(form.feedLbs) : 0,
       grit_lbs: form.gritLbs !== '' ? parseFloat(form.gritLbs) : 0,
@@ -266,7 +288,12 @@ const LayerDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, s
     });
   }
 
-  const groupOpts = (layerGroups || []).filter((g) => g.status === 'active').map((g) => g.name);
+  const groupOpts = buildLayerDailyGroupOptions({
+    layerGroups,
+    layerBatches,
+    layerHousings,
+    currentLabel: form.batchLabel,
+  });
   const allGroups = [...new Set(records.map((r) => r.batch_label).filter(Boolean))].sort();
   const teamOpts = [...new Set(records.map((r) => r.team_member).filter(Boolean))].sort();
   const filtered = records.filter(
