@@ -277,3 +277,57 @@ describe('CP6: inline pig metrics seeds reset known mutable columns', () => {
     expect(src).toMatch(/client_submission_id:\s*null/);
   });
 });
+
+// CP7: equipment Playwright spec seeds.
+const CP7_SPEC_FILES = ['tests/equipment_materials.spec.js', 'tests/equipment_fueling_rpc.spec.js'];
+
+describe('CP7: equipment Playwright spec seeds are idempotent/run-scoped', () => {
+  for (const rel of CP7_SPEC_FILES) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+    it(`${rel} contains no plain .insert( calls`, () => {
+      expect(src).not.toMatch(/\.insert\(/);
+    });
+
+    it(`${rel} writes direct service-role setup rows via upsert(..., {onConflict: 'id'})`, () => {
+      expect(src).toMatch(/\.upsert\(/);
+      expect(src).toMatch(/onConflict:\s*'id'/);
+    });
+
+    it(`${rel} scopes seeded ids and unique values to the current worker run`, () => {
+      expect(src).toMatch(/const RUN_ID =/);
+      expect(src).toMatch(/const seedKey =/);
+      expect(src).toMatch(/const uniqueSeed =/);
+    });
+
+    it(`${rel} does not rely on ignoreDuplicates`, () => {
+      expect(src).not.toMatch(/ignoreDuplicates/);
+    });
+  }
+});
+
+describe('CP7: equipment seeds avoid fixed unique-key collisions', () => {
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+  it('equipment_materials.spec.js scopes fixed material slugs/ids and direct child rows', () => {
+    const src = read('tests/equipment_materials.spec.js');
+    expect(src).toContain("slug: seedKey('mat-overdue')");
+    expect(src).toContain("id: seedKey('esm-grease')");
+    expect(src).toContain("id: seedKey('emc-pre')");
+    expect(src).toContain("id: seedKey('ef-cross')");
+    expect(src).not.toContain("slug: 'mat-overdue'");
+    expect(src).not.toContain("id: 'esm-grease'");
+    expect(src).not.toContain("id: 'emc-pre'");
+    expect(src).not.toContain("id: 'ef-cross'");
+  });
+
+  it('equipment_fueling_rpc.spec.js scopes fixed slugs and client_submission_id values', () => {
+    const src = read('tests/equipment_fueling_rpc.spec.js');
+    expect(src).toContain("slug: seedKey('rpc-hours')");
+    expect(src).toContain("const csid = seedKey('csid-hours-1')");
+    expect(src).toContain("id: seedKey('fuel-replay-2')");
+    expect(src).not.toContain("slug: 'rpc-hours'");
+    expect(src).not.toContain("client_submission_id).toBe('csid-hours-1')");
+    expect(src).not.toContain("id: 'fuel-replay-2'");
+  });
+});

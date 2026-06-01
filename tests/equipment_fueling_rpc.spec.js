@@ -25,13 +25,16 @@ import {createClient} from '@supabase/supabase-js';
 // ============================================================================
 
 const TODAY = '2026-05-06';
+const RUN_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const seedKey = (value) => `${value}-${RUN_ID}`;
+const uniqueSeed = (value) => `${seedKey(value)}-${Math.random().toString(36).slice(2, 8)}`;
 
 async function seedActiveEquipment(supabaseAdmin, overrides = {}) {
-  const id = overrides.id || `eq-${Math.random().toString(36).slice(2, 8)}`;
+  const id = overrides.id || uniqueSeed('eq');
   const row = {
     id,
     name: overrides.name || 'Test Tractor',
-    slug: overrides.slug || `test-${Math.random().toString(36).slice(2, 8)}`,
+    slug: overrides.slug || uniqueSeed('test'),
     category: 'tractors',
     status: 'active',
     tracking_unit: 'hours',
@@ -46,7 +49,7 @@ async function seedActiveEquipment(supabaseAdmin, overrides = {}) {
     team_members: [],
     ...overrides,
   };
-  const {error} = await supabaseAdmin.from('equipment').insert(row);
+  const {error} = await supabaseAdmin.from('equipment').upsert(row, {onConflict: 'id'});
   if (error) throw new Error(`seedActiveEquipment: ${error.message}`);
   return row;
 }
@@ -54,7 +57,7 @@ async function seedActiveEquipment(supabaseAdmin, overrides = {}) {
 function makeParent(eq, csid, overrides = {}) {
   const reading = overrides.reading ?? 150;
   return {
-    id: `fuel-test-${Math.random().toString(36).slice(2, 8)}`,
+    id: uniqueSeed('fuel-test'),
     client_submission_id: csid,
     equipment_id: eq.id,
     date: TODAY,
@@ -80,7 +83,7 @@ test('hours-tracked: anon RPC inserts equipment_fuelings + bumps equipment.curre
 }) => {
   await resetDb();
   const eq = await seedActiveEquipment(supabaseAdmin, {
-    slug: 'rpc-hours',
+    slug: seedKey('rpc-hours'),
     tracking_unit: 'hours',
     current_hours: 200,
     current_km: null,
@@ -90,7 +93,8 @@ test('hours-tracked: anon RPC inserts equipment_fuelings + bumps equipment.curre
     auth: {autoRefreshToken: false, persistSession: false},
   });
 
-  const parent = makeParent(eq, 'csid-hours-1', {reading: 250});
+  const csid = seedKey('csid-hours-1');
+  const parent = makeParent(eq, csid, {reading: 250});
   const {data, error} = await anonClient.rpc('submit_equipment_fueling', {parent_in: parent});
   expect(error).toBeNull();
   expect(data).toEqual({
@@ -104,7 +108,7 @@ test('hours-tracked: anon RPC inserts equipment_fuelings + bumps equipment.curre
   expect(row.equipment_id).toBe(eq.id);
   expect(Number(row.hours_reading)).toBe(250);
   expect(row.km_reading).toBeNull();
-  expect(row.client_submission_id).toBe('csid-hours-1');
+  expect(row.client_submission_id).toBe(csid);
 
   const {data: parentEq} = await supabaseAdmin.from('equipment').select('current_hours').eq('id', eq.id).maybeSingle();
   expect(Number(parentEq.current_hours)).toBe(250);
@@ -117,7 +121,7 @@ test('km-tracked: anon RPC inserts equipment_fuelings + bumps equipment.current_
 }) => {
   await resetDb();
   const eq = await seedActiveEquipment(supabaseAdmin, {
-    slug: 'rpc-km',
+    slug: seedKey('rpc-km'),
     tracking_unit: 'km',
     current_hours: null,
     current_km: 5000,
@@ -128,7 +132,7 @@ test('km-tracked: anon RPC inserts equipment_fuelings + bumps equipment.current_
     auth: {autoRefreshToken: false, persistSession: false},
   });
 
-  const parent = makeParent(eq, 'csid-km-1', {reading: 6000});
+  const parent = makeParent(eq, seedKey('csid-km-1'), {reading: 6000});
   const {data, error} = await anonClient.rpc('submit_equipment_fueling', {parent_in: parent});
   expect(error).toBeNull();
   expect(data.idempotent_replay).toBe(false);
@@ -148,13 +152,13 @@ test('idempotent: replay same csid returns idempotent_replay=true, no duplicate 
   resetDb,
 }) => {
   await resetDb();
-  const eq = await seedActiveEquipment(supabaseAdmin, {slug: 'rpc-replay', current_hours: 300});
+  const eq = await seedActiveEquipment(supabaseAdmin, {slug: seedKey('rpc-replay'), current_hours: 300});
 
   const anonClient = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {
     auth: {autoRefreshToken: false, persistSession: false},
   });
 
-  const csid = 'csid-replay-1';
+  const csid = seedKey('csid-replay-1');
   const parent1 = makeParent(eq, csid, {reading: 350});
   const r1 = await anonClient.rpc('submit_equipment_fueling', {parent_in: parent1});
   expect(r1.error).toBeNull();
@@ -164,7 +168,7 @@ test('idempotent: replay same csid returns idempotent_replay=true, no duplicate 
   // Replay: same csid, different id and a different (higher) reading. The
   // function short-circuits on the existing csid and never re-bumps the
   // parent — equipment.current_hours stays at the first call's value.
-  const parent2 = makeParent(eq, csid, {id: 'fuel-replay-2', reading: 400});
+  const parent2 = makeParent(eq, csid, {id: seedKey('fuel-replay-2'), reading: 400});
   const r2 = await anonClient.rpc('submit_equipment_fueling', {parent_in: parent2});
   expect(r2.error).toBeNull();
   expect(r2.data.idempotent_replay).toBe(true);
@@ -187,7 +191,7 @@ test('GREATEST: a lower reading on a separate submission does NOT lower equipmen
   resetDb,
 }) => {
   await resetDb();
-  const eq = await seedActiveEquipment(supabaseAdmin, {slug: 'rpc-greatest', current_hours: 500});
+  const eq = await seedActiveEquipment(supabaseAdmin, {slug: seedKey('rpc-greatest'), current_hours: 500});
 
   const anonClient = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {
     auth: {autoRefreshToken: false, persistSession: false},
@@ -195,7 +199,7 @@ test('GREATEST: a lower reading on a separate submission does NOT lower equipmen
 
   // First submission: bump parent to 600.
   const r1 = await anonClient.rpc('submit_equipment_fueling', {
-    parent_in: makeParent(eq, 'csid-high', {reading: 600}),
+    parent_in: makeParent(eq, seedKey('csid-high'), {reading: 600}),
   });
   expect(r1.error).toBeNull();
   expect(r1.data.equipment_reading_updated).toBe(true);
@@ -204,7 +208,7 @@ test('GREATEST: a lower reading on a separate submission does NOT lower equipmen
   // replay — the row lands in equipment_fuelings, but the parent bump
   // no-ops because GREATEST says 600 > 550).
   const r2 = await anonClient.rpc('submit_equipment_fueling', {
-    parent_in: makeParent(eq, 'csid-low', {reading: 550}),
+    parent_in: makeParent(eq, seedKey('csid-low'), {reading: 550}),
   });
   expect(r2.error).toBeNull();
   expect(r2.data.idempotent_replay).toBe(false);
@@ -224,13 +228,13 @@ test('GREATEST: a lower reading on a separate submission does NOT lower equipmen
 // Test 5 — Validation: zero gallons rejected
 test('validation: gallons<=0 rejected with explicit RAISE', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  const eq = await seedActiveEquipment(supabaseAdmin, {slug: 'rpc-zero-gal'});
+  const eq = await seedActiveEquipment(supabaseAdmin, {slug: seedKey('rpc-zero-gal')});
 
   const anonClient = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {
     auth: {autoRefreshToken: false, persistSession: false},
   });
 
-  const parent = makeParent(eq, 'csid-zero-gal', {gallons: 0});
+  const parent = makeParent(eq, seedKey('csid-zero-gal'), {gallons: 0});
   const {data, error} = await anonClient.rpc('submit_equipment_fueling', {parent_in: parent});
   expect(error).not.toBeNull();
   expect(error.message).toMatch(/gallons must be > 0/);
@@ -246,13 +250,13 @@ test('validation: gallons<=0 rejected with explicit RAISE', async ({supabaseAdmi
 // Test 6 — Validation: missing hours_reading on an hours-tracked piece
 test('validation: hours-tracked piece without hours_reading rejected', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  const eq = await seedActiveEquipment(supabaseAdmin, {slug: 'rpc-no-reading', tracking_unit: 'hours'});
+  const eq = await seedActiveEquipment(supabaseAdmin, {slug: seedKey('rpc-no-reading'), tracking_unit: 'hours'});
 
   const anonClient = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {
     auth: {autoRefreshToken: false, persistSession: false},
   });
 
-  const parent = makeParent(eq, 'csid-no-reading', {reading: null});
+  const parent = makeParent(eq, seedKey('csid-no-reading'), {reading: null});
   parent.hours_reading = null;
   const {error} = await anonClient.rpc('submit_equipment_fueling', {parent_in: parent});
   expect(error).not.toBeNull();
@@ -262,13 +266,13 @@ test('validation: hours-tracked piece without hours_reading rejected', async ({s
 // Test 7 — Inactive equipment is rejected
 test('validation: equipment with status=sold is rejected', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  const eq = await seedActiveEquipment(supabaseAdmin, {slug: 'rpc-sold', status: 'sold'});
+  const eq = await seedActiveEquipment(supabaseAdmin, {slug: seedKey('rpc-sold'), status: 'sold'});
 
   const anonClient = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {
     auth: {autoRefreshToken: false, persistSession: false},
   });
 
-  const parent = makeParent(eq, 'csid-sold', {reading: 100});
+  const parent = makeParent(eq, seedKey('csid-sold'), {reading: 100});
   const {error} = await anonClient.rpc('submit_equipment_fueling', {parent_in: parent});
   expect(error).not.toBeNull();
   expect(error.message).toMatch(/is not active \(status=sold\)/);
