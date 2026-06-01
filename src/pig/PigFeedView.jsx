@@ -56,6 +56,7 @@ import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {recommendedFeedOrder} from '../lib/feedOrderBasis.js';
 
 export default function PigFeedView({
   Header,
@@ -343,7 +344,18 @@ export default function PigFeedView({
   const activeMd = monthlyData.find((m) => m.ym === activeYM);
   const nextMd = monthlyData.find((m) => m.ym === nextYM);
   const needThruNext = (activeMd ? activeMd.projTotal : 0) + (nextMd ? nextMd.projTotal : 0);
-  const recommendedOrder = endOfPrevEst != null ? Math.max(0, needThruNext - endOfPrevEst) : null;
+  // A current-month physical count is ground truth for "on hand now" and
+  // supersedes the previous-month ending estimate as the order basis (the
+  // estimate is computed before the count corrects the month). Actual On Hand
+  // already folds in arrived-after-count orders / consumed-since and the
+  // "count includes current order" checkbox, so nothing is double-counted.
+  const hasCurrentCount = invYMConst === thisYM && feedOnHand != null;
+  const recommendedOrder = recommendedFeedOrder({
+    needThruNext,
+    hasCurrentCount,
+    actualOnHand: feedOnHand,
+    endOfPrevEst,
+  });
 
   // Live End-of-Month estimate for the active card only, splicing the
   // typed draft into the ledger's saved value.
@@ -534,6 +546,9 @@ export default function PigFeedView({
               }}
             >
               {recommendedOrder != null ? recommendedOrder.toLocaleString() + ' lbs' : '—'}
+            </div>
+            <div style={{fontSize: 10, color: '#92400e', opacity: 0.85, marginTop: 3}}>
+              {hasCurrentCount ? 'vs Actual On Hand' : 'vs End of ' + prevLabel + ' Est.'}
             </div>
           </div>
 

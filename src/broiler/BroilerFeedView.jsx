@@ -64,6 +64,7 @@ import {useLayer} from '../contexts/LayerContext.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {recommendedFeedOrder} from '../lib/feedOrderBasis.js';
 
 export default function BroilerFeedView({
   Header,
@@ -398,14 +399,38 @@ export default function BroilerFeedView({
     const n = monthlyData.find((m) => m.ym === nextYM);
     needThruNext[type] = (a ? a[projKey] : 0) + (n ? n[projKey] : 0);
   });
+  // Order basis per type. A current-month physical count is ground truth for
+  // "on hand now" and supersedes the previous-month ending ESTIMATE: the
+  // estimate (endOfPrev) is computed before the count corrects the month, so
+  // using it ignores the physical reality the operator just entered. When a
+  // current-month count exists we subtract the count-aware Actual On Hand
+  // (which already folds in arrived-after-count orders / consumed-since and
+  // the "count includes current order" semantics, so nothing is double-counted).
+  // With no current-month count we keep the previous-month estimate basis.
+  const basisIsCount = {};
   const recommendedOrder = {};
   TYPE_KEYS.forEach((type) => {
-    if (endOfPrev[type] == null) {
-      recommendedOrder[type] = null;
-      return;
-    }
-    recommendedOrder[type] = Math.max(0, needThruNext[type] - endOfPrev[type]);
+    const inv = poultryFeedInventory && poultryFeedInventory[type];
+    const invYM = inv && inv.date ? inv.date.substring(0, 7) : null;
+    const hasCurrentCount = invYM === thisYM && actualOnHand[type] != null;
+    basisIsCount[type] = hasCurrentCount;
+    recommendedOrder[type] = recommendedFeedOrder({
+      needThruNext: needThruNext[type],
+      hasCurrentCount,
+      actualOnHand: actualOnHand[type],
+      endOfPrevEst: endOfPrev[type],
+    });
   });
+  const anyCurrentCount = TYPE_KEYS.some((type) => basisIsCount[type]);
+  const allCurrentCount = TYPE_KEYS.every((type) => basisIsCount[type]);
+  // Caption must reflect the REAL per-type basis. In a mixed state (only some
+  // feed types counted this month) a tile-wide "vs Actual On Hand" would
+  // misrepresent the still-estimated types.
+  const orderBasisCaption = allCurrentCount
+    ? 'vs Actual On Hand'
+    : anyCurrentCount
+      ? 'vs Actual On Hand where counted; otherwise End of ' + prevLabel + ' Est.'
+      : 'vs End of ' + prevLabel + ' Est.';
 
   // Top tiles render three stacked per-type rows so each feed type's
   // value scans on its own. The order matches the active card's per-type
@@ -871,6 +896,7 @@ export default function BroilerFeedView({
           <div style={{...tileShellS, background: '#fffbeb', border: '2px solid #fde68a'}}>
             <div style={{...tileLabelS, color: '#92400e'}}>{'Order for ' + activeLabel}</div>
             {renderTileRows(recommendedOrder, () => '#92400e')}
+            <div style={{fontSize: 10, color: '#92400e', opacity: 0.85, marginTop: 3}}>{orderBasisCaption}</div>
           </div>
 
           {/* Need Thru [next] */}

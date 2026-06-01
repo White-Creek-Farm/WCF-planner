@@ -80,13 +80,23 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).toMatch(/started - tripPigs - transfers\.count - mortality/);
   });
 
-  it('recommended order math = max(0, Need Thru next − End of prev Est.)', () => {
+  it('recommended order is count-aware: basis = current-month Actual On Hand, else End of prev Est.', () => {
     expect(pigSrc).toMatch(
       /needThruNext\s*=\s*\(activeMd \? activeMd\.projTotal : 0\)\s*\+\s*\(nextMd \? nextMd\.projTotal : 0\)/,
     );
-    expect(pigSrc).toMatch(/recommendedOrder\s*=[\s\S]*?Math\.max\(0, needThruNext - endOfPrevEst\)/);
-    // No alternate hidden orderBaseEst.
+    // The math moved into the shared, unit-tested helper (feedOrderBasis.js).
+    expect(pigSrc).toMatch(/from '\.\.\/lib\/feedOrderBasis\.js'/);
+    expect(pigSrc).toMatch(/recommendedOrder\s*=\s*recommendedFeedOrder\(/);
+    // A current-month count drives the basis, supplying the count-aware on-hand.
+    expect(pigSrc).toMatch(/hasCurrentCount\s*=\s*invYMConst === thisYM && feedOnHand != null/);
+    expect(pigSrc).toMatch(/actualOnHand:\s*feedOnHand/);
+    expect(pigSrc).toMatch(/endOfPrevEst,/);
+    // The stale always-estimate basis must be gone.
+    expect(pigSrc).not.toMatch(/Math\.max\(0, needThruNext - endOfPrevEst\)/);
     expect(pigSrc).not.toMatch(/orderBaseEst/);
+    // The Order tile names its real basis so "End of prev Est." is not implied
+    // as the source when the recommendation is count-aware.
+    expect(pigSrc).toMatch(/hasCurrentCount \? 'vs Actual On Hand' : 'vs End of ' \+ prevLabel \+ ' Est\.'/);
   });
 
   it('Actual On Hand counts only orders that arrived after the count', () => {
@@ -303,8 +313,25 @@ describe('BroilerFeedView — minimal ledger contract', () => {
     expect(broilerSrc).toMatch(/Order for \[active\][\s\S]*?background: '#fffbeb'[\s\S]*?border: '2px solid #fde68a'/);
   });
 
-  it('recommended order per type = max(0, needThruNext[type] − endOfPrev[type])', () => {
-    expect(broilerSrc).toMatch(/Math\.max\(0, needThruNext\[type\] - endOfPrev\[type\]\)/);
+  it('recommended order per type is count-aware via the shared helper (Actual On Hand basis when current-month count)', () => {
+    // The math moved into the shared, unit-tested helper (feedOrderBasis.js).
+    expect(broilerSrc).toMatch(/from '\.\.\/lib\/feedOrderBasis\.js'/);
+    expect(broilerSrc).toMatch(/recommendedOrder\[type\]\s*=\s*recommendedFeedOrder\(/);
+    // Per-type current-month count detection feeds the count-aware basis.
+    expect(broilerSrc).toMatch(/hasCurrentCount\s*=\s*invYM === thisYM && actualOnHand\[type\] != null/);
+    expect(broilerSrc).toMatch(/actualOnHand:\s*actualOnHand\[type\]/);
+    expect(broilerSrc).toMatch(/endOfPrevEst:\s*endOfPrev\[type\]/);
+    // The stale always-estimate basis must be gone.
+    expect(broilerSrc).not.toMatch(/Math\.max\(0, needThruNext\[type\] - endOfPrev\[type\]\)/);
+    // The Order tile names its real PER-TYPE basis. A tile-wide caption would
+    // misrepresent a mixed state (only some feed types counted this month), so
+    // the caption is three-way: all counted / none / mixed.
+    expect(broilerSrc).toMatch(/allCurrentCount\s*=\s*TYPE_KEYS\.every\(\(type\) => basisIsCount\[type\]\)/);
+    expect(broilerSrc).toMatch(/allCurrentCount[\s\S]*?\? 'vs Actual On Hand'/);
+    expect(broilerSrc).toMatch(/'vs Actual On Hand where counted; otherwise End of ' \+ prevLabel \+ ' Est\.'/);
+    expect(broilerSrc).toMatch(/: 'vs End of ' \+ prevLabel \+ ' Est\.'/);
+    // The misleading tile-wide anyCurrentCount caption must be gone.
+    expect(broilerSrc).not.toMatch(/anyCurrentCount \? 'vs Actual On Hand' : 'vs End of/);
     // No carryover/runway language.
     expect(broilerSrc).not.toMatch(/Carryover:/);
     expect(broilerSrc).not.toMatch(/days remaining/);
