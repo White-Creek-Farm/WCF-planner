@@ -230,14 +230,17 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
 
   async function deleteCow() {
     if (!cow || !window._wcfConfirmDelete) return;
-    window._wcfConfirmDelete('Delete this cow record? The record can be restored from Recently Deleted.', async () => {
-      try {
-        await softDeleteCattleAnimal(sb, cow.id, cow.tag || cow.id);
-        navigate('/cattle/herds');
-      } catch (e) {
-        setNotice({kind: 'error', message: 'Delete failed: ' + (e.message || String(e))});
-      }
-    });
+    window._wcfConfirmDelete(
+      'Delete this cow record? Admin/backend recovery is available, but this record will be hidden from active cattle views.',
+      async () => {
+        try {
+          await softDeleteCattleAnimal(sb, cow.id, cow.tag || cow.id);
+          navigate('/cattle/herds');
+        } catch (e) {
+          setNotice({kind: 'error', message: 'Delete failed: ' + (e.message || String(e))});
+        }
+      },
+    );
   }
 
   function navigateToCow(target) {
