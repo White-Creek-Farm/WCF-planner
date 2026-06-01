@@ -1,6 +1,6 @@
 # HO - Static Workflow SOP
 
-Last updated: 2026-05-30.
+Last updated: 2026-06-01.
 
 This is the durable start-of-session workflow for Ronnie, CC (Claude Code), and
 Codex. It is not a session log and must not carry current project state.
@@ -114,6 +114,39 @@ Do not rename/reorganize branches unless Ronnie asks.
 
 If a PR exists, its body should hold the detailed build report. Chat summaries
 stay short.
+
+### Parallel Codex Worktree
+
+A dedicated Codex worktree exists at:
+
+`C:\Users\Ronni\WCF-planner-codex`
+
+It was created from `main` at `049a694` on branch
+`codex/parallel-worktree`, with its own `node_modules` installed by `npm ci`.
+
+Default ownership is unchanged: Codex is still planning lead and reviewer, and
+CC is still primary builder. Ronnie may explicitly assign a build lane to Codex
+when parallel work would save time. Codex-owned build work happens in the Codex
+worktree, not in the main CC worktree at `C:\Users\Ronni\WCF-planner`.
+
+Parallel-build rules:
+
+- Codex should create or switch to a scoped branch in the Codex worktree for
+  each assigned build lane, such as `codex/<short-lane-name>`.
+- Codex must check `git status --short`, recent git log, and sync/rebase from
+  current `main` before starting a Codex build lane.
+- Do not have CC and Codex edit the same files or same lane at the same time
+  unless Ronnie explicitly coordinates it.
+- Shared files such as route adapters, shared controls, test helpers,
+  migrations, and config files require extra coordination before parallel
+  edits.
+- CC should double-check Codex-built work before Ronnie approves commit, push,
+  deploy, merge, PROD migration, Storage, Vault, or other production-impacting
+  gates.
+- Gate rules are unchanged. A separate worktree is not approval to commit,
+  push, deploy, migrate, merge, or touch PROD.
+- Codex must clearly report when a result came from the Codex worktree and
+  include branch/status, files changed, validation, risks, and requested gates.
 
 ---
 
