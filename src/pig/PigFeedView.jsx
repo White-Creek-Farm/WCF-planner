@@ -369,13 +369,13 @@ export default function PigFeedView({
         }
       : activeLg;
 
-  // Second summary tile. When the active month has a current-month physical
-  // count, show its projected END OF ACTIVE month from the PERSISTED ledger
-  // (saved order only — updates on save, not while typing an unsaved draft)
-  // instead of the stale previous-month estimate. Display only — the order
-  // recommendation basis is unchanged.
-  const estTileValue = hasCurrentCount ? (activeLg ? activeLg.end : null) : endOfPrevEst;
-  const estTileLabel = hasCurrentCount ? 'End of ' + activeLabel + ' Est.' : 'End of ' + prevLabel + ' Est.';
+  // Second tile follows the active/calendar feed-order month — always
+  // "End of [active] Est." with that month's persisted ledger end. A physical
+  // count changes the projected end NUMBER (it anchors the active ledger), not
+  // which month/label the tile shows. Saved order only — updates on save, not
+  // while typing an unsaved draft. Order recommendation basis is unchanged.
+  const estTileValue = activeLg ? activeLg.end : null;
+  const estTileLabel = 'End of ' + activeLabel + ' Est.';
 
   // ── Per-group breakdown via feedPlanner helpers ──────────────────────────
   function projectedFeedByGroup(ym) {

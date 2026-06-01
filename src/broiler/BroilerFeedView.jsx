@@ -443,15 +443,12 @@ export default function BroilerFeedView({
     const lg = pLedger[type][activeYM];
     endOfActive[type] = lg ? lg.end : null;
   });
-  const estTileValues = {};
-  TYPE_KEYS.forEach((type) => {
-    estTileValues[type] = basisIsCount[type] ? endOfActive[type] : endOfPrev[type];
-  });
-  const estTileLabel = allCurrentCount
-    ? 'End of ' + activeLabel + ' Est.'
-    : anyCurrentCount
-      ? 'Current / Prior Est.'
-      : 'End of ' + prevLabel + ' Est.';
+  // Second tile follows the active/calendar feed-order month — always
+  // "End of [active] Est." with that month's persisted ledger end per type. A
+  // physical count changes the projected end NUMBERS (it anchors the active
+  // ledger), not which month/label the tile shows.
+  const estTileValues = endOfActive;
+  const estTileLabel = 'End of ' + activeLabel + ' Est.';
 
   // Top tiles render three stacked per-type rows so each feed type's
   // value scans on its own. The order matches the active card's per-type
