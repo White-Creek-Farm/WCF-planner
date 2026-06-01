@@ -35,8 +35,11 @@ describe('TaskInstancePage — record page structure', () => {
   it('loads task via loadTaskInstanceById', () => {
     expect(pageSrc).toContain('loadTaskInstanceById');
   });
-  it('has a data-record-title marker', () => {
-    expect(pageSrc).toContain('data-record-title');
+  it('renders the title via the shared RecordTitle (emits data-record-title="1")', () => {
+    // CP3 migrated the page onto RecordPageShell; the data-record-title marker
+    // is now emitted by the shared RecordTitle component (same as daily pages).
+    expect(pageSrc).toContain('RecordTitle');
+    expect(pageSrc).toContain("from '../shared/RecordPageShell.jsx'");
   });
   it('has a back link to /tasks', () => {
     expect(pageSrc).toContain("navigate('/tasks')");

@@ -36,6 +36,7 @@ import {todayCentralISO} from '../lib/dateUtils.js';
 import PigSendToTripModal from './PigSendToTripModal.jsx';
 import {writeBroilerBatchAvg, recomputeBroilerBatchWeekAvg} from '../lib/broiler.js';
 import {loadRoster, activeNames as rosterActiveNames} from '../lib/teamMembers.js';
+import {recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
 const FLOCK_LABELS = {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'};
@@ -1455,7 +1456,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   {'SESSION METADATA'}
                 </div>
                 <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
-                  <span style={{fontSize: 12, color: '#374151', minWidth: 90}}>{'Week:'}</span>
+                  <span style={{...recordFieldLabel, minWidth: 90}}>{'Week:'}</span>
                   <button
                     type="button"
                     data-testid="broiler-meta-wk4"
@@ -1476,20 +1477,17 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   </button>
                 </div>
                 <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
-                  <span style={{fontSize: 12, color: '#374151', minWidth: 90}}>{'Team Member:'}</span>
+                  <span style={{...recordFieldLabel, minWidth: 90}}>{'Team Member:'}</span>
+                  {/* Shared control styling (CP3); the existing roster + historical
+                      "(retired)" option logic, saved-value contract, and the
+                      data-testid selector are unchanged (not swapped to
+                      TeamMemberSelect, which would drop the testid + change the
+                      historical label). */}
                   <select
                     data-testid="broiler-meta-team"
                     value={metaTeam}
                     onChange={(e) => setMetaTeam(e.target.value)}
-                    style={{
-                      fontFamily: 'inherit',
-                      fontSize: 13,
-                      padding: '6px 8px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: 6,
-                      background: 'white',
-                      minWidth: 160,
-                    }}
+                    style={{...recordControl, width: 'auto', minWidth: 180}}
                   >
                     {teamOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
