@@ -1,5 +1,12 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
+import {
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordControl,
+  recordTextarea,
+  recordCheckbox,
+} from '../shared/recordPageControls.jsx';
 
 const CowDetail = ({
   cow,
@@ -119,16 +126,6 @@ const CowDetail = ({
       });
     }
   }
-  const inpC = {
-    fontSize: 12,
-    padding: '5px 8px',
-    border: '1px solid #d1d5db',
-    borderRadius: 5,
-    fontFamily: 'inherit',
-    width: '100%',
-    boxSizing: 'border-box',
-  };
-  const lblC = {fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 2, fontWeight: 500};
 
   // Tag lookup helper for cross-cow navigation (calving → calf, lineage → dam/sire)
   const findByTag = (t) => (t && Array.isArray(cattleList) ? cattleList.find((x) => x.tag === t) : null);
@@ -992,34 +989,34 @@ const CowDetail = ({
                 marginBottom: 8,
               }}
             >
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 6}}>
-                <div>
-                  <label style={lblC}>Calving date *</label>
+              <div style={{marginBottom: 6}}>
+                <div className={recordFieldRowClass}>
+                  <span style={recordFieldLabel}>Calving date *</span>
                   <input
                     type="date"
                     value={calvingForm.calving_date}
                     onChange={(e) => setCalvingForm({...calvingForm, calving_date: e.target.value})}
-                    style={inpC}
+                    style={recordControl}
                   />
                 </div>
-                <div>
-                  <label style={lblC}>Calf tag (optional)</label>
+                <div className={recordFieldRowClass}>
+                  <span style={recordFieldLabel}>Calf tag (optional)</span>
                   <input
                     value={calvingForm.calf_tag}
                     onChange={(e) => setCalvingForm({...calvingForm, calf_tag: e.target.value})}
                     placeholder="e.g. 92"
-                    style={inpC}
+                    style={recordControl}
                   />
                 </div>
-                <div>
-                  <label style={lblC}>Sire tag</label>
+                <div className={recordFieldRowClass}>
+                  <span style={recordFieldLabel}>Sire tag</span>
                   <input
                     value={calvingForm.sire_tag}
                     onChange={(e) => setCalvingForm({...calvingForm, sire_tag: e.target.value})}
-                    style={inpC}
+                    style={recordControl}
                   />
                 </div>
-                <div style={{gridColumn: '1/-1'}}>
+                <div>
                   <label
                     style={{
                       display: 'flex',
@@ -1034,6 +1031,7 @@ const CowDetail = ({
                       type="checkbox"
                       checked={calvingForm.complications_flag}
                       onChange={(e) => setCalvingForm({...calvingForm, complications_flag: e.target.checked})}
+                      style={recordCheckbox}
                     />
                     Complications flag
                   </label>
@@ -1043,17 +1041,17 @@ const CowDetail = ({
                       onChange={(e) => setCalvingForm({...calvingForm, complications_desc: e.target.value})}
                       placeholder="Required: describe complications"
                       rows={2}
-                      style={{...inpC, marginTop: 4, resize: 'vertical'}}
+                      style={{...recordTextarea, marginTop: 4}}
                     />
                   )}
                 </div>
-                <div style={{gridColumn: '1/-1'}}>
-                  <label style={lblC}>Notes</label>
+                <div className={recordFieldRowClass} style={{borderBottom: 'none'}}>
+                  <span style={recordFieldLabel}>Notes</span>
                   <textarea
                     value={calvingForm.notes}
                     onChange={(e) => setCalvingForm({...calvingForm, notes: e.target.value})}
                     rows={2}
-                    style={{...inpC, resize: 'vertical'}}
+                    style={recordTextarea}
                   />
                 </div>
               </div>

@@ -4,6 +4,13 @@
 // 2026-04-23: sheep flocks tab should match cattle herds tab exactly,
 // with only the fields and data distinct.
 import React from 'react';
+import {
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordControl,
+  recordTextarea,
+  recordCheckbox,
+} from '../shared/recordPageControls.jsx';
 
 const SheepDetail = ({
   sheep,
@@ -126,16 +133,6 @@ const SheepDetail = ({
       });
     }
   }
-  const inpC = {
-    fontSize: 12,
-    padding: '5px 8px',
-    border: '1px solid #d1d5db',
-    borderRadius: 5,
-    fontFamily: 'inherit',
-    width: '100%',
-    boxSizing: 'border-box',
-  };
-  const lblC = {fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 2, fontWeight: 500};
 
   const findByTag = (t) => (t && Array.isArray(sheepList) ? sheepList.find((x) => x.tag === t) : null);
   const accentColor = (FLOCK_COLORS && FLOCK_COLORS[sheep.flock] && FLOCK_COLORS[sheep.flock].tx) || '#0f766e';
@@ -926,40 +923,39 @@ const SheepDetail = ({
                 marginBottom: 8,
               }}
             >
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 6}}>
-                <div>
-                  <label style={lblC}>Lambing date *</label>
+              <div style={{marginBottom: 6}}>
+                <div className={recordFieldRowClass}>
+                  <span style={recordFieldLabel}>Lambing date *</span>
                   <input
                     type="date"
                     value={lambForm.lambing_date}
                     onChange={(e) => setLambForm({...lambForm, lambing_date: e.target.value})}
-                    style={inpC}
+                    style={recordControl}
                   />
                 </div>
-                <div></div>
-                <div>
-                  <label style={lblC}>Total born</label>
+                <div className={recordFieldRowClass}>
+                  <span style={recordFieldLabel}>Total born</span>
                   <input
                     type="number"
                     min="0"
                     value={lambForm.total_born}
                     onChange={(e) => setLambForm({...lambForm, total_born: e.target.value})}
                     placeholder="0"
-                    style={inpC}
+                    style={recordControl}
                   />
                 </div>
-                <div>
-                  <label style={lblC}>Deaths</label>
+                <div className={recordFieldRowClass}>
+                  <span style={recordFieldLabel}>Deaths</span>
                   <input
                     type="number"
                     min="0"
                     value={lambForm.deaths}
                     onChange={(e) => setLambForm({...lambForm, deaths: e.target.value})}
                     placeholder="0"
-                    style={inpC}
+                    style={recordControl}
                   />
                 </div>
-                <div style={{gridColumn: '1/-1'}}>
+                <div>
                   <label
                     style={{
                       display: 'flex',
@@ -974,6 +970,7 @@ const SheepDetail = ({
                       type="checkbox"
                       checked={lambForm.complications_flag}
                       onChange={(e) => setLambForm({...lambForm, complications_flag: e.target.checked})}
+                      style={recordCheckbox}
                     />
                     Complications flag
                   </label>
@@ -983,17 +980,17 @@ const SheepDetail = ({
                       onChange={(e) => setLambForm({...lambForm, complications_desc: e.target.value})}
                       placeholder="Required: describe complications"
                       rows={2}
-                      style={{...inpC, marginTop: 4, resize: 'vertical'}}
+                      style={{...recordTextarea, marginTop: 4}}
                     />
                   )}
                 </div>
-                <div style={{gridColumn: '1/-1'}}>
-                  <label style={lblC}>Notes</label>
+                <div className={recordFieldRowClass} style={{borderBottom: 'none'}}>
+                  <span style={recordFieldLabel}>Notes</span>
                   <textarea
                     value={lambForm.notes}
                     onChange={(e) => setLambForm({...lambForm, notes: e.target.value})}
                     rows={2}
-                    style={{...inpC, resize: 'vertical'}}
+                    style={recordTextarea}
                   />
                 </div>
               </div>
