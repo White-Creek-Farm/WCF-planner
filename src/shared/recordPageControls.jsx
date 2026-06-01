@@ -81,6 +81,15 @@ export const recordTextarea = {
 // Checkbox sized + left-aligned in the value column.
 export const recordCheckbox = {width: 18, height: 18, cursor: 'pointer'};
 
+// RecordPageBody maxWidth convention: form-centric record pages (mostly
+// label/value fields, like the daily pages) use RECORD_FORM_MAXWIDTH for a
+// consistent comfortable column. Dense stats / grid pages (e.g. layer batch
+// lifecycle, broiler batch) may stay wider. A page whose RecordPageBody also
+// wraps heavy stats/weight grids tuned to a narrower width should keep that
+// width until those panels are migrated too — don't widen the whole page just
+// to migrate a contained form card.
+export const RECORD_FORM_MAXWIDTH = 960;
+
 // Roster-backed Team Member dropdown. Loads the team roster and renders the
 // active names. The currently-saved value is preserved: if it is not in the
 // active roster it is offered as a selectable historical option labeled

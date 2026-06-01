@@ -17,6 +17,7 @@ import {
   RecordTitle,
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
+import {recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
 import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
 import {batchHasAllHangingWeights, batchMissingHangingTags, validateRealBatchRename} from '../lib/cattleForecast.js';
 import {markBatchComplete, reopenBatch} from '../lib/cattleForecastApi.js';
@@ -337,20 +338,17 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
             }}
           >
             <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10}}>
-              <label style={{fontSize: 12, color: '#374151', fontWeight: 600}}>Processor date:</label>
+              {/* Inline editor row: shared control/label styling (CP2); kept
+                  inline next to the Unschedule action rather than a full grid
+                  row. Save (handleUpdateScheduledDate onBlur) unchanged. */}
+              <span style={recordFieldLabel}>Processor date</span>
               <input
                 type="date"
                 value={scheduledDateDraft}
                 onChange={(e) => setScheduledDateDraft(e.target.value)}
                 onBlur={handleUpdateScheduledDate}
                 data-scheduled-batch-date={batch.id}
-                style={{
-                  fontSize: 13,
-                  padding: '5px 9px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 5,
-                  fontFamily: 'inherit',
-                }}
+                style={{...recordControl, width: 180}}
               />
             </div>
             {!unscheduling ? (
@@ -432,7 +430,10 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
               <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10}}>
                 {!isComplete && (
                   <>
-                    <label style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Name:</label>
+                    {/* Inline rename editor: shared control/label styling (CP2);
+                        kept inline next to the Complete/Reopen action. Save
+                        (handleSaveRename onBlur + validation) unchanged. */}
+                    <span style={recordFieldLabel}>Name</span>
                     <input
                       type="text"
                       value={renameDraft}
@@ -442,14 +443,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                       }}
                       onBlur={handleSaveRename}
                       data-rename-input={batch.id}
-                      style={{
-                        fontSize: 13,
-                        padding: '5px 9px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: 5,
-                        fontFamily: 'inherit',
-                        width: 130,
-                      }}
+                      style={{...recordControl, width: 160}}
                     />
                     {renameErr && (
                       <span style={{fontSize: 11, color: '#b91c1c'}} data-rename-err={batch.id}>

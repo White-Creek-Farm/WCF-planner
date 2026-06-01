@@ -17,7 +17,7 @@ import {
   RecordTitle,
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
-import {S} from '../lib/styles.js';
+import {recordFieldRowClass, recordFieldLabel, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
 import {computeProjectedCount, computeHousingDisplayCount} from '../lib/layerHousing.js';
 import {getHousingCap, computeHousingStats} from './layerBatchStats.js';
 
@@ -530,21 +530,16 @@ export default function LayerHousingPage({
                 </button>
               </div>
             </div>
-            <div
-              style={{
-                padding: '16px 20px',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 10,
-                maxHeight: '65vh',
-                overflowY: 'auto',
-              }}
-            >
-              <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Housing (Layer Group) *</label>
+            {/* Edit-modal form — migrated to shared record-page controls (CP2).
+                Autosave (1500ms), saved indicator, capacity warning, locked
+                in-use options, stamp hints, and the retire flow are unchanged. */}
+            <div style={{padding: '16px 20px', maxHeight: '65vh', overflowY: 'auto'}}>
+              <div className={recordFieldRowClass}>
+                <span style={recordFieldLabel}>Housing (Layer Group) *</span>
                 <select
                   value={hForm.housing_name}
                   onChange={(e) => updHousing((f) => ({...f, housing_name: e.target.value}))}
+                  style={recordControl}
                 >
                   <option value="">{'Select housing…'}</option>
                   {(layerGroups || []).map((g) => {
@@ -571,13 +566,13 @@ export default function LayerHousingPage({
                     c < 9999 && (
                       <div
                         style={{
-                          gridColumn: '1/-1',
                           fontSize: 11,
                           color: '#92400e',
                           background: '#fffbeb',
                           border: '1px solid #fde68a',
                           borderRadius: 6,
                           padding: '6px 10px',
+                          marginBottom: 4,
                         }}
                       >
                         {'⚠ Capacity: ' + c + ' birds max'}
@@ -585,69 +580,78 @@ export default function LayerHousingPage({
                     )
                   );
                 })()}
-              <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Current Count</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={hForm.current_count || ''}
-                  onChange={(e) => updHousing((f) => ({...f, current_count: e.target.value}))}
-                />
-                {(() => {
-                  const oldVal = housing.current_count != null ? parseInt(housing.current_count) : null;
-                  const newVal = hForm.current_count !== '' ? parseInt(hForm.current_count) : null;
-                  if (newVal !== oldVal) {
-                    return (
-                      <div style={{fontSize: 10, color: '#065f46', marginTop: 4, fontWeight: 600}}>
-                        {'Will be stamped: ' + fmt(todayStr())}
-                      </div>
-                    );
-                  }
-                  if (housing.current_count_date) {
-                    return (
-                      <div style={{fontSize: 10, color: '#9ca3af', marginTop: 4}}>
-                        {'Last set: ' + fmt(housing.current_count_date)}
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
+              <div className={recordFieldRowClass}>
+                <span style={recordFieldLabel}>Current Count</span>
+                <div>
+                  <input
+                    type="number"
+                    min="0"
+                    value={hForm.current_count || ''}
+                    onChange={(e) => updHousing((f) => ({...f, current_count: e.target.value}))}
+                    style={recordControl}
+                  />
+                  {(() => {
+                    const oldVal = housing.current_count != null ? parseInt(housing.current_count) : null;
+                    const newVal = hForm.current_count !== '' ? parseInt(hForm.current_count) : null;
+                    if (newVal !== oldVal) {
+                      return (
+                        <div style={{fontSize: 10, color: '#065f46', marginTop: 4, fontWeight: 600}}>
+                          {'Will be stamped: ' + fmt(todayStr())}
+                        </div>
+                      );
+                    }
+                    if (housing.current_count_date) {
+                      return (
+                        <div style={{fontSize: 10, color: '#9ca3af', marginTop: 4}}>
+                          {'Last set: ' + fmt(housing.current_count_date)}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
               </div>
-              <div>
-                <label style={S.label}>Start Date</label>
+              <div className={recordFieldRowClass}>
+                <span style={recordFieldLabel}>Start Date</span>
                 <input
                   type="date"
                   value={hForm.start_date}
                   onChange={(e) => updHousing((f) => ({...f, start_date: e.target.value}))}
+                  style={recordControl}
                 />
               </div>
-              <div>
-                <label style={S.label}>Status</label>
-                <select value={hForm.status} onChange={(e) => updHousing((f) => ({...f, status: e.target.value}))}>
+              <div className={recordFieldRowClass}>
+                <span style={recordFieldLabel}>Status</span>
+                <select
+                  value={hForm.status}
+                  onChange={(e) => updHousing((f) => ({...f, status: e.target.value}))}
+                  style={recordControl}
+                >
                   <option value="active">Active</option>
                   <option value="retired">Retired</option>
                 </select>
               </div>
               {hForm.status === 'retired' && (
-                <div style={{gridColumn: '1/-1'}}>
-                  <label style={S.label}>Retired Date</label>
+                <div className={recordFieldRowClass}>
+                  <span style={recordFieldLabel}>Retired Date</span>
                   <input
                     type="date"
                     value={hForm.retired_date}
                     onChange={(e) => updHousing((f) => ({...f, retired_date: e.target.value}))}
+                    style={recordControl}
                   />
                 </div>
               )}
-              <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Notes</label>
+              <div className={recordFieldRowClass}>
+                <span style={recordFieldLabel}>Notes</span>
                 <textarea
                   value={hForm.notes}
                   onChange={(e) => updHousing((f) => ({...f, notes: e.target.value}))}
-                  rows={2}
-                  style={{resize: 'vertical'}}
+                  rows={3}
+                  style={recordTextarea}
                 />
               </div>
-              {err && <div style={{gridColumn: '1/-1', color: '#b91c1c', fontSize: 12, fontWeight: 600}}>{err}</div>}
+              {err && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600, marginTop: 8}}>{err}</div>}
             </div>
           </div>
         </div>

@@ -17,6 +17,13 @@ import {
   RecordTitle,
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
+import {
+  recordFormCard,
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordControl,
+  recordTextarea,
+} from '../shared/recordPageControls.jsx';
 import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
 import {invalidateSheepWeighInsCache} from '../lib/sheepCache.js';
 import {recordStatusChange, recordActivityEvent} from '../lib/entityMutations.js';
@@ -290,16 +297,6 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
     return draft[k] != null ? draft[k] : curr != null ? String(curr) : '';
   };
 
-  const inpS = {
-    fontSize: 13,
-    padding: '6px 9px',
-    border: '1px solid #d1d5db',
-    borderRadius: 6,
-    fontFamily: 'inherit',
-    boxSizing: 'border-box',
-  };
-  const lbl = {fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500};
-
   return (
     <RecordPageFrame Header={Header}>
       <RecordPageBody maxWidth={900}>
@@ -338,96 +335,87 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
 
         {notice && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
 
-        {/* Metadata editor */}
-        <div
-          data-sheep-batch-meta="1"
-          style={{
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: 10,
-            padding: '14px 18px',
-            marginBottom: 12,
-          }}
-        >
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
-            <div style={{gridColumn: '1/-1'}}>
-              <label style={lbl}>Name</label>
-              <input
-                value={metaDraft ? metaDraft.name : ''}
-                disabled={!canEdit}
-                data-sheep-batch-name
-                onChange={(e) => setMetaDraft((m) => ({...m, name: e.target.value}))}
-                onBlur={(e) => saveMetaField('name', e.target.value, {label: 'Renamed'})}
-                style={{...inpS, width: '100%'}}
-              />
-            </div>
-            <div>
-              <label style={lbl}>Status</label>
-              <select
-                value={metaDraft ? metaDraft.status : 'planned'}
-                disabled={!canEdit}
-                data-sheep-batch-status
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setMetaDraft((m) => ({...m, status: next}));
-                  saveStatus(next);
-                }}
-                style={{...inpS, width: '100%'}}
-              >
-                <option value="planned">Planned</option>
-                <option value="complete">Complete</option>
-              </select>
-            </div>
-            <div>
-              <label style={lbl}>Processing Cost ($)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={metaDraft ? metaDraft.processing_cost : ''}
-                disabled={!canEdit}
-                data-sheep-batch-cost
-                onChange={(e) => setMetaDraft((m) => ({...m, processing_cost: e.target.value}))}
-                onBlur={(e) => saveMetaField('processing_cost', e.target.value, {label: 'Cost'})}
-                style={{...inpS, width: '100%'}}
-              />
-            </div>
-            <div>
-              <label style={lbl}>Planned Process Date</label>
-              <input
-                type="date"
-                value={metaDraft ? metaDraft.planned_process_date : ''}
-                disabled={!canEdit}
-                data-sheep-batch-planned-date
-                onChange={(e) => setMetaDraft((m) => ({...m, planned_process_date: e.target.value}))}
-                onBlur={(e) => saveMetaField('planned_process_date', e.target.value, {label: 'Planned date'})}
-                style={{...inpS, width: '100%'}}
-              />
-            </div>
-            <div>
-              <label style={lbl}>Actual Process Date</label>
-              <input
-                type="date"
-                value={metaDraft ? metaDraft.actual_process_date : ''}
-                disabled={!canEdit}
-                data-sheep-batch-actual-date
-                onChange={(e) => setMetaDraft((m) => ({...m, actual_process_date: e.target.value}))}
-                onBlur={(e) => saveMetaField('actual_process_date', e.target.value, {label: 'Actual date'})}
-                style={{...inpS, width: '100%'}}
-              />
-            </div>
-            <div style={{gridColumn: '1/-1'}}>
-              <label style={lbl}>Notes</label>
-              <textarea
-                value={metaDraft ? metaDraft.notes : ''}
-                disabled={!canEdit}
-                data-sheep-batch-notes
-                rows={2}
-                onChange={(e) => setMetaDraft((m) => ({...m, notes: e.target.value}))}
-                onBlur={(e) => saveMetaField('notes', e.target.value, {label: 'Notes'})}
-                style={{...inpS, width: '100%', resize: 'vertical'}}
-              />
-            </div>
+        {/* Metadata editor — migrated to shared record-page controls (CP2).
+            Save behavior (saveMetaField onBlur, saveStatus immediate) and data
+            attributes are unchanged. */}
+        <div data-sheep-batch-meta="1" style={{...recordFormCard, marginBottom: 12}}>
+          <div className={recordFieldRowClass}>
+            <span style={recordFieldLabel}>Name</span>
+            <input
+              value={metaDraft ? metaDraft.name : ''}
+              disabled={!canEdit}
+              data-sheep-batch-name
+              onChange={(e) => setMetaDraft((m) => ({...m, name: e.target.value}))}
+              onBlur={(e) => saveMetaField('name', e.target.value, {label: 'Renamed'})}
+              style={recordControl}
+            />
+          </div>
+          <div className={recordFieldRowClass}>
+            <span style={recordFieldLabel}>Status</span>
+            <select
+              value={metaDraft ? metaDraft.status : 'planned'}
+              disabled={!canEdit}
+              data-sheep-batch-status
+              onChange={(e) => {
+                const next = e.target.value;
+                setMetaDraft((m) => ({...m, status: next}));
+                saveStatus(next);
+              }}
+              style={recordControl}
+            >
+              <option value="planned">Planned</option>
+              <option value="complete">Complete</option>
+            </select>
+          </div>
+          <div className={recordFieldRowClass}>
+            <span style={recordFieldLabel}>Processing Cost ($)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={metaDraft ? metaDraft.processing_cost : ''}
+              disabled={!canEdit}
+              data-sheep-batch-cost
+              onChange={(e) => setMetaDraft((m) => ({...m, processing_cost: e.target.value}))}
+              onBlur={(e) => saveMetaField('processing_cost', e.target.value, {label: 'Cost'})}
+              style={recordControl}
+            />
+          </div>
+          <div className={recordFieldRowClass}>
+            <span style={recordFieldLabel}>Planned Process Date</span>
+            <input
+              type="date"
+              value={metaDraft ? metaDraft.planned_process_date : ''}
+              disabled={!canEdit}
+              data-sheep-batch-planned-date
+              onChange={(e) => setMetaDraft((m) => ({...m, planned_process_date: e.target.value}))}
+              onBlur={(e) => saveMetaField('planned_process_date', e.target.value, {label: 'Planned date'})}
+              style={recordControl}
+            />
+          </div>
+          <div className={recordFieldRowClass}>
+            <span style={recordFieldLabel}>Actual Process Date</span>
+            <input
+              type="date"
+              value={metaDraft ? metaDraft.actual_process_date : ''}
+              disabled={!canEdit}
+              data-sheep-batch-actual-date
+              onChange={(e) => setMetaDraft((m) => ({...m, actual_process_date: e.target.value}))}
+              onBlur={(e) => saveMetaField('actual_process_date', e.target.value, {label: 'Actual date'})}
+              style={recordControl}
+            />
+          </div>
+          <div className={recordFieldRowClass}>
+            <span style={recordFieldLabel}>Notes</span>
+            <textarea
+              value={metaDraft ? metaDraft.notes : ''}
+              disabled={!canEdit}
+              data-sheep-batch-notes
+              rows={3}
+              onChange={(e) => setMetaDraft((m) => ({...m, notes: e.target.value}))}
+              onBlur={(e) => saveMetaField('notes', e.target.value, {label: 'Notes'})}
+              style={recordTextarea}
+            />
           </div>
         </div>
 
