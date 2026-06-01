@@ -74,6 +74,10 @@ export async function seedAdminBroilerSessionMeta(supabaseAdmin) {
     batch_id: BATCH_ID,
     broiler_week: 4,
     started_at: startedAt,
+    // Explicit resets so an upsert overwrites a stale worker row (e.g. one a
+    // prior run completed or annotated) back into the intended draft state.
+    completed_at: null,
+    notes: null,
   };
   const completeRow = {
     id: COMPLETE_ID,
@@ -85,8 +89,10 @@ export async function seedAdminBroilerSessionMeta(supabaseAdmin) {
     broiler_week: 4,
     started_at: startedAt,
     completed_at: completedAt,
+    // T5 mutates notes on this id — reset so a stale note can't survive.
+    notes: null,
   };
-  r = await supabaseAdmin.from('weigh_in_sessions').insert([draftRow, completeRow]);
+  r = await supabaseAdmin.from('weigh_in_sessions').upsert([draftRow, completeRow], {onConflict: 'id'});
   if (r.error) throw new Error(`seedAdminBroilerSessionMeta: weigh_in_sessions ${r.error.message}`);
 
   // 5 weigh_ins for the complete session: weights 1.3, 1.4, 1.5, 1.6, 1.7
@@ -101,7 +107,7 @@ export async function seedAdminBroilerSessionMeta(supabaseAdmin) {
     new_tag_flag: false,
     entered_at: enteredAt,
   }));
-  r = await supabaseAdmin.from('weigh_ins').insert(completeEntries);
+  r = await supabaseAdmin.from('weigh_ins').upsert(completeEntries, {onConflict: 'id'});
   if (r.error) throw new Error(`seedAdminBroilerSessionMeta: weigh_ins ${r.error.message}`);
 
   return {

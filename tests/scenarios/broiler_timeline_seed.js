@@ -142,7 +142,7 @@ export async function seedBroilerTimeline(supabaseAdmin, {withActiveLayer = fals
     });
   }
   if (layerRows.length > 0) {
-    must(await supabaseAdmin.from('layer_batches').insert(layerRows), 'layer_batches insert');
+    must(await supabaseAdmin.from('layer_batches').upsert(layerRows, {onConflict: 'id'}), 'layer_batches insert');
   }
 
   // Compute expected bounds so the spec asserts against pre-derived

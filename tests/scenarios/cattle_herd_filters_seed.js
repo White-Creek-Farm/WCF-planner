@@ -67,6 +67,11 @@ const COWS = [
     dam_tag: 'D-001',
     sire_tag: 'S-001',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'cow-mom-calved-last-year',
@@ -80,6 +85,11 @@ const COWS = [
     dam_tag: 'D-002',
     sire_tag: null, // sire missing
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'cow-mom-never-calved',
@@ -93,6 +103,11 @@ const COWS = [
     dam_tag: null, // both parents missing
     sire_tag: null,
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'cow-mom-blacklist',
@@ -106,6 +121,11 @@ const COWS = [
     dam_tag: 'D-004',
     sire_tag: 'S-004',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'cow-mom-historical-breed',
@@ -120,6 +140,11 @@ const COWS = [
     birth_date: '2022-08-20',
     pct_wagyu: 75,
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   // ── backgrounders — weight-tier spread ─────────────────────────────────
   {
@@ -132,6 +157,11 @@ const COWS = [
     birth_date: '2024-09-01', // ~20mo
     dam_tag: 'D-201',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'cow-bg-stale',
@@ -142,6 +172,11 @@ const COWS = [
     breeding_blacklist: false,
     birth_date: '2024-08-01', // ~21mo
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'cow-bg-noweight',
@@ -152,6 +187,11 @@ const COWS = [
     breeding_blacklist: false,
     birth_date: '2025-01-15', // ~16mo
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   // ── finishers ──────────────────────────────────────────────────────────
   {
@@ -163,6 +203,11 @@ const COWS = [
     breeding_blacklist: false,
     birth_date: '2024-02-01', // ~27mo
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   // ── bulls ──────────────────────────────────────────────────────────────
   {
@@ -174,6 +219,11 @@ const COWS = [
     breeding_blacklist: false,
     birth_date: '2021-05-01', // ~5yr
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   // ── outcome — processed (default-active filter excludes; "all" includes) ─
   {
@@ -185,6 +235,11 @@ const COWS = [
     breeding_blacklist: false,
     birth_date: '2022-01-01',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
 ];
 
@@ -231,29 +286,35 @@ export async function seedCattleHerdFilters(supabaseAdmin) {
   must(await supabaseAdmin.from('cattle_breeds').upsert(BREEDS_ACTIVE, {onConflict: 'id'}), 'cattle_breeds upsert');
   must(await supabaseAdmin.from('cattle_origins').upsert(ORIGINS_ACTIVE, {onConflict: 'id'}), 'cattle_origins upsert');
 
-  must(await supabaseAdmin.from('cattle').insert(COWS), 'cattle insert');
+  must(await supabaseAdmin.from('cattle').upsert(COWS, {onConflict: 'id'}), 'cattle insert');
 
-  must(await supabaseAdmin.from('cattle_calving_records').insert(CALVING_RECS), 'cattle_calving_records insert');
+  must(
+    await supabaseAdmin.from('cattle_calving_records').upsert(CALVING_RECS, {onConflict: 'id'}),
+    'cattle_calving_records insert',
+  );
 
   // Weigh-ins live on shared sessions table — synthesize a single session so
   // the cattle helper's two-query loader sees them. Session itself is
   // metadata-only for this spec.
   must(
-    await supabaseAdmin.from('weigh_in_sessions').insert({
-      id: 'wsess-cattle-herd-filters-seed',
-      species: 'cattle',
-      date: TODAY_ISO,
-      team_member: process.env.VITE_TEST_ADMIN_EMAIL,
-      herd: 'finishers',
-      status: 'complete',
-      started_at: STALE_DATE,
-      completed_at: FRESH_DATE,
-    }),
+    await supabaseAdmin.from('weigh_in_sessions').upsert(
+      {
+        id: 'wsess-cattle-herd-filters-seed',
+        species: 'cattle',
+        date: TODAY_ISO,
+        team_member: process.env.VITE_TEST_ADMIN_EMAIL,
+        herd: 'finishers',
+        status: 'complete',
+        started_at: STALE_DATE,
+        completed_at: FRESH_DATE,
+      },
+      {onConflict: 'id'},
+    ),
     'weigh_in_sessions insert',
   );
 
   must(
-    await supabaseAdmin.from('weigh_ins').insert(
+    await supabaseAdmin.from('weigh_ins').upsert(
       WEIGH_INS.map((w, i) => ({
         id: `wi-cattle-herd-filters-${i}`,
         session_id: 'wsess-cattle-herd-filters-seed',
@@ -266,6 +327,7 @@ export async function seedCattleHerdFilters(supabaseAdmin) {
         prior_herd_or_flock: null,
         entered_at: w.entered_at,
       })),
+      {onConflict: 'id'},
     ),
     'weigh_ins insert',
   );

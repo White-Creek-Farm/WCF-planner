@@ -59,6 +59,11 @@ const COWS = [
     breed: 'Angus',
     birth_date: '2021-03-01',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'sd-finisher-conflict',
@@ -68,6 +73,11 @@ const COWS = [
     breed: 'Hereford',
     birth_date: '2024-06-01',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'sd-sold-dup',
@@ -76,6 +86,11 @@ const COWS = [
     herd: 'sold',
     sale_date: '2026-01-15',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
   {
     id: 'sd-dead-restore',
@@ -85,6 +100,11 @@ const COWS = [
     death_date: '2026-02-10',
     death_reason: 'test scenario',
     old_tags: [],
+    // Explicit resets so an upsert overwrites a stale worker row's mutable
+    // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
   },
 ];
 
@@ -92,29 +112,35 @@ export async function seedCattleSoftDelete(supabaseAdmin) {
   assertTestDatabase(process.env.VITE_SUPABASE_URL || '');
   const {adminId} = await ensureAdminProfile(supabaseAdmin);
 
-  must(await supabaseAdmin.from('cattle').insert(COWS), 'cattle insert');
+  must(await supabaseAdmin.from('cattle').upsert(COWS, {onConflict: 'id'}), 'cattle insert');
 
   must(
-    await supabaseAdmin.from('cattle_comments').insert({
-      id: 'sd-comment-1',
-      cattle_id: 'sd-momma-del',
-      cattle_tag: 'SD-100',
-      comment: 'Test comment on SD-100',
-      team_member: 'Test',
-      source: 'manual',
-    }),
+    await supabaseAdmin.from('cattle_comments').upsert(
+      {
+        id: 'sd-comment-1',
+        cattle_id: 'sd-momma-del',
+        cattle_tag: 'SD-100',
+        comment: 'Test comment on SD-100',
+        team_member: 'Test',
+        source: 'manual',
+      },
+      {onConflict: 'id'},
+    ),
     'cattle_comments insert',
   );
 
   must(
-    await supabaseAdmin.from('cattle_transfers').insert({
-      id: 'sd-transfer-1',
-      cattle_id: 'sd-momma-del',
-      from_herd: 'backgrounders',
-      to_herd: 'mommas',
-      reason: 'manual',
-      team_member: 'Test',
-    }),
+    await supabaseAdmin.from('cattle_transfers').upsert(
+      {
+        id: 'sd-transfer-1',
+        cattle_id: 'sd-momma-del',
+        from_herd: 'backgrounders',
+        to_herd: 'mommas',
+        reason: 'manual',
+        team_member: 'Test',
+      },
+      {onConflict: 'id'},
+    ),
     'cattle_transfers insert',
   );
 
