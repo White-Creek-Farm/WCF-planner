@@ -120,21 +120,6 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
 
   const navigate = useNavigate();
 
-  React.useEffect(() => {
-    function onEntityDeepLink() {
-      const dl = window._wcfEntityDeepLink;
-      if (!dl || dl.entityType !== 'poultry.daily') return;
-      const rec = records.find((r) => r.id === dl.entityId);
-      if (rec) {
-        window._wcfEntityDeepLink = null;
-        navigate('/broiler/dailys/' + rec.id);
-      }
-    }
-    onEntityDeepLink();
-    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
-    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
-  }, [records]);
-
   const [editSource, setEditSource] = useState(null);
   function openEdit(d) {
     setNotice(null);

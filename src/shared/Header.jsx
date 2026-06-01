@@ -626,20 +626,6 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                               return;
                             }
                             const {view: targetView} = routeToView(route);
-                            if (typeof window !== 'undefined') {
-                              if (n.activity_entity_type) {
-                                window._wcfEntityDeepLink = {
-                                  entityType: n.activity_entity_type,
-                                  entityId: n.activity_entity_id,
-                                  entityLabel: n.activity_entity_label || n.activity_entity_id,
-                                };
-                              }
-                              try {
-                                window.dispatchEvent(new CustomEvent('wcf-entity-deep-link'));
-                              } catch (_ignored) {
-                                /* CustomEvent not supported */
-                              }
-                            }
                             go(targetView);
                           }}
                           style={{

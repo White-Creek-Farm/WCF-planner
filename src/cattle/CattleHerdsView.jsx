@@ -269,18 +269,6 @@ const CattleHerdsHub = ({
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  React.useEffect(() => {
-    function onEntityDeepLink() {
-      const dl = window._wcfEntityDeepLink;
-      if (!dl || dl.entityType !== 'cattle.animal') return;
-      window._wcfEntityDeepLink = null;
-      navigate('/cattle/herds/' + dl.entityId);
-    }
-    onEntityDeepLink();
-    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
-    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
-  }, []);
-
   const [expandedHerds, setExpandedHerds] = useState({});
 
   async function loadAll() {

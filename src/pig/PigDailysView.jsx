@@ -97,21 +97,6 @@ const PigDailysHub = ({
 
   const navigate = useNavigate();
 
-  React.useEffect(() => {
-    function onEntityDeepLink() {
-      const dl = window._wcfEntityDeepLink;
-      if (!dl || dl.entityType !== 'pig.daily') return;
-      const rec = pigDailys.find((r) => r.id === dl.entityId);
-      if (rec) {
-        window._wcfEntityDeepLink = null;
-        navigate('/pig/dailys/' + rec.id);
-      }
-    }
-    onEntityDeepLink();
-    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
-    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
-  }, [pigDailys]);
-
   const [editSource, setEditSource] = useState(null);
   function openEdit(d) {
     setNotice(null);

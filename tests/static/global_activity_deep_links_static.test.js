@@ -156,9 +156,9 @@ describe('notification deep-link infrastructure', () => {
     expect(headerSrc).not.toContain("route.startsWith('/') && !route.includes('?')");
   });
 
-  it('Header preserves _wcfEntityDeepLink dispatch for legacy entity routes', () => {
-    expect(headerSrc).toContain('_wcfEntityDeepLink');
-    expect(headerSrc).toContain('wcf-entity-deep-link');
+  it('Header no longer dispatches the legacy _wcfEntityDeepLink bridge', () => {
+    expect(headerSrc).not.toContain('_wcfEntityDeepLink');
+    expect(headerSrc).not.toContain('wcf-entity-deep-link');
   });
 
   it('Header imports and uses resolveNotificationRoute', () => {

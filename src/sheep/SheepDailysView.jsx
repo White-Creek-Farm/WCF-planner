@@ -153,21 +153,6 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
 
   const navigate = useNavigate();
 
-  React.useEffect(() => {
-    function onEntityDeepLink() {
-      const dl = window._wcfEntityDeepLink;
-      if (!dl || dl.entityType !== 'sheep.daily') return;
-      const rec = records.find((r) => r.id === dl.entityId);
-      if (rec) {
-        window._wcfEntityDeepLink = null;
-        navigate('/sheep/dailys/' + rec.id);
-      }
-    }
-    onEntityDeepLink();
-    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
-    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
-  }, [records]);
-
   function openEdit(d) {
     setNotice(null);
     setForm({

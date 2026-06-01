@@ -117,21 +117,6 @@ const LayerDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, s
     }
   }, [hasMore, page]);
 
-  React.useEffect(() => {
-    function onEntityDeepLink() {
-      const dl = window._wcfEntityDeepLink;
-      if (!dl || dl.entityType !== 'layer.daily') return;
-      const rec = records.find((r) => r.id === dl.entityId);
-      if (rec) {
-        window._wcfEntityDeepLink = null;
-        navigate('/layer/dailys/' + rec.id);
-      }
-    }
-    onEntityDeepLink();
-    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
-    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
-  }, [records]);
-
   const [editSource, setEditSource] = useState(null);
   function openEdit(d) {
     setNotice(null);

@@ -65,18 +65,6 @@ const SheepFlocksHub = ({
   const [originOpts, setOriginOpts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  React.useEffect(() => {
-    function onEntityDeepLink() {
-      const dl = window._wcfEntityDeepLink;
-      if (!dl || dl.entityType !== 'sheep.animal') return;
-      window._wcfEntityDeepLink = null;
-      navigate('/sheep/flocks/' + dl.entityId);
-    }
-    onEntityDeepLink();
-    window.addEventListener('wcf-entity-deep-link', onEntityDeepLink);
-    return () => window.removeEventListener('wcf-entity-deep-link', onEntityDeepLink);
-  }, []);
-
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [sortBy, setSortBy] = useState('tag-asc');

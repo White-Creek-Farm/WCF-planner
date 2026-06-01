@@ -75,12 +75,14 @@ describe('Header — resolved entity routing', () => {
     expect(headerSrc).toContain('n.activity_entity_id');
   });
 
-  it('sets _wcfEntityDeepLink for non-task entities', () => {
-    expect(headerSrc).toContain('_wcfEntityDeepLink');
+  it('direct-routes record-page notifications via headerNavigate', () => {
+    expect(headerSrc).toContain('isRecordPageRoute');
+    expect(headerSrc).toContain('headerNavigate(route)');
   });
 
-  it('dispatches wcf-entity-deep-link event', () => {
-    expect(headerSrc).toContain('wcf-entity-deep-link');
+  it('no longer sets _wcfEntityDeepLink or dispatches the legacy bridge event', () => {
+    expect(headerSrc).not.toContain('_wcfEntityDeepLink');
+    expect(headerSrc).not.toContain('wcf-entity-deep-link');
   });
 });
 
@@ -113,13 +115,13 @@ describe('Per-surface deep-link handlers', () => {
     );
   });
 
-  it('CattleHerdsView deep-link navigates to record page', () => {
-    expect(cattleHerds).toContain('wcf-entity-deep-link');
+  it('CattleHerdsView no longer wires wcf-entity-deep-link and routes tiles to its record page', () => {
+    expect(cattleHerds).not.toContain('wcf-entity-deep-link');
     expect(cattleHerds).toContain("navigate('/cattle/herds/'");
   });
 
-  it('SheepFlocksView deep-link navigates to record page', () => {
-    expect(sheepFlocks).toContain('wcf-entity-deep-link');
+  it('SheepFlocksView no longer wires wcf-entity-deep-link and routes tiles to its record page', () => {
+    expect(sheepFlocks).not.toContain('wcf-entity-deep-link');
     expect(sheepFlocks).toContain("navigate('/sheep/flocks/'");
   });
 
