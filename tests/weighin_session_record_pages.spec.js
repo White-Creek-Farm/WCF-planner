@@ -27,10 +27,16 @@ async function seedSession(supabaseAdmin, {id, species, herd, batchId, status = 
     team_member: teamMember || 'BMAN',
     status,
     started_at: startedAt,
+    // Resets so a stale worker row can't keep a prior completion/notes/week
+    // (the conditionals below override completed_at / broiler_week when set).
+    completed_at: null,
+    notes: null,
+    client_submission_id: null,
+    broiler_week: null,
   };
   if (status === 'complete') row.completed_at = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   if (broilerWeek) row.broiler_week = broilerWeek;
-  const r = await supabaseAdmin.from('weigh_in_sessions').insert(row);
+  const r = await supabaseAdmin.from('weigh_in_sessions').upsert(row, {onConflict: 'id'});
   if (r.error) throw new Error('seedSession: ' + r.error.message);
   return row;
 }
@@ -44,8 +50,18 @@ async function seedEntry(supabaseAdmin, {id, sessionId, tag, weight, note}) {
     note: note || null,
     new_tag_flag: false,
     entered_at: new Date().toISOString(),
+    // Resets so a stale worker row can't keep prior trip/breeding/processor flags.
+    client_submission_id: null,
+    sent_to_trip_id: null,
+    sent_to_group_id: null,
+    send_to_processor: false,
+    target_processing_batch_id: null,
+    transferred_to_breeding: false,
+    transfer_breeder_id: null,
+    feed_allocation_lbs: null,
+    prior_herd_or_flock: null,
   };
-  const r = await supabaseAdmin.from('weigh_ins').insert(row);
+  const r = await supabaseAdmin.from('weigh_ins').upsert(row, {onConflict: 'id'});
   if (r.error) throw new Error('seedEntry: ' + r.error.message);
   return row;
 }
@@ -146,7 +162,19 @@ test('cattle: edit weight + note, save, reload, persist', async ({page, supabase
   await seedRoster(supabaseAdmin);
   const sess = await seedSession(supabaseAdmin, {id: 'save-cattle-1', species: 'cattle', herd: 'finishers'});
   await seedEntry(supabaseAdmin, {id: 'save-cattle-e1', sessionId: sess.id, tag: '100', weight: 500, note: 'orig'});
-  await supabaseAdmin.from('cattle').insert({id: 'cow-save-100', tag: '100', herd: 'finishers', sex: 'steer'});
+  await supabaseAdmin.from('cattle').upsert(
+    {
+      id: 'cow-save-100',
+      tag: '100',
+      herd: 'finishers',
+      sex: 'steer',
+      old_tags: [],
+      deleted_at: null,
+      deleted_by: null,
+      processing_batch_id: null,
+    },
+    {onConflict: 'id'},
+  );
 
   await page.goto('/weigh-in-sessions/' + sess.id);
   await waitForWeighInSessionLoaded(page);
@@ -184,7 +212,12 @@ test('sheep: edit weight + note, save, reload, persist', async ({page, supabaseA
   await seedRoster(supabaseAdmin);
   const sess = await seedSession(supabaseAdmin, {id: 'save-sheep-1', species: 'sheep', herd: 'feeders'});
   await seedEntry(supabaseAdmin, {id: 'save-sheep-e1', sessionId: sess.id, tag: '200', weight: 80, note: 'orig'});
-  await supabaseAdmin.from('sheep').insert({id: 'sheep-save-200', tag: '200', flock: 'feeders'});
+  await supabaseAdmin
+    .from('sheep')
+    .upsert(
+      {id: 'sheep-save-200', tag: '200', flock: 'feeders', old_tags: [], processing_batch_id: null},
+      {onConflict: 'id'},
+    );
 
   await page.goto('/weigh-in-sessions/' + sess.id);
   await waitForWeighInSessionLoaded(page);
@@ -267,7 +300,19 @@ test('comment hash scroll: navigate to #comment-<id> scrolls target into view', 
   await seedRoster(supabaseAdmin);
   const sess = await seedSession(supabaseAdmin, {id: 'hash-cattle-1', species: 'cattle', herd: 'finishers'});
   await seedEntry(supabaseAdmin, {id: 'hash-cattle-e1', sessionId: sess.id, tag: '100', weight: 500});
-  await supabaseAdmin.from('cattle').insert({id: 'cow-hash-100', tag: '100', herd: 'finishers', sex: 'steer'});
+  await supabaseAdmin.from('cattle').upsert(
+    {
+      id: 'cow-hash-100',
+      tag: '100',
+      herd: 'finishers',
+      sex: 'steer',
+      old_tags: [],
+      deleted_at: null,
+      deleted_by: null,
+      processing_batch_id: null,
+    },
+    {onConflict: 'id'},
+  );
 
   await page.goto('/weigh-in-sessions/' + sess.id);
   await waitForWeighInSessionLoaded(page);

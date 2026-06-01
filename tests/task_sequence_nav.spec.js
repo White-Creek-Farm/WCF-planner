@@ -17,18 +17,32 @@ async function seedAdminProfile(supabaseAdmin) {
 }
 
 async function seedTask(supabaseAdmin, {id, title, assigneeId}) {
-  const {error} = await supabaseAdmin.from('task_instances').insert({
-    id,
-    assignee_profile_id: assigneeId,
-    due_date: '2026-12-15',
-    title,
-    description: 'CP3 task sequence seed',
-    submission_source: 'admin_manual',
-    status: 'open',
-    from_recurring_template: false,
-    created_by_profile_id: assigneeId,
-    client_submission_id: 'csid-' + id,
-  });
+  const {error} = await supabaseAdmin.from('task_instances').upsert(
+    {
+      id,
+      assignee_profile_id: assigneeId,
+      due_date: '2026-12-15',
+      title,
+      description: 'CP3 task sequence seed',
+      submission_source: 'admin_manual',
+      status: 'open',
+      from_recurring_template: false,
+      created_by_profile_id: assigneeId,
+      client_submission_id: 'csid-' + id,
+      // Resets so a stale worker row a prior run completed/reassigned is
+      // overwritten back into the intended open, unannotated shape.
+      completed_at: null,
+      completed_by_profile_id: null,
+      completion_photo_path: null,
+      completion_note: null,
+      request_photo_path: null,
+      template_id: null,
+      designation: null,
+      from_system_rule_id: null,
+      from_system_source_event_key: null,
+    },
+    {onConflict: 'id'},
+  );
   if (error) throw new Error('seedTask(' + id + '): ' + error.message);
 }
 

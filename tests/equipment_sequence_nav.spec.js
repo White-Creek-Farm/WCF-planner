@@ -5,9 +5,26 @@ import {test, expect} from './fixtures.js';
 // nav owned by EquipmentHome. Slug == id here for a clean URL assertion.
 
 async function seedEquipment(supabaseAdmin, {id, name}) {
-  const {error} = await supabaseAdmin
-    .from('equipment')
-    .insert({id, slug: id, name, category: 'tractors', tracking_unit: 'hours', status: 'active'});
+  // slug == id (deterministic + UNIQUE) so upsert-on-id fully protects against
+  // a stale worker row; reset the attention-trigger columns to a neutral shape.
+  const {error} = await supabaseAdmin.from('equipment').upsert(
+    {
+      id,
+      slug: id,
+      name,
+      category: 'tractors',
+      tracking_unit: 'hours',
+      status: 'active',
+      current_hours: null,
+      current_km: null,
+      warranty_expiration: null,
+      service_intervals: [],
+      attachment_checklists: [],
+      every_fillup_items: [],
+      notes: null,
+    },
+    {onConflict: 'id'},
+  );
   if (error) throw new Error('seedEquipment(' + id + '): ' + error.message);
 }
 

@@ -12,15 +12,20 @@ import {
 // helpers/layerReady.js) before asserting, so the spec no longer races a cold
 // Vite compile + the app's farm-data load against per-assertion timeouts.
 
+// layer_batches / layer_housings are seeded once per id and never mutated by
+// this read-only navigation spec, so upsert(onConflict:'id') alone makes the
+// seed idempotent against a worker-restart stale row (the row is byte-identical
+// to intent). No stale-field resets are added — these tables' schema lives
+// outside the supabase-migrations history, so speculative columns are avoided.
 async function seedLayerBatch(supabaseAdmin, {id, name, status = 'active'}) {
-  const {error} = await supabaseAdmin.from('layer_batches').insert({id, name, status});
+  const {error} = await supabaseAdmin.from('layer_batches').upsert({id, name, status}, {onConflict: 'id'});
   if (error) throw new Error('seedLayerBatch(' + id + '): ' + error.message);
 }
 
 async function seedHousing(supabaseAdmin, {id, batchId, name}) {
   const {error} = await supabaseAdmin
     .from('layer_housings')
-    .insert({id, batch_id: batchId, housing_name: name, status: 'active'});
+    .upsert({id, batch_id: batchId, housing_name: name, status: 'active'}, {onConflict: 'id'});
   if (error) throw new Error('seedHousing(' + id + '): ' + error.message);
 }
 

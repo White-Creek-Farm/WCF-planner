@@ -12,7 +12,14 @@ import {test, expect} from './fixtures.js';
 // ============================================================================
 
 async function seedCow(supabaseAdmin, {id, tag, herd = 'mommas', sex = 'cow'}) {
-  const {error} = await supabaseAdmin.from('cattle').insert({id, tag, sex, herd, old_tags: []});
+  // upsert(onConflict:'id') + explicit resets so a worker-restart stale row is
+  // overwritten into the exact intended (active, unattached) shape.
+  const {error} = await supabaseAdmin
+    .from('cattle')
+    .upsert(
+      {id, tag, sex, herd, old_tags: [], deleted_at: null, deleted_by: null, processing_batch_id: null},
+      {onConflict: 'id'},
+    );
   if (error) throw new Error(`seedCow(${id}): ${error.message}`);
 }
 

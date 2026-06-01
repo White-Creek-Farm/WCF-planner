@@ -107,3 +107,63 @@ describe('CP3: upsert payloads reset known mutable stale columns', () => {
     expect(src).toMatch(/deleted_at:\s*null/);
   });
 });
+
+// ── CP4: inline record/sequence Playwright spec seeds ────────────────────────
+// The same idempotency contract for the small fixed-id seed helpers defined
+// INLINE inside the record/sequence-nav spec files (not the scenarios/ dir).
+const CP4_SPEC_FILES = [
+  'tests/cattle_record_sequence_nav.spec.js',
+  'tests/cattle_daily_sequence_nav.spec.js',
+  'tests/cattle_batch_sequence_nav.spec.js',
+  'tests/equipment_sequence_nav.spec.js',
+  'tests/layer_sequence_nav.spec.js',
+  'tests/sheep_batch_sequence_nav.spec.js',
+  'tests/task_sequence_nav.spec.js',
+  'tests/weighin_sequence_nav.spec.js',
+  'tests/weighin_session_record_pages.spec.js',
+];
+
+describe('CP4: inline record/sequence spec seeds are idempotent', () => {
+  for (const rel of CP4_SPEC_FILES) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+    it(`${rel} contains no plain .insert( calls`, () => {
+      expect(src).not.toMatch(/\.insert\(/);
+    });
+
+    it(`${rel} writes rows via upsert(..., {onConflict: 'id'})`, () => {
+      expect(src).toMatch(/\.upsert\(/);
+      expect(src).toMatch(/onConflict:\s*'id'/);
+    });
+
+    it(`${rel} does not rely on ignoreDuplicates`, () => {
+      expect(src).not.toMatch(/ignoreDuplicates/);
+    });
+  }
+});
+
+describe('CP4: inline seeds reset known mutable columns', () => {
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+  for (const rel of ['tests/cattle_record_sequence_nav.spec.js', 'tests/weighin_session_record_pages.spec.js']) {
+    it(`${rel} resets cattle soft-delete + attachment columns`, () => {
+      const src = read(rel);
+      expect(src).toMatch(/deleted_at:\s*null/);
+      expect(src).toMatch(/deleted_by:\s*null/);
+      expect(src).toMatch(/processing_batch_id:\s*null/);
+    });
+  }
+
+  it('weighin_session_record_pages.spec.js resets weigh_ins trip/breeding + session columns', () => {
+    const src = read('tests/weighin_session_record_pages.spec.js');
+    expect(src).toMatch(/sent_to_trip_id:\s*null/);
+    expect(src).toMatch(/transferred_to_breeding:\s*false/);
+    expect(src).toMatch(/completed_at:\s*null/);
+  });
+
+  it('task_sequence_nav.spec.js resets task completion columns', () => {
+    const src = read('tests/task_sequence_nav.spec.js');
+    expect(src).toMatch(/completed_at:\s*null/);
+    expect(src).toMatch(/completion_note:\s*null/);
+  });
+});

@@ -4,9 +4,23 @@ import {test, expect} from './fixtures.js';
 // family). cattle_processing_batches list tile → /cattle/batches/<id>.
 
 async function seedBatch(supabaseAdmin, {id, name, status = 'active'}) {
-  const {error} = await supabaseAdmin
-    .from('cattle_processing_batches')
-    .insert({id, name, status, cows_detail: [], documents: []});
+  const {error} = await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id,
+      name,
+      status,
+      cows_detail: [],
+      documents: [],
+      // Resets so a stale worker row can't keep prior dates/weights/notes.
+      planned_process_date: null,
+      actual_process_date: null,
+      total_live_weight: null,
+      total_hanging_weight: null,
+      processing_cost: null,
+      notes: null,
+    },
+    {onConflict: 'id'},
+  );
   if (error) throw new Error('seedBatch(' + id + '): ' + error.message);
 }
 

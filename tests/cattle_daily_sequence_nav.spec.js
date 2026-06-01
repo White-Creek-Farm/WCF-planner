@@ -10,7 +10,12 @@ import {test, expect} from './fixtures.js';
 // ============================================================================
 
 async function seedDaily(supabaseAdmin, {id, date, herd = 'finishers'}) {
-  const r = await supabaseAdmin.from('cattle_dailys').insert({id, date, herd});
+  const r = await supabaseAdmin
+    .from('cattle_dailys')
+    .upsert(
+      {id, date, herd, deleted_at: null, deleted_by: null, client_submission_id: null, photos: []},
+      {onConflict: 'id'},
+    );
   if (r.error) throw new Error('seedDaily(' + id + '): ' + r.error.message);
 }
 

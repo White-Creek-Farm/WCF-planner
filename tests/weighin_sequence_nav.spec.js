@@ -19,15 +19,24 @@ async function seedRoster(supabaseAdmin) {
 }
 
 async function seedSession(supabaseAdmin, {id, herd, date}) {
-  const r = await supabaseAdmin.from('weigh_in_sessions').insert({
-    id,
-    species: 'cattle',
-    herd,
-    date,
-    team_member: 'BMAN',
-    status: 'draft',
-    started_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-  });
+  const r = await supabaseAdmin.from('weigh_in_sessions').upsert(
+    {
+      id,
+      species: 'cattle',
+      herd,
+      date,
+      team_member: 'BMAN',
+      status: 'draft',
+      started_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      // Resets so a stale worker row a prior run completed/annotated is
+      // overwritten back into the intended draft state.
+      completed_at: null,
+      notes: null,
+      client_submission_id: null,
+      broiler_week: null,
+    },
+    {onConflict: 'id'},
+  );
   if (r.error) throw new Error('seedSession(' + id + '): ' + r.error.message);
 }
 

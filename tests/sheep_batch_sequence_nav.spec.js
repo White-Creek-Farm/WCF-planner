@@ -3,7 +3,23 @@ import {test, expect} from './fixtures.js';
 // CP4 — record-page sequence navigation for sheep.processing (/sheep/batches/<id>).
 
 async function seedBatch(supabaseAdmin, {id, name, status = 'planned'}) {
-  const {error} = await supabaseAdmin.from('sheep_processing_batches').insert({id, name, status, sheep_detail: []});
+  const {error} = await supabaseAdmin.from('sheep_processing_batches').upsert(
+    {
+      id,
+      name,
+      status,
+      sheep_detail: [],
+      // Resets so a stale worker row can't keep prior dates/weights/notes.
+      documents: [],
+      planned_process_date: null,
+      actual_process_date: null,
+      total_live_weight: null,
+      total_hanging_weight: null,
+      processing_cost: null,
+      notes: null,
+    },
+    {onConflict: 'id'},
+  );
   if (error) throw new Error('seedBatch(' + id + '): ' + error.message);
 }
 
