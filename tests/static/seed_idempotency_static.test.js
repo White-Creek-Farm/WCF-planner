@@ -167,3 +167,49 @@ describe('CP4: inline seeds reset known mutable columns', () => {
     expect(src).toMatch(/completion_note:\s*null/);
   });
 });
+
+// ── CP5: inline broiler metadata Playwright spec seeds ──────────────────────
+// Fixed-id rows created inside the broiler metadata spec must follow the same
+// worker-restart contract as scenario seeds: upsert by id, and reset nullable
+// runtime columns that could otherwise survive from a stale row.
+const CP5_SPEC_FILES = ['tests/admin_broiler_session_metadata_edit.spec.js'];
+
+describe('CP5: inline broiler metadata spec seeds are idempotent', () => {
+  for (const rel of CP5_SPEC_FILES) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+    it(`${rel} contains no plain .insert( calls`, () => {
+      expect(src).not.toMatch(/\.insert\(/);
+    });
+
+    it(`${rel} writes fixed-id rows via upsert(..., {onConflict: 'id'})`, () => {
+      expect(src).toMatch(/\.upsert\(/);
+      expect(src).toMatch(/onConflict:\s*'id'/);
+    });
+
+    it(`${rel} does not rely on ignoreDuplicates`, () => {
+      expect(src).not.toMatch(/ignoreDuplicates/);
+    });
+  }
+});
+
+describe('CP5: inline broiler metadata seeds reset known mutable columns', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'tests/admin_broiler_session_metadata_edit.spec.js'), 'utf8');
+
+  it('admin_broiler_session_metadata_edit.spec.js resets session mutable columns', () => {
+    expect(src).toMatch(/herd:\s*null/);
+    expect(src).toMatch(/notes:\s*null/);
+    expect(src).toMatch(/client_submission_id:\s*null/);
+  });
+
+  it('admin_broiler_session_metadata_edit.spec.js resets weigh_ins runtime columns', () => {
+    expect(src).toMatch(/sent_to_trip_id:\s*null/);
+    expect(src).toMatch(/sent_to_group_id:\s*null/);
+    expect(src).toMatch(/send_to_processor:\s*false/);
+    expect(src).toMatch(/target_processing_batch_id:\s*null/);
+    expect(src).toMatch(/transferred_to_breeding:\s*false/);
+    expect(src).toMatch(/transfer_breeder_id:\s*null/);
+    expect(src).toMatch(/feed_allocation_lbs:\s*null/);
+    expect(src).toMatch(/prior_herd_or_flock:\s*null/);
+  });
+});

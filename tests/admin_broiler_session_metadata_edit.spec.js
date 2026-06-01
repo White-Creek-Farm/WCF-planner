@@ -118,17 +118,23 @@ test('T4: two complete wk4 sessions, move later one to WK6 → wk4Lbs from other
   const otherId = 'sd-complete-other';
   const today = new Date().toISOString().slice(0, 10);
   const completedEarlier = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-  let r = await supabaseAdmin.from('weigh_in_sessions').insert({
-    id: otherId,
-    species: 'broiler',
-    status: 'complete',
-    date: today,
-    team_member: 'BMAN',
-    batch_id: batchId,
-    broiler_week: 4,
-    started_at: completedEarlier,
-    completed_at: completedEarlier,
-  });
+  let r = await supabaseAdmin.from('weigh_in_sessions').upsert(
+    {
+      id: otherId,
+      species: 'broiler',
+      herd: null,
+      status: 'complete',
+      date: today,
+      team_member: 'BMAN',
+      batch_id: batchId,
+      broiler_week: 4,
+      started_at: completedEarlier,
+      completed_at: completedEarlier,
+      notes: null,
+      client_submission_id: null,
+    },
+    {onConflict: 'id'},
+  );
   expect(r.error).toBeNull();
   const otherEntries = [1.7, 1.7, 1.7].map((w, i) => ({
     id: `${otherId}-e${i}`,
@@ -138,8 +144,17 @@ test('T4: two complete wk4 sessions, move later one to WK6 → wk4Lbs from other
     note: null,
     new_tag_flag: false,
     entered_at: completedEarlier,
+    client_submission_id: null,
+    sent_to_trip_id: null,
+    sent_to_group_id: null,
+    send_to_processor: false,
+    target_processing_batch_id: null,
+    transferred_to_breeding: false,
+    transfer_breeder_id: null,
+    feed_allocation_lbs: null,
+    prior_herd_or_flock: null,
   }));
-  r = await supabaseAdmin.from('weigh_ins').insert(otherEntries);
+  r = await supabaseAdmin.from('weigh_ins').upsert(otherEntries, {onConflict: 'id'});
   expect(r.error).toBeNull();
 
   await page.goto('/weigh-in-sessions/' + completeId);
@@ -207,16 +222,23 @@ test('T6: pig complete session does NOT show the broiler metadata panel', async 
   const today = new Date().toISOString().slice(0, 10);
   const startedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const completedAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  r = await supabaseAdmin.from('weigh_in_sessions').insert({
-    id: 'pig-sess-1',
-    species: 'pig',
-    status: 'complete',
-    date: today,
-    team_member: 'BMAN',
-    batch_id: 'P-26-01',
-    started_at: startedAt,
-    completed_at: completedAt,
-  });
+  r = await supabaseAdmin.from('weigh_in_sessions').upsert(
+    {
+      id: 'pig-sess-1',
+      species: 'pig',
+      herd: null,
+      status: 'complete',
+      date: today,
+      team_member: 'BMAN',
+      batch_id: 'P-26-01',
+      broiler_week: null,
+      started_at: startedAt,
+      completed_at: completedAt,
+      notes: null,
+      client_submission_id: null,
+    },
+    {onConflict: 'id'},
+  );
   expect(r.error).toBeNull();
 
   await page.goto('/weigh-in-sessions/pig-sess-1');
@@ -240,38 +262,65 @@ test('T7: legacy team_member preserved across a WK-only save', async ({
   const today = new Date().toISOString().slice(0, 10);
   const completed = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const retiredId = 'sd-retired';
-  let r = await supabaseAdmin.from('weigh_in_sessions').insert({
-    id: retiredId,
-    species: 'broiler',
-    status: 'complete',
-    date: today,
-    team_member: 'RETIREE',
-    batch_id: batchId,
-    broiler_week: 4,
-    started_at: completed,
-    completed_at: completed,
-  });
+  let r = await supabaseAdmin.from('weigh_in_sessions').upsert(
+    {
+      id: retiredId,
+      species: 'broiler',
+      herd: null,
+      status: 'complete',
+      date: today,
+      team_member: 'RETIREE',
+      batch_id: batchId,
+      broiler_week: 4,
+      started_at: completed,
+      completed_at: completed,
+      notes: null,
+      client_submission_id: null,
+    },
+    {onConflict: 'id'},
+  );
   expect(r.error).toBeNull();
-  r = await supabaseAdmin.from('weigh_ins').insert([
-    {
-      id: `${retiredId}-e0`,
-      session_id: retiredId,
-      tag: '2',
-      weight: 2.0,
-      note: null,
-      new_tag_flag: false,
-      entered_at: completed,
-    },
-    {
-      id: `${retiredId}-e1`,
-      session_id: retiredId,
-      tag: '3',
-      weight: 2.0,
-      note: null,
-      new_tag_flag: false,
-      entered_at: completed,
-    },
-  ]);
+  r = await supabaseAdmin.from('weigh_ins').upsert(
+    [
+      {
+        id: `${retiredId}-e0`,
+        session_id: retiredId,
+        tag: '2',
+        weight: 2.0,
+        note: null,
+        new_tag_flag: false,
+        entered_at: completed,
+        client_submission_id: null,
+        sent_to_trip_id: null,
+        sent_to_group_id: null,
+        send_to_processor: false,
+        target_processing_batch_id: null,
+        transferred_to_breeding: false,
+        transfer_breeder_id: null,
+        feed_allocation_lbs: null,
+        prior_herd_or_flock: null,
+      },
+      {
+        id: `${retiredId}-e1`,
+        session_id: retiredId,
+        tag: '3',
+        weight: 2.0,
+        note: null,
+        new_tag_flag: false,
+        entered_at: completed,
+        client_submission_id: null,
+        sent_to_trip_id: null,
+        sent_to_group_id: null,
+        send_to_processor: false,
+        target_processing_batch_id: null,
+        transferred_to_breeding: false,
+        transfer_breeder_id: null,
+        feed_allocation_lbs: null,
+        prior_herd_or_flock: null,
+      },
+    ],
+    {onConflict: 'id'},
+  );
   expect(r.error).toBeNull();
 
   await page.goto('/weigh-in-sessions/' + retiredId);
@@ -331,17 +380,23 @@ test('T9: reopen later complete wk4 session of two → wk4Lbs recomputes from th
   const otherId = 'sd-complete-other';
   const today = new Date().toISOString().slice(0, 10);
   const completedEarlier = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-  let r = await supabaseAdmin.from('weigh_in_sessions').insert({
-    id: otherId,
-    species: 'broiler',
-    status: 'complete',
-    date: today,
-    team_member: 'BMAN',
-    batch_id: batchId,
-    broiler_week: 4,
-    started_at: completedEarlier,
-    completed_at: completedEarlier,
-  });
+  let r = await supabaseAdmin.from('weigh_in_sessions').upsert(
+    {
+      id: otherId,
+      species: 'broiler',
+      herd: null,
+      status: 'complete',
+      date: today,
+      team_member: 'BMAN',
+      batch_id: batchId,
+      broiler_week: 4,
+      started_at: completedEarlier,
+      completed_at: completedEarlier,
+      notes: null,
+      client_submission_id: null,
+    },
+    {onConflict: 'id'},
+  );
   expect(r.error).toBeNull();
   const otherEntries = [1.7, 1.7, 1.7].map((w, i) => ({
     id: `${otherId}-e${i}`,
@@ -351,8 +406,17 @@ test('T9: reopen later complete wk4 session of two → wk4Lbs recomputes from th
     note: null,
     new_tag_flag: false,
     entered_at: completedEarlier,
+    client_submission_id: null,
+    sent_to_trip_id: null,
+    sent_to_group_id: null,
+    send_to_processor: false,
+    target_processing_batch_id: null,
+    transferred_to_breeding: false,
+    transfer_breeder_id: null,
+    feed_allocation_lbs: null,
+    prior_herd_or_flock: null,
   }));
-  r = await supabaseAdmin.from('weigh_ins').insert(otherEntries);
+  r = await supabaseAdmin.from('weigh_ins').upsert(otherEntries, {onConflict: 'id'});
   expect(r.error).toBeNull();
 
   await page.goto('/weigh-in-sessions/' + completeId);
