@@ -22,6 +22,17 @@ export function fmt(iso) {
   const yy = String(y).slice(-2);
   return mm + '/' + dd + '/' + yy;
 }
+// Full 4-digit variant (mm/dd/yyyy) for record-page titles + daily sequence
+// labels where the explicit year is wanted.
+export function fmtMDY(iso) {
+  if (!iso) return '—';
+  const datePart = String(iso).slice(0, 10);
+  const [y, m, d] = datePart.split('-').map(Number);
+  if (!y || !m || !d) return '—';
+  const mm = String(m).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return mm + '/' + dd + '/' + String(y).padStart(4, '0');
+}
 // Short variant drops the year for compact tiles; still mm/dd.
 export function fmtS(iso) {
   if (!iso) return '—';

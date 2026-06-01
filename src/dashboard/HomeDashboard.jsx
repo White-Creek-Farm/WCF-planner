@@ -40,6 +40,23 @@ import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 import {computeHousingDisplayCount} from '../lib/layerHousing.js';
 
+// Daily-report kind → dedicated record-page route. Home "Last 5 Days" tiles
+// navigate straight to the record page instead of waking the legacy dailys-hub
+// edit modal (the old setPendingEdit + setView path). Egg dailys live under the
+// layer program at /layer/eggs.
+const DAILY_RECORD_ROUTES = {
+  broiler: (id) => '/broiler/dailys/' + id,
+  pig: (id) => '/pig/dailys/' + id,
+  layer: (id) => '/layer/dailys/' + id,
+  egg: (id) => '/layer/eggs/' + id,
+  cattle: (id) => '/cattle/dailys/' + id,
+  sheep: (id) => '/sheep/dailys/' + id,
+};
+function pathForDailyReport(r) {
+  const build = DAILY_RECORD_ROUTES[r && r.kind];
+  return build ? build(r.id) : null;
+}
+
 export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW_TO_PROGRAM}) {
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {batches} = useBatches();
@@ -50,7 +67,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
   const {cattleForHome, cattleOnFarmCount} = useCattleHome();
   const {sheepForHome} = useSheepHome();
   const {missedCleared, setMissedCleared} = useFeedCosts();
-  const {setView, setPendingEdit} = useUI();
+  const {setView} = useUI();
   const navigate = useNavigate();
 
   const role = authState?.role;
@@ -1345,9 +1362,10 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                               return (
                                 <div
                                   key={i}
+                                  data-daily-report-tile={r.id}
                                   onClick={() => {
-                                    setPendingEdit({id: r.id, viewName: r.view});
-                                    setView(r.view);
+                                    const path = pathForDailyReport(r);
+                                    if (path) navigate(path);
                                   }}
                                   style={{
                                     background: shadeBg,

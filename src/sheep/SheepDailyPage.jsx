@@ -17,19 +17,26 @@ import {
 /* eslint-enable no-unused-vars */
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+/* eslint-disable no-unused-vars -- DailyPhotoThumbnails/TeamMemberSelect are JSX-only */
+import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
+import {
+  recordFormCard,
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordControl,
+  recordTextarea,
+  recordCheckbox,
+  TeamMemberSelect,
+} from '../shared/recordPageControls.jsx';
+/* eslint-enable no-unused-vars */
+import {fmtMDY} from '../lib/dateUtils.js';
 import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
 
-const fieldRow = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '6px 0',
-  borderBottom: '1px solid #f3f4f6',
-  fontSize: 13,
-};
-const fieldLabel = {fontWeight: 600, color: '#4b5563', fontSize: 12};
+// Shared daily record-page layout primitives.
+const fieldRowClass = recordFieldRowClass;
+const fieldLabel = recordFieldLabel;
 
 const FLOCK_OPTIONS = ['rams', 'ewes', 'feeders', 'processed', 'deceased', 'sold'];
 
@@ -124,7 +131,7 @@ const btnSmall = {
   fontFamily: 'inherit',
 };
 
-export default function SheepDailyPage({sb, fmt, authState, Header}) {
+export default function SheepDailyPage({sb, authState, Header}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/sheep/dailys/', '');
@@ -339,7 +346,8 @@ export default function SheepDailyPage({sb, fmt, authState, Header}) {
     );
   }
 
-  const entityLabel = record.date + (record.flock ? ' · ' + record.flock : '');
+  // Visible label uses the mm/dd/yyyy formatter (fmtMDY), not raw ISO dates.
+  const entityLabel = fmtMDY(record.date) + (record.flock ? ' · ' + record.flock : '');
 
   // Feed select options grouped by category
   const feedCategories = feedInputs.reduce((acc, fi) => {
@@ -351,7 +359,7 @@ export default function SheepDailyPage({sb, fmt, authState, Header}) {
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody>
+      <RecordPageBody maxWidth={960}>
         <RecordBackLink label="Back to Daily Reports" onBack={() => navigate('/sheep/dailys')} />
 
         <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />
@@ -360,36 +368,23 @@ export default function SheepDailyPage({sb, fmt, authState, Header}) {
 
         {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
 
-        <div
-          key={record.id}
-          data-daily-edit-form="1"
-          style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px'}}
-        >
-          <div style={fieldRow}>
+        <div key={record.id} data-daily-edit-form="1" style={recordFormCard}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Date</span>
             <input
               type="date"
               value={form.date}
               onChange={(e) => updateField('date', e.target.value)}
-              style={{...inputStyle, width: 180}}
+              style={recordControl}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Team member</span>
-            <input
-              type="text"
-              value={form.team_member}
-              onChange={(e) => updateField('team_member', e.target.value)}
-              style={{...inputStyle, width: 200}}
-            />
+            <TeamMemberSelect sb={sb} value={form.team_member} onChange={(v) => updateField('team_member', v)} />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Flock</span>
-            <select
-              value={form.flock}
-              onChange={(e) => updateField('flock', e.target.value)}
-              style={{...inputStyle, width: 180}}
-            >
+            <select value={form.flock} onChange={(e) => updateField('flock', e.target.value)} style={recordControl}>
               <option value="">-- select --</option>
               {FLOCK_OPTIONS.map((f) => (
                 <option key={f} value={f}>
@@ -479,46 +474,47 @@ export default function SheepDailyPage({sb, fmt, authState, Header}) {
 
           {!isWebformSource && (
             <>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Fence voltage</span>
-                <div style={{display: 'flex', alignItems: 'center', gap: 4}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
                   <input
                     type="number"
                     value={form.fence_voltage_kv}
                     onChange={(e) => updateField('fence_voltage_kv', e.target.value)}
-                    style={{...inputStyle, width: 100}}
+                    style={{...recordControl, maxWidth: 120}}
                     min="0"
                     step="any"
                   />
                   <span style={{fontSize: 12, color: '#6b7280'}}>kV</span>
                 </div>
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Waterers working</span>
                 <input
                   type="checkbox"
                   checked={form.waterers_working}
                   onChange={(e) => updateField('waterers_working', e.target.checked)}
+                  style={recordCheckbox}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Mortality count</span>
                 <input
                   type="number"
                   value={form.mortality_count}
                   onChange={(e) => updateField('mortality_count', e.target.value)}
-                  style={{...inputStyle, width: 100}}
+                  style={{...recordControl, maxWidth: 120}}
                   min="0"
                   step="1"
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Comments</span>
                 <textarea
                   value={form.comments}
                   onChange={(e) => updateField('comments', e.target.value)}
-                  rows={2}
-                  style={{...inputStyle, width: 260, resize: 'vertical'}}
+                  rows={3}
+                  style={recordTextarea}
                 />
               </div>
             </>
@@ -539,6 +535,12 @@ export default function SheepDailyPage({sb, fmt, authState, Header}) {
             </button>
           </div>
         </div>
+
+        {Array.isArray(record.photos) && record.photos.length > 0 && (
+          <div style={{...recordFormCard, marginTop: 12}}>
+            <DailyPhotoThumbnails photos={record.photos} />
+          </div>
+        )}
 
         {canDeleteDailyReport(authState) && (
           <button

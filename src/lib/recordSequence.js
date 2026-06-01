@@ -1,3 +1,5 @@
+import {fmtMDY} from './dateUtils.js';
+
 // Record-page sequence navigation — route-state contract + neighbor math.
 //
 // A record page (cattle.animal, sheep.animal, …) shows Previous/Next controls
@@ -33,16 +35,18 @@ export function recordSeqNavOptions(items) {
   return {state: {recordSeq: toRecordSeq(items)}};
 }
 
-// Build sequence items for a daily-report list: label is the record date plus
-// an optional " · <suffix>" (batch_label / herd / flock). Pass suffixField=null
-// for date-only (egg daily). Mirrors each daily record page's title format so
-// the neighbor label matches the destination title.
+// Build sequence items for a daily-report list: label is the record date
+// (mm/dd/yyyy) plus an optional " · <suffix>" (batch_label / herd / flock).
+// Pass suffixField=null for date-only (egg daily). Mirrors each daily record
+// page's title format (fmtMDY) so the neighbor label matches the destination
+// title.
 export function dailySeqItems(rows, suffixField) {
   if (!Array.isArray(rows)) return [];
-  return rows.map((r) => ({
-    id: r.id,
-    label: (r && r.date != null ? r.date : '') + (suffixField && r && r[suffixField] ? ' · ' + r[suffixField] : ''),
-  }));
+  return rows.map((r) => {
+    const dateStr = r && r.date != null && r.date !== '' ? fmtMDY(r.date) : '';
+    const suffix = suffixField && r && r[suffixField] ? ' · ' + r[suffixField] : '';
+    return {id: r.id, label: dateStr + suffix};
+  });
 }
 
 // Build sequence items for a list whose label is a single record field

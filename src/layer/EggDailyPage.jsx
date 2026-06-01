@@ -17,29 +17,27 @@ import {
 /* eslint-enable no-unused-vars */
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+/* eslint-disable no-unused-vars -- TeamMemberSelect is JSX-only */
+import {
+  recordFormCard,
+  recordFieldRow,
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordControl,
+  recordTextarea,
+  TeamMemberSelect,
+} from '../shared/recordPageControls.jsx';
+/* eslint-enable no-unused-vars */
+import {fmtMDY} from '../lib/dateUtils.js';
 import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
 
-const fieldRow = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '6px 0',
-  borderBottom: '1px solid #f3f4f6',
-  fontSize: 13,
-  gap: 8,
-};
-const fieldLabel = {fontWeight: 600, color: '#4b5563', fontSize: 12, flexShrink: 0};
-const inp = {
-  fontSize: 13,
-  padding: '4px 8px',
-  border: '1px solid #d1d5db',
-  borderRadius: 6,
-  fontFamily: 'inherit',
-  width: 120,
-  boxSizing: 'border-box',
-};
+// Shared daily record-page layout primitives.
+const fieldRow = recordFieldRow;
+const fieldRowClass = recordFieldRowClass;
+const fieldLabel = recordFieldLabel;
+const inp = recordControl;
 const EDIT_EXCLUDE = [
   'id',
   'submitted_at',
@@ -92,7 +90,7 @@ function computeDozenCount(f) {
   return Math.floor(total / 12);
 }
 
-export default function EggDailyPage({sb, fmt, authState, Header}) {
+export default function EggDailyPage({sb, authState, Header}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/layer/eggs/', '');
@@ -208,11 +206,12 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
     );
   }
 
-  const entityLabel = record.date;
+  // Visible label uses the mm/dd/yyyy formatter (fmtMDY), not raw ISO dates.
+  const entityLabel = fmtMDY(record.date);
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody>
+      <RecordPageBody maxWidth={960}>
         <RecordBackLink label="Back to Egg Reports" onBack={() => navigate('/layer/eggs')} />
 
         <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />
@@ -221,12 +220,8 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
 
         {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
 
-        <div
-          data-daily-edit-form="1"
-          key={record.id}
-          style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px'}}
-        >
-          <div style={fieldRow}>
+        <div data-daily-edit-form="1" key={record.id} style={recordFormCard}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Date</span>
             <input
               type="date"
@@ -235,29 +230,24 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
               style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Team member</span>
-            <input
-              type="text"
-              value={form.teamMember}
-              onChange={(e) => setForm({...form, teamMember: e.target.value})}
-              style={{...inp, width: 180}}
-            />
+            <TeamMemberSelect sb={sb} value={form.teamMember} onChange={(v) => setForm({...form, teamMember: v})} />
           </div>
 
           <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
             <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 1</span>
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
             <input
               type="text"
               value={form.group1Name}
               onChange={(e) => setForm({...form, group1Name: e.target.value})}
-              style={{...inp, width: 180}}
+              style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Count</span>
             <input
               type="number"
@@ -271,16 +261,16 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
           <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
             <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 2</span>
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
             <input
               type="text"
               value={form.group2Name}
               onChange={(e) => setForm({...form, group2Name: e.target.value})}
-              style={{...inp, width: 180}}
+              style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Count</span>
             <input
               type="number"
@@ -294,16 +284,16 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
           <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
             <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 3</span>
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
             <input
               type="text"
               value={form.group3Name}
               onChange={(e) => setForm({...form, group3Name: e.target.value})}
-              style={{...inp, width: 180}}
+              style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Count</span>
             <input
               type="number"
@@ -317,16 +307,16 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
           <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
             <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 4</span>
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
             <input
               type="text"
               value={form.group4Name}
               onChange={(e) => setForm({...form, group4Name: e.target.value})}
-              style={{...inp, width: 180}}
+              style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Count</span>
             <input
               type="number"
@@ -342,7 +332,7 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
             <span style={{fontWeight: 600, fontSize: 13}}>{form ? computeDozenCount(form) : '—'}</span>
           </div>
 
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Dozens on hand</span>
             <input
               type="number"
@@ -353,13 +343,13 @@ export default function EggDailyPage({sb, fmt, authState, Header}) {
               style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Comments</span>
             <textarea
               value={form.comments}
               onChange={(e) => setForm({...form, comments: e.target.value})}
-              rows={2}
-              style={{...inp, width: 260, resize: 'vertical'}}
+              rows={3}
+              style={recordTextarea}
             />
           </div>
 

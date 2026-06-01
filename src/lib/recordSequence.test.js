@@ -79,13 +79,13 @@ describe('dailySeqItems', () => {
         'batch_label',
       ),
     ).toEqual([
-      {id: 'd1', label: '2026-05-01 · B-1'},
-      {id: 'd2', label: '2026-05-02'},
+      {id: 'd1', label: '05/01/2026 · B-1'},
+      {id: 'd2', label: '05/02/2026'},
     ]);
   });
   it('date-only when suffixField is null (egg daily)', () => {
     expect(dailySeqItems([{id: 'e1', date: '2026-05-03', batch_label: 'ignored'}], null)).toEqual([
-      {id: 'e1', label: '2026-05-03'},
+      {id: 'e1', label: '05/03/2026'},
     ]);
   });
   it('returns [] for non-arrays', () => {

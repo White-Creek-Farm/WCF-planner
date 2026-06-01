@@ -239,6 +239,81 @@ test('admin display: photo chip on tile + thumbnails in edit modal (signed URL)'
 });
 
 // --------------------------------------------------------------------------
+// Test 4b — Daily-report hotfix: the Home "Last 5 Days" tile opens the
+// dedicated RECORD PAGE (not the legacy dailys-hub edit modal), with a
+// roster-backed Team Member dropdown and read-only photo thumbnails inline.
+// --------------------------------------------------------------------------
+test('hotfix: Home Last-5-Days tile → record page with team dropdown + photo thumbnails', async ({
+  page,
+  supabaseAdmin,
+  resetDb,
+}) => {
+  await resetDb();
+  await seedTeamRoster(supabaseAdmin);
+
+  // Seed inside the home "Last 5 Days" window (today's date). team_member is
+  // intentionally NOT in the seeded roster so the historical-option path runs.
+  const today = new Date().toISOString().slice(0, 10);
+  const csid = 'csid-home-route-test';
+  await supabaseAdmin.from('sheep_dailys').insert({
+    id: 'sd-home-route',
+    client_submission_id: csid,
+    date: today,
+    team_member: 'SIMON',
+    flock: 'ewes',
+    feeds: [],
+    minerals: [],
+    fence_voltage_kv: null,
+    waterers_working: true,
+    mortality_count: 0,
+    comments: null,
+    source: 'daily_webform',
+    photos: [
+      {
+        path: `sheep_dailys/${csid}/photo-1.jpg`,
+        name: 'a.jpg',
+        mime: 'image/jpeg',
+        size_bytes: 50,
+        captured_at: today + 'T10:00:00.000Z',
+      },
+    ],
+  });
+
+  await page.goto('/');
+  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+
+  // Home reads the recent-dailys contexts loaded once at boot; tolerate a
+  // cold-boot data race (home has no in-page self-heal) with a single reload
+  // before asserting the tile.
+  const tile = page.locator('[data-daily-report-tile="sd-home-route"]');
+  if (!(await tile.isVisible().catch(() => false))) {
+    await page.waitForTimeout(1500);
+    if (!(await tile.isVisible().catch(() => false))) {
+      await page.reload();
+      await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+    }
+  }
+  await expect(tile).toBeVisible({timeout: 15_000});
+  await tile.click();
+
+  // Direct record-page route — the URL changes (a modal would not), and the
+  // record page renders. No legacy edit modal.
+  await expect(page).toHaveURL(/\/sheep\/dailys\/sd-home-route/, {timeout: 10_000});
+  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 10_000});
+
+  // Team Member is a roster-backed dropdown that preserves the saved value as
+  // a selectable historical option ("SIMON (not in roster)").
+  const teamSelect = page.locator('[data-team-member-select="1"]');
+  await expect(teamSelect).toBeVisible();
+  await expect(teamSelect).toContainText('SIMON (not in roster)');
+  await expect(teamSelect).toHaveValue('SIMON');
+
+  // Read-only photo thumbnails render inline in the record page body.
+  await expect(page.locator('[data-photo-thumbnails="1"]')).toBeVisible({timeout: 10_000});
+  await expect(page.locator('[data-photo-thumb]')).toHaveCount(1);
+});
+
+// --------------------------------------------------------------------------
 // Test 5 — Photo upload failure routes through the offline queue (1D-B)
 // --------------------------------------------------------------------------
 // Pre-1D-B (Phase 1B canary contract): an aborted storage upload surfaced

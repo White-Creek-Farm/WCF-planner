@@ -17,29 +17,27 @@ import {
 /* eslint-enable no-unused-vars */
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+/* eslint-disable no-unused-vars -- DailyPhotoThumbnails/TeamMemberSelect are JSX-only */
+import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
+import {
+  recordFormCard,
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordControl,
+  recordTextarea,
+  recordCheckbox,
+  TeamMemberSelect,
+} from '../shared/recordPageControls.jsx';
+/* eslint-enable no-unused-vars */
+import {fmtMDY} from '../lib/dateUtils.js';
 import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
 
-const fieldRow = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '6px 0',
-  borderBottom: '1px solid #f3f4f6',
-  fontSize: 13,
-  gap: 8,
-};
-const fieldLabel = {fontWeight: 600, color: '#4b5563', fontSize: 12, flexShrink: 0};
-const inp = {
-  fontSize: 13,
-  padding: '4px 8px',
-  border: '1px solid #d1d5db',
-  borderRadius: 6,
-  fontFamily: 'inherit',
-  width: 120,
-  boxSizing: 'border-box',
-};
+// Shared daily record-page layout primitives.
+const fieldRowClass = recordFieldRowClass;
+const fieldLabel = recordFieldLabel;
+const inp = recordControl;
 const EDIT_EXCLUDE = [
   'id',
   'submitted_at',
@@ -83,7 +81,7 @@ function initForm(r) {
   };
 }
 
-export default function PigDailyPage({sb, fmt, authState, Header}) {
+export default function PigDailyPage({sb, authState, Header}) {
   const navigate = useNavigate();
   const location = useLocation();
   const recordId = location.pathname.replace('/pig/dailys/', '');
@@ -210,12 +208,13 @@ export default function PigDailyPage({sb, fmt, authState, Header}) {
     );
   }
 
-  const entityLabel = record.date + (record.batch_label ? ' · ' + record.batch_label : '');
+  // Visible label uses the mm/dd/yyyy formatter (fmtMDY), not raw ISO dates.
+  const entityLabel = fmtMDY(record.date) + (record.batch_label ? ' · ' + record.batch_label : '');
   const isAddFeed = record.source === 'add_feed_webform';
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody>
+      <RecordPageBody maxWidth={960}>
         <RecordBackLink label="Back to Daily Reports" onBack={() => navigate('/pig/dailys')} />
 
         <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />
@@ -224,12 +223,8 @@ export default function PigDailyPage({sb, fmt, authState, Header}) {
 
         {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
 
-        <div
-          data-daily-edit-form="1"
-          key={record.id}
-          style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px'}}
-        >
-          <div style={fieldRow}>
+        <div data-daily-edit-form="1" key={record.id} style={recordFormCard}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Date</span>
             <input
               type="date"
@@ -238,25 +233,20 @@ export default function PigDailyPage({sb, fmt, authState, Header}) {
               style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Batch</span>
             <input
               type="text"
               value={form.batchLabel}
               onChange={(e) => setForm({...form, batchLabel: e.target.value})}
-              style={{...inp, width: 180}}
+              style={inp}
             />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Team member</span>
-            <input
-              type="text"
-              value={form.teamMember}
-              onChange={(e) => setForm({...form, teamMember: e.target.value})}
-              style={{...inp, width: 180}}
-            />
+            <TeamMemberSelect sb={sb} value={form.teamMember} onChange={(v) => setForm({...form, teamMember: v})} />
           </div>
-          <div style={fieldRow}>
+          <div className={fieldRowClass}>
             <span style={fieldLabel}>Feed (lbs)</span>
             <input
               type="number"
@@ -269,7 +259,7 @@ export default function PigDailyPage({sb, fmt, authState, Header}) {
           </div>
           {!isAddFeed && (
             <>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Pig count</span>
                 <input
                   type="number"
@@ -279,7 +269,7 @@ export default function PigDailyPage({sb, fmt, authState, Header}) {
                   style={inp}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Fence voltage (kV)</span>
                 <input
                   type="number"
@@ -290,53 +280,58 @@ export default function PigDailyPage({sb, fmt, authState, Header}) {
                   style={inp}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Group moved</span>
                 <input
                   type="checkbox"
                   checked={form.groupMoved}
                   onChange={(e) => setForm({...form, groupMoved: e.target.checked})}
+                  style={recordCheckbox}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Nipple drinker moved</span>
                 <input
                   type="checkbox"
                   checked={form.nippleDrinkerMoved}
                   onChange={(e) => setForm({...form, nippleDrinkerMoved: e.target.checked})}
+                  style={recordCheckbox}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Nipple drinker working</span>
                 <input
                   type="checkbox"
                   checked={form.nippleDrinkerWorking}
                   onChange={(e) => setForm({...form, nippleDrinkerWorking: e.target.checked})}
+                  style={recordCheckbox}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Troughs moved</span>
                 <input
                   type="checkbox"
                   checked={form.troughsMoved}
                   onChange={(e) => setForm({...form, troughsMoved: e.target.checked})}
+                  style={recordCheckbox}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Fence walked</span>
                 <input
                   type="checkbox"
                   checked={form.fenceWalked}
                   onChange={(e) => setForm({...form, fenceWalked: e.target.checked})}
+                  style={recordCheckbox}
                 />
               </div>
-              <div style={fieldRow}>
+              <div className={fieldRowClass}>
                 <span style={fieldLabel}>Issues</span>
                 <textarea
                   value={form.issues}
                   onChange={(e) => setForm({...form, issues: e.target.value})}
-                  rows={2}
-                  style={{...inp, width: 260, resize: 'vertical'}}
+                  rows={3}
+                  style={recordTextarea}
                 />
               </div>
             </>
@@ -382,6 +377,12 @@ export default function PigDailyPage({sb, fmt, authState, Header}) {
             </button>
           </div>
         </div>
+
+        {Array.isArray(record.photos) && record.photos.length > 0 && (
+          <div style={{...recordFormCard, marginTop: 12}}>
+            <DailyPhotoThumbnails photos={record.photos} />
+          </div>
+        )}
 
         {canDeleteDailyReport(authState) && (
           <button
