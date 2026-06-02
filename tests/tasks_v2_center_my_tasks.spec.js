@@ -142,7 +142,7 @@ async function seedTaskCenterFixture(supabaseAdmin) {
     },
   ];
 
-  const {error} = await supabaseAdmin.from('task_instances').insert(rows);
+  const {error} = await supabaseAdmin.from('task_instances').upsert(rows, {onConflict: 'id'});
   if (error) throw new Error(`seedTaskCenterFixture: ${error.message}`);
   return {adminId, simonId, makId};
 }
@@ -302,17 +302,20 @@ test.describe('Task Center /tasks — read-only My Tasks tab', () => {
     // Clarity pass — solo-task groups stay collapsed, ≥2-task groups
     // expand by default so cross-team workload is visible without
     // an extra click.
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-other-simon-earlier',
-      template_id: null,
-      assignee_profile_id: simonId,
-      due_date: '2026-04-15',
-      title: 'Simon earlier task',
-      description: 'second simon task seeded for sort assertion',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-other-simon-earlier',
+        template_id: null,
+        assignee_profile_id: simonId,
+        due_date: '2026-04-15',
+        title: 'Simon earlier task',
+        description: 'second simon task seeded for sort assertion',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+      },
+      {onConflict: 'id'},
+    );
 
     await page.goto('/tasks');
 

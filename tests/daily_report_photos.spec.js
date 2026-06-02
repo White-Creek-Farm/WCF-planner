@@ -193,36 +193,41 @@ test('admin display: photo chip on tile + thumbnails in edit modal (signed URL)'
   // even for a non-existent storage path; the IMG src will 404 but the
   // thumbnail wrapper still renders.
   const csid = 'csid-admin-display-test';
-  await supabaseAdmin.from('sheep_dailys').insert({
-    id: 'sd-admin-display',
-    client_submission_id: csid,
-    date: '2026-04-29',
-    team_member: 'BMAN',
-    flock: 'ewes',
-    feeds: [],
-    minerals: [],
-    fence_voltage_kv: null,
-    waterers_working: true,
-    mortality_count: 0,
-    comments: null,
-    source: 'daily_webform',
-    photos: [
-      {
-        path: `sheep_dailys/${csid}/photo-1.jpg`,
-        name: 'a.jpg',
-        mime: 'image/jpeg',
-        size_bytes: 50,
-        captured_at: '2026-04-29T10:00:00.000Z',
-      },
-      {
-        path: `sheep_dailys/${csid}/photo-2.jpg`,
-        name: 'b.jpg',
-        mime: 'image/jpeg',
-        size_bytes: 50,
-        captured_at: '2026-04-29T10:00:01.000Z',
-      },
-    ],
-  });
+  await supabaseAdmin.from('sheep_dailys').upsert(
+    {
+      id: 'sd-admin-display',
+      deleted_at: null,
+      deleted_by: null,
+      client_submission_id: csid,
+      date: '2026-04-29',
+      team_member: 'BMAN',
+      flock: 'ewes',
+      feeds: [],
+      minerals: [],
+      fence_voltage_kv: null,
+      waterers_working: true,
+      mortality_count: 0,
+      comments: null,
+      source: 'daily_webform',
+      photos: [
+        {
+          path: `sheep_dailys/${csid}/photo-1.jpg`,
+          name: 'a.jpg',
+          mime: 'image/jpeg',
+          size_bytes: 50,
+          captured_at: '2026-04-29T10:00:00.000Z',
+        },
+        {
+          path: `sheep_dailys/${csid}/photo-2.jpg`,
+          name: 'b.jpg',
+          mime: 'image/jpeg',
+          size_bytes: 50,
+          captured_at: '2026-04-29T10:00:01.000Z',
+        },
+      ],
+    },
+    {onConflict: 'id'},
+  );
 
   await page.goto('/sheep/dailys');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
@@ -255,29 +260,34 @@ test('hotfix: Home Last-5-Days tile → record page with team dropdown + photo t
   // intentionally NOT in the seeded roster so the historical-option path runs.
   const today = new Date().toISOString().slice(0, 10);
   const csid = 'csid-home-route-test';
-  await supabaseAdmin.from('sheep_dailys').insert({
-    id: 'sd-home-route',
-    client_submission_id: csid,
-    date: today,
-    team_member: 'SIMON',
-    flock: 'ewes',
-    feeds: [],
-    minerals: [],
-    fence_voltage_kv: null,
-    waterers_working: true,
-    mortality_count: 0,
-    comments: null,
-    source: 'daily_webform',
-    photos: [
-      {
-        path: `sheep_dailys/${csid}/photo-1.jpg`,
-        name: 'a.jpg',
-        mime: 'image/jpeg',
-        size_bytes: 50,
-        captured_at: today + 'T10:00:00.000Z',
-      },
-    ],
-  });
+  await supabaseAdmin.from('sheep_dailys').upsert(
+    {
+      id: 'sd-home-route',
+      deleted_at: null,
+      deleted_by: null,
+      client_submission_id: csid,
+      date: today,
+      team_member: 'SIMON',
+      flock: 'ewes',
+      feeds: [],
+      minerals: [],
+      fence_voltage_kv: null,
+      waterers_working: true,
+      mortality_count: 0,
+      comments: null,
+      source: 'daily_webform',
+      photos: [
+        {
+          path: `sheep_dailys/${csid}/photo-1.jpg`,
+          name: 'a.jpg',
+          mime: 'image/jpeg',
+          size_bytes: 50,
+          captured_at: today + 'T10:00:00.000Z',
+        },
+      ],
+    },
+    {onConflict: 'id'},
+  );
 
   await page.goto('/');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});

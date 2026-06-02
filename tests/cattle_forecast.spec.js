@@ -314,7 +314,9 @@ test('forecast → send: outside-projection tags warn but do not block; sent cow
     months.push(d.toISOString().slice(0, 7));
   }
   for (const mk of months) {
-    await supabaseAdmin.from('cattle_forecast_hidden').insert({cattle_id: 'F-HIDE', month_key: mk, hidden_by: 'test'});
+    await supabaseAdmin
+      .from('cattle_forecast_hidden')
+      .upsert({cattle_id: 'F-HIDE', month_key: mk, hidden_by: 'test'}, {onConflict: 'cattle_id,month_key'});
   }
 
   // Unflag F-AT-MAX (tag 1002) so she's a PROJECTED cow that the operator
@@ -390,14 +392,17 @@ test('send-to-processor: scheduled row promotes to active; same id; only sent ca
   const scheduledId = 'cpb-test-scheduled-01';
   const scheduledName = 'C-26-01';
   const plannedDate = '2026-05-04';
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: scheduledId,
-    name: scheduledName,
-    planned_process_date: plannedDate,
-    status: 'scheduled',
-    cows_detail: [],
-    documents: [],
-  });
+  await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: scheduledId,
+      name: scheduledName,
+      planned_process_date: plannedDate,
+      status: 'scheduled',
+      cows_detail: [],
+      documents: [],
+    },
+    {onConflict: 'id'},
+  );
 
   // Unflag F-AT-MAX (tag 1002) so she's a projected cow the operator
   // chose NOT to send. After promotion she must stay in finishers.
@@ -599,19 +604,22 @@ test('forecast: actual-batch month shows "X cows processed" and lists cow tags',
   // Seed an actual ACTIVE batch in current month so its month tile renders
   // a "processed" pill + per-cow detail under the batch row.
   const monthKey = new Date().toISOString().slice(0, 7);
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: 'b-actual-test-1',
-    name: 'C-26-90',
-    status: 'active',
-    actual_process_date: monthKey + '-04',
-    planned_process_date: monthKey + '-04',
-    cows_detail: [
-      {cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: null},
-      {cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null},
-    ],
-    total_live_weight: 2550,
-    total_hanging_weight: null,
-  });
+  await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: 'b-actual-test-1',
+      name: 'C-26-90',
+      status: 'active',
+      actual_process_date: monthKey + '-04',
+      planned_process_date: monthKey + '-04',
+      cows_detail: [
+        {cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: null},
+        {cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null},
+      ],
+      total_live_weight: 2550,
+      total_hanging_weight: null,
+    },
+    {onConflict: 'id'},
+  );
   await supabaseAdmin
     .from('cattle')
     .update({herd: 'processed', processing_batch_id: 'b-actual-test-1'})
@@ -685,16 +693,19 @@ test('forecast: tag search filters planned + actual batch rows; clear restores',
   // planned row (F1 → tag 1001) AND an actual-batch row (F-AT-MAX → tag 1002)
   // to discriminate against.
   const monthKey = new Date().toISOString().slice(0, 7);
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: 'b-search-test-1',
-    name: 'C-26-91',
-    status: 'active',
-    actual_process_date: monthKey + '-04',
-    planned_process_date: monthKey + '-04',
-    cows_detail: [{cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null}],
-    total_live_weight: 1450,
-    total_hanging_weight: null,
-  });
+  await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: 'b-search-test-1',
+      name: 'C-26-91',
+      status: 'active',
+      actual_process_date: monthKey + '-04',
+      planned_process_date: monthKey + '-04',
+      cows_detail: [{cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null}],
+      total_live_weight: 1450,
+      total_hanging_weight: null,
+    },
+    {onConflict: 'id'},
+  );
   await supabaseAdmin
     .from('cattle')
     .update({herd: 'processed', processing_batch_id: 'b-search-test-1'})
@@ -728,16 +739,19 @@ test('forecast: actual-batch table does not include ADG Calc; planned table does
   supabaseAdmin,
 }) => {
   const monthKey = new Date().toISOString().slice(0, 7);
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: 'b-no-adg-test',
-    name: 'C-26-92',
-    status: 'active',
-    actual_process_date: monthKey + '-04',
-    planned_process_date: monthKey + '-04',
-    cows_detail: [{cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null}],
-    total_live_weight: 1450,
-    total_hanging_weight: null,
-  });
+  await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: 'b-no-adg-test',
+      name: 'C-26-92',
+      status: 'active',
+      actual_process_date: monthKey + '-04',
+      planned_process_date: monthKey + '-04',
+      cows_detail: [{cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null}],
+      total_live_weight: 1450,
+      total_hanging_weight: null,
+    },
+    {onConflict: 'id'},
+  );
   await supabaseAdmin
     .from('cattle')
     .update({herd: 'processed', processing_batch_id: 'b-no-adg-test'})
@@ -769,16 +783,19 @@ test('forecast: visible dates render as mm/dd/yy', async ({page, cattleForecastS
   // Seed an actual batch so a batch-date renders + the planned row's latest
   // weigh-in already has a date in the seed.
   const monthKey = new Date().toISOString().slice(0, 7);
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: 'b-date-test',
-    name: 'C-26-93',
-    status: 'active',
-    actual_process_date: monthKey + '-04',
-    planned_process_date: monthKey + '-04',
-    cows_detail: [{cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null}],
-    total_live_weight: 1450,
-    total_hanging_weight: null,
-  });
+  await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: 'b-date-test',
+      name: 'C-26-93',
+      status: 'active',
+      actual_process_date: monthKey + '-04',
+      planned_process_date: monthKey + '-04',
+      cows_detail: [{cattle_id: 'F-AT-MAX', tag: '1002', live_weight: 1450, hanging_weight: null}],
+      total_live_weight: 1450,
+      total_hanging_weight: null,
+    },
+    {onConflict: 'id'},
+  );
 
   await page.goto(FORECAST_PATH);
   await waitForForecastLoaded(page);
@@ -1175,16 +1192,19 @@ test('forecast: actual-batch per-cow row shows age as of the processing date', a
   supabaseAdmin,
 }) => {
   const monthKey = new Date().toISOString().slice(0, 7);
-  await supabaseAdmin.from('cattle_processing_batches').insert({
-    id: 'b-age-test-1',
-    name: 'C-26-92',
-    status: 'active',
-    actual_process_date: monthKey + '-04',
-    planned_process_date: monthKey + '-04',
-    cows_detail: [{cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: null}],
-    total_live_weight: 1100,
-    total_hanging_weight: null,
-  });
+  await supabaseAdmin.from('cattle_processing_batches').upsert(
+    {
+      id: 'b-age-test-1',
+      name: 'C-26-92',
+      status: 'active',
+      actual_process_date: monthKey + '-04',
+      planned_process_date: monthKey + '-04',
+      cows_detail: [{cattle_id: 'F1', tag: '1001', live_weight: 1100, hanging_weight: null}],
+      total_live_weight: 1100,
+      total_hanging_weight: null,
+    },
+    {onConflict: 'id'},
+  );
   await supabaseAdmin.from('cattle').update({herd: 'processed', processing_batch_id: 'b-age-test-1'}).eq('id', 'F1');
 
   await page.goto(FORECAST_PATH);
@@ -1265,30 +1285,33 @@ test('forecast: include-heifers modal sorts youngest first; no-DOB heifers sink 
   //   1. M-HEIFER (2025-08-01, youngest)
   //   2. M-HEIFER-OLD (2025-04-01, ~13 months — still under the 15-month cap)
   //   3. M-HEIFER-NODOB (no birth_date, sinks to the bottom)
-  await supabaseAdmin.from('cattle').insert([
-    {
-      id: 'M-HEIFER-OLD',
-      tag: '2010',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      origin: 'Smith Ranch',
-      birth_date: '2025-04-01',
-      old_tags: [],
-    },
-    {
-      id: 'M-HEIFER-NODOB',
-      tag: '2011',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      origin: 'Smith Ranch',
-      birth_date: null,
-      old_tags: [],
-    },
-  ]);
+  await supabaseAdmin.from('cattle').upsert(
+    [
+      {
+        id: 'M-HEIFER-OLD',
+        tag: '2010',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        origin: 'Smith Ranch',
+        birth_date: '2025-04-01',
+        old_tags: [],
+      },
+      {
+        id: 'M-HEIFER-NODOB',
+        tag: '2011',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        origin: 'Smith Ranch',
+        birth_date: null,
+        old_tags: [],
+      },
+    ],
+    {onConflict: 'id'},
+  );
 
   await page.goto(FORECAST_PATH);
   await waitForForecastLoaded(page);
@@ -1340,42 +1363,45 @@ test('forecast: include-heifers modal omits pregnant heifers and heifers over 15
   //   - M-HEIFER-OK: DOB 2025-09-01 → ~8 months → eligible (visible).
   // M-HEIFER (seed DOB 2025-08-01) is also visible; eligible heifers stay
   // sorted youngest first.
-  await supabaseAdmin.from('cattle').insert([
-    {
-      id: 'M-HEIFER-PREG',
-      tag: '2020',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      breeding_status: 'PREGNANT',
-      origin: 'Smith Ranch',
-      birth_date: '2025-09-01',
-      old_tags: [],
-    },
-    {
-      id: 'M-HEIFER-AGED',
-      tag: '2021',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      origin: 'Smith Ranch',
-      birth_date: '2024-01-01',
-      old_tags: [],
-    },
-    {
-      id: 'M-HEIFER-OK',
-      tag: '2022',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      origin: 'Smith Ranch',
-      birth_date: '2025-09-01',
-      old_tags: [],
-    },
-  ]);
+  await supabaseAdmin.from('cattle').upsert(
+    [
+      {
+        id: 'M-HEIFER-PREG',
+        tag: '2020',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        breeding_status: 'PREGNANT',
+        origin: 'Smith Ranch',
+        birth_date: '2025-09-01',
+        old_tags: [],
+      },
+      {
+        id: 'M-HEIFER-AGED',
+        tag: '2021',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        origin: 'Smith Ranch',
+        birth_date: '2024-01-01',
+        old_tags: [],
+      },
+      {
+        id: 'M-HEIFER-OK',
+        tag: '2022',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        origin: 'Smith Ranch',
+        birth_date: '2025-09-01',
+        old_tags: [],
+      },
+    ],
+    {onConflict: 'id'},
+  );
 
   await page.goto(FORECAST_PATH);
   await waitForForecastLoaded(page);
@@ -1415,34 +1441,37 @@ test('forecast: finish candidate summary excludes pregnant and over-15-month mom
   await waitForForecastLoaded(page);
   const before = await readFinishCandidateCount(page);
 
-  await supabaseAdmin.from('cattle').insert([
-    {
-      id: 'M-HEIFER-SUMMARY-PREG',
-      tag: '2030',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      breeding_status: 'PREGNANT',
-      origin: 'Smith Ranch',
-      birth_date: '2025-09-01',
-      old_tags: [],
-    },
-    {
-      id: 'M-HEIFER-SUMMARY-AGED',
-      tag: '2031',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      origin: 'Smith Ranch',
-      birth_date: '2024-01-01',
-      old_tags: [],
-    },
-  ]);
+  await supabaseAdmin.from('cattle').upsert(
+    [
+      {
+        id: 'M-HEIFER-SUMMARY-PREG',
+        tag: '2030',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        breeding_status: 'PREGNANT',
+        origin: 'Smith Ranch',
+        birth_date: '2025-09-01',
+        old_tags: [],
+      },
+      {
+        id: 'M-HEIFER-SUMMARY-AGED',
+        tag: '2031',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        origin: 'Smith Ranch',
+        birth_date: '2024-01-01',
+        old_tags: [],
+      },
+    ],
+    {onConflict: 'id'},
+  );
   await supabaseAdmin
     .from('cattle_forecast_heifer_includes')
-    .insert([{cattle_id: 'M-HEIFER-SUMMARY-PREG'}, {cattle_id: 'M-HEIFER-SUMMARY-AGED'}]);
+    .upsert([{cattle_id: 'M-HEIFER-SUMMARY-PREG'}, {cattle_id: 'M-HEIFER-SUMMARY-AGED'}], {onConflict: 'cattle_id'});
 
   await page.reload();
   await waitForForecastLoaded(page);
@@ -1461,22 +1490,28 @@ test('forecast: include-heifers modal hides stale includes and deletes them on C
   // Seed an over-15-month heifer (DOB 2024-01-01 → ~28 months at TODAY) and
   // an INCLUDE row pointing at her. The row is "stale": she no longer
   // qualifies for the modal/forecast, but the DB row exists.
-  await supabaseAdmin.from('cattle').insert({
-    id: 'M-HEIFER-STALE',
-    tag: '2030',
-    sex: 'heifer',
-    herd: 'mommas',
-    breed: 'Angus',
-    breeding_blacklist: false,
-    origin: 'Smith Ranch',
-    birth_date: '2024-01-01',
-    old_tags: [],
-  });
-  await supabaseAdmin.from('cattle_forecast_heifer_includes').insert({
-    cattle_id: 'M-HEIFER-STALE',
-    included_at: new Date().toISOString(),
-    included_by: null,
-  });
+  await supabaseAdmin.from('cattle').upsert(
+    {
+      id: 'M-HEIFER-STALE',
+      tag: '2030',
+      sex: 'heifer',
+      herd: 'mommas',
+      breed: 'Angus',
+      breeding_blacklist: false,
+      origin: 'Smith Ranch',
+      birth_date: '2024-01-01',
+      old_tags: [],
+    },
+    {onConflict: 'id'},
+  );
+  await supabaseAdmin.from('cattle_forecast_heifer_includes').upsert(
+    {
+      cattle_id: 'M-HEIFER-STALE',
+      included_at: new Date().toISOString(),
+      included_by: null,
+    },
+    {onConflict: 'cattle_id'},
+  );
 
   await page.goto(FORECAST_PATH);
   await waitForForecastLoaded(page);
@@ -1519,34 +1554,40 @@ test('forecast: include-heifers Confirm prunes stale preselected rows but preser
   // rows for both (M-HEIFER from the seed scenario is also eligible but
   // not preselected). The eligible include should survive Confirm; the
   // stale one should be deleted.
-  await supabaseAdmin.from('cattle').insert([
-    {
-      id: 'M-HEIFER-OK2',
-      tag: '2040',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      origin: 'Smith Ranch',
-      birth_date: '2025-09-01',
-      old_tags: [],
-    },
-    {
-      id: 'M-HEIFER-AGED2',
-      tag: '2041',
-      sex: 'heifer',
-      herd: 'mommas',
-      breed: 'Angus',
-      breeding_blacklist: false,
-      origin: 'Smith Ranch',
-      birth_date: '2024-01-01',
-      old_tags: [],
-    },
-  ]);
-  await supabaseAdmin.from('cattle_forecast_heifer_includes').insert([
-    {cattle_id: 'M-HEIFER-OK2', included_at: new Date().toISOString(), included_by: null},
-    {cattle_id: 'M-HEIFER-AGED2', included_at: new Date().toISOString(), included_by: null},
-  ]);
+  await supabaseAdmin.from('cattle').upsert(
+    [
+      {
+        id: 'M-HEIFER-OK2',
+        tag: '2040',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        origin: 'Smith Ranch',
+        birth_date: '2025-09-01',
+        old_tags: [],
+      },
+      {
+        id: 'M-HEIFER-AGED2',
+        tag: '2041',
+        sex: 'heifer',
+        herd: 'mommas',
+        breed: 'Angus',
+        breeding_blacklist: false,
+        origin: 'Smith Ranch',
+        birth_date: '2024-01-01',
+        old_tags: [],
+      },
+    ],
+    {onConflict: 'id'},
+  );
+  await supabaseAdmin.from('cattle_forecast_heifer_includes').upsert(
+    [
+      {cattle_id: 'M-HEIFER-OK2', included_at: new Date().toISOString(), included_by: null},
+      {cattle_id: 'M-HEIFER-AGED2', included_at: new Date().toISOString(), included_by: null},
+    ],
+    {onConflict: 'cattle_id'},
+  );
 
   await page.goto(FORECAST_PATH);
   await waitForForecastLoaded(page);
@@ -1609,20 +1650,27 @@ test('forecast: include-heifers modal prunes staged heifer if she becomes inelig
 }) => {
   // Seed an eligible heifer with an include row so she's visible AND
   // preselected when the modal opens.
-  await supabaseAdmin.from('cattle').insert({
-    id: 'M-HEIFER-MIDFLIGHT',
-    tag: '2050',
-    sex: 'heifer',
-    herd: 'mommas',
-    breed: 'Angus',
-    breeding_blacklist: false,
-    origin: 'Smith Ranch',
-    birth_date: '2025-09-01',
-    old_tags: [],
-  });
+  await supabaseAdmin.from('cattle').upsert(
+    {
+      id: 'M-HEIFER-MIDFLIGHT',
+      tag: '2050',
+      sex: 'heifer',
+      herd: 'mommas',
+      breed: 'Angus',
+      breeding_blacklist: false,
+      breeding_status: null,
+      origin: 'Smith Ranch',
+      birth_date: '2025-09-01',
+      old_tags: [],
+    },
+    {onConflict: 'id'},
+  );
   await supabaseAdmin
     .from('cattle_forecast_heifer_includes')
-    .insert({cattle_id: 'M-HEIFER-MIDFLIGHT', included_at: new Date().toISOString(), included_by: null});
+    .upsert(
+      {cattle_id: 'M-HEIFER-MIDFLIGHT', included_at: new Date().toISOString(), included_by: null},
+      {onConflict: 'cattle_id'},
+    );
 
   await page.goto(FORECAST_PATH);
   await waitForForecastLoaded(page);

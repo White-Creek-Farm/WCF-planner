@@ -80,7 +80,7 @@ END $$;
 // --------------------------------------------------------------------------
 test('trigger: calf with blank dam_tag gets linked on calving record insert', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
 
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-link-test-1',
@@ -105,7 +105,7 @@ test('trigger: calf with blank dam_tag gets linked on calving record insert', as
 // --------------------------------------------------------------------------
 test('trigger: calf with existing dam_tag is left alone on calving record insert', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_EXISTING_DAM]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_EXISTING_DAM], {onConflict: 'id'});
 
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-link-test-2',
@@ -129,7 +129,7 @@ test('trigger: calf with existing dam_tag is left alone on calving record insert
 // --------------------------------------------------------------------------
 test('trigger: missing calf row is silent no-op', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert(DAM);
+  await supabaseAdmin.from('cattle').upsert(DAM, {onConflict: 'id'});
 
   // calf_tag references no existing cattle row — should not error.
   const {error} = await supabaseAdmin.from('cattle_calving_records').insert({
@@ -151,7 +151,7 @@ test('trigger: missing calf row is silent no-op', async ({supabaseAdmin, resetDb
 // run backfill DO block, assert dam_tag is restored. Re-run is a no-op.
 test('backfill: links existing calf with blank dam_tag; idempotent on re-run', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-backfill-1',
     dam_tag: DAM.tag,
@@ -191,7 +191,7 @@ test('backfill: links existing calf with blank dam_tag; idempotent on re-run', a
 // reported issue.
 test('UI: calf herd tile shows dam tag after trigger links it', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
 
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-ui-test',
@@ -221,7 +221,7 @@ test('UI: calf herd tile shows dam tag after trigger links it', async ({page, su
 // dam_tag. The View link is navigation only, not the sole authoring surface.
 test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-ui-readonly',
     dam_tag: DAM.tag,
@@ -255,7 +255,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async
 test('UI: CowDetail Lineage shows editable dam input when dam_tag is blank', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
   // Seed the calf with no dam_tag and no calving record.
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
 
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
@@ -283,7 +283,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is blank', asy
 // data, (b) + Add Calving form has no Total born / Deaths inputs.
 test('UI: calving record list and form omit born/died entirely', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-no-counts-display',
     dam_tag: DAM.tag,
@@ -324,7 +324,7 @@ test('UI: calving record list and form omit born/died entirely', async ({page, s
 // cattle_comments for that dam.
 test('UI: + Add Calving submit writes no auto-comment to the dam timeline', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert([DAM, CALF_BLANK]);
+  await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
 
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});

@@ -331,3 +331,137 @@ describe('CP7: equipment seeds avoid fixed unique-key collisions', () => {
     expect(src).not.toContain("id: 'fuel-replay-2'");
   });
 });
+
+// ── CP8: remaining fixed-id Playwright spec seeds ────────────────────────────
+// CP8 audited the rest of the plain `.insert(` calls in tests/ and converted
+// only the deterministic fixed-id service-role SETUP rows that can collide on a
+// shared-DB worker-restart race. Inserts left as plain insert (run-unique ids,
+// anon/offline/constraint semantics under test, or AFTER INSERT triggers whose
+// side effects are the contract under test) are intentionally NOT converted —
+// see the partial-conversion block below and the lane report.
+const CP8_FULL_FILES = [
+  'tests/cattle_forecast.spec.js',
+  'tests/daily_report_photos.spec.js',
+  'tests/team_availability.spec.js',
+  'tests/activity_navigation.spec.js',
+  'tests/cattle_soft_delete.spec.js',
+  'tests/tasks_v2_t3_t4.spec.js',
+  'tests/tasks_v2_t5_system_tasks.spec.js',
+  'tests/tasks_v2_t6_t7_create_complete.spec.js',
+  'tests/tasks_v2_t8_t9_admin_controls.spec.js',
+  'tests/tasks_v2_header_assignee_availability.spec.js',
+  'tests/tasks_v2_center_my_tasks.spec.js',
+];
+
+describe('CP8: fully-converted spec seeds use upsert, not plain insert', () => {
+  for (const rel of CP8_FULL_FILES) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+    it(`${rel} contains no plain .insert( calls`, () => {
+      expect(src).not.toMatch(/\.insert\(/);
+    });
+
+    it(`${rel} writes fixed-id rows via upsert(..., {onConflict: ...})`, () => {
+      expect(src).toMatch(/\.upsert\(/);
+      expect(src).toMatch(/onConflict:/);
+    });
+
+    it(`${rel} does not rely on ignoreDuplicates`, () => {
+      expect(src).not.toMatch(/ignoreDuplicates/);
+    });
+  }
+});
+
+describe('CP8: cattle_forecast uses the correct composite/natural conflict targets', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'tests/cattle_forecast.spec.js'), 'utf8');
+
+  it('cattle + cattle_processing_batches seeds upsert on id', () => {
+    expect(src).toMatch(/from\('cattle'\)\.upsert\(/);
+    expect(src).toMatch(/from\('cattle_processing_batches'\)\.upsert\(/);
+    expect(src).toMatch(/onConflict:\s*'id'/);
+  });
+
+  it('cattle_forecast_hidden upserts on the (cattle_id, month_key) composite PK', () => {
+    expect(src).toMatch(/from\('cattle_forecast_hidden'\)\s*\.upsert\(/);
+    expect(src).toMatch(/onConflict:\s*'cattle_id,month_key'/);
+  });
+
+  it('cattle_forecast_heifer_includes upserts on the cattle_id PK', () => {
+    expect(src).toMatch(/from\('cattle_forecast_heifer_includes'\)\.upsert\(/);
+    expect(src).toMatch(/onConflict:\s*'cattle_id'/);
+  });
+});
+
+// ── CP8: partial conversions — fixed-id SETUP rows converted, trigger-firing
+// inserts intentionally retained. cattle_calving_records inserts drive the
+// mig 032/033/044 AFTER INSERT promote/dam-link triggers the specs assert, and
+// tasks_v2_rpcs keeps the task_instances inserts whose AFTER INSERT
+// designation/photo-sidecar side effects are the contract under test. Upserting
+// those would silently UPDATE on a stale row and skip the AFTER INSERT trigger.
+describe('CP8: partial conversions keep trigger-firing inserts', () => {
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+  for (const rel of ['tests/cattle_heifer_promote.spec.js', 'tests/cattle_calf_dam_link.spec.js']) {
+    const src = read(rel);
+
+    it(`${rel} seeds cattle rows via upsert(onConflict: 'id')`, () => {
+      expect(src).toMatch(/from\('cattle'\)\.upsert\(/);
+      expect(src).not.toMatch(/from\('cattle'\)\.insert\(/);
+      expect(src).toMatch(/onConflict:\s*'id'/);
+    });
+
+    it(`${rel} intentionally keeps cattle_calving_records inserts (AFTER INSERT trigger under test)`, () => {
+      expect(src).toMatch(/from\('cattle_calving_records'\)\.insert\(/);
+    });
+
+    it(`${rel} does not rely on ignoreDuplicates`, () => {
+      expect(src).not.toMatch(/ignoreDuplicates/);
+    });
+  }
+
+  it('tasks_v2_rpcs.spec.js converts the tmpl-trig-1 FK template to upsert(onConflict: id)', () => {
+    const src = read('tests/tasks_v2_rpcs.spec.js');
+    expect(src).toMatch(/from\('task_templates'\)\.upsert\(/);
+    expect(src).not.toMatch(/from\('task_templates'\)\.insert\(/);
+    expect(src).toMatch(/onConflict:\s*'id'/);
+  });
+
+  it('tasks_v2_rpcs.spec.js keeps the trigger-firing task_instances inserts (designation/photo sidecar under test)', () => {
+    const src = read('tests/tasks_v2_rpcs.spec.js');
+    expect(src).toMatch(/from\('task_instances'\)\.insert\(/);
+  });
+});
+
+// ── CP8 follow-up: task_instances upserts must clear completion + edit-history
+// stale state. upsert(onConflict:'id') only overwrites columns present in the
+// payload, and the due-date edit history is a separate append-only sidecar that
+// does not cascade on upsert — so open seeds that the spec later completes must
+// null the completion columns, and the edit-cap specs must delete stale
+// task_instance_due_date_edits rows for their fixed ids (same CP2/CP4 rule).
+describe('CP8 follow-up: completion + edit-history stale-state resets', () => {
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+  it('tasks_v2_t6_t7 open task seeds reset completion + request-photo columns', () => {
+    const src = read('tests/tasks_v2_t6_t7_create_complete.spec.js');
+    for (const col of [
+      'completed_at: null',
+      'completed_by_profile_id: null',
+      'completion_note: null',
+      'completion_photo_path: null',
+      'request_photo_path: null',
+    ]) {
+      expect(src).toContain(col);
+    }
+    // Every fixed-id open seed (5 across the file) carries the reset set, so the
+    // most-specific reset column appears at least that many times.
+    const photoResets = src.match(/completion_photo_path: null/g) || [];
+    expect(photoResets.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('tasks_v2_t8_t9 clears the append-only due-date edit history for its fixed ids', () => {
+    const src = read('tests/tasks_v2_t8_t9_admin_controls.spec.js');
+    expect(src).toMatch(/from\('task_instance_due_date_edits'\)\s*\.delete\(\)/);
+    expect(src).toMatch(/instance_id'?,?\s*'tic-t8-simon-edit'/);
+    expect(src).toContain("'tic-t8-cap-hit'");
+  });
+});

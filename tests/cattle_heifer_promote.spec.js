@@ -82,7 +82,7 @@ END $$;
 test('momma tile shows Calves: SUM(total_born) — twins double-count', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
 
-  await supabaseAdmin.from('cattle').insert(MOMMA);
+  await supabaseAdmin.from('cattle').upsert(MOMMA, {onConflict: 'id'});
   await supabaseAdmin.from('cattle_calving_records').insert([
     {
       id: 'cr-twins',
@@ -120,7 +120,7 @@ test('momma tile shows Calves: SUM(total_born) — twins double-count', async ({
 // Codex: show zero for consistency.
 test('momma tile shows Calves: 0 when no calving records', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert({...MOMMA, id: 'cow-zero', tag: 'M-ZERO'});
+  await supabaseAdmin.from('cattle').upsert({...MOMMA, id: 'cow-zero', tag: 'M-ZERO'}, {onConflict: 'id'});
 
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
@@ -137,7 +137,7 @@ test('momma tile shows Calves: 0 when no calving records', async ({page, supabas
 // --------------------------------------------------------------------------
 test('trigger: heifer auto-promotes to cow on calving record insert', async ({supabaseAdmin, resetDb}) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert(HEIFER);
+  await supabaseAdmin.from('cattle').upsert(HEIFER, {onConflict: 'id'});
 
   // Insert a calving record. The mig 032 AFTER-INSERT trigger should fire,
   // promoting H-001 to sex='cow' and writing an auto-promote comment.
@@ -183,7 +183,7 @@ test('backfill: promotes existing heifer with calving history; idempotent on re-
   resetDb,
 }) => {
   await resetDb();
-  await supabaseAdmin.from('cattle').insert(HEIFER_BACKFILL);
+  await supabaseAdmin.from('cattle').upsert(HEIFER_BACKFILL, {onConflict: 'id'});
 
   // Insert a calving record. The trigger fires and promotes her — undo the
   // promote (UPDATE sex back to 'heifer') so we can test the backfill path
@@ -251,7 +251,7 @@ test('trigger: pregnant cow flips breeding_status to OPEN on calving record inse
     breed: 'Angus',
     breeding_status: 'PREGNANT',
   };
-  await supabaseAdmin.from('cattle').insert(PREG_COW);
+  await supabaseAdmin.from('cattle').upsert(PREG_COW, {onConflict: 'id'});
 
   const calvingId = 'cr-bs-trigger-1';
   await supabaseAdmin.from('cattle_calving_records').insert({
@@ -299,7 +299,7 @@ test('trigger: pregnant heifer promotes to cow AND flips PREGNANT → OPEN; both
     breed: 'Angus',
     breeding_status: 'PREGNANT',
   };
-  await supabaseAdmin.from('cattle').insert(PREG_HEIFER);
+  await supabaseAdmin.from('cattle').upsert(PREG_HEIFER, {onConflict: 'id'});
 
   const calvingId = 'cr-bs-trigger-2';
   await supabaseAdmin.from('cattle_calving_records').insert({
@@ -347,7 +347,7 @@ test('trigger: cow whose breeding_status is OPEN/null is unchanged on calving in
     breed: 'Angus',
     breeding_status: 'OPEN',
   };
-  await supabaseAdmin.from('cattle').insert(OPEN_COW);
+  await supabaseAdmin.from('cattle').upsert(OPEN_COW, {onConflict: 'id'});
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-bs-trigger-3',
     dam_tag: OPEN_COW.tag,
@@ -419,7 +419,7 @@ test('backfill: pregnant cow with calving history flips to OPEN; idempotent', as
     breed: 'Angus',
     breeding_status: 'PREGNANT',
   };
-  await supabaseAdmin.from('cattle').insert(COW);
+  await supabaseAdmin.from('cattle').upsert(COW, {onConflict: 'id'});
   await supabaseAdmin.from('cattle_calving_records').insert({
     id: 'cr-bs-backfill-1',
     dam_tag: COW.tag,

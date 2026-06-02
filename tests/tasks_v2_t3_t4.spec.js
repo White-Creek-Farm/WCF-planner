@@ -187,7 +187,7 @@ async function seedT3T4Fixture(supabaseAdmin) {
     },
   ];
 
-  const {error} = await supabaseAdmin.from('task_instances').insert(rows);
+  const {error} = await supabaseAdmin.from('task_instances').upsert(rows, {onConflict: 'id'});
   if (error) throw new Error(`seedT3T4Fixture: ${error.message}`);
   return {adminId, simonId};
 }
@@ -236,26 +236,29 @@ test.describe('Tasks v2 T3 — Header Tasks button + own due/past-due badge', ()
     const simonId = await profileIdByName(supabaseAdmin, 'Simon');
     // Caller has only a future task; Simon has overdue. Caller's badge
     // count should be zero, so the badge pill must NOT render.
-    await supabaseAdmin.from('task_instances').insert([
-      {
-        id: 'tic-t34-mine-only-future',
-        assignee_profile_id: adminId,
-        due_date: '2099-12-31',
-        title: 'Only future',
-        submission_source: 'admin_manual',
-        status: 'open',
-        from_recurring_template: false,
-      },
-      {
-        id: 'tic-t34-other-only-overdue',
-        assignee_profile_id: simonId,
-        due_date: '2025-01-01',
-        title: 'Other overdue',
-        submission_source: 'admin_manual',
-        status: 'open',
-        from_recurring_template: false,
-      },
-    ]);
+    await supabaseAdmin.from('task_instances').upsert(
+      [
+        {
+          id: 'tic-t34-mine-only-future',
+          assignee_profile_id: adminId,
+          due_date: '2099-12-31',
+          title: 'Only future',
+          submission_source: 'admin_manual',
+          status: 'open',
+          from_recurring_template: false,
+        },
+        {
+          id: 'tic-t34-other-only-overdue',
+          assignee_profile_id: simonId,
+          due_date: '2025-01-01',
+          title: 'Other overdue',
+          submission_source: 'admin_manual',
+          status: 'open',
+          from_recurring_template: false,
+        },
+      ],
+      {onConflict: 'id'},
+    );
 
     await page.goto('/');
 

@@ -228,13 +228,19 @@ test('sold/deceased restore: no tag conflict with active cows', async ({supabase
   expect(delResult.error).toBeNull();
 
   // Insert an active cow with the same tag in an active herd.
-  await supabaseAdmin.from('cattle').insert({
-    id: 'sd-active-same-tag',
-    tag: 'SD-DEAD',
-    sex: 'steer',
-    herd: 'finishers',
-    old_tags: [],
-  });
+  await supabaseAdmin.from('cattle').upsert(
+    {
+      id: 'sd-active-same-tag',
+      tag: 'SD-DEAD',
+      sex: 'steer',
+      herd: 'finishers',
+      old_tags: [],
+      deleted_at: null,
+      deleted_by: null,
+      processing_batch_id: null,
+    },
+    {onConflict: 'id'},
+  );
 
   // Restore deceased cow — should succeed (deceased is outside active-herd scope).
   const restoreResult = await adminSb.rpc('restore_cattle_animal', {

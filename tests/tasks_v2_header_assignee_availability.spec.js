@@ -99,15 +99,18 @@ test.describe('Tasks v2 — assignee availability filter on Task Center mutation
     await seedHiddenAssignees(supabaseAdmin, [simonId]);
 
     // Seed a task to reassign and a template to edit.
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-hav-mak-row',
-      assignee_profile_id: makId,
-      due_date: '2026-06-01',
-      title: 'Reassign target row (assigned to Mak)',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-hav-mak-row',
+        assignee_profile_id: makId,
+        due_date: '2026-06-01',
+        title: 'Reassign target row (assigned to Mak)',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+      },
+      {onConflict: 'id'},
+    );
     await supabaseAdmin.from('task_templates').upsert(
       {
         id: 'tpl-hav-mak',
@@ -202,15 +205,18 @@ test.describe('Tasks v2 — assignee availability filter on Task Center mutation
 
     // Seed a row owned by Simon, then hide Simon afterwards so the
     // existing row is "stranded" with a hidden assignee.
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-hav-simon-stranded',
-      assignee_profile_id: simonId,
-      due_date: '2026-06-01',
-      title: 'Stranded Simon row — hidden assignee, name still shows',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-hav-simon-stranded',
+        assignee_profile_id: simonId,
+        due_date: '2026-06-01',
+        title: 'Stranded Simon row — hidden assignee, name still shows',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+      },
+      {onConflict: 'id'},
+    );
     await seedHiddenAssignees(supabaseAdmin, [simonId]);
 
     await page.goto('/tasks');
@@ -238,29 +244,32 @@ test.describe('Tasks v2 — photo icon size on My Tasks and Completed', () => {
     const adminId = await seedAdminProfile(supabaseAdmin);
 
     // Seed two rows that have photo paths so the indicator/button renders.
-    await supabaseAdmin.from('task_instances').insert([
-      {
-        id: 'tic-photo-open',
-        assignee_profile_id: adminId,
-        due_date: '2026-06-01',
-        title: 'open task with photo',
-        submission_source: 'admin_manual',
-        status: 'open',
-        from_recurring_template: false,
-        request_photo_path: `task-request-photos/${adminId}/tic-photo-open/r-1.jpg`,
-      },
-      {
-        id: 'tic-photo-completed',
-        assignee_profile_id: adminId,
-        due_date: '2026-06-01',
-        title: 'completed task with photo',
-        submission_source: 'admin_manual',
-        status: 'completed',
-        from_recurring_template: false,
-        completed_at: new Date().toISOString(),
-        completion_photo_path: `task-photos/${adminId}/tic-photo-completed/c-1.jpg`,
-      },
-    ]);
+    await supabaseAdmin.from('task_instances').upsert(
+      [
+        {
+          id: 'tic-photo-open',
+          assignee_profile_id: adminId,
+          due_date: '2026-06-01',
+          title: 'open task with photo',
+          submission_source: 'admin_manual',
+          status: 'open',
+          from_recurring_template: false,
+          request_photo_path: `task-request-photos/${adminId}/tic-photo-open/r-1.jpg`,
+        },
+        {
+          id: 'tic-photo-completed',
+          assignee_profile_id: adminId,
+          due_date: '2026-06-01',
+          title: 'completed task with photo',
+          submission_source: 'admin_manual',
+          status: 'completed',
+          from_recurring_template: false,
+          completed_at: new Date().toISOString(),
+          completion_photo_path: `task-photos/${adminId}/tic-photo-completed/c-1.jpg`,
+        },
+      ],
+      {onConflict: 'id'},
+    );
 
     await page.goto('/tasks');
 

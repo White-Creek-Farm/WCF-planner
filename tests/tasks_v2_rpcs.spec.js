@@ -783,17 +783,20 @@ test('BEFORE trigger: row inserted with template_id auto-gets recurring designat
   await resetDb();
   const adminId = await seedAdminProfile(supabaseAdmin);
   // Make a template the FK can resolve.
-  await supabaseAdmin.from('task_templates').insert({
-    id: 'tmpl-trig-1',
-    title: 'T',
-    description: 'd',
-    assignee_profile_id: adminId,
-    recurrence: 'weekly',
-    recurrence_interval: 1,
-    first_due_date: '2026-09-01',
-    notes: '',
-    active: true,
-  });
+  await supabaseAdmin.from('task_templates').upsert(
+    {
+      id: 'tmpl-trig-1',
+      title: 'T',
+      description: 'd',
+      assignee_profile_id: adminId,
+      recurrence: 'weekly',
+      recurrence_interval: 1,
+      first_due_date: '2026-09-01',
+      notes: '',
+      active: true,
+    },
+    {onConflict: 'id'},
+  );
   // Direct insert simulating generate_task_instances (which keeps its
   // signature unchanged). No explicit designation.
   await supabaseAdmin.from('task_instances').insert({

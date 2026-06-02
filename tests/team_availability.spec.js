@@ -218,22 +218,30 @@ test('delete: cascades to availability + equipment + mirror; roster entry gone; 
     },
   });
   // Equipment row that lists BOB as an operator.
-  await supabaseAdmin.from('equipment').insert({
-    id: 'eq-test-1',
-    slug: 'eq-test-1',
-    name: 'Test Tractor',
-    category: 'tractor',
-    status: 'active',
-    tracking_unit: 'hours',
-    team_members: ['BOB', 'CARL'],
-  });
+  await supabaseAdmin.from('equipment').upsert(
+    {
+      id: 'eq-test-1',
+      slug: 'eq-test-1',
+      name: 'Test Tractor',
+      category: 'tractor',
+      status: 'active',
+      tracking_unit: 'hours',
+      team_members: ['BOB', 'CARL'],
+    },
+    {onConflict: 'id'},
+  );
   // Historical cattle_dailys row authored by BOB. Must NOT be rewritten by delete.
-  await supabaseAdmin.from('cattle_dailys').insert({
-    id: 'cd-history-1',
-    date: '2026-04-01',
-    team_member: 'BOB',
-    herd: 'mommas',
-  });
+  await supabaseAdmin.from('cattle_dailys').upsert(
+    {
+      id: 'cd-history-1',
+      date: '2026-04-01',
+      team_member: 'BOB',
+      herd: 'mommas',
+      deleted_at: null,
+      deleted_by: null,
+    },
+    {onConflict: 'id'},
+  );
 
   await page.goto('/admin');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});

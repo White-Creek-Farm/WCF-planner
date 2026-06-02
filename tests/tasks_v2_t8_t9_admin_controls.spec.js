@@ -52,16 +52,24 @@ test.describe('Tasks v2 T8 — Edit Due Date', () => {
     await resetDb();
     await seedAdminProfile(supabaseAdmin);
     const simonId = await profileIdByName(supabaseAdmin, 'Simon');
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-t8-simon-edit',
-      template_id: null,
-      assignee_profile_id: simonId,
-      due_date: '2026-06-01',
-      title: 'T8 Simon edits own due date',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-t8-simon-edit',
+        template_id: null,
+        assignee_profile_id: simonId,
+        due_date: '2026-06-01',
+        title: 'T8 Simon edits own due date',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+        due_date_edit_count: 0,
+      },
+      {onConflict: 'id'},
+    );
+    // CP8: the due-date edit history is an append-only sidecar (mig 051) that does
+    // NOT cascade on upsert. Clear any stale rows for this fixed id so a
+    // worker-restart re-seed starts with an empty history modal and a 0/2 cap.
+    await supabaseAdmin.from('task_instance_due_date_edits').delete().eq('instance_id', 'tic-t8-simon-edit');
 
     await signInAsSimon(page);
     await page.goto('/tasks');
@@ -94,26 +102,29 @@ test.describe('Tasks v2 T8 — Edit Due Date', () => {
     await resetDb();
     const adminId = await seedAdminProfile(supabaseAdmin);
     const simonId = await profileIdByName(supabaseAdmin, 'Simon');
-    await supabaseAdmin.from('task_instances').insert([
-      {
-        id: 'tic-t8-admin-only',
-        assignee_profile_id: adminId,
-        due_date: '2026-06-01',
-        title: 'admin task simon should NOT edit',
-        submission_source: 'admin_manual',
-        status: 'open',
-        from_recurring_template: false,
-      },
-      {
-        id: 'tic-t8-simon-own',
-        assignee_profile_id: simonId,
-        due_date: '2026-06-01',
-        title: 'simon row',
-        submission_source: 'admin_manual',
-        status: 'open',
-        from_recurring_template: false,
-      },
-    ]);
+    await supabaseAdmin.from('task_instances').upsert(
+      [
+        {
+          id: 'tic-t8-admin-only',
+          assignee_profile_id: adminId,
+          due_date: '2026-06-01',
+          title: 'admin task simon should NOT edit',
+          submission_source: 'admin_manual',
+          status: 'open',
+          from_recurring_template: false,
+        },
+        {
+          id: 'tic-t8-simon-own',
+          assignee_profile_id: simonId,
+          due_date: '2026-06-01',
+          title: 'simon row',
+          submission_source: 'admin_manual',
+          status: 'open',
+          from_recurring_template: false,
+        },
+      ],
+      {onConflict: 'id'},
+    );
 
     await signInAsSimon(page);
     await page.goto('/tasks');
@@ -136,16 +147,22 @@ test.describe('Tasks v2 T8 — Edit Due Date', () => {
     await seedAdminProfile(supabaseAdmin);
     const simonId = await profileIdByName(supabaseAdmin, 'Simon');
     // Pre-seed Simon at 2/2 cap.
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-t8-cap-hit',
-      assignee_profile_id: simonId,
-      due_date: '2026-06-01',
-      title: 'T8 cap-hit row',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-      due_date_edit_count: 2,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-t8-cap-hit',
+        assignee_profile_id: simonId,
+        due_date: '2026-06-01',
+        title: 'T8 cap-hit row',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+        due_date_edit_count: 2,
+      },
+      {onConflict: 'id'},
+    );
+    // CP8: clear stale append-only edit-history rows (mig 051, no upsert cascade)
+    // so the seeded due_date_edit_count is the sole source of the 2/2 cap state.
+    await supabaseAdmin.from('task_instance_due_date_edits').delete().eq('instance_id', 'tic-t8-cap-hit');
 
     // Simon: cap hit, Save disabled.
     await signInAsSimon(page);
@@ -202,16 +219,19 @@ test.describe('Tasks v2 T9 — Assign / Delete / Admin controls', () => {
     const adminId = await seedAdminProfile(supabaseAdmin);
     const simonId = await profileIdByName(supabaseAdmin, 'Simon');
     const makId = await profileIdByName(supabaseAdmin, 'Mak');
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-t9-assign',
-      assignee_profile_id: simonId,
-      due_date: '2026-06-01',
-      title: 'T9 admin reassigns simon row to mak',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-      created_by_profile_id: adminId,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-t9-assign',
+        assignee_profile_id: simonId,
+        due_date: '2026-06-01',
+        title: 'T9 admin reassigns simon row to mak',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+        created_by_profile_id: adminId,
+      },
+      {onConflict: 'id'},
+    );
 
     await page.goto('/tasks');
     await page.locator(`[data-tasks-group="${simonId}"] button`).first().click();
@@ -231,16 +251,19 @@ test.describe('Tasks v2 T9 — Assign / Delete / Admin controls', () => {
   test('admin deletes an open task with typed confirmation', async ({page, supabaseAdmin, resetDb}) => {
     await resetDb();
     const adminId = await seedAdminProfile(supabaseAdmin);
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-t9-delete',
-      assignee_profile_id: adminId,
-      due_date: '2099-12-31',
-      title: 'T9 admin deletes a task',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-      created_by_profile_id: adminId,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-t9-delete',
+        assignee_profile_id: adminId,
+        due_date: '2099-12-31',
+        title: 'T9 admin deletes a task',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+        created_by_profile_id: adminId,
+      },
+      {onConflict: 'id'},
+    );
 
     await page.goto('/tasks');
     await page.locator('[data-task-row="tic-t9-delete"] [data-task-delete-button="1"]').click();

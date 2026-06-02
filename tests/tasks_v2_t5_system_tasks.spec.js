@@ -135,7 +135,7 @@ async function seedT5Fixture(supabaseAdmin) {
     },
   ];
 
-  const {error} = await supabaseAdmin.from('task_instances').insert(rows);
+  const {error} = await supabaseAdmin.from('task_instances').upsert(rows, {onConflict: 'id'});
   if (error) throw new Error(`seedT5Fixture: ${error.message}`);
   return {adminId, simonId, makId};
 }

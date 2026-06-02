@@ -169,17 +169,25 @@ test.describe('Tasks v2 T7 — Complete Task modal', () => {
   test('empty completion note is blocked client-side', async ({page, supabaseAdmin, resetDb}) => {
     await resetDb();
     const adminId = await seedAdminProfile(supabaseAdmin);
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-t7-blocked-empty',
-      template_id: null,
-      assignee_profile_id: adminId,
-      due_date: '2099-12-31',
-      title: 'T7 empty-note guard',
-      description: 'admin clicks Complete then Save without typing a note',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-t7-blocked-empty',
+        template_id: null,
+        assignee_profile_id: adminId,
+        due_date: '2099-12-31',
+        title: 'T7 empty-note guard',
+        description: 'admin clicks Complete then Save without typing a note',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+        completed_at: null,
+        completed_by_profile_id: null,
+        completion_note: null,
+        completion_photo_path: null,
+        request_photo_path: null,
+      },
+      {onConflict: 'id'},
+    );
 
     await page.goto('/tasks');
     const row = page.locator('[data-task-row="tic-t7-blocked-empty"]');
@@ -199,17 +207,25 @@ test.describe('Tasks v2 T7 — Complete Task modal', () => {
   test('completing own task with note moves it from open into Completed', async ({page, supabaseAdmin, resetDb}) => {
     await resetDb();
     const adminId = await seedAdminProfile(supabaseAdmin);
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-t7-complete-mine',
-      template_id: null,
-      assignee_profile_id: adminId,
-      due_date: '2025-04-01',
-      title: 'T7 admin completes own task',
-      description: 'admin finishes a self-assigned task',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-t7-complete-mine',
+        template_id: null,
+        assignee_profile_id: adminId,
+        due_date: '2025-04-01',
+        title: 'T7 admin completes own task',
+        description: 'admin finishes a self-assigned task',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+        completed_at: null,
+        completed_by_profile_id: null,
+        completion_note: null,
+        completion_photo_path: null,
+        request_photo_path: null,
+      },
+      {onConflict: 'id'},
+    );
 
     await page.goto('/tasks');
     const row = page.locator('[data-task-row="tic-t7-complete-mine"]');
@@ -239,17 +255,25 @@ test.describe('Tasks v2 T7 — Complete Task modal', () => {
   }) => {
     await resetDb();
     const adminId = await seedAdminProfile(supabaseAdmin);
-    await supabaseAdmin.from('task_instances').insert({
-      id: 'tic-t7-complete-photos',
-      template_id: null,
-      assignee_profile_id: adminId,
-      due_date: '2025-06-01',
-      title: 'T7 admin completes with photos',
-      description: 'attach completion photos',
-      submission_source: 'admin_manual',
-      status: 'open',
-      from_recurring_template: false,
-    });
+    await supabaseAdmin.from('task_instances').upsert(
+      {
+        id: 'tic-t7-complete-photos',
+        template_id: null,
+        assignee_profile_id: adminId,
+        due_date: '2025-06-01',
+        title: 'T7 admin completes with photos',
+        description: 'attach completion photos',
+        submission_source: 'admin_manual',
+        status: 'open',
+        from_recurring_template: false,
+        completed_at: null,
+        completed_by_profile_id: null,
+        completion_note: null,
+        completion_photo_path: null,
+        request_photo_path: null,
+      },
+      {onConflict: 'id'},
+    );
 
     await page.goto('/tasks');
     await page.locator('[data-task-row="tic-t7-complete-photos"] [data-task-complete-button="1"]').click();
@@ -285,28 +309,41 @@ test.describe('Tasks v2 T7 — Complete Task modal', () => {
     const simonId = await profileIdByName(supabaseAdmin, 'Simon');
 
     // Two open tasks: one assigned to admin, one assigned to Simon.
-    await supabaseAdmin.from('task_instances').insert([
-      {
-        id: 'tic-t7-admin-row',
-        template_id: null,
-        assignee_profile_id: adminId,
-        due_date: '2099-12-31',
-        title: 'admin row visible to Simon',
-        submission_source: 'admin_manual',
-        status: 'open',
-        from_recurring_template: false,
-      },
-      {
-        id: 'tic-t7-simon-row',
-        template_id: null,
-        assignee_profile_id: simonId,
-        due_date: '2099-12-31',
-        title: 'simon row visible to admin',
-        submission_source: 'admin_manual',
-        status: 'open',
-        from_recurring_template: false,
-      },
-    ]);
+    await supabaseAdmin.from('task_instances').upsert(
+      [
+        {
+          id: 'tic-t7-admin-row',
+          template_id: null,
+          assignee_profile_id: adminId,
+          due_date: '2099-12-31',
+          title: 'admin row visible to Simon',
+          submission_source: 'admin_manual',
+          status: 'open',
+          from_recurring_template: false,
+          completed_at: null,
+          completed_by_profile_id: null,
+          completion_note: null,
+          completion_photo_path: null,
+          request_photo_path: null,
+        },
+        {
+          id: 'tic-t7-simon-row',
+          template_id: null,
+          assignee_profile_id: simonId,
+          due_date: '2099-12-31',
+          title: 'simon row visible to admin',
+          submission_source: 'admin_manual',
+          status: 'open',
+          from_recurring_template: false,
+          completed_at: null,
+          completed_by_profile_id: null,
+          completion_note: null,
+          completion_photo_path: null,
+          request_photo_path: null,
+        },
+      ],
+      {onConflict: 'id'},
+    );
 
     // ── Simon (regular) signs in: cannot complete the admin's row ──
     await signInAsSimon(page);

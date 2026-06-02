@@ -31,18 +31,21 @@ async function seedAdminProfile(supabaseAdmin) {
 }
 
 async function seedOpenTask(supabaseAdmin, {id, title, assigneeId, createdById}) {
-  const {error} = await supabaseAdmin.from('task_instances').insert({
-    id,
-    assignee_profile_id: assigneeId,
-    due_date: '2026-06-15',
-    title,
-    description: 'Activity navigation spec seed',
-    submission_source: 'admin_manual',
-    status: 'open',
-    from_recurring_template: false,
-    created_by_profile_id: createdById,
-    client_submission_id: `csid-actnav-${id}`,
-  });
+  const {error} = await supabaseAdmin.from('task_instances').upsert(
+    {
+      id,
+      assignee_profile_id: assigneeId,
+      due_date: '2026-06-15',
+      title,
+      description: 'Activity navigation spec seed',
+      submission_source: 'admin_manual',
+      status: 'open',
+      from_recurring_template: false,
+      created_by_profile_id: createdById,
+      client_submission_id: `csid-actnav-${id}`,
+    },
+    {onConflict: 'id'},
+  );
   if (error) throw new Error(`seedOpenTask(${id}): ${error.message}`);
 }
 
@@ -50,14 +53,17 @@ async function seedOpenTask(supabaseAdmin, {id, title, assigneeId, createdById})
 // locked-down for authenticated; service_role bypasses RLS). This is the
 // timeline row the spec clicks.
 async function seedActivityEvent(supabaseAdmin, {id, entityType, entityId, actorId, body}) {
-  const {error} = await supabaseAdmin.from('activity_events').insert({
-    id,
-    entity_type: entityType,
-    entity_id: entityId,
-    actor_profile_id: actorId,
-    event_type: 'comment.posted',
-    body,
-  });
+  const {error} = await supabaseAdmin.from('activity_events').upsert(
+    {
+      id,
+      entity_type: entityType,
+      entity_id: entityId,
+      actor_profile_id: actorId,
+      event_type: 'comment.posted',
+      body,
+    },
+    {onConflict: 'id'},
+  );
   if (error) throw new Error(`seedActivityEvent(${id}): ${error.message}`);
 }
 
