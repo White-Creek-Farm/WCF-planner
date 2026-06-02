@@ -465,3 +465,91 @@ describe('CP8 follow-up: completion + edit-history stale-state resets', () => {
     expect(src).toContain("'tic-t8-cap-hit'");
   });
 });
+
+// -- CP9: remaining plain inserts are audited exceptions ----------------------
+// After CP8, the only executable `.insert(` calls left in Playwright specs are
+// rows whose INSERT semantics are part of the test contract: run-unique scratch
+// setup rows, anon/offline duplicate-key behavior, or trigger/RPC paths where an
+// upsert would silently update a stale row and skip the behavior under test.
+const CP9_RAW_INSERT_SPEC_ALLOWLIST = [
+  'tests/broiler_weigh_in_schooners.spec.js',
+  'tests/cattle_calf_dam_link.spec.js',
+  'tests/cattle_heifer_promote.spec.js',
+  'tests/generate_task_instances_rpc.spec.js',
+  'tests/offline_queue_dedup.spec.js',
+  'tests/offline_queue_pig_dailys_photos.spec.js',
+  'tests/pig_dailys_offline.spec.js',
+  'tests/tasks_v2_rpcs.spec.js',
+];
+
+function listSpecFiles(dir) {
+  const files = [];
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listSpecFiles(full));
+    } else if (entry.isFile() && entry.name.endsWith('.spec.js')) {
+      files.push(path.relative(ROOT, full).replaceAll(path.sep, '/'));
+    }
+  }
+  return files;
+}
+
+function executableInsertLines(src) {
+  return src
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.includes('.insert(') && !line.startsWith('//'));
+}
+
+describe('CP9: remaining Playwright plain inserts are audited exceptions', () => {
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+  it('all executable .insert( callsites in Playwright specs are allowlisted', () => {
+    const files = listSpecFiles(path.join(ROOT, 'tests'))
+      .filter((rel) => executableInsertLines(read(rel)).length > 0)
+      .sort();
+
+    expect(files).toEqual(CP9_RAW_INSERT_SPEC_ALLOWLIST);
+  });
+
+  it('broiler schooner setup inserts use run-unique session ids', () => {
+    const src = read('tests/broiler_weigh_in_schooners.spec.js');
+    expect(src.match(/from\('weigh_in_sessions'\)\.insert\(/g) || []).toHaveLength(2);
+    expect(src.match(/from\('weigh_ins'\)\.insert\(/g) || []).toHaveLength(1);
+    expect(src).toMatch(/const draftId = 'wsd-' \+ Math\.random\(\)\.toString\(36\)\.slice\(2, 10\)/);
+    expect(src).toMatch(/const sessionId = 'wis-' \+ Math\.random\(\)\.toString\(36\)\.slice\(2, 10\)/);
+    expect(src).toContain('id: `wie-${sessionId}-${i}`');
+    expect(src).not.toMatch(/ignoreDuplicates/);
+  });
+
+  it('generate_task_instances_rpc template inserts use run-unique default ids', () => {
+    const src = read('tests/generate_task_instances_rpc.spec.js');
+    expect(src).toContain('id: overrides.id || `tmpl-rpc-${Math.random().toString(36).slice(2, 10)}`,');
+    expect(src).toMatch(/from\('task_templates'\)\.insert\(template\)/);
+    expect(src).not.toMatch(/id:\s*'tmpl-rpc-/);
+    expect(src).not.toMatch(/ignoreDuplicates/);
+  });
+
+  it('offline_queue_dedup keeps raw inserts for null-csid and anon duplicate-key contracts', () => {
+    const src = read('tests/offline_queue_dedup.spec.js');
+    expect(src).toContain('legacy null client_submission_ids do NOT trigger uniqueness conflict');
+    expect(src).toContain('anon insert duplicate raises 23505 referencing client_submission_id');
+    expect(src.match(/from\('fuel_supplies'\)\.insert\(/g) || []).toHaveLength(4);
+    expect(src).toMatch(/expect\(String\(r2\.error\.code\)\)\.toBe\('23505'\)/);
+    expect(src).toMatch(/expect\(r2\.error\.message\)\.toMatch\(\/client_submission_id\/i\)/);
+  });
+
+  it('pig_dailys offline replay specs keep raw inserts to force 23505-on-csid', () => {
+    const flat = read('tests/pig_dailys_offline.spec.js');
+    expect(flat).toContain("id: queuedEntry.record.id + '-other-path'");
+    expect(flat).toMatch(/from\('pig_dailys'\)\.insert\(preSeedRow\)/);
+    expect(flat).toContain('client_submission_id is what triggers the 23505 on replay');
+
+    const photos = read('tests/offline_queue_pig_dailys_photos.spec.js');
+    expect(photos).toMatch(/id: 'pre-seed-id-' \+ Math\.random\(\)\.toString\(36\)\.slice\(2, 10\)/);
+    expect(photos).toMatch(/from\('pig_dailys'\)\.insert\(preSeed\)/);
+    expect(photos).toContain('23505 path');
+    expect(photos).toContain('pre-seed wins');
+  });
+});
