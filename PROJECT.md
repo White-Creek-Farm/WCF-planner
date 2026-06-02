@@ -7,7 +7,7 @@ This file is project-specific truth: current state, active roadmap,
 architecture map, and load-bearing contracts. Workflow, gates, and relay format
 live in [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-02.
 
 ---
 
@@ -30,17 +30,30 @@ only when Ronnie explicitly assigns it.
 - Production: `https://wcfplanner.com`
 - Deploy: Netlify auto-deploy from `main`
 - Production source: `origin/main` via Netlify auto-deploy.
-- Latest shipped code/test checkpoint on `origin/main`: `07eb038`
-  `fix(feed): Est. tile shows End of [active] Est. after a current-month count`.
-  Verify exact hashes with `git log` when a lane needs them.
-- Latest shipped code checkpoints this run: Record Page Visual Consistency
-  closed through CP8 plus the final static lock; daily record pages now use
-  Group dropdowns consistent with their entry forms; cattle soft-delete E2E now
-  matches the record-page/backend restore contract; cattle delete confirmation
-  copy no longer references a removed Recently Deleted UI; Seed Idempotency
-  CP5-CP7 hardened broiler session metadata, pig metrics, and equipment
-  Playwright seeds; the feed-order current-count hotfix shipped (`a91ccf2`
-  count-aware order math + basis caption, `07eb038` count-aware Est. tile).
+- Latest shipped on `origin/main`: a large cold-boot / fail-closed readiness
+  rollout plus seed-idempotency hardening (2026-06-02 session). Verify exact
+  hashes with `git log`. Shipped this session, in order:
+  - Seed Idempotency CP8 (`6631c50`): remaining fixed-id Playwright spec seeds
+    converted to `upsert(onConflict)` with stale-column resets; trigger /
+    anon-constraint / run-unique inserts intentionally kept. CP9 (`d22ee91`)
+    adds an allowlist that fails if any new unjustified raw `.insert(` spec
+    appears (8 audited exceptions documented).
+  - Cold-boot readiness builds 1-10 (`71e1626`): fail-closed loads on non-daily
+    record pages/hubs (layer batch/housing/batches, equipment, pig/broiler),
+    weigh-in lists, processing hubs, animal/task records, Task Center tabs, and
+    cattle/sheep home dashboards. Foundation: `loadCattleWeighInsCached` /
+    `loadSheepWeighInsCached` gained `{throwOnError:true}`.
+  - Daily record/hubs readiness (`ce6419f`) + cleanup combo (`f42bfb2`): all 6
+    daily record pages + 5 daily hubs fail closed; daily record titles render
+    mm/dd/yyyy via `fmtMDY`; the daily mutation `InlineNotice` API drift
+    (`kind=/message=` ignored by the current component) is fixed.
+  - Readiness follow-ups: PigDailysView now owns a local `pig_dailys` load
+    (`5f26d2f`) — this SUPERSEDES the earlier "leave PigDailysView prop-driven"
+    decision; Global Activity Log (`f008eb9`); Notifications panel (`d32e069`);
+    and a behavior-preserving route-alias resolver refactor (`b0f2516`,
+    `resolvePathAlias()` de-dupes the main.jsx URL adapter).
+  - Feed-order current-count hotfix (`a91ccf2` + `07eb038`) remains live.
+  - Record Page Visual Consistency stays closed through CP8 + final static lock.
 - Feed-order current-count hotfix: SHIPPED and live. Poultry and pig feed
   recommendations now subtract the count-aware Actual On Hand when a
   current-month physical count exists (else the previous-month estimate). The
@@ -58,19 +71,23 @@ only when Ronnie explicitly assigns it.
   count changes only the projected end NUMBERS (it anchors the active ledger),
   never the tile's month/label. The tile updates when a feed order is SAVED,
   not while typing an unsaved draft.
-- Local-only / dirty state: `main` is in sync with `origin/main` at `07eb038`.
-  The only working-tree change is this `PROJECT.md` docs update. Untracked
-  screenshot folders `cp5-shots/` / `cp6-shots/` may exist after UI review and
-  must not be staged.
+- Local-only / dirty state: `main` is in sync with `origin/main` after the
+  2026-06-02 readiness wrap (this `PROJECT.md` update is the only pending change
+  at wrap time). The `cp5-shots/` / `cp6-shots/` review folders were removed.
+  Several merged `codex/*` readiness branches exist on origin and can be pruned.
+  Other parallel Codex worktrees may exist on disk (`WCF-planner-codex-*`);
+  leftover `node`/`vite` processes there can slow local Playwright cold-starts —
+  clear stray processes if a test run hangs on `goto localhost:5173`.
 - Open gates: none on `main`. Public webform submitter completion notices are
   not a hotfix; they are deferred to the webform-light identity lane because
   today's public roster has no profile/email recipient.
-- Next-session queue: resume hardening/cleanup (Record Page Visual Consistency
-  is closed — do not restart CP6/CP7/CP8 unless a regression is found). Start
-  with remaining seed-idempotency audit/classification, broader
-  cold-boot/readiness robustness, and source cleanup of deprecated paths. Keep
-  cattle/sheep delete/restore strategy and public webform-light identity as
-  planned product lanes, not surprise hotfixes.
+- Next-session queue: cold-boot/fail-closed readiness is now broadly rolled out
+  (see the Cold-Boot Readiness section) and seed idempotency is locked through
+  CP9 — do not re-open these unless a regression appears. Open follow-ups: the
+  Global Activity Log "Load more" fail-closed tweak (see that section); whether
+  to drop the now-unused `pigDailys` prop the app still passes to PigDailysView;
+  sheep/cattle delete/restore strategy; public webform-light identity. Keep
+  those as planned product lanes, not surprise hotfixes.
 - Operational record-page coverage as of this wrap: live for `cattle.animal`,
   `sheep.animal`, all 6 daily report types, `equipment.item`, `task.instance`,
   `weighin.session` for all 4 species, `cattle.processing` at
@@ -110,6 +127,45 @@ only when Ronnie explicitly assigns it.
   `feedersLoaded` readiness signal. If verify is red, investigate the current
   failure before assuming this old pig race still applies. Do not mix unrelated
   CI-stabilization work into feature lanes.
+
+### Cold-Boot / Fail-Closed Readiness (site-wide standard)
+
+Data-loading surfaces fail closed on cold-boot/load errors instead of silently
+rendering empty or "not found". Proven model: pig `feedersLoaded` + cattle
+forecast CP1/CP2. The pattern (use it for any new data surface):
+
+- Record pages: by-id reads use `maybeSingle` so a true zero-row read renders
+  Not Found, while a real/raced read error throws into a `loadError` state.
+  Render order: loading -> loadError -> not-found -> record. `loadError` is
+  non-dismissible, shows an `InlineNotice` + a user-gated Retry that re-runs
+  `loadAll`, plus a `data-<entity>-...-load-error` marker. `loadAll` wraps reads
+  in try/catch/finally, checks every `.error`, clears stale state on failure,
+  and sets `setLoading(false)` in `finally`.
+- List/hub/dashboard surfaces: the initial read checks `.error`, clears stale
+  rows on failure, shows `InlineNotice` + Retry (record pages call `loadAll`;
+  lists/tabs/home bump a `reloadKey` the load effect depends on), gates the
+  list + empty-state behind `!loadError`, and exposes
+  `data-<surface>-loaded={loading || loadError ? 'false' : 'true'}`.
+- Sidecar/secondary reads (forecast settings/includes/hidden, processing-batch
+  counts, roster) stay best-effort: caught individually, degraded to a warning,
+  never failing the whole surface. The Header notification BADGE still
+  soft-fails to 0 (only the dropdown panel fails closed).
+- Cached weigh-in loaders accept `{throwOnError:true}` from readiness callers so
+  a raced/errored read surfaces instead of poisoning the 30s cache.
+
+Surfaces with readiness today: cattle/sheep animal + processing record pages,
+all 6 daily record pages + all 6 daily hubs (PigDailysView is now locally
+loaded, not prop-driven), layer batch/housing record pages + layer batches hub,
+equipment home, broiler batch page + list, pig batches hub, weigh-in lists (all
+species), cattle/sheep home dashboards, task instance record page, Task Center
+tabs (My/Completed/Recurring/System), Global Activity Log, and the Header
+notifications panel. Static locks: `tests/static/*readiness*` plus the
+per-surface record/page static tests.
+
+Known follow-up (non-blocking): Global Activity Log gates timeline rows on
+`!loadError`, so a failed "Load more" (pagination append) currently hides the
+already-loaded rows until Retry. Recommended fix: fail closed only on the
+initial (`!append`) load; keep loaded rows on append failure.
 
 ### Shipped Checkpoint: Phase 1 Cattle Record Page + Comments Foundation
 
@@ -297,7 +353,8 @@ What was built:
 | Farrowing-created pig batches | Live CP1. Saving the first farrowing record for a breeding cycle creates one `ppp-feeders-v1` farm-born `pig.batch` with deterministic id `farrowing-cycle-<cycle.id>`, `cycleId`, `farmBorn:true`, neutral `originalPigCount` from alive piglets, no fake gilt/boar split, and `startDate` from the earliest cycle farrowing date. Existing cycle-linked batches are reused untouched; later farrowing records do not duplicate or overwrite; delete/edit-away does not remove the batch. |
 | Cold-Boot Readiness CP1/CP2 (Cattle Forecast) | Live (`a84a8d3`, `c4c120a`). `CattleForecastView` self-heals cold-boot data loads instead of relying on reloads. CP1 split the mount load into `fetchForecastInputs` + `applyForecastInputs`, throws on helper/direct PostgREST errors, and retries the `cattle` spine under bounded backoffs `[350, 800]`. CP2 added `loadCattleWeighInsCached(sb, {throwOnError:true})`, prevents raced/errored weigh-in reads from poisoning cache, retries cattle-present-but-weigh-ins-empty, and then settles into real data, legit empty/no-weigh-in state, or recoverable `InlineNotice`. `loadAll` stays single-shot for the heifer modal. Empty-farm/no-weigh-in cost is a bounded one-time ~1.15s. |
 | Cattle Forecast E2E seed-flake fix | Live (`34ba80a`, test-only). Full `tests/cattle_forecast.spec.js` intermittently failed at the seed's `cattle.insert` with `duplicate key "cattle_pkey"`. Root cause: Playwright spawns a fresh worker after any test failure, and that handoff races the shared single test DB — a dying worker's in-flight `cattle` insert lands after the new worker's TRUNCATE (verified `count=0` post-reset), so the next seed collides; this cascaded across restarts. Fix: fixed-id seed rows in `tests/scenarios/cattle_forecast_seed.js` now use idempotent `upsert(onConflict:'id')` (cattle + weigh-in sessions/weigh-ins, base + send-flow). Proven with 5 consecutive full-spec runs at 35/35, zero dup hits (prior failure rate ~2/3). |
-| Seed Idempotency CP1-CP7 | Live test-infra hardening. CP1-CP4 covered the highest-risk fixed-ID scenario and inline record/sequence seeds; CP5 hardened broiler session metadata; CP6 hardened pig metrics seeds; CP7 hardened equipment Playwright seeds. Converted lanes use `upsert(..., {onConflict:'id'})`, never `ignoreDuplicates`, with stale-column resets for mutable fields and run-scoped unique values where fixed IDs would collide on unique columns. This reduces duplicate-PK / stale-row worker-restart cascades but does not yet cover every remaining test `.insert(`. |
+| Seed Idempotency CP1-CP9 | Live, complete. CP1-CP7 converted scenario/inline/broiler/pig/equipment seeds; CP8 converted the remaining fixed-id spec seeds (cattle forecast/heifer/calf, daily_report_photos, team_availability, activity_navigation, tasks_v2 family) to `upsert(onConflict)` with stale-column resets; CP9 added an allowlist that fails if any new unjustified raw `.insert(` spec appears. The 8 intentional raw-insert exceptions (run-unique ids, anon/offline 23505 contracts, AFTER-INSERT trigger paths) are documented + locked in `tests/static/seed_idempotency_static.test.js`. Never uses `ignoreDuplicates`. |
+| Cold-boot / fail-closed readiness | Live, site-wide (2026-06-02). Data surfaces fail closed on cold-boot/load errors (loadError + InlineNotice + user-gated Retry + readiness markers) instead of rendering empty/not-found. Covers record pages, daily + non-daily hubs, weigh-in lists, processing hubs, home dashboards, Task Center tabs, Global Activity Log, and the Header notifications panel. See the Cold-Boot / Fail-Closed Readiness section under Current State for the full pattern + coverage. |
 
 ### Parked WIP Stash
 
@@ -311,11 +368,14 @@ prior superseded stashes were audited and dropped during stash hygiene.
 
 ## Active Roadmap
 
-Near-term selected path as of 2026-06-01: the feed-order current-count hotfix
-shipped (`a91ccf2`, `07eb038`) and Record Page Visual Consistency is closed (do
-not restart CP6/CP7/CP8 or the final sweep unless a regression is found). Resume
-hardening at remaining seed-idempotency classification, broader
-cold-boot/source robustness, and deprecated-path cleanup.
+Near-term selected path as of 2026-06-02: the cold-boot/fail-closed readiness
+rollout (builds 1-10 + daily + the follow-up readiness lanes) and seed
+idempotency (CP8 + CP9) are SHIPPED and locked — do not re-open unless a
+regression appears. Record Page Visual Consistency stays closed (do not restart
+CP6/CP7/CP8 or the final sweep). The feed-order current-count hotfix
+(`a91ccf2`, `07eb038`) is live. Remaining near-term: the Global Activity Log
+"Load more" fail-closed tweak, optional removal of the now-unused `pigDailys`
+prop passed to PigDailysView, and deprecated-path cleanup.
 
 1. Codebase hardening and cleanup - remove deprecated patterns as each entity
    migrates, classify legacy/import/test-only code, and reduce context burn for
