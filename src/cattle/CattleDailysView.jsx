@@ -44,6 +44,8 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
   const [editSource, setEditSource] = useState(null);
   const [form, setForm] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [teamMembers, setTeamMembers] = useState([]);
   const [fHerd, setFHerd] = useState('');
   const [fTeam, setFTeam] = useState('');
@@ -76,24 +78,46 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
   const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
     sb.from('cattle_dailys')
       .select('*')
       .is('deleted_at', null)
       .order('date', {ascending: false})
       .order('submitted_at', {ascending: false})
       .range(0, PAGE - 1)
-      .then(({data}) => {
-        if (data) {
-          setRecords(data);
-          setHasMore(data.length === PAGE);
-          if (pendingEdit && pendingEdit.viewName === 'cattledailys' && pendingEdit.id) {
-            const r = data.find((x) => x.id === pendingEdit.id);
-            if (r) {
-              openEdit(r);
-              setPendingEdit && setPendingEdit(null);
-            }
+      .then(({data, error}) => {
+        if (cancelled) return;
+        if (error) {
+          setRecords([]);
+          setHasMore(false);
+          setLoadError({
+            kind: 'error',
+            message: 'Could not load daily reports. Please refresh the page. (' + (error.message || error) + ')',
+          });
+          setLoading(false);
+          return;
+        }
+        setRecords(data || []);
+        setHasMore((data || []).length === PAGE);
+        if (pendingEdit && pendingEdit.viewName === 'cattledailys' && pendingEdit.id) {
+          const r = (data || []).find((x) => x.id === pendingEdit.id);
+          if (r) {
+            openEdit(r);
+            setPendingEdit && setPendingEdit(null);
           }
         }
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setRecords([]);
+        setHasMore(false);
+        setLoadError({
+          kind: 'error',
+          message: 'Could not load daily reports. Please refresh the page. (' + ((e && e.message) || e) + ')',
+        });
         setLoading(false);
       });
     sb.from('cattle_feed_inputs')
@@ -101,10 +125,18 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
       .order('category')
       .order('name')
       .then(({data}) => {
-        if (data) setFeedInputs(data);
-      });
-    loadRoster(sb).then((roster) => setTeamMembers(activeNames(roster)));
-  }, []);
+        if (!cancelled && data) setFeedInputs(data);
+      })
+      .catch(() => {});
+    loadRoster(sb)
+      .then((roster) => {
+        if (!cancelled) setTeamMembers(activeNames(roster));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   const pgLoading = React.useRef(false);
   React.useEffect(() => {
@@ -269,7 +301,10 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
   );
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div
+      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      data-cattle-dailys-loaded={loading || loadError ? 'false' : 'true'}
+    >
       <Header />
       <div style={{padding: '1rem', maxWidth: 1200, margin: '0 auto'}}>
         <div
@@ -390,6 +425,28 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
           </div>
         </div>
 
+        <InlineNotice notice={loadError} />
+        {loadError && (
+          <button
+            type="button"
+            data-daily-list-retry="1"
+            onClick={() => setReloadKey((k) => k + 1)}
+            style={{
+              marginBottom: 12,
+              padding: '7px 14px',
+              borderRadius: 7,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Retry
+          </button>
+        )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'\u2026'}</div>}
         {!loading && filtered.length === 0 && (

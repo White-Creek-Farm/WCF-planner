@@ -59,6 +59,8 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
   };
   const [form, setForm] = useState(EMPTY);
   const [notice, setNotice] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const navigate = useNavigate();
 
   const PAGE = 1000;
@@ -66,27 +68,56 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
   const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
     sb.from('egg_dailys')
       .select('*')
       .is('deleted_at', null)
       .order('date', {ascending: false})
       .range(0, PAGE - 1)
-      .then(({data}) => {
-        if (data) {
-          setRecords(data);
-          setHasMore(data.length === PAGE);
-          if (pendingEdit?.viewName === 'eggdailys' && pendingEdit?.id) {
-            const rec = data.find((r) => r.id === pendingEdit.id);
-            if (rec) {
-              openEdit(rec);
-              setPendingEdit(null);
-            }
+      .then(({data, error}) => {
+        if (cancelled) return;
+        if (error) {
+          setRecords([]);
+          setHasMore(false);
+          setLoadError({
+            kind: 'error',
+            message: 'Could not load egg reports. Please refresh the page. (' + (error.message || error) + ')',
+          });
+          setLoading(false);
+          return;
+        }
+        setRecords(data || []);
+        setHasMore((data || []).length === PAGE);
+        if (pendingEdit?.viewName === 'eggdailys' && pendingEdit?.id) {
+          const rec = (data || []).find((r) => r.id === pendingEdit.id);
+          if (rec) {
+            openEdit(rec);
+            setPendingEdit(null);
           }
         }
         setLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setRecords([]);
+        setHasMore(false);
+        setLoadError({
+          kind: 'error',
+          message: 'Could not load egg reports. Please refresh the page. (' + ((e && e.message) || e) + ')',
+        });
+        setLoading(false);
       });
-    loadRoster(sb).then((roster) => setTeamMembers(activeNames(roster)));
-  }, []);
+    loadRoster(sb)
+      .then((roster) => {
+        if (!cancelled) setTeamMembers(activeNames(roster));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   // Auto-load all pages on mount (guarded to prevent duplicate fetches on re-render)
   const pgLoading = React.useRef(false);
@@ -230,7 +261,10 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
   };
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div
+      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      data-egg-dailys-loaded={loading || loadError ? 'false' : 'true'}
+    >
       <Header />
       <div style={{padding: '1rem', maxWidth: 1100, margin: '0 auto'}}>
         <div
@@ -296,6 +330,28 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
             </button>
           )}
         </div>
+        <InlineNotice notice={loadError} />
+        {loadError && (
+          <button
+            type="button"
+            data-daily-list-retry="1"
+            onClick={() => setReloadKey((k) => k + 1)}
+            style={{
+              marginBottom: 12,
+              padding: '7px 14px',
+              borderRadius: 7,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Retry
+          </button>
+        )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
         {!loading && filtered.length === 0 && (

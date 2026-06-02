@@ -111,6 +111,7 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
   const [record, setRecord] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
   const [form, setForm] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
   const groupOptions = React.useMemo(
@@ -119,18 +120,40 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
   );
 
   async function loadAll() {
-    const {data} = await sb.from('poultry_dailys').select('*').eq('id', recordId).is('deleted_at', null).single();
-    if (data) {
-      setRecord(data);
-      setForm(initForm(data));
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const {data, error} = await sb
+        .from('poultry_dailys')
+        .select('*')
+        .eq('id', recordId)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (error) throw new Error('poultry_dailys: ' + (error.message || error));
+      if (data) {
+        setRecord(data);
+        setForm(initForm(data));
+      } else {
+        setRecord(null);
+        setForm(null);
+      }
+    } catch (e) {
+      setRecord(null);
+      setForm(null);
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load daily report. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   React.useEffect(() => {
     setRecord(null);
     setLoading(true);
     setNotice(null);
+    setLoadError(null);
     setForm(null);
     loadAll();
   }, [recordId]);
@@ -210,6 +233,36 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
     return <RecordPageLoading Header={Header} />;
   }
 
+  if (loadError) {
+    return (
+      <RecordPageFrame Header={Header}>
+        <RecordPageBody maxWidth={960} data-poultry-daily-load-error="true">
+          <RecordBackLink label="Back to Daily Reports" onBack={() => navigate('/broiler/dailys')} />
+          <InlineNotice notice={loadError} />
+          <button
+            type="button"
+            data-daily-record-retry="1"
+            onClick={() => loadAll()}
+            style={{
+              marginTop: 10,
+              padding: '7px 14px',
+              borderRadius: 7,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Retry
+          </button>
+        </RecordPageBody>
+      </RecordPageFrame>
+    );
+  }
+
   if (!record || !form) {
     return (
       <RecordPageNotFound
@@ -228,7 +281,7 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody maxWidth={960}>
+      <RecordPageBody maxWidth={960} data-poultry-daily-record-loaded="true">
         <RecordBackLink label="Back to Daily Reports" onBack={() => navigate('/broiler/dailys')} />
 
         <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />

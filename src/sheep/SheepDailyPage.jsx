@@ -145,28 +145,49 @@ export default function SheepDailyPage({sb, authState, Header}) {
   const [record, setRecord] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
 
   const [form, setForm] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
   const [feedInputs, setFeedInputs] = React.useState([]);
 
   async function loadAll() {
-    const [{data}, {data: fiData}] = await Promise.all([
-      sb.from('sheep_dailys').select('*').eq('id', recordId).is('deleted_at', null).single(),
-      sb.from('cattle_feed_inputs').select('*').order('category').order('name'),
-    ]);
-    if (data) {
-      setRecord(data);
-      setForm(initForm(data));
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [recR, fiR] = await Promise.all([
+        sb.from('sheep_dailys').select('*').eq('id', recordId).is('deleted_at', null).maybeSingle(),
+        sb.from('cattle_feed_inputs').select('*').order('category').order('name'),
+      ]);
+      if (recR.error) throw new Error('sheep_dailys: ' + (recR.error.message || recR.error));
+      if (fiR.error) throw new Error('cattle_feed_inputs: ' + (fiR.error.message || fiR.error));
+      setFeedInputs(fiR.data || []);
+      if (recR.data) {
+        setRecord(recR.data);
+        setForm(initForm(recR.data));
+      } else {
+        setRecord(null);
+        setForm(null);
+      }
+    } catch (e) {
+      setRecord(null);
+      setForm(null);
+      setFeedInputs([]);
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load daily report. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
     }
-    if (fiData) setFeedInputs(fiData);
-    setLoading(false);
   }
 
   React.useEffect(() => {
     setRecord(null);
     setLoading(true);
     setNotice(null);
+    setLoadError(null);
+    setForm(null);
     loadAll();
   }, [recordId]);
 
@@ -335,6 +356,36 @@ export default function SheepDailyPage({sb, authState, Header}) {
     return <RecordPageLoading Header={Header} />;
   }
 
+  if (loadError) {
+    return (
+      <RecordPageFrame Header={Header}>
+        <RecordPageBody maxWidth={960} data-sheep-daily-load-error="true">
+          <RecordBackLink label="Back to Daily Reports" onBack={() => navigate('/sheep/dailys')} />
+          <InlineNotice notice={loadError} />
+          <button
+            type="button"
+            data-daily-record-retry="1"
+            onClick={() => loadAll()}
+            style={{
+              marginTop: 10,
+              padding: '7px 14px',
+              borderRadius: 7,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Retry
+          </button>
+        </RecordPageBody>
+      </RecordPageFrame>
+    );
+  }
+
   if (!record) {
     return (
       <RecordPageNotFound
@@ -359,7 +410,7 @@ export default function SheepDailyPage({sb, authState, Header}) {
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody maxWidth={960}>
+      <RecordPageBody maxWidth={960} data-sheep-daily-record-loaded="true">
         <RecordBackLink label="Back to Daily Reports" onBack={() => navigate('/sheep/dailys')} />
 
         <RecordSequenceNav seq={recordSeq} currentId={recordId} onNavigate={navigateSeq} />
