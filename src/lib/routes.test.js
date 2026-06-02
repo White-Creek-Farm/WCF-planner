@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {VIEW_TO_PATH, PATH_TO_VIEW, HASH_COMPAT, ALIASES_EXACT, ALIASES_PREFIX} from './routes.js';
+import {VIEW_TO_PATH, PATH_TO_VIEW, HASH_COMPAT, ALIASES_EXACT, ALIASES_PREFIX, resolvePathAlias} from './routes.js';
 
 // Tests for the URL ↔ view mapping that drives the Phase 3 router adapter.
 // Two invariants matter most: (1) round-trip integrity so the URL sync effects
@@ -150,17 +150,24 @@ describe('aliases (legacy paths preserved as redirects post 2026-05-06 rename)',
   });
 
   it('prefix aliases preserve the trailing path (e.g. /webforms/sheep → /dailys/sheep)', () => {
-    // Simulate what main.jsx does: oldPrefix replaced with newPrefix.
-    const apply = (path) => {
-      for (const [oldPrefix, newPrefix] of ALIASES_PREFIX) {
-        if (path.startsWith(oldPrefix)) {
-          return newPrefix + path.slice(oldPrefix.length);
-        }
-      }
-      return null;
-    };
-    expect(apply('/webforms/sheep')).toBe('/dailys/sheep');
-    expect(apply('/webforms/broiler')).toBe('/dailys/broiler');
-    expect(apply('/fueling/jd-317')).toBe('/equipment/jd-317');
+    expect(resolvePathAlias('/webforms/sheep')).toBe('/dailys/sheep');
+    expect(resolvePathAlias('/webforms/broiler')).toBe('/dailys/broiler');
+    expect(resolvePathAlias('/fueling/jd-317')).toBe('/equipment/jd-317');
+  });
+
+  it('resolvePathAlias checks exact aliases before prefix aliases', () => {
+    expect(resolvePathAlias('/webforms/tasks')).toBe('/dailys/tasks');
+    expect(resolvePathAlias('/fueling/supply')).toBe('/equipment/supply');
+  });
+
+  it('resolvePathAlias returns null for canonical paths and intentionally unaliased equipment slugs', () => {
+    expect(resolvePathAlias('/dailys')).toBeNull();
+    expect(resolvePathAlias('/equipment')).toBeNull();
+    expect(resolvePathAlias('/equipment/jd-317')).toBeNull();
+  });
+
+  it('main.jsx appends search/hash outside resolvePathAlias, preserving query and anchors', () => {
+    const alias = resolvePathAlias('/webforms/sheep');
+    expect(alias + '?date=2026-06-02#photos').toBe('/dailys/sheep?date=2026-06-02#photos');
   });
 });
