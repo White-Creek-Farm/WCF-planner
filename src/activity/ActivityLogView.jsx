@@ -3,6 +3,7 @@ import {useNavigate} from 'react-router-dom';
 import {sb} from '../lib/supabase.js';
 import {loadGlobalActivity} from '../lib/globalActivityApi.js';
 import {getActivityEntityMeta} from '../lib/activityRegistry.js';
+import InlineNotice from '../shared/InlineNotice.jsx';
 
 const ENTITY_TYPE_LABELS = {
   'task.instance': 'Task',
@@ -59,15 +60,16 @@ export default function ActivityLogView({Header}) {
   const navigate = useNavigate();
   const [rows, setRows] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [err, setErr] = React.useState('');
+  const [loadError, setLoadError] = React.useState(null);
   const [search, setSearch] = React.useState('');
   const [entityFilter, setEntityFilter] = React.useState('');
   const [hasMore, setHasMore] = React.useState(false);
+  const [reloadKey, setReloadKey] = React.useState(0);
 
   const load = React.useCallback(
     async (append) => {
       if (!append) setLoading(true);
-      setErr('');
+      setLoadError(null);
       try {
         const before = append && rows.length > 0 ? rows[rows.length - 1].created_at : undefined;
         const data = await loadGlobalActivity(sb, {
@@ -83,7 +85,9 @@ export default function ActivityLogView({Header}) {
         }
         setHasMore(data.length === 50);
       } catch (e) {
-        setErr(e.message || 'Failed to load activity');
+        if (!append) setRows([]);
+        setHasMore(false);
+        setLoadError({kind: 'error', message: e.message || 'Failed to load activity'});
       }
       setLoading(false);
     },
@@ -92,7 +96,8 @@ export default function ActivityLogView({Header}) {
 
   React.useEffect(() => {
     load(false);
-  }, [entityFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityFilter, reloadKey]);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -136,7 +141,11 @@ export default function ActivityLogView({Header}) {
 
   return React.createElement(
     'div',
-    {style: {minHeight: '100vh', background: '#f9fafb'}, 'data-view': 'activity-log'},
+    {
+      style: {minHeight: '100vh', background: '#f9fafb'},
+      'data-view': 'activity-log',
+      'data-activity-log-loaded': loading || loadError ? 'false' : 'true',
+    },
     Header ? React.createElement(Header) : null,
     React.createElement(
       'div',
@@ -188,7 +197,33 @@ export default function ActivityLogView({Header}) {
       ),
 
       // Error
-      err && React.createElement('div', {style: {color: '#b91c1c', fontSize: 13, marginBottom: 12}}, err),
+      loadError &&
+        React.createElement(
+          'div',
+          {'data-activity-log-load-error': 'true'},
+          React.createElement(InlineNotice, {notice: loadError}),
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => setReloadKey((k) => k + 1),
+              'data-activity-log-retry': 'true',
+              style: {
+                marginBottom: 12,
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid #b91c1c',
+                background: '#b91c1c',
+                color: 'white',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              },
+            },
+            'Retry',
+          ),
+        ),
 
       // Loading
       loading &&
@@ -202,7 +237,7 @@ export default function ActivityLogView({Header}) {
       // Empty
       !loading &&
         rows.length === 0 &&
-        !err &&
+        !loadError &&
         React.createElement(
           'div',
           {style: {color: '#9ca3af', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
@@ -210,7 +245,8 @@ export default function ActivityLogView({Header}) {
         ),
 
       // Timeline rows
-      rows.length > 0 &&
+      !loadError &&
+        rows.length > 0 &&
         React.createElement(
           'div',
           {style: {display: 'flex', flexDirection: 'column', gap: 2}},
@@ -309,6 +345,7 @@ export default function ActivityLogView({Header}) {
       // Load more
       hasMore &&
         !loading &&
+        !loadError &&
         React.createElement(
           'div',
           {style: {textAlign: 'center', padding: '12px 0'}},
