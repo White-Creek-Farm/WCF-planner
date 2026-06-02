@@ -155,3 +155,15 @@ export const ALIASES_PREFIX = [
   ['/webforms/', '/dailys/'],
   ['/fueling/', '/equipment/'],
 ];
+
+export function resolvePathAlias(pathname) {
+  if (!pathname) return null;
+  const exactAlias = ALIASES_EXACT[pathname];
+  if (exactAlias) return exactAlias;
+  for (const [oldPrefix, newPrefix] of ALIASES_PREFIX) {
+    if (pathname.startsWith(oldPrefix)) {
+      return newPrefix + pathname.slice(oldPrefix.length);
+    }
+  }
+  return null;
+}

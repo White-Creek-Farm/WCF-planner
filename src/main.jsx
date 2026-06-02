@@ -17,7 +17,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {BrowserRouter, useLocation, useNavigate} from 'react-router-dom';
-import {VIEW_TO_PATH, PATH_TO_VIEW, HASH_COMPAT, ALIASES_EXACT, ALIASES_PREFIX} from './lib/routes.js';
+import {VIEW_TO_PATH, PATH_TO_VIEW, HASH_COMPAT, resolvePathAlias} from './lib/routes.js';
 
 // Phase 2.0.0: foundation lib helpers extracted from this file. Importing
 // here makes them available throughout the verbatim-ported app body without
@@ -1265,22 +1265,10 @@ function App() {
     // navigate({replace:true}) so the address bar updates AND react-router's
     // own location state stays in sync (raw history.replaceState would skip
     // react-router and break popstate handling).
-    const exactAlias = ALIASES_EXACT[location.pathname];
-    if (exactAlias) {
+    const pathAlias = resolvePathAlias(location.pathname);
+    if (pathAlias) {
       syncingFromUrl.current = true;
-      navigate(exactAlias + location.search + location.hash, {replace: true});
-      return;
-    }
-    let prefixAlias = null;
-    for (const [oldPrefix, newPrefix] of ALIASES_PREFIX) {
-      if (location.pathname.startsWith(oldPrefix)) {
-        prefixAlias = newPrefix + location.pathname.slice(oldPrefix.length);
-        break;
-      }
-    }
-    if (prefixAlias) {
-      syncingFromUrl.current = true;
-      navigate(prefixAlias + location.search + location.hash, {replace: true});
+      navigate(pathAlias + location.search + location.hash, {replace: true});
       return;
     }
 
