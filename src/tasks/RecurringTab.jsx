@@ -104,6 +104,18 @@ const INACTIVE_TOGGLE_BTN = {
   marginTop: 6,
   marginBottom: 6,
 };
+const LOAD_RETRY_BTN = {
+  padding: '6px 12px',
+  borderRadius: 8,
+  border: '1px solid #991b1b',
+  background: 'white',
+  color: '#991b1b',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  marginBottom: 12,
+};
 const GROUP_HEADER = {
   background: 'white',
   border: '1px solid #e5e7eb',
@@ -327,6 +339,7 @@ export default function RecurringTab({sb, authState}) {
     let cancelled = false;
     (async () => {
       setErr('');
+      setLoading(true);
       try {
         const [tpls, opens, profMap, assignableMap] = await Promise.all([
           loadRecurringTaskTemplates(sb),
@@ -341,7 +354,15 @@ export default function RecurringTab({sb, authState}) {
           setAssignableProfiles(assignableMap);
         }
       } catch (e) {
-        if (!cancelled) setErr(e && e.message ? e.message : String(e));
+        if (!cancelled) {
+          setTemplates([]);
+          setOpenInstances([]);
+          setProfiles({});
+          setAssignableProfiles({});
+          setExpandedOverride({});
+          setShowInactive(false);
+          setErr(e && e.message ? e.message : String(e));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -365,6 +386,7 @@ export default function RecurringTab({sb, authState}) {
     };
   }, []);
 
+  const loadFailed = !!err;
   const grouped = groupRecurringByTemplate(templates, openInstances);
   const activeBuckets = grouped.templates.filter((b) => b.template.active);
   const inactiveBuckets = grouped.templates.filter((b) => !b.template.active);
@@ -482,8 +504,8 @@ export default function RecurringTab({sb, authState}) {
   }
 
   return (
-    <div data-tasks-tab="recurring">
-      {err && (
+    <div data-tasks-tab="recurring" data-tasks-recurring-loaded={loading || loadFailed ? 'false' : 'true'}>
+      {loadFailed && (
         <div
           data-tasks-error="1"
           style={{
@@ -499,7 +521,17 @@ export default function RecurringTab({sb, authState}) {
           {err}
         </div>
       )}
-      {isAdmin && (
+      {loadFailed && (
+        <button
+          type="button"
+          data-tasks-load-retry="recurring"
+          onClick={() => setReloadKey((k) => k + 1)}
+          style={LOAD_RETRY_BTN}
+        >
+          Retry
+        </button>
+      )}
+      {isAdmin && !loadFailed && (
         <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: 6}}>
           <button
             type="button"
@@ -524,7 +556,7 @@ export default function RecurringTab({sb, authState}) {
 
       {loading ? (
         <div style={SUB}>Loading…</div>
-      ) : (
+      ) : loadFailed ? null : (
         <>
           <div style={SECTION_HEADER}>Recurring templates ({grouped.templates.length})</div>
 

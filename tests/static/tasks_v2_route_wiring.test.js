@@ -325,9 +325,10 @@ describe('Tasks v2 T4 — Completed tab read-only contract', () => {
     for (const btn of buttonOnClicks) {
       const isPhotoOpen = /data-task-photo-open="1"/.test(btn);
       const isFilterChip = /data-tasks-filter-chip=/.test(btn);
+      const isLoadRetry = /data-tasks-load-retry="completed"/.test(btn);
       expect(
-        isPhotoOpen || isFilterChip,
-        'every CompletedTab button must be a photo-open affordance or a filter chip',
+        isPhotoOpen || isFilterChip || isLoadRetry,
+        'every CompletedTab button must be a photo-open affordance, a filter chip, or load retry',
       ).toBe(true);
     }
   });
@@ -1165,6 +1166,80 @@ describe('Tasks v2 — assignee availability filter on Task Center mutation drop
       /profilesById\s*&&\s*profilesById\[cur\][\s\S]*?setAssigneeId\(cur\)[\s\S]*?setAssigneeId\(''\)/,
     );
     expect(systemRuleEditModal).toMatch(/\}\s*,\s*\[isOpen,\s*rule,\s*profilesById\]/);
+  });
+});
+
+// ============================================================================
+// Task Center tab cold-boot readiness.
+// ----------------------------------------------------------------------------
+// Each tab owns an async multi-read boot path. A rejected read must fail closed:
+// clear stale rows/maps, expose a loaded=false marker, show a retry affordance,
+// and not render empty/configured loaded-state content while the error is active.
+// ============================================================================
+
+describe('Tasks v2 — tab cold-boot readiness markers', () => {
+  const tabs = [
+    {
+      name: 'MyTasksTab',
+      src: myTasksTab,
+      loadedMarker: "data-tasks-my-loaded={loading || loadFailed ? 'false' : 'true'}",
+      retryMarker: 'data-tasks-load-retry="my-tasks"',
+      staleClears: ['setTasks([]);', 'setProfiles({});', 'setAssignableProfiles({});'],
+    },
+    {
+      name: 'CompletedTab',
+      src: completedTab,
+      loadedMarker: "data-tasks-completed-loaded={loading || loadFailed ? 'false' : 'true'}",
+      retryMarker: 'data-tasks-load-retry="completed"',
+      staleClears: ['setRows([]);', 'setProfiles({});'],
+    },
+    {
+      name: 'RecurringTab',
+      src: recurringTab,
+      loadedMarker: "data-tasks-recurring-loaded={loading || loadFailed ? 'false' : 'true'}",
+      retryMarker: 'data-tasks-load-retry="recurring"',
+      staleClears: ['setTemplates([]);', 'setOpenInstances([]);', 'setProfiles({});', 'setAssignableProfiles({});'],
+    },
+    {
+      name: 'SystemTasksTab',
+      src: systemTasksTab,
+      loadedMarker: "data-tasks-system-loaded={loading || loadFailed ? 'false' : 'true'}",
+      retryMarker: 'data-tasks-load-retry="system"',
+      staleClears: ['setRules([]);', 'setOpenInstances([]);', 'setProfiles({});', 'setAssignableProfiles({});'],
+    },
+  ];
+
+  it('marks loaded=false while loading or failed, and only true after a clean load', () => {
+    for (const tab of tabs) {
+      expect(tab.src, `${tab.name} must derive loadFailed from err`).toMatch(/const\s+loadFailed\s*=\s*!!err/);
+      expect(tab.src, `${tab.name} must expose the loaded marker`).toContain(tab.loadedMarker);
+    }
+  });
+
+  it('re-enters loading and retries via reloadKey after a load failure', () => {
+    for (const tab of tabs) {
+      expect(tab.src, `${tab.name} must set loading true on every load attempt`).toMatch(/setLoading\(true\);/);
+      expect(tab.src, `${tab.name} must render a retry button`).toContain(tab.retryMarker);
+      expect(tab.src, `${tab.name} retry must bump reloadKey`).toMatch(
+        /onClick=\{\(\) => setReloadKey\(\(k\) => k \+ 1\)\}/,
+      );
+    }
+  });
+
+  it('clears stale loaded data on load failure', () => {
+    for (const tab of tabs) {
+      for (const clearCall of tab.staleClears) {
+        expect(tab.src, `${tab.name} must clear ${clearCall} on catch`).toContain(clearCall);
+      }
+    }
+  });
+
+  it('does not render loaded tab bodies while loadFailed is active', () => {
+    for (const tab of tabs) {
+      expect(tab.src, `${tab.name} must hide loaded content under error`).toMatch(
+        /\)\s*:\s*loadFailed\s*\?\s*null\s*:/,
+      );
+    }
   });
 });
 

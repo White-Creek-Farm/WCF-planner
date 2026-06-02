@@ -174,6 +174,18 @@ const PHOTO_LINK_BTN = {
   color: '#6b7280',
   fontFamily: 'inherit',
 };
+const LOAD_RETRY_BTN = {
+  padding: '6px 12px',
+  borderRadius: 8,
+  border: '1px solid #991b1b',
+  background: 'white',
+  color: '#991b1b',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  marginBottom: 12,
+};
 
 const FILTER_BAR = {
   display: 'flex',
@@ -412,6 +424,7 @@ export default function MyTasksTab({sb, authState}) {
     let cancelled = false;
     (async () => {
       setErr('');
+      setLoading(true);
       try {
         const [list, profMap, assignableMap] = await Promise.all([
           loadOpenTaskInstances(sb),
@@ -424,7 +437,12 @@ export default function MyTasksTab({sb, authState}) {
           setAssignableProfiles(assignableMap);
         }
       } catch (e) {
-        if (!cancelled) setErr(e && e.message ? e.message : String(e));
+        if (!cancelled) {
+          setTasks([]);
+          setProfiles({});
+          setAssignableProfiles({});
+          setErr(e && e.message ? e.message : String(e));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -580,9 +598,11 @@ export default function MyTasksTab({sb, authState}) {
     );
   }
 
+  const loadFailed = !!err;
+
   return (
-    <div data-tasks-tab="my-tasks">
-      {err && (
+    <div data-tasks-tab="my-tasks" data-tasks-my-loaded={loading || loadFailed ? 'false' : 'true'}>
+      {loadFailed && (
         <div
           data-tasks-error="1"
           style={{
@@ -599,9 +619,20 @@ export default function MyTasksTab({sb, authState}) {
         </div>
       )}
 
+      {loadFailed && (
+        <button
+          type="button"
+          data-tasks-load-retry="my-tasks"
+          onClick={() => setReloadKey((k) => k + 1)}
+          style={LOAD_RETRY_BTN}
+        >
+          Retry
+        </button>
+      )}
+
       {loading ? (
         <div style={SUB}>Loading…</div>
-      ) : (
+      ) : loadFailed ? null : (
         <>
           {/* Filter chip bar — client-side scope on the loaded list.
               Counts in section headers below reflect the active filter

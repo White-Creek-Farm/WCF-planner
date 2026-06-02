@@ -179,6 +179,18 @@ const PHOTO_LINK_BTN = {
   color: '#6b7280',
   fontFamily: 'inherit',
 };
+const LOAD_RETRY_BTN = {
+  padding: '6px 12px',
+  borderRadius: 8,
+  border: '1px solid #991b1b',
+  background: 'white',
+  color: '#991b1b',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  marginBottom: 12,
+};
 
 // eslint-disable-next-line no-unused-vars -- referenced via JSX <CompletedRow .../> below
 function CompletedRow({ti, profilesById, onOpenPhotos, onNavigate}) {
@@ -299,6 +311,7 @@ export default function CompletedTab({sb, authState}) {
     let cancelled = false;
     (async () => {
       setErr('');
+      setLoading(true);
       try {
         const [list, profMap] = await Promise.all([loadCompletedTaskInstances(sb), loadEligibleProfilesById(sb)]);
         if (!cancelled) {
@@ -306,7 +319,11 @@ export default function CompletedTab({sb, authState}) {
           setProfiles(profMap);
         }
       } catch (e) {
-        if (!cancelled) setErr(e && e.message ? e.message : String(e));
+        if (!cancelled) {
+          setRows([]);
+          setProfiles({});
+          setErr(e && e.message ? e.message : String(e));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -360,9 +377,11 @@ export default function CompletedTab({sb, authState}) {
     );
   }
 
+  const loadFailed = !!err;
+
   return (
-    <div data-tasks-tab="completed">
-      {err && (
+    <div data-tasks-tab="completed" data-tasks-completed-loaded={loading || loadFailed ? 'false' : 'true'}>
+      {loadFailed && (
         <div
           data-tasks-error="1"
           style={{
@@ -378,9 +397,19 @@ export default function CompletedTab({sb, authState}) {
           {err}
         </div>
       )}
+      {loadFailed && (
+        <button
+          type="button"
+          data-tasks-load-retry="completed"
+          onClick={() => setReloadKey((k) => k + 1)}
+          style={LOAD_RETRY_BTN}
+        >
+          Retry
+        </button>
+      )}
       {loading ? (
         <div style={SUB}>Loading…</div>
-      ) : (
+      ) : loadFailed ? null : (
         <>
           {/* Pressable toggle group — not a tablist. role="group" matches the
               segmented filter pattern locked in MyTasksTab. */}

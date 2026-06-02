@@ -102,6 +102,18 @@ const INACTIVE_TOGGLE_BTN = {
   marginTop: 6,
   marginBottom: 6,
 };
+const LOAD_RETRY_BTN = {
+  padding: '6px 12px',
+  borderRadius: 8,
+  border: '1px solid #991b1b',
+  background: 'white',
+  color: '#991b1b',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  marginBottom: 12,
+};
 const GROUP_HEADER = {
   background: 'white',
   border: '1px solid #e5e7eb',
@@ -254,6 +266,7 @@ export default function SystemTasksTab({sb, authState}) {
     let cancelled = false;
     (async () => {
       setErr('');
+      setLoading(true);
       try {
         const [r, opens, profMap, assignableMap] = await Promise.all([
           loadSystemTaskRules(sb),
@@ -268,7 +281,15 @@ export default function SystemTasksTab({sb, authState}) {
           setAssignableProfiles(assignableMap);
         }
       } catch (e) {
-        if (!cancelled) setErr(e && e.message ? e.message : String(e));
+        if (!cancelled) {
+          setRules([]);
+          setOpenInstances([]);
+          setProfiles({});
+          setAssignableProfiles({});
+          setExpanded({});
+          setShowInactive(false);
+          setErr(e && e.message ? e.message : String(e));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -293,6 +314,7 @@ export default function SystemTasksTab({sb, authState}) {
   }, []);
 
   const todayStr = todayCentralISO();
+  const loadFailed = !!err;
   const grouped = groupSystemTasksByRule(rules, openInstances);
   const activeBuckets = grouped.rules.filter((b) => b.rule.active);
   const inactiveBuckets = grouped.rules.filter((b) => !b.rule.active);
@@ -386,8 +408,8 @@ export default function SystemTasksTab({sb, authState}) {
   }
 
   return (
-    <div data-tasks-tab="system">
-      {err && (
+    <div data-tasks-tab="system" data-tasks-system-loaded={loading || loadFailed ? 'false' : 'true'}>
+      {loadFailed && (
         <div
           data-tasks-error="1"
           style={{
@@ -403,9 +425,19 @@ export default function SystemTasksTab({sb, authState}) {
           {err}
         </div>
       )}
+      {loadFailed && (
+        <button
+          type="button"
+          data-tasks-load-retry="system"
+          onClick={() => setReloadKey((k) => k + 1)}
+          style={LOAD_RETRY_BTN}
+        >
+          Retry
+        </button>
+      )}
       {loading ? (
         <div style={SUB}>Loading…</div>
-      ) : (
+      ) : loadFailed ? null : (
         <>
           <div style={SECTION_HEADER}>System rules ({grouped.rules.length})</div>
           {grouped.rules.length === 0 ? (
