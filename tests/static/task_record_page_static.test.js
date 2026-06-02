@@ -136,3 +136,33 @@ describe('TasksRouter — legacy redirect and sub-routing', () => {
     expect(centerSrc).not.toContain('applyDeepLink');
   });
 });
+
+describe('TaskInstancePage - cold-boot readiness', () => {
+  const loadAllMatch = pageSrc.match(/async function loadAll\(\)[\s\S]*?\n {2}React\.useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('never strands the task record page in Loading after a failed boot read', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+  });
+
+  it('keeps missing task rows as not-found while surfacing helper failures', () => {
+    expect(loadAllSrc).toContain('loadTaskInstanceById(sb, recordId)');
+    expect(loadAllSrc).toContain('loadEligibleProfilesById(sb)');
+    expect(loadAllSrc).toContain('loadTaskAssignableProfilesById(sb)');
+    expect(loadAllSrc).toContain('setRecord(task || null);');
+    expect(loadAllSrc).toContain('Could not load task record');
+  });
+
+  it('clears stale task/profile state and renders loadError through InlineNotice', () => {
+    expect(loadAllSrc).toContain('setRecord(null);');
+    expect(loadAllSrc).toContain('setProfiles({});');
+    expect(loadAllSrc).toContain('setAssignableProfiles({});');
+    expect(pageSrc).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+  });
+
+  it('exposes a loaded marker only on the resolved task record body', () => {
+    expect(pageSrc).toMatch(/<RecordPageBody[^>]*data-task-instance-record-loaded="true"/);
+  });
+});

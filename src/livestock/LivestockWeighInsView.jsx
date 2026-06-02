@@ -7,6 +7,7 @@ import AdminNewWeighInModal from '../shared/AdminNewWeighInModal.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
+import InlineNotice from '../shared/InlineNotice.jsx';
 import {formatAgeRange, formatFeedPerPig, formatGroupAdg, formatAvgWeight} from '../lib/pigForecast.js';
 const LivestockWeighInsView = ({
   sb,
@@ -30,35 +31,53 @@ const LivestockWeighInsView = ({
   const [statusFilter, setStatusFilter] = useState('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const [pigMetricsBySession, setPigMetricsBySession] = useState({});
+  const [notice, setNotice] = useState(null);
 
   const speciesLabel = species === 'broiler' ? 'Broiler' : 'Pig';
 
   async function loadAll() {
     setLoading(true);
-    const sR = await sb
-      .from('weigh_in_sessions')
-      .select('*')
-      .eq('species', species)
-      .order('date', {ascending: false})
-      .order('started_at', {ascending: false});
-    if (sR.data) {
-      setSessions(sR.data);
-      if (sR.data.length > 0) {
-        const ids = sR.data.map((s) => s.id);
+    setNotice(null);
+    try {
+      const sR = await sb
+        .from('weigh_in_sessions')
+        .select('*')
+        .eq('species', species)
+        .order('date', {ascending: false})
+        .order('started_at', {ascending: false});
+      if (sR.error) throw new Error('weigh_in_sessions: ' + (sR.error.message || sR.error));
+
+      const sessionRows = sR.data || [];
+      setSessions(sessionRows);
+      if (sessionRows.length > 0) {
+        const ids = sessionRows.map((s) => s.id);
         const eR = await sb.from('weigh_ins').select('*').in('session_id', ids).order('entered_at', {ascending: true});
-        if (eR.data) {
-          const m = {};
-          eR.data.forEach((e) => {
-            if (!m[e.session_id]) m[e.session_id] = [];
-            m[e.session_id].push(e);
-          });
-          setEntries(m);
-        }
+        if (eR.error) throw new Error('weigh_ins: ' + (eR.error.message || eR.error));
+        const m = {};
+        (eR.data || []).forEach((e) => {
+          if (!m[e.session_id]) m[e.session_id] = [];
+          m[e.session_id].push(e);
+        });
+        setEntries(m);
       } else {
         setEntries({});
       }
+    } catch (e) {
+      setSessions([]);
+      setEntries({});
+      setPigMetricsBySession({});
+      setNotice({
+        kind: 'error',
+        message:
+          'Could not load ' +
+          speciesLabel.toLowerCase() +
+          ' weigh-in sessions. Please refresh the page. (' +
+          (e.message || e) +
+          ')',
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
   useEffect(() => {
     loadAll();
@@ -71,10 +90,13 @@ const LivestockWeighInsView = ({
     let cancelled = false;
     Promise.all(
       sessions.map((s) =>
-        sb.rpc('pig_session_metrics', {session_id_in: s.id}).then(({data, error}) => ({
-          id: s.id,
-          data: error ? {available: false} : data || {available: false},
-        })),
+        sb
+          .rpc('pig_session_metrics', {session_id_in: s.id})
+          .then(({data, error}) => ({
+            id: s.id,
+            data: error ? {available: false} : data || {available: false},
+          }))
+          .catch(() => ({id: s.id, data: {available: false}})),
       ),
     ).then((results) => {
       if (cancelled) return;
@@ -105,6 +127,7 @@ const LivestockWeighInsView = ({
       )}
       <Header />
       <div style={{padding: '1rem', maxWidth: 1100, margin: '0 auto'}}>
+        <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         <div
           style={{
             display: 'flex',

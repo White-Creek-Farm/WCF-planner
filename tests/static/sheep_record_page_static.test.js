@@ -214,3 +214,40 @@ describe('SheepAnimalPage — transfer hardening', () => {
     expect(animalPage).toMatch(/auditErr[\s\S]*?setNotice[\s\S]*?warning[\s\S]*?audit/i);
   });
 });
+
+describe('SheepAnimalPage - cold-boot readiness', () => {
+  const loadAllMatch = animalPage.match(/async function loadAll\(\)[\s\S]*?\n {2}React\.useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('never strands the sheep animal record page in Loading after a failed boot read', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+  });
+
+  it('keeps missing sheep rows as not-found while surfacing real read failures', () => {
+    expect(loadAllSrc).toContain(".eq('id', sheepId).maybeSingle()");
+    expect(loadAllSrc).toContain("throw new Error('sheep: '");
+    expect(loadAllSrc).toContain("throw new Error('sheep list: '");
+    expect(loadAllSrc).toContain("throw new Error('sheep_lambing_records: '");
+    expect(loadAllSrc).toContain("throw new Error('sheep_breeds: '");
+    expect(loadAllSrc).toContain("throw new Error('sheep_origins: '");
+    expect(loadAllSrc).toContain('Could not load sheep record');
+  });
+
+  it('uses strict sheep weigh-ins cache and clears stale side state on failure', () => {
+    expect(animalPage).toContain("import {loadSheepWeighInsCached} from '../lib/sheepCache.js'");
+    expect(loadAllSrc).toContain('loadSheepWeighInsCached(sb, {throwOnError: true})');
+    expect(loadAllSrc).toContain('setAnimal(null);');
+    expect(loadAllSrc).toContain('setAllSheep([]);');
+    expect(loadAllSrc).toContain('setWeighIns([]);');
+    expect(loadAllSrc).toContain('setLambingRecs([]);');
+    expect(loadAllSrc).toContain('setBreedOpts([]);');
+    expect(loadAllSrc).toContain('setOriginOpts([]);');
+    expect(animalPage).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+  });
+
+  it('keeps the resolved record body marker used by Playwright helpers', () => {
+    expect(animalPage).toContain('data-sheep-animal-page="1"');
+  });
+});

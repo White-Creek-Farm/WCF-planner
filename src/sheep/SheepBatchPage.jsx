@@ -45,6 +45,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
   const [sheep, setSheep] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
   const [draft, setDraft] = React.useState({});
   const [metaDraft, setMetaDraft] = React.useState(null);
 
@@ -68,31 +69,48 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
   }
 
   async function loadAll() {
-    const [bR, sR] = await Promise.all([
-      sb.from('sheep_processing_batches').select('*').eq('id', batchId).maybeSingle(),
-      sb.from('sheep').select('*'),
-    ]);
-    if (bR.data) {
-      setBatch(bR.data);
-      setMetaDraft({
-        name: bR.data.name || '',
-        planned_process_date: bR.data.planned_process_date || '',
-        actual_process_date: bR.data.actual_process_date || '',
-        processing_cost: bR.data.processing_cost != null ? String(bR.data.processing_cost) : '',
-        notes: bR.data.notes || '',
-        status: bR.data.status || 'planned',
-      });
-    } else {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [bR, sR] = await Promise.all([
+        sb.from('sheep_processing_batches').select('*').eq('id', batchId).maybeSingle(),
+        sb.from('sheep').select('*'),
+      ]);
+      if (bR.error) throw new Error('sheep_processing_batches: ' + (bR.error.message || bR.error));
+      if (sR.error) throw new Error('sheep: ' + (sR.error.message || sR.error));
+      if (bR.data) {
+        setBatch(bR.data);
+        setMetaDraft({
+          name: bR.data.name || '',
+          planned_process_date: bR.data.planned_process_date || '',
+          actual_process_date: bR.data.actual_process_date || '',
+          processing_cost: bR.data.processing_cost != null ? String(bR.data.processing_cost) : '',
+          notes: bR.data.notes || '',
+          status: bR.data.status || 'planned',
+        });
+      } else {
+        setBatch(null);
+        setMetaDraft(null);
+      }
+      setSheep(sR.data || []);
+    } catch (e) {
       setBatch(null);
+      setSheep([]);
+      setMetaDraft(null);
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load sheep processing batch. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
     }
-    if (sR.data) setSheep(sR.data);
-    setLoading(false);
   }
 
   React.useEffect(() => {
     setBatch(null);
     setLoading(true);
     setNotice(null);
+    setLoadError(null);
     loadAll();
   }, [batchId, authState]);
 
@@ -274,6 +292,17 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
     return <RecordPageLoading Header={Header} />;
   }
 
+  if (loadError) {
+    return (
+      <RecordPageFrame Header={Header}>
+        <RecordPageBody maxWidth={900}>
+          <RecordBackLink label="Back to Processing Batches" onBack={() => navigate('/sheep/batches')} />
+          <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
+        </RecordPageBody>
+      </RecordPageFrame>
+    );
+  }
+
   if (!batch) {
     return (
       <RecordPageNotFound
@@ -299,7 +328,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody maxWidth={900}>
+      <RecordPageBody maxWidth={900} data-sheep-batch-record-loaded="true">
         <RecordBackLink label="Back to Processing Batches" onBack={() => navigate('/sheep/batches')} />
 
         <RecordSequenceNav seq={recordSeq} currentId={batchId} onNavigate={navigateSeq} />

@@ -196,3 +196,61 @@ describe('CattleBatchesView — cleaned list view', () => {
     expect(listSrc).toMatch(/scheduleVirtualBatch[\s\S]*?navigate\('\/cattle\/batches\/' \+ rowId\)/);
   });
 });
+
+describe('CattleBatchesView - cold-boot readiness', () => {
+  const loadAllMatch = listSrc.match(/async function loadAll\(\)[\s\S]*?\n\n {2}useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('never strands the hub in Loading when a boot read rejects', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+  });
+
+  it('surfaces essential processing read errors instead of silently rendering stale state', () => {
+    expect(loadAllSrc).toContain("throw new Error('cattle_processing_batches: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle_calving_records: '");
+    expect(loadAllSrc).toContain('Could not load cattle processing batches. Please refresh the page.');
+  });
+
+  it('degrades forecast sidecar failures without blocking real batch rows', () => {
+    expect(loadAllSrc).toContain('forecastSidecarErrors');
+    expect(loadAllSrc).toMatch(/loadForecastSettings\(sb\)\.catch[\s\S]*?return null;/);
+    expect(loadAllSrc).toMatch(/loadHeiferIncludes\(sb\)\.catch[\s\S]*?return new Set\(\);/);
+    expect(loadAllSrc).toMatch(/loadHidden\(sb\)\.catch[\s\S]*?return \[\];/);
+    expect(loadAllSrc).toContain('Planned batches may be unavailable until refresh.');
+  });
+});
+
+describe('CattleBatchPage - cold-boot readiness', () => {
+  const loadAllMatch = pageSrc.match(/async function loadAll\(\)[\s\S]*?\n {2}React\.useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('never strands the cattle processing record page in Loading after a failed boot read', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+  });
+
+  it('keeps missing batches as not-found while surfacing real read failures', () => {
+    expect(loadAllSrc).toContain(".eq('id', batchId).maybeSingle()");
+    expect(loadAllSrc).toContain("throw new Error('cattle_processing_batches: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle_processing_batches list: '");
+    expect(loadAllSrc).toContain('Could not load cattle processing batch');
+  });
+
+  it('clears stale record state and renders loadError through InlineNotice', () => {
+    expect(loadAllSrc).toContain('setBatch(null);');
+    expect(loadAllSrc).toContain('setCattle([]);');
+    expect(loadAllSrc).toContain('setAllBatches([]);');
+    expect(loadAllSrc).toContain("setRenameDraft('');");
+    expect(loadAllSrc).toContain("setScheduledDateDraft('');");
+    expect(pageSrc).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+  });
+
+  it('exposes a loaded marker only on the resolved record body', () => {
+    expect(pageSrc).toMatch(/<RecordPageBody[^>]*data-cattle-batch-record-loaded="true"/);
+  });
+});

@@ -96,29 +96,52 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
   const [originOpts, setOriginOpts] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
 
   async function loadAll() {
-    const [cR, allCattle, wAll, calR, brR, orR] = await Promise.all([
-      sb.from('cattle').select('*').eq('id', cattleId).is('deleted_at', null).single(),
-      sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
-      loadCattleWeighInsCached(sb),
-      sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
-      sb.from('cattle_breeds').select('*').order('label'),
-      sb.from('cattle_origins').select('*').order('label'),
-    ]);
-    if (cR.data) setCow(cR.data);
-    if (allCattle.data) setCattle(allCattle.data);
-    setWeighIns(wAll);
-    if (calR.data) setCalvingRecs(calR.data);
-    if (brR.data) setBreedOpts(brR.data);
-    if (orR.data) setOriginOpts(orR.data);
-    setLoading(false);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [cR, allCattle, wAll, calR, brR, orR] = await Promise.all([
+        sb.from('cattle').select('*').eq('id', cattleId).is('deleted_at', null).maybeSingle(),
+        sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
+        loadCattleWeighInsCached(sb, {throwOnError: true}),
+        sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
+        sb.from('cattle_breeds').select('*').order('label'),
+        sb.from('cattle_origins').select('*').order('label'),
+      ]);
+      if (cR.error) throw new Error('cattle: ' + (cR.error.message || cR.error));
+      if (allCattle.error) throw new Error('cattle list: ' + (allCattle.error.message || allCattle.error));
+      if (calR.error) throw new Error('cattle_calving_records: ' + (calR.error.message || calR.error));
+      if (brR.error) throw new Error('cattle_breeds: ' + (brR.error.message || brR.error));
+      if (orR.error) throw new Error('cattle_origins: ' + (orR.error.message || orR.error));
+      setCow(cR.data || null);
+      setCattle(allCattle.data || []);
+      setWeighIns(wAll || []);
+      setCalvingRecs(calR.data || []);
+      setBreedOpts(brR.data || []);
+      setOriginOpts(orR.data || []);
+    } catch (e) {
+      setCow(null);
+      setCattle([]);
+      setWeighIns([]);
+      setCalvingRecs([]);
+      setBreedOpts([]);
+      setOriginOpts([]);
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load cattle record. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   React.useEffect(() => {
     setCow(null);
     setLoading(true);
     setNotice(null);
+    setLoadError(null);
     loadAll();
   }, [cattleId]);
 
@@ -258,6 +281,17 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
 
   if (loading) {
     return <RecordPageLoading Header={Header} />;
+  }
+
+  if (loadError) {
+    return (
+      <RecordPageFrame Header={Header}>
+        <RecordPageBody>
+          <RecordBackLink label="Back to Herds" onBack={() => navigate('/cattle/herds')} />
+          <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
+        </RecordPageBody>
+      </RecordPageFrame>
+    );
   }
 
   if (!cow) {

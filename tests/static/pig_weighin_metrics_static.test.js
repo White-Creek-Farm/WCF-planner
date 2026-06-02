@@ -65,7 +65,8 @@ describe('Pig weigh-in metrics — admin LivestockWeighInsView (commit 3)', () =
   });
 
   it('fans out pig_session_metrics RPC per pig session', () => {
-    expect(adminSrc).toMatch(/sb\.rpc\('pig_session_metrics',\s*\{\s*session_id_in:\s*s\.id\s*\}\)/);
+    expect(adminSrc).toMatch(/\.rpc\('pig_session_metrics',\s*\{\s*session_id_in:\s*s\.id\s*\}\)/);
+    expect(adminSrc).toMatch(/\.catch\(\(\) => \(\{id: s\.id, data: \{available: false\}\}\)\)/);
   });
 
   it('keeps the persisted load query at entered_at ASC', () => {

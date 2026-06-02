@@ -29,12 +29,25 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
   const [creating, setCreating] = useState(false);
 
   async function loadAll() {
-    const bR = await sb.from('sheep_processing_batches').select('*').order('planned_process_date', {ascending: false});
-    if (bR.data) {
+    setLoading(true);
+    setNotice(null);
+    try {
+      const bR = await sb
+        .from('sheep_processing_batches')
+        .select('*')
+        .order('planned_process_date', {ascending: false});
+      if (bR.error) throw new Error('sheep_processing_batches: ' + (bR.error.message || bR.error));
       const byDate = (x) => x.actual_process_date || x.planned_process_date || x.created_at || '';
-      setBatches(bR.data.slice().sort((a, b) => byDate(b).localeCompare(byDate(a))));
+      setBatches((bR.data || []).slice().sort((a, b) => byDate(b).localeCompare(byDate(a))));
+    } catch (e) {
+      setBatches([]);
+      setNotice({
+        kind: 'error',
+        message: 'Could not load sheep processing batches. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
   useEffect(() => {
     loadAll();
@@ -122,7 +135,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
   const lbl = {fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500};
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: '#f1f3f2'}} data-sheep-batches-loaded={loading ? 'false' : 'true'}>
       {showUsers && (
         <UsersModal
           sb={sb}

@@ -292,3 +292,39 @@ describe('CattleAnimalPage — transfer hardening', () => {
     expect(animalPage).toMatch(/auditErr[\s\S]*?setNotice[\s\S]*?warning[\s\S]*?audit/i);
   });
 });
+
+describe('CattleAnimalPage - cold-boot readiness', () => {
+  const loadAllMatch = animalPage.match(/async function loadAll\(\)[\s\S]*?\n {2}React\.useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('never strands the cattle animal record page in Loading after a failed boot read', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+  });
+
+  it('keeps missing cattle rows as not-found while surfacing real read failures', () => {
+    expect(loadAllSrc).toContain(".eq('id', cattleId).is('deleted_at', null).maybeSingle()");
+    expect(loadAllSrc).toContain("throw new Error('cattle: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle list: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle_calving_records: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle_breeds: '");
+    expect(loadAllSrc).toContain("throw new Error('cattle_origins: '");
+    expect(loadAllSrc).toContain('Could not load cattle record');
+  });
+
+  it('uses strict cattle weigh-ins cache and clears stale side state on failure', () => {
+    expect(loadAllSrc).toContain('loadCattleWeighInsCached(sb, {throwOnError: true})');
+    expect(loadAllSrc).toContain('setCow(null);');
+    expect(loadAllSrc).toContain('setCattle([]);');
+    expect(loadAllSrc).toContain('setWeighIns([]);');
+    expect(loadAllSrc).toContain('setCalvingRecs([]);');
+    expect(loadAllSrc).toContain('setBreedOpts([]);');
+    expect(loadAllSrc).toContain('setOriginOpts([]);');
+    expect(animalPage).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+  });
+
+  it('keeps the resolved record body marker used by Playwright helpers', () => {
+    expect(animalPage).toContain('data-cattle-animal-page="1"');
+  });
+});

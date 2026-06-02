@@ -65,6 +65,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
   const [cattle, setCattle] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
   const [cowDraft, setCowDraft] = React.useState({});
   const [renameDraft, setRenameDraft] = React.useState('');
   const [renameErr, setRenameErr] = React.useState(null);
@@ -75,25 +76,48 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
   const canEdit = role === 'admin' || role === 'management';
 
   async function loadAll() {
-    const [bR, cR, allR] = await Promise.all([
-      sb.from('cattle_processing_batches').select('*').eq('id', batchId).single(),
-      sb.from('cattle').select('*').is('deleted_at', null),
-      sb.from('cattle_processing_batches').select('id, name, status'),
-    ]);
-    if (bR.data) {
-      setBatch(bR.data);
-      setRenameDraft(bR.data.name || '');
-      setScheduledDateDraft(bR.data.planned_process_date || '');
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [bR, cR, allR] = await Promise.all([
+        sb.from('cattle_processing_batches').select('*').eq('id', batchId).maybeSingle(),
+        sb.from('cattle').select('*').is('deleted_at', null),
+        sb.from('cattle_processing_batches').select('id, name, status'),
+      ]);
+      if (bR.error) throw new Error('cattle_processing_batches: ' + (bR.error.message || bR.error));
+      if (cR.error) throw new Error('cattle: ' + (cR.error.message || cR.error));
+      if (allR.error) throw new Error('cattle_processing_batches list: ' + (allR.error.message || allR.error));
+      if (bR.data) {
+        setBatch(bR.data);
+        setRenameDraft(bR.data.name || '');
+        setScheduledDateDraft(bR.data.planned_process_date || '');
+      } else {
+        setBatch(null);
+        setRenameDraft('');
+        setScheduledDateDraft('');
+      }
+      setCattle(cR.data || []);
+      setAllBatches(allR.data || []);
+    } catch (e) {
+      setBatch(null);
+      setCattle([]);
+      setAllBatches([]);
+      setRenameDraft('');
+      setScheduledDateDraft('');
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load cattle processing batch. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
     }
-    if (cR.data) setCattle(cR.data);
-    if (allR.data) setAllBatches(allR.data);
-    setLoading(false);
   }
 
   React.useEffect(() => {
     setBatch(null);
     setLoading(true);
     setNotice(null);
+    setLoadError(null);
     loadAll();
   }, [batchId, authState]);
 
@@ -263,6 +287,17 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
     return <RecordPageLoading Header={Header} />;
   }
 
+  if (loadError) {
+    return (
+      <RecordPageFrame Header={Header}>
+        <RecordPageBody maxWidth={900}>
+          <RecordBackLink label="Back to Processing Batches" onBack={() => navigate('/cattle/batches')} />
+          <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
+        </RecordPageBody>
+      </RecordPageFrame>
+    );
+  }
+
   if (!batch) {
     return (
       <RecordPageNotFound
@@ -289,7 +324,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody maxWidth={900}>
+      <RecordPageBody maxWidth={900} data-cattle-batch-record-loaded="true">
         <RecordBackLink label="Back to Processing Batches" onBack={() => navigate('/cattle/batches')} />
 
         <RecordSequenceNav seq={recordSeq} currentId={batchId} onNavigate={navigateSeq} />

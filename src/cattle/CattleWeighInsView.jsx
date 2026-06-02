@@ -5,6 +5,8 @@ import CattleNewWeighInModal from './CattleNewWeighInModal.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
@@ -29,25 +31,39 @@ const CattleWeighInsView = ({
   const [statusFilter, setStatusFilter] = useState('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const [tagSearch, setTagSearch] = useState('');
+  const [notice, setNotice] = useState(null);
 
   async function loadAll() {
-    const [sR, eAll] = await Promise.all([
-      sb
-        .from('weigh_in_sessions')
-        .select('*')
-        .eq('species', 'cattle')
-        .order('date', {ascending: false})
-        .order('started_at', {ascending: false}),
-      loadCattleWeighInsCached(sb),
-    ]);
-    if (sR.data) setSessions(sR.data);
-    const m = {};
-    (eAll || []).forEach((e) => {
-      if (!m[e.session_id]) m[e.session_id] = [];
-      m[e.session_id].push(e);
-    });
-    setEntries(m);
-    setLoading(false);
+    setLoading(true);
+    setNotice(null);
+    try {
+      const [sR, eAll] = await Promise.all([
+        sb
+          .from('weigh_in_sessions')
+          .select('*')
+          .eq('species', 'cattle')
+          .order('date', {ascending: false})
+          .order('started_at', {ascending: false}),
+        loadCattleWeighInsCached(sb, {throwOnError: true}),
+      ]);
+      if (sR.error) throw new Error('weigh_in_sessions: ' + (sR.error.message || sR.error));
+      setSessions(sR.data || []);
+      const m = {};
+      (eAll || []).forEach((e) => {
+        if (!m[e.session_id]) m[e.session_id] = [];
+        m[e.session_id].push(e);
+      });
+      setEntries(m);
+    } catch (e) {
+      setSessions([]);
+      setEntries({});
+      setNotice({
+        kind: 'error',
+        message: 'Could not load cattle weigh-in sessions. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -91,6 +107,7 @@ const CattleWeighInsView = ({
       )}
       <Header />
       <div style={{padding: '1rem', maxWidth: 1100, margin: '0 auto'}}>
+        <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         <div
           style={{
             display: 'flex',

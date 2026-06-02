@@ -59,6 +59,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
   const [record, setRecord] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
   const [profiles, setProfiles] = React.useState({});
   const [assignableProfiles, setAssignableProfiles] = React.useState({});
 
@@ -73,21 +74,35 @@ export default function TaskInstancePage({sb, authState, Header}) {
   const isAdmin = authState && authState.role === 'admin';
 
   async function loadAll() {
-    const [task, profMap, assignableMap] = await Promise.all([
-      loadTaskInstanceById(sb, recordId),
-      loadEligibleProfilesById(sb),
-      loadTaskAssignableProfilesById(sb),
-    ]);
-    if (task) setRecord(task);
-    setProfiles(profMap);
-    setAssignableProfiles(assignableMap);
-    setLoading(false);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [task, profMap, assignableMap] = await Promise.all([
+        loadTaskInstanceById(sb, recordId),
+        loadEligibleProfilesById(sb),
+        loadTaskAssignableProfilesById(sb),
+      ]);
+      setRecord(task || null);
+      setProfiles(profMap || {});
+      setAssignableProfiles(assignableMap || {});
+    } catch (e) {
+      setRecord(null);
+      setProfiles({});
+      setAssignableProfiles({});
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load task record. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   React.useEffect(() => {
     setRecord(null);
     setLoading(true);
     setNotice(null);
+    setLoadError(null);
     loadAll();
   }, [recordId, reloadKey]);
 
@@ -146,6 +161,17 @@ export default function TaskInstancePage({sb, authState, Header}) {
     return <RecordPageLoading Header={Header} label="Loading…" />;
   }
 
+  if (loadError) {
+    return (
+      <RecordPageFrame Header={Header}>
+        <RecordPageBody maxWidth={760}>
+          <RecordBackLink label="Back to Task Center" onBack={() => navigate('/tasks')} />
+          <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
+        </RecordPageBody>
+      </RecordPageFrame>
+    );
+  }
+
   if (!record) {
     return (
       <RecordPageNotFound
@@ -159,7 +185,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody maxWidth={760}>
+      <RecordPageBody maxWidth={760} data-task-instance-record-loaded="true">
         <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
           <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
 

@@ -74,6 +74,54 @@ describe('SheepBatchPage — record page structure', () => {
   });
 });
 
+describe('SheepBatchesHub - cold-boot readiness', () => {
+  const loadAllMatch = listSrc.match(/async function loadAll\(\)[\s\S]*?\n {2}useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('exposes a readiness marker keyed on loading state', () => {
+    expect(listSrc).toMatch(/data-sheep-batches-loaded=\{loading \? 'false' : 'true'\}/);
+  });
+
+  it('never strands the sheep processing hub in Loading after a failed boot read', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+  });
+
+  it('surfaces sheep_processing_batches read failures and clears stale rows', () => {
+    expect(loadAllSrc).toContain("throw new Error('sheep_processing_batches: '");
+    expect(loadAllSrc).toContain('Could not load sheep processing batches');
+    expect(loadAllSrc).toContain('setBatches([]);');
+    expect(listSrc).toContain('<InlineNotice notice={notice} onDismiss={() => setNotice(null)} />');
+  });
+});
+
+describe('SheepBatchPage - cold-boot readiness', () => {
+  const loadAllMatch = pageSrc.match(/async function loadAll\(\)[\s\S]*?\n {2}React\.useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('never strands the sheep processing record page in Loading after a failed boot read', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+  });
+
+  it('surfaces batch and sheep read failures through a loadError InlineNotice', () => {
+    expect(pageSrc).toContain('const [loadError, setLoadError] = React.useState(null);');
+    expect(loadAllSrc).toContain("throw new Error('sheep_processing_batches: '");
+    expect(loadAllSrc).toContain("throw new Error('sheep: '");
+    expect(loadAllSrc).toContain('Could not load sheep processing batch');
+    expect(loadAllSrc).toContain('setBatch(null);');
+    expect(loadAllSrc).toContain('setSheep([]);');
+    expect(loadAllSrc).toContain('setMetaDraft(null);');
+    expect(pageSrc).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+  });
+
+  it('exposes a loaded marker only on the resolved record body', () => {
+    expect(pageSrc).toMatch(/<RecordPageBody[^>]*data-sheep-batch-record-loaded="true"/);
+  });
+});
+
 describe('SheepBatchPage — sheep-specific contracts', () => {
   it('does not invent a cattle-style scheduled/active lifecycle', () => {
     expect(pageSrc).not.toContain("status === 'scheduled'");

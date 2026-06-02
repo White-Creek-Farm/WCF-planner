@@ -17,6 +17,7 @@ import {
 /* eslint-enable no-unused-vars */
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 
@@ -97,34 +98,52 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
   const [originOpts, setOriginOpts] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [notice, setNotice] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
 
   async function loadAll() {
-    const sessR = await sb.from('weigh_in_sessions').select('id,date,herd').eq('species', 'sheep');
-    const sessIds = (sessR.data || []).map((s) => s.id);
-    const wR =
-      sessIds.length > 0
-        ? await sb.from('weigh_ins').select('*').in('session_id', sessIds).order('entered_at', {ascending: false})
-        : {data: []};
-    const [sR, allR, lR, brR, orR] = await Promise.all([
-      sb.from('sheep').select('*').eq('id', sheepId).single(),
-      sb.from('sheep').select('*').order('tag'),
-      sb.from('sheep_lambing_records').select('*').order('lambing_date', {ascending: false}),
-      sb.from('sheep_breeds').select('*').order('label'),
-      sb.from('sheep_origins').select('*').order('label'),
-    ]);
-    if (sR.data) setAnimal(sR.data);
-    if (allR.data) setAllSheep(allR.data);
-    if (wR.data) setWeighIns(wR.data);
-    if (lR.data) setLambingRecs(lR.data);
-    if (brR.data) setBreedOpts(brR.data);
-    if (orR.data) setOriginOpts(orR.data);
-    setLoading(false);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [sR, allR, wAll, lR, brR, orR] = await Promise.all([
+        sb.from('sheep').select('*').eq('id', sheepId).maybeSingle(),
+        sb.from('sheep').select('*').order('tag'),
+        loadSheepWeighInsCached(sb, {throwOnError: true}),
+        sb.from('sheep_lambing_records').select('*').order('lambing_date', {ascending: false}),
+        sb.from('sheep_breeds').select('*').order('label'),
+        sb.from('sheep_origins').select('*').order('label'),
+      ]);
+      if (sR.error) throw new Error('sheep: ' + (sR.error.message || sR.error));
+      if (allR.error) throw new Error('sheep list: ' + (allR.error.message || allR.error));
+      if (lR.error) throw new Error('sheep_lambing_records: ' + (lR.error.message || lR.error));
+      if (brR.error) throw new Error('sheep_breeds: ' + (brR.error.message || brR.error));
+      if (orR.error) throw new Error('sheep_origins: ' + (orR.error.message || orR.error));
+      setAnimal(sR.data || null);
+      setAllSheep(allR.data || []);
+      setWeighIns(wAll || []);
+      setLambingRecs(lR.data || []);
+      setBreedOpts(brR.data || []);
+      setOriginOpts(orR.data || []);
+    } catch (e) {
+      setAnimal(null);
+      setAllSheep([]);
+      setWeighIns([]);
+      setLambingRecs([]);
+      setBreedOpts([]);
+      setOriginOpts([]);
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load sheep record. Please refresh the page. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   React.useEffect(() => {
     setAnimal(null);
     setLoading(true);
     setNotice(null);
+    setLoadError(null);
     loadAll();
   }, [sheepId]);
 
@@ -267,6 +286,17 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
 
   if (loading) {
     return <RecordPageLoading Header={Header} />;
+  }
+
+  if (loadError) {
+    return (
+      <RecordPageFrame Header={Header}>
+        <RecordPageBody>
+          <RecordBackLink label="Back to Flocks" onBack={() => navigate('/sheep/flocks')} />
+          <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
+        </RecordPageBody>
+      </RecordPageFrame>
+    );
   }
 
   if (!animal) {

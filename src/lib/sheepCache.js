@@ -8,18 +8,32 @@ let _sheepWeighInsCache = null;
 let _sheepWeighInsCacheAt = 0;
 const SHEEP_WEIGH_INS_TTL_MS = 30000;
 
-export async function loadSheepWeighInsCached(sb) {
+export async function loadSheepWeighInsCached(sb, opts = {}) {
+  const throwOnError = !!opts.throwOnError;
   if (_sheepWeighInsCache && Date.now() - _sheepWeighInsCacheAt < SHEEP_WEIGH_INS_TTL_MS) {
     return _sheepWeighInsCache;
   }
   const sR = await sb.from('weigh_in_sessions').select('id').eq('species', 'sheep');
+  if (sR.error) {
+    if (throwOnError) throw new Error('loadSheepWeighInsCached sessions: ' + (sR.error.message || sR.error));
+    return _sheepWeighInsCache || [];
+  }
   const ids = (sR.data || []).map((s) => s.id);
   if (ids.length === 0) {
     _sheepWeighInsCache = [];
     _sheepWeighInsCacheAt = Date.now();
     return _sheepWeighInsCache;
   }
-  const rows = await wcfSelectAll((f, t) => sb.from('weigh_ins').select('*').in('session_id', ids).range(f, t));
+  let pageError = null;
+  const rows = await wcfSelectAll(async (f, t) => {
+    const res = await sb.from('weigh_ins').select('*').in('session_id', ids).range(f, t);
+    if (res.error) pageError = res.error;
+    return res;
+  });
+  if (pageError) {
+    if (throwOnError) throw new Error('loadSheepWeighInsCached weigh_ins: ' + (pageError.message || pageError));
+    return _sheepWeighInsCache || rows;
+  }
   rows.sort((a, b) => (b.entered_at || '').localeCompare(a.entered_at || ''));
   _sheepWeighInsCache = rows;
   _sheepWeighInsCacheAt = Date.now();

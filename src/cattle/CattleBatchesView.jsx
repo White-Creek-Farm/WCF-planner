@@ -41,26 +41,59 @@ const CattleBatchesHub = ({
   const [notice, setNotice] = useState(null);
 
   async function loadAll() {
-    const [bR, cR, wAll, calR, settings, inc, hid] = await Promise.all([
-      sb.from('cattle_processing_batches').select('*').order('actual_process_date', {ascending: false}),
-      sb.from('cattle').select('*').is('deleted_at', null),
-      loadCattleWeighInsCached(sb),
-      sb.from('cattle_calving_records').select('*'),
-      loadForecastSettings(sb),
-      loadHeiferIncludes(sb),
-      loadHidden(sb),
-    ]);
-    if (bR.data) {
+    setLoading(true);
+    try {
+      const [bR, cR, wAll, calR] = await Promise.all([
+        sb.from('cattle_processing_batches').select('*').order('actual_process_date', {ascending: false}),
+        sb.from('cattle').select('*').is('deleted_at', null),
+        loadCattleWeighInsCached(sb),
+        sb.from('cattle_calving_records').select('*'),
+      ]);
+      if (bR.error) throw new Error('cattle_processing_batches: ' + (bR.error.message || bR.error));
+      if (cR.error) throw new Error('cattle: ' + (cR.error.message || cR.error));
+      if (calR.error) throw new Error('cattle_calving_records: ' + (calR.error.message || calR.error));
+
+      const forecastSidecarErrors = [];
+      const [settings, inc, hid] = await Promise.all([
+        loadForecastSettings(sb).catch((e) => {
+          forecastSidecarErrors.push(e);
+          return null;
+        }),
+        loadHeiferIncludes(sb).catch((e) => {
+          forecastSidecarErrors.push(e);
+          return new Set();
+        }),
+        loadHidden(sb).catch((e) => {
+          forecastSidecarErrors.push(e);
+          return [];
+        }),
+      ]);
+
       const byDate = (x) => x.actual_process_date || x.planned_process_date || x.created_at || '';
-      setBatches(bR.data.slice().sort((a, b) => byDate(b).localeCompare(byDate(a))));
+      setBatches((bR.data || []).slice().sort((a, b) => byDate(b).localeCompare(byDate(a))));
+      setCattle(cR.data || []);
+      setWeighIns(wAll || []);
+      setCalvingRecs(calR.data || []);
+      setForecastSettings(settings);
+      setHeiferIncludes(inc);
+      setHidden(hid);
+      if (forecastSidecarErrors.length > 0) {
+        setNotice(
+          (prev) =>
+            prev || {
+              kind: 'warning',
+              message: 'Forecast data could not fully load. Planned batches may be unavailable until refresh.',
+            },
+        );
+      }
+    } catch (e) {
+      setNotice({
+        kind: 'error',
+        message: 'Could not load cattle processing batches. Please refresh the page. (' + (e.message || e) + ')',
+      });
+    } finally {
+      setLoading(false);
     }
-    if (cR.data) setCattle(cR.data);
-    setWeighIns(wAll || []);
-    if (calR.data) setCalvingRecs(calR.data);
-    setForecastSettings(settings);
-    setHeiferIncludes(inc);
-    setHidden(hid);
-    setLoading(false);
   }
 
   useEffect(() => {
