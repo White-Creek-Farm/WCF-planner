@@ -25,10 +25,11 @@ import {describe, it, expect} from 'vitest';
 //     every read;
 //   - stable data-* readiness markers exist for future Playwright waits.
 //
-// PigDailysView is intentionally NOT load-hardened here: it is prop-driven
-// (the pigDailys list arrives from the parent PigContext, whose feedersLoaded
-// readiness signal already gates pig surfaces). Its pig_dailys .from() calls
-// are save mutations, not a list load. Locked by the prop-driven assertions.
+// PigDailysView now owns its own local pig_dailys list load with fail-closed
+// readiness (Retry + marker), syncing the parent cache via setPigDailys. See
+// the "PigDailysView - local cold-boot readiness" block below and
+// tests/static/pig_dailys_view_readiness_static.test.js. This superseded the
+// earlier prop-driven approach via the dedicated PigDailysView readiness lane.
 // ============================================================================
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
