@@ -192,14 +192,37 @@ describe('src/shared/Header.jsx — notifications bell + dropdown', () => {
     for (const hook of [
       'data-notifications-header-link="1"',
       'data-notifications-panel="1"',
+      'data-notifications-panel-loaded=',
       'data-notifications-panel-list="1"',
       'data-notifications-mark-all-read="1"',
+      'data-notifications-load-error="1"',
+      'data-notifications-retry="1"',
+      'data-notifications-loading="1"',
       'data-notifications-row=',
       'data-notifications-row-unread=',
       'data-notifications-empty="1"',
     ]) {
       expect(headerSrc, `missing hook ${hook}`).toContain(hook);
     }
+  });
+
+  it('distinguishes notification load failures from a genuinely empty list', () => {
+    expect(headerSrc).toContain("import InlineNotice from './InlineNotice.jsx'");
+    expect(headerSrc).toContain('const [notifLoading, setNotifLoading] = React.useState(false)');
+    expect(headerSrc).toContain('const [notifLoadError, setNotifLoadError] = React.useState(null)');
+    expect(headerSrc).toContain('const [notifReloadKey, setNotifReloadKey] = React.useState(0)');
+    expect(headerSrc).toContain("data-notifications-panel-loaded={!notifLoading && !notifLoadError ? '1' : '0'}");
+    expect(headerSrc).toMatch(/catch \(e\)[\s\S]*?setNotifRecent\(\[\]\)[\s\S]*?setNotifLoadError\(/);
+    expect(headerSrc).toContain('<InlineNotice notice={notifLoadError} />');
+    expect(headerSrc).toContain('onClick={() => setNotifReloadKey((k) => k + 1)}');
+    expect(headerSrc).toMatch(/!\s*notifLoadError\s*&&\s*!\s*notifLoading\s*&&\s*notifRecent\.length === 0/);
+    expect(headerSrc).toMatch(/!\s*notifLoadError\s*&&\s*notifRecent\.map/);
+  });
+
+  it('keeps mark-all disabled while notification list freshness is unknown', () => {
+    expect(headerSrc).toContain('disabled={notifUnread === 0 || !!notifLoadError}');
+    expect(headerSrc).toContain("color: notifUnread === 0 || notifLoadError ? '#9ca3af' : '#085041'");
+    expect(headerSrc).toContain("cursor: notifUnread === 0 || notifLoadError ? 'default' : 'pointer'");
   });
 
   it('row click marks-read then routes via resolveNotificationRoute', () => {

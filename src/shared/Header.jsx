@@ -43,6 +43,8 @@ import {
 } from '../lib/notificationsApi.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import InlineNotice from './InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
 // Notifications Center: enabled now that mig 057 ships the notifications
@@ -214,6 +216,9 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   const [notifUnread, setNotifUnread] = React.useState(0);
   const [notifRecent, setNotifRecent] = React.useState([]);
   const [notifOpen, setNotifOpen] = React.useState(false);
+  const [notifLoading, setNotifLoading] = React.useState(false);
+  const [notifLoadError, setNotifLoadError] = React.useState(null);
+  const [notifReloadKey, setNotifReloadKey] = React.useState(0);
   // Ref on the section sub-nav so an effect can scroll the active tab into
   // view after a section/view change. Without this, the operator could land
   // on a route whose tab sits off-screen to the right (cattle has 8 tabs;
@@ -265,10 +270,16 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
     if (!NOTIFICATIONS_CENTER_ENABLED || !sb || !callerProfileId) {
       setNotifUnread(0);
       setNotifRecent([]);
+      setNotifLoading(false);
+      setNotifLoadError(null);
       return undefined;
     }
     let cancelled = false;
     async function refresh() {
+      if (!cancelled) {
+        setNotifLoading(true);
+        setNotifLoadError(null);
+      }
       try {
         const [n, list] = await Promise.all([
           countUnreadNotifications(sb, callerProfileId),
@@ -277,15 +288,22 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
         if (!cancelled) {
           setNotifUnread(n || 0);
           setNotifRecent(list || []);
+          setNotifLoadError(null);
         }
       } catch (e) {
         if (!cancelled) {
           setNotifUnread(0);
           setNotifRecent([]);
+          setNotifLoadError({
+            kind: 'error',
+            message: 'Notifications failed to load. Retry when your connection is back.',
+          });
         }
         if (typeof console !== 'undefined' && console.warn) {
           console.warn('Header notifications: load failed', e && e.message ? e.message : e);
         }
+      } finally {
+        if (!cancelled) setNotifLoading(false);
       }
     }
     refresh();
@@ -308,7 +326,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
         window.removeEventListener(NOTIFICATIONS_CHANGE_EVENT, onChange);
       }
     };
-  }, [sb, callerProfileId, view]);
+  }, [sb, callerProfileId, view, notifReloadKey]);
 
   const poultryViews = ['broilerHome', 'timeline', 'list', 'feed', 'broilerdailys', 'broilerweighins'];
   const pigViews = ['pigsHome', 'breeding', 'farrowing', 'sows', 'pigbatches', 'pigs', 'pigdailys', 'pigweighins'];
@@ -518,6 +536,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
               {notifOpen && (
                 <div
                   data-notifications-panel="1"
+                  data-notifications-panel-loaded={!notifLoading && !notifLoadError ? '1' : '0'}
                   style={{
                     position: 'absolute',
                     right: 0,
@@ -559,14 +578,14 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                           /* soft-fail; next refresh will reconcile */
                         }
                       }}
-                      disabled={notifUnread === 0}
+                      disabled={notifUnread === 0 || !!notifLoadError}
                       style={{
                         marginLeft: 'auto',
                         padding: '4px 8px',
                         background: 'none',
                         border: 'none',
-                        color: notifUnread === 0 ? '#9ca3af' : '#085041',
-                        cursor: notifUnread === 0 ? 'default' : 'pointer',
+                        color: notifUnread === 0 || notifLoadError ? '#9ca3af' : '#085041',
+                        cursor: notifUnread === 0 || notifLoadError ? 'default' : 'pointer',
                         fontSize: 12,
                         fontWeight: 600,
                         fontFamily: 'inherit',
@@ -576,7 +595,38 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                     </button>
                   </div>
                   <div data-notifications-panel-list="1" style={{overflowY: 'auto', maxHeight: 420}}>
-                    {notifRecent.length === 0 && (
+                    {notifLoadError && (
+                      <div data-notifications-load-error="1" style={{padding: '12px 14px'}}>
+                        <InlineNotice notice={notifLoadError} />
+                        <button
+                          type="button"
+                          data-notifications-retry="1"
+                          onClick={() => setNotifReloadKey((k) => k + 1)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 6,
+                            border: '1px solid #b91c1c',
+                            background: '#b91c1c',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
+                    {!notifLoadError && notifLoading && notifRecent.length === 0 && (
+                      <div
+                        data-notifications-loading="1"
+                        style={{padding: '20px 14px', textAlign: 'center', color: '#6b7280', fontSize: 13}}
+                      >
+                        Loading notifications...
+                      </div>
+                    )}
+                    {!notifLoadError && !notifLoading && notifRecent.length === 0 && (
                       <div
                         data-notifications-empty="1"
                         style={{padding: '20px 14px', textAlign: 'center', color: '#6b7280', fontSize: 13}}
@@ -584,99 +634,100 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                         No notifications yet.
                       </div>
                     )}
-                    {notifRecent.map((n) => {
-                      const unread = !n.read_at;
-                      return (
-                        <button
-                          key={n.id}
-                          data-notifications-row={n.id}
-                          data-notifications-row-unread={unread ? '1' : '0'}
-                          onClick={async () => {
-                            // Close the panel first so the navigation doesn't
-                            // leave a stale dropdown floating over /tasks.
-                            setNotifOpen(false);
-                            try {
-                              if (unread) await markNotificationRead(sb, n.id);
-                            } catch (_e) {
-                              /* soft-fail */
-                            }
-                            const route = resolveNotificationRoute(n, n.activity_entity_type, n.activity_entity_id);
-                            const isRecordPageRoute =
-                              n.type === 'comment_mention' ||
-                              route.startsWith('/tasks/') ||
-                              route.startsWith('/fleet/') ||
-                              route.startsWith('/cattle/herds/') ||
-                              route.startsWith('/cattle/batches/') ||
-                              route.startsWith('/sheep/flocks/') ||
-                              route.startsWith('/sheep/batches/') ||
-                              route.startsWith('/layer/batches/') ||
-                              route.startsWith('/layer/housings/') ||
-                              route.startsWith('/broiler/batches/') ||
-                              route.startsWith('/pig/batches/') ||
-                              route.startsWith('/broiler/dailys/') ||
-                              route.startsWith('/layer/dailys/') ||
-                              route.startsWith('/layer/eggs/') ||
-                              route.startsWith('/pig/dailys/') ||
-                              route.startsWith('/cattle/dailys/') ||
-                              route.startsWith('/sheep/dailys/') ||
-                              route.startsWith('/weigh-in-sessions/');
-                            if (isRecordPageRoute && route.startsWith('/')) {
-                              headerNavigate(route);
+                    {!notifLoadError &&
+                      notifRecent.map((n) => {
+                        const unread = !n.read_at;
+                        return (
+                          <button
+                            key={n.id}
+                            data-notifications-row={n.id}
+                            data-notifications-row-unread={unread ? '1' : '0'}
+                            onClick={async () => {
+                              // Close the panel first so the navigation doesn't
+                              // leave a stale dropdown floating over /tasks.
                               setNotifOpen(false);
-                              return;
-                            }
-                            const {view: targetView} = routeToView(route);
-                            go(targetView);
-                          }}
-                          style={{
-                            display: 'block',
-                            width: '100%',
-                            textAlign: 'left',
-                            background: unread ? '#ecfdf5' : 'white',
-                            border: 'none',
-                            borderBottom: '1px solid #f3f4f6',
-                            padding: '10px 14px',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          <div
+                              try {
+                                if (unread) await markNotificationRead(sb, n.id);
+                              } catch (_e) {
+                                /* soft-fail */
+                              }
+                              const route = resolveNotificationRoute(n, n.activity_entity_type, n.activity_entity_id);
+                              const isRecordPageRoute =
+                                n.type === 'comment_mention' ||
+                                route.startsWith('/tasks/') ||
+                                route.startsWith('/fleet/') ||
+                                route.startsWith('/cattle/herds/') ||
+                                route.startsWith('/cattle/batches/') ||
+                                route.startsWith('/sheep/flocks/') ||
+                                route.startsWith('/sheep/batches/') ||
+                                route.startsWith('/layer/batches/') ||
+                                route.startsWith('/layer/housings/') ||
+                                route.startsWith('/broiler/batches/') ||
+                                route.startsWith('/pig/batches/') ||
+                                route.startsWith('/broiler/dailys/') ||
+                                route.startsWith('/layer/dailys/') ||
+                                route.startsWith('/layer/eggs/') ||
+                                route.startsWith('/pig/dailys/') ||
+                                route.startsWith('/cattle/dailys/') ||
+                                route.startsWith('/sheep/dailys/') ||
+                                route.startsWith('/weigh-in-sessions/');
+                              if (isRecordPageRoute && route.startsWith('/')) {
+                                headerNavigate(route);
+                                setNotifOpen(false);
+                                return;
+                              }
+                              const {view: targetView} = routeToView(route);
+                              go(targetView);
+                            }}
                             style={{
-                              fontSize: 13,
-                              fontWeight: unread ? 700 : 500,
-                              color: '#111827',
-                              lineHeight: 1.35,
+                              display: 'block',
+                              width: '100%',
+                              textAlign: 'left',
+                              background: unread ? '#ecfdf5' : 'white',
+                              border: 'none',
+                              borderBottom: '1px solid #f3f4f6',
+                              padding: '10px 14px',
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
                             }}
                           >
-                            {n.title}
-                          </div>
-                          {n.body && (
                             <div
                               style={{
-                                fontSize: 12,
-                                color: '#4b5563',
-                                marginTop: 3,
-                                lineHeight: 1.4,
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
+                                fontSize: 13,
+                                fontWeight: unread ? 700 : 500,
+                                color: '#111827',
+                                lineHeight: 1.35,
                               }}
                             >
-                              {n.body}
+                              {n.title}
                             </div>
-                          )}
-                          <div
-                            style={{
-                              fontSize: 10.5,
-                              color: '#6b7280',
-                              marginTop: 4,
-                              fontVariantNumeric: 'tabular-nums',
-                            }}
-                          >
-                            {new Date(n.created_at).toLocaleString()}
-                          </div>
-                        </button>
-                      );
-                    })}
+                            {n.body && (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: '#4b5563',
+                                  marginTop: 3,
+                                  lineHeight: 1.4,
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                }}
+                              >
+                                {n.body}
+                              </div>
+                            )}
+                            <div
+                              style={{
+                                fontSize: 10.5,
+                                color: '#6b7280',
+                                marginTop: 4,
+                                fontVariantNumeric: 'tabular-nums',
+                              }}
+                            >
+                              {new Date(n.created_at).toLocaleString()}
+                            </div>
+                          </button>
+                        );
+                      })}
                   </div>
                 </div>
               )}
