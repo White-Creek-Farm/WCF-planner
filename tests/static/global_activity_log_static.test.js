@@ -108,6 +108,27 @@ describe('ActivityLogView', () => {
   it('shows empty/loading/error states', () => {
     expect(viewSrc).toContain('Loading');
     expect(viewSrc).toContain('No activity found');
+    expect(viewSrc).toContain('const [loadError, setLoadError] = React.useState(null)');
+    expect(viewSrc).toContain('React.createElement(InlineNotice, {notice: loadError})');
+  });
+
+  it('fails closed on activity load errors with a stable readiness marker', () => {
+    expect(viewSrc).toContain("data-activity-log-loaded': loading || loadError ? 'false' : 'true'");
+    expect(viewSrc).toContain("'data-activity-log-load-error': 'true'");
+    expect(viewSrc).toMatch(/catch \(e\)[\s\S]*?if \(!append\) setRows\(\[\]\)/);
+    expect(viewSrc).toMatch(/catch \(e\)[\s\S]*?setHasMore\(false\)/);
+    expect(viewSrc).toMatch(/!\s*loadError\s*&&\s*rows\.length > 0/);
+    expect(viewSrc).toMatch(/hasMore\s*&&[\s\S]*?!loading\s*&&[\s\S]*?!loadError/);
+  });
+
+  it('exposes a user-gated retry that re-runs the existing initial load path', () => {
+    expect(viewSrc).toContain('const [reloadKey, setReloadKey] = React.useState(0)');
+    expect(viewSrc).toContain('onClick: () => setReloadKey((k) => k + 1)');
+    expect(viewSrc).toContain("'data-activity-log-retry': 'true'");
+    expect(viewSrc).toMatch(
+      /React\.useEffect\(\(\) => \{[\s\S]*?load\(false\);[\s\S]*?\}, \[entityFilter, reloadKey\]\)/,
+    );
+    expect(viewSrc).not.toContain('<InlineNotice notice={loadError} onDismiss');
   });
 
   it('shows "(comment deleted)" for soft-deleted events instead of body', () => {
