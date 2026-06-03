@@ -27,6 +27,7 @@ import {seedAdminBroilerSessionMeta} from './scenarios/admin_broiler_session_met
 import {seedCattleHerdFilters} from './scenarios/cattle_herd_filters_seed.js';
 import {seedCattleForecast, seedCattleForecastSendFlow} from './scenarios/cattle_forecast_seed.js';
 import {seedCattleSoftDelete} from './scenarios/cattle_soft_delete_seed.js';
+import {seedSheepSoftDelete} from './scenarios/sheep_soft_delete_seed.js';
 
 // ============================================================================
 // Per-spec fixtures: authenticated page (via global.setup storageState),
@@ -281,6 +282,14 @@ export const test = base.extend({
   cattleSoftDeleteScenario: async ({supabaseAdmin}, use) => {
     await resetTestDatabase();
     const ids = await seedCattleSoftDelete(supabaseAdmin);
+    await use(ids);
+  },
+  // sheepSoftDeleteScenario — sheep.animal parity (migration 074): active ewe
+  // to delete, "stays visible" feeder control, sold/deceased for outcome-flock
+  // restore, plus child records (sheep_comment, sheep_transfer).
+  sheepSoftDeleteScenario: async ({supabaseAdmin}, use) => {
+    await resetTestDatabase();
+    const ids = await seedSheepSoftDelete(supabaseAdmin);
     await use(ids);
   },
 });
