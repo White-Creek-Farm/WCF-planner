@@ -27,6 +27,25 @@ const mig057 = fs.readFileSync(path.join(ROOT, 'supabase-migrations/057_notifica
 const apiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/notificationsApi.js'), 'utf8');
 const headerSrc = fs.readFileSync(path.join(ROOT, 'src/shared/Header.jsx'), 'utf8');
 
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+}
+
+function listRuntimeSourceFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listRuntimeSourceFiles(full));
+      continue;
+    }
+    if (!entry.isFile() || !/\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+    if (/\.(test|spec)\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+    out.push(full);
+  }
+  return out;
+}
+
 describe('mig 057 — notifications table + RLS', () => {
   it('creates the notifications table with the expected columns', () => {
     expect(mig057).toMatch(/CREATE TABLE IF NOT EXISTS public\.notifications/);
@@ -159,6 +178,25 @@ describe('src/lib/notificationsApi.js — read + mutation helpers', () => {
   it('does NOT call any write paths to insert notifications from the client', () => {
     expect(apiSrc).not.toMatch(/from\('notifications'\)\.insert/);
     expect(apiSrc).not.toMatch(/from\('notifications'\)\.delete/);
+  });
+});
+
+describe('src/ notifications table access boundary', () => {
+  it('keeps notification reads/mark-read in notificationsApi and blocks client insert/delete paths', () => {
+    const offenders = [];
+    const tableRe = /from\(['"]notifications['"]\)/;
+    const writeRe = /from\(['"]notifications['"]\)[\s\S]*?\.(?:insert|delete|upsert)\s*\(/;
+    for (const file of listRuntimeSourceFiles(path.join(ROOT, 'src'))) {
+      const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      if (tableRe.test(code) && rel !== 'src/lib/notificationsApi.js') {
+        offenders.push(`${rel}: direct notifications table access`);
+      }
+      if (writeRe.test(code)) {
+        offenders.push(`${rel}: client notification insert/delete/upsert`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
 
