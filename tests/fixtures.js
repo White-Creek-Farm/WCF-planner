@@ -28,6 +28,7 @@ import {seedCattleHerdFilters} from './scenarios/cattle_herd_filters_seed.js';
 import {seedCattleForecast, seedCattleForecastSendFlow} from './scenarios/cattle_forecast_seed.js';
 import {seedCattleSoftDelete} from './scenarios/cattle_soft_delete_seed.js';
 import {seedSheepSoftDelete} from './scenarios/sheep_soft_delete_seed.js';
+import {seedAnimalTransfer} from './scenarios/animal_transfer_seed.js';
 
 // ============================================================================
 // Per-spec fixtures: authenticated page (via global.setup storageState),
@@ -290,6 +291,13 @@ export const test = base.extend({
   sheepSoftDeleteScenario: async ({supabaseAdmin}, use) => {
     await resetTestDatabase();
     const ids = await seedSheepSoftDelete(supabaseAdmin);
+    await use(ids);
+  },
+  // animalTransferScenario — one active cow + one active ewe for the
+  // migration 075 transactional transfer RPCs.
+  animalTransferScenario: async ({supabaseAdmin}, use) => {
+    await resetTestDatabase();
+    const ids = await seedAnimalTransfer(supabaseAdmin);
     await use(ids);
   },
 });

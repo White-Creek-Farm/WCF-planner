@@ -22,6 +22,7 @@ import {CATTLE_ALL_HERD_KEYS, CATTLE_HERD_KEYS, cowTagSet} from '../lib/cattleHe
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 import {softDeleteCattleAnimal} from '../lib/cattleDeleteApi.js';
+import {transferCattleAnimal} from '../lib/animalTransferApi.js';
 
 const HERD_LABELS = {
   mommas: 'Mommas',
@@ -183,32 +184,18 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
 
   async function transferCow(newHerd) {
     if (!cow) return;
-    const oldHerd = cow.herd;
-    if (newHerd === oldHerd) return;
+    // No-op short-circuit; the RPC also no-ops, but this avoids a round trip.
+    if (newHerd === cow.herd) return;
     setNotice(null);
-    const updates = {herd: newHerd};
-    if (newHerd === 'deceased' && !cow.death_date) updates.death_date = new Date().toISOString().slice(0, 10);
-    if (newHerd === 'sold' && !cow.sale_date) updates.sale_date = new Date().toISOString().slice(0, 10);
-    const {error: updateErr} = await sb.from('cattle').update(updates).eq('id', cow.id);
-    if (updateErr) {
-      setNotice({kind: 'error', message: 'Transfer failed: ' + updateErr.message});
-      return;
+    try {
+      // Transactional RPC: updates the row, writes the cattle_transfers audit
+      // row, and logs a status.changed Activity event atomically. No more
+      // "moved but audit failed" partial state.
+      await transferCattleAnimal(sb, cow.id, newHerd, authState && authState.name ? authState.name : null);
+      await loadAll();
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Transfer failed: ' + (e.message || String(e))});
     }
-    const {error: auditErr} = await sb.from('cattle_transfers').insert({
-      id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
-      cattle_id: cow.id,
-      from_herd: oldHerd,
-      to_herd: newHerd,
-      reason: 'manual',
-      team_member: authState && authState.name ? authState.name : null,
-    });
-    if (auditErr) {
-      setNotice({
-        kind: 'warning',
-        message: 'Cow moved to ' + newHerd + ', but transfer audit row failed: ' + auditErr.message,
-      });
-    }
-    await loadAll();
   }
 
   async function addCalvingRecord(cowRecord, formData) {

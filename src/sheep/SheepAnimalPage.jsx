@@ -19,6 +19,7 @@ import {
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 import {softDeleteSheepAnimal} from '../lib/sheepDeleteApi.js';
+import {transferSheepAnimal} from '../lib/animalTransferApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 
@@ -186,32 +187,18 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
 
   async function transferSheep(newFlock) {
     if (!animal) return;
-    const oldFlock = animal.flock;
-    if (newFlock === oldFlock) return;
+    // No-op short-circuit; the RPC also no-ops, but this avoids a round trip.
+    if (newFlock === animal.flock) return;
     setNotice(null);
-    const updates = {flock: newFlock};
-    if (newFlock === 'deceased' && !animal.death_date) updates.death_date = new Date().toISOString().slice(0, 10);
-    if (newFlock === 'sold' && !animal.sale_date) updates.sale_date = new Date().toISOString().slice(0, 10);
-    const {error: updateErr} = await sb.from('sheep').update(updates).eq('id', animal.id);
-    if (updateErr) {
-      setNotice({kind: 'error', message: 'Transfer failed: ' + updateErr.message});
-      return;
+    try {
+      // Transactional RPC: updates the row, writes the sheep_transfers audit
+      // row, and logs a status.changed Activity event atomically. No more
+      // "moved but audit failed" partial state.
+      await transferSheepAnimal(sb, animal.id, newFlock, authState && authState.name ? authState.name : null);
+      await loadAll();
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Transfer failed: ' + (e.message || String(e))});
     }
-    const {error: auditErr} = await sb.from('sheep_transfers').insert({
-      id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
-      sheep_id: animal.id,
-      from_flock: oldFlock,
-      to_flock: newFlock,
-      reason: 'manual',
-      team_member: authState && authState.name ? authState.name : null,
-    });
-    if (auditErr) {
-      setNotice({
-        kind: 'warning',
-        message: 'Sheep moved to ' + newFlock + ', but transfer audit row failed: ' + auditErr.message,
-      });
-    }
-    await loadAll();
   }
 
   async function addLambingRecord(sheepRecord, formData) {
