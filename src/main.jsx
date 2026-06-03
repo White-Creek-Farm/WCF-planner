@@ -3410,7 +3410,9 @@ function App() {
       fmt,
       Header,
       authState,
-      pigDailys,
+      // pigDailys prop removed: PigDailysView owns its local pig_dailys load.
+      // setPigDailys stays so the view can keep the shared recent-dailys
+      // context in sync after its local load/mutations.
       setPigDailys,
       feederGroups,
       pendingEdit,
