@@ -88,6 +88,9 @@ export const VIEW_TO_PATH = {
   // are aliases that redirect here (T11) — see ALIASES_EXACT.
   tasks: '/tasks',
   activity: '/activity',
+  // Admin-only runtime observability review surface (self-gated via the
+  // list_client_errors admin RPC + requireAdmin route guard).
+  clientErrors: '/admin/client-errors',
 
   // Public (no-auth) — these also have legacy aliases handled below.
   webformhub: '/dailys',
