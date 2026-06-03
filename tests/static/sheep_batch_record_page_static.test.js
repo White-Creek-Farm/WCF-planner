@@ -141,8 +141,12 @@ describe('SheepBatchPage — sheep-specific contracts', () => {
     expect(pageSrc).toContain('<option value="planned">');
     expect(pageSrc).toContain('<option value="complete">');
   });
-  it('uses detachSheepFromBatch for per-row detach + delete loop', () => {
-    expect(pageSrc).toContain('detachSheepFromBatch');
+  it('uses the audited SECDEF RPC wrapper for per-row detach + delete loop', () => {
+    // Detach now goes through the transactional RPC wrapper (migration 081),
+    // which logs Activity atomically — not the detachSheepFromBatch client
+    // helper (which the public WeighInsWebform anon path still uses).
+    expect(pageSrc).toContain('detachSheepFromProcessingBatch');
+    expect(pageSrc).not.toContain("from '../lib/sheepProcessingBatch.js'");
   });
   it('preserves no_prior_flock warning on detach', () => {
     expect(pageSrc).toContain('no_prior_flock');
@@ -225,8 +229,8 @@ describe('SheepBatchPage — delete flow', () => {
   it('delete routes through window._wcfConfirmDelete', () => {
     expect(pageSrc).toContain('window._wcfConfirmDelete');
   });
-  it('delete drives detach loop via detachSheepFromBatch', () => {
-    expect(pageSrc).toMatch(/handleDeleteBatch[\s\S]*?detachSheepFromBatch/);
+  it('delete drives detach loop via the audited SECDEF RPC wrapper', () => {
+    expect(pageSrc).toMatch(/handleDeleteBatch[\s\S]*?detachSheepFromProcessingBatch/);
   });
   it('delete clears stragglers + removes batch then navigates back', () => {
     expect(pageSrc).toMatch(/handleDeleteBatch[\s\S]*?processing_batch_id: null/);

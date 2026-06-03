@@ -24,7 +24,7 @@ import {
   recordControl,
   recordTextarea,
 } from '../shared/recordPageControls.jsx';
-import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
+import {detachSheepFromProcessingBatch} from '../lib/processingDetachApi.js';
 import {invalidateSheepWeighInsCache} from '../lib/sheepCache.js';
 import {recordStatusChange, recordActivityEvent} from '../lib/entityMutations.js';
 
@@ -218,11 +218,17 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
   async function handleDetach(s, rowTag) {
     if (!canEdit || !batch || !s || !s.id) return;
     setNotice(null);
-    const r = await detachSheepFromBatch(sb, s.id, batch.id, {
+    // Atomic detach via SECDEF RPC (migration 081): reverts the flock, writes
+    // the undo transfer audit row, clears the weigh-ins, AND logs the
+    // field.updated Activity event in one transaction — so no client logEvent
+    // here. Business-rule blocks come back as {ok:false, reason}.
+    const r = await detachSheepFromProcessingBatch(sb, {
+      sheepId: s.id,
+      batchId: batch.id,
       teamMember: authState && authState.name ? authState.name : null,
     });
     if (!r.ok) {
-      const tag = s.tag || rowTag || r.sheep?.tag || '?';
+      const tag = s.tag || rowTag || r.tag || '?';
       if (r.reason === 'no_prior_flock') {
         setNotice({
           kind: 'warning',
@@ -239,7 +245,6 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
       }
       return;
     }
-    logEvent(batch, 'Detached #' + (s.tag || rowTag || '?') + ' from batch');
     invalidateSheepWeighInsCache();
     await loadAll();
   }
@@ -257,11 +262,13 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
         const reverted = [];
         const blocked = [];
         for (const sid of sheepIds) {
-          const r = await detachSheepFromBatch(sb, sid, batch.id, {
+          const r = await detachSheepFromProcessingBatch(sb, {
+            sheepId: sid,
+            batchId: batch.id,
             teamMember: authState && authState.name ? authState.name : null,
           });
           if (r.ok) reverted.push(r);
-          else blocked.push(r);
+          else blocked.push({...r, sheepId: sid});
         }
         await sb.from('sheep').update({processing_batch_id: null}).eq('processing_batch_id', batch.id);
         const {error} = await sb.from('sheep_processing_batches').delete().eq('id', batch.id);
@@ -271,7 +278,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
           return;
         }
         if (blocked.length > 0) {
-          const lines = blocked.map((b) => '#' + (b.sheep?.tag || b.sheepId || '?') + ' (' + b.reason + ')').join('\n');
+          const lines = blocked.map((b) => '#' + (b.tag || b.sheepId || '?') + ' (' + b.reason + ')').join('\n');
           const message =
             'Batch deleted. ' +
             reverted.length +
@@ -297,7 +304,25 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
       <RecordPageFrame Header={Header}>
         <RecordPageBody maxWidth={900}>
           <RecordBackLink label="Back to Processing Batches" onBack={() => navigate('/sheep/batches')} />
-          <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
+          <InlineNotice notice={loadError} />
+          <button
+            type="button"
+            onClick={loadAll}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 7,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#1d4ed8',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              marginTop: 12,
+            }}
+          >
+            Retry
+          </button>
         </RecordPageBody>
       </RecordPageFrame>
     );

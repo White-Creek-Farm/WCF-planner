@@ -135,19 +135,25 @@ describe('CattleBatchPage — active/complete batch support', () => {
   it('saveCowWeight checks update result and blocks auto-complete on failure', () => {
     expect(pageSrc).toMatch(/saveCowWeight[\s\S]*?\{error\}[\s\S]*?if \(error\)[\s\S]*?return[\s\S]*?setBatch/);
   });
-  it('has cow detach', () => {
+  it('has cow detach via the audited SECDEF RPC wrapper', () => {
     expect(pageSrc).toContain('handleDetach');
-    expect(pageSrc).toContain('detachCowFromBatch');
+    // Detach now goes through the transactional RPC wrapper (migration 081),
+    // which logs Activity atomically — the page no longer calls the
+    // detachCowFromBatch client helper.
+    expect(pageSrc).toContain('detachCattleFromProcessingBatch');
+    expect(pageSrc).not.toContain('detachCowFromBatch');
     expect(pageSrc).toContain('data-batch-cow-row');
   });
-  it('logs Activity for complete, reopen, rename, detach, and date edit', () => {
+  it('logs Activity for complete, reopen, rename, and date edit (detach logs in the RPC)', () => {
     expect(pageSrc).toContain('recordStatusChange');
     expect(pageSrc).toContain('recordActivityEvent');
     expect(pageSrc).toMatch(/handleMarkComplete[\s\S]*?logStatus/);
     expect(pageSrc).toMatch(/handleReopen[\s\S]*?logStatus/);
     expect(pageSrc).toMatch(/handleSaveRename[\s\S]*?logEvent[\s\S]*?Renamed/);
-    expect(pageSrc).toMatch(/handleDetach[\s\S]*?logEvent[\s\S]*?Detached/);
     expect(pageSrc).toMatch(/handleUpdateScheduledDate[\s\S]*?logEvent[\s\S]*?Scheduled date/);
+    // The detach handler no longer logs a best-effort client Activity event —
+    // the RPC writes the "Detached #TAG from batch" event in the same txn.
+    expect(pageSrc).not.toContain("'Detached #'");
   });
   it('shows stats: live weight, hanging weight, yield, cost', () => {
     expect(pageSrc).toContain('Live wt total');

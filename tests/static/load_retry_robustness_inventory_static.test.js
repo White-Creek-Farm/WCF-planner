@@ -53,7 +53,7 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/broiler/PoultryDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleAnimalPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleBatchesView.jsx', {retry: true, inlineNotice: true}],
-  ['src/cattle/CattleBatchPage.jsx', {retry: false, inlineNotice: true}],
+  ['src/cattle/CattleBatchPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleDailysView.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleHomeView.jsx', {retry: true, inlineNotice: true}],
@@ -71,7 +71,7 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/pig/PigDailysView.jsx', {retry: true, inlineNotice: true}],
   ['src/shared/Header.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepAnimalPage.jsx', {retry: true, inlineNotice: true}],
-  ['src/sheep/SheepBatchPage.jsx', {retry: false, inlineNotice: true}],
+  ['src/sheep/SheepBatchPage.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepBatchesView.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepDailysView.jsx', {retry: true, inlineNotice: true}],
@@ -174,12 +174,14 @@ describe('load/retry robustness inventory', () => {
     expect(normalizeMap(collectLoadErrorSurfaces())).toEqual(normalizeMap(expectedLoadErrorSurfaces()));
   });
 
-  it('names the only current loadError surfaces without a Retry action', () => {
+  it('keeps every loadError surface backed by a Retry action (no remaining gaps)', () => {
     const noRetry = normalizeMap(collectLoadErrorSurfaces())
       .filter(([, meta]) => !meta.retry)
       .map(([rel]) => rel);
 
-    expect(noRetry).toEqual(['src/cattle/CattleBatchPage.jsx', 'src/sheep/SheepBatchPage.jsx']);
+    // CattleBatchPage + SheepBatchPage gained Retry in the processing-detach
+    // lane; there are no remaining no-retry loadError surfaces.
+    expect(noRetry).toEqual([]);
   });
 
   it('keeps task tab load failures as the only non-InlineNotice load-error surfaces', () => {

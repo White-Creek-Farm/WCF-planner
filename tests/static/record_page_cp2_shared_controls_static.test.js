@@ -54,12 +54,13 @@ describe('CP2: contained record-page forms adopt the shared controls', () => {
   it('guardrail: heavy domain panels/logic stay out of this lane', () => {
     const cattle = read('src/cattle/CattleBatchPage.jsx');
     const sheep = read('src/sheep/SheepBatchPage.jsx');
-    // Weight grid + auto-complete + detach logic untouched on cattle.
+    // Weight grid + auto-complete + detach action still present on cattle.
+    // (Detach moved to the audited SECDEF RPC wrapper in migration 081.)
     expect(cattle).toContain('data-batch-hanging-weight');
     expect(cattle).toContain('batchHasAllHangingWeights');
-    expect(cattle).toContain('detachCowFromBatch');
-    // Sheep weight-grid detach logic untouched.
-    expect(sheep).toContain('detachSheepFromBatch');
+    expect(cattle).toContain('detachCattleFromProcessingBatch');
+    // Sheep weight-grid detach action still present.
+    expect(sheep).toContain('detachSheepFromProcessingBatch');
   });
 
   it('recordPageControls documents the maxWidth convention', () => {

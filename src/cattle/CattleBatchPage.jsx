@@ -18,7 +18,7 @@ import {
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
 import {recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
-import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
+import {detachCattleFromProcessingBatch} from '../lib/processingDetachApi.js';
 import {batchHasAllHangingWeights, batchMissingHangingTags, validateRealBatchRename} from '../lib/cattleForecast.js';
 import {markBatchComplete, reopenBatch} from '../lib/cattleForecastApi.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
@@ -236,11 +236,17 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
   async function handleDetach(cow) {
     if (!canEdit || !batch || !cow || !cow.id) return;
     setNotice(null);
-    const r = await detachCowFromBatch(sb, cow.id, batch.id, {
+    // Atomic detach via SECDEF RPC (migration 081): the RPC reverts the herd,
+    // writes the undo transfer audit row, clears the weigh-ins, AND logs the
+    // field.updated Activity event in one transaction — so no client logEvent
+    // here. Business-rule blocks come back as {ok:false, reason}.
+    const r = await detachCattleFromProcessingBatch(sb, {
+      cattleId: cow.id,
+      batchId: batch.id,
       teamMember: authState && authState.name ? authState.name : null,
     });
     if (!r.ok) {
-      const tag = cow.tag || r.cow?.tag || '?';
+      const tag = cow.tag || r.tag || '?';
       if (r.reason === 'no_prior_herd') {
         setNotice({
           kind: 'warning',
@@ -251,7 +257,6 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
       }
       return;
     }
-    logEvent(batch, 'Detached #' + (cow.tag || '?') + ' from batch');
     invalidateCattleWeighInsCache();
     await loadAll();
   }
@@ -292,7 +297,25 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
       <RecordPageFrame Header={Header}>
         <RecordPageBody maxWidth={900}>
           <RecordBackLink label="Back to Processing Batches" onBack={() => navigate('/cattle/batches')} />
-          <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
+          <InlineNotice notice={loadError} />
+          <button
+            type="button"
+            onClick={loadAll}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 7,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#1d4ed8',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              marginTop: 12,
+            }}
+          >
+            Retry
+          </button>
         </RecordPageBody>
       </RecordPageFrame>
     );
