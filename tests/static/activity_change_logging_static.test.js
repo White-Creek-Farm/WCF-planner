@@ -135,26 +135,57 @@ describe('Custom editable-table Activity — cattle forecast hide/unhide (CP1)',
   it('has a recordForecastHiddenActivity helper', () => {
     expect(cattleForecast).toContain('async function recordForecastHiddenActivity(');
   });
-  it('logs against cattle.animal with field.updated', () => {
+  it('scopes the audit to the cattle.forecast workflow entity (NOT cattle.animal)', () => {
     expect(cattleForecast).toMatch(
-      /recordActivityEvent\(sb, \{[\s\S]*?entityType: 'cattle\.animal'[\s\S]*?eventType: 'field\.updated'/,
+      /recordActivityEvent\(sb, \{[\s\S]*?entityType: 'cattle\.forecast'[\s\S]*?eventType: 'status\.changed'/,
     );
+    // The forecast audit must not be logged against the cattle.animal record.
+    const fn = cattleForecast.match(/async function recordForecastHiddenActivity\([\s\S]*?\n {2}\}/);
+    expect(fn).not.toBeNull();
+    expect(fn[0]).not.toContain("entityType: 'cattle.animal'");
   });
-  it('uses the cattle id as entity_id and prefers #<tag> with id fallback for the label', () => {
-    expect(cattleForecast).toContain('entityId: cattleId');
+  it('uses the singleton cattle-forecast entity_id and carries the cow label in the payload', () => {
+    expect(cattleForecast).toContain("entityId: 'cattle-forecast'");
     expect(cattleForecast).toContain("cow && cow.tag ? '#' + cow.tag : cattleId");
+    expect(cattleForecast).toContain('cattle_id: cattleId');
   });
-  it('body + payload make the month and visible<->hidden action clear', () => {
+  it('body + payload make the month, cow, and visible<->hidden action clear', () => {
     expect(cattleForecast).toContain('const month = monthLabel(monthKey)');
     expect(cattleForecast).toContain("const from = nowHidden ? 'visible' : 'hidden'");
     expect(cattleForecast).toContain("const to = nowHidden ? 'hidden' : 'visible'");
-    expect(cattleForecast).toContain("'Forecast month ' + month + ' changed '");
+    expect(cattleForecast).toContain("'Forecast month ' + month + ' for ' + cowLabel + ' changed '");
     expect(cattleForecast).toContain('forecast_month_visibility');
   });
   it('toggleHidden logs only AFTER a successful write (returns on write error first)', () => {
     expect(cattleForecast).toMatch(
       /Could not update hide state[\s\S]*?return;[\s\S]*?recordForecastHiddenActivity\(cattleId, monthKey, !currentlyHidden\)/,
     );
+  });
+  it('registry + global Activity recognize the cattle.forecast entity', () => {
+    const registry = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
+    expect(registry).toContain("CATTLE_FORECAST: 'cattle.forecast'");
+    expect(registry).toMatch(/CATTLE_FORECAST\]: \{[\s\S]*?route: \(\) => '\/cattle\/forecast'/);
+    const view = fs.readFileSync(path.join(ROOT, 'src/activity/ActivityLogView.jsx'), 'utf8');
+    expect(view).toContain("'cattle.forecast': 'Cattle Forecast'");
+  });
+});
+
+describe('mig 076 — _activity_can_read cattle.forecast branch', () => {
+  const mig076 = fs.readFileSync(
+    path.join(ROOT, 'supabase-migrations/076_cattle_forecast_activity_entity.sql'),
+    'utf8',
+  );
+  it('replaces _activity_can_read and adds a cattle.forecast branch gated on cattle program', () => {
+    expect(mig076).toMatch(/CREATE OR REPLACE FUNCTION public\._activity_can_read/);
+    expect(mig076).toMatch(/IF p_entity_type = 'cattle\.forecast' THEN[\s\S]*?RETURN 'cattle' = ANY\(v_access\)/);
+  });
+  it('preserves the existing weighin.session branch (full-replace, not a partial)', () => {
+    expect(mig076).toContain("IF p_entity_type = 'weighin.session' THEN");
+  });
+  it('keeps anon revoked + authenticated granted and reloads PostgREST', () => {
+    expect(mig076).toMatch(/REVOKE ALL ON FUNCTION public\._activity_can_read\(text, text\) FROM PUBLIC, anon/);
+    expect(mig076).toMatch(/GRANT EXECUTE ON FUNCTION public\._activity_can_read\(text, text\) TO authenticated/);
+    expect(mig076).toMatch(/NOTIFY pgrst, 'reload schema'/);
   });
 });
 

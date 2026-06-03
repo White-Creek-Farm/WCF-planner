@@ -16,6 +16,7 @@ export const ENTITY_TYPES = {
   EQUIPMENT_ITEM: 'equipment.item',
   PIG_BATCH: 'pig.batch',
   CATTLE_PROCESSING: 'cattle.processing',
+  CATTLE_FORECAST: 'cattle.forecast',
   SHEEP_PROCESSING: 'sheep.processing',
   POULTRY_DAILY: 'poultry.daily',
   LAYER_DAILY: 'layer.daily',
@@ -70,6 +71,14 @@ export const ACTIVITY_REGISTRY = {
   [ENTITY_TYPES.CATTLE_PROCESSING]: {
     displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
     route: (id) => '/cattle/batches/' + id,
+    program: 'cattle',
+  },
+  // Custom editable-table Activity: singleton cattle forecast workflow entity.
+  // The label is constant (the table, not a per-row record); rows route to the
+  // forecast view.
+  [ENTITY_TYPES.CATTLE_FORECAST]: {
+    displayLabel: () => 'Cattle Forecast',
+    route: () => '/cattle/forecast',
     program: 'cattle',
   },
   [ENTITY_TYPES.SHEEP_PROCESSING]: {

@@ -371,35 +371,33 @@ const CattleForecastView = ({
   }
 
   // ── hide/unhide ────────────────────────────────────────────────────────────
-  // Best-effort Activity audit for a forecast month hide/unhide. Logged against
-  // the cattle.animal entity (field.updated) ONLY after the hide/unhide table
-  // write succeeds. A failure here never rolls back the write or surfaces a
-  // product error — audit logging is best-effort.
+  // Best-effort Activity audit for a forecast month hide/unhide. Scoped to the
+  // cattle forecast workflow table (entity_type cattle.forecast, singleton
+  // entity_id 'cattle-forecast') — NOT the cattle.animal record — so the audit
+  // lives with the forecast workflow in the global Activity log instead of
+  // cluttering a cow's record page. Logged ONLY after the hide/unhide table
+  // write succeeds; a failure here never rolls back the write or surfaces a
+  // product error.
   async function recordForecastHiddenActivity(cattleId, monthKey, nowHidden) {
     try {
       const cow = cowsById.get(cattleId);
-      const entityLabel = cow && cow.tag ? '#' + cow.tag : cattleId;
+      const cowLabel = cow && cow.tag ? '#' + cow.tag : cattleId;
       const month = monthLabel(monthKey);
       const from = nowHidden ? 'visible' : 'hidden';
       const to = nowHidden ? 'hidden' : 'visible';
       await recordActivityEvent(sb, {
-        entityType: 'cattle.animal',
-        entityId: cattleId,
-        eventType: 'field.updated',
-        entityLabel,
-        body: 'Forecast month ' + month + ' changed ' + from + ' → ' + to,
+        entityType: 'cattle.forecast',
+        entityId: 'cattle-forecast',
+        eventType: 'status.changed',
+        entityLabel: 'Cattle Forecast',
+        body: 'Forecast month ' + month + ' for ' + cowLabel + ' changed ' + from + ' → ' + to,
         payload: {
+          cattle_id: cattleId,
+          cattle_label: cowLabel,
           month_key: monthKey,
-          changes: [
-            {
-              field: 'forecast_month_visibility',
-              label: 'Forecast month ' + month,
-              from,
-              to,
-              old_present: true,
-              new_present: true,
-            },
-          ],
+          field: 'forecast_month_visibility',
+          from,
+          to,
         },
       });
     } catch (e) {
