@@ -6,7 +6,13 @@ import {describe, expect, it} from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
-const LEGACY_ACTIVITY_RPC_NAMES = ['post_activity_comment', 'edit_activity_event', 'delete_activity_event'];
+const LEGACY_ACTIVITY_RPC_NAMES = [
+  'count_activity_for_entity',
+  'post_activity_comment',
+  'edit_activity_event',
+  'delete_activity_event',
+];
+const RETIREMENT_MIGRATION = 'supabase-migrations/080_retire_legacy_activity_composer_rpcs.sql';
 const LEGACY_ACTIVITY_HELPERS = [
   'countActivityForEntity',
   'postActivityComment',
@@ -114,6 +120,7 @@ describe('legacy Activity composer retirement', () => {
     }
 
     expect(legacyDefinitionOwners).toEqual([
+      'supabase-migrations/058_activity_events.sql: count_activity_for_entity',
       'supabase-migrations/058_activity_events.sql: post_activity_comment',
       'supabase-migrations/058_activity_events.sql: edit_activity_event',
       'supabase-migrations/058_activity_events.sql: delete_activity_event',
@@ -121,6 +128,25 @@ describe('legacy Activity composer retirement', () => {
       'supabase-migrations/060_activity_mention_contract.sql: edit_activity_event',
     ]);
     expect(forbiddenNewerOwners).toEqual([]);
+  });
+
+  it('revokes client execute on retired legacy Activity composer/count RPCs without dropping them', () => {
+    const sql = fs.readFileSync(path.join(ROOT, RETIREMENT_MIGRATION), 'utf8');
+
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.count_activity_for_entity\(text,\s*text\) FROM PUBLIC, anon, authenticated;/,
+    );
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.post_activity_comment\(text,\s*text,\s*text,\s*text,\s*uuid\[\]\) FROM PUBLIC, anon, authenticated;/,
+    );
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.edit_activity_event\(text,\s*text,\s*uuid\[\]\) FROM PUBLIC, anon, authenticated;/,
+    );
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.delete_activity_event\(text\) FROM PUBLIC, anon, authenticated;/,
+    );
+    expect(sql).toContain("NOTIFY pgrst, 'reload schema';");
+    expect(sql).not.toMatch(/DROP\s+FUNCTION/i);
   });
 
   it('keeps record-page Activity log audit-only while comments own discussion rendering', () => {
