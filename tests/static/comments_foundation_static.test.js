@@ -11,6 +11,25 @@ const apiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/commentsApi.js'), 'utf8'
 const sectionSrc = fs.readFileSync(path.join(ROOT, 'src/shared/CommentsSection.jsx'), 'utf8');
 const attachSrc = fs.readFileSync(path.join(ROOT, 'src/lib/commentAttachments.js'), 'utf8');
 
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+}
+
+function listRuntimeSourceFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listRuntimeSourceFiles(full));
+      continue;
+    }
+    if (!entry.isFile() || !/\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+    if (/\.(test|spec)\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+    out.push(full);
+  }
+  return out;
+}
+
 describe('migration 071 — tables', () => {
   it('creates comments table', () => {
     expect(mig071).toContain('CREATE TABLE IF NOT EXISTS public.comments');
@@ -261,6 +280,19 @@ describe('No direct table access in src/', () => {
   });
   it('commentsApi uses RPC for mentionable profiles', () => {
     expect(apiSrc).toContain("sb.rpc('list_comment_mentionable_profiles')");
+  });
+
+  it('runtime source does not directly query Comments or Activity foundation tables', () => {
+    const forbidden = ['comments', 'comment_edits', 'activity_events', 'activity_mentions'];
+    const offenders = [];
+    for (const file of listRuntimeSourceFiles(path.join(ROOT, 'src'))) {
+      const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      for (const table of forbidden) {
+        if (new RegExp(`from\\(['"]${table}['"]\\)`).test(code)) offenders.push(`${rel}: ${table}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
 
