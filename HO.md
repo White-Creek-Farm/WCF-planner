@@ -121,7 +121,7 @@ A dedicated Codex worktree exists at:
 
 `C:\Users\Ronni\WCF-planner-codex`
 
-It was created from `main` at `049a694` on branch
+It was recreated from `main` at `f4c4d3f` on branch
 `codex/parallel-worktree`, with its own `node_modules` installed by `npm ci`.
 
 Default ownership is unchanged: Codex is still planning lead and reviewer, and

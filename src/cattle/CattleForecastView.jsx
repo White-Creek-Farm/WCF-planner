@@ -38,6 +38,8 @@ import {
 import {CATTLE_HERD_KEYS, cowTagSet} from '../lib/cattleHerdFilters.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 import {runMutation, recordFieldChange, recordActivityEvent} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 
@@ -921,6 +923,15 @@ const CattleForecastView = ({
             {yearFilter != null && actualBatchesByYear.has(yearFilter) && (
               <PastActuals batches={actualBatchesByYear.get(yearFilter)} fmt={fmt} />
             )}
+
+            <RecordCollaborationSection
+              sb={sb}
+              authState={authState}
+              entityType="cattle.forecast"
+              entityId="cattle-forecast"
+              entityLabel="Cattle Forecast"
+              showComments={false}
+            />
           </>
         )}
       </div>

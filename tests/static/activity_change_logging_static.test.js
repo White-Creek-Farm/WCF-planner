@@ -150,6 +150,12 @@ describe('Custom editable-table Activity — cattle forecast hide/unhide (CP1)',
     expect(cattleForecast).toContain("cow && cow.tag ? '#' + cow.tag : cattleId");
     expect(cattleForecast).toContain('cattle_id: cattleId');
   });
+  it('mounts the workflow Activity log on the forecast page', () => {
+    expect(cattleForecast).toContain('RecordCollaborationSection');
+    expect(cattleForecast).toMatch(
+      /<RecordCollaborationSection[\s\S]*?entityType="cattle\.forecast"[\s\S]*?entityId="cattle-forecast"[\s\S]*?showComments=\{false\}/,
+    );
+  });
   it('body + payload make the month, cow, and visible<->hidden action clear', () => {
     expect(cattleForecast).toContain('const month = monthLabel(monthKey)');
     expect(cattleForecast).toContain("const from = nowHidden ? 'visible' : 'hidden'");

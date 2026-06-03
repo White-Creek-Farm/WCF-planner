@@ -30,6 +30,7 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/cattle/CattleAnimalPage.jsx',
     'src/cattle/CattleBatchPage.jsx',
     'src/cattle/CattleDailyPage.jsx',
+    'src/cattle/CattleForecastView.jsx',
     'src/equipment/EquipmentDetail.jsx',
     'src/layer/EggDailyPage.jsx',
     'src/layer/LayerBatchPage.jsx',

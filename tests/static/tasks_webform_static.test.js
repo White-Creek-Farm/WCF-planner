@@ -115,7 +115,7 @@ describe('TasksWebform component', () => {
     expect(stripped).not.toMatch(/Recurrence\s*\*/);
   });
 
-  it('keeps public submitter attribution as roster display-name only until webform-light identity ships', () => {
+  it('keeps current public submitter as roster display-name only until auth-only Light forms ship', () => {
     const stripped = formSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     expect(stripped).toMatch(/submitted_by_team_member:\s*submittedBy/);
     expect(stripped).toMatch(/availableNamesFor\(\s*'tasks-public',\s*roster,\s*availability\)/);

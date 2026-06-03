@@ -12,14 +12,15 @@ describe('RecordCollaborationSection — shared component contract', () => {
   it('exports a default function', () => {
     expect(componentSrc).toMatch(/export default function RecordCollaborationSection/);
   });
-  it('accepts sb, authState, entityType, entityId, entityLabel, and optional spacing props', () => {
+  it('accepts shared record identity props plus spacing and activity-only mode', () => {
     expect(componentSrc).toMatch(
-      /RecordCollaborationSection\(\{\s*sb,\s*authState,\s*entityType,\s*entityId,\s*entityLabel,\s*spacing\s*=\s*16,?\s*\}/,
+      /RecordCollaborationSection\(\{\s*sb,\s*authState,\s*entityType,\s*entityId,\s*entityLabel,\s*spacing\s*=\s*16,\s*showComments\s*=\s*true,?\s*\}/,
     );
   });
   it('composes CommentsSection and RecordActivityLog', () => {
     expect(componentSrc).toContain("import CommentsSection from './CommentsSection.jsx'");
     expect(componentSrc).toContain("import RecordActivityLog from './RecordActivityLog.jsx'");
+    expect(componentSrc).toContain('{showComments && (');
     expect(componentSrc).toMatch(/<CommentsSection\b/);
     expect(componentSrc).toMatch(/<RecordActivityLog\b/);
   });

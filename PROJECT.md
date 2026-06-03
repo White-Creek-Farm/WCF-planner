@@ -8,7 +8,7 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-03.
-Current production checkpoint: `origin/main @ a73554a`.
+Current production checkpoint: `origin/main @ f4c4d3f`.
 Production URL: https://wcfplanner.com.
 
 ---
@@ -32,11 +32,13 @@ history and tests for detailed lane history.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source of truth: `origin/main @ a73554a`.
-- Open gates: none.
-- PROD migrations live through `079`.
-- TEST/PROD migrations `074` through `079` were applied and verified during the
-  2026-06-03 hardening sequence.
+- Source of truth: `origin/main @ f4c4d3f`.
+- Open gates for the shipped tree: none.
+- PROD-applied numbered migration series is live through `086`. Migration `082`
+  is unused; migration `083` is shelved. Operational note: the daily duplicate
+  cleanup `085` was applied before unique-index migration `084`.
+- TEST/PROD migrations `074` through `081` plus `084`/`085`/`086` were applied
+  and verified during the 2026-06-03 hardening sequence.
 - Local note for new agents: edit `PROJECT.md` only during explicit docs or wrap
   work. Normal build lanes should leave docs alone.
 
@@ -64,11 +66,26 @@ listed:
 - Cattle calving-record delete RPC, migration `079`, PROD.
   `delete_cattle_calving_record` replaces bare client `cattle_calving_records`
   deletes with an atomic delete plus dam-scoped `record.deleted` Activity.
+- Legacy Activity composer RPC retirement, migration `080`, PROD. Historical
+  composer/count functions remain in SQL but client execute is revoked for anon
+  and authenticated roles.
+- Processing detach Activity RPCs, migration `081`, PROD. Authenticated cattle
+  and sheep processing-batch pages now detach through audited SECDEF RPCs that
+  revert animals, clear weigh-in links, and log Activity in one transaction.
+- Daily duplicate cleanup and unique indexes, migrations `085` then `084`,
+  PROD. Historical duplicate active daily rows were soft-deleted, duplicate
+  preflight now passes, and partial unique indexes enforce daily identity for
+  poultry, pig, layer, cattle, and sheep daily reports.
+- Daily duplicate app handling and equipment maintenance idempotency, migration
+  `086`, PROD. Daily report duplicate constraint failures now show friendly
+  messages across app edit/create surfaces, offline replay treats superseded
+  duplicate dailys as non-stuck, and equipment maintenance events have
+  `client_submission_id` idempotency protection against accidental double
+  submits without blocking legitimate same-day service entries.
 - Static hardening and inventory guards. The current tree locks source-wide
   table/bucket/env/local storage/API boundaries plus mutation/delete/load/UI
-  inventories. Important post-079 numbers: 230 literal Supabase table mutations,
-  6 dynamic table mutation exceptions, 26 `runMutation` callers, and 28 direct
-  hard-delete table calls.
+  inventories. Treat the matching static guards as the source of truth for
+  current inventory counts.
 
 ### No Current Open Gates
 
@@ -76,31 +93,105 @@ There are no active commit, push, PROD migration, storage, deploy, or Vault
 gates documented for this checkpoint. If a new session sees a dirty tree, inspect
 it before planning; do not assume it is disposable.
 
+Local worktree note: stale suffixed Codex worktrees and the shipped CC lane
+worktree were pruned on 2026-06-03. The only remaining extra worktree should be
+the canonical Codex worktree at `C:\Users\Ronni\WCF-planner-codex` on
+`codex/parallel-worktree`.
+
 ### Recommended Work Queue
 
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise:
 
-1. Cattle-processing detach as an authenticated-only audited SECDEF flow. The
-   original public-webform detach target was not converted because it is
-   reachable from anon public forms; an anon-granted SECDEF RPC would be too
-   broad and lacks a profile actor for Activity.
-2. Sheep equivalents or follow-on audited RPCs where remaining flows still have
-   partial-state or audit gaps.
-3. Remaining Custom editable-table Activity, especially feed forecast/feed-edit
-   surfaces.
-4. Feed-order count-aware basis Playwright coverage. The shared math is shipped;
-   the e2e seed is the expensive part.
-5. Public webform-light identity / submitter attribution. Completion
-   notifications for public submitters remain deferred because public roster
-   submitters do not yet have profile/email recipient identity.
-6. Legacy Activity composer RPC retirement/revoke lane. Historical SQL functions
-   still exist, but runtime clients no longer call them.
-7. Load/retry cleanup for the named no-retry gaps: `CattleBatchPage` and
-   `SheepBatchPage` loadError branches show `InlineNotice` but currently lack
-   Retry.
-8. Branch/worktree cleanup: many merged `feature/*`, `codex/*`,
-   `WCF-planner-cc-*`, and `WCF-planner-codex-*` worktrees can be pruned when
-   desired.
+1. Authenticated Light-user webforms/report portal. Keep the existing form URLs,
+   require login, return users to the requested URL after auth, show the
+   session user as the locked submitter, remove submitter/team-member dropdowns
+   where session identity replaces them, expose only the lookup data current
+   anonymous forms need, and keep Light users contained to allowed report/form
+   surfaces plus current non-admin Tasks permissions.
+2. Task weekly email correction. Current `tasks-summary-weekly` cron is
+   scheduled as Monday `13:00 UTC`, which is Monday 8am Central during daylight
+   time. Change the product schedule to Sunday 8am Central, decide whether that
+   means fixed UTC or true America/Chicago DST behavior, and add weekly email
+   coverage for task-completed notifications owed to the task creator/assignor.
+3. Pig planned-trip weight audit. Document exactly how planned-trip weights are
+   calculated, reproduce the suspected issue, and fix the calculation or display
+   contract with focused tests.
+4. Cattle calves missing dam visibility. Add a way to identify calves born in
+   the last 6 months with no assigned dam; decide placement first: home widget,
+   cattle dashboard widget, herd quick filter, or a dedicated quick filter.
+5. Feed tab second-tile behavior. The second feed summary tile must remain the
+   current calendar month end estimate and must not roll to next month when a
+   feed order is entered.
+6. Broiler on-farm count discrepancy. Investigate and reconcile the homepage
+   broiler on-farm count versus the broiler dashboard count.
+7. Equipment caught-up home notices. Add home tile notices when equipment
+   maintenance and equipment materials are fully caught up, analogous to the
+   "no missing daily reports" state.
+8. Follow-on audited RPCs where remaining flows still have partial-state or
+   audit gaps.
+
+### Queued Next-Session CC Prompt
+
+When Ronnie asks for the next CC prompt, provide this block:
+
+```text
+From Codex:
+
+Next build lane: Authenticated Light-user webforms/report portal.
+
+Start by reading HO.md and PROJECT.md, then run git status/log. Important:
+preserve any local Codex changes already present, especially the Forecast
+Activity UI fix and PROJECT.md wrap updates, unless Ronnie explicitly decides to
+split them.
+
+Product direction is locked:
+- Lane 5 / migration 083 stays shelved.
+- Do not build roster-id -> profile-id mapping.
+- The durable direction is authenticated-only submission.
+
+Build goals:
+- Add/support a real authenticated Light role.
+- Admins only manage Light users, same authority pattern as current user
+  management.
+- Existing form URLs stay valid but require login.
+- If logged out, opening an existing form URL should redirect through login and
+  then return to that same URL.
+- Submitter/team member should display as the signed-in user and be locked/not
+  editable.
+- Remove submitter/team-member dropdowns wherever session identity replaces
+  them.
+- Light users use the normal app shell/sidebar, but only see nav items they can
+  actually access.
+- Light home should be a modified portal with tabs for the allowed daily
+  report/form areas plus the same Equipment tab currently on the home page.
+- Light users are contained to allowed report/form surfaces plus Tasks. No
+  herd/flock/batch/detail browsing and no broader operational data access.
+- Light users can see all existing allowed report records, including legacy
+  anonymous rows.
+- Light users can create allowed report records.
+- Light users can edit/delete only records they personally created.
+- Activity log should record anything they do.
+- Light users get the same Tasks permissions as current non-admin users.
+- Light users may see only the same minimal lookup/reference data current
+  anonymous forms need to submit reports.
+- Direct forbidden URLs should hard-block/redirect.
+- No forbidden/locked nav items should be visible.
+
+Allowed Light areas:
+- Daily report/form areas.
+- Add Feed.
+- Equipment fueling/checklist flows.
+- Tasks page with current non-admin permissions.
+
+Validation expectations:
+- Add/update RLS/RPC enforcement, not only hidden UI.
+- Add static guards for route/nav/access boundaries.
+- Add focused tests for login-required existing URLs, locked submitter, Light
+  nav filtering, own-record edit/delete, forbidden route blocking, and current
+  non-admin Tasks parity.
+- Run focused tests plus full relevant static suite/build before requesting
+  review.
+```
 
 ---
 
@@ -194,11 +285,19 @@ Current PROD architecture includes these load-bearing migrations:
 - `077` `list_client_errors` admin read RPC.
 - `078` `cattle.breeding` Activity entity.
 - `079` `delete_cattle_calving_record` RPC.
+- `080` legacy Activity composer RPC retirement.
+- `081` authenticated processing-detach Activity RPCs.
+- `084` daily report partial unique indexes.
+- `085` daily duplicate cleanup.
+- `086` equipment maintenance event idempotency.
 
 Special migration notes:
 
-- `059_daily_unique_indexes.sql` is not applied. It still requires PROD
-  duplicate cleanup before use.
+- `082` is intentionally unused.
+- `083` public webform submitter identity is shelved and must not be applied
+  unless Ronnie reverses the auth-only webform direction.
+- `085` was applied before `084` in PROD so duplicate active daily identities
+  were cleaned up before the unique indexes were created.
 - `061_daily_report_soft_delete_restore.sql` is superseded by `067`.
 - New or changed SECDEF RPC return shapes need
   `NOTIFY pgrst, 'reload schema'`.
@@ -276,8 +375,9 @@ Append-only upload expectations:
 - App roles include admin, management, farm_team, tech/equipment roles, and
   inactive.
 - Runtime permission decisions must be enforced by RLS/RPCs, not just hidden UI.
-- Public forms intentionally avoid full user auth; identity improvements are a
-  future webform-light lane.
+- Current public form code remains anonymous until the authenticated Light-user
+  lane ships. The target architecture is login-required submission with the
+  session user as submitter.
 
 ---
 
@@ -307,11 +407,8 @@ Data surfaces must fail closed on load errors:
   is valid.
 - Header badge counts soft-fail; Header panel content fails closed.
 
-Current known no-retry gaps are intentionally documented by
-`load_retry_robustness_inventory_static.test.js`:
-
-- `src/cattle/CattleBatchPage.jsx`.
-- `src/sheep/SheepBatchPage.jsx`.
+There are no current no-retry loadError gaps; this is locked by
+`load_retry_robustness_inventory_static.test.js`.
 
 ### Activity, Comments, Mentions, Notifications
 
@@ -399,6 +496,9 @@ Workflow singleton entities:
   Activity in one transaction.
 - Processing-batch helpers may need to resolve deleted animals by ID in admin
   context; do not add `deleted_at` filters there without redesign.
+- Backlog: identify calves born in the last 6 months with no assigned dam.
+  Placement is not locked; options include home widget, cattle dashboard widget,
+  herd quick filter, or dedicated quick filter.
 
 ### Daily Reports
 
@@ -440,6 +540,8 @@ Workflow singleton entities:
 - `processingTrips[].subAttributions` stores `{subId, subBatchName, sex, count}`.
 - Send-to-Trip may reconcile locked planned trip count but cannot change locked
   date.
+- Backlog: planned-trip weight calculation needs an audit/explanation and a
+  fix if the current projection/display is wrong.
 
 ### Broiler, Layers, And Feed Planning
 
@@ -454,8 +556,11 @@ Workflow singleton entities:
 - Poultry feed-order math is per feed type: starter, grower, layerfeed.
 - "Count includes `<month>` order" prevents double-counting the delivery.
 - The "Order for `<active>`" tile labels its basis.
-- The second summary tile always follows the active/calendar feed-order month:
-  End of `<active>` Est. It updates on save, not draft typing.
+- Backlog: the second feed summary tile should stay on the current calendar
+  month end estimate and must not roll to next month just because a feed order
+  was entered.
+- Backlog: reconcile the homepage broiler on-farm count with the broiler
+  dashboard count.
 
 ### Tasks
 
@@ -468,6 +573,12 @@ Workflow singleton entities:
   on `webform_config` read errors.
 - Header task badge soft-fails and must not break Header rendering.
 - The `task_completed` notification contract is covered by Playwright.
+- Current weekly task email is an open-task digest grouped by assignee only; it
+  does not include completed-task notices owed to the creator/assignor.
+- Current weekly task email cron is `tasks-summary-weekly` at `0 13 * * 1`
+  (Monday 13:00 UTC), which is Monday 8am Central during daylight time. Product
+  target is Sunday 8am Central; the build lane must decide fixed UTC versus
+  true America/Chicago DST behavior.
 
 ### Equipment
 
@@ -478,6 +589,9 @@ Workflow singleton entities:
 - Equipment checklist/material edits must not reload, lose focus, or reorder list
   items on click/edit.
 - Rolling material clears are bucketed by due service cycle.
+- Backlog: home equipment tiles should show caught-up notices when all equipment
+  maintenance and equipment materials are current, mirroring the "no missing
+  daily reports" state.
 - Admin client error review is at `/admin/client-errors` and reads through
   `list_client_errors` only.
 
@@ -485,8 +599,9 @@ Workflow singleton entities:
 
 - Public webforms must not read `app_store` directly, access Supabase auth state,
   or use browser secrets.
-- Public forms use configured roster/availability/name strings, not profile IDs,
-  until the webform-light identity lane exists.
+- Current shipped public forms use configured roster/availability/name strings,
+  not profile IDs. The authenticated Light-user lane should replace submitter
+  selection with the session user.
 - Offline queue IndexedDB ownership is centralized in `src/lib/offlineQueue.js`.
 - Offline RPC replay goes through `useOfflineRpcSubmit` where needed.
 - Shared TEST DB Playwright specs that reset/seed the DB must run one file at a
@@ -498,8 +613,8 @@ Workflow singleton entities:
 - New upload/remove/signed/public URL owners require updating the matching static
   guard.
 - Task, daily, and comment attachment uploads are append-only.
-- Do not add `capture=` attributes to image file inputs unless a dedicated mobile
-  UX lane decides it.
+- Image file inputs intentionally omit `capture=` so mobile users can choose
+  camera or library upload through the native picker.
 
 ### Runtime Observability
 

@@ -49,6 +49,7 @@ describe('Record pages use shared RecordCollaborationSection (Comments + RecordA
   const pages = [
     {name: 'CattleDailyPage', path: 'src/cattle/CattleDailyPage.jsx', entity: 'cattle.daily'},
     {name: 'CattleAnimalPage', path: 'src/cattle/CattleAnimalPage.jsx', entity: 'cattle.animal'},
+    {name: 'CattleForecastView', path: 'src/cattle/CattleForecastView.jsx', entity: 'cattle.forecast'},
     {name: 'SheepAnimalPage', path: 'src/sheep/SheepAnimalPage.jsx', entity: 'sheep.animal'},
     {name: 'SheepDailyPage', path: 'src/sheep/SheepDailyPage.jsx', entity: 'sheep.daily'},
     {name: 'PoultryDailyPage', path: 'src/broiler/PoultryDailyPage.jsx', entity: 'poultry.daily'},
