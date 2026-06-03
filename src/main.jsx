@@ -207,6 +207,7 @@ import UnauthorizedRedirect from './shared/UnauthorizedRedirect.jsx';
 import TasksWebform from './webforms/TasksWebform.jsx';
 import TaskCenterView from './tasks/TaskCenterView.jsx';
 import ActivityLogView from './activity/ActivityLogView.jsx';
+import ClientErrorsView from './admin/ClientErrorsView.jsx';
 
 // Phase 2 Round 8: equipment placeholder.
 import EquipmentHome from './equipment/EquipmentHome.jsx';
@@ -1668,6 +1669,7 @@ function App() {
     'webforms',
     'tasks',
     'activity',
+    'clientErrors',
     'webformhub',
     'tasksWebform',
     'webform',
@@ -3704,6 +3706,14 @@ function App() {
       UnauthorizedRedirect,
       {authState, setView, requireAdmin: false, fallbackView: 'home'},
       React.createElement(ActivityLogView, {Header}),
+    );
+
+  // ── CLIENT ERRORS (admin-only runtime observability) ──
+  if (view === 'clientErrors')
+    return React.createElement(
+      UnauthorizedRedirect,
+      {authState, setView, requireAdmin: true, fallbackView: 'home'},
+      React.createElement(ClientErrorsView, {Header}),
     );
 
   // ── WEBFORMS ADMIN VIEW ──

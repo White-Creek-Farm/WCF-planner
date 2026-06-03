@@ -800,6 +800,13 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                       >
                         <span aria-hidden="true">👥</span> Users
                       </button>
+                      <button
+                        data-header-menu-item="client-errors"
+                        onClick={() => go('clientErrors')}
+                        style={MENU_ITEM_BTN}
+                      >
+                        <span aria-hidden="true">🐞</span> Client Errors
+                      </button>
                     </>
                   )}
 
