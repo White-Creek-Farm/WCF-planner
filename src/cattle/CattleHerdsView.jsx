@@ -637,24 +637,6 @@ const CattleHerdsHub = ({
       }
     });
   }
-  async function transferCow(id, newHerd) {
-    const cow = cattle.find((c) => c.id === id);
-    if (!cow) return;
-    const oldHerd = cow.herd;
-    const updates = {herd: newHerd};
-    if (newHerd === 'deceased' && !cow.death_date) updates.death_date = new Date().toISOString().slice(0, 10);
-    if (newHerd === 'sold' && !cow.sale_date) updates.sale_date = new Date().toISOString().slice(0, 10);
-    await sb.from('cattle').update(updates).eq('id', id);
-    await sb.from('cattle_transfers').insert({
-      id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
-      cattle_id: id,
-      from_herd: oldHerd,
-      to_herd: newHerd,
-      reason: 'manual',
-      team_member: authState && authState.name ? authState.name : null,
-    });
-    await loadAll();
-  }
   async function addCalvingRecord(cow, formData) {
     setNotice(null);
     if (!formData.calving_date) {

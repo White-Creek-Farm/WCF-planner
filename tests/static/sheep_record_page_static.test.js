@@ -201,17 +201,19 @@ describe('activityRegistry — sheep.animal route', () => {
   });
 });
 
-describe('SheepAnimalPage — transfer hardening', () => {
-  it('transferSheep checks update result before inserting audit row', () => {
-    expect(animalPage).toMatch(
-      /transferSheep[\s\S]*?\{error:\s*updateErr\}[\s\S]*?if \(updateErr\)[\s\S]*?return[\s\S]*?sheep_transfers/,
-    );
+describe('SheepAnimalPage — transactional transfer via RPC', () => {
+  it('transferSheep calls the transferSheepAnimal RPC wrapper', () => {
+    expect(animalPage).toContain("import {transferSheepAnimal} from '../lib/animalTransferApi.js'");
+    expect(animalPage).toMatch(/transferSheep[\s\S]*?transferSheepAnimal\(sb, animal\.id, newFlock/);
   });
-  it('transferSheep has no-op guard when destination matches current flock', () => {
-    expect(animalPage).toMatch(/transferSheep[\s\S]*?newFlock === oldFlock[\s\S]*?return/);
+  it('transferSheep keeps a client no-op guard when destination matches current flock', () => {
+    expect(animalPage).toMatch(/transferSheep[\s\S]*?newFlock === animal\.flock[\s\S]*?return/);
   });
-  it('transferSheep surfaces warning when audit insert fails', () => {
-    expect(animalPage).toMatch(/auditErr[\s\S]*?setNotice[\s\S]*?warning[\s\S]*?audit/i);
+  it('transferSheep no longer does a client update + sheep_transfers insert or the audit warning', () => {
+    const fn = animalPage.match(/async function transferSheep\([\s\S]*?\n {2}\}/);
+    expect(fn, 'expected transferSheep body').not.toBeNull();
+    expect(fn[0]).not.toContain("from('sheep_transfers')");
+    expect(fn[0]).not.toMatch(/kind:\s*'warning'/);
   });
 });
 
