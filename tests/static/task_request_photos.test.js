@@ -39,6 +39,25 @@ const adminApiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/tasksAdminApi.js'),
 const webformSrc = fs.readFileSync(path.join(ROOT, 'src/webforms/TasksWebform.jsx'), 'utf8');
 const dailyPhotoCaptureSrc = fs.readFileSync(path.join(ROOT, 'src/webforms/DailyPhotoCapture.jsx'), 'utf8');
 
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+}
+
+function listRuntimeSourceFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listRuntimeSourceFiles(full));
+      continue;
+    }
+    if (!entry.isFile() || !/\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+    if (/\.(test|spec)\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+    out.push(full);
+  }
+  return out;
+}
+
 describe('Mig 042 — column + bucket + storage policies', () => {
   it('adds task_instances.request_photo_path (nullable, IF NOT EXISTS)', () => {
     expect(migSrc).toMatch(/ALTER TABLE public\.task_instances\s+ADD COLUMN IF NOT EXISTS request_photo_path text/i);
@@ -232,6 +251,23 @@ describe('tasksAdminApi photo helpers', () => {
     expect(adminApiSrc).not.toMatch(/export async function getRequestPhotoSignedUrl/);
     // The actual helper is locked separately by tests/static/my_tasks_static.test.js
     // under "tasksUserApi.js — assignee/admin completion + signed URLs".
+  });
+});
+
+describe('task-request-photos source-wide append-only storage contract', () => {
+  it('all task-request-photos upload paths use upsert:false', () => {
+    const uploadRe =
+      /\.from\(\s*(?:TASK_REQUEST_PHOTOS_BUCKET|['"]task-request-photos['"])\s*\)[\s\S]{0,500}?\.upload\([\s\S]*?\);/g;
+    const offenders = [];
+    for (const file of listRuntimeSourceFiles(path.join(ROOT, 'src'))) {
+      const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      for (const match of code.matchAll(uploadRe)) {
+        const chunk = match[0];
+        if (/upsert:\s*true/.test(chunk) || !/upsert:\s*false/.test(chunk)) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
 
