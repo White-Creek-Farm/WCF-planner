@@ -10,13 +10,32 @@
 // writeBroilerBatchAvg would re-introduce the anon-blocked direct write
 // path. Admin code legitimately uses both.
 
-import {readFileSync} from 'node:fs';
+import {readFileSync, readdirSync, statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
 import {describe, it, expect} from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, '../..');
 const FORM_PATH = resolve(HERE, '../../src/webforms/WeighInsWebform.jsx');
+
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+}
+
+function listRuntimeSourceFiles(dir) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    const full = resolve(dir, name);
+    const st = statSync(full);
+    if (st.isDirectory()) {
+      out.push(...listRuntimeSourceFiles(full));
+    } else if (/\.(jsx?|cjs|mjs)$/.test(name) && !/\.(test|spec)\.(jsx?|cjs|mjs)$/.test(name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
 
 describe('WeighInsWebform.jsx static lock', () => {
   const source = readFileSync(FORM_PATH, 'utf8');
@@ -65,5 +84,17 @@ describe('WeighInsWebform.jsx static lock', () => {
 
   it('pig recent-entries header renders the live entries.length count', () => {
     expect(source).toMatch(/'Recent entries \(' \+ entries\.length \+ '\)'/);
+  });
+});
+
+describe('public webform app_store boundary', () => {
+  it('keeps public webform source off app_store / ppp-v4 direct access', () => {
+    const offenders = [];
+    for (const file of listRuntimeSourceFiles(resolve(ROOT, 'src/webforms'))) {
+      const rel = file.replace(ROOT + '\\', '').replace(/\\/g, '/');
+      const code = stripComments(readFileSync(file, 'utf8'));
+      if (/\bapp_store\b|ppp-v4|writeBroilerBatchAvg/.test(code)) offenders.push(rel);
+    }
+    expect(offenders).toEqual([]);
   });
 });
