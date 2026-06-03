@@ -537,6 +537,7 @@ export default function PigFeedView({
           {/* Order for [active] — amber treatment regardless of value so the
               tile keeps its visual weight even when recommendation is 0 lbs. */}
           <div
+            data-feed-order-tile="pig-order"
             style={{
               ...tileShellS,
               background: '#fffbeb',

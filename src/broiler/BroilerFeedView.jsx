@@ -465,6 +465,7 @@ export default function BroilerFeedView({
       return (
         <div
           key={row.key}
+          data-feed-order-row={row.key}
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -911,7 +912,10 @@ export default function BroilerFeedView({
           </div>
 
           {/* Order for [active] — amber regardless of value */}
-          <div style={{...tileShellS, background: '#fffbeb', border: '2px solid #fde68a'}}>
+          <div
+            data-feed-order-tile="poultry-order"
+            style={{...tileShellS, background: '#fffbeb', border: '2px solid #fde68a'}}
+          >
             <div style={{...tileLabelS, color: '#92400e'}}>{'Order for ' + activeLabel}</div>
             {renderTileRows(recommendedOrder, () => '#92400e')}
             <div style={{fontSize: 10, color: '#92400e', opacity: 0.85, marginTop: 3}}>{orderBasisCaption}</div>
