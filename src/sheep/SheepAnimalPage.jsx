@@ -18,6 +18,7 @@ import {
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
+import {softDeleteSheepAnimal} from '../lib/sheepDeleteApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 
@@ -105,8 +106,8 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
     setLoadError(null);
     try {
       const [sR, allR, wAll, lR, brR, orR] = await Promise.all([
-        sb.from('sheep').select('*').eq('id', sheepId).maybeSingle(),
-        sb.from('sheep').select('*').order('tag'),
+        sb.from('sheep').select('*').eq('id', sheepId).is('deleted_at', null).maybeSingle(),
+        sb.from('sheep').select('*').is('deleted_at', null).order('tag'),
         loadSheepWeighInsCached(sb, {throwOnError: true}),
         sb.from('sheep_lambing_records').select('*').order('lambing_date', {ascending: false}),
         sb.from('sheep_breeds').select('*').order('label'),
@@ -250,10 +251,14 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
   async function deleteSheep() {
     if (!animal || !window._wcfConfirmDelete) return;
     window._wcfConfirmDelete(
-      'Permanently delete this sheep record? Lambing records, comments, and weigh-ins for this tag remain.',
+      'Delete this sheep record? Admin/backend recovery is available, but this record will be hidden from active sheep views.',
       async () => {
-        await sb.from('sheep').delete().eq('id', animal.id);
-        navigate('/sheep/flocks');
+        try {
+          await softDeleteSheepAnimal(sb, animal.id, animal.tag || animal.id);
+          navigate('/sheep/flocks');
+        } catch (e) {
+          setNotice({kind: 'error', message: 'Delete failed: ' + (e.message || String(e))});
+        }
       },
     );
   }
@@ -360,7 +365,7 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
           FLOCK_COLORS={FLOCK_COLORS}
           onEdit={() => {}}
           onTransfer={(newFlock) => transferSheep(newFlock)}
-          onDelete={() => deleteSheep()}
+          onDelete={authState?.role === 'admin' ? () => deleteSheep() : undefined}
           onComment={null}
           onEditComment={null}
           onDeleteComment={null}

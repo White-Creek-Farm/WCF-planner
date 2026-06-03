@@ -74,7 +74,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
     try {
       const [bR, sR] = await Promise.all([
         sb.from('sheep_processing_batches').select('*').eq('id', batchId).maybeSingle(),
-        sb.from('sheep').select('*'),
+        sb.from('sheep').select('*').is('deleted_at', null),
       ]);
       if (bR.error) throw new Error('sheep_processing_batches: ' + (bR.error.message || bR.error));
       if (sR.error) throw new Error('sheep: ' + (sR.error.message || sR.error));

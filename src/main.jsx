@@ -1534,6 +1534,7 @@ function App() {
       });
     sb.from('sheep')
       .select('id,flock')
+      .is('deleted_at', null)
       .then(({data}) => {
         if (data) setSheepForHome(data);
       });

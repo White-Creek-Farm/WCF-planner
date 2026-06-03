@@ -127,7 +127,7 @@ const SheepFlocksHub = ({
         ? await sb.from('weigh_ins').select('*').in('session_id', sessIds).order('entered_at', {ascending: false})
         : {data: []};
     const [sR, lR, brR, orR] = await Promise.all([
-      sb.from('sheep').select('*').order('tag'),
+      sb.from('sheep').select('*').is('deleted_at', null).order('tag'),
       sb.from('sheep_lambing_records').select('*').order('lambing_date', {ascending: false}),
       sb.from('sheep_breeds').select('*').order('label'),
       sb.from('sheep_origins').select('*').order('label'),

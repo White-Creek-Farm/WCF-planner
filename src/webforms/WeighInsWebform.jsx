@@ -207,6 +207,7 @@ const WeighInsWebform = ({sb}) => {
     } else if (species === 'sheep') {
       sb.from('sheep')
         .select('id, tag, flock, birth_date, sex, breed, old_tags')
+        .is('deleted_at', null)
         .then(({data}) => {
           if (data) setSheepList(data);
         });

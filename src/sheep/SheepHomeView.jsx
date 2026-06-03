@@ -45,7 +45,7 @@ const SheepHomeView = ({
       const wR = sessIds.length > 0 ? await sb.from('weigh_ins').select('*').in('session_id', sessIds) : {data: []};
       if (wR.error) throw new Error('weigh_ins: ' + (wR.error.message || wR.error));
       const [sR, dR] = await Promise.all([
-        sb.from('sheep').select('*'),
+        sb.from('sheep').select('*').is('deleted_at', null),
         sb.from('sheep_dailys').select('*').is('deleted_at', null).gte('date', cutoff120),
       ]);
       if (sR.error) throw new Error('sheep: ' + (sR.error.message || sR.error));

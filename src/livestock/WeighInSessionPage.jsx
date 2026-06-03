@@ -175,7 +175,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     setEntryEdits(edits);
     if (sp === 'cattle' || sp === 'sheep') {
       const animalQuery =
-        sp === 'cattle' ? sb.from('cattle').select('*').is('deleted_at', null) : sb.from('sheep').select('*');
+        sp === 'cattle'
+          ? sb.from('cattle').select('*').is('deleted_at', null)
+          : sb.from('sheep').select('*').is('deleted_at', null);
       const [aR, sR] = await Promise.all([
         animalQuery,
         sb.from('weigh_in_sessions').select('*').eq('species', sp).order('date', {ascending: false}),

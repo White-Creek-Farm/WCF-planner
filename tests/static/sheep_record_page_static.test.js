@@ -166,10 +166,10 @@ describe('SheepAnimalPage — sheep-to-sheep navigation state', () => {
 });
 
 describe('SheepAnimalPage — delete semantics', () => {
-  it('uses hard delete not soft delete', () => {
-    expect(animalPage).toContain(".delete().eq('id', animal.id)");
-    expect(animalPage).not.toContain('softDelete');
-    expect(animalPage).not.toContain("is('deleted_at'");
+  it('uses admin-only soft delete via RPC, not a hard delete', () => {
+    expect(animalPage).not.toContain(".delete().eq('id', animal.id)");
+    expect(animalPage).toContain('softDeleteSheepAnimal');
+    expect(animalPage).toContain("is('deleted_at', null)");
   });
 });
 
@@ -226,7 +226,7 @@ describe('SheepAnimalPage - cold-boot readiness', () => {
   });
 
   it('keeps missing sheep rows as not-found while surfacing real read failures', () => {
-    expect(loadAllSrc).toContain(".eq('id', sheepId).maybeSingle()");
+    expect(loadAllSrc).toContain(".eq('id', sheepId).is('deleted_at', null).maybeSingle()");
     expect(loadAllSrc).toContain("throw new Error('sheep: '");
     expect(loadAllSrc).toContain("throw new Error('sheep list: '");
     expect(loadAllSrc).toContain("throw new Error('sheep_lambing_records: '");
