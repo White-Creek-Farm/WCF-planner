@@ -552,4 +552,23 @@ describe('Source-wide: no direct activity table reads/writes anywhere in src/', 
       );
     });
   }
+
+  it('does not reintroduce retired Activity composer or deep-link bridge identifiers in runtime source', () => {
+    const forbidden = [
+      'ActivityPanel',
+      'ActivityModal',
+      'setActivityTarget',
+      'wcf-entity-deep-link',
+      '_wcfEntityDeepLink',
+    ];
+    const offenders = [];
+    for (const file of files) {
+      const rel = path.relative(srcRoot, file);
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      for (const token of forbidden) {
+        if (code.includes(token)) offenders.push(`${rel}: ${token}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });
