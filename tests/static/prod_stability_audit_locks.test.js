@@ -86,6 +86,10 @@ function extractHandlerBranch(src, type) {
   return nextRel < 0 ? src.slice(start) : src.slice(start, start + header.length + nextRel);
 }
 
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+}
+
 // ── §1: Supabase client critical config ───────────────────────────────────
 describe('§1 Supabase client (src/lib/supabase.js)', () => {
   const src = read('src/lib/supabase.js');
@@ -304,6 +308,19 @@ describe('§7 Typed-confirm helpers wired in main.jsx', () => {
 
   it('window._wcfConfirmDelete is assigned (typed-"delete" destructive confirms)', () => {
     expect(main).toMatch(/window\._wcfConfirmDelete\s*=/);
+  });
+});
+
+describe('Storage API boundary - no direct storage.objects table access', () => {
+  it('runtime source and edge functions use the Storage API instead of querying storage.objects', () => {
+    const offenders = [];
+    const files = [...listJsxJs('src'), ...listJsxJs('supabase-functions')];
+    for (const abs of files) {
+      const rel = path.relative(ROOT, abs).replace(/\\/g, '/');
+      const code = stripComments(fs.readFileSync(abs, 'utf8'));
+      if (/from\(['"]storage\.objects['"]\)|\bstorage\.objects\b/i.test(code)) offenders.push(rel);
+    }
+    expect(offenders).toEqual([]);
   });
 });
 
