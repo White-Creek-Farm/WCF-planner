@@ -17,6 +17,7 @@ export const ENTITY_TYPES = {
   PIG_BATCH: 'pig.batch',
   CATTLE_PROCESSING: 'cattle.processing',
   CATTLE_FORECAST: 'cattle.forecast',
+  CATTLE_BREEDING: 'cattle.breeding',
   SHEEP_PROCESSING: 'sheep.processing',
   POULTRY_DAILY: 'poultry.daily',
   LAYER_DAILY: 'layer.daily',
@@ -79,6 +80,12 @@ export const ACTIVITY_REGISTRY = {
   [ENTITY_TYPES.CATTLE_FORECAST]: {
     displayLabel: () => 'Cattle Forecast',
     route: () => '/cattle/forecast',
+    program: 'cattle',
+  },
+  // Custom editable-table Activity Phase B: singleton cattle breeding workflow.
+  [ENTITY_TYPES.CATTLE_BREEDING]: {
+    displayLabel: () => 'Cattle Breeding',
+    route: () => '/cattle/breeding',
     program: 'cattle',
   },
   [ENTITY_TYPES.SHEEP_PROCESSING]: {

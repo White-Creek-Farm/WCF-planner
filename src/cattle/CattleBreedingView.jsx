@@ -4,6 +4,7 @@ import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {calcCattleBreedingTimeline, buildCattleCycleSeqMap, cattleCycleLabel} from '../lib/cattleBreeding.js';
+import {recordActivityEvent} from '../lib/entityMutations.js';
 const CattleBreedingView = ({
   sb,
   fmt,
@@ -67,6 +68,32 @@ const CattleBreedingView = ({
     setEditId(c.id);
     setShowForm(true);
   }
+  // Custom editable-table Activity Phase B: best-effort audit for breeding
+  // cycle create/edit/delete, scoped to the cattle.breeding workflow entity
+  // (singleton entity_id 'cattle-breeding') — NOT a cattle.animal record.
+  // Logged only after the table write succeeds; never rolls back or surfaces.
+  async function recordBreedingActivity(eventType, cycle) {
+    try {
+      const label = (cycle.herd || 'mommas') + ' · ' + (cycle.bull_exposure_start || '');
+      const verb = eventType === 'record.created' ? 'Created' : eventType === 'record.deleted' ? 'Deleted' : 'Updated';
+      await recordActivityEvent(sb, {
+        entityType: 'cattle.breeding',
+        entityId: 'cattle-breeding',
+        eventType,
+        entityLabel: 'Cattle Breeding',
+        body: verb + ' breeding cycle: ' + label,
+        payload: {
+          cycle_id: cycle.id || null,
+          herd: cycle.herd || null,
+          bull_exposure_start: cycle.bull_exposure_start || null,
+          field: 'breeding_cycle',
+        },
+      });
+    } catch (e) {
+      console.warn('breeding Activity log failed:', e && e.message ? e.message : e);
+    }
+  }
+
   async function saveCycle() {
     setNotice(null);
     if (!form.bull_exposure_start) {
@@ -80,12 +107,14 @@ const CattleBreedingView = ({
       cow_tags: form.cow_tags || null,
       notes: form.notes || null,
     };
+    let savedId = editId;
     if (editId) {
       await sb.from('cattle_breeding_cycles').update(rec).eq('id', editId);
     } else {
-      const id = String(Date.now()) + Math.random().toString(36).slice(2, 6);
-      await sb.from('cattle_breeding_cycles').insert({id, ...rec});
+      savedId = String(Date.now()) + Math.random().toString(36).slice(2, 6);
+      await sb.from('cattle_breeding_cycles').insert({id: savedId, ...rec});
     }
+    await recordBreedingActivity(editId ? 'field.updated' : 'record.created', {id: savedId, ...rec});
     await loadAll();
     setShowForm(false);
     setEditId(null);
@@ -93,8 +122,10 @@ const CattleBreedingView = ({
   }
   async function deleteCycle(id) {
     if (!window._wcfConfirmDelete) return;
+    const target = cycles.find((c) => c.id === id) || {id};
     window._wcfConfirmDelete('Delete this breeding cycle?', async () => {
       await sb.from('cattle_breeding_cycles').delete().eq('id', id);
+      await recordBreedingActivity('record.deleted', target);
       await loadAll();
       setShowForm(false);
       setEditId(null);
