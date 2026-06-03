@@ -267,6 +267,31 @@ describe('commentAttachments — helpers', () => {
   });
 });
 
+describe('comment-photos append-only storage contract', () => {
+  it('uploadCommentAttachment uses upsert:false and treats duplicates as success', () => {
+    const fn = attachSrc.match(/export async function uploadCommentAttachment\([\s\S]*?\n\}\n/);
+    expect(fn, 'expected uploadCommentAttachment helper').not.toBeNull();
+    expect(fn[0]).toMatch(/from\(COMMENT_ATTACHMENT_BUCKET\)\.upload\([\s\S]*?\{upsert:\s*false/);
+    expect(fn[0]).not.toMatch(/upsert:\s*true/);
+    expect(fn[0]).toMatch(/duplicate\|23505\|409/);
+  });
+
+  it('all runtime comment-photos uploads stay append-only', () => {
+    const uploadRe =
+      /\.from\(\s*(?:COMMENT_ATTACHMENT_BUCKET|['"]comment-photos['"])\s*\)[\s\S]{0,500}?\.upload\([\s\S]*?\);/g;
+    const offenders = [];
+    for (const file of listRuntimeSourceFiles(path.join(ROOT, 'src'))) {
+      const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      for (const match of code.matchAll(uploadRe)) {
+        const chunk = match[0];
+        if (/upsert:\s*true/.test(chunk) || !/upsert:\s*false/.test(chunk)) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('No direct table access in src/', () => {
   const allSrc = [apiSrc, sectionSrc, attachSrc];
   it('no file directly queries comments or comment_edits', () => {
