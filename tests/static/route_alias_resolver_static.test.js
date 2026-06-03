@@ -23,4 +23,29 @@ describe('route alias resolver cleanup', () => {
     expect(mainSrc).not.toContain('ALIASES_EXACT[location.pathname]');
     expect(mainSrc).not.toContain('for (const [oldPrefix, newPrefix] of ALIASES_PREFIX)');
   });
+
+  it('routes.js is the only runtime source file that owns alias maps', () => {
+    const srcRoot = path.join(ROOT, 'src');
+    const offenders = [];
+    function walk(dir) {
+      for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(p);
+          continue;
+        }
+        if (!entry.isFile() || !/\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+        const rel = path.relative(srcRoot, p).replace(/\\/g, '/');
+        if (rel === 'lib/routes.js') continue;
+        if (/\.(test|spec)\.(jsx?|cjs|mjs)$/.test(entry.name)) continue;
+        const src = fs
+          .readFileSync(p, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/(^|\s)\/\/[^\n]*/g, '$1');
+        if (/\bALIASES_EXACT\b|\bALIASES_PREFIX\b/.test(src)) offenders.push(rel);
+      }
+    }
+    walk(srcRoot);
+    expect(offenders).toEqual([]);
+  });
 });
