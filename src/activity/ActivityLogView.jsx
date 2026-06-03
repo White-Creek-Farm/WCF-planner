@@ -61,6 +61,12 @@ export default function ActivityLogView({Header}) {
   const [rows, setRows] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState(null);
+  // appendError is separate from loadError on purpose: a failed "Load more"
+  // append must NOT trip the main fail-closed gate, hide already-loaded rows,
+  // or flip data-activity-log-loaded. Only initial/search/filter loads fail
+  // closed via loadError.
+  const [appendError, setAppendError] = React.useState(null);
+  const [loadingMore, setLoadingMore] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const [entityFilter, setEntityFilter] = React.useState('');
   const [hasMore, setHasMore] = React.useState(false);
@@ -68,8 +74,16 @@ export default function ActivityLogView({Header}) {
 
   const load = React.useCallback(
     async (append) => {
-      if (!append) setLoading(true);
-      setLoadError(null);
+      if (append) {
+        // Guard against duplicate concurrent appends from repeated clicks.
+        if (loadingMore) return;
+        setLoadingMore(true);
+        setAppendError(null);
+      } else {
+        setLoading(true);
+        setLoadError(null);
+        setAppendError(null);
+      }
       try {
         const before = append && rows.length > 0 ? rows[rows.length - 1].created_at : undefined;
         const data = await loadGlobalActivity(sb, {
@@ -85,13 +99,20 @@ export default function ActivityLogView({Header}) {
         }
         setHasMore(data.length === 50);
       } catch (e) {
-        if (!append) setRows([]);
-        setHasMore(false);
-        setLoadError({kind: 'error', message: e.message || 'Failed to load activity'});
+        if (append) {
+          // Keep existing rows and hasMore so the user can retry the same page
+          // without changing filters or reloading the whole timeline.
+          setAppendError({kind: 'error', message: e.message || 'Failed to load more activity'});
+        } else {
+          setRows([]);
+          setHasMore(false);
+          setLoadError({kind: 'error', message: e.message || 'Failed to load activity'});
+        }
       }
-      setLoading(false);
+      if (append) setLoadingMore(false);
+      else setLoading(false);
     },
-    [entityFilter, search, rows],
+    [entityFilter, search, rows, loadingMore],
   );
 
   React.useEffect(() => {
@@ -342,29 +363,42 @@ export default function ActivityLogView({Header}) {
           }),
         ),
 
-      // Load more
-      hasMore &&
-        !loading &&
-        !loadError &&
+      // Load more + append/pagination error. Gated on the main timeline being
+      // visible (no loadError, rows present), NOT on appendError — a failed
+      // append keeps the loaded rows AND the retry control on screen.
+      !loadError &&
+        rows.length > 0 &&
         React.createElement(
           'div',
           {style: {textAlign: 'center', padding: '12px 0'}},
-          React.createElement(
-            'button',
-            {
-              onClick: () => load(true),
-              style: {
-                padding: '6px 18px',
-                borderRadius: 6,
-                border: '1px solid #d1d5db',
-                background: 'white',
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
+          appendError &&
+            React.createElement(
+              'div',
+              {'data-activity-log-append-error': 'true', style: {marginBottom: 8}},
+              React.createElement(InlineNotice, {notice: appendError}),
+            ),
+          hasMore &&
+            !loading &&
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: () => load(true),
+                disabled: loadingMore,
+                'data-activity-log-load-more': 'true',
+                style: {
+                  padding: '6px 18px',
+                  borderRadius: 6,
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  fontSize: 12,
+                  cursor: loadingMore ? 'default' : 'pointer',
+                  opacity: loadingMore ? 0.6 : 1,
+                  fontFamily: 'inherit',
+                },
               },
-            },
-            'Load more',
-          ),
+              loadingMore ? 'Loading…' : appendError ? 'Retry loading more' : 'Load more',
+            ),
         ),
     ),
   );

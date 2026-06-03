@@ -112,13 +112,34 @@ describe('ActivityLogView', () => {
     expect(viewSrc).toContain('React.createElement(InlineNotice, {notice: loadError})');
   });
 
-  it('fails closed on activity load errors with a stable readiness marker', () => {
+  it('fails closed on initial activity load errors with a stable readiness marker', () => {
     expect(viewSrc).toContain("data-activity-log-loaded': loading || loadError ? 'false' : 'true'");
     expect(viewSrc).toContain("'data-activity-log-load-error': 'true'");
-    expect(viewSrc).toMatch(/catch \(e\)[\s\S]*?if \(!append\) setRows\(\[\]\)/);
-    expect(viewSrc).toMatch(/catch \(e\)[\s\S]*?setHasMore\(false\)/);
+    // The initial/search/filter load branch clears stale rows, blocks
+    // pagination, and sets the main loadError so the timeline fails closed.
+    expect(viewSrc).toMatch(
+      /catch \(e\)[\s\S]*?else \{[\s\S]*?setRows\(\[\]\);[\s\S]*?setHasMore\(false\);[\s\S]*?setLoadError\(/,
+    );
     expect(viewSrc).toMatch(/!\s*loadError\s*&&\s*rows\.length > 0/);
-    expect(viewSrc).toMatch(/hasMore\s*&&[\s\S]*?!loading\s*&&[\s\S]*?!loadError/);
+    // Readiness marker must not depend on appendError — already-loaded
+    // permission-filtered rows stay valid to display after an append failure.
+    expect(viewSrc).not.toMatch(/data-activity-log-loaded[^\n]*appendError/);
+  });
+
+  it('keeps loaded rows visible when a Load more append fails (does not fail closed)', () => {
+    expect(viewSrc).toContain('const [appendError, setAppendError] = React.useState(null)');
+    expect(viewSrc).toContain('const [loadingMore, setLoadingMore] = React.useState(false)');
+    // Append failure sets the separate appendError, NOT the main loadError,
+    // and does not clear rows or hasMore.
+    expect(viewSrc).toMatch(/catch \(e\)[\s\S]*?if \(append\) \{[\s\S]*?setAppendError\(/);
+    // Duplicate concurrent appends are blocked while a page is in flight.
+    expect(viewSrc).toMatch(/if \(loadingMore\) return/);
+    // A user-visible append error + retry control sits near the Load more
+    // button; the timeline gate (!loadError && rows.length > 0) keeps rows.
+    expect(viewSrc).toContain("'data-activity-log-append-error': 'true'");
+    expect(viewSrc).toContain('disabled: loadingMore');
+    expect(viewSrc).toContain('Retry loading more');
+    expect(viewSrc).toMatch(/!\s*loadError\s*&&\s*rows\.length > 0[\s\S]*?hasMore\s*&&[\s\S]*?!loading/);
   });
 
   it('exposes a user-gated retry that re-runs the existing initial load path', () => {
