@@ -8,8 +8,8 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-04.
-Current production checkpoint: `origin/main @ 1c0fadc` (latest app/build merge
-`7de1758`, docs wrap `1c0fadc`).
+Current production checkpoint: latest app/build merge `7de1758` on `main`
+(docs-only commits may sit on top; check `git log` for the exact HEAD).
 Production URL: https://wcfplanner.com.
 
 ---
@@ -33,7 +33,8 @@ history and tests for detailed lane history.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source of truth: `origin/main @ 1c0fadc`.
+- Source of truth: `origin/main`; production app/build checkpoint is merge
+  `7de1758` (later docs-only commits do not change the shipped runtime).
 - Open gates for the shipped tree: none.
 - PROD-applied numbered migration series is live through `092`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
