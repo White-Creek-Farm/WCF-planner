@@ -1,5 +1,10 @@
 import {describe, it, expect} from 'vitest';
-import {calcPoultryStatus, shouldAutoActivateBroilerBatch, recomputeBroilerBatchWeekAvg} from './broiler.js';
+import {
+  calcPoultryStatus,
+  shouldAutoActivateBroilerBatch,
+  computeBroilerOnFarmCounts,
+  recomputeBroilerBatchWeekAvg,
+} from './broiler.js';
 
 // Minimal Supabase-style query mock.
 //
@@ -99,6 +104,52 @@ describe('broiler hatch-date status promotion', () => {
     expect(shouldAutoActivateBroilerBatch({status: 'planned', hatchDate: '2026-05-04'}, '2026-05-05')).toBe(true);
     expect(shouldAutoActivateBroilerBatch({status: 'planned', hatchDate: '2026-05-06'}, '2026-05-05')).toBe(false);
     expect(shouldAutoActivateBroilerBatch({status: 'active', hatchDate: '2026-05-05'}, '2026-05-05')).toBe(false);
+  });
+});
+
+describe('computeBroilerOnFarmCounts', () => {
+  it('uses active projected live birds as on-farm count and keeps started count separate', () => {
+    const batches = [
+      {name: 'B-ACT-1', status: 'active', hatchDate: '2026-05-01', breed: 'CC', birdCountActual: 750},
+      {name: 'B-ACT-2', status: 'planned', hatchDate: '2026-05-02', breed: 'WR', birdCountActual: 500},
+      {name: 'B-PROC', status: 'processed', hatchDate: '2026-04-01', breed: 'CC', birdCountActual: 700},
+      {name: 'B-FUTURE', status: 'planned', hatchDate: '2026-05-20', breed: 'CC', birdCountActual: 600},
+    ];
+    const dailys = [
+      {batch_label: 'B-ACT-1', mortality_count: 4, feed_lbs: 0, grit_lbs: 0},
+      {batch_label: 'B-ACT-1', mortality_count: '6', feed_lbs: 0, grit_lbs: 0},
+      {batch_label: 'B-ACT-2', mortality_count: 3, feed_lbs: 0, grit_lbs: 0},
+      {batch_label: 'B-PROC', mortality_count: 50, feed_lbs: 0, grit_lbs: 0},
+    ];
+
+    const counts = computeBroilerOnFarmCounts(batches, dailys, '2026-05-10');
+
+    expect(counts.activeBatches.map((b) => b.name)).toEqual(['B-ACT-1', 'B-ACT-2']);
+    expect(counts.activeBatchCount).toBe(2);
+    expect(counts.startedBirds).toBe(1250);
+    expect(counts.mortality).toBe(13);
+    expect(counts.onFarmBirds).toBe(1237);
+  });
+
+  it('uses legacy B-24 mortality fields for active legacy batches', () => {
+    const counts = computeBroilerOnFarmCounts(
+      [
+        {
+          name: 'B-24-LEG',
+          status: 'active',
+          hatchDate: '2024-05-01',
+          breed: 'CC',
+          birdCountActual: 700,
+          mortalityCumulative: 12,
+        },
+      ],
+      [],
+      '2024-05-10',
+    );
+
+    expect(counts.startedBirds).toBe(700);
+    expect(counts.mortality).toBe(12);
+    expect(counts.onFarmBirds).toBe(688);
   });
 });
 

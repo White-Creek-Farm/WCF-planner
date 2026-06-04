@@ -219,6 +219,21 @@ export function calcBroilerStatsFromDailys(batch, broilerDailys) {
   };
 }
 
+export function computeBroilerOnFarmCounts(batches, broilerDailys, asOfDate = todayISO()) {
+  const activeBatches = (batches || []).filter((b) => calcPoultryStatus(b, asOfDate) === 'active');
+  return activeBatches.reduce(
+    (acc, batch) => {
+      const started = parseInt(batch.birdCountActual, 10) || 0;
+      const stats = calcBroilerStatsFromDailys(batch, broilerDailys);
+      acc.startedBirds += started;
+      acc.onFarmBirds += stats.projectedBirds;
+      acc.mortality += stats.mortality;
+      return acc;
+    },
+    {activeBatches, activeBatchCount: activeBatches.length, startedBirds: 0, onFarmBirds: 0, mortality: 0},
+  );
+}
+
 // ============================================================================
 // Timeline + batch-color deps (added in Round 6 timeline-view extraction)
 // ----------------------------------------------------------------------------
