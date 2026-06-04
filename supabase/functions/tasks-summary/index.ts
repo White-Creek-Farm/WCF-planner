@@ -146,6 +146,7 @@ interface AuditRow {
   recipients_sent: number;
   recipients_skipped: number;
   total_open_instances: number;
+  total_completed_instances: number;
   per_recipient_failures: Array<{assignee_profile_id: string; email: string | null; error: string}>;
   error_message: string | null;
 }
@@ -204,6 +205,13 @@ interface OpenTaskRow {
   profiles: {email: string | null; full_name: string | null; role: string | null} | null;
 }
 
+interface CompletedTask {
+  task_instance_id: string;
+  title: string;
+  completed_at: string;
+  completed_by: string;
+}
+
 interface AssigneeBucket {
   assignee_profile_id: string;
   email: string | null;
@@ -220,6 +228,11 @@ interface AssigneeBucket {
     created_by_display_name: string | null;
     has_photo: boolean;
   }>;
+  // Completed-assigned coverage (mig 093): tasks this recipient
+  // created/assigned that were completed in the weekly window. A recipient
+  // can land in the digest with an empty `tasks` list and a non-empty
+  // `completed` list (assigned-only recipient), and vice versa.
+  completed: CompletedTask[];
 }
 
 // Group EVERY assignee that has at least one open task — including those
@@ -254,6 +267,7 @@ async function fetchOpenTasksGrouped(
         full_name: prof?.full_name || '',
         role,
         tasks: [],
+        completed: [],
       };
       groups.set(r.assignee_profile_id, bucket);
     }
@@ -277,6 +291,87 @@ async function fetchOpenTasksGrouped(
     });
   }
   return {buckets: Array.from(groups.values()), totalOpen};
+}
+
+// ─── Completed-assigned-task fetch (mig 093) ────────────────────────────
+// Source of truth = public.notifications rows of type 'task_completed'.
+// Migration 057 stamps recipient_profile_id = the task creator/assignor and
+// already enforces the product exclusions at write time: NULL creator gets
+// no notification, and self-completion (creator completed their own task) is
+// excluded. Reading notifications therefore preserves those rules verbatim
+// without re-deriving them here. The weekly window lower bound is the
+// previous Sunday 08:00 America/Chicago, computed DST-correctly in SQL by
+// public.tasks_summary_window_start().
+
+interface CompletedNotifRow {
+  task_instance_id: string | null;
+  title: string;
+  created_at: string;
+  recipient_profile_id: string;
+  recipient: {email: string | null; full_name: string | null; role: string | null} | null;
+  actor: {full_name: string | null} | null;
+  task: {title: string | null} | null;
+}
+
+interface CompletedBucket {
+  email: string | null;
+  full_name: string;
+  role: string;
+  items: CompletedTask[];
+}
+
+async function fetchCompletedGrouped(
+  svc: ReturnType<typeof createClient>,
+): Promise<{byRecipient: Map<string, CompletedBucket>; totalCompleted: number}> {
+  // Window start = previous Sunday 08:00 America/Chicago (timestamptz). When
+  // run at the gated Sunday-08:00 send, this is the trailing 7-day window.
+  const {data: windowStart, error: wErr} = await svc.rpc('tasks_summary_window_start');
+  if (wErr) throw new Error(`tasks_summary_window_start: ${wErr.message}`);
+  const startIso = typeof windowStart === 'string' ? windowStart : String(windowStart);
+
+  const {data, error} = await svc
+    .from('notifications')
+    .select(
+      'task_instance_id, title, created_at, recipient_profile_id, recipient:profiles!notifications_recipient_profile_id_fkey(email, full_name, role), actor:profiles!notifications_actor_profile_id_fkey(full_name), task:task_instances!notifications_task_instance_id_fkey(title)',
+    )
+    .eq('type', 'task_completed')
+    .gte('created_at', startIso);
+  if (error) throw new Error(`select notifications (task_completed): ${error.message}`);
+
+  const rows = (data || []) as unknown as CompletedNotifRow[];
+  const totalCompleted = rows.length;
+  const byRecipient = new Map<string, CompletedBucket>();
+  for (const r of rows) {
+    const prof = r.recipient;
+    const email = prof?.email ? String(prof.email).trim() : '';
+    let bucket = byRecipient.get(r.recipient_profile_id);
+    if (!bucket) {
+      bucket = {
+        email: email || null,
+        full_name: prof?.full_name || '',
+        role: prof?.role || '',
+        items: [],
+      };
+      byRecipient.set(r.recipient_profile_id, bucket);
+    }
+    const taskTitle = (r.task?.title || r.title || '').trim();
+    const completer = (r.actor?.full_name || '').trim();
+    bucket.items.push({
+      task_instance_id: r.task_instance_id || '',
+      title: taskTitle || '(untitled)',
+      completed_at: r.created_at,
+      completed_by: completer || 'Someone',
+    });
+  }
+  // Newest completion first within each recipient.
+  for (const b of byRecipient.values()) {
+    b.items.sort((a, c) => {
+      if (a.completed_at < c.completed_at) return 1;
+      if (a.completed_at > c.completed_at) return -1;
+      return a.title.localeCompare(c.title);
+    });
+  }
+  return {byRecipient, totalCompleted};
 }
 
 // ─── Main handler ────────────────────────────────────────────────────────
@@ -333,6 +428,7 @@ serve(async (req: Request) => {
       recipients_sent: 0,
       recipients_skipped: 0,
       total_open_instances: 0,
+      total_completed_instances: 0,
       per_recipient_failures: [],
       error_message: 'probe-only invocation',
     };
@@ -343,14 +439,49 @@ serve(async (req: Request) => {
   let recipients_sent = 0;
   let recipients_skipped = 0;
   let total_open_instances = 0;
+  let total_completed_instances = 0;
   const per_recipient_failures: AuditRow['per_recipient_failures'] = [];
   let errMsg: string | null = null;
 
   try {
-    const {buckets, totalOpen} = await fetchOpenTasksGrouped(svc);
+    const {buckets: openBuckets, totalOpen} = await fetchOpenTasksGrouped(svc);
     total_open_instances = totalOpen;
-    // Per-assignee accounting (Codex C4 re-review BLOCKER 3):
-    //   - Every assignee bucket is either sent or skipped exactly once.
+
+    // Merge completed-assigned coverage (mig 093) into the recipient set.
+    // A recipient is anyone with open assigned tasks OR with tasks they
+    // assigned/created that were completed this week. Both lists are keyed
+    // by profile id; the union is the digest recipient set. A recipient
+    // with only completed items (zero open tasks) still gets an email; a
+    // recipient with neither never enters this map, so the no-email-when-
+    // both-empty rule holds structurally.
+    const {byRecipient: completedByRecipient, totalCompleted} = await fetchCompletedGrouped(svc);
+    total_completed_instances = totalCompleted;
+
+    const byId = new Map<string, AssigneeBucket>();
+    for (const b of openBuckets) byId.set(b.assignee_profile_id, b);
+    for (const [recipientId, c] of completedByRecipient) {
+      let bucket = byId.get(recipientId);
+      if (!bucket) {
+        // Assigned-only recipient: no open tasks, build from the completed
+        // notification's recipient profile join. Same skip rules apply
+        // (inactive / no-email) in the loop below.
+        bucket = {
+          assignee_profile_id: recipientId,
+          email: c.email,
+          full_name: c.full_name,
+          role: c.role,
+          tasks: [],
+          completed: [],
+        };
+        byId.set(recipientId, bucket);
+      }
+      bucket.completed = c.items;
+    }
+    const buckets = Array.from(byId.values());
+
+    // Per-recipient accounting (Codex C4 re-review BLOCKER 3, extended for
+    // completed coverage):
+    //   - Every recipient bucket is either sent or skipped exactly once.
     //   - recipients_sent + recipients_skipped MUST equal buckets.length.
     //   - per_recipient_failures records every skip reason (inactive,
     //     missing email, send failure) so audit shows WHY.
@@ -377,7 +508,9 @@ serve(async (req: Request) => {
         });
         continue;
       }
-      // Send path.
+      // Send path. Carries both the open assigned tasks and the completed-
+      // assigned tasks for this recipient; rapid-processor renders whichever
+      // sections are non-empty and skips the send only if both are empty.
       const payload: Record<string, unknown> = {
         type: 'tasks_weekly_summary',
         data: {
@@ -385,6 +518,8 @@ serve(async (req: Request) => {
           full_name: bucket.full_name,
           tasks: bucket.tasks,
           count: bucket.tasks.length,
+          completed: bucket.completed,
+          completed_count: bucket.completed.length,
         },
       };
       if (testTo) payload.test_to = testTo;
@@ -421,6 +556,7 @@ serve(async (req: Request) => {
     recipients_sent,
     recipients_skipped,
     total_open_instances,
+    total_completed_instances,
     per_recipient_failures,
     error_message: errMsg,
   };
@@ -434,6 +570,7 @@ serve(async (req: Request) => {
         recipients_sent,
         recipients_skipped,
         total_open_instances,
+        total_completed_instances,
         per_recipient_failures,
       },
       500,
@@ -444,6 +581,7 @@ serve(async (req: Request) => {
     recipients_sent,
     recipients_skipped,
     total_open_instances,
+    total_completed_instances,
     per_recipient_failures,
   });
 });

@@ -930,7 +930,11 @@ describe('Tasks v2 T8 + T9 — MyTasksTab row-level capability gating', () => {
 
 describe('Tasks v2 T10 — weekly digest link target (/tasks)', () => {
   it('rapid-processor tasks_weekly_summary template links to wcfplanner.com/tasks', () => {
-    expect(rapidProcessorFn).toMatch(/href="https:\/\/wcfplanner\.com\/tasks"/);
+    // The open-tasks section footer link was removed by product request
+    // (mig 093 follow-up). The canonical /tasks link now lives in the
+    // completed-assigned section deep links (/tasks/<id>). The lock still
+    // enforces: the digest points at the canonical Task Center family.
+    expect(rapidProcessorFn).toMatch(/href="https:\/\/wcfplanner\.com\/tasks\//);
   });
 
   it('rapid-processor tasks_weekly_summary template never links to /my-tasks', () => {

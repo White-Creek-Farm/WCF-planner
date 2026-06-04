@@ -199,8 +199,13 @@ describe('rapid-processor.ts — tasks_weekly_summary handler shape (C4)', () =>
     expect(branchSlice).toMatch(/brandedEmail\s*\(/);
   });
 
-  it('uses tasksWeeklyHtml() for the body content', () => {
-    expect(branchSlice).toMatch(/bodyHtml:\s*tasksWeeklyHtml\(\s*tasks\s*\)/);
+  it('composes the body from the open + completed section renderers (mig 093)', () => {
+    // bodyHtml is now a composed const: open section via tasksWeeklyHtml,
+    // completed section via tasksWeeklyCompletedHtml, each guarded by a
+    // non-empty check, then passed to brandedEmail as bodyHtml.
+    expect(branchSlice).toMatch(/tasksWeeklyHtml\(\s*openTasks\s*\)/);
+    expect(branchSlice).toMatch(/tasksWeeklyCompletedHtml\(\s*completedTasks\s*\)/);
+    expect(branchSlice).toMatch(/bodyHtml,/);
   });
 
   it('reads test_to from the TOP-LEVEL body, not data.test_to', () => {
@@ -217,9 +222,22 @@ describe('rapid-processor.ts — tasks_weekly_summary handler shape (C4)', () =>
     expect(branchSlice).toMatch(/test_to\s*\?\s*`\[TEST\]/);
   });
 
-  it('skips with {ok:true, skipped:true} when tasks is empty', () => {
+  it('skips with {ok:true, skipped:true} only when BOTH open and completed are empty (mig 093)', () => {
     expect(branchSlice).toMatch(/Array\.isArray\(\s*tasks\s*\)/);
+    expect(branchSlice).toMatch(/Array\.isArray\(\s*completed\s*\)/);
+    expect(branchSlice).toMatch(/openTasks\.length\s*===\s*0\s*&&\s*completedTasks\.length\s*===\s*0/);
     expect(branchSlice).toMatch(/skipped:\s*true/);
+  });
+
+  it('reads completed + completed_count from data alongside tasks/count (mig 093)', () => {
+    expect(branchSlice).toMatch(
+      /const\s*\{\s*email,\s*full_name,\s*tasks,\s*count,\s*completed,\s*completed_count\s*\}\s*=\s*data/,
+    );
+  });
+
+  it('subject reflects open and/or completed counts (mig 093)', () => {
+    expect(branchSlice).toMatch(/open task/);
+    expect(branchSlice).toMatch(/completed this week/);
   });
 
   it('throws when email is missing', () => {
@@ -327,5 +345,31 @@ describe('rapid-processor.ts — tasksWeeklyHtml helper', () => {
   it('renders one table row per task with due_date + title columns', () => {
     expect(code).toMatch(/t\.due_date/);
     expect(code).toMatch(/t\.title/);
+  });
+});
+
+describe('rapid-processor.ts — tasksWeeklyCompletedHtml helper (mig 093)', () => {
+  const fnMatch = code.match(/function\s+tasksWeeklyCompletedHtml\([\s\S]*?\n\}\s*\n/);
+
+  it('exists', () => {
+    expect(code).toMatch(/function\s+tasksWeeklyCompletedHtml\(\s*completed/);
+  });
+
+  it('escapes title and completer name', () => {
+    expect(fnMatch, 'expected tasksWeeklyCompletedHtml body').not.toBeNull();
+    expect(fnMatch[0]).toMatch(/escapeHtml\(t\.title/);
+    expect(fnMatch[0]).toMatch(/escapeHtml\(t\.completed_by/);
+  });
+
+  it('only builds a /tasks/<id> deep link from a path-safe id', () => {
+    expect(fnMatch[0]).toMatch(/\/\^\[A-Za-z0-9\._-\]\+\$\/\.test\(rawId\)/);
+    expect(fnMatch[0]).toMatch(/wcfplanner\.com\/tasks\/\$\{safeId\}/);
+    // No /my-tasks anywhere.
+    expect(fnMatch[0]).not.toMatch(/my-tasks/);
+  });
+
+  it('formats the completion time in America/Chicago', () => {
+    expect(code).toMatch(/function\s+fmtCompletedAt\(/);
+    expect(code).toMatch(/timeZone:\s*'America\/Chicago'/);
   });
 });

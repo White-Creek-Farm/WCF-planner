@@ -34,6 +34,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const migSrc = fs.readFileSync(path.join(ROOT, 'supabase-migrations/046_tasks_weekly_summary.sql'), 'utf8');
+// Mig 093 supersedes 046's schedule (Mon 13:00 UTC) with Sunday 08:00
+// America/Chicago, and adds completed-assigned-task coverage. The 046
+// assertions above remain accurate about the 046 FILE (historical), but the
+// EFFECTIVE schedule + helper signature + audit shape are locked here.
+const mig093Src = fs.readFileSync(
+  path.join(ROOT, 'supabase-migrations/093_tasks_summary_sunday_chicago_completion_digest.sql'),
+  'utf8',
+);
 const fnSrc = fs.readFileSync(path.join(ROOT, 'supabase/functions/tasks-summary/index.ts'), 'utf8');
 
 // Strip TS comments before regex assertions on the function source.
@@ -304,5 +312,119 @@ describe('Edge Function — rapid-processor invocation', () => {
     // that path was retired because it failed at rapid-processor's
     // bearer compare even after envTrim alignment.
     expect(block[0]).not.toMatch(/Authorization:\s*`Bearer\s*\$\{SUPABASE_SERVICE_ROLE_KEY\}/);
+  });
+});
+
+// ============================================================================
+// Mig 093 — Sunday 8am Central schedule + completed-assigned coverage
+// ============================================================================
+
+describe('Mig 093 — Sunday 08:00 America/Chicago schedule', () => {
+  it('reschedules tasks-summary-weekly to Sunday 13:00 + 14:00 UTC (DST-spanning)', () => {
+    // Both UTC hours that can be Sunday 08:00 Central; the helper gates so
+    // only the correct one posts. DOW 0 = Sunday.
+    expect(mig093Src).toMatch(/cron\.schedule\(\s*'tasks-summary-weekly',\s*'0 13,14 \* \* 0'/);
+  });
+
+  it('unschedules the prior job before rescheduling (idempotent)', () => {
+    expect(mig093Src).toMatch(/cron\.unschedule\(\s*'tasks-summary-weekly'\s*\)/);
+  });
+
+  it('cron body calls the real run with enforce gating: invoke_tasks_summary(false, true)', () => {
+    expect(mig093Src).toMatch(/SELECT public\.invoke_tasks_summary\(\s*false\s*,\s*true\s*\)/);
+    // Defensive: the scheduled body never passes probe=true.
+    const cronBlock = mig093Src.match(/cron\.schedule\([\s\S]*?\);/);
+    expect(cronBlock, 'expected cron.schedule call').not.toBeNull();
+    expect(cronBlock[0]).not.toMatch(/invoke_tasks_summary\(\s*true/);
+  });
+});
+
+describe('Mig 093 — invoke_tasks_summary gating', () => {
+  it('drops the old single-arg overload so SELECT invoke_tasks_summary(true) is unambiguous', () => {
+    expect(mig093Src).toMatch(/DROP FUNCTION IF EXISTS public\.invoke_tasks_summary\(boolean\)/);
+  });
+
+  it('recreates with a second enforce arg defaulting false (probes never gated)', () => {
+    expect(mig093Src).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.invoke_tasks_summary\(\s*p_probe boolean DEFAULT false\s*,\s*p_enforce_chicago_sunday boolean DEFAULT false\s*\)/,
+    );
+  });
+
+  it('gates on Sunday (DOW 0) + hour 8 in America/Chicago; otherwise RETURN NULL', () => {
+    expect(mig093Src).toMatch(/IF p_enforce_chicago_sunday THEN/);
+    expect(mig093Src).toMatch(/now\(\) AT TIME ZONE 'America\/Chicago'/);
+    expect(mig093Src).toMatch(/EXTRACT\(DOW FROM v_now_chi\)::int = 0/);
+    expect(mig093Src).toMatch(/EXTRACT\(HOUR FROM v_now_chi\)::int = 8/);
+    expect(mig093Src).toMatch(/RETURN NULL;/);
+  });
+
+  it('still posts probe:p_probe in the body so the probe shortcut is unchanged', () => {
+    expect(mig093Src).toMatch(/jsonb_build_object\(\s*'mode'\s*,\s*'cron'\s*,\s*'probe'\s*,\s*p_probe\s*\)/);
+  });
+
+  it('REVOKE/GRANT target the new (boolean, boolean) signature', () => {
+    expect(mig093Src).toMatch(/REVOKE ALL ON FUNCTION public\.invoke_tasks_summary\(boolean, boolean\) FROM PUBLIC/);
+    expect(mig093Src).toMatch(/REVOKE ALL ON FUNCTION public\.invoke_tasks_summary\(boolean, boolean\) FROM anon/);
+    expect(mig093Src).toMatch(
+      /REVOKE ALL ON FUNCTION public\.invoke_tasks_summary\(boolean, boolean\) FROM authenticated/,
+    );
+    expect(mig093Src).toMatch(/GRANT EXECUTE ON FUNCTION public\.invoke_tasks_summary\(boolean, boolean\) TO postgres/);
+  });
+});
+
+describe('Mig 093 — window helper + audit column', () => {
+  it('tasks_summary_window_start() is SECDEF, returns timestamptz, Chicago wall-clock math', () => {
+    expect(mig093Src).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.tasks_summary_window_start\(\)\s*RETURNS timestamptz/,
+    );
+    expect(mig093Src).toMatch(/SECURITY DEFINER[\s\S]{0,80}?SET search_path = public/);
+    // Previous Sunday 08:00 Central = boundary minus a week.
+    expect(mig093Src).toMatch(/v_boundary\s*:=\s*v_sunday \+ time '08:00'/);
+    expect(mig093Src).toMatch(/v_boundary - interval '7 days'\) AT TIME ZONE 'America\/Chicago'/);
+  });
+
+  it('window helper execute is service-role/postgres only (not anon/authenticated)', () => {
+    expect(mig093Src).toMatch(/REVOKE ALL ON FUNCTION public\.tasks_summary_window_start\(\) FROM anon/);
+    expect(mig093Src).toMatch(/REVOKE ALL ON FUNCTION public\.tasks_summary_window_start\(\) FROM authenticated/);
+    expect(mig093Src).toMatch(/GRANT EXECUTE ON FUNCTION public\.tasks_summary_window_start\(\) TO service_role/);
+  });
+
+  it('adds total_completed_instances to task_summary_runs (idempotent)', () => {
+    expect(mig093Src).toMatch(
+      /ALTER TABLE public\.task_summary_runs\s*ADD COLUMN IF NOT EXISTS total_completed_instances int NOT NULL DEFAULT 0/,
+    );
+  });
+});
+
+describe('Edge Function — completed-assigned coverage (mig 093)', () => {
+  it('reads task_completed notifications via tasks_summary_window_start window', () => {
+    expect(fnCode).toMatch(/rpc\(\s*'tasks_summary_window_start'\s*\)/);
+    expect(fnCode).toMatch(/from\(\s*'notifications'\s*\)/);
+    expect(fnCode).toMatch(/\.eq\(\s*'type'\s*,\s*'task_completed'\s*\)/);
+    expect(fnCode).toMatch(/\.gte\(\s*'created_at'\s*,\s*startIso\s*\)/);
+  });
+
+  it('groups completed by recipient_profile_id and joins recipient/actor/task', () => {
+    expect(fnCode).toMatch(/byRecipient\.set\(\s*r\.recipient_profile_id/);
+    expect(fnCode).toMatch(/notifications_recipient_profile_id_fkey/);
+    expect(fnCode).toMatch(/notifications_actor_profile_id_fkey/);
+    expect(fnCode).toMatch(/notifications_task_instance_id_fkey/);
+  });
+
+  it('merges completed recipients into the bucket set (assigned-only recipients included)', () => {
+    expect(fnCode).toMatch(/for\s*\(\s*const\s+\[recipientId,\s*c\]\s+of\s+completedByRecipient\s*\)/);
+    expect(fnCode).toMatch(/bucket\.completed\s*=\s*c\.items/);
+  });
+
+  it('payload carries completed + completed_count alongside open tasks', () => {
+    expect(fnCode).toMatch(/completed:\s*bucket\.completed/);
+    expect(fnCode).toMatch(/completed_count:\s*bucket\.completed\.length/);
+  });
+
+  it('audit + responses report total_completed_instances', () => {
+    expect(fnCode).toMatch(/total_completed_instances/);
+    // Probe row and final audit row both carry the field.
+    const occurrences = fnCode.match(/total_completed_instances/g) || [];
+    expect(occurrences.length).toBeGreaterThanOrEqual(4);
   });
 });

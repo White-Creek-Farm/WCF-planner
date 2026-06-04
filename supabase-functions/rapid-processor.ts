@@ -342,9 +342,68 @@ function tasksWeeklyHtml(tasks: Array<Record<string, any>>): string {
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="font-family:Georgia,serif;font-size:13px;color:#888;line-height:1.6;margin:0;">
-      Open the Task Center to mark tasks complete: <a href="https://wcfplanner.com/tasks" style="color:#566542;text-decoration:underline;">wcfplanner.com/tasks</a>
+  `;
+}
+
+// Completed-assigned-task section (mig 093). Lists tasks the recipient
+// created/assigned that were completed during the weekly window. Every
+// user-controlled value (title, completer name) is escaped; the completed
+// timestamp is formatted in America/Chicago and the task link is built from
+// a sanitized id so a crafted id can't break out of the href.
+function fmtCompletedAt(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(d);
+  } catch (_e) {
+    return iso;
+  }
+}
+
+function tasksWeeklyCompletedHtml(completed: Array<Record<string, any>>): string {
+  const rows = completed
+    .map((t) => {
+      const title = escapeHtml(t.title || '(untitled)');
+      const when = escapeHtml(fmtCompletedAt(String(t.completed_at || '')));
+      const by = t.completed_by ? escapeHtml(t.completed_by) : '';
+      const byLine = by
+        ? `<div style="color:#888;font-size:12px;font-family:Arial,sans-serif;margin-top:4px;">Completed by ${by}</div>`
+        : '';
+      // Only build a deep link for an id that is plainly safe in a URL path.
+      const rawId = String(t.task_instance_id || '');
+      const safeId = /^[A-Za-z0-9._-]+$/.test(rawId) ? rawId : '';
+      const titleCell = safeId
+        ? `<a href="https://wcfplanner.com/tasks/${safeId}" style="color:#232323;text-decoration:underline;">${title}</a>`
+        : title;
+      return `
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid #efeae0;font-family:Arial,sans-serif;font-size:13px;color:#566542;font-weight:700;white-space:nowrap;vertical-align:top;">${when}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #efeae0;font-family:Georgia,serif;font-size:14px;color:#232323;vertical-align:top;">
+            ${titleCell}
+            ${byLine}
+          </td>
+        </tr>`;
+    })
+    .join('');
+  return `
+    <p style="font-family:Georgia,serif;font-size:15px;color:#232323;margin:24px 0 16px 0;line-height:1.6;">
+      ${completed.length} task${completed.length === 1 ? '' : 's'} you assigned ${completed.length === 1 ? 'was' : 'were'} completed this week.
     </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8e4dc;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <thead>
+        <tr style="background:#f8f6f0;">
+          <th align="left" style="padding:8px 12px;font-family:Arial,sans-serif;font-size:11px;color:#566542;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e8e4dc;">Completed</th>
+          <th align="left" style="padding:8px 12px;font-family:Arial,sans-serif;font-size:11px;color:#566542;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e8e4dc;">Task</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
   `;
 }
 
@@ -728,22 +787,37 @@ serve(async (req) => {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       }
-      const {email, full_name, tasks, count} = data || {};
+      const {email, full_name, tasks, count, completed, completed_count} = data || {};
       if (!email) throw new Error('email required');
-      if (!Array.isArray(tasks) || tasks.length === 0) {
+      const openTasks = Array.isArray(tasks) ? tasks : [];
+      const completedTasks = Array.isArray(completed) ? completed : [];
+      // Skip the send only when BOTH sections are empty (mig 093). A
+      // recipient with only completed-assigned tasks (zero open) still
+      // gets an email.
+      if (openTasks.length === 0 && completedTasks.length === 0) {
         return new Response(JSON.stringify({ok: true, skipped: true, reason: 'no tasks'}), {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       }
-      const taskCount = typeof count === 'number' ? count : tasks.length;
-      const subjectBase = `WCF Planner - ${taskCount} open task${taskCount === 1 ? '' : 's'}`;
+      const taskCount = typeof count === 'number' ? count : openTasks.length;
+      const completedCount = typeof completed_count === 'number' ? completed_count : completedTasks.length;
+      // Subject reflects whichever sections are present.
+      const subjectParts: string[] = [];
+      if (taskCount > 0) subjectParts.push(`${taskCount} open task${taskCount === 1 ? '' : 's'}`);
+      if (completedCount > 0) subjectParts.push(`${completedCount} completed this week`);
+      const subjectBase = `WCF Planner - ${subjectParts.join(', ')}`;
+      // Render whichever sections have content; both renderers escape all
+      // user-controlled strings.
+      const bodyHtml =
+        (openTasks.length > 0 ? tasksWeeklyHtml(openTasks) : '') +
+        (completedTasks.length > 0 ? tasksWeeklyCompletedHtml(completedTasks) : '');
       const html = brandedEmail({
-        title: 'Open Tasks',
+        title: taskCount > 0 ? 'Open Tasks' : 'Completed This Week',
         // brandedEmail interpolates subtitle directly into HTML; escape
         // here (Codex C4 re-review BLOCKER 2). full_name is profile data
         // but admins can self-edit so it's still untrusted.
         subtitle: escapeHtml(full_name || ''),
-        bodyHtml: tasksWeeklyHtml(tasks),
+        bodyHtml,
         isTest: !!test_to,
       });
       const res = await sendEmail({
