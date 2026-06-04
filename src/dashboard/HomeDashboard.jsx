@@ -13,7 +13,7 @@ import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, toISO, addDays, todayISO} from '../lib/dateUtils.js';
-import {calcPoultryStatus, calcBroilerStatsFromDailys, calcTimeline} from '../lib/broiler.js';
+import {calcPoultryStatus, computeBroilerOnFarmCounts, calcTimeline} from '../lib/broiler.js';
 import {
   calcBreedingTimeline,
   buildCycleSeqMap,
@@ -184,14 +184,11 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
   }, [materialsTick]);
 
   // Auto-status counts for poultry
-  const activeBatches = batches.filter((b) => calcPoultryStatus(b) === 'active');
+  const broilerOnFarmCounts = computeBroilerOnFarmCounts(batches, broilerDailys);
+  const activeBatches = broilerOnFarmCounts.activeBatches;
   const plannedBatches = batches.filter((b) => calcPoultryStatus(b) === 'planned');
   const processedBatches = batches.filter((b) => calcPoultryStatus(b) === 'processed');
-  const birdsOnFarm = activeBatches.reduce((s, b) => s + (parseInt(b.birdCountActual) || 0), 0);
-  const projectedBirds = activeBatches.reduce((s, b) => {
-    const stats = calcBroilerStatsFromDailys(b, broilerDailys);
-    return s + stats.projectedBirds;
-  }, 0);
+  const broilerOnFarm = broilerOnFarmCounts.onFarmBirds;
 
   // What's happening in the next 30 days
   const weekEvents = [];
@@ -734,7 +731,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
               label: 'Broilers',
               iconKey: ANIMAL_ICON_KEYS.broiler,
               iconText: '🐔',
-              desc: `${activeBatches.length} active \u00b7 ${birdsOnFarm.toLocaleString()} on farm`,
+              desc: `${activeBatches.length} active \u00b7 ${broilerOnFarm.toLocaleString()} on farm`,
               view: 'broilerHome',
               color: '#a16207',
               bg: '#fef9c3',
@@ -865,7 +862,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           const sheepOnFarm = (sheepForHome || []).filter(
             (s) => s.flock === 'rams' || s.flock === 'ewes' || s.flock === 'feeders',
           ).length;
-          const totalAll = projectedBirds + totalHens + totalPigs + cattleOnFarmCount + sheepOnFarm;
+          const totalAll = broilerOnFarm + totalHens + totalPigs + cattleOnFarmCount + sheepOnFarm;
           return (
             <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 14, padding: '16px 24px'}}>
               <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563', letterSpacing: 0.3, marginBottom: 12}}>
@@ -876,7 +873,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: 16, alignItems: 'center'}}
               >
                 <div style={{textAlign: 'center'}}>
-                  <div style={{fontSize: 26, fontWeight: 700, color: '#a16207'}}>{projectedBirds.toLocaleString()}</div>
+                  <div style={{fontSize: 26, fontWeight: 700, color: '#a16207'}}>{broilerOnFarm.toLocaleString()}</div>
                   <div style={{fontSize: 11, color: '#6b7280', marginTop: 2}}>{'\ud83d\udc14 Broilers'}</div>
                 </div>
                 <div style={{textAlign: 'center'}}>

@@ -11,10 +11,10 @@ import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {
-  calcPoultryStatus,
   calcTimeline,
   calcBatchFeed,
   calcBroilerStatsFromDailys,
+  computeBroilerOnFarmCounts,
   BREED_STYLE,
 } from '../lib/broiler.js';
 import UsersModal from '../auth/UsersModal.jsx';
@@ -29,7 +29,8 @@ export default function BroilerHomeView({Header, loadUsers}) {
   const {broilerDailys} = useDailysRecent();
   const {setView} = useUI();
   const todayStr = todayISO();
-  const activeBr = batches.filter((b) => calcPoultryStatus(b) === 'active');
+  const broilerOnFarmCounts = computeBroilerOnFarmCounts(batches, broilerDailys);
+  const activeBr = broilerOnFarmCounts.activeBatches;
   // Ignore batches before 2025 for all dashboard metrics
   const procBr = batches.filter((b) => b.status === 'processed' && (b.hatchDate || '') >= '2025');
   const currentYear = String(new Date().getFullYear());
@@ -309,18 +310,23 @@ export default function BroilerHomeView({Header, loadUsers}) {
           <StatTile label="Active Batches" val={activeBr.length} />
           <StatTile
             label="Birds on Farm"
-            val={activeBr.reduce((s, b) => s + (parseInt(b.birdCountActual) || 0), 0).toLocaleString()}
-            color="#a16207"
+            val={broilerOnFarmCounts.onFarmBirds.toLocaleString()}
+            color="#085041"
+            sub={
+              broilerOnFarmCounts.startedBirds > 0
+                ? broilerOnFarmCounts.startedBirds.toLocaleString() + ' started'
+                : ''
+            }
           />
           <StatTile
-            label="Projected Birds"
-            val={activeBr
-              .reduce((s, b) => {
-                const stats = calcBroilerStatsFromDailys(b, broilerDailys);
-                return s + stats.projectedBirds;
-              }, 0)
-              .toLocaleString()}
-            color="#085041"
+            label="Birds Started"
+            val={broilerOnFarmCounts.startedBirds.toLocaleString()}
+            color="#a16207"
+            sub={
+              broilerOnFarmCounts.mortality > 0
+                ? broilerOnFarmCounts.mortality.toLocaleString() + ' mortality'
+                : ''
+            }
           />
           {(function () {
             var yrBirds = procBrThisYear.reduce(function (s, b) {
@@ -411,7 +417,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                         {l: 'On farm', v: Math.floor(daysActive / 7) + 'w ' + (daysActive % 7) + 'd'},
                         {l: 'Current phase', v: phaseLabel},
                         {l: 'Birds (day 1)', v: dayOne > 0 ? dayOne.toLocaleString() : '\u2014'},
-                        {l: 'Projected birds', v: stats.projectedBirds.toLocaleString(), green: true},
+                        {l: 'On-farm birds', v: stats.projectedBirds.toLocaleString(), green: true},
                         {
                           l: 'Mortality',
                           v: mortSoFar > 0 ? `${mortSoFar} birds (${mortPct}%)` : '0',
