@@ -81,7 +81,7 @@ describe('Commit 4a — Auto-allocation hard gates', () => {
   it('auto-allocation never sets sent_to_trip_id or sent_to_group_id', () => {
     // Pull the auto-allocation effect body and verify it has no writes
     // to weigh_ins. Defensive — the effect operates on app_store only.
-    const effect = viewSrc.match(/Auto-allocate planned trips[\s\S]*?effectiveAdgLbsPerDay\]\);/);
+    const effect = viewSrc.match(/Auto-allocate planned trips[\s\S]*?effectiveAdgLbsPerDay,\s*\]\);/);
     expect(effect, 'expected to find the auto-allocation effect').not.toBeNull();
     expect(effect[0]).not.toMatch(/sent_to_trip_id/);
     expect(effect[0]).not.toMatch(/sent_to_group_id/);
@@ -89,11 +89,40 @@ describe('Commit 4a — Auto-allocation hard gates', () => {
   });
 
   it('auto-allocation only writes to plannedProcessingTrips, never to processingTrips', () => {
-    const effect = viewSrc.match(/Auto-allocate planned trips[\s\S]*?effectiveAdgLbsPerDay\]\);/);
+    const effect = viewSrc.match(/Auto-allocate planned trips[\s\S]*?effectiveAdgLbsPerDay,\s*\]\);/);
     expect(effect[0]).toMatch(/plannedProcessingTrips/);
     // Negative lock: never assigns to feederGroup.processingTrips inside
     // the effect.
     expect(effect[0]).not.toMatch(/processingTrips:\s*\[/);
+  });
+
+  it('auto-allocation planned dates use effective Global ADG, not local rank-matched ADG', () => {
+    const effect = viewSrc.match(/Auto-allocate planned trips[\s\S]*?effectiveAdgLbsPerDay,\s*\]\);/);
+    expect(effect, 'expected to find the auto-allocation effect').not.toBeNull();
+    expect(effect[0]).toContain('planned trip dates');
+    expect(effect[0]).toMatch(/const adg = effectiveAdgLbsPerDay/);
+    expect(effect[0]).toContain('buildFarrowingAgeDistribution');
+    expect(effect[0]).toContain('projectFarrowingAgeWindow');
+    expect(effect[0]).not.toMatch(/const adg = latestAdgBySubId/);
+  });
+
+  it('planned-trip forecast cards stay age-at-trip-date times Global ADG', () => {
+    expect(pageSrc).toContain('DOB/farrowing age at');
+    expect(pageSrc).toContain('buildFarrowingAgeDistribution');
+    expect(pageSrc).toContain('ageDistributionAtRef');
+    expect(pageSrc).toMatch(/populationCount:\s*forecastPopulationCount/);
+    expect(pageSrc).not.toMatch(/latestEntries:\s*\[\]/);
+    expect(pageSrc).toMatch(/globalAdgLbsPerDay:\s*effectiveAdgLbsPerDay/);
+    expect(pageSrc).not.toContain('projectionAdgLbsPerDay');
+    expect(pageSrc).not.toContain('latestEntriesBySubId');
+  });
+
+  it('processing trips compare age-based forecast against actual live weights', () => {
+    expect(pageSrc).toContain('data-pig-trip-forecast-compare');
+    expect(pageSrc).toContain('processingForecastByTripId');
+    expect(pageSrc).toContain('projectFarrowingAgeWindow');
+    expect(pageSrc).toContain('forecastDelta');
+    expect(pageSrc).toMatch(/avg - tripForecastAvg/);
   });
 });
 
@@ -436,9 +465,10 @@ describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', ()
 describe('CP6 — presentational extraction (behavior unchanged)', () => {
   it('PigBatchHubTile is a render-only component carrying the tile hook + open handler', () => {
     expect(tileSrc).toMatch(
-      /export default function PigBatchHubTile\(\{group, current, started, statusColor, onOpen\}\)/,
+      /export default function PigBatchHubTile\(\{[\s\S]*?group,[\s\S]*?current,[\s\S]*?started,[\s\S]*?feedPerStarted,[\s\S]*?subSummaries = \[\],[\s\S]*?statusColor,[\s\S]*?onOpen,[\s\S]*?\}\)/,
     );
     expect(tileSrc).toMatch(/data-pig-batch-tile=\{group\.id\}/);
+    expect(tileSrc).toMatch(/data-pig-batch-sub-batches=\{group\.id\}/);
     expect(tileSrc).toMatch(/onClick=\{onOpen\}/);
     // Presentational only — no data/hooks/mutations leaked into the tile.
     expect(tileSrc).not.toContain('useState');

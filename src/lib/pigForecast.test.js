@@ -8,7 +8,12 @@ import {
   computeFeedPerPig,
   computeAvgWeight,
   computeGroupADG,
+  findPriorPigWeighInSession,
+  computeRankMatchedPigEntryADG,
+  computeRankMatchedPigGroupADG,
   seedGlobalADG,
+  buildFarrowingAgeDistribution,
+  projectFarrowingAgeWindow,
   allocatePlannedTrips,
   movePigsBetweenTrips,
   recalculateProjections,
@@ -211,6 +216,90 @@ describe('computeGroupADG', () => {
   });
 });
 
+describe('findPriorPigWeighInSession', () => {
+  it('finds the newest earlier pig session for the same batch slug', () => {
+    const current = {id: 'cur', species: 'pig', batch_id: 'P-26-01 A', date: '2026-05-20'};
+    const sessions = [
+      current,
+      {id: 'older', species: 'pig', batch_id: 'p-26-01-a', date: '2026-04-01', started_at: '2026-04-01T08:00:00'},
+      {id: 'prior', species: 'pig', batch_id: 'P 26 01 A', date: '2026-05-01', started_at: '2026-05-01T09:00:00'},
+      {id: 'other', species: 'pig', batch_id: 'P-26-01-B', date: '2026-05-15'},
+      {id: 'future', species: 'pig', batch_id: 'P-26-01-A', date: '2026-05-21'},
+    ];
+    expect(findPriorPigWeighInSession(current, sessions).id).toBe('prior');
+  });
+
+  it('breaks same-date prior candidates by started_at descending', () => {
+    const current = {id: 'cur', species: 'pig', batch_id: 'A', date: '2026-05-20'};
+    const sessions = [
+      {id: 'am', species: 'pig', batch_id: 'A', date: '2026-05-01', started_at: '2026-05-01T08:00:00'},
+      {id: 'pm', species: 'pig', batch_id: 'A', date: '2026-05-01', started_at: '2026-05-01T15:00:00'},
+    ];
+    expect(findPriorPigWeighInSession(current, sessions).id).toBe('pm');
+  });
+});
+
+describe('computeRankMatchedPigEntryADG', () => {
+  it('pairs current and prior pig weights by ASC rank and returns entry-level ADG', () => {
+    const out = computeRankMatchedPigEntryADG(
+      [
+        {id: 'heavy', weight: 260},
+        {id: 'light', weight: 220},
+        {id: 'mid', weight: 240},
+      ],
+      [
+        {id: 'p-heavy', weight: 230},
+        {id: 'p-light', weight: 200},
+        {id: 'p-mid', weight: 215},
+      ],
+      '2026-05-31',
+      '2026-05-01',
+    );
+    expect(out.map((x) => x.entryId)).toEqual(['light', 'mid', 'heavy']);
+    expect(out[0]).toMatchObject({rank: 1, currentWeightLbs: 220, priorWeightLbs: 200, daysBetween: 30});
+    expect(out[0].adgLbsPerDay).toBeCloseTo(20 / 30, 6);
+    expect(out[2].adgLbsPerDay).toBeCloseTo(30 / 30, 6);
+  });
+
+  it('only returns matched ranks and ignores invalid weights', () => {
+    const out = computeRankMatchedPigEntryADG(
+      [
+        {id: 'a', weight: 210},
+        {id: 'bad', weight: 0},
+        {id: 'b', weight: 230},
+      ],
+      [{id: 'p-a', weight: 190}],
+      '2026-05-11',
+      '2026-05-01',
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].entryId).toBe('a');
+    expect(computeRankMatchedPigEntryADG([{id: 'a', weight: 210}], [{id: 'p', weight: 190}], '2026-05-01', '2026-05-01')).toEqual([]);
+  });
+});
+
+describe('computeRankMatchedPigGroupADG', () => {
+  it('averages rank-matched entry ADG values', () => {
+    const out = computeRankMatchedPigGroupADG(
+      [
+        {id: 'a', weight: 220},
+        {id: 'b', weight: 250},
+      ],
+      [
+        {id: 'pa', weight: 200},
+        {id: 'pb', weight: 220},
+      ],
+      '2026-05-31',
+      '2026-05-01',
+    );
+    expect(out).toBeCloseTo(((20 / 30) + (30 / 30)) / 2, 6);
+  });
+
+  it('returns null when there are no matched ranks', () => {
+    expect(computeRankMatchedPigGroupADG([{id: 'a', weight: 220}], [], '2026-05-31', '2026-05-01')).toBeNull();
+  });
+});
+
 describe('seedGlobalADG', () => {
   it('returns null with no usable sessions', () => {
     expect(seedGlobalADG(null)).toBeNull();
@@ -371,6 +460,77 @@ describe('movePigsBetweenTrips', () => {
   });
 });
 
+describe('farrowing-weighted age windows', () => {
+  const cycle = {id: 'c1', group: '1', exposureStart: '2025-09-07'};
+  const farrowingRecs = [
+    {id: 'f1', group: '1', farrowingDate: '2026-01-01', alive: 3},
+    {id: 'f2', group: '1', farrowingDate: '2026-01-09', alive: 24},
+    {id: 'f3', group: '1', farrowingDate: '2026-01-17', alive: 3},
+  ];
+
+  it('builds age buckets from real farrowing counts, oldest first', () => {
+    const dist = buildFarrowingAgeDistribution({
+      cycleId: 'c1',
+      asOfDate: '2026-06-01',
+      breedingCycles: [cycle],
+      farrowingRecs,
+    });
+    expect(dist.source).toBe('farrowing-weighted');
+    expect(dist.totalWeight).toBe(30);
+    expect(dist.buckets).toEqual([
+      {ageDays: 151, weight: 3},
+      {ageDays: 143, weight: 24},
+      {ageDays: 135, weight: 3},
+    ]);
+  });
+
+  it('slices the skewed 21-gilt example by farrowing-count weighted rank windows', () => {
+    const dist = buildFarrowingAgeDistribution({
+      cycleId: 'c1',
+      asOfDate: '2026-06-01',
+      breedingCycles: [cycle],
+      farrowingRecs,
+    });
+    const g1 = projectFarrowingAgeWindow(dist, {populationCount: 21, rankOffset: 0, windowCount: 11});
+    const g2 = projectFarrowingAgeWindow(dist, {populationCount: 21, rankOffset: 11, windowCount: 10});
+    expect(g1).toMatchObject({minDays: 143, maxDays: 151, hasActual: true});
+    expect(g1.avgDays).toBeCloseTo(144.53, 2);
+    expect(g2).toMatchObject({minDays: 135, maxDays: 143, hasActual: true});
+    expect(g2.avgDays).toBeCloseTo(141.32, 2);
+  });
+
+  it('keeps a one-trip population as the full known band rather than a midpoint', () => {
+    const dist = buildFarrowingAgeDistribution({
+      cycleId: 'c1',
+      asOfDate: '2026-06-01',
+      breedingCycles: [cycle],
+      farrowingRecs,
+    });
+    const onlyTrip = projectFarrowingAgeWindow(dist, {populationCount: 1, rankOffset: 0, windowCount: 1});
+    expect(onlyTrip.minDays).toBe(135);
+    expect(onlyTrip.maxDays).toBe(151);
+    expect(onlyTrip.avgDays).toBeCloseTo(143, 6);
+  });
+
+  it('falls back to an estimated full cycle band when farrowing counts are absent', () => {
+    const dist = buildFarrowingAgeDistribution({
+      cycleId: 'c1',
+      asOfDate: '2026-06-01',
+      breedingCycles: [cycle],
+      farrowingRecs: [],
+      cycleAgeDaysAtRef: {minDays: 135, maxDays: 151},
+    });
+    const window = projectFarrowingAgeWindow(dist, {populationCount: 21, rankOffset: 11, windowCount: 10});
+    expect(window).toEqual({
+      source: 'estimated-cycle-band',
+      hasActual: false,
+      minDays: 135,
+      maxDays: 151,
+      avgDays: 143,
+    });
+  });
+});
+
 describe('recalculateProjections', () => {
   const baseTrips = [
     // Out-of-order on purpose to verify internal sort.
@@ -389,25 +549,59 @@ describe('recalculateProjections', () => {
     {weight: 225},
     {weight: 220},
   ];
+  const weightedAgeDistributionAtRef = {
+    source: 'farrowing-weighted',
+    buckets: [
+      {ageDays: 151, weight: 3},
+      {ageDays: 143, weight: 24},
+      {ageDays: 135, weight: 3},
+    ],
+    totalWeight: 30,
+  };
 
-  it('rank-windows entries to trips after sorting by date', () => {
+  it('rank-windows farrowing-weighted ages to trips after sorting by date', () => {
     const out = recalculateProjections(baseTrips, {
       latestEntries: entries,
-      referenceDate: '2026-05-15',
+      referenceDate: '2026-06-01',
       globalAdgLbsPerDay: 1.5,
+      ageDistributionAtRef: weightedAgeDistributionAtRef,
+      populationCount: 9,
     });
     expect(out[0].id).toBe('t1');
     expect(out[1].id).toBe('t2');
-    expect(out[0].daysUntil).toBe(17);
-    expect(out[1].daysUntil).toBe(47);
-    // t1 takes top 5 (260…240), avg=250, +1.5*17=25.5 → 275.5
-    expect(out[0].projectedAvgLbs).toBeCloseTo(275.5, 6);
-    expect(out[0].projectedMinLbs).toBeCloseTo(240 + 25.5, 6);
-    expect(out[0].projectedMaxLbs).toBeCloseTo(260 + 25.5, 6);
-    expect(out[0].ready).toBe(true);
-    // t2 takes next 4 (235…220), avg=227.5, +1.5*47=70.5 → 298
-    expect(out[1].projectedAvgLbs).toBeCloseTo(298, 6);
-    expect(out[1].ready).toBe(true);
+    expect(out[0].daysUntil).toBe(0);
+    expect(out[1].daysUntil).toBe(30);
+    expect(out[0].projectedMinLbs).toBeCloseTo(143 * 1.5, 6);
+    expect(out[0].projectedMaxLbs).toBeCloseTo(151 * 1.5, 6);
+    expect(out[0].projectionSource).toBe('farrowing-weighted');
+    expect(out[0].projectionHasActualFarrowing).toBe(true);
+    expect(out[1].projectedMinLbs).toBeCloseTo((135 + 30) * 1.5, 6);
+    expect(out[1].projectedMaxLbs).toBeCloseTo((143 + 30) * 1.5, 6);
+  });
+
+  it('processed trips come off the top of the age stack before remaining planned trips', () => {
+    const out = recalculateProjections([{id: 'remaining', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 10, order: 0}], {
+      referenceDate: '2026-06-01',
+      globalAdgLbsPerDay: 1.6,
+      ageDistributionAtRef: weightedAgeDistributionAtRef,
+      populationCount: 21,
+      alreadyShippedCount: 11,
+    });
+    expect(out[0].projectedMinLbs).toBeCloseTo(135 * 1.6, 6);
+    expect(out[0].projectedMaxLbs).toBeCloseTo(143 * 1.6, 6);
+  });
+
+  it('ignores latestEntriesDate because weigh-ins do not move planned forecasts', () => {
+    const out = recalculateProjections([{id: 'a', date: '2026-06-17', sex: 'boar', subBatchId: 'sub-2', plannedCount: 2, order: 0}], {
+      latestEntries: [{weight: 270}, {weight: 230}],
+      latestEntriesDate: '2026-05-19',
+      referenceDate: '2026-06-04',
+      globalAdgLbsPerDay: 1.14,
+      cycleAgeDaysAtRef: {minDays: 135, maxDays: 151},
+    });
+    expect(out[0].daysUntil).toBe(13);
+    expect(out[0].projectedMinLbs).toBeCloseTo((135 + 13) * 1.14, 6);
+    expect(out[0].projectedMaxLbs).toBeCloseTo((151 + 13) * 1.14, 6);
   });
 
   it('returns null projections when no global ADG is available', () => {
@@ -452,17 +646,16 @@ describe('recalculateProjections', () => {
     expect(out[1].projectedMaxLbs).toBeCloseTo(137 * 1.5, 6);
   });
 
-  it('ignores cycle age when latest weights exist (rank-window mode wins)', () => {
+  it('uses cycle age even when latest weights are passed', () => {
     const out = recalculateProjections(baseTrips, {
       latestEntries: entries,
       referenceDate: '2026-05-15',
       globalAdgLbsPerDay: 1.5,
       cycleAgeDaysAtRef: {minDays: 60, maxDays: 90},
     });
-    // Same as the rank-window test — cycle age must NOT shift the result.
-    expect(out[0].projectedAvgLbs).toBeCloseTo(275.5, 6);
-    expect(out[0].projectedMinLbs).toBeCloseTo(240 + 25.5, 6);
-    expect(out[0].projectedMaxLbs).toBeCloseTo(260 + 25.5, 6);
+    expect(out[0].projectedAvgLbs).toBeCloseTo((77 * 1.5 + 107 * 1.5) / 2, 6);
+    expect(out[0].projectedMinLbs).toBeCloseTo(77 * 1.5, 6);
+    expect(out[0].projectedMaxLbs).toBeCloseTo(107 * 1.5, 6);
   });
 
   it('returns null projections in pre-weigh-in mode when cycle age is malformed', () => {
@@ -512,24 +705,24 @@ describe('recalculateProjections', () => {
       {
         latestEntries: [{weight: 280}, {weight: 275}, {weight: 270}, {weight: 265}, {weight: 260}],
         referenceDate: '2026-05-15',
-        globalAdgLbsPerDay: 0.5,
+        globalAdgLbsPerDay: 1,
+        cycleAgeDaysAtRef: {minDays: 180, maxDays: 220},
       },
     );
-    // 109 days × 0.5 = +54.5; sliceMax 280 → 334.5 > 325
     expect(out[0].projectedMaxLbs).toBeGreaterThan(PLANNED_TRIP_OVER_WEIGHT_WARN_LBS);
     expect(out[0].warnings).toContain('overweight');
   });
 
-  it('falls back to null projection for trips beyond the available entry stack', () => {
+  it('falls back to null projection for trips beyond the remaining forecast population', () => {
     const trips = [
       {id: 'a', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 5, order: 0},
       {id: 'b', date: '2026-06-15', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 5, order: 1},
     ];
-    // Only 5 entries — trip a takes them all, trip b gets none.
     const out = recalculateProjections(trips, {
-      latestEntries: [{weight: 240}, {weight: 235}, {weight: 230}, {weight: 225}, {weight: 220}],
-      referenceDate: '2026-05-15',
-      globalAdgLbsPerDay: 1,
+      referenceDate: '2026-06-01',
+      globalAdgLbsPerDay: 1.5,
+      ageDistributionAtRef: weightedAgeDistributionAtRef,
+      populationCount: 5,
     });
     expect(out[0].projectedAvgLbs).not.toBeNull();
     expect(out[1].projectedAvgLbs).toBeNull();

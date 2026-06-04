@@ -69,6 +69,13 @@ describe('Pig weigh-in metrics — admin LivestockWeighInsView (commit 3)', () =
     expect(adminSrc).toMatch(/\.catch\(\(\) => \(\{id: s\.id, data: \{available: false\}\}\)\)/);
   });
 
+  it('renders rank-matched per-entry pig ADG chips when a prior session exists', () => {
+    expect(adminSrc).toContain('findPriorPigWeighInSession');
+    expect(adminSrc).toContain('computeRankMatchedPigEntryADG');
+    expect(adminSrc).toContain('data-pig-metric="entry-adg"');
+    expect(adminSrc).toContain('Rank-matched pig ADG');
+  });
+
   it('keeps the persisted load query at entered_at ASC', () => {
     expect(adminSrc).toMatch(/\.in\('session_id',\s*ids\)\s*\.order\('entered_at',\s*\{ascending:\s*true\}\)/);
   });

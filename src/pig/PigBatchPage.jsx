@@ -26,6 +26,8 @@ import {
   PLANNED_TRIP_MIN_SIZE,
   PLANNED_TRIP_TARGET_WEIGHT_LBS,
   PLANNED_TRIP_OVER_WEIGHT_WARN_LBS,
+  buildFarrowingAgeDistribution,
+  projectFarrowingAgeWindow,
   recalculateProjections,
 } from '../lib/pigForecast.js';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
@@ -70,7 +72,6 @@ export default function PigBatchPage({group, view}) {
     notice,
     setNotice,
     effectiveAdgLbsPerDay,
-    latestEntriesBySubId,
     dailysForName,
     archiveBatch,
     unarchiveBatch,
@@ -425,6 +426,94 @@ export default function PigBatchPage({group, view}) {
         const feedConversion = totalFeed > 0 && totalLive > 0 ? Math.round((totalFeed / totalLive) * 100) / 100 : null;
         const showTripForm = activeTripBatchId === g.id;
         const farrowPct = ageRange.total > 0 ? Math.round((ageRange.count / ageRange.total) * 100) : 0;
+        const processingForecastByTripId = (() => {
+          if (!g.cycleId || effectiveAdgLbsPerDay == null) return {};
+          const out = {};
+          const shippedBySub = {};
+          const subMetaById = {};
+          for (const sf of subFeedTotals) {
+            subMetaById[sf.sb.id] = {
+              populationCount: Math.max(0, sf.started - sf.transferCount - sf.mortality),
+            };
+          }
+          const tripsForForecast = [...trips].sort(
+            (a, b) =>
+              (a.date || '').localeCompare(b.date || '') ||
+              (parseInt(a.order) || 0) - (parseInt(b.order) || 0) ||
+              String(a.id || '').localeCompare(String(b.id || '')),
+          );
+
+          for (const trip of tripsForForecast) {
+            const tripDate = typeof trip.date === 'string' ? trip.date : null;
+            if (!tripDate) continue;
+            const tripAgeRange = libCalcAgeRange(
+              g.cycleId,
+              new Date(tripDate + 'T12:00:00'),
+              breedingCycles,
+              farrowingRecs,
+            );
+            const cycleAgeDaysAtTrip =
+              tripAgeRange && tripAgeRange.minDays != null
+                ? {minDays: tripAgeRange.minDays, maxDays: tripAgeRange.maxDays}
+                : null;
+            const distribution = buildFarrowingAgeDistribution({
+              cycleId: g.cycleId,
+              asOfDate: tripDate,
+              breedingCycles,
+              farrowingRecs,
+              cycleAgeDaysAtRef: cycleAgeDaysAtTrip,
+            });
+            const attributions = (Array.isArray(trip.subAttributions) ? trip.subAttributions : [])
+              .map((a) => ({subId: a && a.subId, count: parseInt(a && a.count) || 0}))
+              .filter((a) => a.subId && a.count > 0);
+
+            if (attributions.length === 0) {
+              if (cycleAgeDaysAtTrip) {
+                const min = cycleAgeDaysAtTrip.minDays * effectiveAdgLbsPerDay;
+                const max = cycleAgeDaysAtTrip.maxDays * effectiveAdgLbsPerDay;
+                out[trip.id] = {
+                  min: Math.min(min, max),
+                  max: Math.max(min, max),
+                  avg: (min + max) / 2,
+                  source: 'estimated-cycle-band',
+                  hasActual: !!(tripAgeRange && tripAgeRange.hasActual),
+                };
+              }
+              continue;
+            }
+
+            let min = null;
+            let max = null;
+            let avgNumerator = 0;
+            let countTotal = 0;
+            let hasActual = false;
+            let source = null;
+            for (const a of attributions) {
+              const meta = subMetaById[a.subId];
+              const offset = shippedBySub[a.subId] || 0;
+              shippedBySub[a.subId] = offset + a.count;
+              if (!meta || !distribution) continue;
+              const window = projectFarrowingAgeWindow(distribution, {
+                populationCount: meta.populationCount,
+                rankOffset: offset,
+                windowCount: a.count,
+              });
+              if (!window) continue;
+              const wMin = Math.min(window.minDays, window.maxDays) * effectiveAdgLbsPerDay;
+              const wMax = Math.max(window.minDays, window.maxDays) * effectiveAdgLbsPerDay;
+              min = min == null ? wMin : Math.min(min, wMin);
+              max = max == null ? wMax : Math.max(max, wMax);
+              avgNumerator += window.avgDays * effectiveAdgLbsPerDay * a.count;
+              countTotal += a.count;
+              hasActual = hasActual || !!window.hasActual;
+              source = source || window.source;
+            }
+            if (countTotal > 0 && min != null && max != null) {
+              out[trip.id] = {min, max, avg: avgNumerator / countTotal, source, hasActual};
+            }
+          }
+          return out;
+        })();
 
         return (
           <div
@@ -969,10 +1058,9 @@ export default function PigBatchPage({group, view}) {
                   sb.status !== 'processed' &&
                   Math.abs((parseInt(sft.dailyCount) || 0) - sft.ledgerCurrent) > 2;
                 // Planned-trip projection for this sub (commit 4a).
-                // Read-only render — date/count edit controls land in
-                // commit 4b. Cycle age + Global ADG drive the
-                // pre-weigh-in band; latestEntriesBySubId drives the
-                // rank-window band when entries exist.
+                // Ronnie rule: forecast weight stays DOB/farrowing age at
+                // trip date × Global ADG. Weigh-in weights do not alter
+                // planned-trip forecast weights or dates.
                 const subGiltCount = parseInt(sb.giltCount) || 0;
                 const subBoarCount = parseInt(sb.boarCount) || 0;
                 const isMixedSex = subGiltCount > 0 && subBoarCount > 0;
@@ -984,12 +1072,22 @@ export default function PigBatchPage({group, view}) {
                   cycleAgeForRender && cycleAgeForRender.minDays != null
                     ? {minDays: cycleAgeForRender.minDays, maxDays: cycleAgeForRender.maxDays}
                     : null;
+                const ageDistributionAtRef = buildFarrowingAgeDistribution({
+                  cycleId: g.cycleId,
+                  asOfDate: todayStr,
+                  breedingCycles,
+                  farrowingRecs,
+                  cycleAgeDaysAtRef,
+                });
+                const forecastPopulationCount = Math.max(0, sft.started - sft.transferCount - sft.mortality);
                 const plannedRawForSub = (g.plannedProcessingTrips || []).filter((t) => t.subBatchId === sb.id);
                 const plannedProjected = recalculateProjections(plannedRawForSub, {
-                  latestEntries: latestEntriesBySubId[sb.id] || [],
                   referenceDate: todayStr,
                   globalAdgLbsPerDay: effectiveAdgLbsPerDay,
                   cycleAgeDaysAtRef,
+                  ageDistributionAtRef,
+                  populationCount: forecastPopulationCount,
+                  alreadyShippedCount: sft.tripPigs,
                   targetWeightLbs: PLANNED_TRIP_TARGET_WEIGHT_LBS,
                   minSize: PLANNED_TRIP_MIN_SIZE,
                   overWeightWarnLbs: PLANNED_TRIP_OVER_WEIGHT_WARN_LBS,
@@ -1384,7 +1482,9 @@ export default function PigBatchPage({group, view}) {
                             {plannedProjected.map((t, ti) => {
                               const projRange =
                                 t.projectedMinLbs != null && t.projectedMaxLbs != null
-                                  ? `${Math.round(t.projectedMinLbs)} – ${Math.round(t.projectedMaxLbs)} lb`
+                                  ? `${Math.round(t.projectedMinLbs)} – ${Math.round(t.projectedMaxLbs)} lb${
+                                      t.projectionHasActualFarrowing ? '' : ' (est.)'
+                                    }`
                                   : '—';
                               const projAvg =
                                 t.projectedAvgLbs != null ? `~${Math.round(t.projectedAvgLbs)} lb avg` : '';
@@ -1977,11 +2077,14 @@ export default function PigBatchPage({group, view}) {
                   No processing trips yet — they’ll appear here once you Send-to-Trip from /pig/weighins
                 </div>
               )}
-              {trips.map((t, ti) => {
+              {trips.map((t) => {
                 const live = tripTotalLive(t);
                 const yld = tripYield(t);
                 const wts = parseLiveWeights(t.liveWeights);
                 const avg = wts.length > 0 ? Math.round(live / wts.length) : 0;
+                const tripForecast = processingForecastByTripId[t.id] || null;
+                const tripForecastAvg = tripForecast ? tripForecast.avg : null;
+                const forecastDelta = avg > 0 && tripForecastAvg != null ? avg - tripForecastAvg : null;
                 return (
                   <div
                     key={t.id}
@@ -1999,6 +2102,19 @@ export default function PigBatchPage({group, view}) {
                     {live > 0 && (
                       <span style={{color: '#1d4ed8'}}>
                         Live: {Math.round(live)} lbs{avg > 0 ? ` (avg ${avg} lbs)` : ''}
+                      </span>
+                    )}
+                    {tripForecast && (
+                      <span data-pig-trip-forecast-compare={t.id} style={{color: '#6b7280'}}>
+                        Forecast: {Math.round(tripForecast.min)}-{Math.round(tripForecast.max)} lbs
+                        {tripForecast.hasActual ? '' : ' (est.)'}
+                        {tripForecastAvg != null ? ` (avg ${Math.round(tripForecastAvg)} lbs)` : ''}
+                        {forecastDelta != null && (
+                          <strong style={{color: forecastDelta >= 0 ? '#065f46' : '#b91c1c', marginLeft: 6}}>
+                            {forecastDelta >= 0 ? '+' : ''}
+                            {Math.round(forecastDelta)} lbs
+                          </strong>
+                        )}
                       </span>
                     )}
                     {parseFloat(t.hangingWeight) > 0 && (

@@ -13,7 +13,7 @@
 // edits stay honest.
 // ============================================================================
 
-import {calcAgeRange, daysToMWD} from './pig.js';
+import {calcAgeRange, cycleRecords, daysToMWD} from './pig.js';
 
 // Re-export so callers have a single import surface for forecast work.
 export {calcAgeRange};
@@ -136,6 +136,65 @@ export function computeGroupADG(currentSession, priorSession) {
   return (cur - prior) / days;
 }
 
+// Prior pig session lookup for the same batch/sub-batch slug. Mirrors the
+// pig_session_metrics RPC: prior means same slug, earlier session date, newest
+// date first with started_at as the tie-break.
+export function findPriorPigWeighInSession(currentSession, sessions) {
+  if (!currentSession || !Array.isArray(sessions)) return null;
+  const currentSlug = pigSessionSlug(currentSession.batch_id);
+  if (!currentSlug || !currentSession.date) return null;
+  return (
+    sessions
+      .filter((s) => {
+        if (!s || s.id === currentSession.id) return false;
+        if (s.species && s.species !== 'pig') return false;
+        if (pigSessionSlug(s.batch_id) !== currentSlug) return false;
+        return typeof s.date === 'string' && s.date < currentSession.date;
+      })
+      .sort(
+        (a, b) =>
+          (b.date || '').localeCompare(a.date || '') ||
+          (b.started_at || '').localeCompare(a.started_at || '') ||
+          String(b.id || '').localeCompare(String(a.id || '')),
+      )[0] || null
+  );
+}
+
+// Per-entry pig ADG where pigs do not have stable individual IDs/tags. This is
+// intentionally rank-matched, not identity-matched: sort current and prior
+// session weights ASC, pair by rank, and compute gain/day for each current
+// entry. That mirrors the RPC group ADG algorithm while keeping the UI honest
+// about anonymous pigs.
+export function computeRankMatchedPigEntryADG(currentEntries, priorEntries, currentDate, priorDate) {
+  const days = isoDaysBetween(priorDate, currentDate);
+  if (days == null || days <= 0) return [];
+  const current = rankPigWeightsAsc(currentEntries);
+  const prior = rankPigWeightsAsc(priorEntries);
+  const n = Math.min(current.length, prior.length);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const cur = current[i];
+    const prev = prior[i];
+    out.push({
+      entryId: cur.entryId,
+      rank: i + 1,
+      currentDate,
+      priorDate,
+      daysBetween: days,
+      currentWeightLbs: cur.weight,
+      priorWeightLbs: prev.weight,
+      adgLbsPerDay: (cur.weight - prev.weight) / days,
+    });
+  }
+  return out;
+}
+
+export function computeRankMatchedPigGroupADG(currentEntries, priorEntries, currentDate, priorDate) {
+  const matched = computeRankMatchedPigEntryADG(currentEntries, priorEntries, currentDate, priorDate);
+  if (matched.length === 0) return null;
+  return matched.reduce((sum, m) => sum + m.adgLbsPerDay, 0) / matched.length;
+}
+
 // ── Global ADG seed ─────────────────────────────────────────────────────────
 
 // Seed a system-estimate global ADG from any usable session datapoints.
@@ -162,6 +221,117 @@ export function seedGlobalADG(usableSessions) {
   }
   if (n === 0 || sumAA <= 0) return null;
   return {valueLbsPerDay: sumWA / sumAA, sampleCount: n};
+}
+
+// Farrowing-weighted age distribution for planned/actual trip forecasts.
+// Actual farrowing records are weighted by alive count (or totalBorn - deaths
+// for legacy rows). When actual counts are unavailable, callers can pass the
+// cycle age band as a conservative fallback; fallback bands do not narrow by
+// trip rank because there is no real distribution to slice.
+export function buildFarrowingAgeDistribution({
+  cycleId,
+  asOfDate,
+  breedingCycles,
+  farrowingRecs,
+  cycleAgeDaysAtRef,
+} = {}) {
+  const refISO = normalizeISODate(asOfDate);
+  const cycles = Array.isArray(breedingCycles) ? breedingCycles : [];
+  const cycle = cycles.find((c) => c && c.id === cycleId);
+  const recs = cycle ? cycleRecords(cycle, farrowingRecs || []) : [];
+  const byAge = new Map();
+  let totalWeight = 0;
+
+  if (refISO) {
+    for (const r of recs) {
+      const count = farrowingForecastCount(r);
+      if (count <= 0 || !r || !r.farrowingDate) continue;
+      const days = isoDaysBetween(String(r.farrowingDate).slice(0, 10), refISO);
+      if (days == null) continue;
+      const ageDays = Math.max(0, days);
+      byAge.set(ageDays, (byAge.get(ageDays) || 0) + count);
+      totalWeight += count;
+    }
+  }
+
+  if (totalWeight > 0) {
+    const buckets = [...byAge.entries()]
+      .map(([ageDays, weight]) => ({ageDays, weight}))
+      .sort((a, b) => b.ageDays - a.ageDays);
+    return {
+      source: 'farrowing-weighted',
+      hasActual: true,
+      buckets,
+      totalWeight,
+      minDays: buckets[buckets.length - 1].ageDays,
+      maxDays: buckets[0].ageDays,
+    };
+  }
+
+  const fallback = normalizeCycleAge(cycleAgeDaysAtRef);
+  if (!fallback) return null;
+  return {
+    source: 'estimated-cycle-band',
+    hasActual: false,
+    minDays: fallback.minDays,
+    maxDays: fallback.maxDays,
+    avgDays: (fallback.minDays + fallback.maxDays) / 2,
+  };
+}
+
+export function projectFarrowingAgeWindow(distribution, {populationCount, rankOffset = 0, windowCount} = {}) {
+  const dist = normalizeAgeDistribution(distribution);
+  const count = parseInt(windowCount);
+  if (!dist || !Number.isFinite(count) || count <= 0) return null;
+
+  if (dist.source !== 'farrowing-weighted') {
+    return {
+      source: dist.source,
+      hasActual: false,
+      minDays: dist.minDays,
+      maxDays: dist.maxDays,
+      avgDays: dist.avgDays != null ? dist.avgDays : (dist.minDays + dist.maxDays) / 2,
+    };
+  }
+
+  const pop = parseFloat(populationCount);
+  if (!isFinite(pop) || pop <= 0 || !dist.totalWeight || dist.totalWeight <= 0) return null;
+  const offset = Math.max(0, parseFloat(rankOffset) || 0);
+  if (offset >= pop) return null;
+  const endRank = Math.min(pop, offset + count);
+  if (endRank <= offset) return null;
+
+  const scale = dist.totalWeight / pop;
+  const sourceStart = offset * scale;
+  const sourceEnd = endRank * scale;
+  let cursor = 0;
+  let minDays = null;
+  let maxDays = null;
+  let sumAge = 0;
+  let sumWeight = 0;
+
+  for (const bucket of dist.buckets) {
+    const bucketStart = cursor;
+    const bucketEnd = cursor + bucket.weight;
+    const overlap = Math.min(bucketEnd, sourceEnd) - Math.max(bucketStart, sourceStart);
+    if (overlap > 1e-9) {
+      minDays = minDays == null ? bucket.ageDays : Math.min(minDays, bucket.ageDays);
+      maxDays = maxDays == null ? bucket.ageDays : Math.max(maxDays, bucket.ageDays);
+      sumAge += bucket.ageDays * overlap;
+      sumWeight += overlap;
+    }
+    cursor = bucketEnd;
+    if (cursor >= sourceEnd) break;
+  }
+
+  if (sumWeight <= 0 || minDays == null || maxDays == null) return null;
+  return {
+    source: dist.source,
+    hasActual: true,
+    minDays,
+    maxDays,
+    avgDays: sumAge / sumWeight,
+  };
 }
 
 // ── Planned-trip allocation ────────────────────────────────────────────────
@@ -582,52 +752,42 @@ export function reconcilePlannedTripsForSend(plannedTrips, {subBatchId, sex, sen
 // Per Codex's Q1: NEVER persist these fields. They are recomputed on every
 // render so date/ADG edits stay honest.
 //
-// Two projection modes (selected per call, never mixed within a call):
-//
-//   1. WEIGH-IN MODE — latestEntries from this subgroup is non-empty.
-//      Sort weights descending, slice the top of the stack to the earliest
-//      trip's plannedCount (rank window), step the cursor down for each
-//      subsequent trip. Each trip projects its slice forward by ADG × days.
-//      Trips whose rank window falls beyond the available stack get null
-//      projections (no fabricated data — caller surfaces "projection
-//      unavailable" for those rows).
-//
-//   2. PRE-WEIGH-IN MODE — latestEntries empty/missing. Anonymous slots
-//      based on the linked breeding cycle's age window plus ADG. Per
-//      Ronnie: planned trips must exist as soon as a batch is created and
-//      linked to a cycle, even before any weigh-in. Each trip projects
-//      weight = (cycleAgeDays + daysUntil) × ADG, using the cycle's
-//      youngest-and-oldest age range to produce the min/max band.
+// Forecast mode:
+//   Farrowing age at trip date × Global ADG. Actual farrowing records are
+//   sliced oldest-first by farrowing-count weighted rank windows. Weigh-in
+//   entries are intentionally ignored here; they belong in actual-vs-forecast
+//   comparison, not in planned-trip projections.
 //
 // Projection unavailable (null fields, no warnings beyond size) when:
 //   - count <= 0
 //   - no usable global/manual ADG
-//   - in pre-weigh-in mode, no usable cycle age range
-//   - in weigh-in mode, the rank window has no remaining weights
+//   - no usable farrowing distribution or fallback cycle age range
+//   - the rank window has no remaining forecast population
 //
 // Args:
 //   plannedTrips           — persistable shape (sort order arbitrary; this
 //                            function sorts internally for the rank window)
-//   latestEntries          — [{weight}] from the latest weigh-in session;
-//                            empty/null triggers pre-weigh-in mode
 //   referenceDate          — ISO 'YYYY-MM-DD' anchoring "days until"; default
 //                            todayISO() — passed in for testability
 //   globalAdgLbsPerDay     — number; null when no system or manual ADG exists
 //   cycleAgeDaysAtRef      — {minDays, maxDays} integers, the youngest and
-//                            oldest pig age in the linked cycle as of
-//                            referenceDate. Drive the pre-weigh-in band.
-//                            Pass null when no cycle is linked or the cycle
-//                            has no usable timeline.
+//                            oldest pig age at referenceDate, used only as a
+//                            conservative fallback band.
+//   ageDistributionAtRef   — buildFarrowingAgeDistribution() result
+//   populationCount        — total forecast population for this sub-batch
+//   alreadyShippedCount    — processed pigs to drop from the oldest side
 //   targetWeightLbs        — ready threshold; default PLANNED_TRIP_TARGET
 //   minSize                — undersized-warning threshold; default 5
 //   overWeightWarnLbs      — overweight-warning threshold; default 325
 export function recalculateProjections(
   plannedTrips,
   {
-    latestEntries,
     referenceDate,
     globalAdgLbsPerDay,
     cycleAgeDaysAtRef,
+    ageDistributionAtRef,
+    populationCount,
+    alreadyShippedCount = 0,
     targetWeightLbs = PLANNED_TRIP_TARGET_WEIGHT_LBS,
     minSize = PLANNED_TRIP_MIN_SIZE,
     overWeightWarnLbs = PLANNED_TRIP_OVER_WEIGHT_WARN_LBS,
@@ -635,17 +795,18 @@ export function recalculateProjections(
 ) {
   const trips = Array.isArray(plannedTrips) ? plannedTrips : [];
   const sorted = [...trips].sort(planedTripSortFn);
-  const sortedWeights = (Array.isArray(latestEntries) ? latestEntries : [])
-    .map((e) => parseFloat(e && e.weight))
-    .filter((v) => isFinite(v) && v > 0)
-    .sort((a, b) => b - a);
   const adg = parseFloat(globalAdgLbsPerDay);
   const adgValid = isFinite(adg);
   const ref = typeof referenceDate === 'string' && referenceDate ? referenceDate : todayISOSafe();
-  const hasEntries = sortedWeights.length > 0;
-  const cycleAge = normalizeCycleAge(cycleAgeDaysAtRef);
+  const distribution =
+    normalizeAgeDistribution(ageDistributionAtRef) ||
+    buildFarrowingAgeDistribution({asOfDate: ref, cycleAgeDaysAtRef});
+  const shipped = Math.max(0, parseFloat(alreadyShippedCount) || 0);
+  const totalPlanned = sorted.reduce((sum, t) => sum + (parseInt(t && t.plannedCount) || 0), 0);
+  const pop = parseFloat(populationCount);
+  const projectedPopulation = isFinite(pop) && pop > 0 ? pop : shipped + totalPlanned;
 
-  let cursor = 0;
+  let cursor = shipped;
   return sorted.map((t) => {
     const count = parseInt(t.plannedCount) || 0;
     const days = isoDaysBetween(ref, t.date);
@@ -655,27 +816,25 @@ export function recalculateProjections(
     let projectedMinLbs = null;
     let projectedMaxLbs = null;
     let projectedAvgLbs = null;
+    let projectionSource = null;
+    let projectionHasActualFarrowing = false;
 
-    if (count > 0 && adgValid && days != null) {
-      if (hasEntries) {
-        const slice = sortedWeights.slice(cursor, cursor + count);
-        cursor += count;
-        if (slice.length > 0) {
-          const lift = adg * days;
-          const sliceMin = slice[slice.length - 1];
-          const sliceMax = slice[0];
-          const sliceAvg = slice.reduce((a, b) => a + b, 0) / slice.length;
-          projectedMinLbs = sliceMin + lift;
-          projectedMaxLbs = sliceMax + lift;
-          projectedAvgLbs = sliceAvg + lift;
-        }
-      } else if (cycleAge) {
-        // Pre-weigh-in mode: anonymous projection band from cycle age.
-        const projAtTripYoungest = (cycleAge.minDays + days) * adg;
-        const projAtTripOldest = (cycleAge.maxDays + days) * adg;
-        projectedMinLbs = Math.min(projAtTripYoungest, projAtTripOldest);
-        projectedMaxLbs = Math.max(projAtTripYoungest, projAtTripOldest);
-        projectedAvgLbs = (projAtTripYoungest + projAtTripOldest) / 2;
+    if (count > 0 && adgValid && days != null && distribution) {
+      const ageWindow = projectFarrowingAgeWindow(distribution, {
+        populationCount: projectedPopulation,
+        rankOffset: cursor,
+        windowCount: count,
+      });
+      cursor += count;
+      if (ageWindow) {
+        const minAgeAtTrip = Math.max(0, ageWindow.minDays + days);
+        const maxAgeAtTrip = Math.max(0, ageWindow.maxDays + days);
+        const avgAgeAtTrip = Math.max(0, ageWindow.avgDays + days);
+        projectedMinLbs = Math.min(minAgeAtTrip, maxAgeAtTrip) * adg;
+        projectedMaxLbs = Math.max(minAgeAtTrip, maxAgeAtTrip) * adg;
+        projectedAvgLbs = avgAgeAtTrip * adg;
+        projectionSource = ageWindow.source;
+        projectionHasActualFarrowing = !!ageWindow.hasActual;
       }
 
       if (projectedMaxLbs != null && projectedMaxLbs > overWeightWarnLbs) {
@@ -691,6 +850,8 @@ export function recalculateProjections(
       projectedMinLbs,
       projectedMaxLbs,
       projectedAvgLbs,
+      projectionSource,
+      projectionHasActualFarrowing,
       ready,
       warnings,
     };
@@ -706,7 +867,71 @@ function normalizeCycleAge(input) {
   return {minDays, maxDays};
 }
 
+function normalizeAgeDistribution(input) {
+  if (!input || typeof input !== 'object') return null;
+  if (input.source === 'farrowing-weighted') {
+    const buckets = (Array.isArray(input.buckets) ? input.buckets : [])
+      .map((b) => ({ageDays: parseFloat(b && b.ageDays), weight: parseFloat(b && b.weight)}))
+      .filter((b) => isFinite(b.ageDays) && b.ageDays >= 0 && isFinite(b.weight) && b.weight > 0)
+      .sort((a, b) => b.ageDays - a.ageDays);
+    const totalWeight = buckets.reduce((sum, b) => sum + b.weight, 0);
+    if (buckets.length === 0 || totalWeight <= 0) return null;
+    return {
+      source: 'farrowing-weighted',
+      hasActual: true,
+      buckets,
+      totalWeight,
+      minDays: buckets[buckets.length - 1].ageDays,
+      maxDays: buckets[0].ageDays,
+    };
+  }
+
+  const band = normalizeCycleAge(input);
+  if (!band) return null;
+  return {
+    source: input.source || 'estimated-cycle-band',
+    hasActual: false,
+    minDays: band.minDays,
+    maxDays: band.maxDays,
+    avgDays:
+      input.avgDays != null && isFinite(parseFloat(input.avgDays))
+        ? parseFloat(input.avgDays)
+        : (band.minDays + band.maxDays) / 2,
+  };
+}
+
+function farrowingForecastCount(r) {
+  if (!r) return 0;
+  if (r.alive != null && r.alive !== '' && !Number.isNaN(Number(r.alive))) {
+    return Math.max(0, parseInt(r.alive) || 0);
+  }
+  return Math.max(0, (parseInt(r.totalBorn) || 0) - (parseInt(r.deaths) || 0));
+}
+
+function normalizeISODate(value) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  if (value instanceof Date && !isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  return null;
+}
+
 // ── Internal helpers ───────────────────────────────────────────────────────
+
+function pigSessionSlug(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function rankPigWeightsAsc(entries) {
+  return (Array.isArray(entries) ? entries : [])
+    .map((e) => ({
+      entryId: e && e.id != null ? String(e.id) : null,
+      weight: parseFloat(e && e.weight),
+    }))
+    .filter((e) => isFinite(e.weight) && e.weight > 0)
+    .sort((a, b) => a.weight - b.weight || String(a.entryId || '').localeCompare(String(b.entryId || '')));
+}
 
 function planedTripSortFn(a, b) {
   if ((a && a.date) !== (b && b.date)) {

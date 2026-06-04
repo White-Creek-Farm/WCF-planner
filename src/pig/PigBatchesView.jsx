@@ -22,9 +22,17 @@ import {
   calcAgeRange as libCalcAgeRange,
   pigSlug,
   computeBatchCurrentCount,
+  computeSubCurrentCount,
   batchStartedCount,
+  pigTransfersForBatch,
 } from '../lib/pig.js';
-import {PLANNED_TRIP_TARGET_WEIGHT_LBS, allocatePlannedTrips, seedGlobalADG} from '../lib/pigForecast.js';
+import {
+  PLANNED_TRIP_TARGET_WEIGHT_LBS,
+  allocatePlannedTrips,
+  buildFarrowingAgeDistribution,
+  projectFarrowingAgeWindow,
+  seedGlobalADG,
+} from '../lib/pigForecast.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -250,36 +258,6 @@ export default function PigBatchesView({
     };
   }, []);
 
-  // latestEntriesBySubId: Map<subId, [{weight}]> from the most recent pig
-  // session for each sub. Used by recalculateProjections rank-window mode.
-  const latestEntriesBySubId = React.useMemo(() => {
-    if (pigSessionsForForecast.length === 0) return {};
-    // Group sessions by pigSlug(batch_id), pick the latest per slug.
-    const latestBySlug = {};
-    for (const s of pigSessionsForForecast) {
-      const slug = pigSlug(s.batch_id);
-      if (!slug) continue;
-      const cur = latestBySlug[slug];
-      if (!cur || (s.date || '') > (cur.date || '')) latestBySlug[slug] = s;
-    }
-    // Build slug -> entries map.
-    const entriesBySession = {};
-    for (const e of pigEntriesForForecast) {
-      if (!entriesBySession[e.session_id]) entriesBySession[e.session_id] = [];
-      entriesBySession[e.session_id].push(e);
-    }
-    // Resolve slug -> subBatchId via feederGroups.
-    const out = {};
-    for (const g of feederGroups || []) {
-      for (const sub of g.subBatches || []) {
-        const slug = pigSlug(sub.name);
-        const sess = latestBySlug[slug];
-        if (sess) out[sub.id] = entriesBySession[sess.id] || [];
-      }
-    }
-    return out;
-  }, [feederGroups, pigSessionsForForecast, pigEntriesForForecast]);
-
   // System ADG estimate via seedGlobalADG. Pairs each pig session's avg
   // weight with its age in days at session date. Age = sessionDate − cycle's
   // first farrowing date (or theoretical farrowingStart fallback).
@@ -377,6 +355,14 @@ export default function PigBatchesView({
       if (subs.length === 0) return g;
       const ageRange = libCalcAgeRange(g.cycleId, new Date(today + 'T12:00:00'), breedingCycles, farrowingRecs);
       if (ageRange.minDays == null || ageRange.maxDays == null) return g;
+      const cycleAgeDaysAtRef = {minDays: ageRange.minDays, maxDays: ageRange.maxDays};
+      const ageDistributionAtRef = buildFarrowingAgeDistribution({
+        cycleId: g.cycleId,
+        asOfDate: today,
+        breedingCycles,
+        farrowingRecs,
+        cycleAgeDaysAtRef,
+      });
       const planned = Array.isArray(g.plannedProcessingTrips) ? g.plannedProcessingTrips.slice() : [];
       let groupDirty = false;
       for (const sub of subs) {
@@ -399,20 +385,20 @@ export default function PigBatchesView({
         const started = giltCount + boarCount;
         const remaining = Math.max(0, started - tripPigs - transfers.count - mortality);
         if (remaining <= 0) continue;
-        // Forecasted ready start date. Anchor on latest entries when
-        // available; fall back to cycle age + ADG. Clamp to today.
-        const latest = latestEntriesBySubId[sub.id] || [];
+        // Forecasted ready start date. Ronnie preference: planned trip dates
+        // are based only on DOB/farrowing age at trip date times Global ADG.
+        // First weigh-ins do not move planned dates.
         const adg = effectiveAdgLbsPerDay;
-        let anchorWeight = null;
-        let anchorDate = today;
-        if (latest.length > 0) {
-          const sumW = latest.reduce((s, e) => s + (parseFloat(e.weight) || 0), 0);
-          const cnt = latest.filter((e) => parseFloat(e.weight) > 0).length;
-          if (cnt > 0) anchorWeight = sumW / cnt;
-        } else {
-          // Use the OLDEST cycle age (so heavier pigs lead the ready date).
-          anchorWeight = ageRange.maxDays * adg;
-        }
+        if (adg == null) continue;
+        const forecastPopulationCount = Math.max(0, started - transfers.count - mortality);
+        const nextWindow = projectFarrowingAgeWindow(ageDistributionAtRef, {
+          populationCount: forecastPopulationCount,
+          rankOffset: tripPigs,
+          windowCount: 1,
+        });
+        const anchorAgeDays = nextWindow ? nextWindow.maxDays : ageRange.maxDays;
+        const anchorWeight = anchorAgeDays * adg;
+        const anchorDate = today;
         let readyDate = today;
         if (anchorWeight != null && adg > 0) {
           const daysToReady = Math.max(0, (PLANNED_TRIP_TARGET_WEIGHT_LBS - anchorWeight) / adg);
@@ -443,7 +429,13 @@ export default function PigBatchesView({
     // through the closure. eslint-disable matches the file's existing
     // pattern.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feederGroups, breedingCycles, farrowingRecs, breeders, latestEntriesBySubId, effectiveAdgLbsPerDay]);
+  }, [
+    feederGroups,
+    breedingCycles,
+    farrowingRecs,
+    breeders,
+    effectiveAdgLbsPerDay,
+  ]);
 
   // ── Pig mortality entries (parent batch with sub-batch attribution) ─────
   // Stored as feederGroup.pigMortalities = [{id, date, sub_batch_id,
@@ -455,7 +447,8 @@ export default function PigBatchesView({
 
   // Match pig_dailys to a name (case-insensitive) — used for both batch and sub-batch matching
   function dailysForName(name) {
-    const n = name.trim().toLowerCase();
+    if (!name) return [];
+    const n = String(name).trim().toLowerCase();
     // Also build a slug version for fallback matching
     const slug = n.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     return pigDailys.filter((d) => {
@@ -465,6 +458,45 @@ export default function PigBatchesView({
       const lblSlug = lbl.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       return lbl === n || bid === n || bidSlug === slug || lblSlug === slug;
     });
+  }
+
+  function batchHubTileInfo(g, started) {
+    const subs = g.subBatches || [];
+    const parentLegacy = parseFloat(g.legacyFeedLbs) || parseFloat(g.totalFeedLbs) || 0;
+    if (subs.length > 0) {
+      const subSummaries = subs.map((sb) => {
+        const rows = dailysForName(sb.name);
+        const rawFeedLbs =
+          rows.reduce((sum, d) => sum + (parseFloat(d.feed_lbs) || 0), 0) + (parseFloat(sb.legacyFeedLbs) || 0);
+        const transfers = pigTransfersForSub(breeders, g.batchName, sb.name);
+        const adjustedFeedLbs = Math.max(0, rawFeedLbs - transfers.feedAllocLbs);
+        const subStarted = (parseInt(sb.giltCount) || 0) + (parseInt(sb.boarCount) || 0);
+        return {
+          id: sb.id,
+          name: sb.name,
+          status: sb.status,
+          started: subStarted,
+          current: computeSubCurrentCount(g, sb, breeders),
+          feedPerStarted: subStarted > 0 && adjustedFeedLbs > 0 ? adjustedFeedLbs / subStarted : null,
+          adjustedFeedLbs,
+        };
+      });
+      const startedDenominator = started > 0 ? started : subSummaries.reduce((sum, s) => sum + s.started, 0);
+      const feedTotalLbs = parentLegacy + subSummaries.reduce((sum, s) => sum + s.adjustedFeedLbs, 0);
+      return {
+        subSummaries,
+        feedPerStarted: startedDenominator > 0 && feedTotalLbs > 0 ? feedTotalLbs / startedDenominator : null,
+      };
+    }
+
+    const feedRows = dailysForName(g.batchName);
+    const rawFeedLbs = feedRows.reduce((sum, d) => sum + (parseFloat(d.feed_lbs) || 0), 0) + parentLegacy;
+    const transferCredit = pigTransfersForBatch(breeders, g.batchName).feedAllocLbs || parseFloat(g.feedAllocatedToTransfers) || 0;
+    const adjustedFeedLbs = Math.max(0, rawFeedLbs - transferCredit);
+    return {
+      subSummaries: [],
+      feedPerStarted: started > 0 && adjustedFeedLbs > 0 ? adjustedFeedLbs / started : null,
+    };
   }
 
   function archiveBatch(batchId) {
@@ -609,7 +641,6 @@ export default function PigBatchesView({
     setNotice,
     effectiveAdgLbsPerDay,
     systemAdgEstimate,
-    latestEntriesBySubId,
     dailysForName,
     archiveBatch,
     unarchiveBatch,
@@ -1374,12 +1405,15 @@ export default function PigBatchesView({
                   })();
             const current = computeBatchCurrentCount(g, breeders, {latestDailyPigCount});
             const started = batchStartedCount(g);
+            const tileInfo = batchHubTileInfo(g, started);
             return (
               <PigBatchHubTile
                 key={g.id}
                 group={g}
                 current={current}
                 started={started}
+                feedPerStarted={tileInfo.feedPerStarted}
+                subSummaries={tileInfo.subSummaries}
                 statusColor={sc}
                 onOpen={() => goToBatch(g.id, visiblePigBatches)}
               />

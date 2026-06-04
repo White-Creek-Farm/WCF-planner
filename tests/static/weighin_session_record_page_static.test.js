@@ -97,6 +97,22 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
   it('calls pig_session_metrics RPC for pig sessions', () => {
     expect(pageSrc).toContain('pig_session_metrics');
   });
+  it('renders rank-matched per-entry ADG for pig sessions with prior entries', () => {
+    expect(pageSrc).toContain('computeRankMatchedPigEntryADG');
+    expect(pageSrc).toContain('pigPriorSession');
+    expect(pageSrc).toContain('data-pig-entry-adg');
+  });
+  it('renders previous pig weigh-in weight/date beside the per-entry ADG', () => {
+    expect(pageSrc).toContain('data-pig-entry-prior');
+    expect(pageSrc).toContain('Prior weigh-in on ');
+    expect(pageSrc).toContain('pigEntryAdg.priorWeightLbs');
+    expect(pageSrc).toContain('pigEntryAdg.priorDate');
+  });
+  it('hides blank pig note inputs behind a compact reveal button', () => {
+    expect(pageSrc).toContain('openPigNoteEntryIds');
+    expect(pageSrc).toContain('showPigNoteInput');
+    expect(pageSrc).toContain('data-pig-entry-add-note');
+  });
   it('renders sent-to-trip badge for pig entries', () => {
     expect(pageSrc).toContain('sent_to_trip_id');
     expect(pageSrc).toContain('Sent to trip');

@@ -8,7 +8,14 @@ import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
-import {formatAgeRange, formatFeedPerPig, formatGroupAdg, formatAvgWeight} from '../lib/pigForecast.js';
+import {
+  formatAgeRange,
+  formatFeedPerPig,
+  formatGroupAdg,
+  formatAvgWeight,
+  findPriorPigWeighInSession,
+  computeRankMatchedPigEntryADG,
+} from '../lib/pigForecast.js';
 const LivestockWeighInsView = ({
   sb,
   fmt,
@@ -254,6 +261,15 @@ const LivestockWeighInsView = ({
                   ? sEntries.reduce((sum, e) => sum + (parseFloat(e.weight) || 0), 0) / sEntries.length
                   : 0;
               const isComplete = s.status === 'complete';
+              const priorPigSession = species === 'pig' ? findPriorPigWeighInSession(s, sessions) : null;
+              const pigEntryAdgs = priorPigSession
+                ? computeRankMatchedPigEntryADG(
+                    sEntries,
+                    entries[priorPigSession.id] || [],
+                    s.date,
+                    priorPigSession.date,
+                  )
+                : [];
               return (
                 <div
                   key={s.id}
@@ -377,6 +393,44 @@ const LivestockWeighInsView = ({
                             {formatAvgWeight(pigMetricsBySession[s.id].avg_weight_lbs)}
                           </div>
                         </div>
+                        {pigEntryAdgs.length > 0 && (
+                          <div data-pig-metric="entry-adg" style={{gridColumn: '1 / -1'}}>
+                            <div style={{fontSize: 9, color: '#6b7280', textTransform: 'uppercase'}}>
+                              Rank-matched pig ADG
+                            </div>
+                            <div style={{display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3}}>
+                              {pigEntryAdgs.map((m) => (
+                                <span
+                                  key={m.entryId || m.rank}
+                                  title={
+                                    'rank ' +
+                                    m.rank +
+                                    ' vs prior ' +
+                                    fmt(m.priorDate) +
+                                    ' at ' +
+                                    Math.round(m.priorWeightLbs) +
+                                    ' lb'
+                                  }
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    color: m.adgLbsPerDay >= 0 ? '#065f46' : '#b91c1c',
+                                    background: m.adgLbsPerDay >= 0 ? '#ecfdf5' : '#fef2f2',
+                                    border: '1px solid ' + (m.adgLbsPerDay >= 0 ? '#a7f3d0' : '#fecaca'),
+                                    borderRadius: 5,
+                                    padding: '2px 6px',
+                                  }}
+                                >
+                                  {Math.round(m.currentWeightLbs) +
+                                    ' lb ' +
+                                    (m.adgLbsPerDay >= 0 ? '+' : '') +
+                                    m.adgLbsPerDay.toFixed(2) +
+                                    ' lb/day'}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                 </div>

@@ -30,6 +30,7 @@ import {
   formatFeedPerPig,
   formatGroupAdg,
   formatAvgWeight,
+  computeRankMatchedPigEntryADG,
   reconcilePlannedTripsForSend,
 } from '../lib/pigForecast.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
@@ -115,8 +116,10 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const [addForm, setAddForm] = React.useState({tag: '', weight: '', note: '', priorTag: ''});
   const [sessionForModal, setSessionForModal] = React.useState(null);
   const [pigMetrics, setPigMetrics] = React.useState(null);
+  const [pigPriorSession, setPigPriorSession] = React.useState(null);
   const [feederGroups, setFeederGroups] = React.useState([]);
   const [selectedEntryIds, setSelectedEntryIds] = React.useState(new Set());
+  const [openPigNoteEntryIds, setOpenPigNoteEntryIds] = React.useState(new Set());
   const [tripModal, setTripModal] = React.useState(null);
   const [transferModal, setTransferModal] = React.useState(null);
   const [transferForm, setTransferForm] = React.useState({tag: '', group: '1', sex: 'Gilt', birthDate: ''});
@@ -188,11 +191,32 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       setAllEntries(allWI || []);
     }
     if (sp === 'pig') {
+      let metricsData = null;
       try {
-        const {data: metricsData} = await sb.rpc('pig_session_metrics', {session_id_in: sessionId});
-        setPigMetrics(metricsData && metricsData.available !== false ? metricsData : null);
+        const {data} = await sb.rpc('pig_session_metrics', {session_id_in: sessionId});
+        metricsData = data && data.available !== false ? data : null;
+        setPigMetrics(metricsData);
       } catch (_e) {
         setPigMetrics(null);
+        metricsData = null;
+      }
+      if (metricsData && metricsData.prior_session_id && metricsData.prior_session_date) {
+        try {
+          const {data: priorEntries} = await sb
+            .from('weigh_ins')
+            .select('*')
+            .eq('session_id', metricsData.prior_session_id)
+            .order('entered_at', {ascending: true});
+          setPigPriorSession({
+            id: metricsData.prior_session_id,
+            date: metricsData.prior_session_date,
+            entries: priorEntries || [],
+          });
+        } catch (_e) {
+          setPigPriorSession(null);
+        }
+      } else {
+        setPigPriorSession(null);
       }
       try {
         const {data: fgData} = await sb.from('app_store').select('data').eq('key', 'ppp-feeders-v1').maybeSingle();
@@ -215,6 +239,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     setLoading(true);
     setNotice(null);
     setAccessDenied(false);
+    setPigMetrics(null);
+    setPigPriorSession(null);
+    setOpenPigNoteEntryIds(new Set());
     loadAll();
   }, [sessionId, authState]);
 
@@ -1309,6 +1336,11 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           })
           .filter((a) => a != null);
   const avgAdg = adgs.length > 0 ? adgs.reduce((x, v) => x + v, 0) / adgs.length : null;
+  const pigEntryAdgs =
+    isPig && pigPriorSession
+      ? computeRankMatchedPigEntryADG(sEntries, pigPriorSession.entries, session.date, pigPriorSession.date)
+      : [];
+  const pigEntryAdgById = Object.fromEntries(pigEntryAdgs.map((m) => [m.entryId, m]).filter(([id]) => id != null));
   const broilerAvg =
     isBroiler && sEntries.length > 0
       ? Math.round((sEntries.reduce((s, e) => s + (parseFloat(e.weight) || 0), 0) / sEntries.length) * 100) / 100
@@ -1767,6 +1799,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                       e.transferred_to_breeding || /\[transferred_to_breeding/.test(e.note || '')
                     );
                     const isLocked = isSent || isTransferred;
+                    const pigEntryAdg = pigEntryAdgById[e.id];
+                    const hasPigNote = String(ef.note || '').trim().length > 0;
+                    const showPigNoteInput = hasPigNote || openPigNoteEntryIds.has(e.id);
                     return (
                       <div
                         key={e.id}
@@ -1778,7 +1813,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                           fontSize: 12,
                         }}
                       >
-                        <div style={{display: 'flex', gap: 4, alignItems: 'center'}}>
+                        <div style={{display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap'}}>
                           {!isLocked && session.status === 'draft' && canManagePigPlannedTrips && (
                             <input
                               type="checkbox"
@@ -1806,13 +1841,39 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 onChange={(ev) => setEntryField(e.id, 'weight', ev.target.value)}
                                 style={{...inp, flex: '0 0 80px', minWidth: 0}}
                               />
-                              <input
-                                type="text"
-                                placeholder="Note"
-                                value={ef.note}
-                                onChange={(ev) => setEntryField(e.id, 'note', ev.target.value)}
-                                style={{...inp, flex: 1, minWidth: 60}}
-                              />
+                              {showPigNoteInput ? (
+                                <input
+                                  type="text"
+                                  placeholder="Note"
+                                  value={ef.note}
+                                  onChange={(ev) => setEntryField(e.id, 'note', ev.target.value)}
+                                  style={{...inp, flex: '1 1 120px', minWidth: 100}}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  data-pig-entry-add-note={e.id}
+                                  onClick={() =>
+                                    setOpenPigNoteEntryIds((prev) => {
+                                      const next = new Set(prev);
+                                      next.add(e.id);
+                                      return next;
+                                    })
+                                  }
+                                  style={{
+                                    fontSize: 10,
+                                    color: '#6b7280',
+                                    background: 'white',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: 4,
+                                    cursor: 'pointer',
+                                    padding: '3px 7px',
+                                    fontFamily: 'inherit',
+                                  }}
+                                >
+                                  + Note
+                                </button>
+                              )}
                             </>
                           )}
                           {isSent && (
@@ -1846,6 +1907,57 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                         </div>
                         {isLocked && e.note && (
                           <div style={{fontSize: 11, color: '#6b7280', marginTop: 2}}>{e.note}</div>
+                        )}
+                        {pigEntryAdg && (
+                          <div
+                            data-pig-entry-adg={e.id}
+                            style={{
+                              display: 'flex',
+                              gap: 6,
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              marginTop: 4,
+                              fontSize: 10,
+                            }}
+                          >
+                            <span
+                              data-pig-entry-prior={e.id}
+                              title={'Prior weigh-in on ' + fmt(pigEntryAdg.priorDate)}
+                              style={{
+                                color: '#374151',
+                                background: '#f9fafb',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                            >
+                              {'Prev ' + Math.round(pigEntryAdg.priorWeightLbs) + ' lb · ' + fmt(pigEntryAdg.priorDate)}
+                            </span>
+                            <span
+                              title={
+                                'rank ' +
+                                pigEntryAdg.rank +
+                                ' vs prior ' +
+                                fmt(pigEntryAdg.priorDate) +
+                                ' at ' +
+                                Math.round(pigEntryAdg.priorWeightLbs) +
+                                ' lb'
+                              }
+                              style={{
+                                fontWeight: 700,
+                                color: pigEntryAdg.adgLbsPerDay >= 0 ? '#065f46' : '#b91c1c',
+                                background: pigEntryAdg.adgLbsPerDay >= 0 ? '#ecfdf5' : '#fef2f2',
+                                border: '1px solid ' + (pigEntryAdg.adgLbsPerDay >= 0 ? '#a7f3d0' : '#fecaca'),
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                            >
+                              {'ADG ' +
+                                (pigEntryAdg.adgLbsPerDay >= 0 ? '+' : '') +
+                                pigEntryAdg.adgLbsPerDay.toFixed(2) +
+                                ' lb/day'}
+                            </span>
+                          </div>
                         )}
                         <div
                           style={{display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: 4, flexWrap: 'wrap'}}
