@@ -242,28 +242,65 @@ export function lastWeightEntryFor(cow, weighInsDescByEnteredAt) {
   return list.find((x) => tags.has(String(x.tag))) || null;
 }
 
+function normalizeTag(value) {
+  return value == null ? '' : String(value).trim();
+}
+
+export function buildCalvingEvidence(cattle, calvingRecs) {
+  const explicitRows = Array.isArray(calvingRecs) ? calvingRecs : [];
+  const out = [...explicitRows];
+  const recordedCalfTags = new Set(explicitRows.map((r) => normalizeTag(r && r.calf_tag)).filter(Boolean));
+
+  for (const calf of cattle || []) {
+    const damTag = normalizeTag(calf && calf.dam_tag);
+    const calfTag = normalizeTag(calf && calf.tag);
+    if (!damTag || !calfTag) continue;
+    if (recordedCalfTags.has(calfTag)) continue;
+    recordedCalfTags.add(calfTag);
+    out.push({
+      id: 'synthetic-calf-' + (calf.id || calfTag),
+      synthetic: true,
+      source: 'calf_record',
+      dam_tag: damTag,
+      calving_date: calf.birth_date || null,
+      calf_tag: calfTag,
+      total_born: 1,
+      deaths: 0,
+    });
+  }
+
+  return out;
+}
+
 export function calfCountFor(tag, calvingRecs) {
   // Codex 2026-04-29 contract: sum total_born; fall back to 1 per record when
   // total_born is null / 0 / non-numeric. Twins count as 2; never-tagged
   // stillbirths still count as 1.
-  if (!tag) return 0;
+  const damTag = normalizeTag(tag);
+  if (!damTag) return 0;
   return (calvingRecs || [])
-    .filter((r) => r && r.dam_tag === tag)
+    .filter((r) => r && normalizeTag(r.dam_tag) === damTag)
     .reduce((sum, r) => {
       const tb = parseInt(r.total_born, 10);
       return sum + (Number.isFinite(tb) && tb > 0 ? tb : 1);
     }, 0);
 }
 
-export function lastCalvedFor(tag, calvingRecs) {
-  if (!tag) return null;
-  let max = null;
+export function lastCalvingRecordFor(tag, calvingRecs) {
+  const damTag = normalizeTag(tag);
+  if (!damTag) return null;
+  let latest = null;
   for (const r of calvingRecs || []) {
-    if (!r || r.dam_tag !== tag) continue;
+    if (!r || normalizeTag(r.dam_tag) !== damTag) continue;
     if (!r.calving_date) continue;
-    if (!max || r.calving_date > max) max = r.calving_date;
+    if (!latest || r.calving_date > latest.calving_date) latest = r;
   }
-  return max;
+  return latest;
+}
+
+export function lastCalvedFor(tag, calvingRecs) {
+  const rec = lastCalvingRecordFor(tag, calvingRecs);
+  return rec ? rec.calving_date : null;
 }
 
 export function isNonCalvingCow(cow, calvingRecs, todayMs) {

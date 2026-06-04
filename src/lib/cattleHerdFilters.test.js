@@ -6,7 +6,9 @@ import {
   cowTagSet,
   lastWeightFor,
   calfCountFor,
+  buildCalvingEvidence,
   lastCalvedFor,
+  lastCalvingRecordFor,
   isNonCalvingCow,
   isUnmatchedCalf,
   buildCattlePredicate,
@@ -19,6 +21,7 @@ import {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const TODAY = new Date('2026-05-02T12:00:00Z').getTime();
+const NON_CALVING_HOTFIX_TODAY = new Date('2026-06-04T12:00:00Z').getTime();
 
 function cow(overrides) {
   return {
@@ -137,6 +140,13 @@ describe('calfCountFor — Codex 2026-04-29 contract', () => {
     ];
     expect(calfCountFor('1001', recs)).toBe(3);
   });
+  it('matches dam tags after string normalization', () => {
+    const recs = [
+      {dam_tag: ' 1001 ', total_born: 1},
+      {dam_tag: 1001, total_born: 1},
+    ];
+    expect(calfCountFor('1001', recs)).toBe(2);
+  });
   it('returns 0 for empty tag or no records', () => {
     expect(calfCountFor('', [])).toBe(0);
     expect(calfCountFor('1001', [])).toBe(0);
@@ -152,8 +162,48 @@ describe('lastCalvedFor', () => {
     ];
     expect(lastCalvedFor('1001', recs)).toBe('2026-02-15');
   });
+  it('returns the latest calving record after tag normalization', () => {
+    const recs = [
+      {dam_tag: ' 1001 ', calving_date: '2025-03-01', calf_tag: 'A'},
+      {dam_tag: 1001, calving_date: '2026-02-15', calf_tag: 'B'},
+    ];
+    expect(lastCalvingRecordFor('1001', recs).calf_tag).toBe('B');
+    expect(lastCalvedFor('1001', recs)).toBe('2026-02-15');
+  });
   it('returns null when no records', () => {
     expect(lastCalvedFor('1001', [])).toBe(null);
+  });
+});
+
+describe('buildCalvingEvidence', () => {
+  it('adds calf animal rows so herd counts match cow detail calving history', () => {
+    const dam = cow({id: 'dam-1', tag: '1', birth_date: '2022-03-12'});
+    const cattle = [
+      dam,
+      cow({id: 'calf-700', tag: '700', dam_tag: '1', birth_date: '2025-10-16'}),
+      cow({id: 'calf-162', tag: '162', dam_tag: '1', birth_date: '2024-08-11'}),
+    ];
+    const evidence = buildCalvingEvidence(cattle, []);
+
+    expect(calfCountFor('1', evidence)).toBe(2);
+    expect(lastCalvedFor('1', evidence)).toBe('2025-10-16');
+    expect(lastCalvingRecordFor('1', evidence).calf_tag).toBe('700');
+
+    const nonCalving = buildCattlePredicate(
+      {nonCalvingCows: true},
+      {todayMs: NON_CALVING_HOTFIX_TODAY, calvingRecs: evidence},
+    );
+    expect(nonCalving(dam)).toBe(false);
+  });
+
+  it('does not duplicate calf rows already represented by explicit calving records', () => {
+    const evidence = buildCalvingEvidence(
+      [cow({id: 'calf-700', tag: '700', dam_tag: '1', birth_date: '2025-10-16'})],
+      [{id: 'rec-700', dam_tag: '1', calf_tag: '700', calving_date: '2025-10-16', total_born: 1}],
+    );
+
+    expect(evidence).toHaveLength(1);
+    expect(calfCountFor('1', evidence)).toBe(1);
   });
 });
 

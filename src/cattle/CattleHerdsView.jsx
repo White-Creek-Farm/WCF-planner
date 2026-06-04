@@ -24,6 +24,8 @@ import {
   cowTagSet,
   lastWeightFor,
   calfCountFor,
+  buildCalvingEvidence,
+  lastCalvingRecordFor,
   CATTLE_HERD_KEYS,
   CATTLE_OUTCOME_KEYS,
   CATTLE_ALL_HERD_KEYS,
@@ -352,6 +354,7 @@ const CattleHerdsHub = ({
     () => mergeObservedValues(originOpts, [...new Set(cattle.map((c) => c.origin).filter(Boolean))]),
     [originOpts, cattle],
   );
+  const calvingEvidence = useMemo(() => buildCalvingEvidence(cattle, calvingRecs), [cattle, calvingRecs]);
 
   const filtered = useMemo(() => {
     const effectiveFilters = {...filters};
@@ -362,17 +365,17 @@ const CattleHerdsHub = ({
     }
     const predicate = buildCattlePredicate(effectiveFilters, {
       todayMs: Date.now(),
-      calvingRecs,
+      calvingRecs: calvingEvidence,
       weighIns,
       staleDaysThreshold: STALE_WEIGHT_DAYS_DEFAULT,
     });
     return cattle.filter(predicate);
-  }, [cattle, filters, calvingRecs, weighIns]);
+  }, [cattle, filters, calvingEvidence, weighIns]);
 
   const sortedFlat = useMemo(() => {
-    const cmp = buildCattleComparator(sortRules, {calvingRecs, weighIns});
+    const cmp = buildCattleComparator(sortRules, {calvingRecs: calvingEvidence, weighIns});
     return [...filtered].sort(cmp);
-  }, [filtered, sortRules, calvingRecs, weighIns]);
+  }, [filtered, sortRules, calvingEvidence, weighIns]);
 
   // ── filter chip handlers ───────────────────────────────────────────────────
   function setFilter(key, value) {
@@ -683,11 +686,10 @@ const CattleHerdsHub = ({
     });
   }
   function lastCalving(tag) {
-    if (!tag) return null;
-    return calvingRecs.find((r) => r.dam_tag === tag);
+    return lastCalvingRecordFor(tag, calvingEvidence);
   }
   function calfCount(tag) {
-    return calfCountFor(tag, calvingRecs);
+    return calfCountFor(tag, calvingEvidence);
   }
 
   // ── filter / sort UI subcomponents (inline for context) ────────────────────
@@ -1549,7 +1551,7 @@ const CattleHerdsHub = ({
               // Per-tile sort applies inside the herd group (Codex implementation
               // note 2026-05-02). Filter the global filtered list to this herd
               // then run the comparator within.
-              const cmp = buildCattleComparator(sortRules, {calvingRecs, weighIns});
+              const cmp = buildCattleComparator(sortRules, {calvingRecs: calvingEvidence, weighIns});
               const cows = filtered.filter((c) => c.herd === h).sort(cmp);
               const totalWt = cows.reduce((s, c) => s + effectiveWeight(c), 0);
               const estCount = cows.filter(
