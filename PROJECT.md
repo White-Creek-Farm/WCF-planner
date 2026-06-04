@@ -7,9 +7,9 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-03.
-Current production checkpoint: `origin/main @ 957f577` (docs refresh commits
-sit on top without changing the build).
+Last updated: 2026-06-04.
+Current production checkpoint: `origin/main @ 1c0fadc` (latest app/build merge
+`7de1758`, docs wrap `1c0fadc`).
 Production URL: https://wcfplanner.com.
 
 ---
@@ -33,7 +33,7 @@ history and tests for detailed lane history.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source of truth: `origin/main @ 7de1758`.
+- Source of truth: `origin/main @ 1c0fadc`.
 - Open gates for the shipped tree: none.
 - PROD-applied numbered migration series is live through `092`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
@@ -113,10 +113,10 @@ There are no active commit, push, PROD migration, storage, deploy, or Vault
 gates documented for this checkpoint. If a new session sees a dirty tree, inspect
 it before planning; do not assume it is disposable.
 
-Local worktree note: stale suffixed Codex worktrees and the shipped CC lane
-worktree were pruned on 2026-06-03. The only remaining extra worktree should be
-the canonical Codex worktree at `C:\Users\Ronni\WCF-planner-codex` on
-`codex/parallel-worktree`.
+Local worktree note: the main worktree is `C:\Users\Ronni\WCF-planner`.
+Several suffixed Codex worktrees may still exist as shipped branch snapshots
+(`feed`, `broiler`, `cattle`, `pig`). They are not active build lanes unless
+Ronnie explicitly reuses or prunes them.
 
 ### Recommended Work Queue
 
@@ -136,32 +136,42 @@ current-month pin, and broiler on-farm count reconciliation.
 3. Follow-on audited RPCs where remaining flows still have partial-state or
    audit gaps.
 
-### Lane 1 detail — authenticated Light-user portal
+### Light-User Portal Contract
 
 Locked product direction (do not re-litigate without Ronnie): authenticated-only
 submission is the durable path. Lane 5 / migration `083` stays shelved; do NOT
 build roster-id -> profile-id mapping.
 
-Scope:
-- Add a real authenticated `Light` role; admins manage Light users with the same
-  authority pattern as current user management.
-- Existing form URLs stay valid but require login; logged-out access redirects
-  through login and returns to the requested URL.
-- Submitter/team-member shows the signed-in user, locked; remove submitter
-  dropdowns wherever session identity replaces them.
-- Light uses the normal shell/sidebar but sees only accessible nav; Light home is
-  a portal with tabs for the allowed daily/form areas plus the Equipment tab.
-- Contained to allowed report/form surfaces plus Tasks (current non-admin
-  permissions). No herd/flock/batch/detail browsing or broader data access.
-- Can read all allowed report records (including legacy anonymous rows) and
-  create them; can edit/delete only self-created records; Activity logs actions.
-- Light sees only the minimal lookup/reference data current anonymous forms need.
-- Allowed areas: daily report/forms, Add Feed, Equipment fueling/checklist, Tasks.
+Shipped contract:
+- `light` is a real authenticated role managed through the normal user-management
+  authority path.
+- Former public report/form URLs stay valid but now require login; logged-out
+  access redirects through login and returns to the requested URL.
+- Submitter/team-member identity is the signed-in user and is displayed locked.
+  Client-provided profile IDs are never authority.
+- Light users land on a contained portal with only allowed surfaces: webform hub,
+  daily report forms, six daily list/record views, Add Feed, equipment
+  fueling/checklist, fuel supply, Tasks, legacy pig daily form, and My
+  Submissions.
+- Weigh-ins are intentionally not a Light surface.
+- Light can read all daily report records in the allowed daily surfaces,
+  including legacy rows, but can edit/delete only rows where
+  `owner_profile_id = auth.uid()`. Legacy NULL-owner rows are read-only for
+  Light.
+- `owner_profile_id` is server-stamped by migration `089` on insert across the 9
+  report tables. Offline replay stamps the authenticated user performing the
+  replay; stored client profile IDs are ignored.
+- Daily edit/delete writes route through `update_daily_report` and
+  `soft_delete_daily_report`; direct client UPDATE/DELETE on daily tables is
+  revoked by migration `092`.
+- Equipment fueling and fuel supply own-record edits/deletes for Light happen in
+  My Submissions through ownership RPCs. Privileged fleet/admin surfaces remain
+  available to privileged roles under RLS/RPC controls.
 
-Validation: enforce access via RLS/RPC (not hidden UI only); add static guards
-for route/nav/access boundaries; add focused tests for login-required URLs,
-locked submitter, Light nav filtering, own-record edit/delete, forbidden-route
-blocking, and non-admin Tasks parity.
+Guard rails: `light_user_portal_static.test.js`,
+`daily_edit_surface_static.test.js`, `daily_soft_delete_static.test.js`, and
+`cp2_daily_writes_via_rpc_static.test.js` lock the route/nav/access and
+ownership-write contracts.
 
 ---
 
@@ -178,12 +188,17 @@ blocking, and non-admin Tasks parity.
 - Sheep: home, flocks, processing batches, dailys, weigh-ins.
 - Equipment/Fleet: `/fleet` with fleet list, fuel log, and equipment detail.
 - Task Center: `/tasks`.
+- Light portal: contained home for `role=light`, allowed webform/daily shortcuts,
+  Tasks, and My Submissions.
 - Global Activity: `/activity`.
 - Admin/config: `/admin`.
 - Admin runtime observability: `/admin/client-errors`.
 
-### Public / No-Auth App
+### Login-Gated Form URLs
 
+- Former public report/form URLs are now authenticated. Existing paths and
+  aliases stay valid, redirect logged-out users to login, and return to the
+  requested URL after auth.
 - `/dailys` and `/dailys/tasks`.
 - `/addfeed`.
 - `/weighins`.
@@ -192,6 +207,8 @@ blocking, and non-admin Tasks parity.
 - `/webform-pigs` legacy standalone pig daily form.
 - Legacy aliases redirect through `src/lib/routes.js`. Do not add alias logic
   outside that owner.
+- Light users are allowed through the contained report/form surfaces but are not
+  allowed into `/weighins`.
 
 ### Operational Record Pages
 
@@ -268,7 +285,8 @@ Current PROD architecture includes these load-bearing migrations:
 - `090` `fuel_supplies` authenticated INSERT policy (CP1 login-gating fix).
 - `091` ownership RPCs: `update_daily_report` (positive per-table column
   allowlist + server-side `field.updated` diff), `soft_delete_daily_report`
-  ownership branch, `update`/`delete_equipment_fueling`, `update`/`delete_fuel_supply`.
+  ownership branch, `update_equipment_fueling`, `delete_equipment_fueling`,
+  `update_fuel_supply`, and `delete_fuel_supply`.
   Light may mutate only rows where `owner_profile_id = auth.uid()`.
 - `092` ownership enforce (red-switch): REVOKE direct UPDATE/DELETE on the 6
   daily tables, `trg_freeze_owner` BEFORE UPDATE trigger, privileged-only RLS on
@@ -355,12 +373,12 @@ Append-only upload expectations:
 ### Authentication And Roles
 
 - Ronnie remains final gate owner.
-- App roles include admin, management, farm_team, tech/equipment roles, and
+- App roles include admin, management, farm_team, equipment_tech, light, and
   inactive.
 - Runtime permission decisions must be enforced by RLS/RPCs, not just hidden UI.
-- Current public form code remains anonymous until the authenticated Light-user
-  lane ships. The target architecture is login-required submission with the
-  session user as submitter.
+- Report/form submission is login-required. The session user is the submitter;
+  `owner_profile_id` is stamped server-side and client-supplied profile IDs are
+  not trusted.
 
 ---
 
@@ -444,8 +462,9 @@ Workflow/worktable entities:
   write, the data is already committed.
 - Audit-critical delete/restore/transfer/status flows should move to SECDEF RPCs
   that mutate data and insert Activity in one transaction.
-- Current inventory locks 230 literal Supabase mutations, 6 dynamic table
-  mutations, and 26 `runMutation` callers. New mutation sites must update
+- Current inventory locks 220 literal Supabase mutations (30 delete, 65 insert,
+  82 update, 43 upsert), 6 dynamic table mutations, and 7 `runMutation` caller
+  modules. New mutation sites must update
   `mutation_semantics_inventory_static.test.js` deliberately.
 
 ### Delete, Restore, And Recovery
@@ -481,9 +500,15 @@ Workflow/worktable entities:
   Activity in one transaction.
 - Processing-batch helpers may need to resolve deleted animals by ID in admin
   context; do not add `deleted_at` filters there without redesign.
-- Backlog: identify calves born in the last 6 months with no assigned dam.
-  Placement is not locked; options include home widget, cattle dashboard widget,
-  herd quick filter, or dedicated quick filter.
+- Cattle Herds tab exception filters live in `src/lib/cattleHerdFilters.js` and
+  render as checkboxes in the existing herd filter bar:
+  - `Non Calving Cows`: cow/heifer, at least 30 months old, and no calving
+    record in the last 9 months.
+  - `Unmatched Calves`: any sex, no matched dam, and either born in the last 4
+    months or missing DOB.
+- Exception filters compose as OR with each other and still compose with herd,
+  normal filters, and search. Current last-calved lookup is by current tag, not
+  old tags; treat that as the accepted edge unless Ronnie asks to change it.
 
 ### Daily Reports
 
@@ -502,8 +527,16 @@ Workflow/worktable entities:
   - `egg_dailys` is intentionally NOT indexed — warning/pre-submit guard only.
 - Add Feed quick-log rows are not full daily reports.
 - Missed-report checks exclude `source='add_feed_webform'`.
-- Delete visibility uses `canDeleteDailyReport(authState)`: any role except
-  inactive.
+- Daily edits route through `updateDailyReport` / `update_daily_report` so
+  server-side allowlists, casts, ownership checks, and Activity diffs own the
+  write. Do not reintroduce direct daily-table `.update()` calls.
+- Daily deletes route through `soft_delete_daily_report`. Do not reintroduce
+  direct client deletes for daily roots.
+- `canEditOwnRecord(authState, record)` and
+  `canDeleteDailyReport(authState, record)` mirror server rules: privileged
+  roles can mutate allowed daily rows, Light can mutate only its own
+  `owner_profile_id = auth.uid()` rows, inactive cannot mutate, and legacy
+  NULL-owner rows are Light read-only.
 - Admin Recently Deleted supports daily restore.
 - Broiler/layer/pig daily pages use Group copy, not Batch copy.
 - Layer daily group and `batch_id` resolution must go through
@@ -528,14 +561,28 @@ Workflow/worktable entities:
 - `processingTrips[].subAttributions` stores `{subId, subBatchName, sex, count}`.
 - Send-to-Trip may reconcile locked planned trip count but cannot change locked
   date.
-- Backlog: planned-trip weight calculation needs an audit/explanation and a
-  fix if the current projection/display is wrong.
+- Planned-trip forecast weights are render-only and based on DOB/farrowing age
+  at trip date times Global ADG. Latest weigh-ins do not change planned-trip
+  forecast weights.
+- Farrowing-age distribution uses the parent farrowing window and is scaled to
+  sub-batches. Planned trips slice oldest-to-youngest; already shipped pigs are
+  offset from the oldest side. Missing farrowing data falls back to the
+  estimated-cycle band and is marked estimated; 1-pig projections show the full
+  band.
+- Processing trips show Forecast vs Actual with delta, display-only, so Ronnie
+  can compare shipped results against the Global ADG model without auto-changing
+  ADG.
+- Weigh-in entry tiles show previous weigh-in/date and rank-matched per-pig ADG
+  when a prior session exists. Blank notes are hidden behind `+ Note`; existing
+  notes still show.
+- Pig batch hub tiles show started count, current count, feed per pig started,
+  and sub-batch chips.
 
 ### Broiler, Layers, And Feed Planning
 
 - Broiler batches live in `ppp-v4`.
-- Public `/weighins` cannot read or mutate `app_store.ppp-v4` directly.
-- Public week 4/6 completion uses `stamp_broiler_batch_avg` RPC.
+- Login-gated `/weighins` cannot read or mutate `app_store.ppp-v4` directly.
+- Week 4/6 completion uses `stamp_broiler_batch_avg` RPC.
 - Layer `current_count` is the physical anchor; projected count subtracts
   mortalities since anchor.
 - Feed math lives in `src/lib/feedPlanner.js` and `src/lib/feedOrderBasis.js`.
@@ -544,11 +591,13 @@ Workflow/worktable entities:
 - Poultry feed-order math is per feed type: starter, grower, layerfeed.
 - "Count includes `<month>` order" prevents double-counting the delivery.
 - The "Order for `<active>`" tile labels its basis.
-- Backlog: the second feed summary tile should stay on the current calendar
-  month end estimate and must not roll to next month just because a feed order
-  was entered.
-- Backlog: reconcile the homepage broiler on-farm count with the broiler
-  dashboard count.
+- The second feed summary tile for pig and broiler stays pinned to the current
+  calendar month estimate via `estTileYM`; feed-order entry may advance the
+  workflow `activeYM` without rolling this estimate tile forward.
+- Broiler on-farm counts are centralized in `computeBroilerOnFarmCounts` in
+  `src/lib/broiler.js`. "Birds on Farm" means projected live birds after
+  mortality; "Birds Started" is shown separately. Home and Broiler Home use the
+  same helper.
 
 ### Tasks
 
@@ -571,8 +620,11 @@ Workflow/worktable entities:
 ### Equipment
 
 - Logged-in equipment lives under `/fleet`.
-- Public equipment checklist/fueling lives under `/equipment`.
-- Public fueling uses `submit_equipment_fueling` RPC.
+- Login-gated equipment checklist/fueling lives under `/equipment`.
+- Equipment fueling submissions use `submit_equipment_fueling` RPC.
+- Light My Submissions edits/deletes its own equipment fuelings and fuel
+  supplies through ownership RPCs. Privileged `/fleet` and admin fuel-log
+  surfaces retain their privileged paths under RLS/RPC controls.
 - Fuel-log edit/delete paths recompute current readings from remaining fuel logs.
 - Equipment checklist/material edits must not reload, lose focus, or reorder list
   items on click/edit.
@@ -588,15 +640,19 @@ Workflow/worktable entities:
 - Admin client error review is at `/admin/client-errors` and reads through
   `list_client_errors` only.
 
-### Public Webforms And Offline Queue
+### Login-Gated Webforms And Offline Queue
 
-- Public webforms must not read `app_store` directly, access Supabase auth state,
-  or use browser secrets.
-- Current shipped public forms use configured roster/availability/name strings,
-  not profile IDs. The authenticated Light-user lane should replace submitter
-  selection with the session user.
+- Login-gated webforms must not read `app_store` directly or use browser
+  secrets.
+- Former public forms now use Supabase auth state intentionally for login and
+  locked submitter identity. The signed-in session user is the submitter;
+  client-supplied profile IDs are never trusted.
+- Light is allowed only on contained report/form surfaces; weigh-ins remain
+  outside the Light allowlist.
 - Offline queue IndexedDB ownership is centralized in `src/lib/offlineQueue.js`.
 - Offline RPC replay goes through `useOfflineRpcSubmit` where needed.
+- Ownership stamping is server-side on replay: the replaying authenticated user
+  becomes `owner_profile_id`.
 - Shared TEST DB Playwright specs that reset/seed the DB must run one file at a
   time.
 
@@ -643,12 +699,14 @@ update the guard in the same lane and explain why:
 - Task API boundary.
 - Comments/Activity table access.
 - Route alias ownership.
-- Public webforms boundary.
+- Light portal/access boundary.
+- Login-gated webforms boundary.
 - Storage upload/remove/signed/public URL ownership.
 - Append-only bucket upload contracts.
 - Image file input capture contract.
 - Hard-delete owner inventory.
 - Mutation semantics inventory.
+- CP2 daily writes via ownership RPCs.
 - Delete/recovery classification.
 - Legacy Activity retirement.
 - Load/retry readiness inventory.
@@ -684,12 +742,12 @@ Focused starting points:
 | Mutation/delete/recovery | `tests/static/mutation_semantics_inventory_static.test.js`, `tests/static/delete_recovery_classification_static.test.js`, `tests/static/hard_delete_owner_static.test.js` |
 | Cattle                   | `tests/static/cattle_*.test.js`, `tests/cattle_*.spec.js`                                                                                                       |
 | Sheep                    | `tests/static/sheep_*.test.js`, `tests/sheep_*.spec.js`                                                                                                         |
-| Daily reports            | `tests/static/daily_*.test.js`, `tests/daily_*.spec.js`                                                                                                         |
+| Daily reports            | `tests/static/daily_*.test.js`, `tests/static/cp2_daily_writes_via_rpc_static.test.js`, `tests/daily_*.spec.js`                                                 |
 | Feed planning            | `src/lib/feedPlanner.test.js`, `src/lib/feedOrderBasis.test.js`, `tests/static/feed_order_board_static.test.js`                                                 |
 | Pig                      | `src/lib/pig*.test.js`, `tests/pig_*.spec.js`                                                                                                                   |
 | Broiler/layer            | `src/lib/broiler.test.js`, `src/layer/*.test.js`, `tests/broiler_*.spec.js`, `tests/layer_*.spec.js`                                                           |
 | Equipment                | `src/lib/equipment.test.js`, `tests/static/equipment_*.test.js`, `tests/equipment_*.spec.js`                                                                    |
-| Public/offline webforms  | `tests/offline_*.spec.js`, `tests/team_availability.spec.js`, `tests/daily_report_photos.spec.js`                                                              |
+| Login/offline webforms   | `tests/static/light_user_portal_static.test.js`, `tests/offline_*.spec.js`, `tests/team_availability.spec.js`, `tests/daily_report_photos.spec.js`             |
 | Storage/media guards     | `tests/static/*storage*.test.js`, `tests/static/*photo*.test.js`, `tests/static/image_file_input_capture_static.test.js`                                       |
 | Runtime observability    | `tests/static/error_resilience_static.test.js`, `tests/static/client_error_boundary_static.test.js`, `tests/static/client_errors_review_static.test.js`          |
 
