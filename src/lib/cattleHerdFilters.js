@@ -26,6 +26,8 @@ export const CATTLE_FILTER_DIMENSIONS = Object.freeze([
   'breed',
   'origin',
   'wagyuPctRange',
+  'nonCalvingCows',
+  'unmatchedCalves',
   'textSearch',
 ]);
 
@@ -162,6 +164,30 @@ function findPhraseUnconsumed(text, phrase, consumed) {
 
 const DAY_MS = 86400000;
 
+function isoDateFromMs(todayMs) {
+  const d = new Date(todayMs ?? Date.now());
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+function daysInUtcMonth(year, monthIndex) {
+  return new Date(Date.UTC(year, monthIndex + 1, 0, 12)).getUTCDate();
+}
+
+export function monthsAgoISO(todayMs, monthCount) {
+  const d = new Date(todayMs ?? Date.now());
+  if (Number.isNaN(d.getTime())) return null;
+  const monthIndex = d.getUTCMonth() - monthCount;
+  const firstOfTargetMonth = new Date(Date.UTC(d.getUTCFullYear(), monthIndex, 1, 12));
+  const day = Math.min(
+    d.getUTCDate(),
+    daysInUtcMonth(firstOfTargetMonth.getUTCFullYear(), firstOfTargetMonth.getUTCMonth()),
+  );
+  return new Date(Date.UTC(firstOfTargetMonth.getUTCFullYear(), firstOfTargetMonth.getUTCMonth(), day, 12))
+    .toISOString()
+    .slice(0, 10);
+}
+
 // ── helpers (hoisted from CattleHerdsView for testability) ────────────────────
 
 export function ageDays(birthDate, todayMs) {
@@ -238,6 +264,25 @@ export function lastCalvedFor(tag, calvingRecs) {
     if (!max || r.calving_date > max) max = r.calving_date;
   }
   return max;
+}
+
+export function isNonCalvingCow(cow, calvingRecs, todayMs) {
+  if (!cow || (cow.sex !== 'cow' && cow.sex !== 'heifer')) return false;
+  if (!cow.birth_date) return false;
+  const matureCutoff = monthsAgoISO(todayMs, 30);
+  if (!matureCutoff || cow.birth_date > matureCutoff) return false;
+  const recentCalvingCutoff = monthsAgoISO(todayMs, 9);
+  const lastCalved = lastCalvedFor(cow.tag, calvingRecs);
+  return !lastCalved || lastCalved < recentCalvingCutoff;
+}
+
+export function isUnmatchedCalf(cow, todayMs) {
+  if (!cow) return false;
+  if (String(cow.dam_tag || '').trim()) return false;
+  if (!cow.birth_date) return true;
+  const youngCutoff = monthsAgoISO(todayMs, 4);
+  const todayISO = isoDateFromMs(todayMs);
+  return !!youngCutoff && !!todayISO && cow.birth_date >= youngCutoff && cow.birth_date <= todayISO;
 }
 
 // ── predicate factory ─────────────────────────────────────────────────────────
@@ -369,6 +414,13 @@ export function buildCattlePredicate(filters, ctx = {}) {
       if (w == null) return false;
       if (f.wagyuPctRange.min != null && w < f.wagyuPctRange.min) return false;
       if (f.wagyuPctRange.max != null && w > f.wagyuPctRange.max) return false;
+    }
+
+    const hasExceptionFilter = f.nonCalvingCows === true || f.unmatchedCalves === true;
+    if (hasExceptionFilter) {
+      const matchesNonCalving = f.nonCalvingCows === true && isNonCalvingCow(cow, calvingRecs, todayMs);
+      const matchesUnmatchedCalf = f.unmatchedCalves === true && isUnmatchedCalf(cow, todayMs);
+      if (!matchesNonCalving && !matchesUnmatchedCalf) return false;
     }
 
     if (typeof f.textSearch === 'string' && f.textSearch.trim()) {

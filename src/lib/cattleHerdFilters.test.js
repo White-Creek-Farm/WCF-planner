@@ -2,10 +2,13 @@ import {describe, it, expect} from 'vitest';
 import {
   ageDays,
   ageMonths,
+  monthsAgoISO,
   cowTagSet,
   lastWeightFor,
   calfCountFor,
   lastCalvedFor,
+  isNonCalvingCow,
+  isUnmatchedCalf,
   buildCattlePredicate,
   buildCattleComparator,
   parseSmartFilter,
@@ -56,6 +59,18 @@ describe('ageDays / ageMonths', () => {
   it('roughly 4 years 3.5 months for 2022-01-15 against 2026-05-02', () => {
     expect(ageMonths('2022-01-15', TODAY)).toBeGreaterThan(50);
     expect(ageMonths('2022-01-15', TODAY)).toBeLessThan(54);
+  });
+});
+
+describe('monthsAgoISO', () => {
+  it('subtracts calendar months using UTC dates', () => {
+    expect(monthsAgoISO(TODAY, 4)).toBe('2026-01-02');
+    expect(monthsAgoISO(TODAY, 9)).toBe('2025-08-02');
+    expect(monthsAgoISO(TODAY, 30)).toBe('2023-11-02');
+  });
+  it('clamps end-of-month dates to the target month', () => {
+    const mar31 = new Date('2026-03-31T12:00:00Z').getTime();
+    expect(monthsAgoISO(mar31, 1)).toBe('2026-02-28');
   });
 });
 
@@ -143,6 +158,49 @@ describe('lastCalvedFor', () => {
 });
 
 // ── predicate tests ─────────────────────────────────────────────────────────
+describe('herd exception predicates', () => {
+  it('Non Calving Cows = cow/heifer 30mo+ with no calving record in the last 9 months', () => {
+    const recs = [
+      {dam_tag: 'RECENT', calving_date: '2025-08-02'},
+      {dam_tag: 'OLD', calving_date: '2025-08-01'},
+    ];
+
+    expect(isNonCalvingCow(cow({tag: 'RECENT', birth_date: '2023-11-02'}), recs, TODAY)).toBe(false);
+    expect(isNonCalvingCow(cow({tag: 'OLD', birth_date: '2023-11-02'}), recs, TODAY)).toBe(true);
+    expect(isNonCalvingCow(cow({tag: 'NEVER', birth_date: '2023-11-02'}), recs, TODAY)).toBe(true);
+    expect(isNonCalvingCow(cow({tag: 'HEIFER', sex: 'heifer', birth_date: '2023-11-02'}), recs, TODAY)).toBe(true);
+    expect(isNonCalvingCow(cow({tag: 'YOUNG', birth_date: '2023-11-03'}), recs, TODAY)).toBe(false);
+    expect(isNonCalvingCow(cow({tag: 'BULL', sex: 'bull', birth_date: '2020-01-01'}), recs, TODAY)).toBe(false);
+    expect(isNonCalvingCow(cow({tag: 'NO-DOB', birth_date: null}), recs, TODAY)).toBe(false);
+  });
+
+  it('Unmatched Calves = any sex, recent DOB or no DOB, with no dam_tag', () => {
+    expect(isUnmatchedCalf(cow({tag: 'YOUNG', sex: 'steer', birth_date: '2026-01-02', dam_tag: null}), TODAY)).toBe(
+      true,
+    );
+    expect(isUnmatchedCalf(cow({tag: 'NO-DOB', sex: 'bull', birth_date: null, dam_tag: null}), TODAY)).toBe(true);
+    expect(isUnmatchedCalf(cow({tag: 'MATCHED', birth_date: '2026-01-02', dam_tag: 'M001'}), TODAY)).toBe(false);
+    expect(isUnmatchedCalf(cow({tag: 'OLDER', birth_date: '2026-01-01', dam_tag: null}), TODAY)).toBe(false);
+    expect(isUnmatchedCalf(cow({tag: 'FUTURE', birth_date: '2026-06-01', dam_tag: null}), TODAY)).toBe(false);
+  });
+
+  it('buildCattlePredicate unions selected exception filters, then composes with normal filters', () => {
+    const recs = [{dam_tag: 'RECENT', calving_date: '2025-08-02'}];
+    const p = buildCattlePredicate(
+      {herdSet: ['mommas'], nonCalvingCows: true, unmatchedCalves: true},
+      {todayMs: TODAY, calvingRecs: recs},
+    );
+    const list = [
+      cow({tag: 'NCC', herd: 'mommas', birth_date: '2023-11-02'}),
+      cow({tag: 'UC', herd: 'mommas', sex: 'steer', birth_date: '2026-01-02', dam_tag: null}),
+      cow({tag: 'RECENT', herd: 'mommas', birth_date: '2023-11-02'}),
+      cow({tag: 'OTHER-HERD', herd: 'finishers', sex: 'steer', birth_date: '2026-01-02', dam_tag: null}),
+    ];
+
+    expect(list.filter(p).map((c) => c.tag)).toEqual(['NCC', 'UC']);
+  });
+});
+
 describe('buildCattlePredicate — per dimension', () => {
   const ctx = {todayMs: TODAY, calvingRecs: [], weighIns: []};
 

@@ -704,6 +704,39 @@ const CattleHerdsHub = ({
     );
   }
 
+  // eslint-disable-next-line no-unused-vars -- JSX-only use
+  function SpecialFilterCheckbox({filterKey, label}) {
+    const checked = filters[filterKey] === true;
+    return (
+      <label
+        data-cattle-special-filter={filterKey}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '5px 10px',
+          borderRadius: 6,
+          border: checked ? '1px solid #991b1b' : '1px solid #d1d5db',
+          background: checked ? '#fef2f2' : 'white',
+          color: checked ? '#991b1b' : '#374151',
+          fontSize: 12,
+          fontWeight: checked ? 600 : 500,
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => setFilter(filterKey, e.target.checked ? true : null)}
+          data-cattle-special-filter-checkbox={filterKey}
+          style={{margin: 0}}
+        />
+        <span>{label}</span>
+      </label>
+    );
+  }
+
   function quickFilterButtons() {
     return CATTLE_QUICK_FILTERS.map((key) => {
       if (key === 'textSearch') return null; // handled by separate search input
@@ -1267,6 +1300,8 @@ const CattleHerdsHub = ({
           <div style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
             <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600, marginRight: 4}}>Filters:</span>
             {quickFilterButtons()}
+            <SpecialFilterCheckbox filterKey="nonCalvingCows" label="Non Calving Cows" />
+            <SpecialFilterCheckbox filterKey="unmatchedCalves" label="Unmatched Calves" />
             <button
               type="button"
               onClick={() => setShowMoreFilters((v) => !v)}
