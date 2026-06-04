@@ -33,13 +33,19 @@ history and tests for detailed lane history.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source of truth: `origin/main @ 957f577`.
+- Source of truth: `origin/main @ 7de1758`.
 - Open gates for the shipped tree: none.
-- PROD-applied numbered migration series is live through `086`. Migration `082`
+- PROD-applied numbered migration series is live through `092`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
   cleanup `085` was applied before unique-index migration `084`.
 - TEST/PROD migrations `074` through `081` plus `084`/`085`/`086` were applied
   and verified during the 2026-06-03 hardening sequence.
+- Light-user portal migrations `087`–`092` (CP1+CP2 ownership) were applied to
+  PROD atomically (single transaction) and verified on 2026-06-04: `light` role
+  in the profiles constraint, `owner_profile_id` on all 9 report tables, the
+  server-trusted INSERT stamp + UPDATE owner-freeze triggers, the ownership RPCs,
+  and the `092` red-switch (direct UPDATE/DELETE revoked on the 6 daily tables;
+  privileged-only RLS on `equipment_fuelings`/`fuel_supplies`).
 - Local note for new agents: edit `PROJECT.md` only during explicit docs or wrap
   work. Normal build lanes should leave docs alone.
 
@@ -50,8 +56,32 @@ listed:
 
 Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
-work (the 2026-06-03 hardening sequence):
+work:
 
+- Authenticated Light-user portal, CP1+CP2, migrations `087`–`092`, PROD
+  (2026-06-04, commit `4b69510` + merge `7de1758`). CP1: real authenticated
+  `light` role; the former public report/form URLs (daily, Add Feed, equipment
+  fueling, fuel supply, weigh-in) are now login-required with preserved
+  URLs/aliases and return-to-URL after login; submitter is locked to the
+  signed-in user; Light users are contained to a portal (daily list/record
+  views, Add Feed, equipment fueling checklist, Tasks, My Submissions) and
+  everything else fails closed. CP2: Light reads ALL reports but edits/deletes
+  only its OWN, server-enforced — `owner_profile_id` stamped from `auth.uid()`
+  by a BEFORE INSERT trigger (never client-supplied; NULL = legacy/unowned =
+  read-only for Light), all daily edits/deletes routed through SECURITY DEFINER
+  ownership RPCs with positive per-table column allowlists and server-side
+  `field.updated` Activity diffs, and the `092` red-switch revoking direct
+  PostgREST UPDATE/DELETE so enforcement is server-side, not UI-only.
+- Feed second-tile current-month pin, code-only, PROD. The second feed summary
+  tile (pig + broiler) stays on the current calendar month estimate via
+  `estTileYM` and no longer rolls forward when a feed order advances the order
+  workflow `activeYM`.
+- Pig planned-trip weight forecast audit + weigh-in/batch-tile refinements,
+  code-only, PROD.
+- Cattle herd missing-dam / exception filters, code-only, PROD. `CattleHerdsView`
+  exception filters backed by `src/lib/cattleHerdFilters.js`.
+- Broiler on-farm count reconciliation, code-only, PROD. On-farm count derives
+  from `src/lib/broiler.js` with a dedicated static guard.
 - Legacy Activity composer RPC retirement, migration `080`, PROD. Historical
   composer/count functions remain in SQL but client execute is revoked for anon
   and authenticated roles.
@@ -90,34 +120,20 @@ the canonical Codex worktree at `C:\Users\Ronni\WCF-planner-codex` on
 
 ### Recommended Work Queue
 
-Treat these as product lanes, not hotfixes, unless Ronnie says otherwise:
+Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
+Shipped 2026-06-04 (removed from queue): authenticated Light-user portal CP1+CP2,
+pig planned-trip weight audit, cattle missing-dam herd filters, feed second-tile
+current-month pin, and broiler on-farm count reconciliation.
 
-1. Authenticated Light-user webforms/report portal. Keep the existing form URLs,
-   require login, return users to the requested URL after auth, show the
-   session user as the locked submitter, remove submitter/team-member dropdowns
-   where session identity replaces them, expose only the lookup data current
-   anonymous forms need, and keep Light users contained to allowed report/form
-   surfaces plus current non-admin Tasks permissions.
-2. Task weekly email correction. Current `tasks-summary-weekly` cron is
+1. Task weekly email correction. Current `tasks-summary-weekly` cron is
    scheduled as Monday `13:00 UTC`, which is Monday 8am Central during daylight
    time. Change the product schedule to Sunday 8am Central, decide whether that
    means fixed UTC or true America/Chicago DST behavior, and add weekly email
    coverage for task-completed notifications owed to the task creator/assignor.
-3. Pig planned-trip weight audit. Document exactly how planned-trip weights are
-   calculated, reproduce the suspected issue, and fix the calculation or display
-   contract with focused tests.
-4. Cattle calves missing dam visibility. Add a way to identify calves born in
-   the last 6 months with no assigned dam; decide placement first: home widget,
-   cattle dashboard widget, herd quick filter, or a dedicated quick filter.
-5. Feed tab second-tile behavior. The second feed summary tile must remain the
-   current calendar month end estimate and must not roll to next month when a
-   feed order is entered.
-6. Broiler on-farm count discrepancy. Investigate and reconcile the homepage
-   broiler on-farm count versus the broiler dashboard count.
-7. Equipment caught-up home notices. Add home tile notices when equipment
+2. Equipment caught-up home notices. Add home tile notices when equipment
    maintenance and equipment materials are fully caught up, analogous to the
    "no missing daily reports" state.
-8. Follow-on audited RPCs where remaining flows still have partial-state or
+3. Follow-on audited RPCs where remaining flows still have partial-state or
    audit gaps.
 
 ### Lane 1 detail — authenticated Light-user portal
@@ -244,6 +260,19 @@ Current PROD architecture includes these load-bearing migrations:
 - `084` daily report partial unique indexes.
 - `085` daily duplicate cleanup.
 - `086` equipment maintenance event idempotency.
+- `087` `profiles.role` adds `light` to the CHECK constraint.
+- `088` `owner_profile_id` columns + partial indexes on the 6 daily tables,
+  `daily_submissions`, `equipment_fuelings`, `fuel_supplies`.
+- `089` `stamp_owner_profile_id` BEFORE INSERT trigger (`trg_stamp_owner`)
+  stamping `owner_profile_id := auth.uid()` on all 9 tables; never client-set.
+- `090` `fuel_supplies` authenticated INSERT policy (CP1 login-gating fix).
+- `091` ownership RPCs: `update_daily_report` (positive per-table column
+  allowlist + server-side `field.updated` diff), `soft_delete_daily_report`
+  ownership branch, `update`/`delete_equipment_fueling`, `update`/`delete_fuel_supply`.
+  Light may mutate only rows where `owner_profile_id = auth.uid()`.
+- `092` ownership enforce (red-switch): REVOKE direct UPDATE/DELETE on the 6
+  daily tables, `trg_freeze_owner` BEFORE UPDATE trigger, privileged-only RLS on
+  `equipment_fuelings`/`fuel_supplies`.
 
 Special migration notes:
 
