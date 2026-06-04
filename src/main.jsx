@@ -220,6 +220,8 @@ import LayerBatchesView from './layer/LayerBatchesView.jsx';
 // extraction; reads every data context, takes canAccessProgram +
 // VIEW_TO_PROGRAM as props (they still live in App).
 import HomeDashboard from './dashboard/HomeDashboard.jsx';
+import LightHomePortal from './dashboard/LightHomePortal.jsx';
+import MySubmissions from './dashboard/MySubmissions.jsx';
 
 // Phase 2 Round 6 tail: top nav bar + program sub-nav. Pulls view/menu
 // state + auth + form-open booleans from their respective contexts; App()
@@ -1699,6 +1701,7 @@ function App() {
     'fuelingHub',
     'fuelSupply',
     'weighinsessions',
+    'mySubmissions',
   ];
   useEffect(() => {
     if (view && !VALID_VIEWS.includes(view)) setView('home');
@@ -1747,14 +1750,70 @@ function App() {
     if (!prog) return true;
     if (!authState || authState === false || !authState.profile) return true;
     if (authState.role === 'admin') return true;
+    // Light users are contained to the field portal + allowed form/Tasks
+    // surfaces; no program (including the internal /fleet equipment module)
+    // is reachable. Their Equipment access is the public fueling/checklist
+    // hub (fuelingHub), which is not program-gated.
+    if (authState.role === 'light') return false;
     const list = authState.profile.program_access;
     if (!Array.isArray(list) || list.length === 0) return true;
     return list.includes(prog);
   }
+
+  // Light-user containment allowlist. A real authenticated Light role (Lane 1
+  // CP1) is a field user limited to the daily-report/forms hub, Add Feed,
+  // the public Equipment fueling/checklist hub + Fuel Supply, and Tasks.
+  // Weigh-ins are intentionally NOT in scope for Light. Everything else
+  // (program dashboards, the internal /fleet module, global Activity, Admin,
+  // Users, Client Errors) fails closed to the portal. Enforced both at render
+  // (fail-closed early return below) and via the redirect effect so a
+  // typed/bookmarked forbidden URL never renders.
+  const LIGHT_ALLOWED_VIEWS = React.useMemo(
+    () =>
+      new Set([
+        'home', // Light portal home
+        'webformhub', // /dailys hub (all daily sub-forms)
+        'tasksWebform', // /dailys/tasks
+        'addfeed', // /addfeed
+        'webform', // /webform-pigs legacy standalone pig daily
+        'fuelingHub', // /equipment public fueling/checklist hub
+        'fuelSupply', // /fuel-supply
+        'tasks', // /tasks (current non-admin Tasks behavior)
+        // CP2: Light reads all daily reports and edits/deletes only its own.
+        // The per-program daily list+record views are reachable (the program
+        // dashboards, herds/flocks/batches/feed are NOT). Each router shows the
+        // list and the record page under one view name.
+        'broilerdailys', // /broiler/dailys(+/<id>)
+        'layerdailys', // /layer/dailys(+/<id>)
+        'eggdailys', // /layer/eggs(+/<id>)
+        'pigdailys', // /pig/dailys(+/<id>)
+        'cattledailys', // /cattle/dailys(+/<id>)
+        'sheepdailys', // /sheep/dailys(+/<id>)
+        'mySubmissions', // Light's own equipment fuelings + fuel supplies
+        // NOTE: weighins is deliberately excluded — Light users do not submit
+        // weigh-ins (typed /weighins fails closed to the portal, and the
+        // Weigh-Ins tile on the /dailys hub is hidden for Light).
+      ]),
+    [],
+  );
+  const isLight = authState && authState !== false && authState.role === 'light';
+  function canLightAccessView(v) {
+    return LIGHT_ALLOWED_VIEWS.has(v);
+  }
+
   // Redirect to home if user lands on a program view they don't have access to.
+  // Carve-out: a Light user's allowlisted daily list/record views map to a
+  // program (e.g. broilerdailys -> broiler) but canAccessProgram is false for
+  // Light, so exempt views on the Light allowlist from the program bounce.
   useEffect(() => {
     const prog = VIEW_TO_PROGRAM[view];
-    if (prog && !canAccessProgram(prog)) setView('home');
+    if (prog && !canAccessProgram(prog) && !(isLight && canLightAccessView(view))) setView('home');
+  }, [view, authState]);
+
+  // Light containment: snap any non-allowed view back to the portal. Pairs
+  // with the render-time fail-closed guard so the URL/view state also resets.
+  useEffect(() => {
+    if (isLight && view && !canLightAccessView(view)) setView('home');
   }, [view, authState]);
 
   useEffect(() => {
@@ -1843,7 +1902,7 @@ function App() {
       if (import.meta.env.DEV) {
         try {
           const override = window.localStorage.getItem('wcf-test-role-override');
-          if (override && ['admin', 'management', 'farm_team', 'inactive'].includes(override)) {
+          if (override && ['admin', 'management', 'farm_team', 'inactive', 'light'].includes(override)) {
             resolvedRole = override;
           }
         } catch {
@@ -3303,28 +3362,12 @@ function App() {
       })
     : null;
 
-  // ── WEBFORM BYPASS — no auth required ──
-  if (view === 'webform') return React.createElement(PigDailysWebform);
-  if (view === 'addfeed') return React.createElement(AddFeedWebform, {sb});
-  if (view === 'weighins') return React.createElement(WeighInsWebform, {sb});
-  if (view === 'tasksWebform') return React.createElement(TasksWebform, {sb});
-  if (view === 'webformhub')
-    return React.createElement(WebformHub, {
-      sb,
-      wfGroups,
-      setWfGroups,
-      wfTeamMembers,
-      setWfTeamMembers,
-      layerGroups,
-      batches,
-      layerBatches,
-      layerHousings,
-      webformsConfig,
-    });
-  if (view === 'fuelingHub') return React.createElement(FuelingHub, {sb});
-  if (view === 'fuelSupply') return React.createElement(FuelSupplyWebform, {sb});
-
   // ── AUTH GATES ──
+  // Lane 1 CP1: the public report/form surfaces (webformhub, tasksWebform,
+  // addfeed, weighins, webform, fuelingHub, fuelSupply) used to render in a
+  // bypass block ABOVE these gates so anonymous operators could submit. They
+  // are now login-required and render BELOW the gates (see "REPORT/FORM
+  // SURFACES (login required)" further down). URLs and aliases are unchanged.
   // SetPasswordScreen comes first: a recovery / invite link gives the user a
   // valid session, so authState would otherwise jump straight to home.
   if (pwRecovery)
@@ -3364,9 +3407,60 @@ function App() {
       </div>
     );
 
-  // \u2500\u2500 HOME DASHBOARD \u2500\u2500
-  if (view === 'home')
+  // Signed-in identity injected into the (now authenticated) report/form
+  // surfaces as the locked submitter. Passed as a plain prop so the form
+  // components keep zero auth-session coupling (no useAuth import) — the
+  // public-webforms boundary guard still holds. CP1 stores the display name
+  // string; durable owner identity + own-record edit/delete is a later
+  // ownership/RLS checkpoint.
+  const sessionSubmitter = {
+    name: authState.name || authState.user?.email || '',
+    email: authState.user?.email || '',
+    profileId: authState.user?.id || null,
+  };
+
+  // Light containment — fail closed. A Light user can only reach the portal
+  // and the allowed form/Tasks surfaces; any other view renders the Light
+  // portal instead of the forbidden surface (the redirect effect above also
+  // snaps view/URL back to home). This blocks typed/bookmarked program
+  // dashboards, the internal /fleet module, Activity, Admin, Users, and
+  // Client Errors before they can mount.
+  if (isLight && !canLightAccessView(view)) return React.createElement(LightHomePortal, {Header});
+
+  // ── REPORT/FORM SURFACES (login required) ──
+  // Every authenticated user (including Light) reaches these. Logged-out
+  // visitors hit the LoginScreen gate above; because the URL/view is
+  // preserved across login they return to the requested form afterward.
+  if (view === 'webform') return React.createElement(PigDailysWebform, {sessionSubmitter});
+  if (view === 'addfeed') return React.createElement(AddFeedWebform, {sb, sessionSubmitter});
+  if (view === 'weighins') return React.createElement(WeighInsWebform, {sb, sessionSubmitter});
+  if (view === 'tasksWebform') return React.createElement(TasksWebform, {sb, sessionSubmitter});
+  if (view === 'webformhub')
+    return React.createElement(WebformHub, {
+      sb,
+      wfGroups,
+      setWfGroups,
+      wfTeamMembers,
+      setWfTeamMembers,
+      layerGroups,
+      batches,
+      layerBatches,
+      layerHousings,
+      webformsConfig,
+      sessionSubmitter,
+      hideWeighIns: isLight,
+    });
+  if (view === 'fuelingHub') return React.createElement(FuelingHub, {sb, sessionSubmitter});
+  if (view === 'fuelSupply') return React.createElement(FuelSupplyWebform, {sb, sessionSubmitter});
+
+  // ── HOME DASHBOARD ──
+  if (view === 'home') {
+    if (isLight) return React.createElement(LightHomePortal, {Header});
     return React.createElement(HomeDashboard, {Header, loadUsers, canAccessProgram, VIEW_TO_PROGRAM});
+  }
+
+  // ── MY SUBMISSIONS (Light: own equipment fuelings + fuel supplies) ──
+  if (view === 'mySubmissions') return React.createElement(MySubmissions, {Header});
 
   // ── FORM ──
   // Phase 2 Round 6 tail: body moved to src/broiler/BatchForm.jsx. Every

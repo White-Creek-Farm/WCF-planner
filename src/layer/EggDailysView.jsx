@@ -5,7 +5,7 @@ import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -187,15 +187,15 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
       comments: form.comments || null,
     };
     if (editId) {
-      sb.from('egg_dailys')
-        .update(rec)
-        .eq('id', editId)
-        .then(({error}) => {
-          if (error) {
-            setNotice({kind: 'error', message: 'Save failed: ' + friendlyDailyDbError(error, 'egg_dailys', rec)});
-            return;
-          }
+      updateDailyReport(sb, 'egg.daily', editId, rec, {entityLabel: rec.date})
+        .then(() => {
           refreshDailys && refreshDailys('egg');
+        })
+        .catch((e) => {
+          setNotice({
+            kind: 'error',
+            message: 'Save failed: ' + friendlyDailyDbError(e.message || String(e), 'egg_dailys', rec),
+          });
         });
       setRecords((p) => p.map((r) => (r.id === editId ? {...r, ...rec} : r)));
       setShowForm(false);
@@ -614,11 +614,15 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
               <button onClick={save} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && canDeleteDailyReport(authState) && (
-                <button onClick={() => del(editId)} style={S.btnDanger}>
-                  Delete
-                </button>
-              )}
+              {editId &&
+                canDeleteDailyReport(
+                  authState,
+                  records.find((r) => r.id === editId),
+                ) && (
+                  <button onClick={() => del(editId)} style={S.btnDanger}>
+                    Delete
+                  </button>
+                )}
               <button
                 onClick={() => {
                   setNotice(null);

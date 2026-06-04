@@ -9,7 +9,9 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const EXPECTED_LITERAL_MUTATION_TOTALS = new Map([
   ['delete', 30],
   ['insert', 65],
-  ['update', 94],
+  // CP2: 12 direct daily-table .update() literals (6 record pages + 6 list
+  // views) moved to the update_daily_report SECDEF RPC (mig 091).
+  ['update', 82],
   ['upsert', 43],
 ]);
 
@@ -30,8 +32,6 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/auth/UsersModal.jsx|delete', 1],
   ['src/auth/UsersModal.jsx|update', 4],
   ['src/broiler/BroilerDailysView.jsx|insert', 1],
-  ['src/broiler/BroilerDailysView.jsx|update', 1],
-  ['src/broiler/PoultryDailyPage.jsx|update', 1],
   ['src/cattle/CattleAnimalPage.jsx|delete', 1],
   ['src/cattle/CattleAnimalPage.jsx|insert', 1],
   ['src/cattle/CattleAnimalPage.jsx|update', 1],
@@ -42,8 +42,6 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/cattle/CattleBreedingView.jsx|insert', 1],
   ['src/cattle/CattleBreedingView.jsx|update', 1],
   ['src/cattle/CattleBulkImport.jsx|insert', 7],
-  ['src/cattle/CattleDailyPage.jsx|update', 1],
-  ['src/cattle/CattleDailysView.jsx|update', 1],
   ['src/cattle/CattleForecastView.jsx|update', 1],
   ['src/cattle/CattleHerdsView.jsx|delete', 1],
   ['src/cattle/CattleHerdsView.jsx|insert', 3],
@@ -57,15 +55,11 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/equipment/EquipmentMaintenanceModal.jsx|insert', 1],
   ['src/equipment/EquipmentMaintenanceModal.jsx|update', 1],
   ['src/equipment/EquipmentMeterStatusPanel.jsx|update', 1],
-  ['src/layer/EggDailyPage.jsx|update', 1],
   ['src/layer/EggDailysView.jsx|insert', 1],
-  ['src/layer/EggDailysView.jsx|update', 1],
   ['src/layer/LayerBatchPage.jsx|delete', 2],
   ['src/layer/LayerBatchPage.jsx|upsert', 2],
   ['src/layer/LayerBatchesView.jsx|upsert', 1],
-  ['src/layer/LayerDailyPage.jsx|update', 1],
   ['src/layer/LayerDailysView.jsx|insert', 1],
-  ['src/layer/LayerDailysView.jsx|update', 1],
   ['src/layer/LayerHousingPage.jsx|upsert', 2],
   ['src/lib/broiler.js|upsert', 2],
   ['src/lib/cattleForecastApi.js|delete', 2],
@@ -93,9 +87,7 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/main.jsx|update', 1],
   ['src/main.jsx|upsert', 14],
   ['src/pig/PigBatchesView.jsx|upsert', 1],
-  ['src/pig/PigDailyPage.jsx|update', 1],
   ['src/pig/PigDailysView.jsx|insert', 1],
-  ['src/pig/PigDailysView.jsx|update', 1],
   ['src/pig/usePigMortality.js|upsert', 2],
   ['src/pig/usePigPlannedTrips.js|upsert', 1],
   ['src/shared/AdminAddReportModal.jsx|insert', 6],
@@ -107,8 +99,6 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/sheep/SheepBatchPage.jsx|update', 4],
   ['src/sheep/SheepBatchesView.jsx|insert', 1],
   ['src/sheep/SheepBulkImport.jsx|insert', 7],
-  ['src/sheep/SheepDailyPage.jsx|update', 1],
-  ['src/sheep/SheepDailysView.jsx|update', 1],
   ['src/sheep/SheepFlocksView.jsx|insert', 1],
   ['src/sheep/SheepWeighInsView.jsx|insert', 1],
   ['src/webforms/WebformHub.jsx|insert', 4],
@@ -130,7 +120,6 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['cattle_comments|insert', 3],
   ['cattle_comments|update', 1],
   ['cattle_dailys|insert', 1],
-  ['cattle_dailys|update', 2],
   ['cattle_feed_inputs|delete', 1],
   ['cattle_feed_inputs|update', 1],
   ['cattle_feed_inputs|upsert', 1],
@@ -151,7 +140,6 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['cattle|insert', 3],
   ['cattle|update', 8],
   ['egg_dailys|insert', 3],
-  ['egg_dailys|update', 2],
   ['equipment_fuelings|delete', 1],
   ['equipment_fuelings|update', 4],
   ['equipment_maintenance_events|delete', 1],
@@ -173,23 +161,19 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['layer_batches|update', 1],
   ['layer_batches|upsert', 2],
   ['layer_dailys|insert', 3],
-  ['layer_dailys|update', 2],
   ['layer_housings|delete', 1],
   ['layer_housings|update', 1],
   ['layer_housings|upsert', 3],
   ['notifications|update', 2],
   ['pig_dailys|insert', 3],
-  ['pig_dailys|update', 2],
   ['pig_dailys|upsert', 1],
   ['poultry_dailys|insert', 3],
-  ['poultry_dailys|update', 2],
   ['profiles|delete', 1],
   ['profiles|update', 4],
   ['sheep_breeds|insert', 1],
   ['sheep_comments|delete', 1],
   ['sheep_comments|insert', 1],
   ['sheep_dailys|insert', 1],
-  ['sheep_dailys|update', 2],
   ['sheep_lambing_records|delete', 1],
   ['sheep_lambing_records|insert', 2],
   ['sheep_origins|insert', 1],
@@ -224,18 +208,12 @@ const EXPECTED_DYNAMIC_MUTATIONS = [
 
 const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   ['src/admin/EquipmentWebformsAdmin.jsx', 9],
-  ['src/broiler/PoultryDailyPage.jsx', 1],
   ['src/cattle/CattleAnimalPage.jsx', 1],
-  ['src/cattle/CattleDailyPage.jsx', 1],
   ['src/cattle/CattleForecastView.jsx', 1],
   ['src/cattle/CattleHerdsView.jsx', 2],
   ['src/equipment/EquipmentDetail.jsx', 1],
-  ['src/layer/EggDailyPage.jsx', 1],
-  ['src/layer/LayerDailyPage.jsx', 1],
   ['src/livestock/WeighInSessionPage.jsx', 5],
-  ['src/pig/PigDailyPage.jsx', 1],
   ['src/sheep/SheepAnimalPage.jsx', 1],
-  ['src/sheep/SheepDailyPage.jsx', 1],
 ]);
 
 function stripComments(src) {
@@ -389,7 +367,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(26);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(20);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

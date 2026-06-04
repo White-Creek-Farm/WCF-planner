@@ -21,6 +21,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     {v: 'farm_team', l: 'Farm Team'},
     {v: 'management', l: 'Management'},
     {v: 'admin', l: 'Admin'},
+    {v: 'light', l: 'Light'},
   ];
 
   React.useEffect(() => {
@@ -166,8 +167,14 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, program_access: value} : p)));
   }
 
-  const roleColor = {admin: '#b91c1c', management: '#1d4ed8', farm_team: '#085041', inactive: '#9ca3af'};
-  const roleBg = {admin: '#fef2f2', management: '#eff6ff', farm_team: '#ecfdf5', inactive: '#f3f4f6'};
+  const roleColor = {
+    admin: '#b91c1c',
+    management: '#1d4ed8',
+    farm_team: '#085041',
+    light: '#7c3aed',
+    inactive: '#9ca3af',
+  };
+  const roleBg = {admin: '#fef2f2', management: '#eff6ff', farm_team: '#ecfdf5', light: '#f5f3ff', inactive: '#f3f4f6'};
 
   return (
     <div
@@ -311,6 +318,10 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   <span style={{color: '#6b7280'}}>Edit anything · delete daily reports only</span>
                   <span style={{fontWeight: 700, color: '#b91c1c'}}>👑 Admin</span>
                   <span style={{color: '#6b7280'}}>Full access — edit & delete everything</span>
+                  <span style={{fontWeight: 700, color: '#7c3aed'}}>📋 Light</span>
+                  <span style={{color: '#6b7280'}}>
+                    Field portal only — daily/feed/equipment/weigh-in forms + Tasks
+                  </span>
                 </div>
               </div>
 
@@ -345,7 +356,15 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         border: '2px solid ' + (roleColor[u.role] || '#e5e7eb'),
                       }}
                     >
-                      {u.role === 'admin' ? '👑' : u.role === 'management' ? '🔑' : u.role === 'inactive' ? '🚫' : '🌾'}
+                      {u.role === 'admin'
+                        ? '👑'
+                        : u.role === 'management'
+                          ? '🔑'
+                          : u.role === 'inactive'
+                            ? '🚫'
+                            : u.role === 'light'
+                              ? '📋'
+                              : '🌾'}
                     </div>
                     {/* Name + email */}
                     <div style={{flex: 1, minWidth: 0, overflow: 'hidden'}}>
@@ -457,7 +476,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       {u.role === 'inactive' && <option value="inactive">Inactive</option>}
                     </select>
                   </div>
-                  {u.id !== authState?.user?.id && u.role !== 'admin' && (
+                  {u.id !== authState?.user?.id && u.role !== 'admin' && u.role !== 'light' && (
                     <div style={{padding: '5px 14px', borderTop: '1px solid #f3f4f6', background: '#fafafa'}}>
                       <div
                         style={{
@@ -660,7 +679,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 1fr 1fr',
+                      gridTemplateColumns: `repeat(${ROLES.length}, 1fr)`,
                       borderRadius: 6,
                       overflow: 'hidden',
                       border: '1px solid #d1d5db',
@@ -674,7 +693,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         style={{
                           padding: '9px 0',
                           border: 'none',
-                          borderRight: i < 2 ? '1px solid #d1d5db' : 'none',
+                          borderRight: i < ROLES.length - 1 ? '1px solid #d1d5db' : 'none',
                           fontFamily: 'inherit',
                           fontSize: 12,
                           fontWeight: 600,

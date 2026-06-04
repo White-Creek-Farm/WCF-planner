@@ -34,12 +34,17 @@ import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import DeleteModal from '../shared/DeleteModal.jsx';
+import LockedSubmitter from './LockedSubmitter.jsx';
 
-const WeighInsWebform = ({sb}) => {
+const WeighInsWebform = ({sb, sessionSubmitter}) => {
+  // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
+  // locked. The roster dropdown is replaced by the signed-in identity.
+  const lockedName = sessionSubmitter?.name || '';
+  const submitterLocked = !!lockedName;
   const [stage, setStage] = React.useState('species'); // 'species' | 'select' | 'session' | 'done'
   const [species, setSpecies] = React.useState('');
   const [date, setDate] = React.useState('');
-  const [teamMember, setTeamMember] = React.useState('');
+  const [teamMember, setTeamMember] = React.useState(sessionSubmitter?.name || '');
   const [allTeamMembers, setAllTeamMembers] = React.useState([]);
   // Per-species filtering retired 2026-04-29 — every active master roster
   // member is selectable for every species. The teamMembersBySpecies state
@@ -192,6 +197,12 @@ const WeighInsWebform = ({sb}) => {
   }, []);
   // Same active list across every species after the 2026-04-29 cleanup.
   const speciesTeamMembers = allTeamMembers;
+
+  // Keep the locked submitter pinned to the signed-in identity (authenticated
+  // path). New sessions + per-entry rows then carry the signed-in user.
+  React.useEffect(() => {
+    if (submitterLocked && teamMember !== lockedName) setTeamMember(lockedName);
+  }, [submitterLocked, lockedName, teamMember]);
 
   // When species picked, prefetch what's needed
   React.useEffect(() => {
@@ -499,7 +510,9 @@ const WeighInsWebform = ({sb}) => {
     // (saveEntry, saveBatch direct, deleteEntry, finalizeSession) is valid.
     setSessionIsFresh(false);
     setLastSubmitOutcome(null);
-    if (s.team_member) setTeamMember(s.team_member);
+    // On the authenticated path the submitter stays the signed-in user; don't
+    // let a resumed draft's original starter override the locked identity.
+    if (!submitterLocked && s.team_member) setTeamMember(s.team_member);
     if (s.notes) setNoteInput(s.notes);
     // Restore the herd/flock selection so the remaining-tags list
     // populates correctly on resume (it filters by cattleHerd / sheepFlock).
@@ -1657,15 +1670,21 @@ const WeighInsWebform = ({sb}) => {
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inpS} />
             </div>
             <div style={{marginBottom: 10}}>
-              <label style={lblS}>Team Member *</label>
-              <select value={teamMember} onChange={(e) => setTeamMember(e.target.value)} style={inpS}>
-                <option value="">Select...</option>
-                {speciesTeamMembers.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+              {submitterLocked ? (
+                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
+              ) : (
+                <>
+                  <label style={lblS}>Team Member *</label>
+                  <select value={teamMember} onChange={(e) => setTeamMember(e.target.value)} style={inpS}>
+                    <option value="">Select...</option>
+                    {speciesTeamMembers.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
 
             {species === 'cattle' && (

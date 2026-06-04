@@ -28,8 +28,14 @@ import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
+import LockedSubmitter from './LockedSubmitter.jsx';
 
-const AddFeedWebform = ({sb}) => {
+const AddFeedWebform = ({sb, sessionSubmitter}) => {
+  // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
+  // locked — shown regardless of the admin team_member field toggle so the
+  // session identity is always captured.
+  const lockedName = sessionSubmitter?.name || '';
+  const submitterLocked = !!lockedName;
   const [configLoaded, setConfigLoaded] = React.useState(false);
   const [wfCfg, setWfCfg] = React.useState(null);
   const [wfSettings, setWfSettings] = React.useState({});
@@ -46,7 +52,7 @@ const AddFeedWebform = ({sb}) => {
   const [batchLabel, setBatchLabel] = React.useState('');
   const [feedType, setFeedType] = React.useState('');
   const [feedLbs, setFeedLbs] = React.useState('');
-  const [teamMember, setTeamMember] = React.useState('');
+  const [teamMember, setTeamMember] = React.useState(sessionSubmitter?.name || '');
   const [extraGroups, setExtraGroups] = React.useState([]);
   const [submitting, setSubmitting] = React.useState(false);
   const [err, setErr] = React.useState('');
@@ -152,6 +158,11 @@ const AddFeedWebform = ({sb}) => {
       setConfigLoaded(true);
     });
   }, []);
+
+  // Keep the locked submitter pinned to the signed-in identity.
+  React.useEffect(() => {
+    if (submitterLocked && teamMember !== lockedName) setTeamMember(lockedName);
+  }, [submitterLocked, lockedName, teamMember]);
 
   // Admin config helpers
   var afWf =
@@ -809,29 +820,35 @@ const AddFeedWebform = ({sb}) => {
           />
         </div>
 
-        {isEnabled('team_member') && (
+        {submitterLocked ? (
           <div style={cardS}>
-            <label style={lblS}>
-              {getLabel('team_member', 'Team Member')}
-              {reqStar('team_member')}
-            </label>
-            <select
-              value={teamMember}
-              onChange={function (e) {
-                setTeamMember(e.target.value);
-              }}
-              style={inpS}
-            >
-              <option value="">Select...</option>
-              {getTeamMemberList().map(function (m) {
-                return (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                );
-              })}
-            </select>
+            <LockedSubmitter name={lockedName} label={getLabel('team_member', 'Team Member')} labelStyle={lblS} />
           </div>
+        ) : (
+          isEnabled('team_member') && (
+            <div style={cardS}>
+              <label style={lblS}>
+                {getLabel('team_member', 'Team Member')}
+                {reqStar('team_member')}
+              </label>
+              <select
+                value={teamMember}
+                onChange={function (e) {
+                  setTeamMember(e.target.value);
+                }}
+                style={inpS}
+              >
+                <option value="">Select...</option>
+                {getTeamMemberList().map(function (m) {
+                  return (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )
         )}
 
         <div style={cardS}>

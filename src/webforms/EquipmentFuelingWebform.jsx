@@ -11,14 +11,21 @@ import {computeDueIntervals} from '../lib/equipment.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import ManualsCard from '../equipment/ManualsCard.jsx';
+import LockedSubmitter from './LockedSubmitter.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
-export default function EquipmentFuelingWebform({sb, equipment, equipmentList, onBack}) {
+export default function EquipmentFuelingWebform({sb, equipment, equipmentList, onBack, sessionSubmitter}) {
+  // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
+  // locked. No roster dropdown, no per-equipment operator filtering.
+  const lockedName = sessionSubmitter?.name || '';
+  const submitterLocked = !!lockedName;
   const isQuick = !equipment;
   const [selectedEq, setSelectedEq] = React.useState(equipment || null);
   const [teamMembers, setTeamMembers] = React.useState([]);
-  const [teamMember, setTeamMember] = React.useState(() => localStorage.getItem('wcf_team') || '');
+  const [teamMember, setTeamMember] = React.useState(() =>
+    sessionSubmitter?.name ? sessionSubmitter.name : localStorage.getItem('wcf_team') || '',
+  );
   const [date, setDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [gallons, setGallons] = React.useState('');
   const [defGallons, setDefGallons] = React.useState('');
@@ -68,6 +75,11 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
   // contract that deleted/hidden master-roster names cannot appear as a
   // selectable option in any new-entry dropdown anywhere.
   React.useEffect(() => {
+    // Keep the locked submitter pinned to the signed-in identity.
+    if (submitterLocked) {
+      if (teamMember !== lockedName) setTeamMember(lockedName);
+      return;
+    }
     if (!teamMembersLoaded || !eq) return;
     if (teamMember && !visibleTeamMembers.includes(teamMember)) {
       setTeamMember('');
@@ -77,7 +89,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
         /* localStorage may be unavailable in some browsers */
       }
     }
-  }, [teamMembersLoaded, visibleTeamMembers, teamMember, eq]);
+  }, [teamMembersLoaded, visibleTeamMembers, teamMember, eq, submitterLocked, lockedName]);
 
   // Load this piece's fueling history to compute due intervals.
   React.useEffect(() => {
@@ -240,7 +252,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
     }
     // Defense-in-depth: refuse stale selections. The load-time effect
     // clears them, but mid-form roster delete is also handled here.
-    if (teamMembersLoaded && !visibleTeamMembers.includes(teamMember)) {
+    if (!submitterLocked && teamMembersLoaded && !visibleTeamMembers.includes(teamMember)) {
       setTeamMember('');
       setErr('That team member is no longer available. Pick someone else.');
       return;
@@ -272,7 +284,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
         return;
       }
     }
-    localStorage.setItem('wcf_team', teamMember);
+    if (!submitterLocked) localStorage.setItem('wcf_team', teamMember);
 
     // Build service_intervals_completed. Each due interval may contribute a
     // completion if either (a) the parent box was ticked, OR (b) any of
@@ -603,15 +615,21 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inpS} />
           </div>
           <div>
-            <label style={lblS}>Team Member *</label>
-            <select value={teamMember} onChange={(e) => setTeamMember(e.target.value)} style={inpS}>
-              <option value="">Select...</option>
-              {visibleTeamMembers.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+            {submitterLocked ? (
+              <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
+            ) : (
+              <>
+                <label style={lblS}>Team Member *</label>
+                <select value={teamMember} onChange={(e) => setTeamMember(e.target.value)} style={inpS}>
+                  <option value="">Select...</option>
+                  {visibleTeamMembers.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
         </div>
 

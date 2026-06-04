@@ -191,6 +191,7 @@ function welcomeEmailHtml(name: string, email: string, role: string, resetLink: 
     admin: '👑 Admin — Full access to all features',
     management: '🔑 Management — Edit anything, delete daily reports',
     farm_team: '🌾 Farm Team — Edit & delete your daily reports',
+    light: '📋 Light — Field portal: daily/feed/equipment/weigh-in forms + Tasks',
   };
   const roleDescription = roleLabels[role] || role;
 

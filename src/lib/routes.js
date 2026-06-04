@@ -88,6 +88,8 @@ export const VIEW_TO_PATH = {
   // are aliases that redirect here (T11) — see ALIASES_EXACT.
   tasks: '/tasks',
   activity: '/activity',
+  // Light-user surface: edit/delete own equipment fuelings + fuel supplies.
+  mySubmissions: '/my-submissions',
   // Admin-only runtime observability review surface (self-gated via the
   // list_client_errors admin RPC + requireAdmin route guard).
   clientErrors: '/admin/client-errors',

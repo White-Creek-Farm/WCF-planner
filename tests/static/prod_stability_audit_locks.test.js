@@ -24,9 +24,10 @@
 //   §2  UsersModal.jsx never calls browser-side sb.auth.signUp — admin
 //       user creation goes through the rapid-processor user_create handler.
 //   §3  Account email senders use noreply@; report digests use reports@.
-//   §4  Public webform views render BEFORE the LoginScreen auth gate in
-//       main.jsx, and the public webform components themselves do not
-//       call useAuth() (would couple them to a logged-in session).
+//   §4  Report/form views are login-required: they render AFTER the
+//       LoginScreen auth gate in main.jsx (Lane 1 CP1), and the form
+//       components themselves do not call useAuth() — the signed-in
+//       identity is injected as the sessionSubmitter prop instead.
 //   §5  Route map (VIEW_TO_PATH + ALIASES_EXACT) preserves canonical
 //       paths and legacy aliases for the routes operators bookmark.
 //   §6  No raw window.alert / window.confirm / window.prompt anywhere
@@ -177,39 +178,45 @@ describe('§3 Account vs. report email senders (rapid-processor.ts)', () => {
   });
 });
 
-// ── §4: Public webforms render before the auth gate, no useAuth dependency
-describe('§4 Public webforms are decoupled from the auth session', () => {
+// ── §4: Report/form surfaces are login-required, no useAuth dependency
+// Lane 1 CP1 made the former anonymous webforms login-required. They now
+// render BELOW the `authState === false → LoginScreen` gate (logged-out
+// visitors hit login and return to the requested URL after auth). The form
+// components still must not import useAuth — the signed-in identity is
+// injected as a plain prop (sessionSubmitter) from main.jsx, so the form
+// components stay decoupled from the auth session.
+describe('§4 Report/form surfaces are login-required and auth-decoupled', () => {
   const main = read('src/main.jsx');
 
-  it('webform bypass block appears BEFORE the LoginScreen render in main.jsx', () => {
-    // The bypass block early-returns the public webform component before the
-    // `authState === false → LoginScreen` line below. Reordering would
-    // redirect anonymous public form visitors to the login screen.
-    const bypassIdx = main.indexOf('WEBFORM BYPASS');
+  it('the pre-auth WEBFORM BYPASS block is gone (forms no longer render before login)', () => {
+    // The old anonymous bypass rendered the forms before the LoginScreen gate.
+    // Reintroducing it would expose the forms to logged-out visitors again.
+    expect(main).not.toContain('WEBFORM BYPASS');
+  });
+
+  it('the report/form surfaces render AFTER the LoginScreen gate in main.jsx', () => {
     const loginScreenIdx = main.indexOf('return <LoginScreen />');
-    expect(bypassIdx, 'WEBFORM BYPASS block').toBeGreaterThan(-1);
+    const formBlockIdx = main.indexOf('REPORT/FORM SURFACES (login required)');
     expect(loginScreenIdx, 'LoginScreen render').toBeGreaterThan(-1);
-    expect(bypassIdx).toBeLessThan(loginScreenIdx);
+    expect(formBlockIdx, 'login-required form block').toBeGreaterThan(-1);
+    expect(formBlockIdx).toBeGreaterThan(loginScreenIdx);
   });
 
-  it('all seven public webform views are mounted in the bypass block', () => {
-    // Each of these strings sits inside the bypass block; the order assertion
-    // above proves the block precedes the auth gate.
-    const bypassIdx = main.indexOf('WEBFORM BYPASS');
+  it('all seven form views are mounted after the auth gate', () => {
     const loginScreenIdx = main.indexOf('return <LoginScreen />');
-    const bypassSlice = main.slice(bypassIdx, loginScreenIdx);
-    expect(bypassSlice).toMatch(/view === 'webform'/);
-    expect(bypassSlice).toMatch(/view === 'addfeed'/);
-    expect(bypassSlice).toMatch(/view === 'weighins'/);
-    expect(bypassSlice).toMatch(/view === 'tasksWebform'/);
-    expect(bypassSlice).toMatch(/view === 'webformhub'/);
-    expect(bypassSlice).toMatch(/view === 'fuelingHub'/);
-    expect(bypassSlice).toMatch(/view === 'fuelSupply'/);
+    const afterGate = main.slice(loginScreenIdx);
+    expect(afterGate).toMatch(/view === 'webform'/);
+    expect(afterGate).toMatch(/view === 'addfeed'/);
+    expect(afterGate).toMatch(/view === 'weighins'/);
+    expect(afterGate).toMatch(/view === 'tasksWebform'/);
+    expect(afterGate).toMatch(/view === 'webformhub'/);
+    expect(afterGate).toMatch(/view === 'fuelingHub'/);
+    expect(afterGate).toMatch(/view === 'fuelSupply'/);
   });
 
-  // The seven public webform components must not import useAuth — doing so
-  // would couple them to a logged-in session and could break the no-auth
-  // anonymous submit path that operators / vendors rely on.
+  // The seven form components must not import useAuth — the signed-in identity
+  // is injected as the sessionSubmitter prop from main.jsx, so the form
+  // components stay decoupled from the auth session.
   const PUBLIC_WEBFORMS = [
     'src/webforms/AddFeedWebform.jsx',
     'src/webforms/WeighInsWebform.jsx',
@@ -366,15 +373,18 @@ describe('§8 Prod deploy readiness — aggregate gate', () => {
     }
 
     const main = read('src/main.jsx');
-    // Order check must report missing-marker explicitly. `indexOf` returns
-    // -1 when the substring is gone, so a raw `bypass > login` compare
-    // would silently fail-open if the WEBFORM BYPASS block was removed
-    // entirely (-1 > positiveIdx is false → no error pushed).
-    const bypassIdx = main.indexOf('WEBFORM BYPASS');
+    // Lane 1 CP1: the report/form surfaces are login-required — they render
+    // AFTER the LoginScreen gate, and the signed-in user is injected as the
+    // locked submitter. `indexOf` returns -1 when a marker is gone, so check
+    // both markers exist before comparing order (avoids a silent fail-open),
+    // and assert the old pre-auth bypass was not reintroduced.
     const loginIdx = main.indexOf('return <LoginScreen />');
-    if (bypassIdx < 0) errors.push('WEBFORM BYPASS block missing from main.jsx');
-    else if (loginIdx < 0) errors.push('LoginScreen render missing from main.jsx');
-    else if (bypassIdx > loginIdx) errors.push('public webforms moved behind the auth gate');
+    const formBlockIdx = main.indexOf('REPORT/FORM SURFACES (login required)');
+    if (loginIdx < 0) errors.push('LoginScreen render missing from main.jsx');
+    else if (formBlockIdx < 0) errors.push('login-required form block missing from main.jsx');
+    else if (formBlockIdx < loginIdx)
+      errors.push('public webforms render before the auth gate (should be login-required)');
+    if (main.includes('WEBFORM BYPASS')) errors.push('pre-auth WEBFORM BYPASS block reintroduced');
     if (!/window\._wcfConfirm\s*=/.test(main)) errors.push('window._wcfConfirm no longer exposed');
     if (!/window\._wcfConfirmDelete\s*=/.test(main)) errors.push('window._wcfConfirmDelete no longer exposed');
 

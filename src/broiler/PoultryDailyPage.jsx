@@ -30,7 +30,12 @@ import {
 } from '../shared/recordPageControls.jsx';
 /* eslint-enable no-unused-vars */
 import {fmtMDY} from '../lib/dateUtils.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {
+  softDeleteDailyReport,
+  canDeleteDailyReport,
+  canEditOwnRecord,
+  updateDailyReport,
+} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
@@ -192,24 +197,19 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
     const entityLabel =
       (rec.date || record.date) +
       (rec.batch_label ? ' · ' + rec.batch_label : record.batch_label ? ' · ' + record.batch_label : '');
-    const result = await runMutation(() => sb.from('poultry_dailys').update(rec).eq('id', record.id), {
-      activity: () => {
-        const changes = buildChanges(record, rec, {exclude: EDIT_EXCLUDE, labels: LABELS});
-        if (changes.length === 0) return;
-        return recordFieldChange(sb, {
-          entityType: 'poultry.daily',
-          entityId: record.id,
-          entityLabel,
-          changes,
-        });
-      },
-      onError: (msg) =>
-        setNotice({kind: 'error', message: 'Save failed: ' + friendlyDailyDbError(msg, 'poultry_dailys', rec)}),
-    });
-    setSaving(false);
-    if (result.ok) {
+    try {
+      // Edit goes through the ownership-enforced SECDEF RPC (mig 091): server
+      // applies the column allowlist + logs the field.updated Activity diff.
+      await updateDailyReport(sb, 'poultry.daily', record.id, rec, {entityLabel});
       setRecord((prev) => ({...prev, ...rec}));
       setNotice({kind: 'success', message: 'Saved.'});
+    } catch (e) {
+      setNotice({
+        kind: 'error',
+        message: 'Save failed: ' + friendlyDailyDbError(e.message || String(e), 'poultry_dailys', rec),
+      });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -403,6 +403,11 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
             </>
           )}
 
+          {!canEditOwnRecord(authState, record) && (
+            <div data-daily-view-only="1" style={{marginTop: 8, fontSize: 11, color: '#6b7280'}}>
+              View only — you can edit or delete only your own reports.
+            </div>
+          )}
           <div style={{display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end'}}>
             <button
               type="button"
@@ -426,7 +431,7 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
               type="button"
               data-daily-save="1"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !canEditOwnRecord(authState, record)}
               style={{
                 padding: '6px 14px',
                 borderRadius: 6,
@@ -450,7 +455,7 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
           </div>
         )}
 
-        {canDeleteDailyReport(authState) && (
+        {canDeleteDailyReport(authState, record) && (
           <button
             onClick={handleDelete}
             style={{

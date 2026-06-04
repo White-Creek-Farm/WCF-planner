@@ -391,6 +391,10 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   }
 
   const isAdmin = authState?.role === 'admin';
+  // Lane 1 CP1: Light users are contained to the field portal. Their menu shows
+  // only Home, Dailys, Equipment, and Sign Out (Tasks stays on the header icon).
+  // Activity is hidden; the Admin section is already isAdmin-gated below.
+  const isLight = authState?.role === 'light';
 
   // After any view change that keeps us in a sub-nav section, nudge the
   // active tab into the visible scroll area. Only scrolls if the active
@@ -770,9 +774,11 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                   <button data-header-menu-item="home" onClick={() => go('home')} style={MENU_ITEM_BTN}>
                     <span aria-hidden="true">🏠</span> Home
                   </button>
-                  <button data-header-menu-item="activity" onClick={() => go('activity')} style={MENU_ITEM_BTN}>
-                    <span aria-hidden="true">💬</span> Activity
-                  </button>
+                  {!isLight && (
+                    <button data-header-menu-item="activity" onClick={() => go('activity')} style={MENU_ITEM_BTN}>
+                      <span aria-hidden="true">💬</span> Activity
+                    </button>
+                  )}
 
                   <div style={MENU_DIVIDER} />
                   <span style={MENU_SECTION_LABEL}>Webforms</span>

@@ -5,7 +5,7 @@ import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -214,9 +214,13 @@ const LayerDailysHub = ({
       comments: form.comments || null,
     };
     if (editId) {
-      const {error} = await sb.from('layer_dailys').update(rec).eq('id', editId);
-      if (error) {
-        setNotice({kind: 'error', message: 'Save failed: ' + friendlyDailyDbError(error, 'layer_dailys', rec)});
+      try {
+        await updateDailyReport(sb, 'layer.daily', editId, rec, {entityLabel: rec.date});
+      } catch (e) {
+        setNotice({
+          kind: 'error',
+          message: 'Save failed: ' + friendlyDailyDbError(e.message || String(e), 'layer_dailys', rec),
+        });
         return;
       }
       setRecords((p) => p.map((r) => (r.id === editId ? {...r, ...rec} : r)));
@@ -998,11 +1002,15 @@ const LayerDailysHub = ({
               <button onClick={save} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && canDeleteDailyReport(authState) && (
-                <button onClick={() => del(editId)} style={S.btnDanger}>
-                  Delete
-                </button>
-              )}
+              {editId &&
+                canDeleteDailyReport(
+                  authState,
+                  records.find((r) => r.id === editId),
+                ) && (
+                  <button onClick={() => del(editId)} style={S.btnDanger}>
+                    Delete
+                  </button>
+                )}
               <button
                 onClick={() => {
                   setNotice(null);

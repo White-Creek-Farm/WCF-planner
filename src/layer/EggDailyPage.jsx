@@ -29,7 +29,12 @@ import {
 } from '../shared/recordPageControls.jsx';
 /* eslint-enable no-unused-vars */
 import {fmtMDY} from '../lib/dateUtils.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {
+  softDeleteDailyReport,
+  canDeleteDailyReport,
+  canEditOwnRecord,
+  updateDailyReport,
+} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
 
@@ -176,19 +181,14 @@ export default function EggDailyPage({sb, authState, Header}) {
       comments: form.comments || null,
     };
     const entityLabel = rec.date || record.date;
-    const result = await runMutation(() => sb.from('egg_dailys').update(rec).eq('id', record.id), {
-      activity: () => {
-        const changes = buildChanges(record, rec, {exclude: EDIT_EXCLUDE, labels: LABELS});
-        if (changes.length === 0) return;
-        return recordFieldChange(sb, {
-          entityType: 'egg.daily',
-          entityId: record.id,
-          entityLabel,
-          changes,
-        });
-      },
-      onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
-    });
+    // Edit through the ownership-enforced SECDEF RPC (mig 091).
+    let result = {ok: false};
+    try {
+      await updateDailyReport(sb, 'egg.daily', record.id, rec, {entityLabel});
+      result = {ok: true};
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Save failed: ' + (e.message || String(e))});
+    }
     setSaving(false);
     if (result.ok) {
       setRecord((prev) => ({...prev, ...rec}));
@@ -429,7 +429,7 @@ export default function EggDailyPage({sb, authState, Header}) {
               type="button"
               data-daily-save="1"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !canEditOwnRecord(authState, record)}
               style={{
                 padding: '6px 14px',
                 borderRadius: 6,
@@ -447,7 +447,7 @@ export default function EggDailyPage({sb, authState, Header}) {
           </div>
         </div>
 
-        {canDeleteDailyReport(authState) && (
+        {canDeleteDailyReport(authState, record) && (
           <button
             onClick={handleDelete}
             style={{

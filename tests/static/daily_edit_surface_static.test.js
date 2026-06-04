@@ -37,15 +37,16 @@ describe('All daily record pages — editable surface', () => {
     it(`${p.name} has Cancel/Revert button with data-daily-cancel marker`, () => {
       expect(src).toContain('data-daily-cancel="1"');
     });
-    it(`${p.name} updates its own table`, () => {
-      expect(src).toContain(`from('${p.table}')`);
-      expect(src).toContain('.update(');
+    it(`${p.name} edits through the ownership-enforced update_daily_report RPC (CP2)`, () => {
+      // Direct .update() on the daily table is revoked (mig 092); the edit goes
+      // through the SECDEF RPC, which applies the column allowlist + logs the
+      // field.updated Activity diff server-side.
+      expect(src).toContain(`updateDailyReport(sb, '${p.entity}'`);
+      expect(src).not.toMatch(new RegExp(`from\\('${p.table}'\\)[\\s\\S]{0,80}?\\.update\\(`));
     });
-    it(`${p.name} uses field.updated Activity logging`, () => {
-      expect(src).toContain('runMutation');
-      expect(src).toContain('recordFieldChange');
-      expect(src).toContain('buildChanges');
-      expect(src).toContain(`entityType: '${p.entity}'`);
+    it(`${p.name} gates edit + delete affordances by ownership (CP2)`, () => {
+      expect(src).toContain('canEditOwnRecord(authState, record)');
+      expect(src).toContain('canDeleteDailyReport(authState, record)');
     });
     it(`${p.name} preserves Comments + Activity via RecordCollaborationSection`, () => {
       expect(src).toContain('RecordCollaborationSection');

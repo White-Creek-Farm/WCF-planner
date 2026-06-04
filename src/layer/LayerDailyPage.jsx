@@ -30,7 +30,12 @@ import {
 } from '../shared/recordPageControls.jsx';
 /* eslint-enable no-unused-vars */
 import {fmtMDY} from '../lib/dateUtils.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {
+  softDeleteDailyReport,
+  canDeleteDailyReport,
+  canEditOwnRecord,
+  updateDailyReport,
+} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
@@ -191,20 +196,18 @@ export default function LayerDailyPage({
     const entityLabel =
       (rec.date || record.date) +
       (rec.batch_label ? ' · ' + rec.batch_label : record.batch_label ? ' · ' + record.batch_label : '');
-    const result = await runMutation(() => sb.from('layer_dailys').update(rec).eq('id', record.id), {
-      activity: () => {
-        const changes = buildChanges(record, rec, {exclude: EDIT_EXCLUDE, labels: LABELS});
-        if (changes.length === 0) return;
-        return recordFieldChange(sb, {
-          entityType: 'layer.daily',
-          entityId: record.id,
-          entityLabel,
-          changes,
-        });
-      },
-      onError: (msg) =>
-        setNotice({kind: 'error', message: 'Save failed: ' + friendlyDailyDbError(msg, 'layer_dailys', rec)}),
-    });
+    // Edit through the ownership-enforced SECDEF RPC (mig 091): server applies
+    // the column allowlist + logs the field.updated Activity diff.
+    let result = {ok: false};
+    try {
+      await updateDailyReport(sb, 'layer.daily', record.id, rec, {entityLabel});
+      result = {ok: true};
+    } catch (e) {
+      setNotice({
+        kind: 'error',
+        message: 'Save failed: ' + friendlyDailyDbError(e.message || String(e), 'layer_dailys', rec),
+      });
+    }
     setSaving(false);
     if (result.ok) {
       setRecord((prev) => ({...prev, ...rec}));
@@ -462,7 +465,7 @@ export default function LayerDailyPage({
               type="button"
               data-daily-save="1"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !canEditOwnRecord(authState, record)}
               style={{
                 padding: '6px 14px',
                 borderRadius: 6,
@@ -486,7 +489,7 @@ export default function LayerDailyPage({
           </div>
         )}
 
-        {canDeleteDailyReport(authState) && (
+        {canDeleteDailyReport(authState, record) && (
           <button
             onClick={handleDelete}
             style={{

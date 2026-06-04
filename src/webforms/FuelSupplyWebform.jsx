@@ -23,6 +23,7 @@ import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
 import {loadRoster} from '../lib/teamMembers.js';
 import {loadAvailability, availableNamesFor} from '../lib/teamAvailability.js';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
+import LockedSubmitter from './LockedSubmitter.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
@@ -43,11 +44,15 @@ const FUEL_TYPES = [
   {value: 'def', label: 'DEF'},
 ];
 
-export default function FuelSupplyWebform({sb, onBack}) {
+export default function FuelSupplyWebform({sb, onBack, sessionSubmitter}) {
+  // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
+  // locked. No roster dropdown, no localStorage convenience selection.
+  const lockedName = sessionSubmitter?.name || '';
+  const submitterLocked = !!lockedName;
   const [teamMembers, setTeamMembers] = React.useState([]);
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = React.useState(today);
-  const [team, setTeam] = React.useState(localStorage.getItem('wcf_team') || '');
+  const [team, setTeam] = React.useState(submitterLocked ? lockedName : localStorage.getItem('wcf_team') || '');
   const [gallons, setGallons] = React.useState('');
   const [fuelType, setFuelType] = React.useState('diesel');
   const [destination, setDestination] = React.useState('cell');
@@ -100,6 +105,11 @@ export default function FuelSupplyWebform({sb, onBack}) {
   // names cannot appear as a selectable option in any new-entry dropdown.
   // No "(saved earlier)" rendering — once a name is gone, it's gone.
   React.useEffect(() => {
+    // Keep the locked submitter pinned to the signed-in identity.
+    if (submitterLocked) {
+      if (team !== lockedName) setTeam(lockedName);
+      return;
+    }
     if (!teamMembersLoaded) return;
     if (team && !teamMembers.includes(team)) {
       setTeam('');
@@ -109,7 +119,7 @@ export default function FuelSupplyWebform({sb, onBack}) {
         /* localStorage may be unavailable in some browsers */
       }
     }
-  }, [teamMembersLoaded, teamMembers, team]);
+  }, [teamMembersLoaded, teamMembers, team, submitterLocked, lockedName]);
 
   async function handleSubmit() {
     setErr('');
@@ -121,7 +131,7 @@ export default function FuelSupplyWebform({sb, onBack}) {
     // selection is no longer in it (e.g. roster delete during the open
     // form), refuse to submit. Belt-and-suspenders alongside the load-
     // time clear above.
-    if (teamMembersLoaded && !teamMembers.includes(team)) {
+    if (!submitterLocked && teamMembersLoaded && !teamMembers.includes(team)) {
       setTeam('');
       setErr('That team member is no longer available. Pick someone else.');
       return;
@@ -135,7 +145,7 @@ export default function FuelSupplyWebform({sb, onBack}) {
       setErr('Gallons must be a positive number.');
       return;
     }
-    localStorage.setItem('wcf_team', team);
+    if (!submitterLocked) localStorage.setItem('wcf_team', team);
     setSubmitting(true);
 
     try {
@@ -283,15 +293,21 @@ export default function FuelSupplyWebform({sb, onBack}) {
           </div>
 
           <div style={{marginBottom: 12}}>
-            <label style={lblS}>Team member *</label>
-            <select value={team} onChange={(e) => setTeam(e.target.value)} style={inpS}>
-              <option value="">Select…</option>
-              {teamMembers.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+            {submitterLocked ? (
+              <LockedSubmitter name={lockedName} label="Team member" labelStyle={lblS} />
+            ) : (
+              <>
+                <label style={lblS}>Team member *</label>
+                <select value={team} onChange={(e) => setTeam(e.target.value)} style={inpS}>
+                  <option value="">Select…</option>
+                  {teamMembers.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
 
           <div style={{marginBottom: 12}}>

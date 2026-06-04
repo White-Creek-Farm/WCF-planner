@@ -172,7 +172,7 @@ describe('PigDailysView - local cold-boot readiness', () => {
   });
 
   it('keeps save mutations intact and fails closed on list-read errors', () => {
-    expect(src).toMatch(/from\('pig_dailys'\)[\s\S]{0,40}?\.update\(/);
+    expect(src).toContain("updateDailyReport(sb, 'pig.daily'"); // CP2: edit via ownership RPC
     expect(src).toMatch(/from\('pig_dailys'\)[\s\S]{0,40}?\.insert\(/);
     expect(src).toContain('setRecords([]);');
     expect(src).toContain("data-pig-dailys-loaded={loading || loadError ? 'false' : 'true'}");

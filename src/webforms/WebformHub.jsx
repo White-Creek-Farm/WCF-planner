@@ -19,6 +19,7 @@ import {
 import DailyPhotoCapture from './DailyPhotoCapture.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 import AppSetupModal from './AppSetupModal.jsx';
+import LockedSubmitter from './LockedSubmitter.jsx';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon, {PlannerIconLabel} from '../components/PlannerIcon.jsx';
@@ -34,8 +35,17 @@ const WebformHub = ({
   layerBatches,
   layerHousings,
   webformsConfig,
+  sessionSubmitter,
+  hideWeighIns = false,
 }) => {
   const {useState, useEffect} = React;
+  // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
+  // locked across all six daily sub-forms. The roster dropdowns are replaced by
+  // the signed-in identity and a single effect keeps every form's teamMember
+  // pinned (covers initial state, the form-switch prefill, and post-submit
+  // reset without touching each path).
+  const lockedName = sessionSubmitter?.name || '';
+  const submitterLocked = !!lockedName;
   const {wfRoster, setWfRoster, wfAvailability, setWfAvailability} = useWebformsConfig();
   const [loadedConfig, setLoadedConfig] = useState(null); // loaded from Supabase full_config
   const [showAppSetup, setShowAppSetup] = useState(false);
@@ -272,6 +282,29 @@ const WebformHub = ({
     const f = allFields.find((f) => f.id === fieldId);
     return f ? f.enabled !== false : true;
   };
+
+  // Keep every sub-form's submitter pinned to the signed-in identity on the
+  // authenticated path. One effect covers initial state, the form-switch
+  // prefill, and post-submit reset for all six forms.
+  useEffect(() => {
+    if (!submitterLocked) return;
+    const pin = (f) => (f.teamMember === lockedName ? f : {...f, teamMember: lockedName});
+    setBForm(pin);
+    setLForm(pin);
+    setPForm(pin);
+    setEForm(pin);
+    setCForm(pin);
+    setSForm(pin);
+  }, [
+    submitterLocked,
+    lockedName,
+    bForm.teamMember,
+    lForm.teamMember,
+    pForm.teamMember,
+    eForm.teamMember,
+    cForm.teamMember,
+    sForm.teamMember,
+  ]);
   const isRequired = (formId, fieldId) => {
     const wf = (cfg.webforms || []).find((w) => w.id === formId);
     if (!wf) return false;
@@ -1529,36 +1562,38 @@ const WebformHub = ({
             </div>
             <div style={{color: '#92400e', fontSize: 18}}>{'\u203a'}</div>
           </div>
-          <div
-            onClick={function () {
-              window.location.hash = '#weighins';
-              window.location.reload();
-            }}
-            style={{
-              background: '#eff6ff',
-              borderRadius: 12,
-              padding: '16px 18px',
-              marginBottom: 10,
-              cursor: 'pointer',
-              boxShadow: '0 1px 3px rgba(0,0,0,.08)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-              border: '1px solid #bfdbfe',
-            }}
-          >
-            <PlannerIcon iconKey="weighins" size={32} />
-            <div style={{flex: 1}}>
-              <div style={{fontSize: 16, fontWeight: 700, color: '#1e40af'}}>Weigh-Ins</div>
-              <div style={{fontSize: 12, color: '#1e40af', opacity: 0.8}}>
-                Record weights for cattle, pigs, or broilers
+          {!hideWeighIns && (
+            <div
+              onClick={function () {
+                window.location.hash = '#weighins';
+                window.location.reload();
+              }}
+              style={{
+                background: '#eff6ff',
+                borderRadius: 12,
+                padding: '16px 18px',
+                marginBottom: 10,
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,.08)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                border: '1px solid #bfdbfe',
+              }}
+            >
+              <PlannerIcon iconKey="weighins" size={32} />
+              <div style={{flex: 1}}>
+                <div style={{fontSize: 16, fontWeight: 700, color: '#1e40af'}}>Weigh-Ins</div>
+                <div style={{fontSize: 12, color: '#1e40af', opacity: 0.8}}>
+                  Record weights for cattle, pigs, or broilers
+                </div>
+                <div style={{fontSize: 11, color: '#1e40af', opacity: 0.6, marginTop: 2}}>
+                  {'Sessions auto-save \u00b7 resume on any device'}
+                </div>
               </div>
-              <div style={{fontSize: 11, color: '#1e40af', opacity: 0.6, marginTop: 2}}>
-                {'Sessions auto-save \u00b7 resume on any device'}
-              </div>
+              <div style={{color: '#1e40af', fontSize: 18}}>{'\u203a'}</div>
             </div>
-            <div style={{color: '#1e40af', fontSize: 18}}>{'\u203a'}</div>
-          </div>
+          )}
           <div
             data-tile="tasks"
             onClick={() => navigate('/dailys/tasks')}
@@ -1660,19 +1695,25 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={labelStyle}>Team Member{reqStar('broiler-dailys', 'team_member')}</label>
-                <select
-                  value={bForm.teamMember}
-                  onChange={(e) => setBForm((f) => ({...f, teamMember: e.target.value}))}
-                  style={inputStyle}
-                >
-                  <option value="">Select...</option>
-                  {getFormTeamMembers('broiler-dailys').map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {submitterLocked ? (
+                  <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                ) : (
+                  <>
+                    <label style={labelStyle}>Team Member{reqStar('broiler-dailys', 'team_member')}</label>
+                    <select
+                      value={bForm.teamMember}
+                      onChange={(e) => setBForm((f) => ({...f, teamMember: e.target.value}))}
+                      style={inputStyle}
+                    >
+                      <option value="">Select...</option>
+                      {getFormTeamMembers('broiler-dailys').map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>Broiler Group{reqStar('broiler-dailys', 'batch_label')}</label>
@@ -2039,19 +2080,25 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={labelStyle}>Team Member{reqStar('layer-dailys', 'team_member')}</label>
-                <select
-                  value={lForm.teamMember}
-                  onChange={(e) => setLForm((f) => ({...f, teamMember: e.target.value}))}
-                  style={inputStyle}
-                >
-                  <option value="">Select...</option>
-                  {getFormTeamMembers('layer-dailys').map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {submitterLocked ? (
+                  <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                ) : (
+                  <>
+                    <label style={labelStyle}>Team Member{reqStar('layer-dailys', 'team_member')}</label>
+                    <select
+                      value={lForm.teamMember}
+                      onChange={(e) => setLForm((f) => ({...f, teamMember: e.target.value}))}
+                      style={inputStyle}
+                    >
+                      <option value="">Select...</option>
+                      {getFormTeamMembers('layer-dailys').map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>Layer Group{reqStar('layer-dailys', 'batch_label')}</label>
@@ -2435,19 +2482,25 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={labelStyle}>Team Member{reqStar('pig-dailys', 'team_member')}</label>
-                <select
-                  value={pForm.teamMember}
-                  onChange={(e) => setPForm((f) => ({...f, teamMember: e.target.value}))}
-                  style={inputStyle}
-                >
-                  <option value="">Select...</option>
-                  {pgTeam.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {submitterLocked ? (
+                  <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                ) : (
+                  <>
+                    <label style={labelStyle}>Team Member{reqStar('pig-dailys', 'team_member')}</label>
+                    <select
+                      value={pForm.teamMember}
+                      onChange={(e) => setPForm((f) => ({...f, teamMember: e.target.value}))}
+                      style={inputStyle}
+                    >
+                      <option value="">Select...</option>
+                      {pgTeam.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>Pig Group{reqStar('pig-dailys', 'batch_label')}</label>
@@ -2825,21 +2878,27 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={labelStyle}>
-                  Team Member<span style={{color: '#b91c1c', marginLeft: 2}}>*</span>
-                </label>
-                <select
-                  value={cForm.teamMember}
-                  onChange={(e) => setCForm((f) => ({...f, teamMember: e.target.value}))}
-                  style={inputStyle}
-                >
-                  <option value="">Select...</option>
-                  {cgTeam.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {submitterLocked ? (
+                  <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                ) : (
+                  <>
+                    <label style={labelStyle}>
+                      Team Member<span style={{color: '#b91c1c', marginLeft: 2}}>*</span>
+                    </label>
+                    <select
+                      value={cForm.teamMember}
+                      onChange={(e) => setCForm((f) => ({...f, teamMember: e.target.value}))}
+                      style={inputStyle}
+                    >
+                      <option value="">Select...</option>
+                      {cgTeam.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>
@@ -3225,19 +3284,25 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={labelStyle}>Team Member{reqStar('egg-dailys', 'team_member')}</label>
-                <select
-                  value={eForm.teamMember}
-                  onChange={(e) => setEForm((f) => ({...f, teamMember: e.target.value}))}
-                  style={inputStyle}
-                >
-                  <option value="">Select...</option>
-                  {getFormTeamMembers('egg-dailys').map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {submitterLocked ? (
+                  <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                ) : (
+                  <>
+                    <label style={labelStyle}>Team Member{reqStar('egg-dailys', 'team_member')}</label>
+                    <select
+                      value={eForm.teamMember}
+                      onChange={(e) => setEForm((f) => ({...f, teamMember: e.target.value}))}
+                      style={inputStyle}
+                    >
+                      <option value="">Select...</option>
+                      {getFormTeamMembers('egg-dailys').map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -3383,19 +3448,25 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={labelStyle}>Team Member{reqStar('sheep-dailys', 'team_member')}</label>
-                <select
-                  value={sForm.teamMember}
-                  onChange={(e) => setSForm((f) => ({...f, teamMember: e.target.value}))}
-                  style={inputStyle}
-                >
-                  <option value="">Select...</option>
-                  {getFormTeamMembers('sheep-dailys').map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {submitterLocked ? (
+                  <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                ) : (
+                  <>
+                    <label style={labelStyle}>Team Member{reqStar('sheep-dailys', 'team_member')}</label>
+                    <select
+                      value={sForm.teamMember}
+                      onChange={(e) => setSForm((f) => ({...f, teamMember: e.target.value}))}
+                      style={inputStyle}
+                    >
+                      <option value="">Select...</option>
+                      {getFormTeamMembers('sheep-dailys').map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>

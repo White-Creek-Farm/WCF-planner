@@ -257,7 +257,7 @@ describe('canDeleteDailyReport helper', () => {
     expect(apiSrc).toMatch(/export function canDeleteDailyReport/);
   });
   it('rejects inactive role', () => {
-    expect(apiSrc).toContain("role !== 'inactive'");
+    expect(apiSrc).toContain("role === 'inactive'"); // CP2: early-return false for inactive
   });
   it('does not gate on admin', () => {
     const helperBody = apiSrc.match(/export function canDeleteDailyReport[\s\S]*?^}/m);
@@ -283,9 +283,13 @@ describe('Daily view delete buttons use canDeleteDailyReport, not admin-only', (
       const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8');
       expect(src).toContain('canDeleteDailyReport');
     });
-    it(`${relPath} uses canDeleteDailyReport for the delete guard`, () => {
+    it(`${relPath} uses the record-aware canDeleteDailyReport for the delete guard (CP2)`, () => {
       const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8');
-      expect(src).toContain('canDeleteDailyReport(authState)');
+      // CP2: Light deletes only its own rows, so the edited record must be
+      // passed to canDeleteDailyReport (no-record => Light always false).
+      // Whitespace-tolerant: prettier may wrap the call across lines.
+      expect(src).toMatch(/canDeleteDailyReport\(\s*authState\s*,\s*records\.find\(\(r\) => r\.id === editId\)/);
+      expect(src).not.toMatch(/canDeleteDailyReport\(authState\)/);
     });
     it(`${relPath} does not gate delete on admin-only`, () => {
       const src = fs.readFileSync(path.join(ROOT, relPath), 'utf8');

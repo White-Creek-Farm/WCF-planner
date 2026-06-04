@@ -22,9 +22,14 @@ import {MAX_PHOTOS_PER_REPORT} from '../lib/dailyPhotos.js';
 import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
 import DailyPhotoCapture from './DailyPhotoCapture.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
+import LockedSubmitter from './LockedSubmitter.jsx';
 
-export default function PigDailysWebform() {
+export default function PigDailysWebform({sessionSubmitter}) {
   const {wfGroups, wfRoster, wfAvailability, wfTeamMembers, webformsConfig} = useWebformsConfig();
+  // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
+  // locked.
+  const lockedName = sessionSubmitter?.name || '';
+  const submitterLocked = !!lockedName;
   // Master roster filtered by `pig-dailys` availability. Falls back to the
   // legacy wfTeamMembers if roster hasn't populated yet (cold-load race).
   const wfPigTeamMembers =
@@ -39,7 +44,7 @@ export default function PigDailysWebform() {
     const d = new Date();
     return {
       date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-      teamMember: '',
+      teamMember: sessionSubmitter?.name || '',
       batchId: '',
       pigCount: '',
       feedLbs: '',
@@ -63,6 +68,13 @@ export default function PigDailysWebform() {
   const [wfErr, setWfErr] = React.useState('');
   const [wfGroupName, setWfGroupName] = React.useState('');
   const [wfStuckOpen, setWfStuckOpen] = React.useState(false);
+
+  // Keep the locked submitter pinned to the signed-in identity.
+  React.useEffect(() => {
+    if (submitterLocked && wfForm.teamMember !== lockedName) {
+      setWfForm((prev) => ({...prev, teamMember: lockedName}));
+    }
+  }, [submitterLocked, lockedName, wfForm.teamMember]);
 
   // Phase 1C-B no-photo offline queue + Phase 1D-A photo offline queue.
   // The hook handles both via the hasPhotos branch (offlineForms.js
@@ -152,7 +164,7 @@ export default function PigDailysWebform() {
     setWfErr('');
     setWfSubmitting(true);
     try {
-      localStorage.setItem('wcf_team', wfForm.teamMember.trim());
+      if (!submitterLocked) localStorage.setItem('wcf_team', wfForm.teamMember.trim());
     } catch (_e) {
       /* localStorage unavailable in some browsers — best effort */
     }
@@ -213,7 +225,7 @@ export default function PigDailysWebform() {
     const d = new Date();
     setWfForm({
       date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-      teamMember: '',
+      teamMember: sessionSubmitter?.name || '',
       batchId: '',
       pigCount: '',
       feedLbs: '',
@@ -603,49 +615,59 @@ export default function PigDailysWebform() {
               </div>
             </div>
             <div>
-              <label style={{display: 'block', fontSize: 12, color: '#4b5563', marginBottom: 4, fontWeight: 500}}>
-                Team member{isReq('team_member') && <span style={{color: '#b91c1c', marginLeft: 2}}>*</span>}
-              </label>
-              {wfPigTeamMembers.length > 0 ? (
-                <select
-                  value={wfForm.teamMember}
-                  onChange={(e) => setWfForm({...wfForm, teamMember: e.target.value})}
-                  style={{
-                    fontFamily: 'inherit',
-                    fontSize: 13,
-                    padding: '9px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 6,
-                    width: '100%',
-                    outline: 'none',
-                    background: 'white',
-                    color: wfForm.teamMember ? '#111827' : '#9ca3af',
-                  }}
-                >
-                  <option value="">— Select name —</option>
-                  {wfPigTeamMembers.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={wfForm.teamMember}
-                  onChange={(e) => setWfForm({...wfForm, teamMember: e.target.value})}
-                  placeholder="Your name"
-                  style={{
-                    fontFamily: 'inherit',
-                    fontSize: 13,
-                    padding: '9px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 6,
-                    width: '100%',
-                    outline: 'none',
-                    background: 'white',
-                    color: '#111827',
-                  }}
+              {submitterLocked ? (
+                <LockedSubmitter
+                  name={lockedName}
+                  label="Team member"
+                  labelStyle={{display: 'block', fontSize: 12, color: '#4b5563', marginBottom: 4, fontWeight: 500}}
                 />
+              ) : (
+                <>
+                  <label style={{display: 'block', fontSize: 12, color: '#4b5563', marginBottom: 4, fontWeight: 500}}>
+                    Team member{isReq('team_member') && <span style={{color: '#b91c1c', marginLeft: 2}}>*</span>}
+                  </label>
+                  {wfPigTeamMembers.length > 0 ? (
+                    <select
+                      value={wfForm.teamMember}
+                      onChange={(e) => setWfForm({...wfForm, teamMember: e.target.value})}
+                      style={{
+                        fontFamily: 'inherit',
+                        fontSize: 13,
+                        padding: '9px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: 6,
+                        width: '100%',
+                        outline: 'none',
+                        background: 'white',
+                        color: wfForm.teamMember ? '#111827' : '#9ca3af',
+                      }}
+                    >
+                      <option value="">— Select name —</option>
+                      {wfPigTeamMembers.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={wfForm.teamMember}
+                      onChange={(e) => setWfForm({...wfForm, teamMember: e.target.value})}
+                      placeholder="Your name"
+                      style={{
+                        fontFamily: 'inherit',
+                        fontSize: 13,
+                        padding: '9px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: 6,
+                        width: '100%',
+                        outline: 'none',
+                        background: 'white',
+                        color: '#111827',
+                      }}
+                    />
+                  )}
+                </>
               )}
             </div>
             <div>

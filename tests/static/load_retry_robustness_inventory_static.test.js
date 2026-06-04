@@ -58,6 +58,7 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/cattle/CattleDailysView.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleHomeView.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleWeighInsView.jsx', {retry: true, inlineNotice: true}],
+  ['src/dashboard/MySubmissions.jsx', {retry: true, inlineNotice: true}],
   ['src/equipment/EquipmentHome.jsx', {retry: true, inlineNotice: true}],
   ['src/layer/EggDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/layer/EggDailysView.jsx', {retry: true, inlineNotice: true}],

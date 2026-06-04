@@ -21,12 +21,18 @@ import {test, expect} from './fixtures.js';
 //      navigates between hubs, keyed on /dailys|/webforms vs /equipment|
 //      /fueling vs everything else.
 //
-//   5. Anon load of /dailys renders WebformHub branding (not LoginScreen).
+//   5. Anon load of /dailys shows the login gate (Lane 1 CP1 made the hubs
+//      login-required) with the /dailys URL preserved for return-after-login.
 //
-//   6. Anon load of /equipment renders FuelingHub branding (not LoginScreen).
+//   6. Anon load of /equipment shows the login gate with the /equipment URL
+//      preserved.
+//
+// The manifest behavior (start_url, per-URL link href, runtime swap) is
+// unchanged by the auth gate — the manifest shim keys on the URL, not on
+// which component renders — so those assertions still hold for anon loads.
 // ============================================================================
 
-// Anon context — operators arrive at the public hubs unauthenticated.
+// Anon context — operators arrive at the hubs unauthenticated and hit login.
 test.use({storageState: {cookies: [], origins: []}});
 
 test('root manifest start_url is "/" and scope is /', async ({request}) => {
@@ -97,31 +103,27 @@ test('GET /index.html serves the root manifest at HTML level', async ({request})
   expect(m[1]).toBe('/manifest.webmanifest');
 });
 
-test('anon load of /dailys renders WebformHub, not LoginScreen', async ({page}) => {
+test('anon load of /dailys shows the login gate, URL preserved', async ({page}) => {
   await page.goto('/dailys');
 
   // Boot loader fades after first paint.
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  // Negative — LoginScreen branding must NOT be visible.
-  await expect(page.locator('[data-login-screen]')).toHaveCount(0, {timeout: 15_000});
+  // Login-required (Lane 1 CP1): LoginScreen is shown, the hub is NOT.
+  await expect(page.locator('[data-login-screen]')).toBeVisible({timeout: 15_000});
+  await expect(page.getByText('Select a report type to fill out')).toHaveCount(0);
 
-  // Positive — WebformHub form selector copy is unique to its !activeForm branch.
-  await expect(page.getByText('Select a report type to fill out')).toBeVisible({timeout: 15_000});
-
-  // URL stays at /dailys (no redirect to / or to login).
+  // URL stays at /dailys so login returns the operator to the requested hub.
   await expect(page).toHaveURL(/\/dailys\/?$/);
 });
 
-test('anon load of /equipment renders FuelingHub, not LoginScreen', async ({page}) => {
+test('anon load of /equipment shows the login gate, URL preserved', async ({page}) => {
   await page.goto('/equipment');
 
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  await expect(page.locator('[data-login-screen]')).toHaveCount(0, {timeout: 15_000});
-
-  // FuelingHub root selector copy.
-  await expect(page.getByText('Tap your equipment to log a fueling')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-login-screen]')).toBeVisible({timeout: 15_000});
+  await expect(page.getByText('Tap your equipment to log a fueling')).toHaveCount(0);
 
   await expect(page).toHaveURL(/\/equipment\/?$/);
 });
@@ -152,7 +154,7 @@ test('manifest link href swaps to equipment manifest on /equipment', async ({pag
   expect(href).toBe('/manifest-equipment.webmanifest');
 });
 
-test('manifest link href tracks SPA navigation between /equipment and /dailys', async ({page}) => {
+test('manifest link href tracks navigation between /equipment and /dailys', async ({page}) => {
   // Land on /equipment — module-scope shim sets the equipment manifest.
   await page.goto('/equipment');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
@@ -160,11 +162,12 @@ test('manifest link href tracks SPA navigation between /equipment and /dailys', 
     timeout: 5_000,
   });
 
-  // SPA-navigate to /dailys via the FuelingHub "Back to Daily Reports"
-  // button — that calls react-router's navigate('/dailys') without a
-  // full reload, exercising the App pathname useEffect that calls
-  // applyManifestHref on every location change.
-  await page.getByRole('button', {name: /Back to Daily Reports/i}).click();
+  // Navigate to /dailys and confirm the manifest href tracks the active URL.
+  // (The former in-app SPA hop used the anon FuelingHub "Back to Daily
+  // Reports" button; the hubs are login-required as of Lane 1 CP1, so this
+  // exercises the same applyManifestHref pathname effect via a fresh load.)
+  await page.goto('/dailys');
+  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
   await expect(page).toHaveURL(/\/dailys\/?$/, {timeout: 5_000});
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest-dailys.webmanifest', {
     timeout: 5_000,

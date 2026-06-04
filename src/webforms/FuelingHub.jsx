@@ -15,7 +15,7 @@ import EquipmentFuelingWebform from './EquipmentFuelingWebform.jsx';
 import FuelSupplyWebform from './FuelSupplyWebform.jsx';
 import AppSetupModal from './AppSetupModal.jsx';
 
-export default function FuelingHub({sb}) {
+export default function FuelingHub({sb, sessionSubmitter}) {
   const [equipment, setEquipment] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [missingSchema, setMissingSchema] = React.useState(false);
@@ -147,11 +147,18 @@ export default function FuelingHub({sb}) {
         </div>
       );
     }
-    return <EquipmentFuelingWebform sb={sb} equipment={eq} onBack={() => navigate('/equipment')} />;
+    return (
+      <EquipmentFuelingWebform
+        sb={sb}
+        equipment={eq}
+        onBack={() => navigate('/equipment')}
+        sessionSubmitter={sessionSubmitter}
+      />
+    );
   }
 
   if (subRoute === 'supply') {
-    return <FuelSupplyWebform sb={sb} onBack={() => navigate('/equipment')} />;
+    return <FuelSupplyWebform sb={sb} onBack={() => navigate('/equipment')} sessionSubmitter={sessionSubmitter} />;
   }
 
   // HUB — category clusters

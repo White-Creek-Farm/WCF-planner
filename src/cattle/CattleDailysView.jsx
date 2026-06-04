@@ -4,7 +4,7 @@ import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
@@ -247,9 +247,13 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
       mortality_reason: form.mortalityReason || null,
       issues: form.issues || null,
     };
-    const {error} = await sb.from('cattle_dailys').update(rec).eq('id', editId);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + friendlyDailyDbError(error, 'cattle_dailys', rec)});
+    try {
+      await updateDailyReport(sb, 'cattle.daily', editId, rec, {entityLabel: rec.date});
+    } catch (e) {
+      setNotice({
+        kind: 'error',
+        message: 'Save failed: ' + friendlyDailyDbError(e.message || String(e), 'cattle_dailys', rec),
+      });
       return;
     }
     setRecords((p) => p.map((r) => (r.id === editId ? {...r, ...rec} : r)));
@@ -1058,11 +1062,15 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
               <button onClick={saveEdit} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && canDeleteDailyReport(authState) && (
-                <button onClick={() => del(editId)} style={S.btnDanger}>
-                  Delete
-                </button>
-              )}
+              {editId &&
+                canDeleteDailyReport(
+                  authState,
+                  records.find((r) => r.id === editId),
+                ) && (
+                  <button onClick={() => del(editId)} style={S.btnDanger}>
+                    Delete
+                  </button>
+                )}
               <button
                 onClick={() => {
                   setNotice(null);

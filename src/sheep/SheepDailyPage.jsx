@@ -30,7 +30,12 @@ import {
 } from '../shared/recordPageControls.jsx';
 /* eslint-enable no-unused-vars */
 import {fmtMDY} from '../lib/dateUtils.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {
+  softDeleteDailyReport,
+  canDeleteDailyReport,
+  canEditOwnRecord,
+  updateDailyReport,
+} from '../lib/dailyReportsApi.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
@@ -318,20 +323,18 @@ export default function SheepDailyPage({sb, authState, Header}) {
       (updates.date || record.date) +
       (updates.flock ? ' · ' + updates.flock : record.flock ? ' · ' + record.flock : '');
 
-    const result = await runMutation(
-      () => sb.from('sheep_dailys').update(updates).eq('id', record.id).select().single(),
-      {
-        activity: () =>
-          recordFieldChange(sb, {
-            entityType: 'sheep.daily',
-            entityId: record.id,
-            entityLabel,
-            changes,
-          }),
-        onError: (msg) =>
-          setNotice({kind: 'error', message: 'Save failed: ' + friendlyDailyDbError(msg, 'sheep_dailys', updates)}),
-      },
-    );
+    // Edit through the ownership-enforced SECDEF RPC (mig 091). The RPC returns
+    // a status, not the row, so reconstruct the updated record locally.
+    let result = {ok: false, data: null};
+    try {
+      await updateDailyReport(sb, 'sheep.daily', record.id, updates, {entityLabel});
+      result = {ok: true, data: {...record, ...updates}};
+    } catch (e) {
+      setNotice({
+        kind: 'error',
+        message: 'Save failed: ' + friendlyDailyDbError(e.message || String(e), 'sheep_dailys', updates),
+      });
+    }
 
     if (result.ok) {
       setRecord(result.data);
@@ -581,7 +584,7 @@ export default function SheepDailyPage({sb, authState, Header}) {
               type="button"
               data-daily-save="1"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !canEditOwnRecord(authState, record)}
               style={{...btnPrimary, opacity: saving ? 0.6 : 1}}
             >
               {saving ? 'Saving…' : 'Save'}
@@ -595,7 +598,7 @@ export default function SheepDailyPage({sb, authState, Header}) {
           </div>
         )}
 
-        {canDeleteDailyReport(authState) && (
+        {canDeleteDailyReport(authState, record) && (
           <button
             onClick={handleDelete}
             style={{

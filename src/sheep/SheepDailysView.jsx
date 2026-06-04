@@ -9,7 +9,7 @@ import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {loadRoster, activeNames} from '../lib/teamMembers.js';
-import {softDeleteDailyReport, canDeleteDailyReport} from '../lib/dailyReportsApi.js';
+import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
@@ -259,9 +259,13 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
       mortality_count: form.mortalityCount !== '' ? parseInt(form.mortalityCount) : 0,
       comments: form.comments || null,
     };
-    const {error} = await sb.from('sheep_dailys').update(rec).eq('id', editId);
-    if (error) {
-      setNotice({kind: 'error', message: 'Save failed: ' + friendlyDailyDbError(error, 'sheep_dailys', rec)});
+    try {
+      await updateDailyReport(sb, 'sheep.daily', editId, rec, {entityLabel: rec.date});
+    } catch (e) {
+      setNotice({
+        kind: 'error',
+        message: 'Save failed: ' + friendlyDailyDbError(e.message || String(e), 'sheep_dailys', rec),
+      });
       return;
     }
     setRecords((p) => p.map((r) => (r.id === editId ? {...r, ...rec} : r)));
@@ -1044,11 +1048,15 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               <button onClick={saveEdit} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                 Save
               </button>
-              {editId && canDeleteDailyReport(authState) && (
-                <button onClick={() => del(editId)} style={S.btnDanger}>
-                  Delete
-                </button>
-              )}
+              {editId &&
+                canDeleteDailyReport(
+                  authState,
+                  records.find((r) => r.id === editId),
+                ) && (
+                  <button onClick={() => del(editId)} style={S.btnDanger}>
+                    Delete
+                  </button>
+                )}
               <button
                 onClick={() => {
                   setNotice(null);
