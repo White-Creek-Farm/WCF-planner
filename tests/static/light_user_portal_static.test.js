@@ -161,6 +161,7 @@ describe('Light role — locked submitter component + form wiring', () => {
 describe('Light role — header + portal containment', () => {
   const header = read('src/shared/Header.jsx');
   const portal = read('src/dashboard/LightHomePortal.jsx');
+  const homeAlerts = read('src/dashboard/homeAlerts.js');
 
   it('Header defines isLight and hides Activity from light', () => {
     expect(header).toMatch(/const isLight = authState\?\.role === 'light'/);
@@ -175,5 +176,30 @@ describe('Light role — header + portal containment', () => {
     for (const v of ['broilerHome', 'cattleHome', 'equipmentHome', 'activity', 'webforms']) {
       expect(portal, `portal excludes ${v}`).not.toContain(`'${v}'`);
     }
+  });
+
+  it('Light portal renders the shared operational home sections', () => {
+    for (const helper of ['buildMissedDailyReports', 'buildEquipmentAttention', 'buildNext30Events']) {
+      expect(portal, `${helper} imported/used`).toContain(helper);
+      expect(homeAlerts, `${helper} defined`).toMatch(new RegExp(`export function ${helper}\\b`));
+    }
+    expect(portal).toMatch(/data-light-home-missed-dailys="1"/);
+    expect(portal).toMatch(/data-light-home-equipment-attention="1"/);
+    expect(portal).toMatch(/data-light-home-next-30="1"/);
+    expect(portal).toMatch(
+      /data-light-portal-grid="1"[\s\S]*?weekEvents\.length > 0[\s\S]*?data-light-home-next-30="1"/,
+    );
+    expect(portal).not.toMatch(/Nothing scheduled in the next 30 days/);
+    expect(portal).toMatch(/NEXT 30 DAYS/);
+  });
+
+  it('Light equipment attention rows route to the allowed public equipment surface, not /fleet', () => {
+    expect(portal).toMatch(/navigate\('\/equipment\/' \+ a\.slug\)/);
+    expect(portal).not.toMatch(/navigate\('\/fleet\//);
+  });
+
+  it('Light alert cards are visible but do not expose the full-dashboard global dismiss controls', () => {
+    expect(portal).not.toMatch(/Clear all|clearAllMissed|clearMissedEntry/);
+    expect(portal).not.toMatch(/from\('app_store'\)\.upsert/);
   });
 });
