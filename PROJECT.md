@@ -87,6 +87,14 @@ Rules (normative):
   added to `## Intentional Non-Uniformities` with justification.
 - Changing any locked decision requires a Ronnie-approved amendment in this file
   and the relevant guard target in the same change.
+- This lock covers the decisions and functional invariants in this section plus
+  the entire `## Design System` section. The rest of `PROJECT.md` (Current State,
+  Build Queue, inventories, contract narrative) updates normally under
+  `## Project Map Governance`.
+- The entire `## Design System` section is a Global Decision: its tokens, palette,
+  elevation, z-index ladder, canonical components, and iconography policy MUST NOT
+  change except by amendment.
+- Agents MAY propose amendments with rationale and evidence; Ronnie ratifies.
 
 | Decision | Status | Evidence |
 | --- | --- | --- |
@@ -94,7 +102,7 @@ Rules (normative):
 | 2 Button corners | Locked | `tests/static/border_radius_scale_static.test.js` |
 | 3 Confirm/Delete stacking | Locked | `tests/static/zindex_scale_static.test.js` |
 | 4 Button height/padding | Locked | `tests/static/button_control_tokens_static.test.js` |
-| 5 Save model (Submit vs autosave) | Partial | `C:\\Users\\Ronni\\cc-research\\parity-audit-2026-06-05-CC.md` (CC lane D decision backlog) |
+| 5 Save model (Submit vs autosave) | Ratified; enforcement pending | Lane D save/autosave guard (static + Playwright) |
 
 1. Font sizes use a clean px scale. Canonical set: `10, 11, 12, 13, 14, 15, 16, 18,
    20, 22, 26`. Lift `9 -> 10`, fold `17 -> 18`, `24 -> 22`, `28 -> 26`.
@@ -119,6 +127,23 @@ Rules (normative):
      Submit controls.
    - Edit-in-place surfaces (record pages, weigh-in entry) use autosave.
    - Guard target: Lane D save/autosave coverage and Playwright.
+
+### Locked functional invariants
+
+These load-bearing behaviors are Global Decisions, defined in full in the
+referenced contract sections. This table designates them amendment-locked: new or
+changed code MUST conform, and changing one requires a Ronnie-approved amendment
+plus a guard update in the same change.
+
+| Invariant | Contract section | Guard |
+| --- | --- | --- |
+| Single Supabase client owner; no unapproved browser secrets | Cross-App Rules | `supabase_client_owner_static.test.js`, `browser_secret_boundary_static.test.js` |
+| Permissions enforced by RLS/RPC, never UI alone | Authentication And Roles | `light_user_portal_static.test.js` |
+| Route aliases only in `src/lib/routes.js` | Route Ownership | `url_alias_redirects.spec.js` |
+| Fail-closed loading order (record + list) | Cold-Boot And Fail-Closed Loading | `load_retry_robustness_inventory_static.test.js` |
+| Audit-critical mutations via SECDEF RPC; no client writes to activity, comments, or notifications | Entity Mutations And Audit Atomicity; Activity, Comments, Mentions, Notifications | `mutation_semantics_inventory_static.test.js` |
+| Daily edits/deletes via ownership RPCs; soft-delete protected roots | Daily Reports; Delete, Restore, And Recovery | `cp2_daily_writes_via_rpc_static.test.js` |
+| One canonical component per UI role | Shared UI And Record Chrome; Design System | `shared_ui_extraction_contract_static.test.js` |
 
 ---
 
@@ -472,6 +497,13 @@ unless Ronnie changes the contract:
 - Program dashboards may show program-specific KPIs. Lane J can define a shared
   dashboard frame/baseline, but it must not force identical metrics where the
   programs genuinely differ.
+- The public `#webform-container` styling (gradient submit, brand-tinted shadow,
+  larger font, scoped input padding) is an intentionally self-contained design
+  system, separate from the React app tokens in `## Design System`. It is not
+  token drift and is excluded from the app token migration.
+- `getReadableText()` in `src/lib/styles.js` returns `#0f172a`/`white` as
+  auto-contrast for arbitrary colored backgrounds. These two values are
+  infrastructure, not palette drift, and are exempt from the color migration.
 
 ---
 
