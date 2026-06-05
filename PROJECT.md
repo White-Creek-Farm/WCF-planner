@@ -17,7 +17,7 @@ Production URL: https://wcfplanner.com.
 ## Start Here
 
 1. Read [HO.md](HO.md) for workflow and gates.
-2. Read this file's Current State, Work Queue, and the relevant contracts.
+2. Read this file's Current State, Build Queue, and the relevant contracts.
 3. Run `git status --short` and inspect recent `git log` before planning or
    editing.
 4. Inspect the files in scope before changing anything.
@@ -27,6 +27,98 @@ commit/push/PROD gates. Codex may build or edit only when Ronnie assigns it.
 
 This file should answer "what is true now?" at the start of a session. Use git
 history and tests for detailed lane history.
+
+---
+
+## Project Map Governance
+
+This file is a docs-as-code project map, not a session log, scratchpad, or
+append-only changelog. It uses project-specific rules first, with these external
+references as guard rails:
+
+- Diataxis documentation structure: separate reference, explanation, how-to, and
+  tutorial content. `PROJECT.md` is durable reference plus brief explanation;
+  procedural workflow belongs in `HO.md`, and detailed history belongs in git or
+  `archive/SESSION_LOG.md`. Reference: https://diataxis.fr/.
+- RFC 2119 / RFC 8174 requirement language: capitalized `MUST`, `MUST NOT`,
+  `SHOULD`, `SHOULD NOT`, and `MAY` carry normative force. Use them only for
+  rules future agents must preserve. References:
+  https://datatracker.ietf.org/doc/rfc2119/ and
+  https://datatracker.ietf.org/doc/rfc8174/.
+- Google developer documentation style: project-specific style comes first, then
+  a general developer-doc style guide for clarity and consistency. Reference:
+  https://developers.google.com/style/.
+- Google documentation best practices: keep docs minimal and accurate, update
+  docs with code, delete dead documentation, and avoid duplication. Reference:
+  https://google.github.io/styleguide/docguide/best_practices.html.
+
+Rules for editing this file:
+
+- Build Queue is the only home for outstanding build/design work. Do not hide
+  "future", "needs", "still needs", "TODO", or "TBD" work in later sections.
+- Contract sections describe current architecture, standards, and guard rails.
+  If a contract is aspirational rather than true, move the work to Build Queue
+  and state the current guard/inventory honestly.
+- Current State and Latest Shipped Checkpoint summarize what is live now.
+  Detailed lane narrative belongs in git history or the archive, not here.
+- Inventory counts, migration state, test names, and owner lists must match the
+  source/static guards at the time of edit. Prefer pointing to the guard as the
+  source of truth instead of duplicating fragile counts here.
+- Every Build Queue item should state class (`DEFECT`, `DECISION`, `ENH`),
+  scope, success criteria, validation/guard target, and any migration/PROD gate
+  once it is promoted into an active lane.
+- Remove or reconcile stale text instead of appending corrections nearby. The
+  file should read as one coherent project map written intentionally.
+- Normal build/hotfix lanes must not edit this file unless Ronnie explicitly
+  requests docs, wrap, or a named `PROJECT.md` change.
+
+- Design/function invariants that govern cross-surface behavior now live in
+  `## Global Decisions (Constitution)` and `## Design System`.
+
+## Global Decisions (Constitution)
+
+The following decisions are locked and govern future builds. New code and surface
+changes MUST conform unless this section is amended.
+
+Rules (normative):
+- Global Decisions are loaded from this section and enforced with lane guard
+  targets.
+- No surface may silently diverge from a locked decision. New exceptions MUST be
+  added to `## Intentional Non-Uniformities` with justification.
+- Changing any locked decision requires a Ronnie-approved amendment in this file
+  and the relevant guard target in the same change.
+
+| Decision | Status | Evidence |
+| --- | --- | --- |
+| 1 Font scale | Locked | `tests/static/typography_tokens_static.test.js` |
+| 2 Button corners | Locked | `tests/static/border_radius_scale_static.test.js` |
+| 3 Confirm/Delete stacking | Locked | `tests/static/zindex_scale_static.test.js` |
+| 4 Button height/padding | Locked | `tests/static/button_control_tokens_static.test.js` |
+| 5 Save model (Submit vs autosave) | Partial | `C:\\Users\\Ronni\\cc-research\\parity-audit-2026-06-05-CC.md` (CC lane D decision backlog) |
+
+1. Font sizes use a clean px scale. Canonical set: `10, 11, 12, 13, 14, 15, 16, 18,
+   20, 22, 26`. Lift `9 -> 10`, fold `17 -> 18`, `24 -> 22`, `28 -> 26`.
+   Display whitelist remains `32/34/36/48/56` for hero-only usage. Fractional
+   font values (`12.5`, `10.5`) are forbidden.
+   - Guard target: `tests/static/typography_tokens_static.test.js` (hard clamp to
+     this set).
+
+2. Button corners use canonical `6px` radius. The values `7` and `8` are retired.
+   Canonical radius set is `{4, 6, 10, 14, 999, '50%'}`.
+   - Guard target: `tests/static/border_radius_scale_static.test.js`.
+
+3. Confirm/Delete dialogs remain top-tier destructive overlay priority at
+   toast (`9000`) so confirm stacks are never visually hidden.
+   - Guard target: `tests/static/zindex_scale_static.test.js`.
+
+4. Button vertical pad defaults to `10px`; the standard button pad is `10px 16px`.
+   - Guard target: `tests/static/button_control_tokens_static.test.js`.
+
+5. Save model is contractually split by surface:
+   - Submit-style surfaces (daily reports, webforms, modals) use explicit Save/
+     Submit controls.
+   - Edit-in-place surfaces (record pages, weigh-in entry) use autosave.
+   - Guard target: Lane D save/autosave coverage and Playwright.
 
 ---
 
@@ -183,9 +275,11 @@ Ronnie confirms (do not prune branches/worktrees unsolicited). Per-lane
 worktrees need their own `node_modules` (`npm ci`) and gitignored `.env.test*`
 to run tests/Playwright. See [HO.md](HO.md) Parallel Codex Worktree.
 
-### Recommended Work Queue
+### Build Queue
 
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
+This is the canonical home for outstanding build/design work; do not scatter
+hidden to-do notes through later contract sections.
 Shipped 2026-06-04 (removed from queue): authenticated Light-user portal CP1+CP2,
 pig planned-trip weight audit, cattle missing-dam herd filters, feed second-tile
 current-month pin, broiler on-farm count reconciliation, and task weekly email
@@ -196,22 +290,124 @@ Days/delta chips, fixed record-page prev/next nav + broiler batch on the shared
 nav, broiler auto-processing on processing date, equipment caught-up home
 notices, and Light home alerts with shared `homeAlerts.js` builders.
 
-1. Real AI filter/sort investigation. The removed cattle plain-English parser
-   was not robust enough. Later, investigate a real AI-assisted filter/sort
-   solution across list views with explicit preview/apply behavior and tests.
-   The current filters use organized always-visible groups; a real assistant
-   should layer on top with explicit preview/apply, not replace them.
-2. Follow-on audited RPCs where remaining flows still have partial-state or
-   audit gaps.
-3. Webform-light identity lane (future). Authenticated read-only field-user
-   access model + field-portal home; design before code. Do not revive the
-   shelved roster-id -> profile-id mapping (migration `083`).
+Detailed parity evidence lives in
+`C:\Users\Ronni\cc-research\parity-audit-2026-06-05-CC.md`; line-level findings
+stay there, not in this durable map.
+
+Class legend: `DEFECT` = build without a product decision once scoped;
+`DECISION` = Ronnie must choose product/UX/policy before build; `ENH` =
+enhancement/polish lane.
+
+1. Lane 0 - Immediate correctness bugs.
+   Class: `DEFECT`. Size: small. Ship first.
+   Scope: fix the four broken `InlineNotice` prop-shape call sites, add or map
+   the `info` notice kind so benign messages do not render as errors, suppress
+   the legacy `CowDetail` Issues panel inside cattle forecast, and lock
+   `TasksWebform` submitter identity to the signed-in user.
+   Guard target: static coverage for the `InlineNotice` call contract and a
+   locked-submitter webform guard/spec.
+2. Lane A - Audit, Activity, RPC atomicity, and tombstone/deleted-record design.
+   Class: `DEFECT` for destructive flows with no audit; `DECISION` for
+   best-effort versus transactional policy on non-destructive edits. Size:
+   large.
+   Scope: move audit-critical pig, broiler, layer, cattle, and sheep destructive
+   or multi-table flows toward audited SECDEF RPCs where needed; make mounted
+   Activity streams receive meaningful events; mount the already-populated
+   cattle breeding Activity stream; and design the root hard-delete
+   tombstone/deleted-record model before expanding physical root deletes.
+   Guard target: extend mutation semantics, hard-delete owner, delete/recovery,
+   and Activity static guards.
+3. Lane B - Fail-closed loading parity.
+   Class: `DEFECT`. Size: medium.
+   Scope: make record, list, hub, section-home, My Submissions, and admin
+   surfaces clear stale state on load failure, show `InlineNotice`, expose
+   user-gated Retry where retry can recover, and carry consistent loaded/error
+   data hooks.
+   Guard target: extend `load_retry_robustness_inventory_static.test.js`.
+4. Lane C - Notice and delete-modal primitive parity.
+   Class: `DEFECT` for correctness gaps not already handled by Lane 0; `ENH` for
+   visual/interaction convergence. Size: medium.
+   Scope: converge destructive and confirmation flows on shared primitives or
+   documented static-guarded exceptions; standardize delete copy, typed-confirm
+   phrase, Cancel/Delete placement, Enter/Escape behavior, overlay-click policy,
+   z-index scale, and post-delete feedback.
+   Guard target: extend `shared_ui_extraction_contract_static.test.js`.
+5. Lane D - Save/editing model policy.
+   Class: `DECISION` for the canonical save paradigm; `DEFECT` for known data
+   loss windows. Size: medium.
+   Scope: define the canonical edit/save behavior by surface type, fix
+   EquipmentDetail flush-on-blur/before-navigation autosave loss, decide
+   broiler weigh-in explicit-save versus autosave parity, and define how global
+   versus local save indicators represent RPC, app-store, and autosave writes.
+   Guard target: focused save/autosave static guards plus touched Playwright
+   flows.
+6. Lane E - Record-page shell and chrome parity.
+   Class: `ENH` plus `DEFECT` where page structure causes weaker loading,
+   not-found, or Light view-only behavior. Size: medium.
+   Scope: bring EquipmentDetail and PigBatchPage onto shared record chrome where
+   appropriate, standardize record widths and loaded/error hooks, expand
+   `recordPageControls` adoption, and align Sheep daily page structure with the
+   other daily record pages.
+   Guard target: record-page shell/chrome static guards and focused record-page
+   Playwright.
+7. Lane F - List, hub, filter, sort, saved-view, and empty-state parity.
+   Class: `ENH`. Size: large.
+   Scope: bring Sheep Flocks to the Cattle Herds filter-group/multi-sort/saved
+   views model, extract drifting row/tile primitives, define which lists get
+   search/sort/saved views, standardize filtered/empty states, and keep the real
+   AI filter/sort investigation layered on top of deterministic filters with
+   explicit preview/apply behavior.
+   Guard target: per-surface filter/sort tests, saved-view tests, and static
+   shared-row/empty-state guards.
+8. Lane G - Restore/recovery surface.
+   Class: `DECISION`. Size: small.
+   Scope: either add cattle/sheep animal restore UI matching daily Recently
+   Deleted recovery, or remove user-facing copy that promises in-app/admin
+   restore where no app surface exists.
+   Guard target: delete/recovery classification guard plus focused restore UI
+   coverage if built.
+9. Lane H - Webform/offline parity.
+   Class: `DEFECT` for EquipmentFueling offline/stuck recovery gaps; `ENH` for
+   consolidation and terminal-copy parity. Size: medium.
+   Scope: bring EquipmentFuelingWebform onto the same offline queue and stuck
+   recovery expectations as other login-gated forms, consolidate legacy
+   webform paths where appropriate without breaking documented aliases, and
+   standardize terminal success/queued copy and locked submitter labels.
+   Guard target: offline/webform static guards and focused offline Playwright.
+10. Lane I - Visual tokens, terminology, formatting, and design primitives.
+    Class: `ENH`. Size: large.
+    Scope: ratify and enforce the decisions in `## Global Decisions
+    (Constitution)` across all surfaces: font scale, button radius/corners,
+    button height/padding, dialog stacking, and Save/Submit versus autosave.
+    Migrate remaining drift to shared tokens and canonical components before
+    adding exceptions.
+    Guard target: typography, radius, button-control, z-index, and shared-ui/token
+    static guards, plus targeted visual Playwright checks where needed.
+11. Lane J - Cross-cutting product and accessibility policy.
+    Class: `DECISION`. Size: medium.
+    Scope: decide canonical nav IA order, farm-Central date defaults across
+    livestock/tasks/webforms, modal keyboard/focus/ARIA behavior, image alt text
+    policy, and any baseline home-dashboard KPI rules where program differences
+    still need a uniform frame.
+    Guard target: route/nav/date/a11y static guards plus focused Playwright once
+    decisions are made.
+12. Lane K - Export/print parity.
+    Class: `DECISION` plus `ENH`. Size: medium.
+    Scope: add a shared CSV/export/print model for operational lists and record
+    pages, starting from Ronnie's cattle herd need. One export/download owner
+    should own rows-to-CSV, Blob/object URL, filename, and revoke mechanics;
+    exports should use active filtered/sorted view state and shared column specs;
+    permissions must remain bounded to already-allowed/RLS-visible rows; print
+    should use a shared print view/stylesheet rather than per-section print
+    islands; filename dates should use the farm-Central convention.
+    Guard target: a static single-download-owner guard, column-spec/export
+    tests, and print stylesheet/screenshot checks.
 
 ### Light-User Portal Contract
 
 Locked product direction (do not re-litigate without Ronnie): authenticated-only
-submission is the durable path. Lane 5 / migration `083` stays shelved; do NOT
-build roster-id -> profile-id mapping.
+submission is the durable path. The migration `083` public-webform identity
+approach stays shelved; do NOT build roster-id -> profile-id mapping.
 
 Shipped contract:
 - `light` is a real authenticated role managed through the normal user-management
@@ -250,6 +446,32 @@ Guard rails: `light_user_portal_static.test.js`,
 `daily_edit_surface_static.test.js`, `daily_soft_delete_static.test.js`, and
 `cp2_daily_writes_via_rpc_static.test.js` lock the route/nav/access and
 ownership-write contracts.
+
+---
+
+## Intentional Non-Uniformities
+
+These differences are current product/architecture decisions, not parity defects
+unless Ronnie changes the contract:
+
+- Light users are intentionally excluded from `/weighins`; they stay contained
+  to the allowed report/form, Tasks, and My Submissions surfaces.
+- Migration `083` public webform submitter identity stays shelved. Do not build
+  roster-id -> profile-id mapping; authenticated submitter identity is the
+  durable path.
+- `/webform-pigs` remains a valid legacy standalone pig daily form route/alias
+  while legacy compatibility is required. Consolidation must preserve aliases.
+- `egg_dailys` is intentionally not covered by the daily unique-index backstop
+  and has no daily photo column/surface. Egg duplicate prevention is warning /
+  pre-submit only unless a later schema lane changes it.
+- Add Feed quick-log rows are not full daily reports, and missed-report checks
+  exclude `source='add_feed_webform'`.
+- Broiler, layer, and pig daily pages use Group copy rather than Batch copy.
+- Pig planned-trip forecast weights are render-only. Latest weigh-ins do not
+  change planned-trip forecast weights automatically.
+- Program dashboards may show program-specific KPIs. Lane J can define a shared
+  dashboard frame/baseline, but it must not force identical metrics where the
+  programs genuinely differ.
 
 ---
 
@@ -492,6 +714,45 @@ Append-only upload expectations:
 
 ---
 
+## Design System
+
+### Typography
+
+- Canonical font family: `Geist` stack from `index.html` and inheritance from
+  `fontFamily: 'inherit'` on component styles.
+- Canonical font-size set: `10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 26`.
+- Allowed display sizes: `32, 34, 36, 48, 56`.
+- Font-weight scale: `400, 500, 600, 700` only; `800` is forbidden.
+
+### Spacing and controls
+
+- Standard button pad is `10px 16px`.
+- Standard button vertical pad is `10px`.
+- Inputs/selects/textareas use radius `6`, border `1px #d1d5db`, pad `8px 11px`
+  and brand focus treatment.
+
+### Radius
+
+- Canonical radius tokens are `4`, `6`, `10`, `14`, `999`, and `'50%'`.
+- The values `7` and `8` are retired.
+
+### Stacking and elevation
+
+- Dialog layer order keeps Confirm/Delete at toast `9000`; other overlays and
+  modals remain below that tier in the shared z-index ladder.
+
+### Save model
+
+- Explicit Save/Submit by surface class is mandatory for submit-style flows.
+  Autosave is mandatory for edit-in-place flows. Lane D owns migration and any
+  residual exceptions.
+
+### Canonical components
+
+- Use canonical role owners before introducing equivalent alternatives.
+- Canonical owners include `RecordPageShell`, `RecordSequenceNav`,
+  `recordPageControls`, and modal primitives.
+
 ## Load-Bearing Contracts
 
 ### Cross-App Rules
@@ -518,8 +779,9 @@ Data surfaces must fail closed on load errors:
   is valid.
 - Header badge counts soft-fail; Header panel content fails closed.
 
-There are no current no-retry loadError gaps; this is locked by
-`load_retry_robustness_inventory_static.test.js`.
+Load/retry readiness is inventoried by
+`load_retry_robustness_inventory_static.test.js`; changed surfaces must update
+the guard deliberately.
 
 ### Activity, Comments, Mentions, Notifications
 
@@ -572,14 +834,14 @@ Workflow/worktable entities:
   write, the data is already committed.
 - Audit-critical delete/restore/transfer/status flows should move to SECDEF RPCs
   that mutate data and insert Activity in one transaction.
-- Current inventory locks 220 literal Supabase mutations (30 delete, 65 insert,
-  82 update, 43 upsert), 6 dynamic table mutations, and 7 `runMutation` caller
-  modules. New mutation sites must update
-  `mutation_semantics_inventory_static.test.js` deliberately.
+- Mutation inventory counts live in
+  `mutation_semantics_inventory_static.test.js`. New mutation sites must update
+  that guard deliberately.
 
 ### Delete, Restore, And Recovery
 
-- Hard-delete owner surface is locked at 28 direct client table deletes.
+- Hard-delete owner inventory lives in `hard_delete_owner_static.test.js`.
+  Legitimate new hard-delete owners must update that guard deliberately.
 - Soft-delete protected roots must not have direct client deletes: cattle, sheep,
   `cattle_dailys`, `sheep_dailys`, `poultry_dailys`, `layer_dailys`,
   `egg_dailys`, `pig_dailys`.
@@ -588,8 +850,6 @@ Workflow/worktable entities:
 - Cattle/sheep animals soft-delete/restore through their animal RPCs.
 - Calving sub-row delete goes through `delete_cattle_calving_record` and logs
   `record.deleted` on the dam's `cattle.animal`.
-- Root hard-delete Activity still needs a tombstone/deleted-record design if
-  ever required.
 
 ### Cattle And Sheep
 
@@ -614,7 +874,7 @@ Workflow/worktable entities:
   vitest-locked); UI is `CattleHerdsView`. Filters render in three
   always-visible groups (Core, Calving/Breeding, Lineage/Other) — no "More
   filters" toggle, no Exceptions group, and no plain-English/Parse smart
-  assistant (removed; a real AI assistant is a future queue item).
+  assistant. See Build Queue for the real AI filter/sort investigation.
 - Non-calving is a single "No calf since [date]" control: mature cow/heifer
   (30+ months) whose last calving is missing OR before the date. Backward
   compatibility — `filters.nonCalvingCows === true` still means the
@@ -810,6 +1070,8 @@ Workflow/worktable entities:
 
 ### Shared UI And Record Chrome
 
+- Design tokens and visual contract details are in `## Design System`.
+
 - `RecordPageShell` owns record-page frame/loading/not-found/body/title chrome.
 - `RecordCollaborationSection` is the only component that composes
   `CommentsSection` and `RecordActivityLog`.
@@ -826,8 +1088,9 @@ Workflow/worktable entities:
   (`savedViewsApi.js`, `surface_key`); the cattle herds list is the first
   consumer. New consumers reuse the same table/API with a distinct
   `surface_key`.
-- `DeleteModal` and `ConfirmModal` are app-level modal primitives, with known
-  local exceptions locked by `shared_ui_extraction_contract_static.test.js`.
+- `DeleteModal` and `ConfirmModal` are app-level modal primitives. New
+  destructive/confirmation flows should use them unless a documented exception
+  is added to `shared_ui_extraction_contract_static.test.js`.
 - Record page controls live in `src/shared/recordPageControls.jsx`.
 
 ### Source Boundary Guards
@@ -912,7 +1175,7 @@ Playwright notes:
 Before a new lane:
 
 1. Read [HO.md](HO.md).
-2. Read Current State, Recommended Work Queue, and the relevant contracts here.
+2. Read Current State, Build Queue, and the relevant contracts here.
 3. Run `git status --short` and inspect recent `git log`.
 4. Identify dirty-tree risk, active worktrees, open gates, and migration state.
 5. Inspect files in scope before planning.
@@ -929,5 +1192,7 @@ Before a new lane:
 - Older narrative history: `archive/SESSION_LOG.md`.
 - Research, screenshots, audits, and video evaluations:
   `C:\Users\Ronni\cc-research\`.
+- Parity audit evidence for the 2026-06-05 Build Queue:
+  `C:\Users\Ronni\cc-research\parity-audit-2026-06-05-CC.md`.
 - Detailed build history lives in git log and tests. Keep this file as the
   compact project map, not a running transcript.
