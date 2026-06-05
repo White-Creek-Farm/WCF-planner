@@ -256,8 +256,15 @@ describe('computeRankMatchedPigEntryADG', () => {
       '2026-05-01',
     );
     expect(out.map((x) => x.entryId)).toEqual(['light', 'mid', 'heavy']);
-    expect(out[0]).toMatchObject({rank: 1, currentWeightLbs: 220, priorWeightLbs: 200, daysBetween: 30});
+    expect(out[0]).toMatchObject({
+      rank: 1,
+      currentWeightLbs: 220,
+      priorWeightLbs: 200,
+      daysBetween: 30,
+      weightDeltaLbs: 20,
+    });
     expect(out[0].adgLbsPerDay).toBeCloseTo(20 / 30, 6);
+    expect(out[2].weightDeltaLbs).toBe(30);
     expect(out[2].adgLbsPerDay).toBeCloseTo(30 / 30, 6);
   });
 
@@ -274,7 +281,9 @@ describe('computeRankMatchedPigEntryADG', () => {
     );
     expect(out).toHaveLength(1);
     expect(out[0].entryId).toBe('a');
-    expect(computeRankMatchedPigEntryADG([{id: 'a', weight: 210}], [{id: 'p', weight: 190}], '2026-05-01', '2026-05-01')).toEqual([]);
+    expect(
+      computeRankMatchedPigEntryADG([{id: 'a', weight: 210}], [{id: 'p', weight: 190}], '2026-05-01', '2026-05-01'),
+    ).toEqual([]);
   });
 });
 
@@ -292,7 +301,7 @@ describe('computeRankMatchedPigGroupADG', () => {
       '2026-05-31',
       '2026-05-01',
     );
-    expect(out).toBeCloseTo(((20 / 30) + (30 / 30)) / 2, 6);
+    expect(out).toBeCloseTo((20 / 30 + 30 / 30) / 2, 6);
   });
 
   it('returns null when there are no matched ranks', () => {
@@ -580,25 +589,31 @@ describe('recalculateProjections', () => {
   });
 
   it('processed trips come off the top of the age stack before remaining planned trips', () => {
-    const out = recalculateProjections([{id: 'remaining', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 10, order: 0}], {
-      referenceDate: '2026-06-01',
-      globalAdgLbsPerDay: 1.6,
-      ageDistributionAtRef: weightedAgeDistributionAtRef,
-      populationCount: 21,
-      alreadyShippedCount: 11,
-    });
+    const out = recalculateProjections(
+      [{id: 'remaining', date: '2026-06-01', sex: 'gilt', subBatchId: 'sub-1', plannedCount: 10, order: 0}],
+      {
+        referenceDate: '2026-06-01',
+        globalAdgLbsPerDay: 1.6,
+        ageDistributionAtRef: weightedAgeDistributionAtRef,
+        populationCount: 21,
+        alreadyShippedCount: 11,
+      },
+    );
     expect(out[0].projectedMinLbs).toBeCloseTo(135 * 1.6, 6);
     expect(out[0].projectedMaxLbs).toBeCloseTo(143 * 1.6, 6);
   });
 
   it('ignores latestEntriesDate because weigh-ins do not move planned forecasts', () => {
-    const out = recalculateProjections([{id: 'a', date: '2026-06-17', sex: 'boar', subBatchId: 'sub-2', plannedCount: 2, order: 0}], {
-      latestEntries: [{weight: 270}, {weight: 230}],
-      latestEntriesDate: '2026-05-19',
-      referenceDate: '2026-06-04',
-      globalAdgLbsPerDay: 1.14,
-      cycleAgeDaysAtRef: {minDays: 135, maxDays: 151},
-    });
+    const out = recalculateProjections(
+      [{id: 'a', date: '2026-06-17', sex: 'boar', subBatchId: 'sub-2', plannedCount: 2, order: 0}],
+      {
+        latestEntries: [{weight: 270}, {weight: 230}],
+        latestEntriesDate: '2026-05-19',
+        referenceDate: '2026-06-04',
+        globalAdgLbsPerDay: 1.14,
+        cycleAgeDaysAtRef: {minDays: 135, maxDays: 151},
+      },
+    );
     expect(out[0].daysUntil).toBe(13);
     expect(out[0].projectedMinLbs).toBeCloseTo((135 + 13) * 1.14, 6);
     expect(out[0].projectedMaxLbs).toBeCloseTo((151 + 13) * 1.14, 6);

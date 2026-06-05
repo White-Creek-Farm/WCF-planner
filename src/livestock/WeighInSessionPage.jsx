@@ -55,6 +55,21 @@ const inp = {
   fontFamily: 'inherit',
   boxSizing: 'border-box',
 };
+const WEIGHIN_ENTRY_AUTOSAVE_DELAY_MS = 700;
+const WEIGHIN_ENTRY_ACTIVITY_EXCLUDE = [
+  'id',
+  'session_id',
+  'entered_at',
+  'reconcile_intent',
+  'send_to_processor',
+  'target_processing_batch_id',
+  'prior_herd_or_flock',
+  'sent_to_trip_id',
+  'sent_to_group_id',
+  'transferred_to_breeding',
+  'transfer_breeder_id',
+  'feed_allocation_lbs',
+];
 
 function sortEntriesByTagAsc(a, b) {
   const at = a && a.tag,
@@ -68,12 +83,31 @@ function sortEntriesByTagAsc(a, b) {
   return String(at).localeCompare(String(bt));
 }
 
-function adgLbPerDay(priorWt, priorDate, curWt, curDate) {
-  if (priorWt == null || curWt == null || !priorDate || !curDate) return null;
+function sortPigEntriesByWeightDesc(entries) {
+  return [...(entries || [])].sort((a, b) => (parseFloat(b.weight) || 0) - (parseFloat(a.weight) || 0));
+}
+
+function entryDraft(e) {
+  return {tag: e.tag || '', weight: String(e.weight ?? ''), note: e.note || ''};
+}
+
+function formatSignedLbs(value) {
+  const n = Math.round(parseFloat(value) || 0);
+  return (n > 0 ? '+' : '') + n + ' lb';
+}
+
+function daysBetweenDates(priorDate, curDate) {
+  if (!priorDate || !curDate) return null;
   const pd = new Date(priorDate + 'T12:00:00');
   const cd = new Date(curDate + 'T12:00:00');
   const days = Math.round((cd - pd) / 86400000);
-  if (!Number.isFinite(days) || days < 1) return null;
+  return Number.isFinite(days) && days >= 1 ? days : null;
+}
+
+function adgLbPerDay(priorWt, priorDate, curWt, curDate) {
+  if (priorWt == null || curWt == null || !priorDate || !curDate) return null;
+  const days = daysBetweenDates(priorDate, curDate);
+  if (days == null) return null;
   const adg = (parseFloat(curWt) - parseFloat(priorWt)) / days;
   return Number.isFinite(adg) ? adg : null;
 }
@@ -113,6 +147,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const [accessDenied, setAccessDenied] = React.useState(false);
   const [notice, setNotice] = React.useState(null);
   const [entryEdits, setEntryEdits] = React.useState({});
+  const entryEditsRef = React.useRef(entryEdits);
+  const sEntriesRef = React.useRef(sEntries);
+  const sessionRef = React.useRef(session);
+  const entryAutosaveTimersRef = React.useRef({});
+  const entryAutosaveSeqRef = React.useRef({});
+  const [entryAutosave, setEntryAutosave] = React.useState({});
   const [addForm, setAddForm] = React.useState({tag: '', weight: '', note: '', priorTag: ''});
   const [sessionForModal, setSessionForModal] = React.useState(null);
   const [pigMetrics, setPigMetrics] = React.useState(null);
@@ -151,6 +191,26 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     return list.includes(species);
   }
 
+  React.useEffect(() => {
+    entryEditsRef.current = entryEdits;
+  }, [entryEdits]);
+
+  React.useEffect(() => {
+    sEntriesRef.current = sEntries;
+  }, [sEntries]);
+
+  React.useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  React.useEffect(
+    () => () => {
+      for (const timer of Object.values(entryAutosaveTimersRef.current)) clearTimeout(timer);
+      entryAutosaveTimersRef.current = {};
+    },
+    [],
+  );
+
   async function loadAll() {
     const {data: sess} = await sb
       .from('weigh_in_sessions')
@@ -169,13 +229,13 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       return;
     }
     const {data: eData} = await sb.from('weigh_ins').select('*').eq('session_id', sessionId);
-    const sorted = (eData || []).sort(
-      sp === 'pig' ? (a, b) => (parseFloat(b.weight) || 0) - (parseFloat(a.weight) || 0) : sortEntriesByTagAsc,
-    );
+    const sorted = sp === 'pig' ? sortPigEntriesByWeightDesc(eData || []) : (eData || []).sort(sortEntriesByTagAsc);
     setSEntries(sorted);
     const edits = {};
-    for (const e of sorted) edits[e.id] = {tag: e.tag || '', weight: String(e.weight ?? ''), note: e.note || ''};
+    for (const e of sorted) edits[e.id] = entryDraft(e);
     setEntryEdits(edits);
+    entryEditsRef.current = edits;
+    sEntriesRef.current = sorted;
     if (sp === 'cattle' || sp === 'sheep') {
       const animalQuery =
         sp === 'cattle'
@@ -573,6 +633,11 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       await loadAll();
       return;
     }
+    const autosaveOk = await flushAllEntryAutosaves();
+    if (!autosaveOk) {
+      setNotice({kind: 'error', message: 'Fix weigh-in entry save errors before completing this session.'});
+      return;
+    }
     const canSendToProcessor = session.species === 'sheep' || session.herd === 'finishers';
     if (canSendToProcessor) {
       const flagged = sEntries.filter((e) => e.send_to_processor === true);
@@ -651,15 +716,178 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     if (!next && e.target_processing_batch_id) await loadAll();
   }
 
-  function setEntryField(entryId, field, value) {
-    setEntryEdits((prev) => ({...prev, [entryId]: {...(prev[entryId] || {}), [field]: value}}));
+  function setEntryField(entry, field, value) {
+    if (!entry) return;
+    const current = entryEditsRef.current[entry.id] || entryDraft(entry);
+    const draft = {...current, [field]: value};
+    setEntryEdits((prev) => {
+      const next = {...prev, [entry.id]: draft};
+      entryEditsRef.current = next;
+      return next;
+    });
+    scheduleEntryAutosave(entry.id, draft);
   }
 
-  function revertEntry(e) {
-    setEntryEdits((prev) => ({
-      ...prev,
-      [e.id]: {tag: e.tag || '', weight: String(e.weight ?? ''), note: e.note || ''},
-    }));
+  function setPigEntryField(entry, field, value) {
+    setEntryField(entry, field, value);
+  }
+
+  function setEntryAutosaveState(entryId, state) {
+    setEntryAutosave((prev) => {
+      const next = {...prev};
+      if (state) next[entryId] = state;
+      else delete next[entryId];
+      return next;
+    });
+  }
+
+  function clearEntryAutosaveTimer(entryId) {
+    const timer = entryAutosaveTimersRef.current[entryId];
+    if (timer) clearTimeout(timer);
+    delete entryAutosaveTimersRef.current[entryId];
+  }
+
+  function buildEntryDraftSave(entry, draft) {
+    const sess = sessionRef.current;
+    if (!sess || !entry || !draft || sess.species === 'broiler') return {error: 'Cannot save entry'};
+    const newWeight = parseFloat(draft.weight);
+    if (!Number.isFinite(newWeight) || newWeight <= 0) return {error: 'Enter weight > 0'};
+    const note = (draft.note || '').trim() ? draft.note : null;
+    if (sess.species === 'pig') {
+      return {updates: {weight: newWeight, note}, labels: {weight: 'Weight', note: 'Note'}};
+    }
+    const newTag = (draft.tag || '').trim() || null;
+    const animalWithTag = newTag ? animals.find((c) => String(c.tag || '') === String(newTag)) : null;
+    const newTagFlag = !!(newTag && !animalWithTag);
+    return {
+      updates: {tag: newTag, weight: newWeight, note, new_tag_flag: newTagFlag},
+      labels: {tag: 'Tag', weight: 'Weight', note: 'Note', new_tag_flag: 'New tag'},
+    };
+  }
+
+  function entryDraftChanged(entry, draft) {
+    if (!entry || !draft) return false;
+    const save = buildEntryDraftSave(entry, draft);
+    if (save.error) return true;
+    const updates = save.updates || {};
+    if ('weight' in updates && parseFloat(entry.weight) !== updates.weight) return true;
+    if ('note' in updates && (entry.note || null) !== (updates.note || null)) return true;
+    if ('tag' in updates && (entry.tag || null) !== (updates.tag || null)) return true;
+    if ('new_tag_flag' in updates && !!entry.new_tag_flag !== !!updates.new_tag_flag) return true;
+    return false;
+  }
+
+  function scheduleEntryAutosave(entryId, draft) {
+    clearEntryAutosaveTimer(entryId);
+    const entry = sEntriesRef.current.find((x) => x.id === entryId);
+    if (!entry || isEntryLocked(entry)) return;
+    const save = buildEntryDraftSave(entry, draft);
+    if (save.error) {
+      setEntryAutosaveState(entryId, {status: 'error', message: save.error});
+      return;
+    }
+    if (!entryDraftChanged(entry, draft)) {
+      setEntryAutosaveState(entryId, null);
+      return;
+    }
+    const seq = (entryAutosaveSeqRef.current[entryId] || 0) + 1;
+    entryAutosaveSeqRef.current[entryId] = seq;
+    setEntryAutosaveState(entryId, {status: 'pending', message: 'Autosaving...'});
+    entryAutosaveTimersRef.current[entryId] = setTimeout(() => {
+      delete entryAutosaveTimersRef.current[entryId];
+      void saveEntryDraft(entryId, seq);
+    }, WEIGHIN_ENTRY_AUTOSAVE_DELAY_MS);
+  }
+
+  async function flushEntryAutosaveNow(entryId) {
+    clearEntryAutosaveTimer(entryId);
+    return saveEntryDraft(entryId, entryAutosaveSeqRef.current[entryId] || 0);
+  }
+
+  function flushEntryAutosave(entryId) {
+    void flushEntryAutosaveNow(entryId);
+  }
+
+  function flushPigEntryAutosave(entryId) {
+    flushEntryAutosave(entryId);
+  }
+
+  async function flushAllEntryAutosaves() {
+    const results = await Promise.all((sEntriesRef.current || []).map((e) => flushEntryAutosaveNow(e.id)));
+    return results.every((ok) => ok !== false);
+  }
+
+  async function refreshPigMetrics() {
+    const sess = sessionRef.current;
+    if (!sess || sess.species !== 'pig') return;
+    try {
+      const {data} = await sb.rpc('pig_session_metrics', {session_id_in: sess.id});
+      setPigMetrics(data && data.available !== false ? data : null);
+    } catch (_e) {
+      setPigMetrics(null);
+    }
+  }
+
+  function updateWeighInEntry(entryId, updates) {
+    return sb.from('weigh_ins').update(updates).eq('id', entryId);
+  }
+
+  async function saveEntryUpdates(entry, updates, labels) {
+    return runMutation(() => updateWeighInEntry(entry.id, updates), {
+      activity: () => {
+        const changes = buildChanges(entry, updates, {
+          exclude: WEIGHIN_ENTRY_ACTIVITY_EXCLUDE,
+          labels,
+        });
+        if (changes.length === 0) return;
+        return recordFieldChange(sb, {
+          entityType: 'weighin.session',
+          entityId: sessionRef.current ? sessionRef.current.id : session.id,
+          entityLabel: sessionLabel(),
+          changes,
+        });
+      },
+    });
+  }
+
+  async function saveEntryDraft(entryId, seq = entryAutosaveSeqRef.current[entryId]) {
+    const sess = sessionRef.current;
+    const entry = sEntriesRef.current.find((x) => x.id === entryId);
+    const draft = entryEditsRef.current[entryId] || (entry ? entryDraft(entry) : null);
+    if (!sess || sess.species === 'broiler' || !entry || !draft || isEntryLocked(entry)) return true;
+    const save = buildEntryDraftSave(entry, draft);
+    if (save.error) {
+      setEntryAutosaveState(entryId, {status: 'error', message: save.error});
+      return false;
+    }
+    if (!entryDraftChanged(entry, draft)) {
+      setEntryAutosaveState(entryId, null);
+      return true;
+    }
+    const {updates, labels} = save;
+    setEntryAutosaveState(entryId, {status: 'saving', message: 'Saving...'});
+    const result = await saveEntryUpdates(entry, updates, labels);
+    if (!result.ok) {
+      setEntryAutosaveState(entryId, {status: 'error', message: 'Save failed'});
+      return false;
+    }
+    if (entryAutosaveSeqRef.current[entryId] != null && entryAutosaveSeqRef.current[entryId] !== seq) return true;
+    const updated = {...entry, ...updates};
+    setSEntries((prev) => {
+      const mapped = prev.map((x) => (x.id === entryId ? updated : x));
+      const next = sess.species === 'pig' ? sortPigEntriesByWeightDesc(mapped) : mapped.sort(sortEntriesByTagAsc);
+      sEntriesRef.current = next;
+      return next;
+    });
+    setEntryEdits((prev) => {
+      const next = {...prev, [entryId]: entryDraft(updated)};
+      entryEditsRef.current = next;
+      return next;
+    });
+    setEntryAutosaveState(entryId, {status: 'saved', message: 'Saved'});
+    if (sess.species === 'pig') void refreshPigMetrics();
+    else invalidateCache();
+    return true;
   }
 
   function isEntryLocked(e) {
@@ -667,56 +895,6 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     if (e.transferred_to_breeding) return true;
     if (/\[transferred_to_breeding/.test(e.note || '')) return true;
     return false;
-  }
-
-  async function saveEntry(e) {
-    if (isEntryLocked(e)) return;
-    const ef = entryEdits[e.id] || {};
-    const newWeight = parseFloat(ef.weight);
-    if (!Number.isFinite(newWeight) || newWeight <= 0) return;
-    const sp = session.species;
-    let updates;
-    let labels;
-    if (sp === 'pig') {
-      updates = {weight: newWeight, note: ef.note || null};
-      labels = {weight: 'Weight', note: 'Note'};
-    } else {
-      const newTag = (ef.tag || '').trim() || null;
-      const cowWithTag = newTag ? animals.find((c) => c.tag === newTag) : null;
-      const newTagFlag = newTag && !cowWithTag;
-      updates = {tag: newTag, weight: newWeight, note: ef.note || null, new_tag_flag: newTagFlag};
-      labels = {tag: 'Tag', weight: 'Weight', note: 'Note', new_tag_flag: 'New tag'};
-    }
-    await runMutation(() => sb.from('weigh_ins').update(updates).eq('id', e.id), {
-      activity: () => {
-        const changes = buildChanges(e, updates, {
-          exclude: [
-            'id',
-            'session_id',
-            'entered_at',
-            'reconcile_intent',
-            'send_to_processor',
-            'target_processing_batch_id',
-            'prior_herd_or_flock',
-            'sent_to_trip_id',
-            'sent_to_group_id',
-            'transferred_to_breeding',
-            'transfer_breeder_id',
-            'feed_allocation_lbs',
-          ],
-          labels,
-        });
-        if (changes.length === 0) return;
-        return recordFieldChange(sb, {
-          entityType: 'weighin.session',
-          entityId: session.id,
-          entityLabel: sessionLabel(),
-          changes,
-        });
-      },
-    });
-    invalidateCache();
-    await loadAll();
   }
 
   async function deleteEntry(e) {
@@ -1792,7 +1970,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 }}
               >
                 {sEntries.map((e) => {
-                  const ef = entryEdits[e.id] || {tag: e.tag || '', weight: String(e.weight ?? ''), note: e.note || ''};
+                  const ef = entryEdits[e.id] || entryDraft(e);
                   if (isPig) {
                     const isSent = !!e.sent_to_trip_id;
                     const isTransferred = !!(
@@ -1802,6 +1980,13 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                     const pigEntryAdg = pigEntryAdgById[e.id];
                     const hasPigNote = String(ef.note || '').trim().length > 0;
                     const showPigNoteInput = hasPigNote || openPigNoteEntryIds.has(e.id);
+                    const autosaveState = entryAutosave[e.id];
+                    const autosaveTone =
+                      autosaveState && autosaveState.status === 'error'
+                        ? {color: '#b91c1c', background: '#fef2f2', border: '#fecaca'}
+                        : autosaveState && autosaveState.status === 'saved'
+                          ? {color: '#065f46', background: '#ecfdf5', border: '#a7f3d0'}
+                          : {color: '#6b7280', background: '#f9fafb', border: '#e5e7eb'};
                     return (
                       <div
                         key={e.id}
@@ -1838,7 +2023,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 step="0.1"
                                 placeholder="lb"
                                 value={ef.weight}
-                                onChange={(ev) => setEntryField(e.id, 'weight', ev.target.value)}
+                                onChange={(ev) => setPigEntryField(e, 'weight', ev.target.value)}
+                                onBlur={() => flushPigEntryAutosave(e.id)}
                                 style={{...inp, flex: '0 0 80px', minWidth: 0}}
                               />
                               {showPigNoteInput ? (
@@ -1846,7 +2032,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                   type="text"
                                   placeholder="Note"
                                   value={ef.note}
-                                  onChange={(ev) => setEntryField(e.id, 'note', ev.target.value)}
+                                  onChange={(ev) => setPigEntryField(e, 'note', ev.target.value)}
+                                  onBlur={() => flushPigEntryAutosave(e.id)}
                                   style={{...inp, flex: '1 1 120px', minWidth: 100}}
                                 />
                               ) : (
@@ -1934,6 +2121,35 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                               {'Prev ' + Math.round(pigEntryAdg.priorWeightLbs) + ' lb · ' + fmt(pigEntryAdg.priorDate)}
                             </span>
                             <span
+                              data-entry-days={e.id}
+                              data-pig-entry-days={e.id}
+                              title={'Days since last weigh-in'}
+                              style={{
+                                color: '#374151',
+                                background: '#f9fafb',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                            >
+                              {'Days ' + pigEntryAdg.daysBetween}
+                            </span>
+                            <span
+                              data-entry-delta={e.id}
+                              data-pig-entry-delta={e.id}
+                              title={'Weight change since prior weigh-in'}
+                              style={{
+                                fontWeight: 700,
+                                color: pigEntryAdg.weightDeltaLbs >= 0 ? '#065f46' : '#b91c1c',
+                                background: pigEntryAdg.weightDeltaLbs >= 0 ? '#ecfdf5' : '#fef2f2',
+                                border: '1px solid ' + (pigEntryAdg.weightDeltaLbs >= 0 ? '#a7f3d0' : '#fecaca'),
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                            >
+                              {'+/- ' + formatSignedLbs(pigEntryAdg.weightDeltaLbs)}
+                            </span>
+                            <span
                               title={
                                 'rank ' +
                                 pigEntryAdg.rank +
@@ -1994,6 +2210,22 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                               Undo transfer
                             </button>
                           )}
+                          {autosaveState && !isLocked && (
+                            <span
+                              data-entry-autosave={e.id}
+                              data-pig-entry-autosave={e.id}
+                              style={{
+                                fontSize: 10,
+                                color: autosaveTone.color,
+                                background: autosaveTone.background,
+                                border: '1px solid ' + autosaveTone.border,
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                            >
+                              {autosaveState.message}
+                            </span>
+                          )}
                           {!isLocked && (
                             <>
                               <button
@@ -2009,37 +2241,6 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 }}
                               >
                                 → Breeding
-                              </button>
-                              <button
-                                onClick={() => revertEntry(e)}
-                                style={{
-                                  fontSize: 10,
-                                  color: '#6b7280',
-                                  background: 'none',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  padding: '2px 6px',
-                                  fontFamily: 'inherit',
-                                }}
-                              >
-                                Revert
-                              </button>
-                              <button
-                                onClick={() => saveEntry(e)}
-                                disabled={!(parseFloat(ef.weight) > 0)}
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: 600,
-                                  color: 'white',
-                                  background: parseFloat(ef.weight) > 0 ? '#1e40af' : '#d1d5db',
-                                  border: 'none',
-                                  borderRadius: 4,
-                                  cursor: parseFloat(ef.weight) > 0 ? 'pointer' : 'not-allowed',
-                                  padding: '3px 8px',
-                                  fontFamily: 'inherit',
-                                }}
-                              >
-                                Save
                               </button>
                               <button
                                 onClick={() => deleteEntry(e)}
@@ -2064,6 +2265,18 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   const cow = animals.find((c) => c.tag === e.tag);
                   const prior = priors[e.tag];
                   const adg = prior ? adgLbPerDay(prior.weight, prior.date, e.weight, curDate) : null;
+                  const priorDays = prior ? daysBetweenDates(prior.date, curDate) : null;
+                  const weightDelta =
+                    prior && Number.isFinite(parseFloat(e.weight)) && Number.isFinite(parseFloat(prior.weight))
+                      ? parseFloat(e.weight) - parseFloat(prior.weight)
+                      : null;
+                  const autosaveState = entryAutosave[e.id];
+                  const autosaveTone =
+                    autosaveState && autosaveState.status === 'error'
+                      ? {color: '#b91c1c', background: '#fef2f2', border: '#fecaca'}
+                      : autosaveState && autosaveState.status === 'saved'
+                        ? {color: '#065f46', background: '#ecfdf5', border: '#a7f3d0'}
+                        : {color: '#6b7280', background: '#f9fafb', border: '#e5e7eb'};
                   return (
                     <div
                       key={e.id}
@@ -2083,7 +2296,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             type="text"
                             placeholder="Tag #"
                             value={ef.tag}
-                            onChange={(ev) => setEntryField(e.id, 'tag', ev.target.value)}
+                            onChange={(ev) => setEntryField(e, 'tag', ev.target.value)}
+                            onBlur={() => flushEntryAutosave(e.id)}
                             style={{...inp, flex: '0 0 80px', minWidth: 0}}
                           />
                           <input
@@ -2092,21 +2306,67 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             step="0.1"
                             placeholder="lb"
                             value={ef.weight}
-                            onChange={(ev) => setEntryField(e.id, 'weight', ev.target.value)}
+                            onChange={(ev) => setEntryField(e, 'weight', ev.target.value)}
+                            onBlur={() => flushEntryAutosave(e.id)}
                             style={{...inp, flex: '0 0 70px', minWidth: 0}}
                           />
                           <input
                             type="text"
                             placeholder="Note"
                             value={ef.note}
-                            onChange={(ev) => setEntryField(e.id, 'note', ev.target.value)}
+                            onChange={(ev) => setEntryField(e, 'note', ev.target.value)}
+                            onBlur={() => flushEntryAutosave(e.id)}
                             style={{...inp, flex: 1, minWidth: 60}}
                           />
                         </div>
                         <div style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
                           {prior && (
-                            <span style={{fontSize: 10, color: '#6b7280'}} title={'prior ' + prior.date}>
-                              {'prior ' + Math.round(prior.weight) + ' lb'}
+                            <span
+                              data-entry-prior={e.id}
+                              style={{
+                                fontSize: 10,
+                                color: '#374151',
+                                background: '#f9fafb',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                              title={'Prior weigh-in on ' + fmt(prior.date)}
+                            >
+                              {'Prev ' + Math.round(prior.weight) + ' lb Â· ' + fmt(prior.date)}
+                            </span>
+                          )}
+                          {priorDays != null && (
+                            <span
+                              data-entry-days={e.id}
+                              title={'Days since last weigh-in'}
+                              style={{
+                                fontSize: 10,
+                                color: '#374151',
+                                background: '#f9fafb',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                            >
+                              {'Days ' + priorDays}
+                            </span>
+                          )}
+                          {weightDelta != null && (
+                            <span
+                              data-entry-delta={e.id}
+                              title={'Weight change since prior weigh-in'}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: weightDelta >= 0 ? '#ecfdf5' : '#fef2f2',
+                                color: weightDelta >= 0 ? '#065f46' : '#b91c1c',
+                                border: '1px solid ' + (weightDelta >= 0 ? '#a7f3d0' : '#fecaca'),
+                              }}
+                            >
+                              {'+/- ' + formatSignedLbs(weightDelta)}
                             </span>
                           )}
                           {adg != null && (
@@ -2217,37 +2477,21 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 ✓ Processor
                               </span>
                             )}
-                          <button
-                            onClick={() => revertEntry(e)}
-                            style={{
-                              fontSize: 10,
-                              color: '#6b7280',
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px 6px',
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Revert
-                          </button>
-                          <button
-                            onClick={() => saveEntry(e)}
-                            disabled={!(parseFloat(ef.weight) > 0)}
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              color: 'white',
-                              background: parseFloat(ef.weight) > 0 ? '#1e40af' : '#d1d5db',
-                              border: 'none',
-                              borderRadius: 4,
-                              cursor: parseFloat(ef.weight) > 0 ? 'pointer' : 'not-allowed',
-                              padding: '3px 8px',
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Save
-                          </button>
+                          {autosaveState && (
+                            <span
+                              data-entry-autosave={e.id}
+                              style={{
+                                fontSize: 10,
+                                color: autosaveTone.color,
+                                background: autosaveTone.background,
+                                border: '1px solid ' + autosaveTone.border,
+                                borderRadius: 4,
+                                padding: '1px 6px',
+                              }}
+                            >
+                              {autosaveState.message}
+                            </span>
+                          )}
                           <button
                             onClick={() => deleteEntry(e)}
                             style={{

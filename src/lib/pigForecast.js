@@ -183,6 +183,7 @@ export function computeRankMatchedPigEntryADG(currentEntries, priorEntries, curr
       daysBetween: days,
       currentWeightLbs: cur.weight,
       priorWeightLbs: prev.weight,
+      weightDeltaLbs: cur.weight - prev.weight,
       adgLbsPerDay: (cur.weight - prev.weight) / days,
     });
   }
@@ -799,8 +800,7 @@ export function recalculateProjections(
   const adgValid = isFinite(adg);
   const ref = typeof referenceDate === 'string' && referenceDate ? referenceDate : todayISOSafe();
   const distribution =
-    normalizeAgeDistribution(ageDistributionAtRef) ||
-    buildFarrowingAgeDistribution({asOfDate: ref, cycleAgeDaysAtRef});
+    normalizeAgeDistribution(ageDistributionAtRef) || buildFarrowingAgeDistribution({asOfDate: ref, cycleAgeDaysAtRef});
   const shipped = Math.max(0, parseFloat(alreadyShippedCount) || 0);
   const totalPlanned = sorted.reduce((sum, t) => sum + (parseInt(t && t.plannedCount) || 0), 0);
   const pop = parseFloat(populationCount);

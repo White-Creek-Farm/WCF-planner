@@ -15,9 +15,12 @@ import {waitForWeighInListLoaded, waitForWeighInSessionLoaded} from './helpers/w
 // farm-data load against per-assertion timeouts.
 // ============================================================================
 
-async function seedSession(supabaseAdmin, {id, species, herd, batchId, status = 'draft', broilerWeek, teamMember}) {
-  const today = new Date().toISOString().slice(0, 10);
-  const startedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+async function seedSession(
+  supabaseAdmin,
+  {id, species, herd, batchId, status = 'draft', broilerWeek, teamMember, date},
+) {
+  const today = date || new Date().toISOString().slice(0, 10);
+  const startedAt = date ? `${date}T08:00:00.000Z` : new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const row = {
     id,
     species,
@@ -154,13 +157,26 @@ test('broiler list tile navigates to /weigh-in-sessions/<id>', async ({page, sup
 });
 
 // ============================================================================
-// Save/reload persistence
+// Autosave/reload persistence
 // ============================================================================
 
-test('cattle: edit weight + note, save, reload, persist', async ({page, supabaseAdmin, resetDb}) => {
+test('cattle: edit weight + note, autosave, reload, persist', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
   await seedRoster(supabaseAdmin);
-  const sess = await seedSession(supabaseAdmin, {id: 'save-cattle-1', species: 'cattle', herd: 'finishers'});
+  const priorSess = await seedSession(supabaseAdmin, {
+    id: 'save-cattle-prior-1',
+    species: 'cattle',
+    herd: 'finishers',
+    status: 'complete',
+    date: '2026-05-06',
+  });
+  const sess = await seedSession(supabaseAdmin, {
+    id: 'save-cattle-1',
+    species: 'cattle',
+    herd: 'finishers',
+    date: '2026-06-02',
+  });
+  await seedEntry(supabaseAdmin, {id: 'save-cattle-prior-e1', sessionId: priorSess.id, tag: '100', weight: 480});
   await seedEntry(supabaseAdmin, {id: 'save-cattle-e1', sessionId: sess.id, tag: '100', weight: 500, note: 'orig'});
   await supabaseAdmin.from('cattle').upsert(
     {
@@ -181,13 +197,17 @@ test('cattle: edit weight + note, save, reload, persist', async ({page, supabase
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
   const entry = page.locator('[data-entry-tag="100"]');
+  await expect(entry.getByRole('button', {name: 'Save'})).toHaveCount(0);
+  await expect(entry.getByText('Revert', {exact: true})).toHaveCount(0);
+  await expect(page.locator('[data-entry-days="save-cattle-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-entry-delta="save-cattle-e1"]')).toContainText('+/- +20 lb');
+
   const weightInput = entry.locator('input[type="number"]');
   const noteInput = entry.locator('input[placeholder="Note"]');
   await weightInput.fill('555');
   await noteInput.fill('updated');
-  await entry.getByRole('button', {name: 'Save'}).click();
+  await noteInput.blur();
 
-  // Wait for save to complete (entry reloads)
   await expect
     .poll(
       async () => {
@@ -197,20 +217,37 @@ test('cattle: edit weight + note, save, reload, persist', async ({page, supabase
       {timeout: 10_000},
     )
     .toEqual({weight: 555, note: 'updated'});
+  await expect(page.locator('[data-entry-autosave="save-cattle-e1"]')).toContainText('Saved');
+  await expect(page.locator('[data-entry-days="save-cattle-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-entry-delta="save-cattle-e1"]')).toContainText('+/- +75 lb');
 
-  // Reload page and verify persistence
   await page.reload();
   await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
   const reEntry = page.locator('[data-entry-tag="100"]');
   await expect(reEntry.locator('input[type="number"]')).toHaveValue('555');
   await expect(reEntry.locator('input[placeholder="Note"]')).toHaveValue('updated');
+  await expect(page.locator('[data-entry-days="save-cattle-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-entry-delta="save-cattle-e1"]')).toContainText('+/- +75 lb');
 });
 
-test('sheep: edit weight + note, save, reload, persist', async ({page, supabaseAdmin, resetDb}) => {
+test('sheep: edit weight + note, autosave, reload, persist', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
   await seedRoster(supabaseAdmin);
-  const sess = await seedSession(supabaseAdmin, {id: 'save-sheep-1', species: 'sheep', herd: 'feeders'});
+  const priorSess = await seedSession(supabaseAdmin, {
+    id: 'save-sheep-prior-1',
+    species: 'sheep',
+    herd: 'feeders',
+    status: 'complete',
+    date: '2026-05-06',
+  });
+  const sess = await seedSession(supabaseAdmin, {
+    id: 'save-sheep-1',
+    species: 'sheep',
+    herd: 'feeders',
+    date: '2026-06-02',
+  });
+  await seedEntry(supabaseAdmin, {id: 'save-sheep-prior-e1', sessionId: priorSess.id, tag: '200', weight: 75});
   await seedEntry(supabaseAdmin, {id: 'save-sheep-e1', sessionId: sess.id, tag: '200', weight: 80, note: 'orig'});
   await supabaseAdmin
     .from('sheep')
@@ -224,11 +261,16 @@ test('sheep: edit weight + note, save, reload, persist', async ({page, supabaseA
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
   const entry = page.locator('[data-entry-tag="200"]');
+  await expect(entry.getByRole('button', {name: 'Save'})).toHaveCount(0);
+  await expect(entry.getByText('Revert', {exact: true})).toHaveCount(0);
+  await expect(page.locator('[data-entry-days="save-sheep-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-entry-delta="save-sheep-e1"]')).toContainText('+/- +5 lb');
+
   const weightInput = entry.locator('input[type="number"]');
   const noteInput = entry.locator('input[placeholder="Note"]');
   await weightInput.fill('85');
   await noteInput.fill('updated');
-  await entry.getByRole('button', {name: 'Save'}).click();
+  await noteInput.blur();
 
   await expect
     .poll(
@@ -239,6 +281,9 @@ test('sheep: edit weight + note, save, reload, persist', async ({page, supabaseA
       {timeout: 10_000},
     )
     .toEqual({weight: 85, note: 'updated'});
+  await expect(page.locator('[data-entry-autosave="save-sheep-e1"]')).toContainText('Saved');
+  await expect(page.locator('[data-entry-days="save-sheep-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-entry-delta="save-sheep-e1"]')).toContainText('+/- +10 lb');
 
   await page.reload();
   await waitForWeighInSessionLoaded(page);
@@ -246,13 +291,27 @@ test('sheep: edit weight + note, save, reload, persist', async ({page, supabaseA
   const reEntry = page.locator('[data-entry-tag="200"]');
   await expect(reEntry.locator('input[type="number"]')).toHaveValue('85');
   await expect(reEntry.locator('input[placeholder="Note"]')).toHaveValue('updated');
+  await expect(page.locator('[data-entry-days="save-sheep-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-entry-delta="save-sheep-e1"]')).toContainText('+/- +10 lb');
 });
 
-test('pig: edit weight + note, save, reload, persist', async ({page, supabaseAdmin, resetDb}) => {
+test('pig: edit weight + note, autosave, reload, persist', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
   await seedRoster(supabaseAdmin);
   await supabaseAdmin.from('webform_config').upsert({key: 'active_groups', data: ['P-TEST-01']}, {onConflict: 'key'});
-  const sess = await seedSession(supabaseAdmin, {id: 'save-pig-1', species: 'pig', batchId: 'P-TEST-01'});
+  const priorSess = await seedSession(supabaseAdmin, {
+    id: 'save-pig-prior-1',
+    species: 'pig',
+    batchId: 'P-TEST-01',
+    date: '2026-05-06',
+  });
+  const sess = await seedSession(supabaseAdmin, {
+    id: 'save-pig-1',
+    species: 'pig',
+    batchId: 'P-TEST-01',
+    date: '2026-06-02',
+  });
+  await seedEntry(supabaseAdmin, {id: 'save-pig-prior-e1', sessionId: priorSess.id, weight: 240});
   await seedEntry(supabaseAdmin, {id: 'save-pig-e1', sessionId: sess.id, weight: 250, note: 'orig'});
 
   await page.goto('/weigh-in-sessions/' + sess.id);
@@ -260,11 +319,17 @@ test('pig: edit weight + note, save, reload, persist', async ({page, supabaseAdm
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
 
   // Pig entries don't have tags, find by the entries section
-  const weightInput = page.locator('[data-weighin-entries="1"] input[type="number"]').first();
-  const noteInput = page.locator('[data-weighin-entries="1"] input[placeholder="Note"]').first();
+  const entriesSection = page.locator('[data-weighin-entries="1"]');
+  await expect(entriesSection.getByRole('button', {name: 'Save'})).toHaveCount(0);
+  await expect(entriesSection.getByText('Revert', {exact: true})).toHaveCount(0);
+  await expect(page.locator('[data-pig-entry-days="save-pig-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-pig-entry-delta="save-pig-e1"]')).toContainText('+/- +10 lb');
+
+  const weightInput = entriesSection.locator('input[type="number"]').first();
+  const noteInput = entriesSection.locator('input[placeholder="Note"]').first();
   await weightInput.fill('260');
   await noteInput.fill('updated');
-  await page.locator('[data-weighin-entries="1"]').getByRole('button', {name: 'Save'}).first().click();
+  await noteInput.blur();
 
   await expect
     .poll(
@@ -275,12 +340,17 @@ test('pig: edit weight + note, save, reload, persist', async ({page, supabaseAdm
       {timeout: 10_000},
     )
     .toEqual({weight: 260, note: 'updated'});
+  await expect(page.locator('[data-pig-entry-autosave="save-pig-e1"]')).toContainText('Saved');
+  await expect(page.locator('[data-pig-entry-days="save-pig-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-pig-entry-delta="save-pig-e1"]')).toContainText('+/- +20 lb');
 
   await page.reload();
   await waitForWeighInSessionLoaded(page);
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-weighin-entries="1"] input[type="number"]').first()).toHaveValue('260');
   await expect(page.locator('[data-weighin-entries="1"] input[placeholder="Note"]').first()).toHaveValue('updated');
+  await expect(page.locator('[data-pig-entry-days="save-pig-e1"]')).toContainText('Days 27');
+  await expect(page.locator('[data-pig-entry-delta="save-pig-e1"]')).toContainText('+/- +20 lb');
 });
 
 // ============================================================================

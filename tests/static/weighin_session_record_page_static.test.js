@@ -12,6 +12,18 @@ const listSrc = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleWeighInsView.j
 const sheepListSrc = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepWeighInsView.jsx'), 'utf8');
 const livestockSrc = fs.readFileSync(path.join(ROOT, 'src/livestock/LivestockWeighInsView.jsx'), 'utf8');
 const sheepCacheSrc = fs.readFileSync(path.join(ROOT, 'src/lib/sheepCache.js'), 'utf8');
+const pigEntryBranchStart = pageSrc.indexOf('if (isPig) {');
+const pigEntryBranchEnd = pageSrc.indexOf('const cow = animals.find', pigEntryBranchStart);
+const pigEntryBranch = pageSrc.slice(pigEntryBranchStart, pigEntryBranchEnd);
+const cattleSheepEntryBranchStart = pageSrc.indexOf('const cow = animals.find', pigEntryBranchEnd);
+const cattleSheepEntryBranchEnd = pageSrc.indexOf(
+  '<span style={{fontSize: 11, fontWeight: 600',
+  cattleSheepEntryBranchStart,
+);
+const cattleSheepEntryBranch = pageSrc.slice(cattleSheepEntryBranchStart, cattleSheepEntryBranchEnd);
+const entryAutosaveStart = pageSrc.indexOf('async function saveEntryDraft');
+const entryAutosaveEnd = pageSrc.indexOf('function isEntryLocked', entryAutosaveStart);
+const entryAutosaveFunction = pageSrc.slice(entryAutosaveStart, entryAutosaveEnd);
 
 describe('main.jsx — /weigh-in-sessions/<id> route', () => {
   it('detects isWeighInSessionSubpath', () => {
@@ -108,6 +120,15 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
     expect(pageSrc).toContain('pigEntryAdg.priorWeightLbs');
     expect(pageSrc).toContain('pigEntryAdg.priorDate');
   });
+  it('renders days-since and +/- weight delta chips beside pig entry ADG', () => {
+    expect(pageSrc).toContain('data-entry-days');
+    expect(pageSrc).toContain('data-entry-delta');
+    expect(pageSrc).toContain('data-pig-entry-days');
+    expect(pageSrc).toContain('data-pig-entry-delta');
+    expect(pageSrc).toContain('pigEntryAdg.daysBetween');
+    expect(pageSrc).toContain('pigEntryAdg.weightDeltaLbs');
+    expect(pageSrc).toContain("'+/- ' + formatSignedLbs");
+  });
   it('hides blank pig note inputs behind a compact reveal button', () => {
     expect(pageSrc).toContain('openPigNoteEntryIds');
     expect(pageSrc).toContain('showPigNoteInput');
@@ -124,12 +145,22 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
   it('locks sent/transferred pig entries as read-only', () => {
     expect(pageSrc).toContain('isLocked');
   });
-  it('pig saveEntry writes only weight and note, not tag or new_tag_flag', () => {
-    expect(pageSrc).toMatch(/sp === 'pig'[\s\S]*?\{weight: newWeight, note:/);
+  it('pig entry edits autosave weight and note without tag or new_tag_flag writes', () => {
+    expect(pageSrc).toContain('setPigEntryField');
+    expect(pageSrc).toContain('scheduleEntryAutosave');
+    expect(pageSrc).toContain('flushPigEntryAutosave');
+    expect(pageSrc).toContain('data-entry-autosave');
+    expect(pageSrc).toContain('data-pig-entry-autosave');
+    expect(pageSrc).toMatch(/sess\.species === 'pig'[\s\S]*?\{updates: \{weight: newWeight, note\}/);
+    expect(entryAutosaveFunction).toContain('buildEntryDraftSave');
   });
-  it('handler-level isEntryLocked guards saveEntry and deleteEntry', () => {
+  it('pig entry branch no longer renders per-row Save/Revert buttons', () => {
+    expect(pigEntryBranch).not.toMatch(/>\s*Revert\s*</);
+    expect(pigEntryBranch).not.toMatch(/>\s*Save\s*</);
+  });
+  it('handler-level isEntryLocked guards autosave and deleteEntry', () => {
     expect(pageSrc).toContain('function isEntryLocked');
-    expect(pageSrc).toMatch(/function saveEntry[\s\S]*?isEntryLocked\(e\)/);
+    expect(pageSrc).toMatch(/saveEntryDraft[\s\S]*?isEntryLocked\(entry\)/);
     expect(pageSrc).toMatch(/function deleteEntry[\s\S]*?isEntryLocked\(e\)/);
   });
   it('isEntryLocked checks sent_to_trip_id, transferred_to_breeding, and note marker', () => {
@@ -254,10 +285,27 @@ describe('WeighInSessionPage — cattle entry operations', () => {
     expect(pageSrc).toContain('addForm');
     expect(pageSrc).toContain('Add entry');
   });
-  it('has per-row direct entry editing with Save/Revert', () => {
+  it('has per-row direct entry editing with debounce autosave', () => {
     expect(pageSrc).toContain('entryEdits');
-    expect(pageSrc).toContain('saveEntry');
-    expect(pageSrc).toContain('revertEntry');
+    expect(pageSrc).toContain('setEntryField');
+    expect(pageSrc).toContain('scheduleEntryAutosave');
+    expect(pageSrc).toContain('flushEntryAutosave');
+    expect(pageSrc).toContain('data-entry-autosave');
+  });
+  it('cattle/sheep entry branch no longer renders per-row Save/Revert buttons', () => {
+    expect(cattleSheepEntryBranch).not.toMatch(/>\s*Revert\s*</);
+    expect(cattleSheepEntryBranch).not.toMatch(/>\s*Save\s*</);
+  });
+  it('cattle/sheep entries autosave tag, weight, note, and new_tag_flag', () => {
+    expect(pageSrc).toContain('buildEntryDraftSave');
+    expect(pageSrc).toContain('new_tag_flag: newTagFlag');
+    expect(pageSrc).toContain("labels: {tag: 'Tag', weight: 'Weight', note: 'Note', new_tag_flag: 'New tag'}");
+  });
+  it('renders days-since and +/- weight delta chips for cattle/sheep prior weigh-ins', () => {
+    expect(cattleSheepEntryBranch).toContain('data-entry-days');
+    expect(cattleSheepEntryBranch).toContain('data-entry-delta');
+    expect(cattleSheepEntryBranch).toContain('daysBetweenDates');
+    expect(cattleSheepEntryBranch).toContain("'+/- ' + formatSignedLbs");
   });
   it('has delete-entry', () => {
     expect(pageSrc).toContain('deleteEntry');
