@@ -71,6 +71,7 @@ test('near-due service does NOT render an Equipment Attention row (negative lock
   const seed = await homeDashboardEquipmentScenario({kind: 'upcoming'});
   await gotoHomeAndWaitLoaded(page);
   await expect(page.locator(`[data-equipment-slug="${seed.slug}"]`)).toHaveCount(0);
+  await expect(page.locator('[data-home-equipment-maintenance-caught-up="1"]')).toBeVisible();
 });
 
 // --------------------------------------------------------------------------
@@ -89,6 +90,7 @@ test('old fueling date does NOT render an Equipment Attention row (negative lock
   const seed = await homeDashboardEquipmentScenario({kind: 'missed_fueling'});
   await gotoHomeAndWaitLoaded(page);
   await expect(page.locator(`[data-equipment-slug="${seed.slug}"]`)).toHaveCount(0);
+  await expect(page.locator('[data-home-equipment-maintenance-caught-up="1"]')).toBeVisible();
 });
 
 // --------------------------------------------------------------------------

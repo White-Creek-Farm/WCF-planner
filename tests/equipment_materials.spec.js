@@ -151,6 +151,7 @@ test('home card: material due outside the 100h window does not appear', async ({
   await waitForHomeBoot(page);
   // The MatFar equipment block must not render — its materials are out of window.
   await expect(page.locator(`[data-home-material-equipment="${eq.slug}"]`)).toHaveCount(0);
+  await expect(page.locator('[data-home-materials-caught-up="1"]')).toBeVisible();
 });
 
 // Test 3 — hijet km-tracked piece with material due within 5000km appears.

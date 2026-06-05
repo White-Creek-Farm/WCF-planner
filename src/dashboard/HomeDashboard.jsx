@@ -568,6 +568,11 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
       clears: materialClears,
     });
   }, [equipment, materialsFuelingsBy, materials, materialClears, materialsTablesMissing]);
+  const hasActiveEquipment = equipment.some((eq) => eq && eq.status === 'active');
+  const activeMaterialsCount = (Array.isArray(materials) ? materials : []).filter((m) => m && m.active).length;
+  const showEquipmentMaintenanceCaughtUp = hasActiveEquipment && equipmentAttention.length === 0;
+  const showEquipmentMaterialsCaughtUp =
+    !materialsTablesMissing && hasActiveEquipment && activeMaterialsCount > 0 && materialsChecklist.length === 0;
   async function clearMaterialOne(material, group) {
     const id = `emc-h-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const row = {
@@ -1058,6 +1063,24 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           </div>
         )}
 
+        {showEquipmentMaintenanceCaughtUp && (
+          <div
+            data-home-equipment-maintenance-caught-up="1"
+            style={{
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              borderRadius: 10,
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <PlannerIcon iconKey="checkmark" size={16} />
+            <div style={{fontSize: 12, color: '#065f46', fontWeight: 500}}>Equipment maintenance is caught up</div>
+          </div>
+        )}
+
         {/* ── Materials Needed (mig 048) ── compact rolling-checklist for
               every logged-in role (not admin-gated). Cleared rows vanish
               from the active list (Codex lane amendment 2). One-material-
@@ -1176,6 +1199,24 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {showEquipmentMaterialsCaughtUp && (
+          <div
+            data-home-materials-caught-up="1"
+            style={{
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              borderRadius: 10,
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <PlannerIcon iconKey="checkmark" size={16} />
+            <div style={{fontSize: 12, color: '#065f46', fontWeight: 500}}>Equipment materials are caught up</div>
           </div>
         )}
 

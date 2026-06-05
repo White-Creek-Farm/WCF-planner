@@ -660,6 +660,15 @@ describe('HomeDashboard Materials Needed card (lane amendment)', () => {
     expect(dashboardSrc).toMatch(/data-home-materials-card="1"/);
   });
 
+  it('renders caught-up notices when maintenance and material queues are empty', () => {
+    expect(dashboardSrc).toMatch(/showEquipmentMaintenanceCaughtUp/);
+    expect(dashboardSrc).toMatch(/data-home-equipment-maintenance-caught-up="1"/);
+    expect(dashboardSrc).toMatch(/showEquipmentMaterialsCaughtUp/);
+    expect(dashboardSrc).toMatch(/data-home-materials-caught-up="1"/);
+    expect(dashboardSrc).toMatch(/activeMaterialsCount\s*>\s*0/);
+    expect(dashboardSrc).toMatch(/!materialsTablesMissing/);
+  });
+
   it('exposes a per-row Clear button hook (one-material-at-a-time)', () => {
     expect(dashboardSrc).toMatch(/data-home-material-clear=\{m\.id\}/);
   });
