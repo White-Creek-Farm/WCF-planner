@@ -8,8 +8,9 @@ import {describe, it, expect} from 'vitest';
 // order through route state (recordSeqNavOptions) and renders the shared
 // RecordSequenceNav on the record page, carrying the sequence forward.
 //
-// broiler.batch is intentionally EXCLUDED — BatchForm already ships embedded
-// prev/next controls; see the deferral lock at the bottom.
+// broiler.batch is now INCLUDED — its former BatchForm custom side-nav was
+// retired in favor of the shared RecordSequenceNav; see the broiler.batch
+// describe at the bottom.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -138,15 +139,46 @@ describe('CP3 sequence nav — equipment.item', () => {
   });
 });
 
-describe('CP3 — broiler.batch deferred (existing BatchForm prev/next)', () => {
-  it('BroilerBatchPage does NOT add a duplicate RecordSequenceNav', () => {
-    const src = read('src/broiler/BroilerBatchPage.jsx');
-    expect(src).not.toContain('RecordSequenceNav');
+// broiler.batch now follows the shared contract (the BatchForm custom side-nav
+// exception was retired). Its route resolves a sequence id to the current batch
+// name before navigating, so it has a bespoke (non-template) nav assertion.
+describe('CP3 sequence nav — broiler.batch (now shared)', () => {
+  const listSrc = read('src/broiler/BroilerListView.jsx');
+  const pageSrc = read('src/broiler/BroilerBatchPage.jsx');
+  const formSrc = read('src/broiler/BatchForm.jsx');
+
+  it('list imports helpers + passes a batch-name sequence through route state', () => {
+    expect(listSrc).toContain(HELPER_IMPORT);
+    expect(listSrc).toContain('recordSeqNavOptions(');
+    expect(listSrc).toContain("labeledSeqItems(seqRows, 'name')");
   });
-  it('BatchForm retains its embedded prev/next props + side-nav hook', () => {
-    const src = read('src/broiler/BatchForm.jsx');
-    expect(src).toContain('onNavigatePrev');
-    expect(src).toContain('onNavigateNext');
-    expect(src).toContain('data-batchform-side-nav');
+  it('record page reads the sequence and renders the shared RecordSequenceNav', () => {
+    expect(pageSrc).toContain('location.state?.recordSeq');
+    expect(pageSrc).toContain(NAV_IMPORT);
+    expect(pageSrc).toContain('<RecordSequenceNav');
+  });
+  it('record page carries the sequence forward (id resolved to current name)', () => {
+    expect(pageSrc).toContain(
+      "navigate('/broiler/batches/' + encodeURIComponent(target.name), recordSeqNavOptions(recordSeq))",
+    );
+  });
+  it('BatchForm no longer ships a custom side-nav exception', () => {
+    expect(formSrc).not.toContain('data-batchform-side-nav');
+    expect(formSrc).not.toContain('onNavigatePrev');
+    expect(formSrc).not.toContain('onNavigateNext');
+  });
+});
+
+describe('RecordSequenceNav — fixed side controls', () => {
+  const navSrc = read('src/shared/RecordSequenceNav.jsx');
+  it('owns fixed-position side navigation styling with the stable hooks', () => {
+    expect(navSrc).toContain("position: 'fixed'");
+    expect(navSrc).toContain('data-record-seq-nav');
+    expect(navSrc).toContain('data-record-seq-prev');
+    expect(navSrc).toContain('data-record-seq-next');
+    expect(navSrc).toContain('data-record-seq-position');
+  });
+  it('renders nothing without a valid sequence', () => {
+    expect(navSrc).toContain('if (index === -1) return null');
   });
 });

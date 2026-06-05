@@ -115,16 +115,18 @@ describe('BroilerBatchPage — direct URL open does not depend on showForm', () 
   it('mounts BatchForm directly (not via the top-level showForm branch)', () => {
     expect(pageSrc).toMatch(/<BatchForm\b[\s\S]*?embedded/);
   });
-  it('passes onClose, onNavigatePrev, onNavigateNext to BatchForm for URL-driven navigation', () => {
+  it('passes onClose to BatchForm and renders the shared RecordSequenceNav (no BatchForm prev/next)', () => {
     expect(pageSrc).toContain('onClose={handleClose}');
-    expect(pageSrc).toContain('onNavigatePrev={navigateToBatch}');
-    expect(pageSrc).toContain('onNavigateNext={navigateToBatch}');
+    expect(pageSrc).not.toContain('onNavigatePrev=');
+    expect(pageSrc).not.toContain('onNavigateNext=');
+    expect(pageSrc).toContain('<RecordSequenceNav');
+    expect(pageSrc).toContain('onNavigate={navigateToBatchId}');
   });
   it('handleClose navigates to /broiler/batches', () => {
     expect(pageSrc).toMatch(/handleClose[\s\S]*?navigate\('\/broiler\/batches'\)/);
   });
-  it('navigateToBatch navigates to /broiler/batches/<encoded name>', () => {
-    expect(pageSrc).toMatch(/navigateToBatch[\s\S]*?navigate\('\/broiler\/batches\/' \+ encodeURIComponent/);
+  it('navigateToBatchId resolves the seq id to a name and navigates to /broiler/batches/<encoded name>', () => {
+    expect(pageSrc).toMatch(/navigateToBatchId[\s\S]*?navigate\('\/broiler\/batches\/' \+ encodeURIComponent/);
   });
   it('does not log record.deleted Activity for hard delete', () => {
     expect(pageSrc).not.toContain("eventType: 'record.deleted'");
@@ -292,10 +294,14 @@ describe('BatchForm — sticky X uses onClose override', () => {
 });
 
 describe('BatchForm — embedded mode + record-page overrides', () => {
-  it('accepts optional onClose, onNavigatePrev, onNavigateNext props', () => {
+  it('accepts an optional onClose prop (record-page close override)', () => {
     expect(formSrc).toContain('onClose,');
-    expect(formSrc).toContain('onNavigatePrev,');
-    expect(formSrc).toContain('onNavigateNext,');
+  });
+  it('no longer ships its own prev/next side navigation', () => {
+    // Prev/Next is owned by the shared RecordSequenceNav on the record page.
+    expect(formSrc).not.toContain('onNavigatePrev');
+    expect(formSrc).not.toContain('onNavigateNext');
+    expect(formSrc).not.toContain('data-batchform-side-nav');
   });
   it('accepts embedded prop that defaults to false', () => {
     expect(formSrc).toMatch(/embedded\s*=\s*false/);
@@ -305,10 +311,6 @@ describe('BatchForm — embedded mode + record-page overrides', () => {
   });
   it('drops the modal overlay background when embedded', () => {
     expect(formSrc).toContain("embedded ? 'transparent' : 'rgba(0,0,0,.45)'");
-  });
-  it('prev/next side buttons use onNavigatePrev/onNavigateNext when provided', () => {
-    expect(formSrc).toMatch(/handlePrev[\s\S]*?onNavigatePrev/);
-    expect(formSrc).toMatch(/handleNext[\s\S]*?onNavigateNext/);
   });
   it('Close button calls onClose when provided, else closeForm', () => {
     expect(formSrc).toMatch(/typeof onClose === 'function'[\s\S]*?onClose\(\)[\s\S]*?closeForm\(\)/);
@@ -324,7 +326,9 @@ describe('BroilerListView — navigation-only hub + router', () => {
   it('hub click handlers navigate to /broiler/batches/<encoded name>', () => {
     expect(listSrc).toContain('broilerBatchHref');
     expect(listSrc).toContain("'/broiler/batches/' + encodeURIComponent(");
-    expect(listSrc).toContain('openBatch(b)');
+    // openBatch now threads the section's visible order for prev/next.
+    expect(listSrc).toContain('openBatch(b, activeRows)');
+    expect(listSrc).toContain('recordSeqNavOptions(labeledSeqItems(seqRows');
   });
   it('no longer imports or renders ActivityPanel or ActivityModal', () => {
     expect(listSrc).not.toContain('ActivityPanel');

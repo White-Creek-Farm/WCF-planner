@@ -18,6 +18,9 @@ import {sb} from '../lib/supabase.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
+import {recordSeqNavOptions} from '../lib/recordSequence.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
 import BatchForm from './BatchForm.jsx';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
@@ -146,9 +149,14 @@ export default function BroilerBatchPage({
     navigate('/broiler/batches');
   }
 
-  function navigateToBatch(targetBatch) {
-    if (!targetBatch || !targetBatch.name) return;
-    navigate('/broiler/batches/' + encodeURIComponent(targetBatch.name));
+  // Prev/Next now flows through the shared RecordSequenceNav. The visible-order
+  // sequence (batch ids + names) is carried in route state; resolve the target
+  // id to its current name before routing, and carry the sequence forward.
+  const recordSeq = location.state?.recordSeq;
+  function navigateToBatchId(id) {
+    const target = (batches || []).find((b) => b.id === id);
+    if (!target || !target.name) return;
+    navigate('/broiler/batches/' + encodeURIComponent(target.name), recordSeqNavOptions(recordSeq));
   }
 
   if (!Array.isArray(batches) || (!dataLoaded && batches.length === 0)) {
@@ -176,6 +184,8 @@ export default function BroilerBatchPage({
     <RecordPageFrame Header={Header}>
       <RecordPageBody maxWidth={1100} data-broiler-batch-record-loaded="true">
         <RecordBackLink label="Back to Broiler Batches" onBack={handleClose} />
+
+        <RecordSequenceNav seq={recordSeq} currentId={batch.id} onNavigate={navigateToBatchId} />
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
           <RecordTitle fontSize={24} margin={0}>
@@ -211,8 +221,6 @@ export default function BroilerBatchPage({
             confirmDelete={confirmDelete}
             persist={persist}
             onClose={handleClose}
-            onNavigatePrev={navigateToBatch}
-            onNavigateNext={navigateToBatch}
             embedded
           />
         )}

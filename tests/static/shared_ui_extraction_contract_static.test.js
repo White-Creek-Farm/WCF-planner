@@ -45,6 +45,7 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/tasks/TaskInstancePage.jsx',
   ],
   RecordSequenceNav: [
+    'src/broiler/BroilerBatchPage.jsx',
     'src/broiler/PoultryDailyPage.jsx',
     'src/cattle/CattleAnimalPage.jsx',
     'src/cattle/CattleBatchPage.jsx',

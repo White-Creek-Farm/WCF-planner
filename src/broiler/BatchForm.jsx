@@ -49,13 +49,11 @@ export default function BatchForm({
   parseProcessorXlsx,
   confirmDelete,
   persist,
-  // Optional overrides for record-page mode. When provided, the prev/next
-  // side buttons and close handlers route through these instead of the
-  // closeForm+setTimeout(openEdit) dance — keeps the URL the source of
-  // truth on BroilerBatchPage.
+  // Optional close override for record-page mode. When provided, the close
+  // handlers route through this instead of the closeForm+setShowForm dance —
+  // keeps the URL the source of truth on BroilerBatchPage. Prev/Next is owned
+  // by the shared RecordSequenceNav on the record page, not BatchForm.
   onClose,
-  onNavigatePrev,
-  onNavigateNext,
   // When true, parent (BroilerBatchPage) already renders Header and supplies
   // its own page chrome; BatchForm skips its own Header render and drops the
   // semi-transparent modal-overlay background so the form sits flush in the
@@ -117,100 +115,6 @@ export default function BatchForm({
         }}
         className="no-print"
       >
-        {/* Floating prev/next side buttons — desktop only */}
-        {editId &&
-          (() => {
-            const sorted = [...batches].sort((a, b) =>
-              (a.name || '').localeCompare(b.name || '', undefined, {numeric: true}),
-            );
-            const idx = sorted.findIndex((b) => b.id === editId);
-            const prev = idx > 0 ? sorted[idx - 1] : null;
-            const next = idx < sorted.length - 1 ? sorted[idx + 1] : null;
-            const sideBtn = (on, label, onClick) => ({
-              'data-batchform-side-nav': '1',
-              style: {
-                position: 'fixed',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 600,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-                padding: '14px 8px',
-                borderRadius: 10,
-                border: '1px solid #d1d5db',
-                background: on ? 'white' : '#f3f4f6',
-                color: on ? '#085041' : '#d1d5db',
-                cursor: on ? 'pointer' : 'default',
-                boxShadow: on ? '0 2px 8px rgba(0,0,0,.12)' : 'none',
-                fontFamily: 'inherit',
-                transition: 'all .15s',
-              },
-              onClick: on ? onClick : undefined,
-            });
-            const handlePrev = () => {
-              if (typeof onNavigatePrev === 'function') {
-                onNavigatePrev(prev);
-                return;
-              }
-              closeForm();
-              setTimeout(() => openEdit(prev), 50);
-            };
-            const handleNext = () => {
-              if (typeof onNavigateNext === 'function') {
-                onNavigateNext(next);
-                return;
-              }
-              closeForm();
-              setTimeout(() => openEdit(next), 50);
-            };
-            return (
-              <>
-                <button
-                  {...sideBtn(!!prev, prev?.name, handlePrev)}
-                  style={{...sideBtn(!!prev).style, left: 'max(8px, calc(50% - 430px - 60px))'}}
-                >
-                  <span style={{fontSize: 20, lineHeight: 1}}>‹</span>
-                  {prev && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        maxWidth: 40,
-                        textAlign: 'center',
-                        wordBreak: 'break-all',
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {prev.name}
-                    </span>
-                  )}
-                </button>
-                <button
-                  {...sideBtn(!!next, next?.name, handleNext)}
-                  style={{...sideBtn(!!next).style, right: 'max(8px, calc(50% - 430px - 60px))'}}
-                >
-                  <span style={{fontSize: 20, lineHeight: 1}}>›</span>
-                  {next && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        maxWidth: 40,
-                        textAlign: 'center',
-                        wordBreak: 'break-all',
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {next.name}
-                    </span>
-                  )}
-                </button>
-              </>
-            );
-          })()}
-
         <div
           style={{
             background: 'white',

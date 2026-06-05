@@ -48,11 +48,12 @@ describe('CP5: BatchForm adopts shared record-page controls', () => {
     expect(src).toContain("display: 'none'");
   });
 
-  it('preserves embedded mode + record-page navigation overrides', () => {
+  it('preserves embedded mode + record-page close override (prev/next now on shared nav)', () => {
     expect(src).toContain("embedded ? 'transparent'");
-    expect(src).toContain('onNavigatePrev');
-    expect(src).toContain('onNavigateNext');
     expect(src).toContain('onClose');
+    // Prev/Next moved to the shared RecordSequenceNav on the record page.
+    expect(src).not.toContain('onNavigatePrev');
+    expect(src).not.toContain('onNavigateNext');
   });
 
   it('preserves the critical broiler workflows + math', () => {
