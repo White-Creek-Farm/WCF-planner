@@ -7,7 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const EXPECTED_DELETE_TABLE_COUNTS = new Map([
-  ['cattle_breeding_cycles', 1],
+  // Saved views (mig 095). cattle_breeding_cycles + sheep_lambing_records literal
+  // deletes moved to audited RPCs in commit 235647c (no runtime delete remains);
+  // cattle_calving_records moved to its RPC in mig 079 (removed below via the
+  // override helper).
+  ['app_saved_views', 1],
   ['cattle_calving_records', 2],
   ['cattle_comments', 2],
   ['cattle_feed_inputs', 1],
@@ -25,7 +29,6 @@ const EXPECTED_DELETE_TABLE_COUNTS = new Map([
   ['layer_housings', 1],
   ['profiles', 1],
   ['sheep_comments', 1],
-  ['sheep_lambing_records', 1],
   ['sheep_processing_batches', 1],
   ['task_templates', 2],
   ['weigh_in_sessions', 1],
@@ -33,7 +36,7 @@ const EXPECTED_DELETE_TABLE_COUNTS = new Map([
 ]);
 
 const DELETE_RECOVERY_CLASS = new Map([
-  ['cattle_breeding_cycles', 'custom-editable-table-child'],
+  ['app_saved_views', 'saved-view-preference'],
   ['cattle_calving_records', 'animal-record-child'],
   ['cattle_comments', 'legacy-record-comment'],
   ['cattle_feed_inputs', 'admin-feed-config'],
@@ -51,7 +54,6 @@ const DELETE_RECOVERY_CLASS = new Map([
   ['layer_housings', 'layer-workflow'],
   ['profiles', 'admin-user-management'],
   ['sheep_comments', 'legacy-record-comment'],
-  ['sheep_lambing_records', 'animal-record-child'],
   ['sheep_processing_batches', 'processing-workflow'],
   ['task_templates', 'task-template-admin'],
   ['weigh_in_sessions', 'weigh-in-workflow'],
@@ -246,6 +248,7 @@ describe('delete/recovery classification inventory', () => {
       'layer-workflow',
       'legacy-record-comment',
       'processing-workflow',
+      'saved-view-preference',
       'task-template-admin',
       'weigh-in-workflow',
     ]);

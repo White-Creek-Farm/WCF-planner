@@ -61,6 +61,10 @@ const TEST_OWNED_TABLES = [
   'equipment',
   'app_store',
   'webform_config',
+  // Mig 095 generic saved views. FK owner_profile_id → profiles (NOT truncated),
+  // so no ordering concern. Reset between specs so a saved view created by the
+  // cattle-herd-filters spec doesn't leak into the next run's picker.
+  'app_saved_views',
   // Mig 034 parent of Add Feed multi-row submissions. Children link via
   // daily_submission_id (no FK). Truncating after the 5 daily child tables
   // is a no-op for cascade purposes; ordering kept for readability.

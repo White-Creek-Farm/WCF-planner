@@ -1,6 +1,8 @@
-// CattleHerdsView — composable filter chips + ordered sort rules + explicit
-// grouped/flat toggle + local smart-filter assistant. See PROJECT.md §8
-// "Cattle Herd filters + maternal-field retirement" for the locked plan.
+// CattleHerdsView — composable filter chips in organized always-visible groups
+// + ordered sort rules + explicit grouped/flat toggle + saved views
+// (surface_key cattle.herds). The local smart-filter assistant was removed
+// (PROJECT.md Recommended Work Queue); a real AI-assisted filter/sort is queued
+// separately.
 //
 // Filter / sort semantics live in src/lib/cattleHerdFilters.js (pure module,
 // vitest-locked). This file is UI wiring only.
@@ -19,7 +21,6 @@ import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 import {
   buildCattlePredicate,
   buildCattleComparator,
-  parseSmartFilter,
   mergeObservedValues,
   cowTagSet,
   lastWeightFor,
@@ -29,10 +30,16 @@ import {
   CATTLE_HERD_KEYS,
   CATTLE_OUTCOME_KEYS,
   CATTLE_ALL_HERD_KEYS,
-  CATTLE_QUICK_FILTERS,
   CATTLE_SORT_KEYS,
   STALE_WEIGHT_DAYS_DEFAULT,
 } from '../lib/cattleHerdFilters.js';
+import {
+  listSavedViews,
+  createSavedView,
+  updateSavedView,
+  deleteSavedView,
+  buildViewState,
+} from '../lib/savedViewsApi.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -110,6 +117,7 @@ const SORT_KEY_LABELS = {
   sex: 'Sex',
   lastCalved: 'Last calved',
   calfCount: 'Calf count',
+  nonCalving: 'Non-calving',
   breed: 'Breed',
   origin: 'Origin',
 };
@@ -122,9 +130,34 @@ const SORT_DIR_LABELS = {
   sex: {asc: '↑ cow→steer', desc: '↓ steer→cow'},
   lastCalved: {asc: 'oldest first', desc: 'most recent first'},
   calfCount: {asc: 'fewest first', desc: 'most first'},
+  nonCalving: {asc: 'candidates last', desc: 'candidates first'},
   breed: {asc: '↑ A→Z', desc: '↓ Z→A'},
   origin: {asc: '↑ A→Z', desc: '↓ Z→A'},
 };
+
+// Saved-views surface key for the cattle herds list (migration 095).
+const CATTLE_HERDS_SURFACE_KEY = 'cattle.herds';
+
+// Organized filter groups (replaces the old quick/More-filters split). Each
+// filter is always visible under its group. 'nonCalving' is a composite chip
+// (boolean toggle + "no calf since" date); 'unmatchedCalves' is a boolean
+// toggle chip. Everything else opens a value popover.
+const FILTER_GROUPS = [
+  {key: 'core', label: 'Core', keys: ['herdSet', 'sex', 'ageMonthsRange', 'breed', 'origin', 'weightTier']},
+  {
+    key: 'calving',
+    label: 'Calving/Breeding',
+    keys: ['nonCalving', 'calvedStatus', 'lastCalvedRange', 'calfCountRange', 'breedingStatus', 'breedingBlacklist'],
+  },
+  {
+    key: 'lineage',
+    label: 'Lineage/Other',
+    keys: ['damPresence', 'sirePresence', 'birthDateRange', 'wagyuPctRange', 'weightRange'],
+  },
+  {key: 'exceptions', label: 'Exceptions', keys: ['unmatchedCalves']},
+];
+// Boolean toggle chips (no value popover) — click flips the filter on/off.
+const TOGGLE_FILTER_KEYS = new Set(['unmatchedCalves']);
 
 const EMPTY_COW = {
   tag: '',
@@ -181,30 +214,6 @@ const chipActiveS = {
   fontWeight: 600,
 };
 
-function buildSmartProposalPreview(proposal) {
-  if (!proposal) return null;
-  const parts = [];
-  for (const [k, v] of Object.entries(proposal.chips || {})) {
-    if (v == null || (Array.isArray(v) && v.length === 0)) continue;
-    if (k === 'ageMonthsRange') {
-      const r = [];
-      if (v.min != null) r.push('≥ ' + v.min + 'mo');
-      if (v.max != null) r.push('≤ ' + v.max + 'mo');
-      parts.push('Age ' + r.join(' '));
-    } else if (k === 'calvingWindow' && v.mode === 'noneSince') {
-      parts.push('Not calved since ' + v.since);
-    } else if (Array.isArray(v)) {
-      parts.push(k + '=' + v.join(','));
-    } else if (typeof v === 'boolean') {
-      parts.push(k + (v ? '=on' : '=off'));
-    } else {
-      parts.push(k + '=' + v);
-    }
-  }
-  for (const r of proposal.sortRules || []) parts.push('sort ' + r.key + ' ' + r.dir);
-  return parts.join(' · ');
-}
-
 function CattleHerdsRouter(props) {
   const location = useLocation();
   const cattleDetailId = location.pathname.startsWith('/cattle/herds/')
@@ -259,13 +268,19 @@ const CattleHerdsHub = ({
   const [viewMode, setViewMode] = usePersistentViewState('cattle.herds.viewMode', 'grouped'); // 'grouped' | 'flat'
   const [filters, setFilters] = usePersistentViewState('cattle.herds.filters', {});
   const [sortRules, setSortRules] = usePersistentViewState('cattle.herds.sortRules', [{key: 'tag', dir: 'asc'}]);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [openFilter, setOpenFilter] = useState(null); // chip popover state — string key
 
-  // Smart-filter assistant state.
-  const [smartInputText, setSmartInputText] = useState('');
-  const [smartProposal, setSmartProposal] = useState(null);
-  const [smartError, setSmartError] = useState(null);
+  // Saved views (migration 095). Load failures must NOT break the list — they
+  // surface as a disabled control + inline message (cold-boot safety).
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewsError, setSavedViewsError] = useState(null);
+  const [savedViewsLoading, setSavedViewsLoading] = useState(true);
+  const [selectedViewId, setSelectedViewId] = useState('');
+  const [showSaveViewForm, setShowSaveViewForm] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  const [saveViewVisibility, setSaveViewVisibility] = useState('private');
+  const [savedViewBusy, setSavedViewBusy] = useState(false);
+  const myProfileId = authState?.user?.id || null;
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
@@ -294,6 +309,28 @@ const CattleHerdsHub = ({
   }
   useEffect(() => {
     loadAll();
+  }, []);
+
+  // Saved views load on their own path so a failure (e.g. table missing before
+  // PROD migration, or an RLS hiccup) degrades the saved-view control only and
+  // never blocks the cattle list.
+  async function loadSavedViews() {
+    setSavedViewsLoading(true);
+    try {
+      const rows = await listSavedViews(sb, CATTLE_HERDS_SURFACE_KEY);
+      setSavedViews(rows);
+      setSavedViewsError(null);
+      // Drop a stale selection if the row is gone.
+      setSelectedViewId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : ''));
+    } catch (e) {
+      setSavedViews([]);
+      setSavedViewsError(e.message || String(e));
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }
+  useEffect(() => {
+    loadSavedViews();
   }, []);
 
   // ── helpers (the lib owns the math; these are display-side wrappers) ──────
@@ -374,9 +411,14 @@ const CattleHerdsHub = ({
   }, [cattle, filters, calvingEvidence, weighIns]);
 
   const sortedFlat = useMemo(() => {
-    const cmp = buildCattleComparator(sortRules, {calvingRecs: calvingEvidence, weighIns});
+    const cmp = buildCattleComparator(sortRules, {
+      calvingRecs: calvingEvidence,
+      weighIns,
+      todayMs: Date.now(),
+      nonCalvingCutoffDate: filters.nonCalvingCutoffDate,
+    });
     return [...filtered].sort(cmp);
-  }, [filtered, sortRules, calvingEvidence, weighIns]);
+  }, [filtered, sortRules, calvingEvidence, weighIns, filters.nonCalvingCutoffDate]);
 
   // ── filter chip handlers ───────────────────────────────────────────────────
   function setFilter(key, value) {
@@ -439,37 +481,81 @@ const CattleHerdsHub = ({
     });
   }
 
-  // ── smart-assistant handlers ───────────────────────────────────────────────
-  function runSmartFilter() {
-    const text = smartInputText;
-    setSmartError(null);
-    if (!text.trim()) {
-      setSmartProposal(null);
+  // ── saved-view handlers ────────────────────────────────────────────────────
+  const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
+  const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
+
+  function applySavedView(view) {
+    if (!view) return;
+    const st = view.view_state || {};
+    setFilters(st.filters && typeof st.filters === 'object' ? st.filters : {});
+    setSortRules(Array.isArray(st.sortRules) ? st.sortRules : []);
+    setViewMode(st.viewMode === 'flat' ? 'flat' : 'grouped');
+    setOpenFilter(null);
+  }
+  function onSelectSavedView(id) {
+    setSelectedViewId(id);
+    if (!id) return;
+    const view = savedViews.find((v) => v.id === id);
+    applySavedView(view);
+  }
+  function openSaveViewForm() {
+    setSaveViewName('');
+    setSaveViewVisibility('private');
+    setShowSaveViewForm(true);
+  }
+  async function submitSaveView() {
+    const name = saveViewName.trim();
+    if (!name) {
+      setNotice({kind: 'error', message: 'Name the view before saving.'});
       return;
     }
-    const proposal = parseSmartFilter(text, {
-      todayMs: Date.now(),
-      breedOptions: breedFilterOptions,
-      originOptions: originFilterOptions,
+    setSavedViewBusy(true);
+    try {
+      const created = await createSavedView(sb, {
+        surfaceKey: CATTLE_HERDS_SURFACE_KEY,
+        name,
+        visibility: saveViewVisibility,
+        viewState: buildViewState({filters, sortRules, viewMode}),
+      });
+      setShowSaveViewForm(false);
+      await loadSavedViews();
+      if (created?.id) setSelectedViewId(created.id);
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Save view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+  async function updateSelectedView() {
+    if (!selectedView || !selectedViewIsMine) return;
+    setSavedViewBusy(true);
+    try {
+      await updateSavedView(sb, selectedView.id, {
+        viewState: buildViewState({filters, sortRules, viewMode}),
+      });
+      await loadSavedViews();
+      setNotice({kind: 'success', message: `Updated "${selectedView.name}" to the current filters/sort/view.`});
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Update view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+  function deleteSelectedView() {
+    if (!selectedView || !selectedViewIsMine || !window._wcfConfirmDelete) return;
+    window._wcfConfirmDelete(`Delete saved view "${selectedView.name}"?`, async () => {
+      setSavedViewBusy(true);
+      try {
+        await deleteSavedView(sb, selectedView.id);
+        setSelectedViewId('');
+        await loadSavedViews();
+      } catch (e) {
+        setNotice({kind: 'error', message: 'Delete view failed: ' + (e.message || String(e))});
+      } finally {
+        setSavedViewBusy(false);
+      }
     });
-    if (proposal.confidence === 'low') {
-      setSmartProposal(null);
-      setSmartError("I couldn't parse this. Try the filter chips below.");
-      return;
-    }
-    setSmartProposal(proposal);
-  }
-  function applySmartProposal() {
-    if (!smartProposal) return;
-    setFilters((prev) => ({...prev, ...smartProposal.chips}));
-    if (Array.isArray(smartProposal.sortRules) && smartProposal.sortRules.length > 0) {
-      setSortRules(smartProposal.sortRules);
-    }
-    setSmartProposal(null);
-    setSmartInputText('');
-  }
-  function discardSmartProposal() {
-    setSmartProposal(null);
   }
 
   // ── Add / Edit / Delete / Transfer / Calving — preserved ───────
@@ -694,6 +780,7 @@ const CattleHerdsHub = ({
   }
 
   // ── filter / sort UI subcomponents (inline for context) ────────────────────
+  // eslint-disable-next-line no-unused-vars -- JSX-only use
   function FilterChip({label, active, onClick, dataAttr}) {
     return (
       <button
@@ -707,252 +794,183 @@ const CattleHerdsHub = ({
     );
   }
 
-  // eslint-disable-next-line no-unused-vars -- JSX-only use
-  function SpecialFilterCheckbox({filterKey, label}) {
-    const checked = filters[filterKey] === true;
-    return (
-      <label
-        data-cattle-special-filter={filterKey}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '5px 10px',
-          borderRadius: 6,
-          border: checked ? '1px solid #991b1b' : '1px solid #d1d5db',
-          background: checked ? '#fef2f2' : 'white',
-          color: checked ? '#991b1b' : '#374151',
-          fontSize: 12,
-          fontWeight: checked ? 600 : 500,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => setFilter(filterKey, e.target.checked ? true : null)}
-          data-cattle-special-filter-checkbox={filterKey}
-          style={{margin: 0}}
-        />
-        <span>{label}</span>
-      </label>
-    );
+  // ── chip helpers (label + active/clear) shared by all filter groups ─────────
+  function chipActiveFor(key) {
+    if (key === 'nonCalving') return filters.nonCalvingCows === true || !!filters.nonCalvingCutoffDate;
+    if (key === 'calvedStatus') return 'calvedStatus' in filters || !!filters.calvingWindow;
+    return key in filters;
+  }
+  function clearChip(key) {
+    if (key === 'nonCalving') {
+      clearFilter('nonCalvingCows');
+      clearFilter('nonCalvingCutoffDate');
+      return;
+    }
+    if (key === 'calvedStatus') {
+      clearFilter('calvedStatus');
+      clearFilter('calvingWindow');
+      return;
+    }
+    clearFilter(key);
   }
 
-  function quickFilterButtons() {
-    return CATTLE_QUICK_FILTERS.map((key) => {
-      if (key === 'textSearch') return null; // handled by separate search input
-      const active = key in filters;
-      let label;
-      switch (key) {
-        case 'herdSet':
-          label = active ? 'Herd: ' + (filters.herdSet || []).map((h) => HERD_LABELS[h] || h).join(', ') : '+ Herd';
-          break;
-        case 'sex':
-          label = active
-            ? 'Sex: ' +
-              (filters.sex || []).map((s) => (SEX_OPTIONS.find((o) => o.key === s) || {}).label || s).join(', ')
-            : '+ Sex';
-          break;
-        case 'ageMonthsRange': {
-          if (!active) {
-            label = '+ Age';
-          } else {
-            const r = [];
-            if (filters.ageMonthsRange.min != null) r.push('≥' + filters.ageMonthsRange.min + 'mo');
-            if (filters.ageMonthsRange.max != null) r.push('≤' + filters.ageMonthsRange.max + 'mo');
-            label = 'Age: ' + r.join(' ');
-          }
-          break;
-        }
-        case 'calvedStatus': {
-          if (active) {
-            label = 'Calved: ' + (filters.calvedStatus === 'yes' ? 'yes' : 'no');
-          } else if (filters.calvingWindow && filters.calvingWindow.mode === 'noneSince') {
-            label = 'Not calved since ' + filters.calvingWindow.since;
-          } else {
-            label = '+ Calved';
-          }
-          break;
-        }
-        case 'breedingBlacklist':
-          if (filters.breedingBlacklist === true) label = 'Blacklist: only';
-          else if (filters.breedingBlacklist === false) label = 'Blacklist: hide';
-          else label = '+ Blacklist';
-          break;
-        case 'weightTier':
-          if (active) {
-            const tierLabels = {
-              hasWeight: 'has weight',
-              noWeight: 'no weight',
-              staleWeight: 'stale weight',
-              staleOrNoWeight: 'stale or no weight',
-            };
-            label = 'Weight: ' + (tierLabels[filters.weightTier] || filters.weightTier);
-          } else {
-            label = '+ Weight';
-          }
-          break;
-        default:
-          label = key;
+  function chipLabelFor(key) {
+    const active = chipActiveFor(key);
+    switch (key) {
+      case 'herdSet':
+        return active ? 'Herd: ' + (filters.herdSet || []).map((h) => HERD_LABELS[h] || h).join(', ') : '+ Herd';
+      case 'sex':
+        return active
+          ? 'Sex: ' + (filters.sex || []).map((s) => (SEX_OPTIONS.find((o) => o.key === s) || {}).label || s).join(', ')
+          : '+ Sex';
+      case 'ageMonthsRange': {
+        if (!active) return '+ Age';
+        const r = [];
+        if (filters.ageMonthsRange.min != null) r.push('≥' + filters.ageMonthsRange.min + 'mo');
+        if (filters.ageMonthsRange.max != null) r.push('≤' + filters.ageMonthsRange.max + 'mo');
+        return 'Age: ' + r.join(' ');
       }
-      const isOpen = openFilter === key;
-      const chipActive = active || (key === 'calvedStatus' && filters.calvingWindow);
-      return (
-        <div key={key} style={{position: 'relative', display: 'inline-block'}}>
-          <FilterChip
-            label={label + (chipActive ? ' ×' : '')}
-            active={chipActive}
-            dataAttr={key}
-            onClick={(e) => {
-              if (chipActive && (e.shiftKey || e.metaKey || e.altKey)) {
-                clearFilter(key);
-                if (key === 'calvedStatus') clearFilter('calvingWindow');
-                return;
-              }
-              setOpenFilter(isOpen ? null : key);
-            }}
-          />
-          {isOpen && (
-            <FilterChipPopover
-              filterKey={key}
-              filters={filters}
-              setFilters={setFilters}
-              setFilter={setFilter}
-              clearFilter={clearFilter}
-              toggleFilterArrayValue={toggleFilterArrayValue}
-              breedFilterOptions={breedFilterOptions}
-              originFilterOptions={originFilterOptions}
-              onClose={() => setOpenFilter(null)}
-            />
-          )}
-        </div>
-      );
-    });
-  }
-
-  function moreFiltersButtons() {
-    if (!showMoreFilters) return null;
-    const dims = [
-      'birthDateRange',
-      'lastCalvedRange',
-      'calfCountRange',
-      'breedingStatus',
-      'damPresence',
-      'sirePresence',
-      'weightRange',
-      'breed',
-      'origin',
-      'wagyuPctRange',
-    ];
-    return dims.map((key) => {
-      const active = key in filters;
-      let label;
-      switch (key) {
-        case 'birthDateRange': {
-          if (!active) label = '+ Birth date';
-          else {
-            const r = filters.birthDateRange;
-            label = 'Born ' + (r.after ? 'after ' + r.after : '') + (r.before ? ' before ' + r.before : '');
-          }
-          break;
-        }
-        case 'lastCalvedRange': {
-          if (!active) label = '+ Last calved';
-          else {
-            const r = filters.lastCalvedRange;
-            label = 'Last calved ' + (r.after ? 'after ' + r.after : '') + (r.before ? ' before ' + r.before : '');
-          }
-          break;
-        }
-        case 'calfCountRange': {
-          if (!active) label = '+ Calf count';
-          else {
-            const r = filters.calfCountRange;
-            const parts = [];
-            if (r.min != null) parts.push('≥' + r.min);
-            if (r.max != null) parts.push('≤' + r.max);
-            label = 'Calves ' + parts.join(' ');
-          }
-          break;
-        }
-        case 'breedingStatus':
-          label = active
-            ? 'Status: ' +
+      case 'breed':
+        return active ? 'Breed: ' + (filters.breed || []).join(', ') : '+ Breed';
+      case 'origin':
+        return active ? 'Origin: ' + (filters.origin || []).join(', ') : '+ Origin';
+      case 'weightTier': {
+        if (!active) return '+ Weight';
+        const tierLabels = {
+          hasWeight: 'has weight',
+          noWeight: 'no weight',
+          staleWeight: 'stale weight',
+          staleOrNoWeight: 'stale or no weight',
+        };
+        return 'Weight: ' + (tierLabels[filters.weightTier] || filters.weightTier);
+      }
+      case 'nonCalving': {
+        if (filters.nonCalvingCutoffDate) return 'No calf since ' + filters.nonCalvingCutoffDate;
+        if (filters.nonCalvingCows === true) return 'Non Calving Cows';
+        return '+ Non-calving';
+      }
+      case 'calvedStatus': {
+        if ('calvedStatus' in filters) return 'Calved: ' + (filters.calvedStatus === 'yes' ? 'yes' : 'no');
+        if (filters.calvingWindow && filters.calvingWindow.mode === 'noneSince')
+          return 'Not calved since ' + filters.calvingWindow.since;
+        return '+ Calved';
+      }
+      case 'lastCalvedRange': {
+        if (!active) return '+ Last calved';
+        const r = filters.lastCalvedRange;
+        return 'Last calved ' + (r.after ? 'after ' + r.after : '') + (r.before ? ' before ' + r.before : '');
+      }
+      case 'calfCountRange': {
+        if (!active) return '+ Calf count';
+        const r = filters.calfCountRange;
+        const parts = [];
+        if (r.min != null) parts.push('≥' + r.min);
+        if (r.max != null) parts.push('≤' + r.max);
+        return 'Calves ' + parts.join(' ');
+      }
+      case 'breedingStatus':
+        return active
+          ? 'Status: ' +
               (filters.breedingStatus || [])
                 .map((s) => (BREEDING_STATUS_OPTIONS.find((o) => o.key === s) || {}).label || s)
                 .join(', ')
-            : '+ Breeding status';
-          break;
-        case 'damPresence':
-          label = active ? 'Dam: ' + filters.damPresence : '+ Dam';
-          break;
-        case 'sirePresence':
-          label = active ? 'Sire: ' + filters.sirePresence : '+ Sire';
-          break;
-        case 'weightRange': {
-          if (!active) label = '+ Weight range';
-          else {
-            const r = filters.weightRange;
-            const parts = [];
-            if (r.min != null) parts.push('≥' + r.min + 'lb');
-            if (r.max != null) parts.push('≤' + r.max + 'lb');
-            label = 'Weight ' + parts.join(' ');
-          }
-          break;
-        }
-        case 'breed':
-          label = active ? 'Breed: ' + (filters.breed || []).join(', ') : '+ Breed';
-          break;
-        case 'origin':
-          label = active ? 'Origin: ' + (filters.origin || []).join(', ') : '+ Origin';
-          break;
-        case 'wagyuPctRange': {
-          if (!active) label = '+ Wagyu %';
-          else {
-            const r = filters.wagyuPctRange;
-            const parts = [];
-            if (r.min != null) parts.push('≥' + r.min);
-            if (r.max != null) parts.push('≤' + r.max);
-            label = 'Wagyu ' + parts.join(' ') + '%';
-          }
-          break;
-        }
-        default:
-          label = key;
+          : '+ Breeding status';
+      case 'breedingBlacklist':
+        if (filters.breedingBlacklist === true) return 'Blacklist: only';
+        if (filters.breedingBlacklist === false) return 'Blacklist: hide';
+        return '+ Blacklist';
+      case 'damPresence':
+        return active ? 'Dam: ' + filters.damPresence : '+ Dam';
+      case 'sirePresence':
+        return active ? 'Sire: ' + filters.sirePresence : '+ Sire';
+      case 'birthDateRange': {
+        if (!active) return '+ Birth date';
+        const r = filters.birthDateRange;
+        return 'Born ' + (r.after ? 'after ' + r.after : '') + (r.before ? ' before ' + r.before : '');
       }
-      const isOpen = openFilter === key;
-      return (
-        <div key={key} style={{position: 'relative', display: 'inline-block'}}>
-          <FilterChip
-            label={label + (active ? ' ×' : '')}
-            active={active}
-            dataAttr={key}
-            onClick={(e) => {
-              if (active && (e.shiftKey || e.metaKey || e.altKey)) {
-                clearFilter(key);
-                return;
-              }
-              setOpenFilter(isOpen ? null : key);
-            }}
+      case 'wagyuPctRange': {
+        if (!active) return '+ Wagyu %';
+        const r = filters.wagyuPctRange;
+        const parts = [];
+        if (r.min != null) parts.push('≥' + r.min);
+        if (r.max != null) parts.push('≤' + r.max);
+        return 'Wagyu ' + parts.join(' ') + '%';
+      }
+      case 'weightRange': {
+        if (!active) return '+ Weight range';
+        const r = filters.weightRange;
+        const parts = [];
+        if (r.min != null) parts.push('≥' + r.min + 'lb');
+        if (r.max != null) parts.push('≤' + r.max + 'lb');
+        return 'Weight ' + parts.join(' ');
+      }
+      default:
+        return key;
+    }
+  }
+
+  // Popover filter chip (value picker).
+  function renderFilterChip(key) {
+    const active = chipActiveFor(key);
+    const isOpen = openFilter === key;
+    return (
+      <div key={key} style={{position: 'relative', display: 'inline-block'}}>
+        <FilterChip
+          label={chipLabelFor(key) + (active ? ' ×' : '')}
+          active={active}
+          dataAttr={key}
+          onClick={(e) => {
+            if (active && (e.shiftKey || e.metaKey || e.altKey)) {
+              clearChip(key);
+              return;
+            }
+            setOpenFilter(isOpen ? null : key);
+          }}
+        />
+        {isOpen && (
+          <FilterChipPopover
+            filterKey={key}
+            filters={filters}
+            setFilters={setFilters}
+            setFilter={setFilter}
+            clearFilter={clearFilter}
+            toggleFilterArrayValue={toggleFilterArrayValue}
+            breedFilterOptions={breedFilterOptions}
+            originFilterOptions={originFilterOptions}
+            onClose={() => setOpenFilter(null)}
           />
-          {isOpen && (
-            <FilterChipPopover
-              filterKey={key}
-              filters={filters}
-              setFilters={setFilters}
-              setFilter={setFilter}
-              clearFilter={clearFilter}
-              toggleFilterArrayValue={toggleFilterArrayValue}
-              breedFilterOptions={breedFilterOptions}
-              originFilterOptions={originFilterOptions}
-              onClose={() => setOpenFilter(null)}
-            />
-          )}
-        </div>
-      );
-    });
+        )}
+      </div>
+    );
+  }
+
+  // Boolean toggle chip (no value popover) — e.g. Unmatched Calves.
+  const TOGGLE_CHIP_LABELS = {unmatchedCalves: 'Unmatched Calves'};
+  function renderToggleChip(key) {
+    const active = filters[key] === true;
+    const label = TOGGLE_CHIP_LABELS[key] || key;
+    return (
+      <FilterChip
+        key={key}
+        label={label + (active ? ' ×' : '')}
+        active={active}
+        dataAttr={key}
+        onClick={() => setFilter(key, active ? null : true)}
+      />
+    );
+  }
+
+  function renderFilterGroups() {
+    return FILTER_GROUPS.map((g) => (
+      <div
+        key={g.key}
+        data-filter-group={g.key}
+        style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}
+      >
+        <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600, marginRight: 4, minWidth: 96}}>{g.label}</span>
+        {g.keys.map((key) => (TOGGLE_FILTER_KEYS.has(key) ? renderToggleChip(key) : renderFilterChip(key)))}
+      </div>
+    ));
   }
 
   function sortBar() {
@@ -1069,10 +1087,160 @@ const CattleHerdsHub = ({
     );
   }
 
+  // Shared cow row — used by BOTH the flat list and grouped tiles so the two
+  // can't drift again (PROJECT.md row-parity item). `showHerd` adds the herd
+  // badge column for the flat list; grouped omits it because rows already sit
+  // under a herd tile. Calf count + last-calved render for FEMALES (cow/heifer)
+  // in either mode — herd-independent, which is the parity fix (previously flat
+  // showed neither and grouped only showed them for the mommas tile).
+  // eslint-disable-next-line no-unused-vars -- JSX-only use
+  function CowListRow({c, index, navList, showHerd}) {
+    const hc = HERD_COLORS[c.herd] || HERD_COLORS.mommas;
+    const lw = lastWeight(c);
+    const isFemale = c.sex === 'cow' || c.sex === 'heifer';
+    const lc = isFemale ? lastCalving(c.tag) : null;
+    const cc = isFemale ? calfCount(c.tag) : 0;
+    const gridTemplateColumns = showHerd
+      ? '48px 16px 70px 110px 60px 160px 140px 70px 90px 1fr'
+      : '48px 16px 70px 60px 160px 140px 70px 90px 1fr';
+    const ellipsisCell = {
+      fontSize: 11,
+      color: '#6b7280',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    };
+    return (
+      <div id={'cow-' + c.id} data-cow-row-tag={c.tag || ''} style={{borderBottom: '1px solid #f3f4f6'}}>
+        <div
+          onClick={() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(navList))}
+          style={{
+            padding: showHerd ? '10px 16px 10px 0' : '10px 18px 10px 0',
+            display: 'grid',
+            gridTemplateColumns,
+            alignItems: 'center',
+            gap: 10,
+            cursor: 'pointer',
+            background: c.breeding_blacklist ? '#fecaca' : showHerd ? 'white' : 'transparent',
+          }}
+          className="hoverable-tile"
+        >
+          <span
+            style={{
+              fontSize: 11,
+              color: '#9ca3af',
+              fontVariantNumeric: 'tabular-nums',
+              alignSelf: 'stretch',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              paddingRight: 10,
+              paddingLeft: 8,
+              marginTop: -10,
+              marginBottom: -10,
+              borderRight: '1px solid #d1d5db',
+              fontWeight: 600,
+            }}
+          >
+            {index + 1}
+          </span>
+          <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
+          <span
+            style={{fontWeight: 700, fontSize: 13, color: '#111827', display: 'flex', alignItems: 'center', gap: 4}}
+          >
+            {c.tag ? '#' + c.tag : '(no tag)'}
+          </span>
+          {showHerd && (
+            <span
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 4,
+                background: hc.bg,
+                color: hc.tx,
+                border: '1px solid ' + hc.bd,
+                fontWeight: 600,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {HERD_LABELS[c.herd]}
+            </span>
+          )}
+          <span style={{fontSize: 11, color: '#6b7280'}}>{c.sex || '—'}</span>
+          <span style={ellipsisCell}>{c.breed || '—'}</span>
+          <span data-cattle-row-origin={c.id} style={ellipsisCell}>
+            {c.origin || '—'}
+          </span>
+          <span style={{fontSize: 11, color: '#6b7280'}}>{age(c.birth_date) || '—'}</span>
+          <span style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}>
+            {lw ? lw.toLocaleString() + ' lb' : 'no weigh-in'}
+          </span>
+          <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+            {c.dam_tag && <span style={{fontSize: 11, color: '#9ca3af'}}>{'dam #' + c.dam_tag}</span>}
+            {isFemale && (
+              <span data-calf-count={cc} style={{fontSize: 11, color: '#7f1d1d', fontWeight: 600}}>
+                {'Calves: ' + cc}
+              </span>
+            )}
+            {isFemale && lc && (
+              <span style={{fontSize: 11, color: '#9ca3af'}}>{'last calved ' + fmt(lc.calving_date)}</span>
+            )}
+            {c.breeding_blacklist && (
+              <span
+                style={{
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  background: '#fef2f2',
+                  color: '#b91c1c',
+                  fontWeight: 600,
+                }}
+              >
+                BLACKLIST
+              </span>
+            )}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   // ── derived UI flags ───────────────────────────────────────────────────────
   const isFlat = viewMode === 'flat';
   const filterCount = Object.keys(filters).length;
   const search = filters.textSearch || '';
+
+  // Saved-view picker partition: my views (any visibility) vs other people's
+  // public views. RLS already excludes other people's PRIVATE views from the
+  // list, so publicOtherViews is simply public rows I don't own.
+  const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
+  const publicOtherViews = savedViews.filter(
+    (v) => v.visibility === 'public' && !(myProfileId && v.owner_profile_id === myProfileId),
+  );
+  const savedViewGhostBtnS = {
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #991b1b', color: '#991b1b'};
+  const savedViewRadioLabelS = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12,
+    color: '#374151',
+    cursor: 'pointer',
+  };
 
   return (
     <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -1089,8 +1257,10 @@ const CattleHerdsHub = ({
       <Header />
       <div style={{padding: '1rem', maxWidth: 1200, margin: '0 auto'}}>
         {!showAddForm && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
-        {/* Smart-filter row */}
+
+        {/* Saved views control (migration 095) */}
         <div
+          data-saved-views-row
           style={{
             background: 'white',
             border: '1px solid #e5e7eb',
@@ -1103,109 +1273,138 @@ const CattleHerdsHub = ({
             flexWrap: 'wrap',
           }}
         >
-          <span aria-hidden style={{fontSize: 16}}>
-            {'🪄'}
-          </span>
-          <input
-            type="text"
-            value={smartInputText}
-            placeholder="Try in plain English: heffers older than 18 months"
-            data-smart-input
-            onChange={(e) => setSmartInputText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') runSmartFilter();
-            }}
-            style={{...inpS, flex: 1, minWidth: 240}}
-          />
-          <button
-            type="button"
-            onClick={runSmartFilter}
-            data-smart-apply
-            disabled={!smartInputText.trim()}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 7,
-              border: '1px solid #991b1b',
-              background: 'white',
-              color: '#991b1b',
-              fontWeight: 600,
-              fontSize: 12,
-              cursor: smartInputText.trim() ? 'pointer' : 'not-allowed',
-              fontFamily: 'inherit',
-              opacity: smartInputText.trim() ? 1 : 0.5,
-            }}
-          >
-            Parse
-          </button>
+          <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+          {savedViewsError ? (
+            <span style={{fontSize: 12, color: '#b91c1c'}} data-saved-views-error>
+              Saved views unavailable. Filters still work.
+            </span>
+          ) : (
+            <>
+              <select
+                data-saved-view-select
+                value={selectedViewId}
+                disabled={savedViewsLoading}
+                onChange={(e) => onSelectSavedView(e.target.value)}
+                style={{...inpS, width: 'auto', minWidth: 200, fontSize: 12, padding: '6px 10px'}}
+              >
+                <option value="">{savedViewsLoading ? 'Loading…' : '— Select a saved view —'}</option>
+                {myViews.length > 0 && (
+                  <optgroup label="My views">
+                    {myViews.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name + (v.visibility === 'public' ? ' · public' : ' · private')}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {publicOtherViews.length > 0 && (
+                  <optgroup label="Public views">
+                    {publicOtherViews.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              {selectedViewIsMine && (
+                <>
+                  <button
+                    type="button"
+                    data-saved-view-update
+                    onClick={updateSelectedView}
+                    disabled={savedViewBusy}
+                    style={savedViewGhostBtnS}
+                  >
+                    Update to current
+                  </button>
+                  <button
+                    type="button"
+                    data-saved-view-delete
+                    onClick={deleteSelectedView}
+                    disabled={savedViewBusy}
+                    style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+              <span style={{flex: 1}} />
+              <button
+                type="button"
+                data-saved-view-save-open
+                onClick={openSaveViewForm}
+                disabled={savedViewBusy}
+                style={savedViewPrimaryBtnS}
+              >
+                Save current view
+              </button>
+            </>
+          )}
         </div>
-        {(smartProposal || smartError) && (
+        {showSaveViewForm && (
           <div
-            data-smart-preview
+            data-saved-view-form
             style={{
-              background: smartError ? '#fef2f2' : '#eff6ff',
-              border: '1px solid ' + (smartError ? '#fca5a5' : '#bfdbfe'),
-              borderRadius: 8,
+              background: 'white',
+              border: '1px solid #bfdbfe',
+              borderRadius: 10,
               padding: '10px 14px',
               marginBottom: 8,
-              fontSize: 12,
-              color: smartError ? '#b91c1c' : '#1e3a8a',
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              gap: 8,
               flexWrap: 'wrap',
             }}
           >
-            {smartError && <span>{smartError}</span>}
-            {smartProposal && (
-              <>
-                <span style={{fontWeight: 600}}>Proposed:</span>
-                <span>{buildSmartProposalPreview(smartProposal) || '(none)'}</span>
-                {smartProposal.unmapped && smartProposal.unmapped.length > 0 && (
-                  <span style={{color: '#92400e', fontStyle: 'italic'}}>
-                    Unmapped: {smartProposal.unmapped.join(', ')}
-                  </span>
-                )}
-                {smartProposal.notes && smartProposal.notes.length > 0 && (
-                  <span style={{color: '#1e3a8a', fontStyle: 'italic'}}>{smartProposal.notes.join('; ')}</span>
-                )}
-                <span style={{flex: 1}} />
-                <button
-                  type="button"
-                  onClick={applySmartProposal}
-                  data-smart-apply-proposal
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: '#1d4ed8',
-                    color: 'white',
-                    fontWeight: 600,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Apply
-                </button>
-                <button
-                  type="button"
-                  onClick={discardSmartProposal}
-                  data-smart-discard
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #d1d5db',
-                    background: 'white',
-                    color: '#6b7280',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Discard
-                </button>
-              </>
-            )}
+            <input
+              data-saved-view-name
+              type="text"
+              value={saveViewName}
+              placeholder="View name"
+              onChange={(e) => setSaveViewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitSaveView();
+              }}
+              style={{...inpS, flex: 1, minWidth: 200}}
+            />
+            <label style={savedViewRadioLabelS}>
+              <input
+                type="radio"
+                name="saveViewVisibility"
+                checked={saveViewVisibility === 'private'}
+                onChange={() => setSaveViewVisibility('private')}
+                data-saved-view-visibility="private"
+              />
+              Private
+            </label>
+            <label style={savedViewRadioLabelS}>
+              <input
+                type="radio"
+                name="saveViewVisibility"
+                checked={saveViewVisibility === 'public'}
+                onChange={() => setSaveViewVisibility('public')}
+                data-saved-view-visibility="public"
+              />
+              Public
+            </label>
+            <button
+              type="button"
+              data-saved-view-save
+              onClick={submitSaveView}
+              disabled={savedViewBusy}
+              style={savedViewPrimaryBtnS}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSaveViewForm(false)}
+              disabled={savedViewBusy}
+              style={savedViewGhostBtnS}
+            >
+              Cancel
+            </button>
           </div>
         )}
 
@@ -1300,66 +1499,26 @@ const CattleHerdsHub = ({
             </button>
           </div>
 
-          <div style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
-            <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600, marginRight: 4}}>Filters:</span>
-            {quickFilterButtons()}
-            <button
-              type="button"
-              onClick={() => setShowMoreFilters((v) => !v)}
-              style={{
-                ...chipBaseS,
-                color: '#1d4ed8',
-                border: '1px dashed #bfdbfe',
-              }}
-              data-more-filters-toggle
-            >
-              {showMoreFilters ? 'Hide more filters' : 'More filters…'}
-            </button>
+          {/* Organized filter groups — always visible (no More/Hide toggle). */}
+          <div data-cattle-filter-groups style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+            {renderFilterGroups()}
             {filterCount > 0 && (
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                style={{
-                  ...chipBaseS,
-                  color: '#b91c1c',
-                  border: '1px solid #fecaca',
-                  background: '#fef2f2',
-                }}
-              >
-                Clear all
-              </button>
+              <div>
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  style={{
+                    ...chipBaseS,
+                    color: '#b91c1c',
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                  }}
+                >
+                  Clear all filters
+                </button>
+              </div>
             )}
           </div>
-          <div
-            data-cattle-special-filters-row
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-              paddingLeft: 50,
-              paddingTop: 4,
-            }}
-          >
-            <SpecialFilterCheckbox filterKey="nonCalvingCows" label="Non Calving Cows" />
-            <SpecialFilterCheckbox filterKey="unmatchedCalves" label="Unmatched Calves" />
-          </div>
-          {showMoreFilters && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                flexWrap: 'wrap',
-                paddingLeft: 50,
-                paddingTop: 4,
-                borderTop: '1px dashed #e5e7eb',
-              }}
-              data-more-filters-panel
-            >
-              {moreFiltersButtons()}
-            </div>
-          )}
 
           {sortBar()}
 
@@ -1421,127 +1580,9 @@ const CattleHerdsHub = ({
                 No cattle match the current filter.
               </div>
             )}
-            {sortedFlat.map((c, i) => {
-              const hc = HERD_COLORS[c.herd] || HERD_COLORS.mommas;
-              const lw = lastWeight(c);
-              return (
-                <div
-                  key={c.id}
-                  id={'cow-' + c.id}
-                  data-cow-row-tag={c.tag || ''}
-                  style={{borderBottom: i < sortedFlat.length - 1 ? '1px solid #f3f4f6' : 'none'}}
-                >
-                  <div
-                    onClick={() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(sortedFlat))}
-                    style={{
-                      padding: '10px 16px 10px 0',
-                      display: 'grid',
-                      gridTemplateColumns: '48px 16px 70px 110px 60px 160px 140px 70px 90px 1fr',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: 'pointer',
-                      background: c.breeding_blacklist ? '#fecaca' : 'white',
-                    }}
-                    className="hoverable-tile"
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: '#9ca3af',
-                        fontVariantNumeric: 'tabular-nums',
-                        alignSelf: 'stretch',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        paddingRight: 10,
-                        paddingLeft: 8,
-                        marginTop: -10,
-                        marginBottom: -10,
-                        borderRight: '1px solid #d1d5db',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {i + 1}
-                    </span>
-                    <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 13,
-                        color: '#111827',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      {c.tag ? '#' + c.tag : '(no tag)'}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        background: hc.bg,
-                        color: hc.tx,
-                        border: '1px solid ' + hc.bd,
-                        fontWeight: 600,
-                        textAlign: 'center',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {HERD_LABELS[c.herd]}
-                    </span>
-                    <span style={{fontSize: 11, color: '#6b7280'}}>{c.sex || '—'}</span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: '#6b7280',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {c.breed || '—'}
-                    </span>
-                    <span
-                      data-cattle-flat-row-origin={c.id}
-                      style={{
-                        fontSize: 11,
-                        color: '#6b7280',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {c.origin || '—'}
-                    </span>
-                    <span style={{fontSize: 11, color: '#6b7280'}}>{age(c.birth_date) || '—'}</span>
-                    <span style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}>
-                      {lw ? lw.toLocaleString() + ' lb' : 'no weigh-in'}
-                    </span>
-                    <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-                      {c.dam_tag && <span style={{fontSize: 11, color: '#9ca3af'}}>{'dam #' + c.dam_tag}</span>}
-                      {c.breeding_blacklist && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 6px',
-                            borderRadius: 4,
-                            background: '#fef2f2',
-                            color: '#b91c1c',
-                            fontWeight: 600,
-                          }}
-                        >
-                          BLACKLIST
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {sortedFlat.map((c, i) => (
+              <CowListRow key={c.id} c={c} index={i} navList={sortedFlat} showHerd />
+            ))}
           </div>
         )}
 
@@ -1552,7 +1593,12 @@ const CattleHerdsHub = ({
               // Per-tile sort applies inside the herd group (Codex implementation
               // note 2026-05-02). Filter the global filtered list to this herd
               // then run the comparator within.
-              const cmp = buildCattleComparator(sortRules, {calvingRecs: calvingEvidence, weighIns});
+              const cmp = buildCattleComparator(sortRules, {
+                calvingRecs: calvingEvidence,
+                weighIns,
+                todayMs: Date.now(),
+                nonCalvingCutoffDate: filters.nonCalvingCutoffDate,
+              });
               const cows = filtered.filter((c) => c.herd === h).sort(cmp);
               const totalWt = cows.reduce((s, c) => s + effectiveWeight(c), 0);
               const estCount = cows.filter(
@@ -1604,121 +1650,9 @@ const CattleHerdsHub = ({
                     </div>
                   )}
                   {herdOpen &&
-                    cows.map((c, cowIdx) => {
-                      const lw = lastWeight(c);
-                      const lc = lastCalving(c.tag);
-                      const cc = calfCount(c.tag);
-                      return (
-                        <div
-                          key={c.id}
-                          id={'cow-' + c.id}
-                          data-cow-row-tag={c.tag || ''}
-                          style={{borderBottom: '1px solid #f3f4f6'}}
-                        >
-                          <div
-                            onClick={() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(cows))}
-                            style={{
-                              padding: '10px 18px 10px 0',
-                              display: 'grid',
-                              gridTemplateColumns: '48px 16px 70px 60px 160px 140px 70px 90px 1fr',
-                              alignItems: 'center',
-                              gap: 10,
-                              cursor: 'pointer',
-                              background: c.breeding_blacklist ? '#fecaca' : 'transparent',
-                            }}
-                            className="hoverable-tile"
-                          >
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: '#9ca3af',
-                                fontVariantNumeric: 'tabular-nums',
-                                alignSelf: 'stretch',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'flex-end',
-                                paddingRight: 10,
-                                paddingLeft: 8,
-                                marginTop: -10,
-                                marginBottom: -10,
-                                borderRight: '1px solid #d1d5db',
-                                fontWeight: 600,
-                              }}
-                            >
-                              {cowIdx + 1}
-                            </span>
-                            <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                fontSize: 13,
-                                color: '#111827',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                              }}
-                            >
-                              {c.tag ? '#' + c.tag : '(no tag)'}
-                            </span>
-                            <span style={{fontSize: 11, color: '#6b7280'}}>{c.sex || '—'}</span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: '#6b7280',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {c.breed || '—'}
-                            </span>
-                            <span
-                              data-cattle-grouped-row-origin={c.id}
-                              style={{
-                                fontSize: 11,
-                                color: '#6b7280',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {c.origin || '—'}
-                            </span>
-                            <span style={{fontSize: 11, color: '#6b7280'}}>{age(c.birth_date) || '—'}</span>
-                            <span style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}>
-                              {lw ? lw.toLocaleString() + ' lb' : '—'}
-                            </span>
-                            <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-                              {c.dam_tag && <span style={{fontSize: 11, color: '#9ca3af'}}>{'dam #' + c.dam_tag}</span>}
-                              {h === 'mommas' && (
-                                <span data-calf-count={cc} style={{fontSize: 11, color: '#7f1d1d', fontWeight: 600}}>
-                                  {'Calves: ' + cc}
-                                </span>
-                              )}
-                              {h === 'mommas' && lc && (
-                                <span style={{fontSize: 11, color: '#9ca3af'}}>
-                                  {'last calved ' + fmt(lc.calving_date)}
-                                </span>
-                              )}
-                              {c.breeding_blacklist && (
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    padding: '1px 6px',
-                                    borderRadius: 4,
-                                    background: '#fef2f2',
-                                    color: '#b91c1c',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  BLACKLIST
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    cows.map((c, cowIdx) => (
+                      <CowListRow key={c.id} c={c} index={cowIdx} navList={cows} showHerd={false} />
+                    ))}
                 </div>
               );
             })}
@@ -2349,6 +2283,43 @@ function FilterChipPopover({
   }
 
   switch (filterKey) {
+    case 'nonCalving':
+      return (
+        <div style={popS} data-filter-popover={filterKey}>
+          <label style={{...choiceRowS, cursor: 'pointer'}}>
+            <input
+              type="checkbox"
+              checked={filters.nonCalvingCows === true}
+              onChange={(e) => setFilter('nonCalvingCows', e.target.checked ? true : null)}
+              data-cattle-special-filter-checkbox="nonCalvingCows"
+            />
+            <span style={choiceTextS}>Non Calving Cows</span>
+          </label>
+          <div style={{fontSize: 10, color: '#6b7280', marginBottom: 8}}>
+            Cow/heifer, 30+ months old, no calving record in the last 9 months.
+          </div>
+          <div style={rowS}>
+            <span>No calf since:</span>
+            <input
+              type="date"
+              value={filters.nonCalvingCutoffDate || ''}
+              onChange={(e) => setFilter('nonCalvingCutoffDate', e.target.value || null)}
+              data-cattle-noncalving-cutoff
+              style={{...inpS, width: 140}}
+            />
+          </div>
+          <div style={{fontSize: 10, color: '#6b7280', marginTop: 4}}>
+            Overrides the 9-month default: last calved is missing or before this date.
+          </div>
+          <PopoverFooter
+            onClear={() => {
+              clearFilter('nonCalvingCows');
+              clearFilter('nonCalvingCutoffDate');
+            }}
+            onClose={onClose}
+          />
+        </div>
+      );
     case 'herdSet':
       return (
         <div style={popS} data-filter-popover={filterKey}>

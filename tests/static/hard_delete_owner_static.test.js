@@ -14,24 +14,30 @@ const EXPECTED_DELETE_OWNERS = new Map([
   ['src/auth/UsersModal.jsx', 1],
   // CattleAnimalPage + CattleHerdsView no longer hard-delete calving records
   // directly — that moved to the delete_cattle_calving_record SECDEF RPC
-  // (migration 079), so neither file has a runtime .delete() anymore.
+  // (migration 079). CattleBreedingView (cattle_breeding_cycles) and
+  // SheepAnimalPage (sheep_lambing_records) likewise routed their literal
+  // deletes through audited RPCs in commit 235647c, so none of those files
+  // has a runtime .delete() anymore.
   ['src/cattle/CattleBatchPage.jsx', 1],
-  ['src/cattle/CattleBreedingView.jsx', 1],
   ['src/equipment/EquipmentDetail.jsx', 2],
   ['src/layer/LayerBatchPage.jsx', 2],
   ['src/lib/cattleForecastApi.js', 2],
+  // Saved views are user preferences (mig 095), not a soft-delete entity root —
+  // direct client delete is owner-scoped by RLS.
+  ['src/lib/savedViewsApi.js', 1],
   ['src/lib/tasksAdminApi.js', 1],
   ['src/lib/tasksCenterMutationsApi.js', 1],
   ['src/livestock/WeighInSessionPage.jsx', 3],
-  ['src/sheep/SheepAnimalPage.jsx', 1],
   ['src/sheep/SheepBatchPage.jsx', 1],
   ['src/webforms/WeighInsWebform.jsx', 5],
 ]);
 
 const EXPECTED_DELETE_TABLES = new Map([
-  ['cattle_breeding_cycles', 1],
-  // cattle_calving_records deletes moved to the delete_cattle_calving_record
-  // SECDEF RPC (migration 079); no runtime client delete remains.
+  // Saved views (mig 095): owner-scoped direct delete via RLS.
+  ['app_saved_views', 1],
+  // cattle_breeding_cycles / cattle_calving_records / sheep_lambing_records
+  // deletes all moved to audited SECDEF RPCs (mig 079 + commit 235647c); no
+  // runtime client delete remains for any of them.
   ['cattle_comments', 2],
   ['cattle_feed_inputs', 1],
   ['cattle_feed_tests', 1],
@@ -48,7 +54,6 @@ const EXPECTED_DELETE_TABLES = new Map([
   ['layer_housings', 1],
   ['profiles', 1],
   ['sheep_comments', 1],
-  ['sheep_lambing_records', 1],
   ['sheep_processing_batches', 1],
   ['task_templates', 2],
   ['weigh_in_sessions', 1],
@@ -111,7 +116,7 @@ describe('Supabase hard-delete owner boundary', () => {
     const {owners, total} = collectSupabaseDeletes();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_DELETE_OWNERS, owners);
 
-    expect(total).toBe(28);
+    expect(total).toBe(27);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

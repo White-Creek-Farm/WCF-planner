@@ -7,11 +7,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const EXPECTED_LITERAL_MUTATION_TOTALS = new Map([
-  ['delete', 28],
-  ['insert', 64],
+  // +1 delete from savedViewsApi.deleteSavedView (app_saved_views, mig 095).
+  ['delete', 29],
+  // +1 insert from savedViewsApi.createSavedView (app_saved_views, mig 095).
+  ['insert', 65],
   // CP2: 12 direct daily-table .update() literals (6 record pages + 6 list
   // views) moved to the update_daily_report SECDEF RPC (mig 091).
-  ['update', 81],
+  // +1 update from savedViewsApi.updateSavedView (app_saved_views, mig 095).
+  ['update', 82],
   ['upsert', 43],
 ]);
 
@@ -60,6 +63,9 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/layer/LayerHousingPage.jsx|upsert', 2],
   ['src/lib/broiler.js|upsert', 2],
   ['src/lib/cattleForecastApi.js|delete', 2],
+  ['src/lib/savedViewsApi.js|delete', 1],
+  ['src/lib/savedViewsApi.js|insert', 1],
+  ['src/lib/savedViewsApi.js|update', 1],
   ['src/lib/cattleForecastApi.js|insert', 2],
   ['src/lib/cattleForecastApi.js|update', 2],
   ['src/lib/cattleForecastApi.js|upsert', 1],
@@ -105,6 +111,9 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
 ]);
 
 const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
+  ['app_saved_views|delete', 1],
+  ['app_saved_views|insert', 1],
+  ['app_saved_views|update', 1],
   ['app_store|upsert', 17],
   ['cattle_breeds|insert', 1],
   ['cattle_calving_records|delete', 2],
@@ -240,7 +249,9 @@ function hasTransactionalCalvingDeleteRpc() {
 
 function expectedLiteralMutationTotals() {
   const expected = new Map(EXPECTED_LITERAL_MUTATION_TOTALS);
-  if (hasTransactionalCalvingDeleteRpc()) expected.set('delete', 26);
+  // The two literal calving deletes (CattleAnimalPage + CattleHerdsView) route
+  // through the SECDEF RPC instead; the saved-view delete (29 - 2) remains.
+  if (hasTransactionalCalvingDeleteRpc()) expected.set('delete', 27);
   return expected;
 }
 

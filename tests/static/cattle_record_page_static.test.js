@@ -36,10 +36,12 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
     expect(herdsView).toContain("navigate('/cattle/herds/' + c.id");
   });
   it('passes the visible-order sequence through route state on row click (flat + grouped)', () => {
-    // Flat mode hands the sortedFlat order; grouped mode hands the per-herd
-    // cows order. Both feed RecordSequenceNav on the record page.
-    expect(herdsView).toContain('recordSeqNavOptions(sortedFlat)');
-    expect(herdsView).toContain('recordSeqNavOptions(cows)');
+    // Both lists now render through the shared CowListRow, which threads its
+    // navList prop into recordSeqNavOptions. Flat hands sortedFlat; grouped
+    // hands the per-herd cows. Both feed RecordSequenceNav on the record page.
+    expect(herdsView).toContain('recordSeqNavOptions(navList)');
+    expect(herdsView).toContain('navList={sortedFlat}');
+    expect(herdsView).toContain('navList={cows}');
     expect(herdsView).toContain("from '../lib/recordSequence.js'");
   });
   it('imports CattleAnimalPage for hub routing', () => {
@@ -54,12 +56,19 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
 });
 
 describe('CattleHerdsView — visible herd row columns', () => {
-  it('renders origin as a static row column in flat and grouped herd rows', () => {
-    expect(herdsView).toContain('data-cattle-flat-row-origin={c.id}');
-    expect(herdsView).toContain('data-cattle-grouped-row-origin={c.id}');
+  it('renders origin via the shared CowListRow used by both flat and grouped lists', () => {
+    // Flat and grouped rows now go through one shared CowListRow so they can't
+    // drift; origin renders once with a single hook in that shared component.
+    expect(herdsView).toContain('data-cattle-row-origin={c.id}');
+    expect(herdsView).not.toContain('data-cattle-flat-row-origin');
+    expect(herdsView).not.toContain('data-cattle-grouped-row-origin');
     expect(herdsView).toMatch(/\{c\.origin \|\| '—'\}/);
-    expect(herdsView).toContain("gridTemplateColumns: '48px 16px 70px 110px 60px 160px 140px 70px 90px 1fr'");
-    expect(herdsView).toContain("gridTemplateColumns: '48px 16px 70px 60px 160px 140px 70px 90px 1fr'");
+    // Both flat (with herd badge) and grouped (without) grid widths still live in
+    // the shared row, selected by showHerd.
+    expect(herdsView).toContain("'48px 16px 70px 110px 60px 160px 140px 70px 90px 1fr'");
+    expect(herdsView).toContain("'48px 16px 70px 60px 160px 140px 70px 90px 1fr'");
+    expect(herdsView).toContain('function CowListRow');
+    expect(herdsView).toContain('<CowListRow');
   });
 });
 

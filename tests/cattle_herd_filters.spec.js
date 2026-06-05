@@ -1,12 +1,14 @@
 import {test, expect} from './fixtures.js';
 
 // ============================================================================
-// Cattle Herd filters/sort + smart-input — 2026-05-02
+// Cattle Herd filters/sort + organized groups + saved views
 // ============================================================================
-// Locks the post-build contract for the new composable filter chips, ordered
-// sort rules, explicit grouped/flat toggle, smart-input parser, and the
-// maternal-issue UI retirement. Pure module helpers in
-// src/lib/cattleHerdFilters.js are vitest-locked separately.
+// Locks the post-build contract for the composable filter chips, ordered sort
+// rules, explicit grouped/flat toggle, always-visible organized filter groups,
+// the maternal-issue UI retirement, and surface_key=cattle.herds saved views.
+// The plain-English "smart filter" assistant was removed (PROJECT.md queue).
+// Pure module helpers in src/lib/cattleHerdFilters.js are vitest-locked
+// separately.
 //
 // Coverage:
 //   1  default load = grouped view, all 4 active herd tiles visible
@@ -15,11 +17,10 @@ import {test, expect} from './fixtures.js';
 //   4  calved=no in mommas — only the never-calved heifer matches
 //   5  blacklist filter — only blacklisted cow matches
 //   6  grouped/flat toggle parity — same survivors after a filter
-//   7  smart-input proposes chips, banner shows preview, state unchanged
-//      until Apply clicked
-//   8  smart-input on unparseable input → error banner, no state change
+//   7  save a cattle herd view, clear state, re-apply it from the picker
 //   9  maternal-issue absence regression — zero /maternal/i text anywhere
-//  10  breed dropdown surfaces historical "Heritage Wagyu" (Codex amend 3)
+//  10  breed chip (always-visible Core group) surfaces historical "Heritage
+//      Wagyu" (Codex amend 3)
 // ============================================================================
 
 async function waitForLoaded(page) {
@@ -268,59 +269,53 @@ test('grouped/flat toggle yields same filtered survivors', async ({page, cattleH
 });
 
 // --------------------------------------------------------------------------
-// Test 7 — smart-input proposes; state unchanged until Apply
+// Test 7 — save a cattle herd view, clear state, re-apply from the picker
 // --------------------------------------------------------------------------
-test('smart-input shows preview banner; state unchanged until Apply clicked', async ({
+test('saves a cattle herd view and re-applies filters/sort/viewMode from the picker', async ({
   page,
   cattleHerdFiltersScenario,
 }) => {
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Initial match count — 9 active cattle (all active herds).
-  const initialCount = await page.locator('[data-cattle-match-count]').textContent();
+  // Build a distinctive state: backgrounders only (3 cows) + flat view.
+  await openFilter(page, 'herdSet');
+  await page.locator('[data-filter-popover="herdSet"] >> text=Backgrounders').click();
+  await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
+  await page.locator('input[data-view-mode="flat"]').click();
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
+  await expect(page.locator('[data-cattle-flat-list] div[id^="cow-"]')).toHaveCount(3);
 
-  await page.locator('input[data-smart-input]').fill('heffers older than 18 months');
-  await page.locator('button[data-smart-apply]').click();
+  // Save it as a public view.
+  const viewName = 'BG Flat ' + Date.now();
+  await page.locator('[data-saved-view-save-open]').click();
+  await expect(page.locator('[data-saved-view-form]')).toBeVisible();
+  await page.locator('[data-saved-view-name]').fill(viewName);
+  await page.locator('[data-saved-view-visibility="public"]').check();
+  await page.locator('[data-saved-view-save]').click();
 
-  // Preview banner appears.
-  const banner = page.locator('[data-smart-preview]');
-  await expect(banner).toBeVisible();
-  await expect(banner).toContainText('Proposed:');
-  await expect(banner).toContainText('Age');
+  // The new view becomes the selected option and the form closes.
+  await expect(page.locator('[data-saved-view-form]')).toHaveCount(0);
+  const optionLabel = viewName + ' · public';
+  await expect(page.locator('[data-saved-view-select] option', {hasText: viewName})).toHaveCount(1);
 
-  // Match count UNCHANGED until Apply.
-  await expect(page.locator('[data-cattle-match-count]')).toHaveText(initialCount);
+  // Reset to a different state: clear filters + back to grouped.
+  await page.locator('input[data-view-mode="grouped"]').click();
+  await page.locator('text=Clear all filters').click();
+  await expect(page.locator('[data-cattle-match-count]')).not.toContainText(/^3 /);
+  await expect(page.locator('input[data-view-mode="grouped"]')).toBeChecked();
 
-  // Click Apply.
-  await page.locator('button[data-smart-apply-proposal]').click();
-  await expect(banner).toHaveCount(0);
+  // Re-apply: deselect, then pick the saved view by label. Selecting restores
+  // filters (backgrounders → 3) and viewMode (flat).
+  await page.locator('[data-saved-view-select]').selectOption('');
+  await page.locator('[data-saved-view-select]').selectOption({label: optionLabel});
+  await expect(page.locator('input[data-view-mode="flat"]')).toBeChecked();
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
+  await expect(page.locator('[data-cattle-flat-list] div[id^="cow-"]')).toHaveCount(3);
 
-  // State changed: 3 survivors (heifers >=18mo). Same set as Test 3.
-  await expect(page.locator('[data-cattle-match-count]')).toContainText('3');
-});
-
-// --------------------------------------------------------------------------
-// Test 8 — smart-input clarification on unparseable
-// --------------------------------------------------------------------------
-test('smart-input clarification on unparseable input — no state change', async ({page, cattleHerdFiltersScenario}) => {
-  await page.goto('/cattle/herds');
-  await waitForLoaded(page);
-
-  const initialCount = await page.locator('[data-cattle-match-count]').textContent();
-
-  await page.locator('input[data-smart-input]').fill('xyzzy plugh foobar');
-  await page.locator('button[data-smart-apply]').click();
-
-  const banner = page.locator('[data-smart-preview]');
-  await expect(banner).toBeVisible();
-  await expect(banner).toContainText("couldn't parse");
-
-  // No Apply button rendered when parse failed.
-  await expect(page.locator('button[data-smart-apply-proposal]')).toHaveCount(0);
-
-  // State unchanged.
-  await expect(page.locator('[data-cattle-match-count]')).toHaveText(initialCount);
+  // Owner controls (update/delete) are available for an owned view.
+  await expect(page.locator('[data-saved-view-update]')).toBeVisible();
+  await expect(page.locator('[data-saved-view-delete]')).toBeVisible();
 });
 
 // --------------------------------------------------------------------------
@@ -337,15 +332,18 @@ test('maternal-issue text absent from herd view, expanded cow detail, and Add mo
   const bodyText = await page.locator('body').innerText();
   expect(bodyText.toLowerCase()).not.toContain('maternal');
 
-  // Expand a cow detail.
+  // Cow record page — a cow-row click now routes to the record page (record
+  // extraction). Open one and re-scan.
   await expandHerd(page, 'mommas');
   const firstCow = page.locator('[data-herd-tile="mommas"]').locator('..').locator('div[id^="cow-"]').first();
   await firstCow.click();
-  // Expanded CowDetail panel — re-scan body text.
-  const bodyTextExpanded = await page.locator('body').innerText();
-  expect(bodyTextExpanded.toLowerCase()).not.toContain('maternal');
+  await expect(page).toHaveURL(/\/cattle\/herds\/.+/);
+  const recordText = await page.locator('body').innerText();
+  expect(recordText.toLowerCase()).not.toContain('maternal');
 
-  // Open Add Cow modal.
+  // Back on the list, open the Add Cow modal and scan it.
+  await page.goto('/cattle/herds');
+  await waitForLoaded(page);
   await page.getByRole('button', {name: '+ Add Cow'}).click();
   const modalText = await page.locator('body').innerText();
   expect(modalText.toLowerCase()).not.toContain('maternal');
@@ -361,8 +359,7 @@ test('breed filter dropdown includes historical "Heritage Wagyu" present on cow 
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Expand More filters → click Breed chip → assert dropdown contains label.
-  await page.locator('[data-more-filters-toggle]').click();
+  // Breed lives in the always-visible Core group now (no More-filters toggle).
   await page.locator('[data-filter-chip="breed"]').click();
   const popover = page.locator('[data-filter-popover="breed"]');
   await expect(popover).toBeVisible();

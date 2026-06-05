@@ -10,10 +10,11 @@ import {
   lastCalvedFor,
   lastCalvingRecordFor,
   isNonCalvingCow,
+  isNonCalvingCowSince,
+  nonCalvingCutoffFromFilters,
   isUnmatchedCalf,
   buildCattlePredicate,
   buildCattleComparator,
-  parseSmartFilter,
   mergeObservedValues,
   CATTLE_SORT_KEYS,
   STALE_WEIGHT_DAYS_DEFAULT,
@@ -248,6 +249,103 @@ describe('herd exception predicates', () => {
     ];
 
     expect(list.filter(p).map((c) => c.tag)).toEqual(['NCC', 'UC']);
+  });
+});
+
+// ── configurable "no calf since" cutoff + nonCalving sort ────────────────────
+describe('non-calving configurable cutoff', () => {
+  const recs = [
+    {dam_tag: 'BEFORE', calving_date: '2025-12-01'}, // before a 2026-01-01 cutoff
+    {dam_tag: 'AFTER', calving_date: '2026-02-01'}, // on/after a 2026-01-01 cutoff
+  ];
+
+  it('nonCalvingCutoffFromFilters: explicit date wins, else 9-months-ago default', () => {
+    expect(nonCalvingCutoffFromFilters({nonCalvingCutoffDate: '2026-01-01'}, TODAY)).toBe('2026-01-01');
+    expect(nonCalvingCutoffFromFilters({}, TODAY)).toBe(monthsAgoISO(TODAY, 9));
+    expect(nonCalvingCutoffFromFilters(null, TODAY)).toBe(monthsAgoISO(TODAY, 9));
+  });
+
+  it('isNonCalvingCowSince: last calved missing OR strictly before cutoff, 30mo+ female only', () => {
+    const cut = '2026-01-01';
+    expect(isNonCalvingCowSince(cow({tag: 'BEFORE', birth_date: '2022-01-15'}), recs, cut, TODAY)).toBe(true);
+    expect(isNonCalvingCowSince(cow({tag: 'AFTER', birth_date: '2022-01-15'}), recs, cut, TODAY)).toBe(false);
+    expect(isNonCalvingCowSince(cow({tag: 'NEVER', birth_date: '2022-01-15'}), recs, cut, TODAY)).toBe(true);
+    // immature (< 30 months) excluded regardless of cutoff
+    expect(isNonCalvingCowSince(cow({tag: 'NEVER', birth_date: '2024-06-01'}), recs, cut, TODAY)).toBe(false);
+    // non-female excluded
+    expect(isNonCalvingCowSince(cow({tag: 'NEVER', sex: 'bull', birth_date: '2020-01-01'}), recs, cut, TODAY)).toBe(
+      false,
+    );
+    // no cutoff → no match
+    expect(isNonCalvingCowSince(cow({tag: 'NEVER', birth_date: '2022-01-15'}), recs, null, TODAY)).toBe(false);
+  });
+
+  it('isNonCalvingCow stays the 9-month default (backward compatibility)', () => {
+    // boundary: cutoff is monthsAgoISO(TODAY,9). A cow calved on that exact day
+    // is NOT a candidate (strictly-before); one day earlier IS.
+    const cut = monthsAgoISO(TODAY, 9);
+    const onCut = [{dam_tag: 'ON', calving_date: cut}];
+    expect(isNonCalvingCow(cow({tag: 'ON', birth_date: '2022-01-15'}), onCut, TODAY)).toBe(false);
+  });
+
+  it('predicate: nonCalvingCutoffDate alone activates the exception with cutoff semantics', () => {
+    const p = buildCattlePredicate({nonCalvingCutoffDate: '2026-01-01'}, {todayMs: TODAY, calvingRecs: recs});
+    const list = [
+      cow({tag: 'BEFORE', birth_date: '2022-01-15'}),
+      cow({tag: 'AFTER', birth_date: '2022-01-15'}),
+      cow({tag: 'NEVER', birth_date: '2022-01-15'}),
+    ];
+    expect(list.filter(p).map((c) => c.tag)).toEqual(['BEFORE', 'NEVER']);
+  });
+
+  it('predicate: cutoff date overrides the boolean default when both are set', () => {
+    // AFTER calved 2026-02-01: a candidate under the 9-month default (last calved
+    // > 9mo ago is false here — 2026-02 is recent, so default would EXCLUDE it),
+    // and excluded under the 2026-01-01 cutoff too. BEFORE is included only via
+    // the cutoff path, proving the cutoff drives the semantics.
+    const p = buildCattlePredicate(
+      {nonCalvingCows: true, nonCalvingCutoffDate: '2026-01-01'},
+      {todayMs: TODAY, calvingRecs: recs},
+    );
+    const list = [cow({tag: 'BEFORE', birth_date: '2022-01-15'}), cow({tag: 'AFTER', birth_date: '2022-01-15'})];
+    expect(list.filter(p).map((c) => c.tag)).toEqual(['BEFORE']);
+  });
+
+  it('nonCalving sort key ranks candidates first (desc) / last (asc)', () => {
+    const sortRecs = [
+      {dam_tag: 'CAND', calving_date: '2024-01-01'}, // old → candidate under default cutoff
+      {dam_tag: 'FRESH', calving_date: '2026-04-01'}, // recent → not a candidate
+    ];
+    const list = [cow({tag: 'FRESH', birth_date: '2022-01-15'}), cow({tag: 'CAND', birth_date: '2022-01-15'})];
+    const desc = [...list].sort(
+      buildCattleComparator([{key: 'nonCalving', dir: 'desc'}], {calvingRecs: sortRecs, todayMs: TODAY}),
+    );
+    expect(desc.map((c) => c.tag)).toEqual(['CAND', 'FRESH']);
+    const asc = [...list].sort(
+      buildCattleComparator([{key: 'nonCalving', dir: 'asc'}], {calvingRecs: sortRecs, todayMs: TODAY}),
+    );
+    expect(asc.map((c) => c.tag)).toEqual(['FRESH', 'CAND']);
+  });
+
+  it('nonCalving sort honors an explicit cutoff passed in ctx', () => {
+    const sortRecs = [{dam_tag: 'X', calving_date: '2025-10-01'}];
+    // Under the default 9-month cutoff (2025-08-02), X calved AFTER → not a
+    // candidate. Under a 2025-12-01 cutoff, X calved BEFORE → candidate.
+    const list = [cow({tag: 'X', birth_date: '2022-01-15'}), cow({tag: 'NONE', birth_date: '2022-01-15'})];
+    const desc = [...list].sort(
+      buildCattleComparator([{key: 'nonCalving', dir: 'desc'}], {
+        calvingRecs: sortRecs,
+        todayMs: TODAY,
+        nonCalvingCutoffDate: '2025-12-01',
+      }),
+    );
+    // Both X (calved before cutoff) and NONE (never calved) are candidates →
+    // ranks tie → stable order preserved.
+    expect(desc.map((c) => c.tag)).toEqual(['X', 'NONE']);
+  });
+
+  it('CATTLE_SORT_KEYS includes nonCalving', () => {
+    expect(CATTLE_SORT_KEYS).toContain('nonCalving');
   });
 });
 
@@ -585,128 +683,6 @@ describe('buildCattleComparator — composition', () => {
   it('CATTLE_SORT_KEYS is the parser/comparator ground truth', () => {
     expect(CATTLE_SORT_KEYS).toContain('age');
     expect(CATTLE_SORT_KEYS).toContain('lastWeight');
-  });
-});
-
-// ── parseSmartFilter tests ──────────────────────────────────────────────────
-describe('parseSmartFilter — Codex worked examples', () => {
-  it('"heffers older then 18 months" → sex=heifer + ageMonthsRange.min=18', () => {
-    const p = parseSmartFilter('heffers older then 18 months', {todayMs: TODAY});
-    expect(p.chips.sex).toEqual(['heifer']);
-    expect(p.chips.ageMonthsRange).toEqual({min: 18});
-    expect(p.confidence).toBe('high');
-    expect(p.unmapped).toEqual([]);
-  });
-
-  it('"mommas havent calvd this year" → herdSet=[mommas] + calvingWindow.noneSince(<thisYear>-01-01)', () => {
-    const p = parseSmartFilter('mommas havent calvd this year', {todayMs: TODAY});
-    expect(p.chips.herdSet).toEqual(['mommas']);
-    expect(p.chips.calvingWindow).toEqual({mode: 'noneSince', since: '2026-01-01'});
-    // Note about date interpretation surfaces in preview banner
-    expect(p.notes.some((n) => /no calving since/i.test(n))).toBe(true);
-  });
-
-  it('"finishrs stale wait" → herdSet=[finishers] + weightTier=staleWeight', () => {
-    const p = parseSmartFilter('finishrs stale wait', {todayMs: TODAY});
-    expect(p.chips.herdSet).toEqual(['finishers']);
-    expect(p.chips.weightTier).toBe('staleWeight');
-    expect(p.confidence).toBe('high');
-  });
-
-  it('"blacklisted angis cows" → blacklist + breed Angus (fuzzy) + sex cow; medium confidence', () => {
-    const breedOptions = [{label: 'Angus'}, {label: 'Hereford'}, {label: 'Black Angus'}];
-    const p = parseSmartFilter('blacklisted angis cows', {todayMs: TODAY, breedOptions});
-    expect(p.chips.breedingBlacklist).toBe(true);
-    expect(p.chips.breed).toEqual(['Angus']);
-    expect(p.chips.sex).toEqual(['cow']);
-    expect(p.confidence).toBe('medium');
-    expect(p.notes.some((n) => /angis.*Angus/i.test(n))).toBe(true);
-  });
-});
-
-describe('parseSmartFilter — sort vs filter (Codex amendment 5)', () => {
-  it('"oldest heifers first" → sex=heifer + sort age desc', () => {
-    const p = parseSmartFilter('oldest heifers first', {todayMs: TODAY});
-    expect(p.chips.sex).toEqual(['heifer']);
-    expect(p.sortRules).toEqual([{key: 'age', dir: 'desc'}]);
-  });
-  it('"old heifers" (no anchor, no sort phrase) → sex=heifer; "old" lands in unmapped', () => {
-    const p = parseSmartFilter('old heifers', {todayMs: TODAY});
-    expect(p.chips.sex).toEqual(['heifer']);
-    expect(p.chips.ageMonthsRange).toBeUndefined();
-    expect(p.sortRules).toEqual([]);
-    expect(p.unmapped).toContain('old');
-    expect(p.confidence).toBe('medium');
-  });
-  it('"youngest first" alone → sortRules only, no chips', () => {
-    const p = parseSmartFilter('youngest first', {todayMs: TODAY});
-    expect(p.sortRules).toEqual([{key: 'age', dir: 'asc'}]);
-    expect(Object.keys(p.chips)).toEqual([]);
-  });
-});
-
-describe('parseSmartFilter — weight phrase mapping (4 distinct states)', () => {
-  it('"stale weight" → staleWeight', () => {
-    expect(parseSmartFilter('stale weight').chips.weightTier).toBe('staleWeight');
-  });
-  it('"no weight" → noWeight', () => {
-    expect(parseSmartFilter('no weight').chips.weightTier).toBe('noWeight');
-  });
-  it('"no recent weight" → staleOrNoWeight (matched before "no weight")', () => {
-    expect(parseSmartFilter('no recent weight').chips.weightTier).toBe('staleOrNoWeight');
-  });
-  it('"weighed" → hasWeight', () => {
-    expect(parseSmartFilter('weighed').chips.weightTier).toBe('hasWeight');
-  });
-});
-
-describe('parseSmartFilter — lineage two-chip composition', () => {
-  it('"orphan" → both damPresence + sirePresence missing', () => {
-    const p = parseSmartFilter('orphan');
-    expect(p.chips.damPresence).toBe('missing');
-    expect(p.chips.sirePresence).toBe('missing');
-  });
-  it('"missing sire" → sirePresence=missing only', () => {
-    const p = parseSmartFilter('missing sire');
-    expect(p.chips.sirePresence).toBe('missing');
-    expect(p.chips.damPresence).toBeUndefined();
-  });
-  it('"known parents" → both present', () => {
-    const p = parseSmartFilter('known parents');
-    expect(p.chips.damPresence).toBe('present');
-    expect(p.chips.sirePresence).toBe('present');
-  });
-});
-
-describe('parseSmartFilter — edge cases', () => {
-  it('empty / whitespace input → low confidence, empty chips', () => {
-    expect(parseSmartFilter('').chips).toEqual({});
-    expect(parseSmartFilter('').confidence).toBe('low');
-    expect(parseSmartFilter('   ').chips).toEqual({});
-  });
-  it('unknown gibberish → low confidence', () => {
-    const p = parseSmartFilter('xyzzy plugh', {todayMs: TODAY});
-    expect(p.confidence).toBe('low');
-    expect(Object.keys(p.chips)).toEqual([]);
-  });
-  it('contradictory ranges → low confidence + empty chips', () => {
-    const p = parseSmartFilter('older than 24 months younger than 12 months', {todayMs: TODAY});
-    expect(p.confidence).toBe('low');
-    expect(p.chips.ageMonthsRange).toBeUndefined();
-    expect(p.notes.some((n) => /contradictory/i.test(n))).toBe(true);
-  });
-  it('"never calved" → calvedStatus=no; "calved" alone → calvedStatus=yes', () => {
-    expect(parseSmartFilter('never calved').chips.calvedStatus).toBe('no');
-    expect(parseSmartFilter('has calved').chips.calvedStatus).toBe('yes');
-  });
-  it('"havent calved this year" wins over plain "havent calved" — calvingWindow set, not calvedStatus', () => {
-    const p = parseSmartFilter('havent calved this year', {todayMs: TODAY});
-    expect(p.chips.calvingWindow).toEqual({mode: 'noneSince', since: '2026-01-01'});
-    expect(p.chips.calvedStatus).toBeUndefined();
-  });
-  it('years unit → converts to months', () => {
-    const p = parseSmartFilter('older than 2 years', {todayMs: TODAY});
-    expect(p.chips.ageMonthsRange).toEqual({min: 24});
   });
 });
 
