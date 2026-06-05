@@ -2,6 +2,7 @@ import {describe, it, expect} from 'vitest';
 import {
   calcPoultryStatus,
   shouldAutoActivateBroilerBatch,
+  shouldAutoProcessBroilerBatch,
   computeBroilerOnFarmCounts,
   recomputeBroilerBatchWeekAvg,
 } from './broiler.js';
@@ -104,6 +105,27 @@ describe('broiler hatch-date status promotion', () => {
     expect(shouldAutoActivateBroilerBatch({status: 'planned', hatchDate: '2026-05-04'}, '2026-05-05')).toBe(true);
     expect(shouldAutoActivateBroilerBatch({status: 'planned', hatchDate: '2026-05-06'}, '2026-05-05')).toBe(false);
     expect(shouldAutoActivateBroilerBatch({status: 'active', hatchDate: '2026-05-05'}, '2026-05-05')).toBe(false);
+  });
+});
+
+describe('broiler processing-date auto-processing', () => {
+  it('flags active batches whose processing date is today or earlier (inclusive)', () => {
+    expect(shouldAutoProcessBroilerBatch({status: 'active', processingDate: '2026-05-05'}, '2026-05-05')).toBe(true);
+    expect(shouldAutoProcessBroilerBatch({status: 'active', processingDate: '2026-05-04'}, '2026-05-05')).toBe(true);
+  });
+
+  it('leaves active batches with a future processing date alone', () => {
+    expect(shouldAutoProcessBroilerBatch({status: 'active', processingDate: '2026-05-06'}, '2026-05-05')).toBe(false);
+  });
+
+  it('only affects active batches — not planned, processed, missing status, or no processing date', () => {
+    expect(shouldAutoProcessBroilerBatch({status: 'planned', processingDate: '2026-05-01'}, '2026-05-05')).toBe(false);
+    expect(shouldAutoProcessBroilerBatch({status: 'processed', processingDate: '2026-05-01'}, '2026-05-05')).toBe(
+      false,
+    );
+    expect(shouldAutoProcessBroilerBatch({processingDate: '2026-05-01'}, '2026-05-05')).toBe(false);
+    expect(shouldAutoProcessBroilerBatch({status: 'active'}, '2026-05-05')).toBe(false);
+    expect(shouldAutoProcessBroilerBatch(null, '2026-05-05')).toBe(false);
   });
 });
 

@@ -36,3 +36,26 @@ describe('broiler hatch-date auto-activation hotfix', () => {
     expect(broilerListSrc).toMatch(/<span style=\{S\.badge\(S2\.bg, S2\.tx\)\}>\{autoSt\}<\/span>/);
   });
 });
+
+describe('broiler processing-date auto-processing hotfix', () => {
+  it('exports the active processing-date predicate from broiler.js (inclusive of today)', () => {
+    expect(broilerSrc).toMatch(/export function shouldAutoProcessBroilerBatch/);
+    expect(broilerSrc).toMatch(/batch\.status !== 'active'/);
+    expect(broilerSrc).toMatch(/today >= processingDate/);
+  });
+
+  it('loadAllData imports + calls the helper and persists active -> processed', () => {
+    expect(mainSrc).toMatch(/shouldAutoProcessBroilerBatch,/);
+    expect(mainSrc).toMatch(/shouldAutoProcessBroilerBatch\(nb\)/);
+    expect(mainSrc).toMatch(/nb = \{\.\.\.nb, status: 'processed'\}/);
+  });
+
+  it('auto-processing runs after auto-activation in the same ppp-v4 migration map', () => {
+    const activateIdx = mainSrc.indexOf('shouldAutoActivateBroilerBatch(nb)');
+    const processIdx = mainSrc.indexOf('shouldAutoProcessBroilerBatch(nb)');
+    const persistIdx = mainSrc.indexOf("store['ppp-v4'] = migrated");
+    expect(activateIdx).toBeGreaterThan(-1);
+    expect(processIdx).toBeGreaterThan(activateIdx);
+    expect(persistIdx).toBeGreaterThan(processIdx);
+  });
+});

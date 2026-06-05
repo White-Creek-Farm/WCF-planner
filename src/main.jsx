@@ -146,6 +146,7 @@ import {
   calcTimeline,
   calcPoultryStatus,
   shouldAutoActivateBroilerBatch,
+  shouldAutoProcessBroilerBatch,
   calcBroilerStatsFromDailys,
   getBatchColor,
   breedLabel,
@@ -1948,6 +1949,17 @@ function App() {
                 nb.perLbStandardCost = loadedFeedCosts.grower || 0;
                 nb.perLbGritCost = loadedFeedCosts.grit || 0;
               }
+              changed = true;
+            }
+            // Hotfix 2026: active broiler batches auto-advance to processed on
+            // or after their processing date (inclusive), without an edit —
+            // mirrors hatch-day auto-activation. Runs after activation so a
+            // freshly-activated batch sees its current status; only active
+            // batches with a due processingDate are affected, so it never
+            // fights activation or overrides a manual/terminal status. Persist
+            // so the active-only public weigh-in mirror drops the batch too.
+            if (shouldAutoProcessBroilerBatch(nb)) {
+              nb = {...nb, status: 'processed'};
               changed = true;
             }
             // Fix brooderIn if it equals hatchDate (was same-day, should be +1)

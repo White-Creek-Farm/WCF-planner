@@ -151,6 +151,19 @@ export function shouldAutoActivateBroilerBatch(batch, asOfDate = todayISO()) {
   return today >= hatchDate;
 }
 
+// Auto-process an ACTIVE batch once its processing date arrives. "On the
+// processing date" is inclusive (today >= processingDate). Mirrors the
+// hatch-day auto-activation date style. Only active batches are eligible, so
+// this never fights auto-activation (which acts on planned batches) and never
+// overrides a manual/already-processed terminal status.
+export function shouldAutoProcessBroilerBatch(batch, asOfDate = todayISO()) {
+  if (!batch || batch.status !== 'active') return false;
+  const processingDate = String(batch.processingDate || '').slice(0, 10);
+  const today = String(asOfDate || todayISO()).slice(0, 10);
+  if (!isISODateLike(processingDate) || !isISODateLike(today)) return false;
+  return today >= processingDate;
+}
+
 export function calcPoultryStatus(batch, asOfDate = todayISO()) {
   // Manual terminal state wins. Planned is the one status that can age
   // forward automatically once hatch day arrives.
