@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const dashSrc = fs.readFileSync(path.join(ROOT, 'src/dashboard/HomeDashboard.jsx'), 'utf8');
+const alertSrc = fs.readFileSync(path.join(ROOT, 'src/dashboard/homeAlerts.js'), 'utf8');
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const pigBatchesSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
 // CP11: the sub-batch form + its no-sub-batch setup copy moved to PigBatchPage.
@@ -18,56 +19,61 @@ describe('HomeDashboard — pig breeding stock missed dailys', () => {
     expect(dashSrc).toMatch(/usePig\(\)/);
   });
 
+  it('uses the shared missed-daily builder', () => {
+    expect(dashSrc).toMatch(/const allMissed = buildMissedDailyReports\(/);
+    expect(alertSrc).toMatch(/export function buildMissedDailyReports\b/);
+  });
+
   it('computes hasActiveSows from non-archived Sow/Gilt breeders', () => {
-    expect(dashSrc).toContain('hasActiveSows');
-    expect(dashSrc).toMatch(/!b\.archived\s*&&\s*\(b\.sex === 'Sow' \|\| b\.sex === 'Gilt'\)/);
+    expect(alertSrc).toContain('hasActiveSows');
+    expect(alertSrc).toMatch(/!b\.archived\s*&&\s*\(b\.sex === 'Sow' \|\| b\.sex === 'Gilt'\)/);
   });
 
   it('computes hasActiveBoars from non-archived Boar breeders', () => {
-    expect(dashSrc).toContain('hasActiveBoars');
-    expect(dashSrc).toMatch(/!b\.archived\s*&&\s*b\.sex === 'Boar'/);
+    expect(alertSrc).toContain('hasActiveBoars');
+    expect(alertSrc).toMatch(/!b\.archived\s*&&\s*b\.sex === 'Boar'/);
   });
 
   it('checks pigCheck for sows label (lowercase match)', () => {
-    expect(dashSrc).toContain("pigCheck.has('sows')");
+    expect(alertSrc).toContain("pigCheck.has('sows')");
   });
 
   it('checks pigCheck for boars label (lowercase match)', () => {
-    expect(dashSrc).toContain("pigCheck.has('boars')");
+    expect(alertSrc).toContain("pigCheck.has('boars')");
   });
 
   it('uses pig-stock-sows stable key prefix', () => {
-    expect(dashSrc).toContain('pig-stock-sows|');
+    expect(alertSrc).toContain('pig-stock-sows|');
   });
 
   it('uses pig-stock-boars stable key prefix', () => {
-    expect(dashSrc).toContain('pig-stock-boars|');
+    expect(alertSrc).toContain('pig-stock-boars|');
   });
 
   it('pushes SOWS missed row with pig icon and Pig type', () => {
-    expect(dashSrc).toMatch(/label:\s*'SOWS'/);
-    expect(dashSrc).toMatch(/SOWS.*iconKey:\s*ANIMAL_ICON_KEYS\.pig/s);
+    expect(alertSrc).toMatch(/label:\s*'SOWS'/);
+    expect(alertSrc).toMatch(/SOWS.*iconKey:\s*ANIMAL_ICON_KEYS\.pig/s);
   });
 
   it('pushes BOARS missed row with pig icon and Pig type', () => {
-    expect(dashSrc).toMatch(/label:\s*'BOARS'/);
-    expect(dashSrc).toMatch(/BOARS.*iconKey:\s*ANIMAL_ICON_KEYS\.pig/s);
+    expect(alertSrc).toMatch(/label:\s*'BOARS'/);
+    expect(alertSrc).toMatch(/BOARS.*iconKey:\s*ANIMAL_ICON_KEYS\.pig/s);
   });
 
   it('does not flag SOWS when hasActiveSows is false', () => {
-    expect(dashSrc).toMatch(/if\s*\(hasActiveSows\)/);
+    expect(alertSrc).toMatch(/if\s*\(hasActiveSows\)/);
   });
 
   it('does not flag BOARS when hasActiveBoars is false', () => {
-    expect(dashSrc).toMatch(/if\s*\(hasActiveBoars\)/);
+    expect(alertSrc).toMatch(/if\s*\(hasActiveBoars\)/);
   });
 
   it('respects missedCleared for sows key', () => {
-    expect(dashSrc).toMatch(/pig-stock-sows.*missedCleared/s);
+    expect(alertSrc).toMatch(/pig-stock-sows.*cleared/s);
   });
 
   it('respects missedCleared for boars key', () => {
-    expect(dashSrc).toMatch(/pig-stock-boars.*missedCleared/s);
+    expect(alertSrc).toMatch(/pig-stock-boars.*cleared/s);
   });
 });
 
@@ -93,16 +99,16 @@ describe('HomeDashboard — green banner includes breeding stock', () => {
 
 describe('HomeDashboard — pig feeder missed targets via shared helper (no parent fallback)', () => {
   it('derives feeder missed targets from activePigFeederDailyTargets', () => {
-    expect(dashSrc).toContain('activePigFeederDailyTargets(feederGroups).forEach');
+    expect(alertSrc).toContain('activePigFeederDailyTargets(asArray(feederGroups)).forEach');
   });
 
   it('labels feeder missed rows with the parent batch name from the target', () => {
-    expect(dashSrc).toMatch(/type:\s*`Pig · \$\{t\.parentBatchName\}`/);
+    expect(alertSrc).toMatch(/type:\s*`Pig · \$\{t\.parentBatchName\}`/);
   });
 
   it('no longer has the parent-batch fallback branch for subs.length === 0', () => {
-    expect(dashSrc).not.toMatch(/subs\.length === 0/);
-    expect(dashSrc).not.toMatch(/label:\s*g\.batchName/);
+    expect(alertSrc).not.toMatch(/subs\.length === 0/);
+    expect(alertSrc).not.toMatch(/label:\s*g\.batchName/);
   });
 });
 

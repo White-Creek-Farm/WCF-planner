@@ -12,17 +12,16 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import {sb} from '../lib/supabase.js';
-import {fmt, fmtS, toISO, addDays, todayISO} from '../lib/dateUtils.js';
-import {calcPoultryStatus, computeBroilerOnFarmCounts, calcTimeline} from '../lib/broiler.js';
-import {
-  calcBreedingTimeline,
-  buildCycleSeqMap,
-  cycleLabel,
-  calcCycleStatus,
-  activePigFeederDailyTargets,
-} from '../lib/pig.js';
-import {computeIntervalStatus, daysSince, latestSaneReading, WARRANTY_WINDOW_DAYS} from '../lib/equipment.js';
+import {fmt, fmtS, toISO, addDays} from '../lib/dateUtils.js';
+import {calcPoultryStatus, computeBroilerOnFarmCounts} from '../lib/broiler.js';
+import {calcBreedingTimeline, buildCycleSeqMap, calcCycleStatus, activePigFeederDailyTargets} from '../lib/pig.js';
 import {buildMaterialChecklist} from '../lib/equipmentMaterials.js';
+import {
+  buildEquipmentAttention,
+  buildMissedDailyReports,
+  buildNext30Events,
+  foldEquipmentFuelings,
+} from './homeAlerts.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
@@ -72,9 +71,6 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
 
   const role = authState?.role;
   const isAdmin = role === 'admin';
-  const today = new Date();
-  const todayStr = todayISO();
-  const in30 = toISO(addDays(today, 30));
 
   // Equipment data for missed-fueling + EQUIPMENT ATTENTION section. Loaded
   // defensively so the home page still renders if migration 016 isn't in.
@@ -110,37 +106,9 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           return;
         }
         if (!data) return;
-        const compM = {};
-        const fuelM = {};
-        for (const r of data) {
-          if (!fuelM[r.equipment_id]) fuelM[r.equipment_id] = [];
-          fuelM[r.equipment_id].push(r);
-          const comps = Array.isArray(r.service_intervals_completed) ? r.service_intervals_completed : [];
-          if (comps.length > 0) {
-            const fallbackReading =
-              r.hours_reading != null ? Number(r.hours_reading) : r.km_reading != null ? Number(r.km_reading) : null;
-            const normalized = comps.map((c) => ({
-              ...c,
-              reading_at_completion:
-                c && c.reading_at_completion != null ? Number(c.reading_at_completion) : fallbackReading,
-              team_member: c && c.team_member != null ? c.team_member : r.team_member || null,
-            }));
-            compM[r.equipment_id] = [...(compM[r.equipment_id] || []), ...normalized];
-          }
-        }
-        // Sort each equipment's fuelings by reading desc (date as tiebreaker) — same as the streak feature.
-        for (const id in fuelM) {
-          fuelM[id].sort((a, b) => {
-            const ra =
-              a.hours_reading != null ? Number(a.hours_reading) : a.km_reading != null ? Number(a.km_reading) : null;
-            const rb =
-              b.hours_reading != null ? Number(b.hours_reading) : b.km_reading != null ? Number(b.km_reading) : null;
-            if (ra != null && rb != null && ra !== rb) return rb - ra;
-            return String(b.date || '').localeCompare(String(a.date || ''));
-          });
-        }
-        setEquipmentCompletions(compM);
-        setEquipmentFuelings(fuelM);
+        const folded = foldEquipmentFuelings(data);
+        setEquipmentCompletions(folded.equipmentCompletions);
+        setEquipmentFuelings(folded.equipmentFuelings);
       });
   }, []);
 
@@ -190,137 +158,9 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
   const processedBatches = batches.filter((b) => calcPoultryStatus(b) === 'processed');
   const broilerOnFarm = broilerOnFarmCounts.onFarmBirds;
 
-  // What's happening in the next 30 days
-  const weekEvents = [];
+  const weekEvents = buildNext30Events({batches, breedingCycles, farrowingRecs, feederGroups});
 
-  // Poultry events
-  batches.forEach((b) => {
-    const live = calcTimeline(b.hatchDate, b.breed, b.processingDate);
-    if (!live) return;
-    if (live.brooderIn >= todayStr && live.brooderIn <= in30)
-      weekEvents.push({
-        type: 'brooder-in',
-        label: `${b.name} enters brooder`,
-        date: live.brooderIn,
-        color: '#065f46',
-        iconKey: ANIMAL_ICON_KEYS.broiler,
-      });
-    if (live.schoonerIn >= todayStr && live.schoonerIn <= in30)
-      weekEvents.push({
-        type: 'schooner-in',
-        label: `${b.name} moves to schooner`,
-        date: live.schoonerIn,
-        color: '#a16207',
-        iconKey: ANIMAL_ICON_KEYS.broiler,
-      });
-    if (b.processingDate >= todayStr && b.processingDate <= in30)
-      weekEvents.push({
-        type: 'processing',
-        label: `${b.name} processing day`,
-        date: b.processingDate,
-        color: '#7f1d1d',
-        iconKey: ANIMAL_ICON_KEYS.broiler,
-      });
-    // 4-week weight reminder
-    if (b.hatchDate) {
-      const wk4date = toISO(addDays(new Date(b.hatchDate + 'T12:00:00'), 28));
-      if (wk4date >= todayStr && wk4date <= in30 && !(parseFloat(b.week4Lbs) > 0))
-        weekEvents.push({
-          type: 'wt-4wk',
-          label: `${b.name} — record 4-week weights`,
-          date: wk4date,
-          color: '#854d0e',
-          iconKey: PLANNER_ICON_KEYS.weighins,
-          reminder: true,
-        });
-    }
-    // 6-week weight reminder
-    if (b.hatchDate) {
-      const wk6date = toISO(addDays(new Date(b.hatchDate + 'T12:00:00'), 42));
-      if (wk6date >= todayStr && wk6date <= in30 && !(parseFloat(b.week6Lbs) > 0))
-        weekEvents.push({
-          type: 'wt-6wk',
-          label: `${b.name} — record 6-week weights`,
-          date: wk6date,
-          color: '#854d0e',
-          iconKey: PLANNER_ICON_KEYS.weighins,
-          reminder: true,
-        });
-    }
-  });
-
-  // Pig events
-  const _weekSeqMap = buildCycleSeqMap(breedingCycles);
-  breedingCycles.forEach((c) => {
-    const tl = calcBreedingTimeline(c.exposureStart);
-    if (!tl) return;
-    const lbl = cycleLabel(c, _weekSeqMap);
-    if (tl.farrowingStart >= todayStr && tl.farrowingStart <= in30)
-      weekEvents.push({
-        type: 'farrow-open',
-        label: `${lbl} farrowing window opens`,
-        date: tl.farrowingStart,
-        color: '#1e40af',
-        iconKey: ANIMAL_ICON_KEYS.pig,
-      });
-    if (tl.farrowingEnd >= todayStr && tl.farrowingEnd <= in30)
-      weekEvents.push({
-        type: 'farrow-close',
-        label: `${lbl} farrowing window closes`,
-        date: tl.farrowingEnd,
-        color: '#be185d',
-        iconKey: ANIMAL_ICON_KEYS.pig,
-      });
-    // Sows due in window. The label intentionally describes the GROUP's
-    // farrowing window, not "N individual sows scheduled" — the pending
-    // count is the secondary detail because the window itself is the
-    // event ("3 pending" doesn't mean "3 sows on this date"). Date stays
-    // as farrowingStart for sort stability; for already-active windows
-    // the subline renders the full Window MM/DD/YY-MM/DD/YY range so the
-    // bare start date isn't mistaken for an upcoming event.
-    if (tl.farrowingStart <= in30 && tl.farrowingEnd >= todayStr) {
-      const expected = [...(c.boar1Tags || '').split(/[\n,]+/), ...(c.boar2Tags || '').split(/[\n,]+/)]
-        .map((t) => t.trim())
-        .filter(Boolean);
-      const farrowed = new Set(farrowingRecs.filter((r) => r.group === c.group).map((r) => r.sow.trim()));
-      const pending = expected.filter((t) => !farrowed.has(t));
-      if (pending.length > 0) {
-        const windowActive = tl.farrowingStart <= todayStr;
-        weekEvents.push({
-          type: 'farrow-due',
-          label: `${lbl} sow group farrowing window ${windowActive ? 'active' : 'opens'}`,
-          date: tl.farrowingStart,
-          subline: windowActive
-            ? `Window ${fmt(tl.farrowingStart)}-${fmt(tl.farrowingEnd)}`
-            : `Opens ${fmt(tl.farrowingStart)}`,
-          color: '#1e40af',
-          iconKey: ANIMAL_ICON_KEYS.pig,
-        });
-      }
-    }
-  });
-
-  // Pig batches hitting 6 months
-  feederGroups.forEach((g) => {
-    const cycle = breedingCycles.find((c) => c.id === g.cycleId);
-    if (!cycle) return;
-    const tl = calcBreedingTimeline(cycle.exposureStart);
-    if (!tl) return;
-    const farrowMid = new Date(tl.farrowingStart + 'T12:00:00');
-    const sixMonths = toISO(addDays(farrowMid, 183));
-    if (sixMonths >= todayStr && sixMonths <= in30)
-      weekEvents.push({
-        type: 'pig-age',
-        label: `${g.batchName} hitting ~6 months`,
-        date: sixMonths,
-        color: '#92400e',
-        iconKey: ANIMAL_ICON_KEYS.pig,
-      });
-  });
-
-  weekEvents.sort((a, b) => a.date.localeCompare(b.date));
-
-  // ── Missed daily reports — checks last 7 days, persists until cleared ──
+  // Missed daily reports: checks last 7 days, persists until cleared
   async function clearMissedEntry(key) {
     const newSet = new Set([...missedCleared, key]);
     setMissedCleared(newSet);
@@ -335,213 +175,27 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
       .upsert({key: 'ppp-missed-cleared-v1', data: [...newSet]}, {onConflict: 'key'})
       .then(() => {});
   }
-  const allMissed = [];
-  for (let daysBack = 1; daysBack <= 7; daysBack++) {
-    const checkDate = toISO(addDays(new Date(), -daysBack));
-    const broilerCheck = new Set(
-      broilerDailys
-        .filter((d) => d.date === checkDate)
-        .map((d) =>
-          (d.batch_label || '')
-            .toLowerCase()
-            .trim()
-            .replace(/^\(processed\)\s*/, ''),
-        ),
-    );
-    const pigCheck = new Set(
-      pigDailys.filter((d) => d.date === checkDate).map((d) => (d.batch_label || '').toLowerCase().trim()),
-    );
-    const layerCheck = new Set(
-      layerDailysRecent.filter((d) => d.date === checkDate).map((d) => (d.batch_label || '').toLowerCase().trim()),
-    );
-    // Broilers — only check batches user has explicitly marked active AND only for days the batch was on the farm
-    batches
-      .filter((b) => b.status === 'active')
-      .forEach((b) => {
-        // Skip days before the batch arrived (use brooderIn, fall back to hatchDate)
-        const earliestDate = b.brooderIn || b.hatchDate;
-        if (earliestDate && checkDate < earliestDate) return;
-        // Skip days after processing
-        if (b.processingDate && checkDate > b.processingDate) return;
-        const key = `${b.id}|${checkDate}`;
-        if (!broilerCheck.has(b.name.toLowerCase().trim()) && !missedCleared.has(key))
-          allMissed.push({key, label: b.name, iconKey: ANIMAL_ICON_KEYS.broiler, type: 'Broiler', date: checkDate});
-      });
-    // Pig feeder dailys — active sub-batches of active feeder groups only.
-    // No parent-batch fallback: an active parent feeder group with no active
-    // sub-batches contributes no missed-report target (it has no daily report
-    // until an active sub-batch splits it). SOWS/BOARS are handled below.
-    activePigFeederDailyTargets(feederGroups).forEach((t) => {
-      const key = `${t.id}|${checkDate}`;
-      if (!pigCheck.has((t.name || '').toLowerCase().trim()) && !missedCleared.has(key))
-        allMissed.push({
-          key,
-          label: t.name,
-          iconKey: ANIMAL_ICON_KEYS.pig,
-          type: `Pig · ${t.parentBatchName}`,
-          date: checkDate,
-        });
-    });
-    // Pig breeding stock — SOWS and BOARS are non-feeder daily targets
-    const hasActiveSows = (breeders || []).some((b) => !b.archived && (b.sex === 'Sow' || b.sex === 'Gilt'));
-    const hasActiveBoars = (breeders || []).some((b) => !b.archived && b.sex === 'Boar');
-    if (hasActiveSows) {
-      const key = `pig-stock-sows|${checkDate}`;
-      if (!pigCheck.has('sows') && !missedCleared.has(key))
-        allMissed.push({key, label: 'SOWS', iconKey: ANIMAL_ICON_KEYS.pig, type: 'Pig', date: checkDate});
-    }
-    if (hasActiveBoars) {
-      const key = `pig-stock-boars|${checkDate}`;
-      if (!pigCheck.has('boars') && !missedCleared.has(key))
-        allMissed.push({key, label: 'BOARS', iconKey: ANIMAL_ICON_KEYS.pig, type: 'Pig', date: checkDate});
-    }
-    // Layers
-    (layerGroups || [])
-      .filter((g) => g.status === 'active')
-      .forEach((g) => {
-        const key = `${g.id}|${checkDate}`;
-        if (!layerCheck.has((g.name || '').toLowerCase().trim()) && !missedCleared.has(key))
-          allMissed.push({key, label: g.name, iconKey: ANIMAL_ICON_KEYS.layer, type: 'Layer', date: checkDate});
-      });
-    // Cattle — flag any active herd that has cattle but no daily report on this date
-    const cattleCheck = new Set(cattleDailysRecent.filter((d) => d.date === checkDate).map((d) => d.herd));
-    ['mommas', 'backgrounders', 'finishers', 'bulls'].forEach((h) => {
-      if (!cattleForHome.some((c) => c.herd === h)) return;
-      const key = `cattle-${h}|${checkDate}`;
-      if (!cattleCheck.has(h) && !missedCleared.has(key))
-        allMissed.push({
-          key,
-          label: h.charAt(0).toUpperCase() + h.slice(1),
-          iconKey: ANIMAL_ICON_KEYS.cattle,
-          type: 'Cattle',
-          date: checkDate,
-        });
-    });
-    // Sheep — flag any active flock that has sheep but no daily report on this date
-    const sheepCheck = new Set(sheepDailysRecent.filter((d) => d.date === checkDate).map((d) => d.flock));
-    ['rams', 'ewes', 'feeders'].forEach((f) => {
-      if (!sheepForHome.some((s) => s.flock === f)) return;
-      const key = `sheep-${f}|${checkDate}`;
-      if (!sheepCheck.has(f) && !missedCleared.has(key))
-        allMissed.push({
-          key,
-          label: f.charAt(0).toUpperCase() + f.slice(1),
-          iconKey: ANIMAL_ICON_KEYS.sheep,
-          type: 'Sheep',
-          date: checkDate,
-        });
-    });
-  }
-  // Sort newest first
-  allMissed.sort((a, b) => b.date.localeCompare(a.date));
-
-  // ── Equipment attention: overdue services + every-fillup item streaks +
-  // warranty. Equipment maintenance is HOUR/KM-based, not calendar-based —
-  // animal daily reports are the calendar/time workflow, equipment is not.
-  // So this section deliberately does NOT surface near-due ("upcoming")
-  // services or stale-fueling-by-time alerts; both were noisy without
-  // signaling action. Only `warranty` is manually clearable (no underlying
-  // signal resolves it on its own); the other kinds auto-clear when their
-  // state resolves: interval ticked complete on a fueling, every-fillup
-  // items ticked on next fueling.
-  const equipmentAttention = [];
-  equipment.forEach((eq) => {
-    const unit = eq.tracking_unit === 'km' ? 'km' : 'hours';
-    const unitLabel = unit === 'km' ? 'km' : 'h';
-    // Effective reading prefers the latest webform fueling submission when it's
-    // ahead of equipment.current_*. Anon UPDATEs to the parent equipment row
-    // silently fail in prod under RLS (recon 2026-04-28), so trusting
-    // equipment.current_* alone makes overdue calls run against stale data.
-    const currentReading = latestSaneReading(eq, equipmentFuelings[eq.id] || []);
-    const intervals = Array.isArray(eq.service_intervals) ? eq.service_intervals : [];
-    const completions = equipmentCompletions[eq.id] || [];
-
-    // Each overdue interval = its own row so multiples on the same piece
-    // all surface. NOT manually clearable — auto-clears when an operator
-    // completes the checklist on a fueling (which moves the next-due
-    // milestone past the current reading).
-    if (Number.isFinite(currentReading) && currentReading > 0 && intervals.length > 0) {
-      const statuses = computeIntervalStatus(intervals, completions, currentReading);
-      const overdue = statuses.filter((s) => s.overdue).sort((a, b) => a.hours_or_km - b.hours_or_km);
-      for (const s of overdue) {
-        const over = currentReading - s.next_due;
-        const intervalLbl = s.label || s.hours_or_km + unitLabel + ' service';
-        equipmentAttention.push({
-          key: `equip-overdue-${eq.id}|${s.kind}|${s.hours_or_km}`,
-          kind: 'overdue',
-          slug: eq.slug,
-          label: eq.name,
-          detail: `${intervalLbl} · ${Math.round(over).toLocaleString()} ${unitLabel} overdue`,
-        });
-      }
-    }
-
-    // Every-fillup streaks: one row per piece summarizing item-level misses.
-    // Mirrors the per-item badges shown on the /fueling/<slug> webform; this
-    // is the home-page roll-up so admins/managers see the action queue.
-    const fillupItems = Array.isArray(eq.every_fillup_items) ? eq.every_fillup_items : [];
-    const fuelings = equipmentFuelings[eq.id] || [];
-    if (fillupItems.length > 0 && fuelings.length > 0) {
-      const itemsWithStreak = [];
-      for (const item of fillupItems) {
-        let streak = 0;
-        for (const h of fuelings) {
-          const ticks = Array.isArray(h.every_fillup_check) ? h.every_fillup_check : [];
-          const wasTicked = ticks.some((t) => t && t.id === item.id);
-          if (wasTicked) break;
-          streak++;
-        }
-        if (streak > 0) itemsWithStreak.push({label: item.label || item.id, streak});
-      }
-      if (itemsWithStreak.length > 0) {
-        const maxStreak = Math.max(...itemsWithStreak.map((i) => i.streak));
-        const sample = itemsWithStreak
-          .slice(0, 2)
-          .map((i) => i.label)
-          .join(', ');
-        const more = itemsWithStreak.length > 2 ? ` +${itemsWithStreak.length - 2} more` : '';
-        // Auto-clears when next fueling ticks every previously-missed item.
-        equipmentAttention.push({
-          key: `equip-fillup-${eq.id}|streak${maxStreak}|n${itemsWithStreak.length}`,
-          kind: 'fillup_streak',
-          slug: eq.slug,
-          label: eq.name,
-          detail: `${itemsWithStreak.length} fillup item${itemsWithStreak.length === 1 ? '' : 's'} skipped (${maxStreak}× max streak): ${sample}${more}`,
-        });
-      }
-    }
-
-    // Warranty: daysSince returns positive when past, negative when ahead.
-    if (eq.warranty_expiration) {
-      const d = daysSince(eq.warranty_expiration);
-      if (d != null && d >= -WARRANTY_WINDOW_DAYS) {
-        let detail;
-        if (d > 0) detail = `Warranty expired ${d} day${d === 1 ? '' : 's'} ago`;
-        else if (d === 0) detail = 'Warranty expires today';
-        else detail = `Warranty expires in ${-d} day${-d === 1 ? '' : 's'}`;
-        // Warranty IS manually clearable — no checklist resolves it. Admin
-        // dismisses with the Clear button or by updating the warranty date.
-        const key = `equip-warranty-${eq.id}|${eq.warranty_expiration}`;
-        if (!missedCleared.has(key)) {
-          equipmentAttention.push({
-            key,
-            kind: 'warranty',
-            slug: eq.slug,
-            label: eq.name,
-            detail,
-          });
-        }
-      }
-    }
+  const allMissed = buildMissedDailyReports({
+    batches,
+    broilerDailys,
+    pigDailys,
+    layerDailysRecent,
+    cattleDailysRecent,
+    sheepDailysRecent,
+    feederGroups,
+    breeders,
+    layerGroups,
+    cattleForHome,
+    sheepForHome,
+    missedCleared,
   });
-  // Order: overdue → fillup_streak → warranty; alphabetical within each
-  // kind. Priority: past-due hour/km service first, then per-fillup
-  // checklist hygiene, then warranty (longest horizon).
-  const KIND_ORDER = {overdue: 0, fillup_streak: 1, warranty: 2};
-  equipmentAttention.sort((a, b) => {
-    const ko = (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9);
-    if (ko !== 0) return ko;
-    return a.label.localeCompare(b.label);
+
+  // Equipment attention: overdue services + every-fillup item streaks + warranty.
+  const equipmentAttention = buildEquipmentAttention({
+    equipment,
+    equipmentFuelings,
+    equipmentCompletions,
+    missedCleared,
   });
 
   // mig 048 — Materials Needed dashboard card.

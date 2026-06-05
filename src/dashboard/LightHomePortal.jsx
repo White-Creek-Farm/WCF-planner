@@ -11,15 +11,86 @@
 // boundary. It reuses the normal authenticated Header/shell.
 // ============================================================================
 import React from 'react';
+import {useNavigate} from 'react-router-dom';
+import {sb} from '../lib/supabase.js';
+import {fmt} from '../lib/dateUtils.js';
 import {useUI} from '../contexts/UIContext.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
+import {useBatches} from '../contexts/BatchesContext.jsx';
+import {usePig} from '../contexts/PigContext.jsx';
+import {useLayer} from '../contexts/LayerContext.jsx';
+import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
+import {useCattleHome} from '../contexts/CattleHomeContext.jsx';
+import {useSheepHome} from '../contexts/SheepHomeContext.jsx';
+import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
+import {
+  buildEquipmentAttention,
+  buildMissedDailyReports,
+  buildNext30Events,
+  foldEquipmentFuelings,
+} from './homeAlerts.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
 export default function LightHomePortal({Header}) {
   const {setView} = useUI();
   const {authState} = useAuth();
+  const navigate = useNavigate();
+  const {batches} = useBatches();
+  const {breedingCycles, farrowingRecs, feederGroups, breeders} = usePig();
+  const {layerGroups} = useLayer();
+  const {broilerDailys, pigDailys, layerDailysRecent, cattleDailysRecent, sheepDailysRecent} = useDailysRecent();
+  const {cattleForHome} = useCattleHome();
+  const {sheepForHome} = useSheepHome();
+  const {missedCleared} = useFeedCosts();
   const name = (authState && authState !== false && authState.name) || '';
+  const [equipment, setEquipment] = React.useState([]);
+  const [equipmentCompletions, setEquipmentCompletions] = React.useState({});
+  const [equipmentFuelings, setEquipmentFuelings] = React.useState({});
+
+  React.useEffect(() => {
+    sb.from('equipment')
+      .select(
+        'id,slug,name,status,tracking_unit,current_hours,current_km,warranty_expiration,service_intervals,attachment_checklists,every_fillup_items',
+      )
+      .eq('status', 'active')
+      .then(({data, error}) => {
+        if (error || !data) return;
+        setEquipment(data);
+      });
+    sb.from('equipment_fuelings')
+      .select('equipment_id,date,team_member,hours_reading,km_reading,service_intervals_completed,every_fillup_check')
+      .order('date', {ascending: false})
+      .limit(5000)
+      .then(({data, error}) => {
+        if (error || !data) return;
+        const folded = foldEquipmentFuelings(data);
+        setEquipmentCompletions(folded.equipmentCompletions);
+        setEquipmentFuelings(folded.equipmentFuelings);
+      });
+  }, []);
+
+  const allMissed = buildMissedDailyReports({
+    batches,
+    broilerDailys,
+    pigDailys,
+    layerDailysRecent,
+    cattleDailysRecent,
+    sheepDailysRecent,
+    feederGroups,
+    breeders,
+    layerGroups,
+    cattleForHome,
+    sheepForHome,
+    missedCleared,
+  });
+  const equipmentAttention = buildEquipmentAttention({
+    equipment,
+    equipmentFuelings,
+    equipmentCompletions,
+    missedCleared,
+  });
+  const weekEvents = buildNext30Events({batches, breedingCycles, farrowingRecs, feederGroups});
 
   // Each shortcut maps to one allowed view. setView mirrors how HomeDashboard's
   // program cards navigate (and keeps the URL/manifest in sync via the App URL
@@ -82,6 +153,89 @@ export default function LightHomePortal({Header}) {
             {name ? `Signed in as ${name}` : 'Signed in'} · choose a form to fill out
           </div>
         </div>
+        <div data-light-home-alerts="1" style={{display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 18}}>
+          {allMissed.length > 0 && (
+            <div data-light-home-missed-dailys="1">
+              <div style={{fontSize: 13, fontWeight: 600, color: '#b91c1c', letterSpacing: 0.3, marginBottom: 8}}>
+                ⚠ MISSED DAILY REPORTS
+              </div>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
+                {allMissed.map((m) => (
+                  <div
+                    key={m.key}
+                    data-light-home-missed-daily-row={m.key}
+                    style={{
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      borderRadius: 10,
+                      padding: '10px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <PlannerIcon iconKey={m.iconKey} size={22} />
+                    <div style={{flex: 1}}>
+                      <div style={{fontSize: 13, fontWeight: 600, color: '#b91c1c'}}>{m.label}</div>
+                      <div style={{fontSize: 11, color: '#9ca3af'}}>
+                        {m.type} · No daily report for {fmt(m.date)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {equipmentAttention.length > 0 && (
+            <div data-light-home-equipment-attention="1">
+              <div style={{fontSize: 13, fontWeight: 600, color: '#92400e', letterSpacing: 0.3, marginBottom: 8}}>
+                🔧 EQUIPMENT ATTENTION
+              </div>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
+                {equipmentAttention.map((a) => {
+                  const palette =
+                    a.kind === 'overdue'
+                      ? {bg: '#fef2f2', bd: '#fecaca', tx: '#b91c1c', icon: '🔧'}
+                      : a.kind === 'fillup_streak'
+                        ? {bg: '#fffbeb', bd: '#fde68a', tx: '#92400e', icon: '⛽'}
+                        : {bg: '#fef3c7', bd: '#fcd34d', tx: '#92400e', icon: '🛡'};
+                  return (
+                    <button
+                      type="button"
+                      key={a.key}
+                      data-attention-kind={a.kind}
+                      data-equipment-slug={a.slug}
+                      onClick={() => navigate('/equipment/' + a.slug)}
+                      style={{
+                        background: palette.bg,
+                        border: '1px solid ' + palette.bd,
+                        borderRadius: 10,
+                        padding: '10px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        width: '100%',
+                      }}
+                    >
+                      <span style={{fontSize: 18}}>{palette.icon}</span>
+                      <span style={{flex: 1}}>
+                        <span style={{display: 'block', fontSize: 13, fontWeight: 600, color: palette.tx}}>
+                          {a.label}
+                        </span>
+                        <span style={{display: 'block', fontSize: 11, color: '#9ca3af'}}>{a.detail}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div data-light-portal-grid="1" style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12}}>
           {tiles.map((t) => (
             <button
@@ -112,6 +266,62 @@ export default function LightHomePortal({Header}) {
             </button>
           ))}
         </div>
+
+        {weekEvents.length > 0 && (
+          <div data-light-home-next-30="1" style={{marginTop: 18}}>
+            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+              NEXT 30 DAYS
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
+              {weekEvents.map((e, i) => (
+                <div
+                  key={`${e.type}-${e.date}-${e.label}-${i}`}
+                  data-light-home-next-30-row={e.type}
+                  style={{
+                    background: e.reminder ? '#eff6ff' : 'white',
+                    border: e.reminder ? '1px solid #bfdbfe' : '1px solid #e5e7eb',
+                    borderRadius: 10,
+                    padding: '10px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    boxShadow: '0 1px 3px rgba(0,0,0,.04)',
+                  }}
+                >
+                  <PlannerIcon iconKey={e.iconKey} size={18} />
+                  <div style={{flex: 1}}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: e.reminder ? 600 : 500,
+                        color: e.reminder ? '#1e40af' : '#111827',
+                      }}
+                    >
+                      {e.label}
+                    </div>
+                    <div style={{fontSize: 11, color: '#9ca3af'}}>{e.subline || fmt(e.date)}</div>
+                  </div>
+                  {e.reminder ? (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#1d4ed8',
+                        background: '#dbeafe',
+                        padding: '2px 8px',
+                        borderRadius: 10,
+                      }}
+                    >
+                      REMINDER
+                    </span>
+                  ) : (
+                    <div style={{width: 8, height: 8, borderRadius: 4, background: e.color, flexShrink: 0}} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -6,9 +6,10 @@ import {describe, expect, it} from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const homeSrc = fs.readFileSync(path.join(ROOT, 'src/dashboard/HomeDashboard.jsx'), 'utf8');
+const homeAlertsSrc = fs.readFileSync(path.join(ROOT, 'src/dashboard/homeAlerts.js'), 'utf8');
 
 describe('HomeDashboard NEXT 30 DAYS planner icons', () => {
-  const weekEventsBlock = homeSrc.match(/\/\/ What's happening in the next 30 days[\s\S]*?weekEvents\.sort/);
+  const weekEventsBlock = homeAlertsSrc.match(/export function buildNext30Events[\s\S]*?return weekEvents\.sort/);
 
   it('builds next-30-day events with planner icon keys, not emoji icon fields', () => {
     expect(weekEventsBlock, 'expected the next-30-day event builder block').not.toBeNull();
@@ -32,6 +33,7 @@ describe('HomeDashboard NEXT 30 DAYS planner icons', () => {
   });
 
   it('renders the next-30-day list with PlannerIcon', () => {
+    expect(homeSrc).toMatch(/const weekEvents = buildNext30Events\(/);
     expect(homeSrc).toMatch(
       /weekEvents\.map\(\(e,\s*i\)\s*=>[\s\S]*?<PlannerIcon\s+iconKey=\{e\.iconKey\}\s+size=\{18\}\s*\/>/,
     );
@@ -40,9 +42,13 @@ describe('HomeDashboard NEXT 30 DAYS planner icons', () => {
 });
 
 describe('HomeDashboard NEXT 30 DAYS — farrow-due labels + active-window subline', () => {
-  // Locate the farrow-due event push block. The "Sows due in window" comment
-  // anchors the block start; the closing brace + paren-comma is the push end.
-  const farrowDueBlock = homeSrc.match(/\/\/ Sows due in window[\s\S]*?type: 'farrow-due'[\s\S]*?\}\);/);
+  // Locate the farrow-due region in the shared builder. Anchor on the outer
+  // window gate so the captured block includes the surrounding logic
+  // (window overlap, pending filter, windowActive flag) plus the push itself —
+  // these moved out of HomeDashboard into homeAlerts.js's buildNext30Events.
+  const farrowDueBlock = homeAlertsSrc.match(
+    /if \(tl\.farrowingStart <= in30 && tl\.farrowingEnd >= todayStr\)[\s\S]*?type: 'farrow-due'[\s\S]*?\}\);/,
+  );
   it('block exists', () => {
     expect(farrowDueBlock, 'farrow-due push block expected').not.toBeNull();
   });
@@ -55,7 +61,7 @@ describe('HomeDashboard NEXT 30 DAYS — farrow-due labels + active-window subli
     // Negative lock: the old "N sow(s) due to farrow (lbl)" phrasing is gone
     // from the source so a future refactor cannot quietly restore the
     // "3 individual sows scheduled" misread.
-    expect(homeSrc).not.toMatch(/sow\$\{pending\.length > 1 \? 's' : ''\} due to farrow/);
+    expect(homeAlertsSrc).not.toMatch(/sow\$\{pending\.length > 1 \? 's' : ''\} due to farrow/);
   });
 
   it('windowActive flag distinguishes active from upcoming windows', () => {
