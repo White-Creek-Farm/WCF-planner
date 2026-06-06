@@ -8,8 +8,10 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-06.
-Current production checkpoint: latest app/build commit `ad47fee` on `main`
-(processing-attach RPC lane + daily edit-page locked team-member fields).
+Current production checkpoint: latest app/build commit `a507d90` on `main`
+(team-member roster teardown: all webform submitters locked to the signed-in
+user, the team_roster/team_availability machinery removed front-to-back, and
+migrations 097/098/099 applied).
 Production URL: https://wcfplanner.com.
 
 ---
@@ -151,12 +153,23 @@ plus a guard update in the same change.
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
 - Source of truth: `origin/main`; production app/build checkpoint is commit
-  `ad47fee` (2026-06-06 processing-attach RPC lane + daily edit-page locked
-  team-member fields). Deploy verified by Netlify bundle-hash rotation.
+  `a507d90` (2026-06-06 team-member roster teardown — webform submitters locked
+  to the signed-in user, all team_roster/team_availability code + storage
+  removed, migrations 097/098/099 applied). Deploy verified by Netlify
+  bundle-hash rotation (`main-s1aQgkGe.js`).
 - Open gates for the shipped tree: none.
-- PROD-applied numbered migration series is live through `096`. Migration `082`
+- PROD-applied numbered migration series is live through `099`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
   cleanup `085` was applied before unique-index migration `084`.
+- Migrations `097`–`099` were applied to TEST (`exec_sql`) then PROD
+  (`psql --single-transaction`, `ON_ERROR_STOP=1`) and verified on 2026-06-06:
+  `097` locks the public Tasks `submit_task_instance` to authenticated callers
+  and drops the roster-membership check; `098` deletes the retired
+  `webform_config` roster keys (`team_roster`, `team_members`,
+  `team_availability`, `per_form_team_members`, `weighins_team_members`) and
+  drops the dead `equipment.team_members` column; `099` adds the missing
+  `daily_photos_auth_insert` storage policy so authenticated daily-report photo
+  uploads no longer 403.
 - Migration `096` (`processing_attach_activity_rpcs`) was applied to TEST with
   `exec_sql`, then PROD with `psql --single-transaction` and `ON_ERROR_STOP=1`,
   and verified on 2026-06-06: cattle/sheep attach RPCs exist, authenticated has
@@ -187,6 +200,20 @@ Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
 work:
 
+- Team-member roster teardown, migrations `097`–`099`, PROD (2026-06-06,
+  commits `029b55c` + `33d10af` + `a507d90`). Every public webform submitter is
+  locked to the signed-in user (no roster dropdown); the `team_roster` /
+  `team_members` / `team_availability` machinery was removed front-to-back —
+  `src/lib/teamMembers.js` + `teamAvailability.js` deleted (the unrelated
+  `sortByDailysOrder` webforms-list ordering extracted to
+  `src/lib/dailysOrder.js`), the `WebformsAdminView` roster editor replaced by a
+  Public-Tasks-assignee-only tile, and all roster reads/writes + `wcf_team`
+  localStorage gone. `098` drops the `webform_config` roster keys + the
+  `equipment.team_members` column; `099` adds `daily_photos_auth_insert` (the
+  login-required photo webforms were 403'ing authenticated uploads). The
+  offline/photo Playwright specs were converted from anonymous to authenticated
+  (submitter is the profile full_name, e.g. `Test Admin`). Build + vitest green
+  (174 files / 4771 tests); deploy verified.
 - Processing-attach RPC lane + daily edit-page locks, migration `096`, PROD
   (2026-06-06, merge `ad47fee`). Authenticated cattle/sheep
   Send-to-Processor attach flows now use transactional SECDEF RPCs for batch
@@ -293,7 +320,7 @@ gates documented for this checkpoint. If a new session sees a dirty tree, inspec
 it before planning; do not assume it is disposable.
 
 Local worktree note: the main CC worktree is at `C:\Users\Ronni\WCF-planner`
-(`main`, HEAD `ad47fee`). The canonical Codex worktree is at
+(`main`, HEAD `a507d90`). The canonical Codex worktree is at
 `C:\Users\Ronni\WCF-planner-codex`, parked on `codex/parallel-worktree` and
 resynced to current `main`. No per-lane Codex worktrees remain on disk. Create
 new scoped worktrees/branches only for active lanes, and prune them after merge
@@ -315,6 +342,19 @@ saved views (migration `095`), cattle/sheep/pig weigh-in debounce autosave +
 Days/delta chips, fixed record-page prev/next nav + broiler batch on the shared
 nav, broiler auto-processing on processing date, equipment caught-up home
 notices, and Light home alerts with shared `homeAlerts.js` builders.
+Shipped 2026-06-06 (removed from queue): the Sprint 1 Lane 0 locked-submitter
+item plus the full team-member roster teardown — `TasksWebform` submitter
+locked to the signed-in user (migration `097`), all `team_roster` /
+`team_availability` code + storage removed (migration `098`), and the
+`daily_photos_auth_insert` storage policy added so authenticated photo uploads
+work (migration `099`). The remaining Sprint 1 Lane 0 items (InlineNotice
+prop-shape fixes, the `info` notice kind, CowDetail Issues-panel suppression in
+cattle forecast) are NOT done and stay queued. Low-priority roster-teardown
+follow-ups: delete or repurpose the skipped `broiler_weigh_in_schooners`
+T_negative app_store-isolation test (now moot under the authed admin shell;
+source guarantee stays locked by `tests/static/weighinswebform_no_app_store`),
+and drop the now-redundant `daily_photos_anon_insert` policy once no anonymous
+upload path remains.
 
 Detailed parity evidence lives in
 `C:\Users\Ronni\cc-research\parity-audit-2026-06-05-CC.md`; line-level findings
@@ -751,6 +791,20 @@ Current PROD architecture includes these load-bearing migrations:
   batch detail, animal processed state, transfer audit rows, weigh-in stamps,
   and Activity atomically. Authenticated has EXECUTE; anon/PUBLIC are revoked.
   Applied TEST + PROD 2026-06-06.
+- `097` public Tasks submitter lock: `submit_task_instance` now requires an
+  authenticated caller, drops the `team_roster`/`team_availability` membership
+  check, keeps assignee validation + idempotency, and revokes anon EXECUTE.
+  Applied TEST + PROD 2026-06-06.
+- `098` team-roster teardown: deletes the retired `webform_config` keys
+  (`team_roster`, `team_members`, `team_availability`, `per_form_team_members`,
+  `weighins_team_members`) and drops the dead `equipment.team_members` column
+  (zero src references, no dependent views/policies/functions). Applied TEST +
+  PROD 2026-06-06.
+- `099` `daily_photos_auth_insert`: adds the missing `FOR INSERT TO
+  authenticated` storage policy on the `daily-photos` bucket (mig `031` granted
+  anon INSERT only), so authenticated daily-report photo uploads no longer 403
+  now that the photo webforms are login-required. Applied TEST + PROD
+  2026-06-06.
 
 Special migration notes:
 
@@ -1293,7 +1347,7 @@ Focused starting points:
 | Pig                      | `src/lib/pig*.test.js`, `tests/pig_*.spec.js`                                                                                                                   |
 | Broiler/layer            | `src/lib/broiler.test.js`, `tests/static/broiler_hatch_activation_static.test.js`, `src/layer/*.test.js`, `tests/broiler_*.spec.js`, `tests/layer_*.spec.js`    |
 | Equipment                | `src/lib/equipment.test.js`, `tests/static/equipment_*.test.js`, `tests/equipment_*.spec.js`                                                                    |
-| Login/offline webforms   | `tests/static/light_user_portal_static.test.js`, `tests/offline_*.spec.js`, `tests/team_availability.spec.js`, `tests/daily_report_photos.spec.js`             |
+| Login/offline webforms   | `tests/static/light_user_portal_static.test.js`, `tests/offline_*.spec.js`, `tests/daily_report_photos.spec.js`             |
 | Storage/media guards     | `tests/static/*storage*.test.js`, `tests/static/*photo*.test.js`, `tests/static/image_file_input_capture_static.test.js`                                       |
 | Runtime observability    | `tests/static/error_resilience_static.test.js`, `tests/static/client_error_boundary_static.test.js`, `tests/static/client_errors_review_static.test.js`          |
 
