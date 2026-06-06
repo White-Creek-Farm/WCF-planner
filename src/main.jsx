@@ -3429,6 +3429,7 @@ function App() {
     name: authState.name || authState.user?.email || '',
     email: authState.user?.email || '',
     profileId: authState.user?.id || null,
+    role: authState.role || '',
   };
 
   // Light containment — fail closed. A Light user can only reach the portal

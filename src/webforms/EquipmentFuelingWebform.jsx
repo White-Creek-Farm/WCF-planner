@@ -8,7 +8,6 @@
 // are actually due given the reading the team just entered + history.
 import React from 'react';
 import {computeDueIntervals} from '../lib/equipment.js';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import ManualsCard from '../equipment/ManualsCard.jsx';
 import LockedSubmitter from './LockedSubmitter.jsx';
@@ -19,13 +18,9 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
   // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
   // locked. No roster dropdown, no per-equipment operator filtering.
   const lockedName = sessionSubmitter?.name || '';
-  const submitterLocked = !!lockedName;
   const isQuick = !equipment;
   const [selectedEq, setSelectedEq] = React.useState(equipment || null);
-  const [teamMembers, setTeamMembers] = React.useState([]);
-  const [teamMember, setTeamMember] = React.useState(() =>
-    sessionSubmitter?.name ? sessionSubmitter.name : localStorage.getItem('wcf_team') || '',
-  );
+  const [teamMember, setTeamMember] = React.useState(sessionSubmitter?.name || '');
   const [date, setDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [gallons, setGallons] = React.useState('');
   const [defGallons, setDefGallons] = React.useState('');
@@ -48,48 +43,10 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
   const fuelLabel = eq?.fuel_type === 'gasoline' ? 'Gasoline' : eq?.fuel_type === 'diesel' ? 'Diesel' : 'Fuel';
   const readingLabel = eq?.tracking_unit === 'km' ? 'KM' : 'Hours';
 
-  const [teamMembersLoaded, setTeamMembersLoaded] = React.useState(false);
-
+  // The submitter is the signed-in user, not a per-equipment roster choice.
   React.useEffect(() => {
-    let cancelled = false;
-    loadRoster(sb).then((roster) => {
-      if (!cancelled) {
-        setTeamMembers(activeNames(roster));
-        setTeamMembersLoaded(true);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Filter the team-member dropdown to the operators assigned to THIS piece
-  // (equipment.team_members). If none are assigned yet, fall back to the
-  // full master list so the form still works.
-  const assignedTM = Array.isArray(eq?.team_members) ? eq.team_members : [];
-  const visibleTeamMembers = assignedTM.length > 0 ? teamMembers.filter((n) => assignedTM.includes(n)) : teamMembers;
-
-  // Stale-name guard: once the available list lands, if `teamMember`
-  // (initialized from localStorage.wcf_team) isn't in visibleTeamMembers,
-  // clear it AND remove the stale localStorage entry. Enforces the
-  // contract that deleted/hidden master-roster names cannot appear as a
-  // selectable option in any new-entry dropdown anywhere.
-  React.useEffect(() => {
-    // Keep the locked submitter pinned to the signed-in identity.
-    if (submitterLocked) {
-      if (teamMember !== lockedName) setTeamMember(lockedName);
-      return;
-    }
-    if (!teamMembersLoaded || !eq) return;
-    if (teamMember && !visibleTeamMembers.includes(teamMember)) {
-      setTeamMember('');
-      try {
-        localStorage.removeItem('wcf_team');
-      } catch (_e) {
-        /* localStorage may be unavailable in some browsers */
-      }
-    }
-  }, [teamMembersLoaded, visibleTeamMembers, teamMember, eq, submitterLocked, lockedName]);
+    if (teamMember !== lockedName) setTeamMember(lockedName);
+  }, [lockedName, teamMember]);
 
   // Load this piece's fueling history to compute due intervals.
   React.useEffect(() => {
@@ -250,13 +207,6 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
       setErr('Pick a team member.');
       return;
     }
-    // Defense-in-depth: refuse stale selections. The load-time effect
-    // clears them, but mid-form roster delete is also handled here.
-    if (!submitterLocked && teamMembersLoaded && !visibleTeamMembers.includes(teamMember)) {
-      setTeamMember('');
-      setErr('That team member is no longer available. Pick someone else.');
-      return;
-    }
     if (!date) {
       setErr('Date required.');
       return;
@@ -284,8 +234,6 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
         return;
       }
     }
-    if (!submitterLocked) localStorage.setItem('wcf_team', teamMember);
-
     // Build service_intervals_completed. Each due interval may contribute a
     // completion if either (a) the parent box was ticked, OR (b) any of
     // its sub-tasks were ticked. Record which task ids were ticked so the
@@ -615,21 +563,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inpS} />
           </div>
           <div>
-            {submitterLocked ? (
-              <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
-            ) : (
-              <>
-                <label style={lblS}>Team Member *</label>
-                <select value={teamMember} onChange={(e) => setTeamMember(e.target.value)} style={inpS}>
-                  <option value="">Select...</option>
-                  {visibleTeamMembers.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
+            <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
           </div>
         </div>
 

@@ -6,20 +6,23 @@
 // `sb` via props.
 // ============================================================================
 import React from 'react';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
-const AdminNewWeighInModal = ({sb, species, onClose, onCreated}) => {
+import {LockedTeamMemberField} from './recordPageControls.jsx';
+const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
   const {useState, useEffect} = React;
+  const lockedTeamName =
+    authState && typeof authState === 'object'
+      ? authState.name || authState.profile?.name || authState.profile?.full_name || authState.user?.email || ''
+      : '';
   const todayStr = (() => {
     const d = new Date();
     return (
       d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
     );
   })();
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [team, setTeam] = useState('');
+  const [team, setTeam] = useState(lockedTeamName);
   const [date, setDate] = useState(todayStr);
   const [batchOpts, setBatchOpts] = useState([]);
   const [batchId, setBatchId] = useState('');
@@ -28,7 +31,10 @@ const AdminNewWeighInModal = ({sb, species, onClose, onCreated}) => {
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    loadRoster(sb).then((roster) => setTeamMembers(activeNames(roster)));
+    setTeam(lockedTeamName);
+  }, [lockedTeamName]);
+
+  useEffect(() => {
     if (species === 'broiler') {
       sb.from('webform_config')
         .select('data')
@@ -77,7 +83,6 @@ const AdminNewWeighInModal = ({sb, species, onClose, onCreated}) => {
       setErr('Could not create: ' + error.message);
       return;
     }
-    if (team) localStorage.setItem('wcf_team', team);
     onCreated && onCreated(rec);
     onClose && onClose();
   }
@@ -134,15 +139,12 @@ const AdminNewWeighInModal = ({sb, species, onClose, onCreated}) => {
           <span>New {species === 'broiler' ? 'Broiler' : 'Pig'} Weigh-In</span>
         </div>
         <div style={{marginBottom: 10}}>
-          <label style={lblS}>Team member *</label>
-          <select value={team} onChange={(e) => setTeam(e.target.value)} style={inpS}>
-            <option value="">Select team member...</option>
-            {teamMembers.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          {React.createElement(LockedTeamMemberField, {
+            value: team,
+            label: 'Team member *',
+            labelStyle: lblS,
+            style: inpS,
+          })}
         </div>
         <div style={{marginBottom: 10}}>
           <label style={lblS}>Date</label>

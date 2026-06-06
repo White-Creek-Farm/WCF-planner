@@ -8,7 +8,6 @@ import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
@@ -16,6 +15,7 @@ import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import SheepDailyPage from './SheepDailyPage.jsx';
@@ -63,7 +63,6 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
   const [notice, setNotice] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [fFlock, setFFlock] = usePersistentViewState('sheep.dailys.flockFilter', '');
   const [fTeam, setFTeam] = usePersistentViewState('sheep.dailys.teamFilter', '');
   const [fFrom, setFFrom] = usePersistentViewState('sheep.dailys.fromFilter', '');
@@ -149,11 +148,6 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
       .then(({data}) => {
         if (!cancelled && data)
           setFeedInputs(data.filter((f) => (f.herd_scope || []).some((h) => SHEEP_ACTIVE_FLOCKS.includes(h))));
-      })
-      .catch(() => {});
-    loadRoster(sb)
-      .then((roster) => {
-        if (!cancelled) setTeamMembers(activeNames(roster));
       })
       .catch(() => {});
     return () => {
@@ -765,15 +759,12 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                 <input type="date" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Team Member *</label>
-                <select value={form.teamMember} onChange={(e) => setForm({...form, teamMember: e.target.value})}>
-                  <option value="">Select...</option>
-                  {teamMembers.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {React.createElement(LockedTeamMemberField, {
+                  value: form.teamMember,
+                  label: 'Team Member *',
+                  labelStyle: S.label,
+                  style: {maxWidth: '100%'},
+                })}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={S.label}>Flock *</label>

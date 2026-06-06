@@ -4,23 +4,19 @@ import {fileURLToPath} from 'node:url';
 import {describe, it, expect} from 'vitest';
 
 // ============================================================================
-// Equipment Fueling History — Team field dropdown — Hotfix 2 lock
+// Equipment Fueling History - locked Team field
 // ============================================================================
-// /equipment/<slug> Fueling & Checklist History → Edit Entry: the Team
-// field must be a <select> bound to the equipment piece's assigned
-// team_members, not a free-text <input>. Locks the contract so future
-// edits don't regress to free-text typing of arbitrary names.
+// /equipment/<slug> Fueling & Checklist History -> Edit Entry: the Team field
+// displays the saved submitter through the shared locked-user primitive. It is
+// not editable, not roster-backed, and not tied to per-equipment operators.
 // ============================================================================
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
-describe('Equipment fueling history Team field shape', () => {
+describe('Equipment fueling history locked Team field shape', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/equipment/EquipmentDetail.jsx'), 'utf8');
 
-  // The expanded fueling-history Edit Entry block has a `Team` label
-  // followed by the field. Capture the slice so the regex tests below
-  // are scoped to that block, not the whole file.
   const teamBlockMatch = src.match(/Team<\/div>[\s\S]{0,2200}?<\/div>\s*\n\s*<div>\s*<div[^>]*>Gallons/);
   if (!teamBlockMatch) {
     throw new Error(
@@ -30,24 +26,24 @@ describe('Equipment fueling history Team field shape', () => {
   }
   const teamBlock = teamBlockMatch[0];
 
-  it('uses a <select> for the Team field, not <input type="text">', () => {
-    expect(teamBlock).toMatch(/<select\b/);
+  it('uses the shared locked Team field, not an editable field', () => {
+    expect(teamBlock).toContain('LockedTeamMemberField');
+    expect(teamBlock).not.toMatch(/<select\b/);
     expect(teamBlock).not.toMatch(/<input\s+type="text"/);
   });
 
-  it('reads options from eq.team_members', () => {
-    expect(teamBlock).toMatch(/eq\.team_members/);
+  it('displays the saved submitter from the fueling row', () => {
+    expect(teamBlock).toContain("value: f.team_member || ''");
   });
 
-  it('preserves legacy values not currently assigned (legacy option)', () => {
-    expect(teamBlock).toMatch(/legacy/i);
+  it('does not read per-equipment operator assignments', () => {
+    expect(teamBlock).not.toMatch(/eq\.team_members/);
+    expect(teamBlock).not.toMatch(/legacy/i);
+    expect(teamBlock).not.toMatch(/No team members assigned/i);
   });
 
-  it('disables the dropdown when no team members are assigned and no legacy value', () => {
-    expect(teamBlock).toMatch(/disabled=\{noOptions\}|disabled\s*=\s*\{[^}]*assignedTM/);
-  });
-
-  it('still calls queueFuelingSave on change with the team_member key', () => {
-    expect(teamBlock).toMatch(/queueFuelingSave\([^)]*'team_member'/);
+  it('does not save Team changes from the record page', () => {
+    expect(teamBlock).not.toMatch(/queueFuelingSave\([^)]*'team_member'/);
+    expect(src).not.toContain("queueFuelingSave(f.id, 'team_member'");
   });
 });

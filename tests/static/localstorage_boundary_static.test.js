@@ -7,18 +7,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const EXPECTED_LOCAL_STORAGE_OWNERS = new Map([
-  ['src/cattle/CattleNewWeighInModal.jsx', 1],
   ['src/contexts/PigContext.jsx', 5],
   ['src/main.jsx', 4],
-  ['src/shared/AdminNewWeighInModal.jsx', 1],
-  ['src/sheep/SheepNewWeighInModal.jsx', 1],
   ['src/webforms/AddFeedWebform.jsx', 1],
-  ['src/webforms/EquipmentFuelingWebform.jsx', 3],
   ['src/webforms/FuelSupplyWebform.jsx', 3],
   ['src/webforms/PigDailysWebform.jsx', 1],
   ['src/webforms/TasksWebform.jsx', 1],
   ['src/webforms/WebformHub.jsx', 6],
-  ['src/webforms/WeighInsWebform.jsx', 6],
 ]);
 
 const ALLOWED_LITERAL_KEYS = new Set([
@@ -75,7 +70,7 @@ describe('localStorage boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(total).toBe(33);
+    expect(total).toBe(21);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
@@ -97,7 +92,7 @@ describe('localStorage boundary', () => {
       }
     }
 
-    expect(keys).toHaveLength(30);
+    expect(keys).toHaveLength(18);
     expect(offenders).toEqual([]);
     expect(secretLike).toEqual([]);
   });

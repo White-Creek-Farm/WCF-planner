@@ -480,9 +480,10 @@ describe('WeighInSessionPage — broiler record page', () => {
     expect(pageSrc).toContain("'ppp-v4'");
     expect(pageSrc).toContain('broilerBatchRecs');
   });
-  it('loads active roster for broiler', () => {
-    expect(pageSrc).toContain('loadRoster');
-    expect(pageSrc).toContain('activeRoster');
+  it('does not load a roster for broiler session metadata', () => {
+    expect(pageSrc).not.toContain('loadRoster');
+    expect(pageSrc).not.toContain('activeRoster');
+    expect(pageSrc).not.toContain('metaTeam');
   });
   it('imports writeBroilerBatchAvg and recomputeBroilerBatchWeekAvg', () => {
     expect(pageSrc).toContain('writeBroilerBatchAvg');
@@ -500,7 +501,7 @@ describe('WeighInSessionPage — broiler record page', () => {
     expect(pageSrc).toContain('data-testid="broiler-meta-panel"');
     expect(pageSrc).toContain('broiler-meta-wk4');
     expect(pageSrc).toContain('broiler-meta-wk6');
-    expect(pageSrc).toContain('broiler-meta-team');
+    expect(pageSrc).toContain('LockedTeamMemberField');
     expect(pageSrc).toContain('broiler-meta-save');
   });
   it('renders broiler weight grid', () => {
@@ -535,8 +536,10 @@ describe('WeighInSessionPage — broiler record page', () => {
   it('shows broiler avg weight in title area', () => {
     expect(pageSrc).toContain('broilerAvg');
   });
-  it('preserves retired team member in dropdown', () => {
-    expect(pageSrc).toContain("(retired)'");
+  it('shows the saved team member as a locked display, not a dropdown', () => {
+    expect(pageSrc).toContain('LockedTeamMemberField');
+    expect(pageSrc).not.toContain('broiler-meta-team');
+    expect(pageSrc).not.toContain("(retired)'");
   });
   it('has session notes textarea for broiler grid', () => {
     expect(pageSrc).toContain('gridNote');

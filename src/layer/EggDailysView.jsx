@@ -3,12 +3,12 @@ import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import EggDailyPage from './EggDailyPage.jsx';
@@ -40,7 +40,6 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [fTeam, setFTeam] = usePersistentViewState('layer.eggs.teamFilter', '');
   const [fFrom, setFFrom] = usePersistentViewState('layer.eggs.fromFilter', '');
   const [fTo, setFTo] = usePersistentViewState('layer.eggs.toFilter', '');
@@ -110,11 +109,6 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
         });
         setLoading(false);
       });
-    loadRoster(sb)
-      .then((roster) => {
-        if (!cancelled) setTeamMembers(activeNames(roster));
-      })
-      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -530,15 +524,12 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                 <input type="date" value={form.date} onChange={(e) => setForm((f) => ({...f, date: e.target.value}))} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Team Member</label>
-                <select value={form.teamMember} onChange={(e) => setForm((f) => ({...f, teamMember: e.target.value}))}>
-                  <option value="">Select...</option>
-                  {teamMembers.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {React.createElement(LockedTeamMemberField, {
+                  value: form.teamMember,
+                  label: 'Team Member',
+                  labelStyle: S.label,
+                  style: {maxWidth: '100%'},
+                })}
               </div>
               {[1, 2, 3, 4].map((n) => (
                 <React.Fragment key={n}>

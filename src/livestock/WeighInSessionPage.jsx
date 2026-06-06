@@ -36,8 +36,7 @@ import {
 import {todayCentralISO} from '../lib/dateUtils.js';
 import PigSendToTripModal from './PigSendToTripModal.jsx';
 import {writeBroilerBatchAvg, recomputeBroilerBatchWeekAvg} from '../lib/broiler.js';
-import {loadRoster, activeNames as rosterActiveNames} from '../lib/teamMembers.js';
-import {recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
+import {LockedTeamMemberField, recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
 const FLOCK_LABELS = {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'};
@@ -166,14 +165,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const [transferBusy, setTransferBusy] = React.useState(false);
   const [transferNotice, setTransferNotice] = React.useState(null);
   const [broilerBatchRecs, setBroilerBatchRecs] = React.useState([]);
-  const [activeRoster, setActiveRoster] = React.useState([]);
   const [gridLabels, setGridLabels] = React.useState([]);
   const [gridInputs, setGridInputs] = React.useState([]);
   const [gridNote, setGridNote] = React.useState('');
   const [savingGrid, setSavingGrid] = React.useState(false);
   const [gridErr, setGridErr] = React.useState('');
   const [metaWeek, setMetaWeek] = React.useState(4);
-  const [metaTeam, setMetaTeam] = React.useState('');
   const [metaBusy, setMetaBusy] = React.useState(false);
   const [metaErr, setMetaErr] = React.useState('');
 
@@ -288,8 +285,6 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     if (sp === 'broiler') {
       const batchR = await sb.from('app_store').select('data').eq('key', 'ppp-v4').maybeSingle();
       setBroilerBatchRecs(batchR && batchR.data && Array.isArray(batchR.data.data) ? batchR.data.data : []);
-      const roster = await loadRoster(sb);
-      setActiveRoster(rosterActiveNames(roster));
     }
     setLoading(false);
   }
@@ -346,7 +341,6 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     setGridErr('');
     const w = Number(session.broiler_week);
     setMetaWeek(w === 4 || w === 6 ? w : 4);
-    setMetaTeam(session.team_member || '');
     setMetaErr('');
   }, [session, sEntries, broilerBatchRecs, loading]);
 
@@ -413,25 +407,17 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     if (!session || session.species !== 'broiler') return;
     const oldWeek = Number(session.broiler_week);
     const newWeek = Number(metaWeek);
-    const oldTeam = (session.team_member || '').trim();
-    const newTeam = (metaTeam || '').trim();
-    if (!newTeam) {
-      setMetaErr('Pick a team member.');
-      return;
-    }
     if (newWeek !== 4 && newWeek !== 6) {
       setMetaErr('Week must be 4 or 6.');
       return;
     }
     const weekChanged = oldWeek !== newWeek;
-    const teamChanged = oldTeam !== newTeam;
-    if (!weekChanged && !teamChanged) return;
+    if (!weekChanged) return;
 
     setMetaBusy(true);
     setMetaErr('');
     const upd = {};
     if (weekChanged) upd.broiler_week = newWeek;
-    if (teamChanged) upd.team_member = newTeam;
     const r = await sb.from('weigh_in_sessions').update(upd).eq('id', session.id);
     if (r && r.error) {
       setMetaBusy(false);
@@ -457,7 +443,6 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     try {
       const parts = [];
       if (weekChanged) parts.push('week ' + oldWeek + ' → ' + newWeek);
-      if (teamChanged) parts.push('team ' + oldTeam + ' → ' + newTeam);
       await recordActivityEvent(sb, {
         entityType: 'weighin.session',
         entityId: session.id,
@@ -1632,13 +1617,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
 
         {isBroiler &&
           (() => {
-            const baseRoster = activeRoster;
             const cur = (session.team_member || '').trim();
-            const includesCurrent = !cur || baseRoster.includes(cur);
-            const teamOptions = includesCurrent
-              ? baseRoster.map((n) => ({value: n, label: n}))
-              : [{value: cur, label: cur + ' (retired)'}, ...baseRoster.map((n) => ({value: n, label: n}))];
-            const metaDirty = Number(metaWeek) !== Number(session.broiler_week) || (metaTeam || '').trim() !== cur;
+            const metaDirty = Number(metaWeek) !== Number(session.broiler_week);
             const wkBtnStyle = (active) => ({
               padding: '4px 10px',
               borderRadius: 6,
@@ -1690,23 +1670,11 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 </div>
                 <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
                   <span style={{...recordFieldLabel, minWidth: 90}}>{'Team Member:'}</span>
-                  {/* Shared control styling (CP3); the existing roster + historical
-                      "(retired)" option logic, saved-value contract, and the
-                      data-testid selector are unchanged (not swapped to
-                      TeamMemberSelect, which would drop the testid + change the
-                      historical label). */}
-                  <select
-                    data-testid="broiler-meta-team"
-                    value={metaTeam}
-                    onChange={(e) => setMetaTeam(e.target.value)}
-                    style={{...recordControl, width: 'auto', minWidth: 180}}
-                  >
-                    {teamOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  {React.createElement(LockedTeamMemberField, {
+                    value: cur,
+                    label: null,
+                    style: {...recordControl, width: 'auto', minWidth: 180},
+                  })}
                 </div>
                 {metaDirty && (
                   <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>

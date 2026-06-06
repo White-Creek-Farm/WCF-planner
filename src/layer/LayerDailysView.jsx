@@ -3,7 +3,6 @@ import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
@@ -11,6 +10,7 @@ import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import LayerDailyPage from './LayerDailyPage.jsx';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
@@ -57,7 +57,6 @@ const LayerDailysHub = ({
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [fGroup, setFGroup] = usePersistentViewState('layer.dailys.groupFilter', '');
   const [fTeam, setFTeam] = usePersistentViewState('layer.dailys.teamFilter', '');
   const [fFrom, setFFrom] = usePersistentViewState('layer.dailys.fromFilter', '');
@@ -129,11 +128,6 @@ const LayerDailysHub = ({
         });
         setLoading(false);
       });
-    loadRoster(sb)
-      .then((roster) => {
-        if (!cancelled) setTeamMembers(activeNames(roster));
-      })
-      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -807,15 +801,12 @@ const LayerDailysHub = ({
                 <input type="date" value={form.date} onChange={(e) => setForm((f) => ({...f, date: e.target.value}))} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Team Member</label>
-                <select value={form.teamMember} onChange={(e) => setForm((f) => ({...f, teamMember: e.target.value}))}>
-                  <option value="">Select...</option>
-                  {teamMembers.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {React.createElement(LockedTeamMemberField, {
+                  value: form.teamMember,
+                  label: 'Team Member',
+                  labelStyle: S.label,
+                  style: {maxWidth: '100%'},
+                })}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={S.label}>Group</label>

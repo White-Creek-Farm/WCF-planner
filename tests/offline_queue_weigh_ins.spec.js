@@ -27,7 +27,9 @@ import {test, expect} from './fixtures.js';
 
 // Anon context — operators arrive at /weighins unauthenticated. Per-test
 // fresh storageState wipes IDB between tests automatically.
-test.use({storageState: {cookies: [], origins: []}});
+
+const FALLBACK_SUBMITTER_NAME =
+  process.env.VITE_TEST_ADMIN_FULL_NAME || process.env.VITE_TEST_ADMIN_EMAIL?.split('@')[0] || 'Signed-in user';
 
 const DB_NAME = 'wcf-offline-queue';
 
@@ -82,18 +84,28 @@ async function unblockWeighInsRpc(page) {
   await page.unroute('**/rest/v1/rpc/submit_weigh_in_session_batch**');
 }
 
+async function getLockedSubmitterName(page) {
+  const raw = await page
+    .locator('[data-locked-submitter="1"]')
+    .locator('span')
+    .nth(1)
+    .textContent();
+  return raw?.trim() || FALLBACK_SUBMITTER_NAME;
+}
+
 // Drive the species picker → select stage → start-session for pig with the
-// canonical seeded batch + BMAN.
+// canonical seeded batch.
 async function pigStartFreshSession(page) {
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
   await page.getByText('Pig', {exact: true}).click();
-  // Pick team + batch + Start.
-  await page.getByRole('combobox').first().selectOption({label: 'BMAN'});
-  await page.getByRole('combobox').nth(1).selectOption('P-26-01');
+  const lockedSubmitter = await getLockedSubmitterName(page);
+  // Pick batch + Start.
+  await page.getByLabel('Pig Batch *').selectOption({label: 'P-26-01'});
   await page.getByRole('button', {name: 'Start Session'}).click();
   // Confirm we're on session screen — the pig fresh-collection caption is
   // a unique marker for this state.
   await expect(page.getByText('Saving on this device')).toBeVisible({timeout: 10_000});
+  return lockedSubmitter;
 }
 
 async function pigAddEntry(page, weight) {
@@ -104,13 +116,14 @@ async function pigAddEntry(page, weight) {
 async function broilerStartFreshSession(page) {
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
   await page.getByText('Broiler', {exact: true}).click();
-  await page.getByRole('combobox').first().selectOption({label: 'BMAN'});
-  await page.getByRole('combobox').nth(1).selectOption('B-26-01');
+  const lockedSubmitter = await getLockedSubmitterName(page);
+  await page.getByRole('combobox').first().selectOption('B-26-01');
   // Week 4 is the default selected; tap explicitly to be safe.
   await page.getByRole('button', {name: 'Week 4'}).click();
   await page.getByRole('button', {name: 'Start Session'}).click();
   // Grid header is the marker for session stage in broiler.
   await expect(page.getByText('Bird weights (lbs)')).toBeVisible({timeout: 10_000});
+  return lockedSubmitter;
 }
 
 // Fill the broiler grid: 4 cells in 2 schooner columns (2 cells each).
@@ -135,7 +148,7 @@ test('pig online: synced → fresh→DB-backed conversion + Save Draft hidden + 
   void weighInsOfflineScenario;
 
   await page.goto('/weighins');
-  await pigStartFreshSession(page);
+  const lockedSubmitter = await pigStartFreshSession(page);
 
   // Add 3 entries to local state.
   await pigAddEntry(page, 240);
@@ -157,6 +170,7 @@ test('pig online: synced → fresh→DB-backed conversion + Save Draft hidden + 
   expect(sessions[0].status).toBe('draft');
   expect(sessions[0].batch_id).toBe('P-26-01');
   expect(sessions[0].broiler_week).toBeNull();
+  expect(sessions[0].team_member).toBe(lockedSubmitter);
   expect(sessions[0].client_submission_id).toBeTruthy();
   const sessionId = sessions[0].id;
 
@@ -197,7 +211,7 @@ test('pig offline: queued copy + IDB has rpc record + zero rows in DB', async ({
 
   await page.goto('/weighins');
   await blockWeighInsRpc(page);
-  await pigStartFreshSession(page);
+  const lockedSubmitter = await pigStartFreshSession(page);
 
   await pigAddEntry(page, 240);
   await pigAddEntry(page, 245);
@@ -215,6 +229,7 @@ test('pig offline: queued copy + IDB has rpc record + zero rows in DB', async ({
   expect(queue[0].record.args.parent_in.species).toBe('pig');
   expect(queue[0].record.args.parent_in.status).toBe('draft');
   expect(queue[0].record.args.parent_in.batch_id).toBe('P-26-01');
+  expect(queue[0].record.args.parent_in.team_member).toBe(lockedSubmitter);
   expect(queue[0].record.args.parent_in.client_submission_id).toBe(queue[0].csid);
   expect(queue[0].record.args.entries_in).toHaveLength(3);
   // Child csid stays absent on every queued entry — parent owns dedup.
@@ -244,7 +259,7 @@ test('pig recovery: queued submission replays on reload + lands 1 session + 3 en
 
   await page.goto('/weighins');
   await blockWeighInsRpc(page);
-  await pigStartFreshSession(page);
+  const lockedSubmitter = await pigStartFreshSession(page);
 
   await pigAddEntry(page, 240);
   await pigAddEntry(page, 245);
@@ -268,6 +283,7 @@ test('pig recovery: queued submission replays on reload + lands 1 session + 3 en
   expect(sessions).toHaveLength(1);
   expect(sessions[0].species).toBe('pig');
   expect(sessions[0].status).toBe('draft');
+  expect(sessions[0].team_member).toBe(lockedSubmitter);
 
   const {data: rows} = await supabaseAdmin.from('weigh_ins').select('*').eq('session_id', sessions[0].id);
   expect(rows).toHaveLength(3);
@@ -286,7 +302,7 @@ test('pig idempotent replay: pre-seeded parent at queued csid → queue drains w
 
   await page.goto('/weighins');
   await blockWeighInsRpc(page);
-  await pigStartFreshSession(page);
+  const lockedSubmitter = await pigStartFreshSession(page);
 
   await pigAddEntry(page, 240);
   await pigAddEntry(page, 245);
@@ -309,6 +325,7 @@ test('pig idempotent replay: pre-seeded parent at queued csid → queue drains w
       .select('id')
       .eq('client_submission_id', queued.csid);
     expect(sessions).toHaveLength(1);
+    expect(sessions[0].team_member).toBe(lockedSubmitter);
     const {data: rows} = await supabaseAdmin.from('weigh_ins').select('id').eq('session_id', sessions[0].id);
     expect(rows).toHaveLength(2);
   }
@@ -326,6 +343,7 @@ test('pig idempotent replay: pre-seeded parent at queued csid → queue drains w
     .select('id')
     .eq('client_submission_id', queued.csid);
   expect(sessions).toHaveLength(1);
+  expect(sessions[0].team_member).toBe(lockedSubmitter);
   const {data: rows} = await supabaseAdmin.from('weigh_ins').select('id').eq('session_id', sessions[0].id);
   expect(rows).toHaveLength(2);
 });
@@ -366,7 +384,8 @@ test('pig schema-throw: P0001 from RPC surfaces inline + does NOT queue (Codex #
     });
   });
 
-  await pigStartFreshSession(page);
+  const lockedSubmitter = await pigStartFreshSession(page);
+  expect(lockedSubmitter).toBeTruthy();
   await pigAddEntry(page, 240);
   await page.getByRole('button', {name: /Save Draft/}).click();
 
@@ -390,7 +409,7 @@ test('broiler online: synced stays on grid + Complete becomes enabled (Codex #2)
   void weighInsOfflineScenario;
 
   await page.goto('/weighins');
-  await broilerStartFreshSession(page);
+  const lockedSubmitter = await broilerStartFreshSession(page);
 
   await broilerFill4Cells(page);
 
@@ -409,6 +428,7 @@ test('broiler online: synced stays on grid + Complete becomes enabled (Codex #2)
   expect(sessions[0].status).toBe('draft');
   expect(sessions[0].broiler_week).toBe(4);
   expect(sessions[0].batch_id).toBe('B-26-01');
+  expect(sessions[0].team_member).toBe(lockedSubmitter);
 
   const {data: rows} = await supabaseAdmin.from('weigh_ins').select('*').eq('session_id', sessions[0].id);
   expect(rows).toHaveLength(4);
@@ -433,7 +453,7 @@ test('broiler offline: queued IDB record carries broiler_week=4 + schooner label
 
   await page.goto('/weighins');
   await blockWeighInsRpc(page);
-  await broilerStartFreshSession(page);
+  const lockedSubmitter = await broilerStartFreshSession(page);
 
   await broilerFill4Cells(page);
   await page.getByRole('button', {name: 'Save Weights'}).click();
@@ -452,6 +472,7 @@ test('broiler offline: queued IDB record carries broiler_week=4 + schooner label
   expect(queue[0].record.args.parent_in.species).toBe('broiler');
   expect(queue[0].record.args.parent_in.broiler_week).toBe(4);
   expect(queue[0].record.args.parent_in.batch_id).toBe('B-26-01');
+  expect(queue[0].record.args.parent_in.team_member).toBe(lockedSubmitter);
   expect(queue[0].record.args.entries_in).toHaveLength(4);
   expect(queue[0].record.args.entries_in.map((e) => e.tag).sort()).toEqual(['A', 'A', 'B', 'B']);
   for (const child of queue[0].record.args.entries_in) {
@@ -529,7 +550,7 @@ test('pig fresh: local edit + delete pre-Save-Draft → only final state lands i
   });
 
   await page.goto('/weighins');
-  await pigStartFreshSession(page);
+  const lockedSubmitter = await pigStartFreshSession(page);
 
   await pigAddEntry(page, 240); // keep
   await pigAddEntry(page, 999); // will be edited to 245
@@ -578,6 +599,13 @@ test('pig fresh: local edit + delete pre-Save-Draft → only final state lands i
   // DB state matches the final local state.
   const {data: sessions} = await supabaseAdmin.from('weigh_in_sessions').select('id').eq('species', 'pig');
   expect(sessions).toHaveLength(1);
+  // Team member comes from auth-derived locked submitter (no editable selector).
+  const {data: liveSession} = await supabaseAdmin
+    .from('weigh_in_sessions')
+    .select('team_member')
+    .eq('id', sessions[0].id)
+    .single();
+  expect(liveSession.team_member).toBe(lockedSubmitter);
   const {data: rows} = await supabaseAdmin.from('weigh_ins').select('weight').eq('session_id', sessions[0].id);
   const weights = rows.map((r) => Number(r.weight)).sort((a, b) => a - b);
   expect(weights).toEqual([240, 245, 250]);
@@ -605,12 +633,21 @@ test('broiler synced → Complete: status=complete + no second RPC fired', async
   });
 
   await page.goto('/weighins');
-  await broilerStartFreshSession(page);
+  const lockedSubmitter = await broilerStartFreshSession(page);
   await broilerFill4Cells(page);
   await page.getByRole('button', {name: 'Save Weights'}).click();
   await expect(page.locator('[data-submit-state="synced"]')).toHaveCount(1, {timeout: 15_000});
 
   expect(rpcCallCount).toBe(1); // one RPC call for the fresh save
+
+  const {data: sessions} = await supabaseAdmin
+    .from('weigh_in_sessions')
+    .select('id, team_member')
+    .eq('species', 'broiler')
+    .order('created_at', {ascending: false});
+  expect(sessions).toBeTruthy();
+  expect(sessions.length).toBeGreaterThan(0);
+  expect(sessions[0].team_member).toBe(lockedSubmitter);
 
   // Now Complete — must use the existing online direct path.
   await page.getByRole('button', {name: /Complete Weigh-In/}).click();
@@ -638,6 +675,7 @@ test('broiler synced → Complete: status=complete + no second RPC fired', async
 // reaches the session screen.
 test('stuck modal renders on species picker (not only on session screen)', async ({page, weighInsOfflineScenario}) => {
   void weighInsOfflineScenario;
+  const stuckSubmitter = FALLBACK_SUBMITTER_NAME;
 
   await page.goto('/weighins');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
@@ -645,7 +683,7 @@ test('stuck modal renders on species picker (not only on session screen)', async
   // Pre-seed an IDB stuck row before mount completes hook init. Use
   // page.evaluate to write directly into the queue's submissions store
   // with status='failed' + retry_count >= MAX_RETRIES (3).
-  await page.evaluate(async () => {
+  await page.evaluate(async (submitterName) => {
     await new Promise((resolve, reject) => {
       const open = indexedDB.open('wcf-offline-queue', 1);
       open.onupgradeneeded = () => {
@@ -676,7 +714,7 @@ test('stuck modal renders on species picker (not only on session screen)', async
                 species: 'pig',
                 status: 'draft',
                 date: '2026-04-30',
-                team_member: 'BMAN',
+                team_member: submitterName,
                 batch_id: 'P-26-01',
               },
               entries_in: [{id: 'WS-stuck-c0', weight: 240, tag: null, note: null, new_tag_flag: false}],
@@ -694,7 +732,7 @@ test('stuck modal renders on species picker (not only on session screen)', async
       };
       open.onerror = () => reject(open.error);
     });
-  });
+  }, stuckSubmitter);
 
   // Reload — fresh hook mount sees the stuck row and auto-opens the modal.
   // Operator is still on the species picker stage at this point.

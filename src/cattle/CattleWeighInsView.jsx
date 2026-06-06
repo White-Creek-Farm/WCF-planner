@@ -343,7 +343,7 @@ const CattleWeighInsView = ({
         </div>
       </div>
       {showNewModal && (
-        <CattleNewWeighInModal sb={sb} onClose={() => setShowNewModal(false)} onCreate={createNewSession} />
+        <CattleNewWeighInModal authState={authState} onClose={() => setShowNewModal(false)} onCreate={createNewSession} />
       )}
     </div>
   );

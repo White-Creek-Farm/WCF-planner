@@ -21,8 +21,6 @@ import React from 'react';
 import {deriveBroilerColumnLabels} from '../lib/broilerBatchMeta.js';
 import {fmt} from '../lib/dateUtils.js';
 import {formatAgeRange, formatFeedPerPig, formatGroupAdg, formatAvgWeight} from '../lib/pigForecast.js';
-import {loadRoster} from '../lib/teamMembers.js';
-import {loadAvailability, availableNamesFor} from '../lib/teamAvailability.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 import CattleSendToProcessorModal from '../cattle/CattleSendToProcessorModal.jsx';
 import SheepSendToProcessorModal from '../sheep/SheepSendToProcessorModal.jsx';
@@ -40,15 +38,12 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
   // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
   // locked. The roster dropdown is replaced by the signed-in identity.
   const lockedName = sessionSubmitter?.name || '';
-  const submitterLocked = !!lockedName;
   const [stage, setStage] = React.useState('species'); // 'species' | 'select' | 'session' | 'done'
   const [species, setSpecies] = React.useState('');
   const [date, setDate] = React.useState('');
   const [teamMember, setTeamMember] = React.useState(sessionSubmitter?.name || '');
-  const [allTeamMembers, setAllTeamMembers] = React.useState([]);
-  // Per-species filtering retired 2026-04-29 — every active master roster
-  // member is selectable for every species. The teamMembersBySpecies state
-  // and the weighins_team_members read are gone.
+  // Submitter selection is retired: weigh-ins are stamped with the signed-in
+  // user, not a roster or per-species team-member dropdown.
   // Draft + session state
   const [drafts, setDrafts] = React.useState([]);
   const [session, setSession] = React.useState(null); // current session row
@@ -184,25 +179,11 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     );
   }, []);
 
-  // Master roster + per-form availability filter (`weigh-ins` formKey).
-  // Empty / missing availability entry = everyone visible.
+  // Keep the submitter pinned to the signed-in identity. New sessions +
+  // per-entry rows carry the authenticated user, not a roster selection.
   React.useEffect(() => {
-    let cancelled = false;
-    Promise.all([loadRoster(sb), loadAvailability(sb)]).then(([roster, availability]) => {
-      if (!cancelled) setAllTeamMembers(availableNamesFor('weigh-ins', roster, availability));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  // Same active list across every species after the 2026-04-29 cleanup.
-  const speciesTeamMembers = allTeamMembers;
-
-  // Keep the locked submitter pinned to the signed-in identity (authenticated
-  // path). New sessions + per-entry rows then carry the signed-in user.
-  React.useEffect(() => {
-    if (submitterLocked && teamMember !== lockedName) setTeamMember(lockedName);
-  }, [submitterLocked, lockedName, teamMember]);
+    if (teamMember !== lockedName) setTeamMember(lockedName);
+  }, [lockedName, teamMember]);
 
   // When species picked, prefetch what's needed
   React.useEffect(() => {
@@ -474,7 +455,6 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
         setWeightInputs(Array(labels.length * 15).fill(''));
       }
       setSessionIsFresh(true);
-      if (teamMember) localStorage.setItem('wcf_team', teamMember);
       setSession(rec);
       setEntries([]);
       setStage('session');
@@ -498,7 +478,6 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
       setErr('Could not start session: ' + error.message);
       return;
     }
-    if (teamMember) localStorage.setItem('wcf_team', teamMember);
     setSession(dbRec);
     setSessionIsFresh(false);
     setEntries([]);
@@ -510,9 +489,8 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     // (saveEntry, saveBatch direct, deleteEntry, finalizeSession) is valid.
     setSessionIsFresh(false);
     setLastSubmitOutcome(null);
-    // On the authenticated path the submitter stays the signed-in user; don't
-    // let a resumed draft's original starter override the locked identity.
-    if (!submitterLocked && s.team_member) setTeamMember(s.team_member);
+    // The submitter stays the signed-in user; a resumed draft's original
+    // starter does not override the locked identity.
     if (s.notes) setNoteInput(s.notes);
     // Restore the herd/flock selection so the remaining-tags list
     // populates correctly on resume (it filters by cattleHerd / sheepFlock).
@@ -1072,26 +1050,12 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
           setEntries(newEntries);
           setSessionIsFresh(false);
           setLastSubmitOutcome('synced');
-          if (teamMember) {
-            try {
-              localStorage.setItem('wcf_team', teamMember);
-            } catch (_e) {
-              /* best effort */
-            }
-          }
           setBusy(false);
           return true;
         }
         if (result.state === 'queued') {
           // Codex review #2 — terminal screen reserved for queued only.
           setDoneState('queued');
-          if (teamMember) {
-            try {
-              localStorage.setItem('wcf_team', teamMember);
-            } catch (_e) {
-              /* best effort */
-            }
-          }
           setBusy(false);
           return false;
         }
@@ -1186,25 +1150,11 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
         );
         setSessionIsFresh(false);
         setLastSubmitOutcome('synced');
-        if (teamMember) {
-          try {
-            localStorage.setItem('wcf_team', teamMember);
-          } catch (_e) {
-            /* best effort */
-          }
-        }
         setBusy(false);
         return;
       }
       if (result.state === 'queued') {
         setDoneState('queued');
-        if (teamMember) {
-          try {
-            localStorage.setItem('wcf_team', teamMember);
-          } catch (_e) {
-            /* best effort */
-          }
-        }
         setBusy(false);
         return;
       }
@@ -1670,21 +1620,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inpS} />
             </div>
             <div style={{marginBottom: 10}}>
-              {submitterLocked ? (
-                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
-              ) : (
-                <>
-                  <label style={lblS}>Team Member *</label>
-                  <select value={teamMember} onChange={(e) => setTeamMember(e.target.value)} style={inpS}>
-                    <option value="">Select...</option>
-                    {speciesTeamMembers.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              )}
+              <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
             </div>
 
             {species === 'cattle' && (

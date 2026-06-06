@@ -15,7 +15,6 @@ import React from 'react';
 import {sb} from '../lib/supabase.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
-import {loadRoster, activeNames as activeNamesFromRoster} from '../lib/teamMembers.js';
 import {EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
 import EquipmentMaterialsEditor from './EquipmentMaterialsEditor.jsx';
 import {runMutation, recordFieldChange, recordStatusChange} from '../lib/entityMutations.js';
@@ -347,11 +346,6 @@ export default function EquipmentWebformsAdmin() {
                 onReload={loadAll}
                 onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
               />
-              <TeamMembersEditor
-                equipment={selected}
-                onReload={loadAll}
-                onLocalPatch={(patch) => patchEquipmentLocal(selected.id, patch)}
-              />
               <SpecsEditor
                 equipment={selected}
                 onReload={loadAll}
@@ -481,110 +475,6 @@ function IdentityEditor({equipment, onReload, onLocalPatch}) {
           <option value="sold">sold</option>
         </select>
       </div>
-    </div>
-  );
-}
-
-// ── team members: who typically operates this piece ───────────────────────
-// Reads + writes the MASTER list (webform_config.team_members) so admins
-// can add/remove team members from the whole system right here, not just
-// toggle per-piece assignments.
-// Per-piece operator assignment editor. Reads the canonical team roster
-// via the helper and lets admin toggle which operators are assigned to
-// THIS piece of equipment. Master add/remove was retired 2026-04-29 —
-// the central editor in /webforms admin (TeamRosterEditor) is the only
-// writer of the master roster. This component never writes
-// webform_config.team_roster or team_members; it only writes the
-// equipment.team_members column.
-function TeamMembersEditor({equipment, onReload, onLocalPatch}) {
-  const [roster, setRoster] = React.useState([]);
-  const [busy, setBusy] = React.useState(false);
-  const [notice, setNotice] = React.useState(null);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    loadRoster(sb).then((r) => {
-      if (!cancelled) setRoster(r);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const assigned = Array.isArray(equipment.team_members) ? equipment.team_members : [];
-  const activeMaster = activeNamesFromRoster(roster);
-
-  async function toggle(name) {
-    setNotice(null);
-    setBusy(true);
-    const next = assigned.includes(name) ? assigned.filter((n) => n !== name) : [...assigned, name];
-    const result = await runMutation(() => sb.from('equipment').update({team_members: next}).eq('id', equipment.id), {
-      activity: () =>
-        recordFieldChange(sb, {
-          entityType: 'equipment.item',
-          entityId: equipment.id,
-          entityLabel: equipment.name,
-          changes: [
-            makeFieldChange(
-              'team_members',
-              'Team members',
-              countSummary(assigned, 'team member'),
-              countSummary(next, 'team member'),
-            ),
-          ],
-        }),
-      onError: (msg) => setNotice({kind: 'error', message: 'Save failed: ' + msg}),
-    });
-    setBusy(false);
-    if (!result.ok) return;
-    applySavedEquipmentPatch(onLocalPatch, onReload, {team_members: next});
-  }
-
-  return (
-    <div style={card}>
-      <div style={sectionTitle}>
-        Team Members{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
-          Assign operators to this piece · names managed in admin
-        </span>
-      </div>
-      <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
-      {activeMaster.length === 0 && (
-        <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic'}}>
-          No active team members yet. Add names in the Webforms admin → Team Members section.
-        </div>
-      )}
-      {activeMaster.length > 0 && (
-        <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10}}>
-          {activeMaster.map((name) => {
-            const on = assigned.includes(name);
-            return (
-              <button
-                key={name}
-                onClick={() => toggle(name)}
-                disabled={busy}
-                style={{
-                  fontSize: 12,
-                  padding: '5px 11px',
-                  borderRadius: 5,
-                  border: '1px solid ' + (on ? '#047857' : '#d1d5db'),
-                  background: on ? '#d1fae5' : 'white',
-                  color: on ? '#047857' : '#6b7280',
-                  fontWeight: on ? 600 : 400,
-                  cursor: busy ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {on ? '✓ ' : ''}
-                {name}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {assigned.length === 0 && activeMaster.length > 0 && (
-        <div style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>None assigned to this piece yet.</div>
-      )}
     </div>
   );
 }

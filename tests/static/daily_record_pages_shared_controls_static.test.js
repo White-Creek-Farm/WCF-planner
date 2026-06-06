@@ -5,8 +5,8 @@ import {describe, it, expect} from 'vitest';
 
 // Daily-report hotfix (parts 3+4 + scope generalization): the six daily record
 // pages must share one generic record-page controls helper — a responsive
-// label/value grid, consistent control width, a roster-backed Team Member
-// dropdown, and mm/dd/yyyy titles — instead of bespoke per-page field-row /
+// label/value grid, consistent control width, a locked Team Member
+// display, and mm/dd/yyyy titles — instead of bespoke per-page field-row /
 // input / textarea styles. This is the reusable site-wide foundation; other
 // record pages migrate onto it in a later visual-consistency lane.
 
@@ -32,7 +32,7 @@ describe('daily record pages use the shared record-page controls', () => {
       expect(src).not.toContain('dailyRecordControls');
     });
 
-    it(`${rel} uses the responsive field-row class + roster Team Member dropdown`, () => {
+    it(`${rel} uses the responsive field-row class + locked Team Member display`, () => {
       expect(src).toContain('recordFieldRowClass');
       expect(src).toContain('className={fieldRowClass}');
       expect(src).toContain('TeamMemberSelect');
@@ -53,6 +53,7 @@ describe('daily record pages use the shared record-page controls', () => {
   it('the shared helper documents its intended future record-page consumers', () => {
     const src = read('src/shared/recordPageControls.jsx');
     expect(src).toMatch(/FUTURE CONSUMERS/);
+    expect(src).toContain('data-team-member-select-locked');
     for (const consumer of ['task', 'weigh-in', 'equipment']) {
       expect(src.toLowerCase()).toContain(consumer);
     }

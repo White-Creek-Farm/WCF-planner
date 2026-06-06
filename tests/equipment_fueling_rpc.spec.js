@@ -28,6 +28,8 @@ const TODAY = '2026-05-06';
 const RUN_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const seedKey = (value) => `${value}-${RUN_ID}`;
 const uniqueSeed = (value) => `${seedKey(value)}-${Math.random().toString(36).slice(2, 8)}`;
+const FALLBACK_SUBMITTER_NAME =
+  process.env.VITE_TEST_ADMIN_FULL_NAME || process.env.VITE_TEST_ADMIN_EMAIL?.split('@')[0] || 'Signed-in user';
 
 async function seedActiveEquipment(supabaseAdmin, overrides = {}) {
   const id = overrides.id || uniqueSeed('eq');
@@ -61,7 +63,7 @@ function makeParent(eq, csid, overrides = {}) {
     client_submission_id: csid,
     equipment_id: eq.id,
     date: TODAY,
-    team_member: 'BMAN',
+    team_member: FALLBACK_SUBMITTER_NAME,
     fuel_type: eq.fuel_type || 'diesel',
     gallons: 10,
     hours_reading: eq.tracking_unit === 'hours' ? reading : null,
@@ -106,6 +108,7 @@ test('hours-tracked: anon RPC inserts equipment_fuelings + bumps equipment.curre
   const {data: row} = await supabaseAdmin.from('equipment_fuelings').select('*').eq('id', parent.id).maybeSingle();
   expect(row).not.toBeNull();
   expect(row.equipment_id).toBe(eq.id);
+  expect(row.team_member).toBe(parent.team_member);
   expect(Number(row.hours_reading)).toBe(250);
   expect(row.km_reading).toBeNull();
   expect(row.client_submission_id).toBe(csid);
@@ -141,6 +144,7 @@ test('km-tracked: anon RPC inserts equipment_fuelings + bumps equipment.current_
   const {data: row} = await supabaseAdmin.from('equipment_fuelings').select('*').eq('id', parent.id).maybeSingle();
   expect(Number(row.km_reading)).toBe(6000);
   expect(row.hours_reading).toBeNull();
+  expect(row.team_member).toBe(parent.team_member);
 
   const {data: parentEq} = await supabaseAdmin.from('equipment').select('current_km').eq('id', eq.id).maybeSingle();
   expect(Number(parentEq.current_km)).toBe(6000);
@@ -180,6 +184,8 @@ test('idempotent: replay same csid returns idempotent_replay=true, no duplicate 
     .select('*', {count: 'exact', head: true})
     .eq('equipment_id', eq.id);
   expect(count).toBe(1);
+  const {data: rows} = await supabaseAdmin.from('equipment_fuelings').select('team_member').eq('equipment_id', eq.id);
+  expect(rows.every((r) => r.team_member === parent1.team_member)).toBe(true);
 
   const {data: parentEq} = await supabaseAdmin.from('equipment').select('current_hours').eq('id', eq.id).maybeSingle();
   expect(Number(parentEq.current_hours)).toBe(350); // not 400

@@ -343,7 +343,7 @@ const SheepWeighInsView = ({
         </div>
       </div>
       {showNewModal && (
-        <SheepNewWeighInModal sb={sb} onClose={() => setShowNewModal(false)} onCreate={createNewSession} />
+        <SheepNewWeighInModal authState={authState} onClose={() => setShowNewModal(false)} onCreate={createNewSession} />
       )}
     </div>
   );

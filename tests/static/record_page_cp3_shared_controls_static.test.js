@@ -54,9 +54,11 @@ describe('CP3: WeighInSessionPage metadata controls, workflows preserved', () =>
     expect(src).toContain("from '../shared/recordPageControls.jsx'");
     expect(src).toContain('recordControl');
     expect(src).toContain('recordFieldLabel');
-    // Broiler metadata selectors preserved (incl. the roster team select).
+    // Broiler metadata keeps week controls and displays the saved Team via
+    // the locked signed-in-user primitive.
     expect(src).toContain('data-testid="broiler-meta-panel"');
-    expect(src).toContain('data-testid="broiler-meta-team"');
+    expect(src).toContain('LockedTeamMemberField');
+    expect(src).not.toContain('data-testid="broiler-meta-team"');
     expect(src).toContain('data-testid="broiler-meta-wk4"');
   });
 

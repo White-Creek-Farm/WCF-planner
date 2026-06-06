@@ -246,9 +246,9 @@ test('admin display: photo chip on tile + thumbnails in edit modal (signed URL)'
 // --------------------------------------------------------------------------
 // Test 4b — Daily-report hotfix: the Home "Last 5 Days" tile opens the
 // dedicated RECORD PAGE (not the legacy dailys-hub edit modal), with a
-// roster-backed Team Member dropdown and read-only photo thumbnails inline.
+// locked saved-submitter display and read-only photo thumbnails inline.
 // --------------------------------------------------------------------------
-test('hotfix: Home Last-5-Days tile → record page with team dropdown + photo thumbnails', async ({
+test('hotfix: Home Last-5-Days tile → record page with locked submitter + photo thumbnails', async ({
   page,
   supabaseAdmin,
   resetDb,
@@ -257,7 +257,8 @@ test('hotfix: Home Last-5-Days tile → record page with team dropdown + photo t
   await seedTeamRoster(supabaseAdmin);
 
   // Seed inside the home "Last 5 Days" window (today's date). team_member is
-  // intentionally NOT in the seeded roster so the historical-option path runs.
+  // intentionally NOT in the seeded roster; record pages preserve the saved
+  // submitter text without needing a roster option.
   const today = new Date().toISOString().slice(0, 10);
   const csid = 'csid-home-route-test';
   await supabaseAdmin.from('sheep_dailys').upsert(
@@ -311,12 +312,11 @@ test('hotfix: Home Last-5-Days tile → record page with team dropdown + photo t
   await expect(page).toHaveURL(/\/sheep\/dailys\/sd-home-route/, {timeout: 10_000});
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 10_000});
 
-  // Team Member is a roster-backed dropdown that preserves the saved value as
-  // a selectable historical option ("SIMON (not in roster)").
+  // Team Member is a locked display that preserves the saved value.
   const teamSelect = page.locator('[data-team-member-select="1"]');
   await expect(teamSelect).toBeVisible();
-  await expect(teamSelect).toContainText('SIMON (not in roster)');
-  await expect(teamSelect).toHaveValue('SIMON');
+  await expect(teamSelect).toHaveAttribute('data-team-member-select-locked', '1');
+  await expect(teamSelect).toContainText('SIMON');
 
   // Read-only photo thumbnails render inline in the record page body.
   await expect(page.locator('[data-photo-thumbnails="1"]')).toBeVisible({timeout: 10_000});

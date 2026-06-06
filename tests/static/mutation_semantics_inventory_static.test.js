@@ -14,7 +14,8 @@ const EXPECTED_LITERAL_MUTATION_TOTALS = new Map([
   // CP2: 12 direct daily-table .update() literals (6 record pages + 6 list
   // views) moved to the update_daily_report SECDEF RPC (mig 091).
   // +1 update from savedViewsApi.updateSavedView (app_saved_views, mig 095).
-  ['update', 82],
+  // -1 update from retiring per-equipment team_members assignment.
+  ['update', 81],
   ['upsert', 43],
 ]);
 
@@ -22,7 +23,7 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/admin/EquipmentMaterialsEditor.jsx|delete', 2],
   ['src/admin/EquipmentMaterialsEditor.jsx|insert', 1],
   ['src/admin/EquipmentMaterialsEditor.jsx|update', 1],
-  ['src/admin/EquipmentWebformsAdmin.jsx|update', 10],
+  ['src/admin/EquipmentWebformsAdmin.jsx|update', 9],
   ['src/admin/FuelBillsView.jsx|delete', 2],
   ['src/admin/FuelBillsView.jsx|insert', 2],
   ['src/admin/FuelLogAdmin.jsx|delete', 1],
@@ -153,7 +154,7 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['equipment_service_materials|insert', 1],
   ['equipment_service_materials|update', 1],
   ['equipment|insert', 1],
-  ['equipment|update', 15],
+  ['equipment|update', 14],
   ['fuel_bill_lines|insert', 1],
   ['fuel_bills|delete', 2],
   ['fuel_bills|insert', 1],
@@ -208,7 +209,7 @@ const EXPECTED_DYNAMIC_MUTATIONS = [
 ];
 
 const EXPECTED_RUN_MUTATION_CALLERS = new Map([
-  ['src/admin/EquipmentWebformsAdmin.jsx', 9],
+  ['src/admin/EquipmentWebformsAdmin.jsx', 8],
   ['src/cattle/CattleAnimalPage.jsx', 1],
   ['src/cattle/CattleForecastView.jsx', 1],
   ['src/cattle/CattleHerdsView.jsx', 2],
@@ -370,7 +371,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(20);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(19);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

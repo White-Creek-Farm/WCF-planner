@@ -3,7 +3,6 @@ import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
@@ -11,6 +10,7 @@ import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import PigDailyPage from './PigDailyPage.jsx';
@@ -48,9 +48,14 @@ const PigDailysHub = ({
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
+  const userRole = authState?.role || '';
+  const isLightRole = String(userRole).toLowerCase() === 'light';
+  const signedInUser =
+    authState && typeof authState === 'object'
+      ? authState.name || authState.profile?.name || authState.profile?.full_name || authState.user?.email || ''
+      : '';
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [fBatch, setFBatch] = usePersistentViewState('pig.dailys.batchFilter', '');
   const [fTeam, setFTeam] = usePersistentViewState('pig.dailys.teamFilter', '');
   const [fFrom, setFFrom] = usePersistentViewState('pig.dailys.fromFilter', '');
@@ -129,16 +134,17 @@ const PigDailysHub = ({
       });
       setLoading(false);
     });
-    loadRoster(sb)
-      .then((roster) => {
-        if (!cancelled) setTeamMembers(activeNames(roster));
-      })
-      .catch(() => {});
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reloadKey is the user-gated retry trigger.
   }, [reloadKey]);
+
+  React.useEffect(() => {
+    if (!isLightRole || !signedInUser) return;
+    setForm((f) => (f.teamMember ? f : {...f, teamMember: signedInUser}));
+  }, [isLightRole, signedInUser]);
+
   useEffect(() => {
     if (pendingEdit?.viewName === 'pigdailys' && pendingEdit?.id && records.length > 0) {
       const rec = records.find((r) => r.id === pendingEdit.id);
@@ -700,15 +706,12 @@ const PigDailysHub = ({
                 <input type="date" value={form.date} onChange={(e) => setForm((f) => ({...f, date: e.target.value}))} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <label style={S.label}>Team Member</label>
-                <select value={form.teamMember} onChange={(e) => setForm((f) => ({...f, teamMember: e.target.value}))}>
-                  <option value="">Select...</option>
-                  {teamMembers.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {React.createElement(LockedTeamMemberField, {
+                  value: form.teamMember,
+                  label: 'Team Member',
+                  labelStyle: S.label,
+                  style: {maxWidth: '100%'},
+                })}
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={S.label}>Pig Group</label>

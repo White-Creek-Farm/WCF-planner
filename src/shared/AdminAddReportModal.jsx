@@ -10,9 +10,10 @@ import WcfYN from './WcfYN.jsx';
 import WcfToggle from './WcfToggle.jsx';
 import {wcfSendEmail} from '../lib/email.js';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {formatBroilerBatchLabel} from '../lib/broilerBatchMeta.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
+import {useAuth} from '../contexts/AuthContext.jsx';
+import {LockedTeamMemberField} from './recordPageControls.jsx';
 import {
   checkDailyDuplicate,
   checkInSubmissionDuplicates,
@@ -20,6 +21,11 @@ import {
   friendlyDailyDbError,
 } from '../lib/dailyDuplicateCheck.js';
 const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
+  const {authState} = useAuth() || {};
+  const lockedSubmitterName =
+    authState && typeof authState === 'object'
+      ? authState.name || authState.profile?.name || authState.profile?.full_name || authState.user?.email || ''
+      : '';
   const [loadedConfig, setLoadedConfig] = React.useState(null);
   const [broilerGroupsFromDb, setBroilerGroupsFromDb] = React.useState([]);
   const [broilerMeta, setBroilerMeta] = React.useState([]);
@@ -30,10 +36,6 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   // group. Defaults to {} so a missing config row leaves the badge hidden
   // rather than throwing.
   const [housingBatchMap, setHousingBatchMap] = React.useState({});
-  // Master active roster (loaded from webform_config.team_roster, falling
-  // back to the legacy team_members string[] inside loadRoster). Per-form
-  // filtering retired 2026-04-29 — all forms read this single list.
-  const [rosterNames, setRosterNames] = React.useState([]);
   const [submitting, setSubmitting] = React.useState(false);
   const [err, setErr] = React.useState('');
   const todayStr = () => {
@@ -50,15 +52,13 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       sb.from('webform_config').select('data').eq('key', 'webform_settings').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'active_groups').maybeSingle(),
       sb.from('webform_config').select('data').eq('key', 'housing_batch_map').maybeSingle(),
-      loadRoster(sb),
-    ]).then(([fc, bg, bbm, ws, ag, hbm, roster]) => {
+    ]).then(([fc, bg, bbm, ws, ag, hbm]) => {
       if (fc?.data?.data) setLoadedConfig(fc.data.data);
       if (Array.isArray(bg?.data?.data) && bg.data.data.length > 0) setBroilerGroupsFromDb(bg.data.data);
       if (Array.isArray(bbm?.data?.data)) setBroilerMeta(bbm.data.data);
       if (ws?.data?.data) setWfSettings(ws.data.data);
       if (Array.isArray(ag?.data?.data) && ag.data.data.length > 0) setPigGroupsFromDb(ag.data.data);
       if (hbm?.data?.data) setHousingBatchMap(hbm.data.data);
-      if (Array.isArray(roster) && roster.length > 0) setRosterNames(activeNames(roster));
     });
   }, []);
 
@@ -70,15 +70,6 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   const layerGroupNames = (cfg.layerGroups || []).filter((g) => g.status === 'active').map((g) => g.name || g);
   const pigGroups = pigGroupsFromDb.length > 0 ? pigGroupsFromDb : [];
 
-  function getFormTeamMembers() {
-    // Per-form filtering retired 2026-04-29 — every active master roster
-    // member appears for every form. The formId parameter stays in callers'
-    // call sites for clarity but is ignored here. Falls back to the legacy
-    // full_config.teamMembers mirror if the canonical roster hasn't loaded
-    // yet (cold-load race protection).
-    if (rosterNames.length > 0) return rosterNames;
-    return cfg.teamMembers || [];
-  }
   function allowAddGroup(formId) {
     if (wfSettings?.allowAddGroup && formId in wfSettings.allowAddGroup)
       return wfSettings.allowAddGroup[formId] === true;
@@ -110,6 +101,21 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   const lbl = {display: 'block', fontSize: 13, color: '#374151', marginBottom: 5, fontWeight: 500};
   const reqStar = (formId, fieldId) =>
     isRequired(formId, fieldId) ? React.createElement('span', {style: {color: '#b91c1c'}}, ' *') : null;
+  // Submitter is always the signed-in user — no roster dropdown. The form value
+  // is only a fallback for the rare case where auth has no name yet.
+  const resolveTeamMember = (value) => lockedSubmitterName || value || '';
+  const renderTeamMember = (formId, value) =>
+    React.createElement(LockedTeamMemberField, {
+      value: resolveTeamMember(value),
+      label: React.createElement(
+        React.Fragment,
+        null,
+        getFieldLabel(formId, 'team_member', 'Team Member'),
+        reqStar(formId, 'team_member'),
+      ),
+      labelStyle: lbl,
+      style: inp,
+    });
 
   // Shared UI
   const inp = {
@@ -225,6 +231,16 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   });
 
   React.useEffect(() => {
+    if (!lockedSubmitterName) return;
+    setBForm((f) => (f.teamMember === lockedSubmitterName ? f : {...f, teamMember: lockedSubmitterName}));
+    setLForm((f) => (f.teamMember === lockedSubmitterName ? f : {...f, teamMember: lockedSubmitterName}));
+    setEForm((f) => (f.teamMember === lockedSubmitterName ? f : {...f, teamMember: lockedSubmitterName}));
+    setPForm((f) => (f.teamMember === lockedSubmitterName ? f : {...f, teamMember: lockedSubmitterName}));
+    setCForm((f) => (f.teamMember === lockedSubmitterName ? f : {...f, teamMember: lockedSubmitterName}));
+    setSForm((f) => (f.teamMember === lockedSubmitterName ? f : {...f, teamMember: lockedSubmitterName}));
+  }, [lockedSubmitterName]);
+
+  React.useEffect(() => {
     if (layerGroupNames.length > 0 && !eForm.g1n)
       setEForm((f) => ({
         ...f,
@@ -237,7 +253,8 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
 
   // Submit functions — all include client-generated id matching WebformHub pattern
   async function submitBroiler() {
-    if (!bForm.date || !bForm.teamMember || !bForm.batchLabel) {
+    const teamMember = resolveTeamMember(bForm.teamMember);
+    if (!bForm.date || !teamMember || !bForm.batchLabel) {
       setErr('Please fill in all required fields.');
       return;
     }
@@ -266,7 +283,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       id: genId(),
       submitted_at: new Date().toISOString(),
       date: bForm.date,
-      team_member: bForm.teamMember,
+      team_member: teamMember,
       batch_label: bForm.batchLabel,
       feed_type: bForm.feedType || null,
       feed_lbs: bForm.feedLbs !== '' ? parseFloat(bForm.feedLbs) : null,
@@ -331,7 +348,8 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
     onClose();
   }
   async function submitLayer() {
-    if (!lForm.date || !lForm.teamMember || !lForm.batchLabel) {
+    const teamMember = resolveTeamMember(lForm.teamMember);
+    if (!lForm.date || !teamMember || !lForm.batchLabel) {
       setErr('Please fill in all required fields.');
       return;
     }
@@ -360,7 +378,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       id: genId(),
       submitted_at: new Date().toISOString(),
       date: lForm.date,
-      team_member: lForm.teamMember,
+      team_member: teamMember,
       batch_label: lForm.batchLabel,
       feed_type: lForm.feedType || null,
       feed_lbs: lForm.feedLbs !== '' ? parseFloat(lForm.feedLbs) : null,
@@ -435,7 +453,8 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
     onClose();
   }
   async function submitEgg() {
-    if (!eForm.date || !eForm.teamMember) {
+    const teamMember = resolveTeamMember(eForm.teamMember);
+    if (!eForm.date || !teamMember) {
       setErr('Please fill in date and team member.');
       return;
     }
@@ -449,7 +468,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       id: genId(),
       submitted_at: new Date().toISOString(),
       date: eForm.date,
-      team_member: eForm.teamMember,
+      team_member: teamMember,
       group1_name: eForm.g1n || null,
       group1_count: eForm.g1c !== '' ? g1 : null,
       group2_name: eForm.g2n || null,
@@ -491,7 +510,8 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
     onClose();
   }
   async function submitPig() {
-    if (!pForm.date || !pForm.teamMember || !pForm.batchLabel) {
+    const teamMember = resolveTeamMember(pForm.teamMember);
+    if (!pForm.date || !teamMember || !pForm.batchLabel) {
       setErr('Please fill in all required fields.');
       return;
     }
@@ -501,7 +521,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       id: genId(),
       submitted_at: new Date().toISOString(),
       date: pForm.date,
-      team_member: pForm.teamMember,
+      team_member: teamMember,
       batch_label: pForm.batchLabel,
       batch_id: pForm.batchLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       feed_lbs: pForm.feedLbs !== '' ? parseFloat(pForm.feedLbs) : null,
@@ -565,7 +585,8 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   }
 
   async function submitCattle() {
-    if (!cForm.date || !cForm.teamMember || !cForm.herd) {
+    const teamMember = resolveTeamMember(cForm.teamMember);
+    if (!cForm.date || !teamMember || !cForm.herd) {
       setErr('Date, team member, and herd are required.');
       return;
     }
@@ -602,7 +623,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       id: genId(),
       submitted_at: new Date().toISOString(),
       date: cForm.date,
-      team_member: cForm.teamMember,
+      team_member: teamMember,
       herd: cForm.herd,
       feeds: feedsJ,
       minerals: mineralsJ,
@@ -636,7 +657,8 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   }
 
   async function submitSheep() {
-    if (!sForm.date || !sForm.teamMember || !sForm.flock) {
+    const teamMember = resolveTeamMember(sForm.teamMember);
+    if (!sForm.date || !teamMember || !sForm.flock) {
       setErr('Date, team member, and flock are required.');
       return;
     }
@@ -678,7 +700,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
       id: genId(),
       submitted_at: new Date().toISOString(),
       date: sForm.date,
-      team_member: sForm.teamMember,
+      team_member: teamMember,
       flock: sForm.flock,
       feeds: feedsJ,
       minerals: mineralsJ,
@@ -810,24 +832,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                       style={inp}
                     />
                   </div>
-                  <div style={{gridColumn: '1/-1'}}>
-                    <label style={lbl}>
-                      {getFieldLabel('broiler-dailys', 'team_member', 'Team Member')}
-                      {reqStar('broiler-dailys', 'team_member')}
-                    </label>
-                    <select
-                      value={bForm.teamMember}
-                      onChange={(e) => setBForm((f) => ({...f, teamMember: e.target.value}))}
-                      style={inp}
-                    >
-                      <option value="">Select...</option>
-                      {getFormTeamMembers('broiler-dailys').map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <div style={{gridColumn: '1/-1'}}>{renderTeamMember('broiler-dailys', bForm.teamMember)}</div>
                   {isEnabled('broiler-dailys', 'batch_label') && (
                     <div style={{gridColumn: '1/-1'}}>
                       <label style={lbl}>
@@ -1211,24 +1216,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                       style={inp}
                     />
                   </div>
-                  <div style={{gridColumn: '1/-1'}}>
-                    <label style={lbl}>
-                      {getFieldLabel('layer-dailys', 'team_member', 'Team Member')}
-                      {reqStar('layer-dailys', 'team_member')}
-                    </label>
-                    <select
-                      value={lForm.teamMember}
-                      onChange={(e) => setLForm((f) => ({...f, teamMember: e.target.value}))}
-                      style={inp}
-                    >
-                      <option value="">Select...</option>
-                      {getFormTeamMembers('layer-dailys').map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <div style={{gridColumn: '1/-1'}}>{renderTeamMember('layer-dailys', lForm.teamMember)}</div>
                   {isEnabled('layer-dailys', 'batch_label') && (
                     <div style={{gridColumn: '1/-1'}}>
                       <label style={lbl}>
@@ -1648,24 +1636,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                       style={inp}
                     />
                   </div>
-                  <div style={{gridColumn: '1/-1'}}>
-                    <label style={lbl}>
-                      {getFieldLabel('egg-dailys', 'team_member', 'Team Member')}
-                      {reqStar('egg-dailys', 'team_member')}
-                    </label>
-                    <select
-                      value={eForm.teamMember}
-                      onChange={(e) => setEForm((f) => ({...f, teamMember: e.target.value}))}
-                      style={inp}
-                    >
-                      <option value="">Select...</option>
-                      {getFormTeamMembers('egg-dailys').map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <div style={{gridColumn: '1/-1'}}>{renderTeamMember('egg-dailys', eForm.teamMember)}</div>
                 </div>
               </div>
               {[1, 2, 3, 4].map((n) => {
@@ -1771,24 +1742,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                       style={inp}
                     />
                   </div>
-                  <div style={{gridColumn: '1/-1'}}>
-                    <label style={lbl}>
-                      {getFieldLabel('pig-dailys', 'team_member', 'Team Member')}
-                      {reqStar('pig-dailys', 'team_member')}
-                    </label>
-                    <select
-                      value={pForm.teamMember}
-                      onChange={(e) => setPForm((f) => ({...f, teamMember: e.target.value}))}
-                      style={inp}
-                    >
-                      <option value="">Select...</option>
-                      {getFormTeamMembers('pig-dailys').map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <div style={{gridColumn: '1/-1'}}>{renderTeamMember('pig-dailys', pForm.teamMember)}</div>
                   {isEnabled('pig-dailys', 'batch_label') && (
                     <div style={{gridColumn: '1/-1'}}>
                       <label style={lbl}>
@@ -2137,7 +2091,6 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                 return fi ? fi.unit : '';
               };
               const showCreep = herdSel === 'mommas';
-              const teamOpts = getFormTeamMembers('cattle-dailys');
               return (
                 <div>
                   <div style={sec}>
@@ -2154,24 +2107,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                           style={inp}
                         />
                       </div>
-                      <div style={{gridColumn: '1/-1'}}>
-                        <label style={lbl}>
-                          {getFieldLabel('cattle-dailys', 'team_member', 'Team Member')}
-                          {reqStar('cattle-dailys', 'team_member')}
-                        </label>
-                        <select
-                          value={cForm.teamMember}
-                          onChange={(e) => setCForm((f) => ({...f, teamMember: e.target.value}))}
-                          style={inp}
-                        >
-                          <option value="">Select...</option>
-                          {teamOpts.map((m) => (
-                            <option key={m} value={m}>
-                              {m}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <div style={{gridColumn: '1/-1'}}>{renderTeamMember('cattle-dailys', cForm.teamMember)}</div>
                       <div style={{gridColumn: '1/-1'}}>
                         <label style={lbl}>
                           Cattle Herd <span style={{color: '#b91c1c'}}>*</span>
@@ -2481,7 +2417,6 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                 {v: 'ewes', l: 'Ewes'},
                 {v: 'feeders', l: 'Feeders'},
               ];
-              const teamOpts = getFormTeamMembers('sheep-dailys');
               return (
                 <div>
                   <div style={sec}>
@@ -2498,24 +2433,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                           style={inp}
                         />
                       </div>
-                      <div style={{gridColumn: '1/-1'}}>
-                        <label style={lbl}>
-                          {getFieldLabel('sheep-dailys', 'team_member', 'Team Member')}
-                          {reqStar('sheep-dailys', 'team_member')}
-                        </label>
-                        <select
-                          value={sForm.teamMember}
-                          onChange={(e) => setSForm((f) => ({...f, teamMember: e.target.value}))}
-                          style={inp}
-                        >
-                          <option value="">Select...</option>
-                          {teamOpts.map((m) => (
-                            <option key={m} value={m}>
-                              {m}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <div style={{gridColumn: '1/-1'}}>{renderTeamMember('sheep-dailys', sForm.teamMember)}</div>
                       <div style={{gridColumn: '1/-1'}}>
                         <label style={lbl}>
                           Flock <span style={{color: '#b91c1c'}}>*</span>

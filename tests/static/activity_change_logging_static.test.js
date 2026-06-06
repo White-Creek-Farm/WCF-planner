@@ -14,6 +14,12 @@ const eqAdmin = fs.readFileSync(path.join(ROOT, 'src/admin/EquipmentWebformsAdmi
 const livestockFeedInputs = fs.readFileSync(path.join(ROOT, 'src/admin/LivestockFeedInputsPanel.jsx'), 'utf8');
 const diffHelper = fs.readFileSync(path.join(ROOT, 'src/lib/activityChangeDiff.js'), 'utf8');
 
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
+const eqAdminCode = stripComments(eqAdmin);
+
 describe('Activity change logging - cattle.animal', () => {
   it('CattleHerdsView imports runMutation and recordFieldChange', () => {
     expect(cattleHerds).toContain("import {runMutation, recordFieldChange} from '../lib/entityMutations.js'");
@@ -91,10 +97,11 @@ describe('Activity change logging - equipment.item', () => {
     expect(eqAdmin).toContain('recordStatusChange(sb');
   });
 
-  it('TeamMembersEditor logs team_members as field.updated via makeFieldChange', () => {
-    expect(eqAdmin).toContain("'team_members'");
-    expect(eqAdmin).toContain('makeFieldChange');
-    expect(eqAdmin).toContain("'Team members'");
+  it('retires per-equipment team_members assignment writes', () => {
+    expect(eqAdminCode).not.toContain('TeamMembersEditor');
+    expect(eqAdminCode).not.toContain("'team_members'");
+    expect(eqAdminCode).not.toContain('equipment.team_members');
+    expect(eqAdminCode).not.toContain("'Team members'");
   });
 
   it('uses countSummary for complex array fields', () => {

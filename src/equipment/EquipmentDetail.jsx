@@ -24,7 +24,7 @@ import ManualsCard from './ManualsCard.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
-import {recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
+import {LockedTeamMemberField, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
 import {runMutation, recordStatusChange} from '../lib/entityMutations.js';
 
 export default function EquipmentDetail({
@@ -351,37 +351,6 @@ export default function EquipmentDetail({
             {eq.status === 'sold' ? '↻ Restore to active' : '↓ Mark sold'}
           </button>
         </div>
-        {Array.isArray(eq.team_members) && eq.team_members.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              flexWrap: 'wrap',
-              marginBottom: 10,
-              fontSize: 11,
-              color: '#6b7280',
-            }}
-          >
-            <span style={{fontWeight: 600, color: '#4b5563'}}>Operators:</span>
-            {eq.team_members.map((n) => (
-              <span
-                key={n}
-                style={{
-                  padding: '2px 8px',
-                  borderRadius: 10,
-                  background: '#f1f5f9',
-                  color: '#475569',
-                  border: '1px solid #e2e8f0',
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                {n}
-              </span>
-            ))}
-          </div>
-        )}
         <div
           style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, fontSize: 12}}
         >
@@ -738,29 +707,11 @@ export default function EquipmentDetail({
                         </div>
                         <div>
                           <div style={{fontSize: 10, color: '#9ca3af'}}>Team</div>
-                          {(() => {
-                            const assignedTM = Array.isArray(eq.team_members) ? eq.team_members : [];
-                            const cur = f.team_member || '';
-                            const isLegacy = cur && !assignedTM.includes(cur);
-                            const noOptions = assignedTM.length === 0 && !isLegacy;
-                            return (
-                              <select
-                                key={`tm-${f.id}-${cur}`}
-                                defaultValue={cur}
-                                disabled={noOptions}
-                                onChange={(e) => queueFuelingSave(f.id, 'team_member', e.target.value, 'text')}
-                                style={{...recordControl, background: noOptions ? '#f3f4f6' : 'white'}}
-                              >
-                                <option value="">{noOptions ? 'No team members assigned' : 'Select…'}</option>
-                                {isLegacy && <option value={cur}>{cur} (legacy — not currently assigned)</option>}
-                                {assignedTM.map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}
-                                  </option>
-                                ))}
-                              </select>
-                            );
-                          })()}
+                          {React.createElement(LockedTeamMemberField, {
+                            value: f.team_member || '',
+                            label: null,
+                            style: recordControl,
+                          })}
                         </div>
                         <div>
                           <div style={{fontSize: 10, color: '#9ca3af'}}>Gallons</div>

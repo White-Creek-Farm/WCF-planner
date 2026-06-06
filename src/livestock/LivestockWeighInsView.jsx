@@ -228,6 +228,7 @@ const LivestockWeighInsView = ({
           <AdminNewWeighInModal
             sb={sb}
             species={species}
+            authState={authState}
             onClose={() => setShowNewModal(false)}
             onCreated={(rec) => {
               setShowNewModal(false);

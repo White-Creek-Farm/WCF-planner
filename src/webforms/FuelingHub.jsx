@@ -26,7 +26,7 @@ export default function FuelingHub({sb, sessionSubmitter}) {
   React.useEffect(() => {
     sb.from('equipment')
       .select(
-        'id,name,slug,category,tracking_unit,fuel_type,every_fillup_items,every_fillup_help,fuel_gallons_help,operator_notes,service_intervals,attachment_checklists,current_hours,current_km,takes_def,team_members,manuals',
+        'id,name,slug,category,tracking_unit,fuel_type,every_fillup_items,every_fillup_help,fuel_gallons_help,operator_notes,service_intervals,attachment_checklists,current_hours,current_km,takes_def,manuals',
       )
       .eq('status', 'active')
       .order('name')

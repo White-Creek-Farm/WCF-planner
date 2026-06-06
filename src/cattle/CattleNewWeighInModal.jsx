@@ -1,24 +1,25 @@
 // ============================================================================
 // CattleNewWeighInModal — Phase 2.1.4
 // ============================================================================
-// Cattle weigh-in flow "new session" modal. Reads team member options from
-// the canonical master roster via loadRoster (legacy team_members fallback
-// handled inside the helper). Per-form filtering retired 2026-04-29 —
-// every active master roster member appears.
+// Cattle weigh-in flow "new session" modal. The team member is locked to the
+// signed-in user; no roster-backed submitter selection remains.
 // ============================================================================
 import React from 'react';
-import {loadRoster, activeNames} from '../lib/teamMembers.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
-const CattleNewWeighInModal = ({sb, onClose, onCreate}) => {
+import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
+const CattleNewWeighInModal = ({onClose, onCreate, authState}) => {
   const {useState, useEffect} = React;
+  const lockedTeamName =
+    authState && typeof authState === 'object'
+      ? authState.name || authState.profile?.name || authState.profile?.full_name || authState.user?.email || ''
+      : '';
   const todayStr = () => {
     const d = new Date();
     return (
       d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
     );
   };
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [team, setTeam] = useState('');
+  const [team, setTeam] = useState(lockedTeamName);
   const [date, setDate] = useState(todayStr());
   const [herd, setHerd] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,14 +31,8 @@ const CattleNewWeighInModal = ({sb, onClose, onCreate}) => {
     {v: 'bulls', l: 'Bulls'},
   ];
   useEffect(() => {
-    let cancelled = false;
-    loadRoster(sb).then((roster) => {
-      if (!cancelled) setTeamMembers(activeNames(roster));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setTeam(lockedTeamName);
+  }, [lockedTeamName]);
   async function create() {
     if (!team) {
       setErr('Pick a team member.');
@@ -49,7 +44,6 @@ const CattleNewWeighInModal = ({sb, onClose, onCreate}) => {
     }
     setErr('');
     setBusy(true);
-    localStorage.setItem('wcf_team', team);
     await onCreate({date, team_member: team, herd});
     setBusy(false);
   }
@@ -91,15 +85,12 @@ const CattleNewWeighInModal = ({sb, onClose, onCreate}) => {
           {renderCattleIconLabel('New Cattle Weigh-In', {size: 20})}
         </div>
         <div style={{marginBottom: 10}}>
-          <label style={lblS}>Team member *</label>
-          <select value={team} onChange={(e) => setTeam(e.target.value)} style={inpS}>
-            <option value="">Select team member...</option>
-            {teamMembers.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          {React.createElement(LockedTeamMemberField, {
+            value: team,
+            label: 'Team member *',
+            labelStyle: lblS,
+            style: inpS,
+          })}
         </div>
         <div style={{marginBottom: 10}}>
           <label style={lblS}>Date</label>
