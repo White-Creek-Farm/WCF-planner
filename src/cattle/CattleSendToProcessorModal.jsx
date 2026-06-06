@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 import React from 'react';
 import {createProcessingBatch, attachEntriesToBatch, promoteScheduledBatch} from '../lib/cattleProcessingBatch.js';
+import {attachCattleToProcessingBatch} from '../lib/processingAttachApi.js';
 import {buildForecast, checkProcessorGate} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
 
@@ -31,6 +32,7 @@ export default function CattleSendToProcessorModal({
   weighIns,
   teamMember,
   authState,
+  useAttachRpc = false,
   onCancel,
   onConfirmed,
 }) {
@@ -142,12 +144,33 @@ export default function CattleSendToProcessorModal({
     try {
       // Promote-or-create: when nextProcessorBatch is sourced from a
       // scheduled DB row, UPDATE that row to active and inherit its id
-      // + name + planned_process_date. Cattle move via attachEntriesToBatch
-      // exactly as before; the scheduled row's name is reused so the
-      // operator never sees a different number than what was scheduled.
-      // Otherwise, fall back to inserting a fresh active row.
+      // + name + planned_process_date. The authenticated record-page path
+      // routes through the RPC so batch state, cattle state, weigh-in stamps,
+      // transfer rows, and Activity land atomically. Otherwise, keep the
+      // legacy client helper path for shared modal callers that have not been
+      // migrated yet.
       let batch;
-      if (next.source === 'scheduled' && next.scheduledId) {
+      let attached;
+      let skipped;
+      if (useAttachRpc) {
+        if (next.source === 'scheduled' && next.scheduledId) {
+          const scheduledRow = (forecast?._scheduledBatches || []).find((b) => b.id === next.scheduledId);
+          if (!scheduledRow) {
+            throw new Error('Scheduled batch ' + next.scheduledId + ' missing from forecast.');
+          }
+        }
+        const result = await attachCattleToProcessingBatch(sb, {
+          sessionId: session && session.id,
+          entryIds: flaggedEntries.map((e) => e.id).filter(Boolean),
+          targetBatchId: next.source === 'scheduled' ? next.scheduledId : null,
+          batchName: next.source === 'scheduled' ? null : next.name,
+          processingDate: sessionDate,
+          teamMember,
+        });
+        batch = result.batch;
+        attached = result.attached || [];
+        skipped = result.skipped || [];
+      } else if (next.source === 'scheduled' && next.scheduledId) {
         const scheduledRow = (forecast?._scheduledBatches || []).find((b) => b.id === next.scheduledId);
         if (!scheduledRow) {
           throw new Error('Scheduled batch ' + next.scheduledId + ' missing from forecast.');
@@ -159,12 +182,16 @@ export default function CattleSendToProcessorModal({
           processingDate: sessionDate,
         });
       }
-      const {attached, skipped} = await attachEntriesToBatch(sb, {
-        batch,
-        entries: flaggedEntries,
-        cattleList,
-        teamMember,
-      });
+      if (!useAttachRpc) {
+        const result = await attachEntriesToBatch(sb, {
+          batch,
+          entries: flaggedEntries,
+          cattleList,
+          teamMember,
+        });
+        attached = result.attached;
+        skipped = result.skipped;
+      }
       onConfirmed({batch, attached, skipped});
     } catch (e) {
       setErr(e.message || 'Could not attach to batch.');

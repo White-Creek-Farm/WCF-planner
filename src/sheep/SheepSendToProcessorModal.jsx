@@ -11,6 +11,7 @@
 // later at the processor and is marked complete from the Batches tab.
 import React from 'react';
 import {createProcessingBatch, attachEntriesToBatch} from '../lib/sheepProcessingBatch.js';
+import {attachSheepToProcessingBatch} from '../lib/processingAttachApi.js';
 
 export default function SheepSendToProcessorModal({
   sb,
@@ -18,9 +19,13 @@ export default function SheepSendToProcessorModal({
   flaggedEntries,
   sheepList,
   teamMember,
+  authState,
+  useAttachRpc = false,
   onCancel,
   onConfirmed,
 }) {
+  const role = authState && authState.role;
+  const canSend = !useAttachRpc || role === 'admin' || role === 'management';
   const [plannedBatches, setPlannedBatches] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [mode, setMode] = React.useState('existing'); // 'existing' | 'new'
@@ -74,21 +79,47 @@ export default function SheepSendToProcessorModal({
       setErr('Name the new batch.');
       return;
     }
+    if (!canSend) {
+      setErr('Send-to-Processor is restricted to management/admin.');
+      return;
+    }
     setBusy(true);
     try {
       let batch;
-      if (mode === 'existing') {
+      let attached;
+      let skipped;
+      if (useAttachRpc) {
+        if (mode === 'existing') {
+          batch = plannedBatches.find((b) => b.id === batchId);
+          if (!batch) throw new Error('Selected batch not found.');
+        }
+        const result = await attachSheepToProcessingBatch(sb, {
+          sessionId: session && session.id,
+          entryIds: flaggedEntries.map((e) => e.id).filter(Boolean),
+          targetBatchId: mode === 'existing' ? batchId : null,
+          batchName: mode === 'new' ? newName : null,
+          plannedDate: mode === 'new' ? newPlannedDate : null,
+          teamMember,
+        });
+        batch = result.batch;
+        attached = result.attached || [];
+        skipped = result.skipped || [];
+      } else if (mode === 'existing') {
         batch = plannedBatches.find((b) => b.id === batchId);
         if (!batch) throw new Error('Selected batch not found.');
       } else {
         batch = await createProcessingBatch(sb, {name: newName, plannedDate: newPlannedDate});
       }
-      const {attached, skipped} = await attachEntriesToBatch(sb, {
-        batch,
-        entries: flaggedEntries,
-        sheepList,
-        teamMember,
-      });
+      if (!useAttachRpc) {
+        const result = await attachEntriesToBatch(sb, {
+          batch,
+          entries: flaggedEntries,
+          sheepList,
+          teamMember,
+        });
+        attached = result.attached;
+        skipped = result.skipped;
+      }
       onConfirmed({batch, attached, skipped});
     } catch (e) {
       setErr(e.message || 'Could not attach to batch.');
@@ -264,20 +295,22 @@ export default function SheepSendToProcessorModal({
           </button>
           <button
             onClick={go}
-            disabled={busy || loading || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())}
+            disabled={
+              busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
+            }
             style={{
               padding: '8px 16px',
               borderRadius: 7,
               border: 'none',
               background:
-                busy || loading || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
+                busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
                   ? '#9ca3af'
                   : '#0f766e',
               color: 'white',
               fontWeight: 700,
               fontSize: 12,
               cursor:
-                busy || loading || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
+                busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
                   ? 'not-allowed'
                   : 'pointer',
               fontFamily: 'inherit',

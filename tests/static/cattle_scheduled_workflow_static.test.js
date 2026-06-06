@@ -200,7 +200,10 @@ describe('CattleSendToProcessorModal — promote-or-create', () => {
     expect(sendModalSrc).toMatch(/batch = await createProcessingBatch\(sb,\s*\{/);
   });
 
-  it('cattle move via attachEntriesToBatch — Send-to-Processor is the only path that touches cattle.herd', () => {
+  it('routes authenticated attach through RPC while keeping the legacy helper fallback', () => {
+    expect(sendModalSrc).toContain('useAttachRpc = false');
+    expect(sendModalSrc).toMatch(/if \(useAttachRpc\)/);
+    expect(sendModalSrc).toContain('attachCattleToProcessingBatch');
     expect(sendModalSrc).toMatch(/attachEntriesToBatch\(sb,\s*\{/);
   });
 

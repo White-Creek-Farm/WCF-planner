@@ -2568,6 +2568,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           flaggedEntries: sEntries.filter((e) => e.send_to_processor === true),
           sheepList: animals,
           teamMember: (authState && authState.name) || null,
+          authState,
+          useAttachRpc: true,
           onCancel: () => setSessionForModal(null),
           onConfirmed: async () => {
             setSessionForModal(null);
@@ -2584,6 +2586,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           weighIns: allEntries,
           teamMember: (authState && authState.name) || null,
           authState,
+          useAttachRpc: true,
           onCancel: () => setSessionForModal(null),
           onConfirmed: async () => {
             setSessionForModal(null);
