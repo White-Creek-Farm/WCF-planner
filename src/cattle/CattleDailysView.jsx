@@ -6,6 +6,7 @@ import {S} from '../lib/styles.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
@@ -419,7 +420,7 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
     });
   }
 
-  function handleExportCsv() {
+  function cattleDailysExportColumns() {
     const yesNo = (v) => (v === false ? 'no' : 'yes');
     const feedSummary = (r) =>
       Array.isArray(r.feeds)
@@ -441,7 +442,7 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
       Array.isArray(r.feeds) ? r.feeds.reduce((s, f) => s + (parseFloat(f.lbs_as_fed) || 0), 0).toFixed(2) : '';
     const sumMineralLbs = (r) =>
       Array.isArray(r.minerals) ? r.minerals.reduce((s, m) => s + (parseFloat(m.lbs) || 0), 0).toFixed(2) : '';
-    const columns = [
+    return [
       {header: 'Date', value: (r) => r.date || ''},
       {header: 'Herd', value: (r) => HERD_LABELS[r.herd] || r.herd || ''},
       {header: 'Team member', value: (r) => r.team_member || ''},
@@ -458,8 +459,23 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
       {header: 'Photo count', value: (r) => (Array.isArray(r.photos) ? r.photos.length : 0)},
       {header: 'Record ID', value: (r) => r.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = cattleDailysExportColumns();
     const ok = downloadCsv(csvFilename('cattle-dailys'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
+  }
+
+  function handlePrintRows() {
+    const columns = cattleDailysExportColumns();
+    const ok = printRows({
+      title: 'Cattle Dailys',
+      subtitle: filtered.length + ' filtered daily reports',
+      columns,
+      rows: filtered,
+    });
+    setExportNotice(ok ? '' : 'Print is only available in the browser.');
   }
 
   const fi = {
@@ -804,6 +820,20 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
             }}
           >
             Export CSV
+          </button>
+          <button
+            type="button"
+            data-cattle-dailys-print="1"
+            onClick={handlePrintRows}
+            disabled={loading || !!loadError}
+            style={{
+              ...fi,
+              color: loading || loadError ? '#9ca3af' : '#374151',
+              fontWeight: 600,
+              cursor: loading || loadError ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Print
           </button>
         </div>
 

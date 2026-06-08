@@ -5,9 +5,11 @@
 // feature views trigger it via `window._wcfConfirm(message, onConfirm, label?)`.
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import React from 'react';
+import {useModalFocusTrap} from './useModalFocusTrap.js';
 
 const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
   const label = confirmLabel || 'Confirm';
+  const {dialogRef, handleDialogKeyDown} = useModalFocusTrap({onCancel});
   const confirmAndClose = () => {
     onConfirm();
     onCancel();
@@ -17,13 +19,14 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
     <div
       data-confirm-modal="1"
       data-overlay-dismiss="disabled"
+      data-focus-trap="active"
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
       aria-describedby="confirm-modal-message"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel();
-      }}
+      tabIndex={-1}
+      onKeyDown={handleDialogKeyDown}
       style={{
         position: 'fixed',
         top: 0,
@@ -77,6 +80,7 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
           </button>
           <button
             autoFocus
+            data-modal-initial-focus="1"
             onClick={confirmAndClose}
             style={{
               padding: '10px 16px',

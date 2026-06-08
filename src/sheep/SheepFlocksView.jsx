@@ -24,10 +24,31 @@ import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
-import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
+import {
+  listSavedViews,
+  createSavedView,
+  updateSavedView,
+  deleteSavedView,
+  buildViewState,
+} from '../lib/savedViewsApi.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {
+  SHEEP_FLOCK_KEYS,
+  SHEEP_OUTCOME_KEYS,
+  SHEEP_ALL_FLOCK_KEYS,
+  SHEEP_SORT_KEYS,
+  buildLambingEvidence,
+  buildSheepPredicate,
+  buildSheepComparator,
+  lastWeightFor,
+  lastWeightEntryFor,
+  lambCountFor,
+  lastLambingRecordFor,
+  mergeObservedSheepValues,
+} from '../lib/sheepFlockFilters.js';
 
 function SheepFlocksRouter(props) {
   const location = useLocation();
@@ -47,6 +68,78 @@ function SheepFlocksRouter(props) {
 
 const SHEEP_FLOCKS_SURFACE_KEY = 'sheep.flocks';
 
+const SEX_OPTIONS = [
+  {key: 'ewe', label: 'Ewe'},
+  {key: 'ram', label: 'Ram'},
+  {key: 'wether', label: 'Wether'},
+  {key: 'lamb', label: 'Lamb'},
+];
+
+const BREEDING_STATUS_OPTIONS = [
+  {key: 'Open', label: 'Open'},
+  {key: 'Pregnant', label: 'Pregnant'},
+  {key: 'N/A', label: 'N/A'},
+  {key: 'unset', label: '(unset)'},
+];
+
+const SHEEP_SORT_KEY_LABELS = {
+  tag: 'Tag',
+  age: 'Age',
+  lastWeight: 'Last weight',
+  flock: 'Flock',
+  sex: 'Sex',
+  lastLambed: 'Last lambed',
+  lambCount: 'Lamb count',
+  breed: 'Breed',
+  origin: 'Origin',
+  breedingStatus: 'Breeding status',
+};
+
+const SHEEP_SORT_DIR_LABELS = {
+  tag: {asc: 'low to high', desc: 'high to low'},
+  age: {asc: 'youngest first', desc: 'oldest first'},
+  lastWeight: {asc: 'lightest first', desc: 'heaviest first'},
+  flock: {asc: 'active to outcome', desc: 'outcome to active'},
+  sex: {asc: 'ewe to lamb', desc: 'lamb to ewe'},
+  lastLambed: {asc: 'oldest first', desc: 'most recent first'},
+  lambCount: {asc: 'fewest first', desc: 'most first'},
+  breed: {asc: 'A to Z', desc: 'Z to A'},
+  origin: {asc: 'A to Z', desc: 'Z to A'},
+  breedingStatus: {asc: 'A to Z', desc: 'Z to A'},
+};
+
+const SHEEP_FILTER_GROUPS = [
+  {key: 'core', label: 'Core', keys: ['flockSet', 'sex', 'ageMonthsRange', 'breed', 'origin', 'weightTier']},
+  {
+    key: 'lambing',
+    label: 'Lambing/Breeding',
+    keys: ['lambedStatus', 'lastLambedRange', 'lambCountRange', 'breedingStatus', 'breedingBlacklist', 'maternalIssue'],
+  },
+  {key: 'lineage', label: 'Lineage/Other', keys: ['damPresence', 'sirePresence', 'birthDateRange', 'weightRange']},
+];
+
+const chipBaseS = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '5px 10px',
+  borderRadius: 999,
+  fontSize: 12,
+  fontFamily: 'inherit',
+  border: '1px solid #d1d5db',
+  background: 'white',
+  color: '#374151',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+const chipActiveS = {
+  ...chipBaseS,
+  border: '1px solid #0f766e',
+  background: '#f0fdfa',
+  color: '#0f766e',
+  fontWeight: 600,
+};
+
 const SheepFlocksHub = ({
   sb,
   fmt,
@@ -61,7 +154,7 @@ const SheepFlocksHub = ({
   pendingEdit,
   setPendingEdit,
 }) => {
-  const {useState, useEffect} = React;
+  const {useState, useEffect, useMemo} = React;
   const navigate = useNavigate();
   const [sheep, setSheep] = useState([]);
   const [weighIns, setWeighIns] = useState([]);
@@ -72,9 +165,10 @@ const SheepFlocksHub = ({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  const [search, setSearch] = usePersistentViewState('sheep.flocks.search', '');
-  const [statusFilter, setStatusFilter] = usePersistentViewState('sheep.flocks.statusFilter', 'active');
-  const [sortBy, setSortBy] = usePersistentViewState('sheep.flocks.sortBy', 'tag-asc');
+  const [viewMode, setViewMode] = usePersistentViewState('sheep.flocks.viewMode', 'grouped');
+  const [filters, setFilters] = usePersistentViewState('sheep.flocks.filters', {});
+  const [sortRules, setSortRules] = usePersistentViewState('sheep.flocks.sortRules', [{key: 'tag', dir: 'asc'}]);
+  const [openFilter, setOpenFilter] = useState(null);
   const [savedViews, setSavedViews] = useState([]);
   const [savedViewsError, setSavedViewsError] = useState(null);
   const [savedViewsLoading, setSavedViewsLoading] = useState(true);
@@ -90,9 +184,9 @@ const SheepFlocksHub = ({
   const [saving, setSaving] = useState(false);
   const [expandedFlocks, setExpandedFlocks] = useState({});
 
-  const FLOCKS = ['rams', 'ewes', 'feeders'];
-  const OUTCOMES = ['processed', 'deceased', 'sold'];
-  const ALL_FLOCKS = [...FLOCKS, ...OUTCOMES];
+  const FLOCKS = SHEEP_FLOCK_KEYS;
+  const OUTCOMES = SHEEP_OUTCOME_KEYS;
+  const ALL_FLOCKS = SHEEP_ALL_FLOCK_KEYS;
   const FLOCK_LABELS = {
     rams: 'Rams',
     ewes: 'Ewes',
@@ -201,78 +295,90 @@ const SheepFlocksHub = ({
     if (y > 0) return y + 'y ' + m + 'm';
     return m + 'm';
   }
-  function sheepTagSet(s) {
-    const set = new Set();
-    if (s && s.tag) set.add(s.tag);
-    if (s && Array.isArray(s.old_tags)) {
-      for (const ot of s.old_tags) {
-        if (!ot || !ot.tag) continue;
-        if (ot.source === 'import') continue;
-        set.add(ot.tag);
-      }
-    }
-    return set;
-  }
   function lastWeight(s) {
-    const tags = sheepTagSet(s);
-    if (tags.size === 0) return null;
-    const w = weighIns.find((x) => tags.has(x.tag));
-    return w ? parseFloat(w.weight) : null;
+    return lastWeightFor(s, weighIns);
   }
   function lastWeightEntry(s) {
-    const tags = sheepTagSet(s);
-    if (tags.size === 0) return null;
-    return weighIns.find((x) => tags.has(x.tag)) || null;
+    return lastWeightEntryFor(s, weighIns);
   }
   function lastLambing(tag) {
-    if (!tag) return null;
-    return lambingRecs.find((r) => r.dam_tag === tag);
+    return lastLambingRecordFor(tag, lambingEvidence);
   }
   function lambCount(tag) {
-    return sheep.filter((s) => s.dam_tag === tag).length;
+    return lambCountFor(tag, lambingEvidence);
   }
 
-  const filtered = sheep.filter((s) => {
-    const searching = !!search;
-    if (!searching && statusFilter === 'active' && !FLOCKS.includes(s.flock)) return false;
-    if (statusFilter !== 'all' && statusFilter !== 'active' && s.flock !== statusFilter) return false;
-    if (searching) {
-      const q = search.toLowerCase().trim();
-      const fields = [s.tag, s.dam_tag, s.sire_tag, s.breed, s.origin].map((x) => (x || '').toLowerCase());
-      if (!fields.some((f) => f.includes(q))) return false;
+  const breedFilterOptions = useMemo(
+    () => mergeObservedSheepValues(breedOpts, [...new Set(sheep.map((s) => s.breed).filter(Boolean))]),
+    [breedOpts, sheep],
+  );
+  const originFilterOptions = useMemo(
+    () => mergeObservedSheepValues(originOpts, [...new Set(sheep.map((s) => s.origin).filter(Boolean))]),
+    [originOpts, sheep],
+  );
+  const lambingEvidence = useMemo(() => buildLambingEvidence(sheep, lambingRecs), [sheep, lambingRecs]);
+
+  const filtered = useMemo(() => {
+    const effectiveFilters = {...filters};
+    const userSetFlock = Array.isArray(filters.flockSet) && filters.flockSet.length > 0;
+    const searching = typeof filters.textSearch === 'string' && filters.textSearch.trim();
+    if (!userSetFlock && !searching) {
+      effectiveFilters.flockSet = [...SHEEP_FLOCK_KEYS];
     }
-    return true;
-  });
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === 'tag-asc')
-      return (parseFloat(a.tag) || 0) - (parseFloat(b.tag) || 0) || (a.tag || '').localeCompare(b.tag || '');
-    if (sortBy === 'tag-desc')
-      return (parseFloat(b.tag) || 0) - (parseFloat(a.tag) || 0) || (b.tag || '').localeCompare(a.tag || '');
-    if (sortBy === 'age-asc') return (a.birth_date || '9999').localeCompare(b.birth_date || '9999');
-    if (sortBy === 'age-desc') return (b.birth_date || '').localeCompare(a.birth_date || '');
-    if (sortBy === 'weight-desc') return (lastWeight(b) || 0) - (lastWeight(a) || 0);
-    if (sortBy === 'weight-asc') return (lastWeight(a) || 0) - (lastWeight(b) || 0);
-    return 0;
-  });
+    const predicate = buildSheepPredicate(effectiveFilters, {
+      todayMs: Date.now(),
+      lambingRows: lambingEvidence,
+      weighIns,
+    });
+    return sheep.filter(predicate);
+  }, [sheep, filters, lambingEvidence, weighIns]);
+
+  const sorted = useMemo(() => {
+    const cmp = buildSheepComparator(sortRules, {
+      lambingRows: lambingEvidence,
+      weighIns,
+    });
+    return [...filtered].sort(cmp);
+  }, [filtered, sortRules, lambingEvidence, weighIns]);
 
   const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
   const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
 
-  function sheepFlocksViewState() {
-    return {
-      search: search || '',
-      statusFilter: statusFilter || 'active',
-      sortBy: sortBy || 'tag-asc',
+  function legacySheepFiltersFromSavedView(st) {
+    const next = {};
+    if (typeof st.search === 'string' && st.search.trim()) next.textSearch = st.search;
+    const validStatuses = new Set(['active', 'all', ...ALL_FLOCKS]);
+    const status = validStatuses.has(st.statusFilter) ? st.statusFilter : 'active';
+    if (status && status !== 'active' && status !== 'all') next.flockSet = [status];
+    return next;
+  }
+  function legacySheepSortRulesFromSortBy(sortBy) {
+    const map = {
+      'tag-asc': [{key: 'tag', dir: 'asc'}],
+      'tag-desc': [{key: 'tag', dir: 'desc'}],
+      'age-asc': [{key: 'age', dir: 'asc'}],
+      'age-desc': [{key: 'age', dir: 'desc'}],
+      'weight-desc': [{key: 'lastWeight', dir: 'desc'}],
+      'weight-asc': [{key: 'lastWeight', dir: 'asc'}],
     };
+    return map[sortBy] || [{key: 'tag', dir: 'asc'}];
+  }
+  function sheepFlocksViewState() {
+    return buildViewState({filters, sortRules, viewMode});
   }
   function applySheepSavedView(view) {
     if (!view) return;
     const st = view.view_state || {};
-    const validStatuses = new Set(['active', 'all', ...ALL_FLOCKS]);
-    const validSorts = new Set(['tag-asc', 'tag-desc', 'age-asc', 'age-desc', 'weight-desc', 'weight-asc']);
-    setSearch(typeof st.search === 'string' ? st.search : '');
-    setStatusFilter(validStatuses.has(st.statusFilter) ? st.statusFilter : 'active');
-    setSortBy(validSorts.has(st.sortBy) ? st.sortBy : 'tag-asc');
+    if (st.filters && typeof st.filters === 'object') {
+      setFilters(st.filters);
+      setSortRules(Array.isArray(st.sortRules) ? st.sortRules : [{key: 'tag', dir: 'asc'}]);
+      setViewMode(st.viewMode === 'flat' ? 'flat' : 'grouped');
+    } else {
+      setFilters(legacySheepFiltersFromSavedView(st));
+      setSortRules(legacySheepSortRulesFromSortBy(st.sortBy));
+      setViewMode(st.statusFilter && st.statusFilter !== 'active' ? 'flat' : 'grouped');
+    }
+    setOpenFilter(null);
   }
   function onSelectSavedView(id) {
     setSelectedViewId(id);
@@ -333,9 +439,9 @@ const SheepFlocksHub = ({
       setSavedViewBusy(false);
     }
   }
-  function handleExportCsv() {
+  function sheepFlocksExportColumns() {
     const female = (row) => row.sex === 'ewe';
-    const columns = [
+    return [
       {header: 'Tag', value: (s) => s.tag || ''},
       {header: 'Flock', value: (s) => FLOCK_LABELS[s.flock] || s.flock || ''},
       {header: 'Sex', value: (s) => s.sex || ''},
@@ -362,8 +468,23 @@ const SheepFlocksHub = ({
       {header: 'Death reason', value: (s) => s.death_reason || ''},
       {header: 'Record ID', value: (s) => s.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = sheepFlocksExportColumns();
     const ok = downloadCsv(csvFilename('sheep-flocks'), rowsToCsv(columns, sorted));
     if (!ok) setNotice({kind: 'error', message: 'CSV export is only available in the browser.'});
+  }
+
+  function handlePrintRows() {
+    const columns = sheepFlocksExportColumns();
+    const ok = printRows({
+      title: 'Sheep Flocks',
+      subtitle: sorted.length + ' filtered sheep',
+      columns,
+      rows: sorted,
+    });
+    if (!ok) setNotice({kind: 'error', message: 'Print is only available in the browser.'});
   }
   function deleteSelectedView() {
     if (!selectedView || !selectedViewIsMine) return;
@@ -444,7 +565,346 @@ const SheepFlocksHub = ({
     boxSizing: 'border-box',
   };
   const lbl = {fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500};
-  const isFlatMode = search || statusFilter !== 'active';
+
+  function setFilter(key, value) {
+    setFilters((prev) => {
+      const next = {...prev};
+      if (
+        value == null ||
+        value === '' ||
+        (Array.isArray(value) && value.length === 0) ||
+        (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)
+      ) {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+      return next;
+    });
+  }
+  function clearFilter(key) {
+    setFilter(key, null);
+  }
+  function clearAllFilters() {
+    setFilters({});
+  }
+  function toggleFilterArrayValue(key, value) {
+    setFilters((prev) => {
+      const cur = Array.isArray(prev[key]) ? prev[key] : [];
+      const nextValues = cur.includes(value) ? cur.filter((x) => x !== value) : [...cur, value];
+      const next = {...prev};
+      if (nextValues.length === 0) delete next[key];
+      else next[key] = nextValues;
+      return next;
+    });
+  }
+  function addSortRule(key) {
+    setSortRules((prev) => {
+      if (prev.find((r) => r.key === key)) return prev;
+      const nextRule = {key, dir: 'asc'};
+      const onlyDefaultTag = prev.length === 1 && prev[0].key === 'tag' && prev[0].dir === 'asc';
+      if (onlyDefaultTag && key !== 'tag') return [nextRule];
+      return [nextRule, ...prev];
+    });
+  }
+  function removeSortRule(index) {
+    setSortRules((prev) => prev.filter((_, i) => i !== index));
+  }
+  function flipSortDir(index) {
+    setSortRules((prev) => prev.map((r, i) => (i === index ? {...r, dir: r.dir === 'asc' ? 'desc' : 'asc'} : r)));
+  }
+  function moveSortRule(index, delta) {
+    setSortRules((prev) => {
+      const target = index + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+  function chipActiveFor(key) {
+    return key in filters;
+  }
+  function chipLabelFor(key) {
+    const active = chipActiveFor(key);
+    switch (key) {
+      case 'flockSet':
+        return active ? 'Flock: ' + (filters.flockSet || []).map((f) => FLOCK_LABELS[f] || f).join(', ') : '+ Flock';
+      case 'sex':
+        return active
+          ? 'Sex: ' + (filters.sex || []).map((s) => (SEX_OPTIONS.find((o) => o.key === s) || {}).label || s).join(', ')
+          : '+ Sex';
+      case 'ageMonthsRange': {
+        if (!active) return '+ Age';
+        const parts = [];
+        if (filters.ageMonthsRange.min != null) parts.push('>=' + filters.ageMonthsRange.min + 'mo');
+        if (filters.ageMonthsRange.max != null) parts.push('<=' + filters.ageMonthsRange.max + 'mo');
+        return 'Age: ' + parts.join(' ');
+      }
+      case 'breed':
+        return active ? 'Breed: ' + (filters.breed || []).join(', ') : '+ Breed';
+      case 'origin':
+        return active ? 'Origin: ' + (filters.origin || []).join(', ') : '+ Origin';
+      case 'weightTier': {
+        if (!active) return '+ Weight';
+        const labels = {
+          hasWeight: 'has weight',
+          noWeight: 'no weight',
+          staleWeight: 'stale weight',
+          staleOrNoWeight: 'stale or no weight',
+        };
+        return 'Weight: ' + (labels[filters.weightTier] || filters.weightTier);
+      }
+      case 'lambedStatus':
+        return active ? 'Lambed: ' + (filters.lambedStatus === 'yes' ? 'yes' : 'no') : '+ Lambed';
+      case 'lastLambedRange': {
+        if (!active) return '+ Last lambed';
+        const r = filters.lastLambedRange;
+        return 'Last lambed ' + (r.after ? 'after ' + r.after : '') + (r.before ? ' before ' + r.before : '');
+      }
+      case 'lambCountRange': {
+        if (!active) return '+ Lamb count';
+        const parts = [];
+        if (filters.lambCountRange.min != null) parts.push('>=' + filters.lambCountRange.min);
+        if (filters.lambCountRange.max != null) parts.push('<=' + filters.lambCountRange.max);
+        return 'Lambs ' + parts.join(' ');
+      }
+      case 'breedingStatus':
+        return active
+          ? 'Status: ' +
+              (filters.breedingStatus || [])
+                .map((s) => (BREEDING_STATUS_OPTIONS.find((o) => o.key === s) || {}).label || s)
+                .join(', ')
+          : '+ Breeding status';
+      case 'breedingBlacklist':
+        if (filters.breedingBlacklist === true) return 'Blacklist: only';
+        if (filters.breedingBlacklist === false) return 'Blacklist: hide';
+        return '+ Blacklist';
+      case 'maternalIssue':
+        if (filters.maternalIssue === true) return 'Maternal issue: only';
+        if (filters.maternalIssue === false) return 'Maternal issue: hide';
+        return '+ Maternal issue';
+      case 'damPresence':
+        return active ? 'Dam: ' + filters.damPresence : '+ Dam';
+      case 'sirePresence':
+        return active ? 'Sire: ' + filters.sirePresence : '+ Sire';
+      case 'birthDateRange': {
+        if (!active) return '+ Birth date';
+        const r = filters.birthDateRange;
+        return 'Born ' + (r.after ? 'after ' + r.after : '') + (r.before ? ' before ' + r.before : '');
+      }
+      case 'weightRange': {
+        if (!active) return '+ Weight range';
+        const parts = [];
+        if (filters.weightRange.min != null) parts.push('>=' + filters.weightRange.min + 'lb');
+        if (filters.weightRange.max != null) parts.push('<=' + filters.weightRange.max + 'lb');
+        return 'Weight ' + parts.join(' ');
+      }
+      default:
+        return key;
+    }
+  }
+  function renderFilterChip(key) {
+    const active = chipActiveFor(key);
+    const isOpen = openFilter === key;
+    return (
+      <div key={key} style={{position: 'relative', display: 'inline-block'}}>
+        <button
+          type="button"
+          data-sheep-filter-chip={key}
+          onClick={(e) => {
+            if (active && (e.shiftKey || e.metaKey || e.altKey)) {
+              clearFilter(key);
+              return;
+            }
+            setOpenFilter(isOpen ? null : key);
+          }}
+          style={active ? chipActiveS : chipBaseS}
+        >
+          {chipLabelFor(key) + (active ? ' x' : '')}
+        </button>
+        {isOpen && (
+          <SheepFilterPopover
+            filterKey={key}
+            filters={filters}
+            setFilter={setFilter}
+            clearFilter={clearFilter}
+            toggleFilterArrayValue={toggleFilterArrayValue}
+            breedFilterOptions={breedFilterOptions}
+            originFilterOptions={originFilterOptions}
+            FLOCK_LABELS={FLOCK_LABELS}
+            ALL_FLOCKS={ALL_FLOCKS}
+            onClose={() => setOpenFilter(null)}
+          />
+        )}
+      </div>
+    );
+  }
+  function renderFilterGroups() {
+    return SHEEP_FILTER_GROUPS.map((group) => (
+      <div
+        key={group.key}
+        data-sheep-filter-group={group.key}
+        style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}
+      >
+        <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600, marginRight: 4, minWidth: 108}}>
+          {group.label}
+        </span>
+        {group.keys.map((key) => renderFilterChip(key))}
+      </div>
+    ));
+  }
+  function sortBar() {
+    const used = new Set(sortRules.map((r) => r.key));
+    const available = SHEEP_SORT_KEYS.filter((key) => !used.has(key));
+    return (
+      <div style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
+        <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600, marginRight: 4}}>Sort:</span>
+        {sortRules.length === 0 && <span style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>(none)</span>}
+        {sortRules.map((rule, i) => (
+          <span
+            key={rule.key}
+            data-sheep-sort-rule={rule.key}
+            data-sheep-sort-dir={rule.dir}
+            style={{
+              ...chipActiveS,
+              cursor: 'default',
+              gap: 4,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              fontWeight: 500,
+            }}
+          >
+            <span style={{fontWeight: 600, color: '#0f766e'}}>{i + 1}.</span>
+            <span>{SHEEP_SORT_KEY_LABELS[rule.key] || rule.key}</span>
+            <button
+              type="button"
+              onClick={() => flipSortDir(i)}
+              title="Toggle direction"
+              style={{
+                fontSize: 11,
+                background: '#f9fafb',
+                border: '1px solid #d1d5db',
+                borderRadius: 4,
+                padding: '0 6px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {(SHEEP_SORT_DIR_LABELS[rule.key] || {})[rule.dir] || rule.dir}
+            </button>
+            <button
+              type="button"
+              onClick={() => moveSortRule(i, -1)}
+              disabled={i === 0}
+              title="Move up"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: i === 0 ? '#d1d5db' : '#6b7280',
+                cursor: i === 0 ? 'not-allowed' : 'pointer',
+                fontSize: 12,
+                padding: '0 2px',
+              }}
+            >
+              {'^'}
+            </button>
+            <button
+              type="button"
+              onClick={() => moveSortRule(i, 1)}
+              disabled={i === sortRules.length - 1}
+              title="Move down"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: i === sortRules.length - 1 ? '#d1d5db' : '#6b7280',
+                cursor: i === sortRules.length - 1 ? 'not-allowed' : 'pointer',
+                fontSize: 12,
+                padding: '0 2px',
+              }}
+            >
+              {'v'}
+            </button>
+            <button
+              type="button"
+              onClick={() => removeSortRule(i)}
+              title="Remove sort"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#b91c1c',
+                cursor: 'pointer',
+                fontSize: 14,
+                lineHeight: 1,
+                padding: '0 4px',
+              }}
+            >
+              {'x'}
+            </button>
+          </span>
+        ))}
+        {available.length > 0 && (
+          <select
+            data-sheep-sort-add
+            value=""
+            onChange={(e) => {
+              if (e.target.value) {
+                addSortRule(e.target.value);
+                e.target.value = '';
+              }
+            }}
+            style={{...inpS, width: 'auto', fontSize: 11, padding: '4px 8px'}}
+          >
+            <option value="">+ Sort by...</option>
+            {available.map((key) => (
+              <option key={key} value={key}>
+                {SHEEP_SORT_KEY_LABELS[key] || key}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    );
+  }
+
+  const isFlatMode = viewMode === 'flat';
+  const filterCount = Object.keys(filters).length;
+  const search = filters.textSearch || '';
+  const statusFilter = (() => {
+    const flockSet = Array.isArray(filters.flockSet) ? filters.flockSet : [];
+    if (flockSet.length === 0) return 'active';
+    if (flockSet.length === SHEEP_ALL_FLOCK_KEYS.length && SHEEP_ALL_FLOCK_KEYS.every((f) => flockSet.includes(f)))
+      return 'all';
+    return flockSet.length === 1 ? flockSet[0] : 'all';
+  })();
+  function setStatusFilter(value) {
+    if (value === 'active') {
+      clearFilter('flockSet');
+      setViewMode('grouped');
+    } else if (value === 'all') {
+      setFilter('flockSet', [...SHEEP_ALL_FLOCK_KEYS]);
+      setViewMode('flat');
+    } else {
+      setFilter('flockSet', [value]);
+      setViewMode('flat');
+    }
+  }
+  const sortBy = (() => {
+    const first = sortRules[0] || {key: 'tag', dir: 'asc'};
+    const map = {
+      'tag:asc': 'tag-asc',
+      'tag:desc': 'tag-desc',
+      'age:asc': 'age-asc',
+      'age:desc': 'age-desc',
+      'lastWeight:desc': 'weight-desc',
+      'lastWeight:asc': 'weight-asc',
+    };
+    return map[first.key + ':' + (first.dir || 'asc')] || 'tag-asc';
+  })();
+  function setSortBy(value) {
+    setSortRules(legacySheepSortRulesFromSortBy(value));
+  }
   const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
   const publicOtherViews = savedViews.filter(
     (v) => v.visibility === 'public' && !(myProfileId && v.owner_profile_id === myProfileId),
@@ -672,100 +1132,184 @@ const SheepFlocksHub = ({
                 padding: '12px 16px',
                 marginBottom: 14,
                 display: 'flex',
-                alignItems: 'center',
+                flexDirection: 'column',
                 gap: 10,
-                flexWrap: 'wrap',
               }}
             >
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={'Search tag, dam, sire, breed, origin…'}
-                style={{...inpS, flex: 1, minWidth: 200}}
-              />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={{...inpS, width: 'auto'}}
-              >
-                <option value="active">All Active Flocks</option>
-                <option value="all">All (including outcomes)</option>
-                <option disabled>{'───'}</option>
-                {FLOCKS.map((f) => (
-                  <option key={f} value={f}>
-                    {FLOCK_LABELS[f]}
-                  </option>
-                ))}
-                <option disabled>{'───'}</option>
-                {OUTCOMES.map((f) => (
-                  <option key={f} value={f}>
-                    {FLOCK_LABELS[f]}
-                  </option>
-                ))}
-              </select>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{...inpS, width: 'auto'}}>
-                <option value="tag-asc">Tag {'↑'}</option>
-                <option value="tag-desc">Tag {'↓'}</option>
-                <option value="age-asc">Age (youngest first)</option>
-                <option value="age-desc">Age (oldest first)</option>
-                <option value="weight-desc">Weight {'↓'}</option>
-                <option value="weight-asc">Weight {'↑'}</option>
-              </select>
-              <button
-                type="button"
-                data-sheep-flocks-export-csv="1"
-                onClick={handleExportCsv}
-                disabled={loading || loadError}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 7,
-                  border: '1px solid #d1d5db',
-                  background: loading || loadError ? '#f9fafb' : 'white',
-                  color: loading || loadError ? '#9ca3af' : '#374151',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: loading || loadError ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Export CSV
-              </button>
-              <button
-                onClick={() => setShowBulkImport(true)}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 7,
-                  border: '1px solid #0f766e',
-                  background: 'white',
-                  color: '#0f766e',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                📥 Bulk Import
-              </button>
-              <button
-                onClick={openAdd}
-                style={{
-                  padding: '7px 16px',
-                  borderRadius: 7,
-                  border: 'none',
-                  background: '#0f766e',
-                  color: 'white',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                + Add Sheep
-              </button>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setFilter('textSearch', e.target.value)}
+                  placeholder="Search tag, dam, sire, breed, origin..."
+                  style={{...inpS, flex: 1, minWidth: 200}}
+                />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={{...inpS, width: 'auto'}}
+                >
+                  <option value="active">All Active Flocks</option>
+                  <option value="all">All (including outcomes)</option>
+                  <option disabled>{'───'}</option>
+                  {FLOCKS.map((f) => (
+                    <option key={f} value={f}>
+                      {FLOCK_LABELS[f]}
+                    </option>
+                  ))}
+                  <option disabled>{'───'}</option>
+                  {OUTCOMES.map((f) => (
+                    <option key={f} value={f}>
+                      {FLOCK_LABELS[f]}
+                    </option>
+                  ))}
+                </select>
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{...inpS, width: 'auto'}}>
+                  <option value="tag-asc">Tag {'↑'}</option>
+                  <option value="tag-desc">Tag {'↓'}</option>
+                  <option value="age-asc">Age (youngest first)</option>
+                  <option value="age-desc">Age (oldest first)</option>
+                  <option value="weight-desc">Weight {'↓'}</option>
+                  <option value="weight-asc">Weight {'↑'}</option>
+                </select>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 6,
+                    padding: '4px 8px',
+                  }}
+                >
+                  <span style={{color: '#6b7280', marginRight: 4}}>View</span>
+                  <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
+                    <input
+                      type="radio"
+                      name="sheepFlocksViewMode"
+                      checked={viewMode === 'grouped'}
+                      onChange={() => setViewMode('grouped')}
+                      data-sheep-view-mode="grouped"
+                    />
+                    Grouped
+                  </label>
+                  <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
+                    <input
+                      type="radio"
+                      name="sheepFlocksViewMode"
+                      checked={viewMode === 'flat'}
+                      onChange={() => setViewMode('flat')}
+                      data-sheep-view-mode="flat"
+                    />
+                    Flat
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  data-sheep-flocks-export-csv="1"
+                  onClick={handleExportCsv}
+                  disabled={loading || loadError}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #d1d5db',
+                    background: loading || loadError ? '#f9fafb' : 'white',
+                    color: loading || loadError ? '#9ca3af' : '#374151',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: loading || loadError ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  data-sheep-flocks-print="1"
+                  onClick={handlePrintRows}
+                  disabled={loading || loadError}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #d1d5db',
+                    background: loading || loadError ? '#f9fafb' : 'white',
+                    color: loading || loadError ? '#9ca3af' : '#374151',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: loading || loadError ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Print
+                </button>
+                <button
+                  onClick={() => setShowBulkImport(true)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #0f766e',
+                    background: 'white',
+                    color: '#0f766e',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  📥 Bulk Import
+                </button>
+                <button
+                  onClick={openAdd}
+                  style={{
+                    padding: '7px 16px',
+                    borderRadius: 7,
+                    border: 'none',
+                    background: '#0f766e',
+                    color: 'white',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  + Add Sheep
+                </button>
+              </div>
+              <div data-sheep-filter-groups style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+                {renderFilterGroups()}
+                {filterCount > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #d1d5db',
+                        background: 'white',
+                        color: '#6b7280',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
+              </div>
+              {sortBar()}
+              <div style={{fontSize: 12, color: '#6b7280'}}>
+                Showing {sorted.length} of {sheep.length} sheep
+                {filterCount > 0 && ' - ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
+                {sortRules.length > 0 && ' - ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
+              </div>
             </div>
 
             {showBulkImport && (
@@ -985,7 +1529,7 @@ const SheepFlocksHub = ({
                       </div>
                       {open && flockSheep.length === 0 && (
                         <div style={{padding: '1rem 18px', color: '#9ca3af', fontSize: 12, fontStyle: 'italic'}}>
-                          No sheep in this flock yet.
+                          {filterCount > 0 ? 'No sheep match the current filters.' : 'No sheep in this flock yet.'}
                         </div>
                       )}
                       {open &&
@@ -1385,5 +1929,219 @@ const SheepFlocksHub = ({
     </div>
   );
 };
+
+function SheepFilterPopover({
+  filterKey,
+  filters,
+  setFilter,
+  clearFilter,
+  toggleFilterArrayValue,
+  breedFilterOptions,
+  originFilterOptions,
+  FLOCK_LABELS,
+  ALL_FLOCKS,
+  onClose,
+}) {
+  const boxS = {
+    position: 'absolute',
+    zIndex: 40,
+    top: 'calc(100% + 6px)',
+    left: 0,
+    width: 280,
+    padding: 12,
+    borderRadius: 8,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    boxShadow: '0 10px 28px rgba(0,0,0,.14)',
+  };
+  const labelS = {display: 'block', fontSize: 11, color: '#6b7280', fontWeight: 600, marginBottom: 4};
+  const rowS = {display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8};
+  const inputS = {
+    fontSize: 12,
+    padding: '6px 8px',
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    fontFamily: 'inherit',
+    width: '100%',
+    boxSizing: 'border-box',
+  };
+  const smallInputS = {...inputS, width: 110};
+  const btnS = {
+    padding: '5px 10px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  };
+  const checkboxS = {display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', marginBottom: 6};
+
+  function setNumberRange(key, field, raw) {
+    const current = filters[key] && typeof filters[key] === 'object' ? filters[key] : {};
+    const next = {...current};
+    if (raw === '') delete next[field];
+    else next[field] = Number(raw);
+    setFilter(key, next);
+  }
+  function setDateRange(key, field, raw) {
+    const current = filters[key] && typeof filters[key] === 'object' ? filters[key] : {};
+    const next = {...current};
+    if (!raw) delete next[field];
+    else next[field] = raw;
+    setFilter(key, next);
+  }
+  function renderMulti(key, options) {
+    const selected = Array.isArray(filters[key]) ? filters[key] : [];
+    return (
+      <div>
+        {options.map((opt) => (
+          <label key={opt.key} style={checkboxS}>
+            <input
+              type="checkbox"
+              checked={selected.includes(opt.key)}
+              onChange={() => toggleFilterArrayValue(key, opt.key)}
+            />
+            <span>{opt.label}</span>
+          </label>
+        ))}
+      </div>
+    );
+  }
+  function renderRange(key, firstLabel, secondLabel, type) {
+    const current = filters[key] || {};
+    const setter = type === 'date' ? setDateRange : setNumberRange;
+    return (
+      <div style={rowS}>
+        <label style={{flex: '1 1 110px'}}>
+          <span style={labelS}>{firstLabel}</span>
+          <input
+            type={type}
+            value={current.min ?? current.after ?? ''}
+            onChange={(e) => setter(key, type === 'date' ? 'after' : 'min', e.target.value)}
+            style={smallInputS}
+          />
+        </label>
+        <label style={{flex: '1 1 110px'}}>
+          <span style={labelS}>{secondLabel}</span>
+          <input
+            type={type}
+            value={current.max ?? current.before ?? ''}
+            onChange={(e) => setter(key, type === 'date' ? 'before' : 'max', e.target.value)}
+            style={smallInputS}
+          />
+        </label>
+      </div>
+    );
+  }
+  function renderSelect(key, options) {
+    return (
+      <select value={filters[key] ?? ''} onChange={(e) => setFilter(key, e.target.value || null)} style={inputS}>
+        <option value="">Any</option>
+        {options.map((opt) => (
+          <option key={opt.key} value={opt.key}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  function renderBoolean(key, trueLabel, falseLabel) {
+    const value = key in filters ? String(filters[key]) : '';
+    return (
+      <select
+        value={value}
+        onChange={(e) => {
+          if (e.target.value === '') setFilter(key, null);
+          else setFilter(key, e.target.value === 'true');
+        }}
+        style={inputS}
+      >
+        <option value="">Any</option>
+        <option value="true">{trueLabel}</option>
+        <option value="false">{falseLabel}</option>
+      </select>
+    );
+  }
+
+  let body;
+  if (filterKey === 'flockSet') {
+    body = renderMulti(
+      'flockSet',
+      ALL_FLOCKS.map((key) => ({key, label: FLOCK_LABELS[key] || key})),
+    );
+  } else if (filterKey === 'sex') {
+    body = renderMulti('sex', SEX_OPTIONS);
+  } else if (filterKey === 'ageMonthsRange') {
+    body = renderRange('ageMonthsRange', 'Min months', 'Max months', 'number');
+  } else if (filterKey === 'breed') {
+    body = renderMulti(
+      'breed',
+      (breedFilterOptions || []).map((opt) => ({key: opt.label, label: opt.label})),
+    );
+  } else if (filterKey === 'origin') {
+    body = renderMulti(
+      'origin',
+      (originFilterOptions || []).map((opt) => ({key: opt.label, label: opt.label})),
+    );
+  } else if (filterKey === 'weightTier') {
+    body = renderSelect('weightTier', [
+      {key: 'hasWeight', label: 'Has weight'},
+      {key: 'noWeight', label: 'No weight'},
+      {key: 'staleWeight', label: 'Stale weight'},
+      {key: 'staleOrNoWeight', label: 'Stale or no weight'},
+    ]);
+  } else if (filterKey === 'lambedStatus') {
+    body = renderSelect('lambedStatus', [
+      {key: 'yes', label: 'Has lambed'},
+      {key: 'no', label: 'Never lambed'},
+    ]);
+  } else if (filterKey === 'lastLambedRange') {
+    body = renderRange('lastLambedRange', 'After', 'Before', 'date');
+  } else if (filterKey === 'lambCountRange') {
+    body = renderRange('lambCountRange', 'Min lambs', 'Max lambs', 'number');
+  } else if (filterKey === 'breedingStatus') {
+    body = renderMulti('breedingStatus', BREEDING_STATUS_OPTIONS);
+  } else if (filterKey === 'breedingBlacklist') {
+    body = renderBoolean('breedingBlacklist', 'Only blacklisted', 'Hide blacklisted');
+  } else if (filterKey === 'maternalIssue') {
+    body = renderBoolean('maternalIssue', 'Only maternal issues', 'Hide maternal issues');
+  } else if (filterKey === 'damPresence') {
+    body = renderSelect('damPresence', [
+      {key: 'present', label: 'Dam present'},
+      {key: 'missing', label: 'Dam missing'},
+    ]);
+  } else if (filterKey === 'sirePresence') {
+    body = renderSelect('sirePresence', [
+      {key: 'present', label: 'Sire present'},
+      {key: 'missing', label: 'Sire missing'},
+    ]);
+  } else if (filterKey === 'birthDateRange') {
+    body = renderRange('birthDateRange', 'After', 'Before', 'date');
+  } else if (filterKey === 'weightRange') {
+    body = renderRange('weightRange', 'Min lb', 'Max lb', 'number');
+  } else {
+    body = <div style={{fontSize: 12, color: '#6b7280'}}>No control for this filter.</div>;
+  }
+
+  return (
+    <div style={boxS} data-sheep-filter-popover={filterKey}>
+      <div style={{fontSize: 12, color: '#111827', fontWeight: 700, marginBottom: 8}}>
+        {SHEEP_FILTER_GROUPS.flatMap((group) => group.keys).includes(filterKey) ? filterKey : 'Filter'}
+      </div>
+      {body}
+      <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10}}>
+        <button type="button" onClick={() => clearFilter(filterKey)} style={btnS}>
+          Clear
+        </button>
+        <button type="button" onClick={onClose} style={{...btnS, borderColor: '#0f766e', color: '#0f766e'}}>
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default SheepFlocksRouter;

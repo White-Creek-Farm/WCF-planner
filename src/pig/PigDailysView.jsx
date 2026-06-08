@@ -6,6 +6,7 @@ import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
@@ -410,9 +411,9 @@ const PigDailysHub = ({
     });
   }
 
-  function handleExportCsv() {
+  function pigDailysExportColumns() {
     const yesNo = (v) => (v === false ? 'no' : 'yes');
-    const columns = [
+    return [
       {header: 'Date', value: (r) => r.date || ''},
       {header: 'Pig group', value: (r) => r.batch_label || ''},
       {header: 'Team member', value: (r) => r.team_member || ''},
@@ -429,8 +430,23 @@ const PigDailysHub = ({
       {header: 'Photo count', value: (r) => (Array.isArray(r.photos) ? r.photos.length : 0)},
       {header: 'Record ID', value: (r) => r.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = pigDailysExportColumns();
     const ok = downloadCsv(csvFilename('pig-dailys'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
+  }
+
+  function handlePrintRows() {
+    const columns = pigDailysExportColumns();
+    const ok = printRows({
+      title: 'Pig Dailys',
+      subtitle: filtered.length + ' filtered daily reports',
+      columns,
+      rows: filtered,
+    });
+    setExportNotice(ok ? '' : 'Print is only available in the browser.');
   }
 
   const totalFeed = filtered.reduce((s, r) => s + (parseFloat(r.feed_lbs) || 0), 0);
@@ -766,6 +782,20 @@ const PigDailysHub = ({
             }}
           >
             Export CSV
+          </button>
+          <button
+            type="button"
+            data-pig-dailys-print="1"
+            onClick={handlePrintRows}
+            disabled={loading || !!loadError}
+            style={{
+              ...fi,
+              color: loading || loadError ? '#9ca3af' : '#374151',
+              fontWeight: 600,
+              cursor: loading || loadError ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Print
           </button>
         </div>
         <InlineNotice notice={loadError} />

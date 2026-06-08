@@ -11,12 +11,12 @@
 // components stay decoupled from useAuth / the auth session).
 import React from 'react';
 
-export default function LockedSubmitter({name, label = 'Team Member', labelStyle, style}) {
+export default function LockedSubmitter({name, label = 'Team member', labelStyle, style}) {
   const boxStyle = style || {
     fontSize: 14,
     padding: '10px 12px',
     border: '1px solid #e5e7eb',
-    borderRadius: 8,
+    borderRadius: 6,
     background: '#f9fafb',
     color: '#374151',
     width: '100%',

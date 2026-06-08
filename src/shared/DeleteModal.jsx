@@ -7,10 +7,12 @@
 // it via `setDeleteConfirm({message, onConfirm})`.
 // ============================================================================
 import React from 'react';
+import {useModalFocusTrap} from './useModalFocusTrap.js';
 
 const DeleteModal = ({msg, onConfirm, onCancel}) => {
   const [typed, setTyped] = React.useState('');
   const ready = typed.trim().toLowerCase() === 'delete';
+  const {dialogRef, handleDialogKeyDown} = useModalFocusTrap({onCancel});
   const confirmAndClose = () => {
     onConfirm();
     onCancel();
@@ -20,13 +22,14 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
     <div
       data-delete-modal="1"
       data-overlay-dismiss="disabled"
+      data-focus-trap="active"
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-modal-title"
       aria-describedby="delete-modal-message"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel();
-      }}
+      tabIndex={-1}
+      onKeyDown={handleDialogKeyDown}
       style={{
         position: 'fixed',
         top: 0,
@@ -63,6 +66,7 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
         </div>
         <input
           autoFocus
+          data-modal-initial-focus="1"
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           onKeyDown={(e) => {

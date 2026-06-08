@@ -13,6 +13,7 @@ const sheepListSrc = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepWeighInsVie
 const livestockSrc = fs.readFileSync(path.join(ROOT, 'src/livestock/LivestockWeighInsView.jsx'), 'utf8');
 const sheepCacheSrc = fs.readFileSync(path.join(ROOT, 'src/lib/sheepCache.js'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 const pigEntryBranchStart = pageSrc.indexOf('if (isPig) {');
 const pigEntryBranchEnd = pageSrc.indexOf('const cow = animals.find', pigEntryBranchStart);
@@ -680,6 +681,61 @@ describe('CattleWeighInsView - CSV export (Lane K CP3)', () => {
     expect(listSrc).not.toContain('window.alert');
     expect(listSrc).not.toContain('window.confirm');
   });
+});
+
+describe('Weigh-in list print export (Lane K)', () => {
+  const WEIGHIN_LISTS = [
+    {
+      name: 'CattleWeighInsView',
+      src: listSrc,
+      prefix: 'cattle-weighins',
+      fn: 'cattleWeighInsExportColumns',
+    },
+    {
+      name: 'SheepWeighInsView',
+      src: sheepListSrc,
+      prefix: 'sheep-weighins',
+      fn: 'sheepWeighInsExportColumns',
+    },
+    {
+      name: 'LivestockWeighInsView',
+      src: livestockSrc,
+      prefix: 'livestock-weighins',
+      fn: 'livestockWeighInsExportColumns',
+    },
+  ];
+
+  it('uses the shared printExport owner for browser print mechanics', () => {
+    expect(printExport).toContain('export function rowsToPrintHtml');
+    expect(printExport).toContain('export function printRows');
+    expect(printExport).toContain('data-print-export-frame');
+    expect(printExport).toContain('window.print');
+    expect(printExport).toContain('escapeHtml');
+  });
+
+  for (const list of WEIGHIN_LISTS) {
+    it(`${list.name} prints the current filtered sessions, not raw sessions`, () => {
+      expect(list.src).toContain("from '../lib/printExport.js'");
+      expect(list.src).toContain('function handlePrintRows');
+      expect(list.src).toContain(`data-${list.prefix}-print="1"`);
+      expect(list.src).toContain("subtitle: filtered.length + ' filtered weigh-in sessions'");
+      expect(list.src).toContain('rows: filtered');
+      expect(list.src).not.toContain('rows: sessions');
+    });
+
+    it(`${list.name} uses one column spec for CSV and print`, () => {
+      expect(list.src).toContain(`function ${list.fn}()`);
+      expect(list.src).toContain(`const columns = ${list.fn}();`);
+      expect(list.src).toContain('rowsToCsv(columns, filtered)');
+      expect(list.src).toContain('printRows({');
+    });
+
+    it(`${list.name} keeps print fallback browser-only`, () => {
+      expect(list.src).toContain('Print is only available in the browser.');
+      expect(list.src).not.toContain('window.alert');
+      expect(list.src).not.toContain('window.confirm');
+    });
+  }
 });
 
 describe('WeighInSessionPage — broiler record page', () => {

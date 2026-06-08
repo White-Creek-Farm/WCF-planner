@@ -12,6 +12,7 @@ const home = fs.readFileSync(path.join(ROOT, 'src/equipment/EquipmentHome.jsx'),
 const registry = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
 const fuelLog = fs.readFileSync(path.join(ROOT, 'src/equipment/EquipmentFuelLogView.jsx'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 
 describe('EquipmentFleetView — no legacy Activity surfaces', () => {
@@ -143,6 +144,36 @@ describe('EquipmentFuelLogView — CSV export (Lane K CP2)', () => {
     expect(fuelLog).toContain('CSV export is only available in the browser.');
     expect(fuelLog).not.toContain('window.alert');
     expect(fuelLog).not.toContain('window.confirm');
+  });
+});
+
+describe('EquipmentFuelLogView - print export (Lane K)', () => {
+  it('uses the shared printExport owner for browser print mechanics', () => {
+    expect(printExport).toContain('export function rowsToPrintHtml');
+    expect(printExport).toContain('export function printRows');
+    expect(printExport).toContain('data-print-export-frame');
+    expect(printExport).toContain('window.print');
+    expect(printExport).toContain('escapeHtml');
+  });
+
+  it('imports printExport and exposes a toolbar Print button with the marker', () => {
+    expect(fuelLog).toContain("from '../lib/printExport.js'");
+    expect(fuelLog).toContain('function handlePrintRows');
+    expect(fuelLog).toContain('data-equipment-fuel-log-print="1"');
+    expect(fuelLog).toContain('onClick={handlePrintRows}');
+  });
+
+  it('prints current filtered rows, not raw fuelings, and is NOT capped to the 500-row render slice', () => {
+    expect(fuelLog).toContain("subtitle: filtered.length + ' filtered fuel entries'");
+    expect(fuelLog).toContain('rows: filtered');
+    expect(fuelLog).not.toContain('rows: fuelings');
+    expect(fuelLog).not.toContain('rows: filtered.slice');
+  });
+
+  it('uses one column spec for CSV and print', () => {
+    expect(fuelLog).toContain('function equipmentFuelLogExportColumns()');
+    expect(fuelLog).toContain('rowsToCsv(columns, filtered)');
+    expect(fuelLog).toContain('printRows({');
   });
 });
 

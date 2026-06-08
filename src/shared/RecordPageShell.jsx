@@ -85,9 +85,10 @@ export function RecordBackLink({label, onBack}) {
 }
 
 // Record page title. `fontSize` and `margin` are configurable so denser batch
-// title rows can opt into 24/0 while animal/daily pages keep the CP1 defaults
-// (28 / '0 0 12px'). An optional `style` merges last for any further tweak.
-export function RecordTitle({children, fontSize = 28, margin = '0 0 12px', style}) {
+// title rows can opt into 24/0 while animal/daily pages keep the standard
+// record default (26 / '0 0 12px'). An optional `style` merges last for any
+// further tweak.
+export function RecordTitle({children, fontSize = 26, margin = '0 0 12px', style}) {
   return (
     <h1 data-record-title="1" style={{fontSize, fontWeight: 700, color: '#111827', margin, lineHeight: 1.2, ...style}}>
       {children}

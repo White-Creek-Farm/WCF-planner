@@ -10,6 +10,7 @@ const viewSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigDailysView.jsx'), 'u
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 
 describe('PigDailysView hub cold-boot readiness', () => {
   it('owns a local records load instead of rendering directly from the app pigDailys prop', () => {
@@ -166,5 +167,30 @@ describe('PigDailysView CSV export (Lane K)', () => {
     expect(viewSrc).toContain('CSV export is only available in the browser.');
     expect(viewSrc).not.toContain('window.alert');
     expect(viewSrc).not.toContain('window.confirm');
+  });
+});
+
+describe('PigDailysView print export (Lane K)', () => {
+  it('uses the shared printExport owner for browser print mechanics', () => {
+    expect(printExport).toContain('export function rowsToPrintHtml');
+    expect(printExport).toContain('export function printRows');
+    expect(printExport).toContain('data-print-export-frame');
+    expect(printExport).toContain('window.print');
+    expect(printExport).toContain('escapeHtml');
+  });
+
+  it('prints the current filtered pig daily rows, not raw records', () => {
+    expect(viewSrc).toContain("from '../lib/printExport.js'");
+    expect(viewSrc).toContain('function handlePrintRows');
+    expect(viewSrc).toContain('data-pig-dailys-print="1"');
+    expect(viewSrc).toContain("subtitle: filtered.length + ' filtered daily reports'");
+    expect(viewSrc).toContain('rows: filtered');
+    expect(viewSrc).not.toContain('rows: records');
+  });
+
+  it('uses one column spec for CSV and print', () => {
+    expect(viewSrc).toContain('function pigDailysExportColumns()');
+    expect(viewSrc).toContain('rowsToCsv(columns, filtered)');
+    expect(viewSrc).toContain('printRows({');
   });
 });

@@ -58,8 +58,8 @@ describe('RecordPageShell — owns the shared chrome markup', () => {
     expect(shell).toContain('data-record-title="1"');
   });
   it('makes RecordTitle fontSize and margin configurable with CP1 defaults', () => {
-    // Animal/daily pages keep 28 / '0 0 12px'; batch title rows opt into 24 / 0.
-    expect(shell).toMatch(/RecordTitle\(\{[^}]*fontSize = 28[^}]*margin = '0 0 12px'[^}]*\}\)/);
+    // Animal/daily pages keep 26 / '0 0 12px'; batch title rows opt into 24 / 0.
+    expect(shell).toMatch(/RecordTitle\(\{[^}]*fontSize = 26[^}]*margin = '0 0 12px'[^}]*\}\)/);
   });
   it('defaults the content body to maxWidth 800', () => {
     expect(shell).toContain('maxWidth = 800');

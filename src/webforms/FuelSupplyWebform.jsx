@@ -19,6 +19,7 @@
 
 import React from 'react';
 
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 import LockedSubmitter from './LockedSubmitter.jsx';
@@ -46,7 +47,7 @@ export default function FuelSupplyWebform({onBack, sessionSubmitter}) {
   // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
   // locked. No roster dropdown, no localStorage convenience selection.
   const lockedName = sessionSubmitter?.name || '';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayCentralISO();
   const [date, setDate] = React.useState(today);
   const [team, setTeam] = React.useState(lockedName);
   const [gallons, setGallons] = React.useState('');

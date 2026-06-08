@@ -7,6 +7,7 @@ import {uploadDailyPhoto, MAX_PHOTOS_PER_REPORT} from '../lib/dailyPhotos.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
 import {formatBroilerBatchLabel} from '../lib/broilerBatchMeta.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {
   checkDailyDuplicate,
   checkInSubmissionDuplicates,
@@ -69,10 +70,7 @@ const WebformHub = ({
       if (hbm?.data?.data) setHousingBatchMap(hbm.data.data);
     });
   }, []);
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
+  const todayStr = todayCentralISO;
 
   // URL-driven activeForm: /dailys → selector, /dailys/<sub> → sub-form.
   // setActiveForm(X) pushes a history entry so the browser back button
@@ -1658,7 +1656,7 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                <LockedSubmitter name={lockedName} label="Team member" labelStyle={labelStyle} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>Broiler Group{reqStar('broiler-dailys', 'batch_label')}</label>
@@ -2025,7 +2023,7 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                <LockedSubmitter name={lockedName} label="Team member" labelStyle={labelStyle} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>Layer Group{reqStar('layer-dailys', 'batch_label')}</label>
@@ -2408,7 +2406,7 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                <LockedSubmitter name={lockedName} label="Team member" labelStyle={labelStyle} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>Pig Group{reqStar('pig-dailys', 'batch_label')}</label>
@@ -2785,7 +2783,7 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                <LockedSubmitter name={lockedName} label="Team member" labelStyle={labelStyle} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>
@@ -3171,7 +3169,7 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                <LockedSubmitter name={lockedName} label="Team member" labelStyle={labelStyle} />
               </div>
             </div>
           </div>
@@ -3317,7 +3315,7 @@ const WebformHub = ({
                 />
               </div>
               <div style={{gridColumn: '1/-1'}}>
-                <LockedSubmitter name={lockedName} label="Team Member" labelStyle={labelStyle} />
+                <LockedSubmitter name={lockedName} label="Team member" labelStyle={labelStyle} />
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={labelStyle}>

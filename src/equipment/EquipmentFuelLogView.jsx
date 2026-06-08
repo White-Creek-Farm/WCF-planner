@@ -5,6 +5,7 @@ import React from 'react';
 import {stripPodioHtml} from '../lib/equipment.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 
 const EQUIPMENT_FUEL_LOG_SURFACE_KEY = 'equipment.fuelLog';
@@ -178,13 +179,13 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
   // the visible filtered.slice(0, 500) cap — the 500-row cap is a render-only
   // guard. Mechanics (quoting, formula-injection neutralization, browser
   // download) come from the shared csvExport owner.
-  function handleExportCsv() {
+  function equipmentFuelLogExportColumns() {
     const estCost = (f) => {
       const g = parseFloat(f.gallons) || 0;
       const c = parseFloat(f.fuel_cost_per_gal) || 0;
       return g > 0 && c > 0 ? Math.round(g * c * 100) / 100 : '';
     };
-    const columns = [
+    return [
       {header: 'Date', value: (f) => f.date || ''},
       {header: 'Equipment name', value: (f) => eqById[f.equipment_id]?.name || ''},
       {header: 'Equipment ID', value: (f) => f.equipment_id || ''},
@@ -199,8 +200,23 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
       {header: 'Comments', value: (f) => stripPodioHtml(f.comments) || ''},
       {header: 'Record ID', value: (f) => f.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = equipmentFuelLogExportColumns();
     const ok = downloadCsv(csvFilename('equipment-fuel-log'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
+  }
+
+  function handlePrintRows() {
+    const columns = equipmentFuelLogExportColumns();
+    const ok = printRows({
+      title: 'Equipment Fuel Log',
+      subtitle: filtered.length + ' filtered fuel entries',
+      columns,
+      rows: filtered,
+    });
+    setExportNotice(ok ? '' : 'Print is only available in the browser.');
   }
 
   const inpS = {
@@ -473,6 +489,24 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
           }}
         >
           Export CSV
+        </button>
+        <button
+          type="button"
+          data-equipment-fuel-log-print="1"
+          onClick={handlePrintRows}
+          style={{
+            padding: '7px 14px',
+            borderRadius: 7,
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#374151',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          Print
         </button>
       </div>
 

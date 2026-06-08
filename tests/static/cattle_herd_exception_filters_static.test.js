@@ -10,6 +10,7 @@ const herdsView = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleHerdsView.js
 const filtersLib = fs.readFileSync(path.join(ROOT, 'src/lib/cattleHerdFilters.js'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 
 // ============================================================================
 // Cattle herd filter UX lock (post smart-assistant removal) — surface_key
@@ -165,5 +166,25 @@ describe('Cattle herd CSV export', () => {
     }
     expect(herdsView).toContain('lastWeightEntryFor(c, weighIns)?.entered_at');
     expect(herdsView).toContain('lastCalving(c.tag)?.calving_date');
+  });
+});
+
+describe('Cattle herd print export', () => {
+  it('uses the shared printExport owner for browser print mechanics', () => {
+    expect(printExport).toContain('export function rowsToPrintHtml');
+    expect(printExport).toContain('export function printRows');
+    expect(printExport).toContain('data-print-export-frame');
+    expect(printExport).toContain('window.print');
+    expect(printExport).toContain('escapeHtml');
+  });
+
+  it('prints the current filtered + sorted cattle rows, not the raw cattle list', () => {
+    expect(herdsView).toContain("from '../lib/printExport.js'");
+    expect(herdsView).toContain('function handlePrintRows');
+    expect(herdsView).toContain('data-cattle-herds-print="1"');
+    expect(herdsView).toContain("title: 'Cattle Herds'");
+    expect(herdsView).toContain("subtitle: sortedFlat.length + ' filtered cattle'");
+    expect(herdsView).toContain('rows: sortedFlat');
+    expect(herdsView).not.toContain('rows: cattle');
   });
 });

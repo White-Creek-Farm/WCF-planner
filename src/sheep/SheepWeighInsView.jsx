@@ -2,6 +2,7 @@ import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import SheepNewWeighInModal from './SheepNewWeighInModal.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
@@ -223,8 +224,8 @@ const SheepWeighInsView = ({
     });
   }
 
-  function handleExportCsv() {
-    const columns = [
+  function sheepWeighInsExportColumns() {
+    return [
       {header: 'Date', value: (s) => s.date || ''},
       {header: 'Flock', value: (s) => FLOCK_LABELS[s.herd] || s.herd || ''},
       {header: 'Status', value: (s) => s.status || ''},
@@ -238,8 +239,23 @@ const SheepWeighInsView = ({
       {header: 'Started at', value: (s) => s.started_at || ''},
       {header: 'Session ID', value: (s) => s.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = sheepWeighInsExportColumns();
     const ok = downloadCsv(csvFilename('sheep-weigh-in-sessions'), rowsToCsv(columns, filtered));
     if (!ok) setNotice({kind: 'error', message: 'CSV export is only available in the browser.'});
+  }
+
+  function handlePrintRows() {
+    const columns = sheepWeighInsExportColumns();
+    const ok = printRows({
+      title: 'Sheep Weigh-In Sessions',
+      subtitle: filtered.length + ' filtered weigh-in sessions',
+      columns,
+      rows: filtered,
+    });
+    if (!ok) setNotice({kind: 'error', message: 'Print is only available in the browser.'});
   }
 
   const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
@@ -585,6 +601,25 @@ const SheepWeighInsView = ({
               }}
             >
               Export CSV
+            </button>
+            <button
+              type="button"
+              data-sheep-weighins-print="1"
+              onClick={handlePrintRows}
+              disabled={loading || loadFailed}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 7,
+                border: '1px solid #d1d5db',
+                background: loading || loadFailed ? '#f9fafb' : 'white',
+                color: loading || loadFailed ? '#9ca3af' : '#374151',
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Print
             </button>
             <button
               data-new-weighin-button="1"

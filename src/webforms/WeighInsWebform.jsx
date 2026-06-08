@@ -19,7 +19,7 @@
 //   - 23505 from this RPC remains a stuck/schema bug, never success.
 import React from 'react';
 import {deriveBroilerColumnLabels} from '../lib/broilerBatchMeta.js';
-import {fmt} from '../lib/dateUtils.js';
+import {fmt, centralISOFor, todayCentralISO} from '../lib/dateUtils.js';
 import {formatAgeRange, formatFeedPerPig, formatGroupAdg, formatAvgWeight} from '../lib/pigForecast.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 import CattleSendToProcessorModal from '../cattle/CattleSendToProcessorModal.jsx';
@@ -173,10 +173,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
   const localIdCounterRef = React.useRef(0);
 
   React.useEffect(() => {
-    const d = new Date();
-    setDate(
-      d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
-    );
+    setDate(todayCentralISO());
   }, []);
 
   // Keep the submitter pinned to the signed-in identity. New sessions +
@@ -236,7 +233,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
         });
     }
     // Look for existing draft sessions in the last 7 days
-    const cutoff = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const cutoff = centralISOFor(new Date(Date.now() - 7 * 86400000));
     sb.from('weigh_in_sessions')
       .select('*')
       .eq('species', species)
@@ -249,7 +246,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     // Build priorByTag: most recent COMPLETED weigh-in per tag for this
     // species, excluding today. Powers the dropdown's prior-weight column,
     // per-entry ADG, and session-average ADG.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayCentralISO();
     sb.from('weigh_in_sessions')
       .select('id, date')
       .eq('species', species)
@@ -1620,7 +1617,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inpS} />
             </div>
             <div style={{marginBottom: 10}}>
-              <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
+              <LockedSubmitter name={lockedName} label="Team member" labelStyle={lblS} />
             </div>
 
             {species === 'cattle' && (
@@ -2709,7 +2706,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
             entries.length > 0 &&
             (() => {
               const directory = species === 'cattle' ? cattleList : sheepList;
-              const curDate = (session && session.date) || new Date().toISOString().slice(0, 10);
+              const curDate = (session && session.date) || todayCentralISO();
               const isFinishers = species === 'cattle' && session && session.herd === 'finishers';
               // Sheep gate is loosened: any sheep session can flag entries
               // (rams / ewes / feeders / null). Ronnie 2026-04-27.
@@ -3010,7 +3007,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
             (() => {
               let avgAdgStr = '';
               if (species === 'cattle' || species === 'sheep') {
-                const curDate = (session && session.date) || new Date().toISOString().slice(0, 10);
+                const curDate = (session && session.date) || todayCentralISO();
                 const adgs = entries
                   .map((e) => {
                     const prior = priorByTag[e.tag];

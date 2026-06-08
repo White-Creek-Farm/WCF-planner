@@ -2,6 +2,7 @@ import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import AdminNewWeighInModal from '../shared/AdminNewWeighInModal.jsx';
@@ -255,8 +256,8 @@ const LivestockWeighInsView = ({
     });
   }
 
-  function handleExportCsv() {
-    const columns = [
+  function livestockWeighInsExportColumns() {
+    return [
       {header: 'Date', value: (s) => s.date || ''},
       {header: 'Species', value: () => speciesLabel},
       {header: 'Batch ID', value: (s) => s.batch_id || ''},
@@ -276,8 +277,23 @@ const LivestockWeighInsView = ({
       {header: 'Started at', value: (s) => s.started_at || ''},
       {header: 'Session ID', value: (s) => s.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = livestockWeighInsExportColumns();
     const ok = downloadCsv(csvFilename(species + '-weigh-in-sessions'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
+  }
+
+  function handlePrintRows() {
+    const columns = livestockWeighInsExportColumns();
+    const ok = printRows({
+      title: speciesLabel + ' Weigh-In Sessions',
+      subtitle: filtered.length + ' filtered weigh-in sessions',
+      columns,
+      rows: filtered,
+    });
+    setExportNotice(ok ? '' : 'Print is only available in the browser.');
   }
 
   const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
@@ -572,6 +588,25 @@ const LivestockWeighInsView = ({
               }}
             >
               Export CSV
+            </button>
+            <button
+              type="button"
+              data-livestock-weighins-print="1"
+              onClick={handlePrintRows}
+              disabled={loading || loadFailed}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 7,
+                border: '1px solid #d1d5db',
+                background: loading || loadFailed ? '#f9fafb' : 'white',
+                color: loading || loadFailed ? '#9ca3af' : '#374151',
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Print
             </button>
             <button
               onClick={() => setShowNewModal(true)}
