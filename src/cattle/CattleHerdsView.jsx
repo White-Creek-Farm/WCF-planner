@@ -51,6 +51,7 @@ import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 import {softDeleteCattleAnimal} from '../lib/cattleDeleteApi.js';
 import {deleteCattleCalvingRecord} from '../lib/cattleCalvingApi.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
 
 const CATTLE_EXCLUDE = ['herd', 'processing_batch_id'];
 const CATTLE_LABELS = {
@@ -447,9 +448,9 @@ const CattleHerdsHub = ({
     return [...filtered].sort(cmp);
   }, [filtered, sortRules, calvingEvidence, weighIns, filters.nonCalvingCutoffDate]);
 
-  function handleExportCsv() {
+  function cattleHerdExportColumns() {
     const female = (cow) => cow.sex === 'cow' || cow.sex === 'heifer';
-    const columns = [
+    return [
       {header: 'Tag', value: (c) => c.tag || ''},
       {header: 'Herd', value: (c) => HERD_LABELS[c.herd] || c.herd || ''},
       {header: 'Sex', value: (c) => c.sex || ''},
@@ -474,8 +475,23 @@ const CattleHerdsHub = ({
       {header: 'Death reason', value: (c) => c.death_reason || ''},
       {header: 'Record ID', value: (c) => c.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = cattleHerdExportColumns();
     const ok = downloadCsv(csvFilename('cattle-herds'), rowsToCsv(columns, sortedFlat));
     if (!ok) setNotice({kind: 'error', message: 'CSV export is only available in the browser.'});
+  }
+
+  function handlePrintRows() {
+    const columns = cattleHerdExportColumns();
+    const ok = printRows({
+      title: 'Cattle Herds',
+      subtitle: sortedFlat.length + ' filtered cattle',
+      columns,
+      rows: sortedFlat,
+    });
+    if (!ok) setNotice({kind: 'error', message: 'Print is only available in the browser.'});
   }
 
   // ── filter chip handlers ───────────────────────────────────────────────────
@@ -1595,6 +1611,26 @@ const CattleHerdsHub = ({
                   }}
                 >
                   Export CSV
+                </button>
+                <button
+                  type="button"
+                  data-cattle-herds-print="1"
+                  onClick={handlePrintRows}
+                  disabled={loading}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #d1d5db',
+                    background: loading ? '#f9fafb' : 'white',
+                    color: loading ? '#9ca3af' : '#374151',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Print
                 </button>
                 <button
                   onClick={() => setShowBulkImport(true)}

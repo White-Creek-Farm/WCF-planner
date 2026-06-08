@@ -8,7 +8,7 @@
 import React from 'react';
 
 const WcfToggle = ({opts, val, onChange}) => (
-  <div style={{display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+  <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
     {opts.map((o, i) => (
       <React.Fragment key={o}>
         {i > 0 && <div style={{width: 1, background: '#d1d5db', flexShrink: 0}} />}
@@ -17,7 +17,7 @@ const WcfToggle = ({opts, val, onChange}) => (
           onClick={() => onChange(val === o ? '' : o)}
           style={{
             flex: 1,
-            padding: '9px 0',
+            padding: '10px 0',
             border: 'none',
             fontFamily: 'inherit',
             fontSize: 12,

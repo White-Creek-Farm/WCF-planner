@@ -8,6 +8,7 @@
 // are actually due given the reading the team just entered + history.
 import React from 'react';
 import {computeDueIntervals} from '../lib/equipment.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 import ManualsCard from '../equipment/ManualsCard.jsx';
 import LockedSubmitter from './LockedSubmitter.jsx';
@@ -22,7 +23,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
   const isQuick = !equipment;
   const [selectedEq, setSelectedEq] = React.useState(equipment || null);
   const [teamMember, setTeamMember] = React.useState(sessionSubmitter?.name || '');
-  const [date, setDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = React.useState(() => todayCentralISO());
   const [gallons, setGallons] = React.useState('');
   const [defGallons, setDefGallons] = React.useState('');
   const [reading, setReading] = React.useState('');
@@ -630,7 +631,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inpS} />
           </div>
           <div>
-            <LockedSubmitter name={lockedName} label="Team Member" labelStyle={lblS} />
+            <LockedSubmitter name={lockedName} label="Team member" labelStyle={lblS} />
           </div>
         </div>
 

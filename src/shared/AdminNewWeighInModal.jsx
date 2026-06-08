@@ -9,6 +9,7 @@ import React from 'react';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {LockedTeamMemberField} from './recordPageControls.jsx';
 const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
   const {useState, useEffect} = React;
@@ -16,14 +17,8 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
     authState && typeof authState === 'object'
       ? authState.name || authState.profile?.name || authState.profile?.full_name || authState.user?.email || ''
       : '';
-  const todayStr = (() => {
-    const d = new Date();
-    return (
-      d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-    );
-  })();
   const [team, setTeam] = useState(lockedTeamName);
-  const [date, setDate] = useState(todayStr);
+  const [date, setDate] = useState(todayCentralISO());
   const [batchOpts, setBatchOpts] = useState([]);
   const [batchId, setBatchId] = useState('');
   const [week, setWeek] = useState(4);

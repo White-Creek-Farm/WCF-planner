@@ -38,7 +38,7 @@ const SIDE = {
   gap: 5,
   maxWidth: 200,
   padding: '7px 12px',
-  borderRadius: 8,
+  borderRadius: 6,
   border: '1px solid #d1d5db',
   background: 'white',
   color: '#374151',

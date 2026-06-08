@@ -2,6 +2,8 @@ import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import CattleNewWeighInModal from './CattleNewWeighInModal.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
@@ -12,6 +14,8 @@ import PlannerIcon from '../components/PlannerIcon.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
+const CATTLE_WEIGHINS_SURFACE_KEY = 'cattle.weighins';
+const VALID_WEIGHIN_STATUS_FILTERS = new Set(['all', 'draft', 'complete']);
 
 const CattleWeighInsView = ({
   sb,
@@ -34,6 +38,16 @@ const CattleWeighInsView = ({
   const [showNewModal, setShowNewModal] = useState(false);
   const [tagSearch, setTagSearch] = usePersistentViewState('cattle.weighins.tagSearch', '');
   const [notice, setNotice] = useState(null);
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewsError, setSavedViewsError] = useState(null);
+  const [savedViewsLoading, setSavedViewsLoading] = useState(true);
+  const [selectedViewId, setSelectedViewId] = useState('');
+  const [showSaveViewForm, setShowSaveViewForm] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  const [saveViewVisibility, setSaveViewVisibility] = useState('private');
+  const [savedViewBusy, setSavedViewBusy] = useState(false);
+  const [savedViewNotice, setSavedViewNotice] = useState(null);
+  const myProfileId = authState?.user?.id || null;
 
   async function loadAll() {
     setLoading(true);
@@ -72,6 +86,26 @@ const CattleWeighInsView = ({
     loadAll();
   }, []);
 
+  async function loadSavedViews() {
+    setSavedViewsLoading(true);
+    try {
+      const rows = await listSavedViews(sb, CATTLE_WEIGHINS_SURFACE_KEY);
+      setSavedViews(rows);
+      setSavedViewsError(null);
+      setSelectedViewId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : ''));
+    } catch (e) {
+      setSavedViews([]);
+      setSavedViewsError(e.message || String(e));
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSavedViews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function createNewSession(opts) {
     const id = 'wsess-' + String(Date.now()) + Math.random().toString(36).slice(2, 6);
     const rec = {
@@ -95,13 +129,107 @@ const CattleWeighInsView = ({
   const totalEntries = filtered.reduce((s, sess) => s + (entries[sess.id] || []).length, 0);
   const matchedSessionCount = tagQ ? filtered.length : null;
   const loadFailed = !!notice;
+  const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
+  const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
+
+  function cattleWeighInsViewState() {
+    return {
+      statusFilter: VALID_WEIGHIN_STATUS_FILTERS.has(statusFilter) ? statusFilter : 'all',
+      tagSearch: tagSearch || '',
+    };
+  }
+
+  function applyCattleSavedView(view) {
+    if (!view) return;
+    const st = view.view_state || {};
+    setStatusFilter(VALID_WEIGHIN_STATUS_FILTERS.has(st.statusFilter) ? st.statusFilter : 'all');
+    setTagSearch(typeof st.tagSearch === 'string' ? st.tagSearch : '');
+    setSavedViewNotice(null);
+  }
+
+  function onSelectSavedView(id) {
+    setSelectedViewId(id);
+    setSavedViewNotice(null);
+    if (!id) return;
+    applyCattleSavedView(savedViews.find((v) => v.id === id));
+  }
+
+  function openSaveViewForm() {
+    setSaveViewName('');
+    setSaveViewVisibility('private');
+    setSavedViewNotice(null);
+    setShowSaveViewForm(true);
+  }
+
+  async function submitSaveView() {
+    const name = saveViewName.trim();
+    if (!name) {
+      setSavedViewNotice({kind: 'error', message: 'Name the view before saving.'});
+      return;
+    }
+    setSavedViewBusy(true);
+    try {
+      const created = await createSavedView(sb, {
+        surfaceKey: CATTLE_WEIGHINS_SURFACE_KEY,
+        name,
+        visibility: saveViewVisibility,
+        viewState: cattleWeighInsViewState(),
+      });
+      setShowSaveViewForm(false);
+      setSavedViewNotice({kind: 'success', message: 'Saved view "' + name + '".'});
+      await loadSavedViews();
+      if (created?.id) setSelectedViewId(created.id);
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Save view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function updateSelectedView() {
+    if (!selectedView || !selectedViewIsMine) return;
+    setSavedViewBusy(true);
+    try {
+      await updateSavedView(sb, selectedView.id, {viewState: cattleWeighInsViewState()});
+      await loadSavedViews();
+      setSavedViewNotice({
+        kind: 'success',
+        message: 'Updated "' + selectedView.name + '" to the current filter/search.',
+      });
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Update view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function proceedDeleteSelectedView(view) {
+    setSavedViewBusy(true);
+    try {
+      await deleteSavedView(sb, view.id);
+      setSelectedViewId('');
+      await loadSavedViews();
+      setSavedViewNotice({kind: 'success', message: 'Deleted saved view "' + view.name + '".'});
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Delete view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  function deleteSelectedView() {
+    if (!selectedView || !selectedViewIsMine || !window._wcfConfirmDelete) return;
+    window._wcfConfirmDelete('Delete saved view "' + selectedView.name + '"?', () => {
+      void proceedDeleteSelectedView(selectedView);
+    });
+  }
 
   // CSV export of the CURRENT result set (status filter + tag search applied).
   // Exports `filtered`, not raw `sessions`. Mirrors SheepWeighInsView. Session
   // counts come from entries[s.id]; matching-tag count only when a tag search
   // is active. Mechanics via the shared csvExport owner.
-  function handleExportCsv() {
-    const columns = [
+  function cattleWeighInsExportColumns() {
+    return [
       {header: 'Date', value: (s) => s.date || ''},
       {header: 'Herd', value: (s) => HERD_LABELS[s.herd] || s.herd || ''},
       {header: 'Status', value: (s) => s.status || ''},
@@ -115,9 +243,60 @@ const CattleWeighInsView = ({
       {header: 'Started at', value: (s) => s.started_at || ''},
       {header: 'Session ID', value: (s) => s.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = cattleWeighInsExportColumns();
     const ok = downloadCsv(csvFilename('cattle-weigh-in-sessions'), rowsToCsv(columns, filtered));
     if (!ok) setNotice({kind: 'error', message: 'CSV export is only available in the browser.'});
   }
+
+  function handlePrintRows() {
+    const columns = cattleWeighInsExportColumns();
+    const ok = printRows({
+      title: 'Cattle Weigh-In Sessions',
+      subtitle: filtered.length + ' filtered weigh-in sessions',
+      columns,
+      rows: filtered,
+    });
+    if (!ok) setNotice({kind: 'error', message: 'Print is only available in the browser.'});
+  }
+
+  const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
+  const publicOtherViews = savedViews.filter(
+    (v) => v.visibility === 'public' && !(myProfileId && v.owner_profile_id === myProfileId),
+  );
+  const savedViewInputS = {
+    fontFamily: 'inherit',
+    fontSize: 12,
+    padding: '6px 10px',
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    boxSizing: 'border-box',
+    background: 'white',
+    color: '#111827',
+  };
+  const savedViewGhostBtnS = {
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #1e40af', color: '#1e40af'};
+  const savedViewRadioLabelS = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12,
+    color: '#374151',
+    cursor: 'pointer',
+  };
 
   return (
     <div
@@ -156,6 +335,163 @@ const CattleWeighInsView = ({
           >
             Retry
           </button>
+        )}
+        {!loadFailed && (
+          <>
+            <div
+              data-cattle-weighins-saved-views-row
+              style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              {savedViewsError ? (
+                <span style={{fontSize: 12, color: '#b91c1c'}} data-cattle-weighins-saved-views-error>
+                  Saved views unavailable. Filters still work.
+                </span>
+              ) : (
+                <>
+                  <select
+                    data-cattle-weighins-saved-view-select
+                    value={selectedViewId}
+                    disabled={savedViewsLoading}
+                    onChange={(e) => onSelectSavedView(e.target.value)}
+                    style={{...savedViewInputS, width: 'auto', minWidth: 200}}
+                  >
+                    <option value="">{savedViewsLoading ? 'Loading...' : 'Select a saved view'}</option>
+                    {myViews.length > 0 && (
+                      <optgroup label="My views">
+                        {myViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name + (v.visibility === 'public' ? ' - public' : ' - private')}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {publicOtherViews.length > 0 && (
+                      <optgroup label="Public views">
+                        {publicOtherViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {selectedViewIsMine && (
+                    <>
+                      <button
+                        type="button"
+                        data-cattle-weighins-saved-view-update
+                        onClick={updateSelectedView}
+                        disabled={savedViewBusy}
+                        style={savedViewGhostBtnS}
+                      >
+                        Update to current
+                      </button>
+                      <button
+                        type="button"
+                        data-cattle-weighins-saved-view-delete
+                        onClick={deleteSelectedView}
+                        disabled={savedViewBusy}
+                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <span style={{flex: 1}} />
+                  {savedViewNotice && (
+                    <span style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? '#065f46' : '#b91c1c'}}>
+                      {savedViewNotice.message}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    data-cattle-weighins-saved-view-save-open
+                    onClick={openSaveViewForm}
+                    disabled={savedViewBusy || savedViewsLoading}
+                    style={savedViewPrimaryBtnS}
+                  >
+                    Save current view
+                  </button>
+                </>
+              )}
+            </div>
+            {showSaveViewForm && (
+              <div
+                data-cattle-weighins-saved-view-form
+                style={{
+                  background: 'white',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <input
+                  data-cattle-weighins-saved-view-name
+                  type="text"
+                  value={saveViewName}
+                  placeholder="View name"
+                  onChange={(e) => setSaveViewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitSaveView();
+                  }}
+                  style={{...savedViewInputS, flex: 1, minWidth: 200}}
+                />
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveCattleWeighInsViewVisibility"
+                    checked={saveViewVisibility === 'private'}
+                    onChange={() => setSaveViewVisibility('private')}
+                    data-cattle-weighins-saved-view-visibility="private"
+                  />
+                  Private
+                </label>
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveCattleWeighInsViewVisibility"
+                    checked={saveViewVisibility === 'public'}
+                    onChange={() => setSaveViewVisibility('public')}
+                    data-cattle-weighins-saved-view-visibility="public"
+                  />
+                  Public
+                </label>
+                <button
+                  type="button"
+                  data-cattle-weighins-saved-view-save
+                  onClick={submitSaveView}
+                  disabled={savedViewBusy}
+                  style={savedViewPrimaryBtnS}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSaveViewForm(false)}
+                  disabled={savedViewBusy}
+                  style={savedViewGhostBtnS}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </>
         )}
         <div
           style={{
@@ -269,6 +605,25 @@ const CattleWeighInsView = ({
               }}
             >
               Export CSV
+            </button>
+            <button
+              type="button"
+              data-cattle-weighins-print="1"
+              onClick={handlePrintRows}
+              disabled={loading || loadFailed}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 7,
+                border: '1px solid #d1d5db',
+                background: loading || loadFailed ? '#f9fafb' : 'white',
+                color: loading || loadFailed ? '#9ca3af' : '#374151',
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Print
             </button>
             <button
               data-new-weighin-button="1"

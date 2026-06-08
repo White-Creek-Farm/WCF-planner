@@ -5,8 +5,12 @@ import React from 'react';
 import {stripPodioHtml} from '../lib/equipment.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 
-export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
+const EQUIPMENT_FUEL_LOG_SURFACE_KEY = 'equipment.fuelLog';
+
+export default function EquipmentFuelLogView({sb, authState, equipment, fuelings, fmt}) {
   const [eqFilter, setEqFilter] = usePersistentViewState('equipment.fuelLog.equipmentFilter', '');
   const [fuelFilter, setFuelFilter] = usePersistentViewState('equipment.fuelLog.fuelFilter', '');
   const [teamFilter, setTeamFilter] = usePersistentViewState('equipment.fuelLog.teamFilter', '');
@@ -15,6 +19,36 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
   // Browser-only fallback notice for CSV export (no inline-notice system in
   // this view; downloadCsv returns false only in a non-browser context).
   const [exportNotice, setExportNotice] = React.useState('');
+  const [savedViews, setSavedViews] = React.useState([]);
+  const [savedViewsError, setSavedViewsError] = React.useState(null);
+  const [savedViewsLoading, setSavedViewsLoading] = React.useState(true);
+  const [selectedViewId, setSelectedViewId] = React.useState('');
+  const [showSaveViewForm, setShowSaveViewForm] = React.useState(false);
+  const [saveViewName, setSaveViewName] = React.useState('');
+  const [saveViewVisibility, setSaveViewVisibility] = React.useState('private');
+  const [savedViewBusy, setSavedViewBusy] = React.useState(false);
+  const [savedViewNotice, setSavedViewNotice] = React.useState(null);
+  const myProfileId = authState?.user?.id || null;
+
+  async function loadSavedViews() {
+    setSavedViewsLoading(true);
+    try {
+      const rows = await listSavedViews(sb, EQUIPMENT_FUEL_LOG_SURFACE_KEY);
+      setSavedViews(rows);
+      setSavedViewsError(null);
+      setSelectedViewId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : ''));
+    } catch (e) {
+      setSavedViews([]);
+      setSavedViewsError(e.message || String(e));
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }
+
+  React.useEffect(() => {
+    loadSavedViews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const eqById = React.useMemo(() => Object.fromEntries(equipment.map((e) => [e.id, e])), [equipment]);
   const teamMembers = React.useMemo(() => {
@@ -33,6 +67,106 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
     if (toDate && (f.date || '') > toDate) return false;
     return true;
   });
+  const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
+  const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
+
+  function equipmentFuelLogViewState() {
+    return {
+      eqFilter: eqFilter || '',
+      fuelFilter: fuelFilter || '',
+      teamFilter: teamFilter || '',
+      fromDate: fromDate || '',
+      toDate: toDate || '',
+    };
+  }
+
+  function applyEquipmentFuelLogSavedView(view) {
+    if (!view) return;
+    const st = view.view_state || {};
+    setEqFilter(typeof st.eqFilter === 'string' ? st.eqFilter : '');
+    setFuelFilter(typeof st.fuelFilter === 'string' ? st.fuelFilter : '');
+    setTeamFilter(typeof st.teamFilter === 'string' ? st.teamFilter : '');
+    setFromDate(typeof st.fromDate === 'string' ? st.fromDate : '');
+    setToDate(typeof st.toDate === 'string' ? st.toDate : '');
+    setSavedViewNotice(null);
+  }
+
+  function onSelectSavedView(id) {
+    setSelectedViewId(id);
+    setSavedViewNotice(null);
+    if (!id) return;
+    applyEquipmentFuelLogSavedView(savedViews.find((v) => v.id === id));
+  }
+
+  function openSaveViewForm() {
+    setSaveViewName('');
+    setSaveViewVisibility('private');
+    setSavedViewNotice(null);
+    setShowSaveViewForm(true);
+  }
+
+  async function submitSaveView() {
+    const name = saveViewName.trim();
+    if (!name) {
+      setSavedViewNotice({kind: 'error', message: 'Name the view before saving.'});
+      return;
+    }
+    setSavedViewBusy(true);
+    try {
+      const created = await createSavedView(sb, {
+        surfaceKey: EQUIPMENT_FUEL_LOG_SURFACE_KEY,
+        name,
+        visibility: saveViewVisibility,
+        viewState: equipmentFuelLogViewState(),
+      });
+      setShowSaveViewForm(false);
+      setSavedViewNotice({kind: 'success', message: 'Saved view "' + name + '".'});
+      await loadSavedViews();
+      if (created?.id) setSelectedViewId(created.id);
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Save view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function updateSelectedView() {
+    if (!selectedView || !selectedViewIsMine) return;
+    setSavedViewBusy(true);
+    try {
+      await updateSavedView(sb, selectedView.id, {viewState: equipmentFuelLogViewState()});
+      await loadSavedViews();
+      setSavedViewNotice({
+        kind: 'success',
+        message: 'Updated "' + selectedView.name + '" to the current filters.',
+      });
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Update view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function proceedDeleteSelectedView(view) {
+    setSavedViewBusy(true);
+    try {
+      await deleteSavedView(sb, view.id);
+      setSelectedViewId('');
+      await loadSavedViews();
+      setSavedViewNotice({kind: 'success', message: 'Deleted saved view "' + view.name + '".'});
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Delete view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  function deleteSelectedView() {
+    if (!selectedView || !selectedViewIsMine || !window._wcfConfirmDelete) return;
+    window._wcfConfirmDelete('Delete saved view "' + selectedView.name + '"?', () => {
+      void proceedDeleteSelectedView(selectedView);
+    });
+  }
 
   const totals = {
     count: filtered.length,
@@ -45,13 +179,13 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
   // the visible filtered.slice(0, 500) cap — the 500-row cap is a render-only
   // guard. Mechanics (quoting, formula-injection neutralization, browser
   // download) come from the shared csvExport owner.
-  function handleExportCsv() {
+  function equipmentFuelLogExportColumns() {
     const estCost = (f) => {
       const g = parseFloat(f.gallons) || 0;
       const c = parseFloat(f.fuel_cost_per_gal) || 0;
       return g > 0 && c > 0 ? Math.round(g * c * 100) / 100 : '';
     };
-    const columns = [
+    return [
       {header: 'Date', value: (f) => f.date || ''},
       {header: 'Equipment name', value: (f) => eqById[f.equipment_id]?.name || ''},
       {header: 'Equipment ID', value: (f) => f.equipment_id || ''},
@@ -66,8 +200,23 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
       {header: 'Comments', value: (f) => stripPodioHtml(f.comments) || ''},
       {header: 'Record ID', value: (f) => f.id || ''},
     ];
+  }
+
+  function handleExportCsv() {
+    const columns = equipmentFuelLogExportColumns();
     const ok = downloadCsv(csvFilename('equipment-fuel-log'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
+  }
+
+  function handlePrintRows() {
+    const columns = equipmentFuelLogExportColumns();
+    const ok = printRows({
+      title: 'Equipment Fuel Log',
+      subtitle: filtered.length + ' filtered fuel entries',
+      columns,
+      rows: filtered,
+    });
+    setExportNotice(ok ? '' : 'Print is only available in the browser.');
   }
 
   const inpS = {
@@ -78,9 +227,187 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
     fontFamily: 'inherit',
     boxSizing: 'border-box',
   };
+  const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
+  const publicOtherViews = savedViews.filter(
+    (v) => v.visibility === 'public' && !(myProfileId && v.owner_profile_id === myProfileId),
+  );
+  const savedViewGhostBtnS = {
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #57534e', color: '#57534e'};
+  const savedViewRadioLabelS = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12,
+    color: '#374151',
+    cursor: 'pointer',
+  };
 
   return (
     <div>
+      <div
+        data-equipment-fuel-log-saved-views-row
+        style={{
+          background: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: 10,
+          padding: '10px 14px',
+          marginBottom: 8,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+        {savedViewsError ? (
+          <span style={{fontSize: 12, color: '#b91c1c'}} data-equipment-fuel-log-saved-views-error>
+            Saved views unavailable. Filters still work.
+          </span>
+        ) : (
+          <>
+            <select
+              data-equipment-fuel-log-saved-view-select
+              value={selectedViewId}
+              disabled={savedViewsLoading}
+              onChange={(e) => onSelectSavedView(e.target.value)}
+              style={{...inpS, width: 'auto', minWidth: 200, fontSize: 12, padding: '6px 10px'}}
+            >
+              <option value="">{savedViewsLoading ? 'Loading...' : 'Select a saved view'}</option>
+              {myViews.length > 0 && (
+                <optgroup label="My views">
+                  {myViews.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name + (v.visibility === 'public' ? ' - public' : ' - private')}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {publicOtherViews.length > 0 && (
+                <optgroup label="Public views">
+                  {publicOtherViews.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            {selectedViewIsMine && (
+              <>
+                <button
+                  type="button"
+                  data-equipment-fuel-log-saved-view-update
+                  onClick={updateSelectedView}
+                  disabled={savedViewBusy}
+                  style={savedViewGhostBtnS}
+                >
+                  Update to current
+                </button>
+                <button
+                  type="button"
+                  data-equipment-fuel-log-saved-view-delete
+                  onClick={deleteSelectedView}
+                  disabled={savedViewBusy}
+                  style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                >
+                  Delete
+                </button>
+              </>
+            )}
+            <span style={{flex: 1}} />
+            {savedViewNotice && (
+              <span style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? '#065f46' : '#b91c1c'}}>
+                {savedViewNotice.message}
+              </span>
+            )}
+            <button
+              type="button"
+              data-equipment-fuel-log-saved-view-save-open
+              onClick={openSaveViewForm}
+              disabled={savedViewBusy || savedViewsLoading}
+              style={savedViewPrimaryBtnS}
+            >
+              Save current view
+            </button>
+          </>
+        )}
+      </div>
+      {showSaveViewForm && (
+        <div
+          data-equipment-fuel-log-saved-view-form
+          style={{
+            background: 'white',
+            border: '1px solid #d6d3d1',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <input
+            data-equipment-fuel-log-saved-view-name
+            type="text"
+            value={saveViewName}
+            placeholder="View name"
+            onChange={(e) => setSaveViewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitSaveView();
+            }}
+            style={{...inpS, flex: 1, minWidth: 200}}
+          />
+          <label style={savedViewRadioLabelS}>
+            <input
+              type="radio"
+              name="saveEquipmentFuelLogViewVisibility"
+              checked={saveViewVisibility === 'private'}
+              onChange={() => setSaveViewVisibility('private')}
+              data-equipment-fuel-log-saved-view-visibility="private"
+            />
+            Private
+          </label>
+          <label style={savedViewRadioLabelS}>
+            <input
+              type="radio"
+              name="saveEquipmentFuelLogViewVisibility"
+              checked={saveViewVisibility === 'public'}
+              onChange={() => setSaveViewVisibility('public')}
+              data-equipment-fuel-log-saved-view-visibility="public"
+            />
+            Public
+          </label>
+          <button
+            type="button"
+            data-equipment-fuel-log-saved-view-save
+            onClick={submitSaveView}
+            disabled={savedViewBusy}
+            style={savedViewPrimaryBtnS}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSaveViewForm(false)}
+            disabled={savedViewBusy}
+            style={savedViewGhostBtnS}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       <div
         style={{
           background: 'white',
@@ -162,6 +489,24 @@ export default function EquipmentFuelLogView({equipment, fuelings, fmt}) {
           }}
         >
           Export CSV
+        </button>
+        <button
+          type="button"
+          data-equipment-fuel-log-print="1"
+          onClick={handlePrintRows}
+          style={{
+            padding: '7px 14px',
+            borderRadius: 7,
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#374151',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          Print
         </button>
       </div>
 

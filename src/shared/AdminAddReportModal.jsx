@@ -13,6 +13,7 @@ import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
 import {formatBroilerBatchLabel} from '../lib/broilerBatchMeta.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {LockedTeamMemberField} from './recordPageControls.jsx';
 import {
   checkDailyDuplicate,
@@ -38,10 +39,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
   const [housingBatchMap, setHousingBatchMap] = React.useState({});
   const [submitting, setSubmitting] = React.useState(false);
   const [err, setErr] = React.useState('');
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
+  const todayStr = todayCentralISO;
   const genId = () => String(Date.now()) + Math.random().toString(36).slice(2, 6);
 
   React.useEffect(() => {

@@ -10,6 +10,9 @@ import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -17,8 +20,10 @@ import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
-// eslint-disable-next-line no-unused-vars -- JSX-only use
 import SheepDailyPage from './SheepDailyPage.jsx';
+
+const SHEEP_DAILYS_SURFACE_KEY = 'sheep.dailys';
+const VALID_SHEEP_DAILY_SOURCE_FILTERS = new Set(['all', 'daily', 'addfeed']);
 
 function SheepDailysRouter(props) {
   const location = useLocation();
@@ -63,6 +68,17 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
   const [notice, setNotice] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [exportNotice, setExportNotice] = useState('');
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewsError, setSavedViewsError] = useState(null);
+  const [savedViewsLoading, setSavedViewsLoading] = useState(true);
+  const [selectedViewId, setSelectedViewId] = useState('');
+  const [showSaveViewForm, setShowSaveViewForm] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  const [saveViewVisibility, setSaveViewVisibility] = useState('private');
+  const [savedViewBusy, setSavedViewBusy] = useState(false);
+  const [savedViewNotice, setSavedViewNotice] = useState(null);
+  const myProfileId = authState?.user?.id || null;
   const [fFlock, setFFlock] = usePersistentViewState('sheep.dailys.flockFilter', '');
   const [fTeam, setFTeam] = usePersistentViewState('sheep.dailys.teamFilter', '');
   const [fFrom, setFFrom] = usePersistentViewState('sheep.dailys.fromFilter', '');
@@ -154,6 +170,26 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
       cancelled = true;
     };
   }, [reloadKey]);
+
+  async function loadSavedViews() {
+    setSavedViewsLoading(true);
+    try {
+      const rows = await listSavedViews(sb, SHEEP_DAILYS_SURFACE_KEY);
+      setSavedViews(rows);
+      setSavedViewsError(null);
+      setSelectedViewId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : ''));
+    } catch (e) {
+      setSavedViews([]);
+      setSavedViewsError(e.message || String(e));
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSavedViews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pgLoading = React.useRef(false);
   useEffect(() => {
@@ -295,6 +331,171 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
         (srcFilter === 'addfeed' && r.source === 'add_feed_webform')),
   );
   const teamOpts = [...new Set(records.map((r) => r.team_member).filter(Boolean))].sort();
+  const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
+  const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
+
+  function sheepDailysViewState() {
+    return {
+      fFlock: fFlock || '',
+      fTeam: fTeam || '',
+      fFrom: fFrom || '',
+      fTo: fTo || '',
+      srcFilter: VALID_SHEEP_DAILY_SOURCE_FILTERS.has(srcFilter) ? srcFilter : 'all',
+    };
+  }
+
+  function applySheepDailysSavedView(view) {
+    if (!view) return;
+    const st = view.view_state || {};
+    setFFlock(typeof st.fFlock === 'string' ? st.fFlock : '');
+    setFTeam(typeof st.fTeam === 'string' ? st.fTeam : '');
+    setFFrom(typeof st.fFrom === 'string' ? st.fFrom : '');
+    setFTo(typeof st.fTo === 'string' ? st.fTo : '');
+    setSrcFilter(VALID_SHEEP_DAILY_SOURCE_FILTERS.has(st.srcFilter) ? st.srcFilter : 'all');
+    setSavedViewNotice(null);
+  }
+
+  function onSelectSavedView(id) {
+    setSelectedViewId(id);
+    setSavedViewNotice(null);
+    if (!id) return;
+    applySheepDailysSavedView(savedViews.find((v) => v.id === id));
+  }
+
+  function openSaveViewForm() {
+    setSaveViewName('');
+    setSaveViewVisibility('private');
+    setSavedViewNotice(null);
+    setShowSaveViewForm(true);
+  }
+
+  async function submitSaveView() {
+    const name = saveViewName.trim();
+    if (!name) {
+      setSavedViewNotice({kind: 'error', message: 'Name the view before saving.'});
+      return;
+    }
+    setSavedViewBusy(true);
+    try {
+      const created = await createSavedView(sb, {
+        surfaceKey: SHEEP_DAILYS_SURFACE_KEY,
+        name,
+        visibility: saveViewVisibility,
+        viewState: sheepDailysViewState(),
+      });
+      setShowSaveViewForm(false);
+      setSavedViewNotice({kind: 'success', message: 'Saved view "' + name + '".'});
+      await loadSavedViews();
+      if (created?.id) setSelectedViewId(created.id);
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Save view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function updateSelectedView() {
+    if (!selectedView || !selectedViewIsMine) return;
+    setSavedViewBusy(true);
+    try {
+      await updateSavedView(sb, selectedView.id, {viewState: sheepDailysViewState()});
+      await loadSavedViews();
+      setSavedViewNotice({
+        kind: 'success',
+        message: 'Updated "' + selectedView.name + '" to the current filters.',
+      });
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Update view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function proceedDeleteSelectedView(view) {
+    setSavedViewBusy(true);
+    try {
+      await deleteSavedView(sb, view.id);
+      setSelectedViewId('');
+      await loadSavedViews();
+      setSavedViewNotice({kind: 'success', message: 'Deleted saved view "' + view.name + '".'});
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Delete view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  function deleteSelectedView() {
+    if (!selectedView || !selectedViewIsMine || !window._wcfConfirmDelete) return;
+    window._wcfConfirmDelete('Delete saved view "' + selectedView.name + '"?', () => {
+      void proceedDeleteSelectedView(selectedView);
+    });
+  }
+
+  function sheepDailysExportColumns() {
+    const yesNo = (v) => (v === false ? 'no' : 'yes');
+    const feedSummary = (r) =>
+      Array.isArray(r.feeds)
+        ? r.feeds
+            .map((f) => (f.feed_name || '?') + (f.qty != null ? ' ' + f.qty + ' ' + (f.unit || '') : ''))
+            .join(', ')
+        : '';
+    const mineralSummary = (r) =>
+      Array.isArray(r.minerals)
+        ? r.minerals
+            .map((m) => {
+              const parts = [m.name || '?'];
+              if (m.lbs != null) parts.push(m.lbs + ' lb');
+              return parts.join(' ');
+            })
+            .join(', ')
+        : '';
+    const sumFeedLbs = (r) =>
+      Array.isArray(r.feeds) ? r.feeds.reduce((s, f) => s + (parseFloat(f.lbs_as_fed) || 0), 0).toFixed(2) : '';
+    const sumHayBales = (r) =>
+      Array.isArray(r.feeds)
+        ? r.feeds
+            .reduce((s, f) => s + (f.category === 'hay' && f.unit === 'bale' ? parseFloat(f.qty) || 0 : 0), 0)
+            .toFixed(2)
+        : '';
+    const sumMineralLbs = (r) =>
+      Array.isArray(r.minerals) ? r.minerals.reduce((s, m) => s + (parseFloat(m.lbs) || 0), 0).toFixed(2) : '';
+    return [
+      {header: 'Date', value: (r) => r.date || ''},
+      {header: 'Flock', value: (r) => FLOCK_LABELS[r.flock] || r.flock || ''},
+      {header: 'Team member', value: (r) => r.team_member || ''},
+      {header: 'Source', value: (r) => (r.source === 'add_feed_webform' ? 'Add Feed' : 'Daily Report')},
+      {header: 'Feed summary', value: feedSummary},
+      {header: 'Feed lbs as fed', value: sumFeedLbs},
+      {header: 'Hay bales', value: sumHayBales},
+      {header: 'Mineral summary', value: mineralSummary},
+      {header: 'Mineral lbs', value: sumMineralLbs},
+      {header: 'Fence voltage kV', value: (r) => r.fence_voltage_kv ?? ''},
+      {header: 'Waterers working', value: (r) => yesNo(r.waterers_working)},
+      {header: 'Mortality count', value: (r) => r.mortality_count ?? ''},
+      {header: 'Comments', value: (r) => (isSentinelComment(r.comments) ? '' : r.comments || '')},
+      {header: 'Photo count', value: (r) => (Array.isArray(r.photos) ? r.photos.length : 0)},
+      {header: 'Record ID', value: (r) => r.id || ''},
+    ];
+  }
+
+  function handleExportCsv() {
+    const columns = sheepDailysExportColumns();
+    const ok = downloadCsv(csvFilename('sheep-dailys'), rowsToCsv(columns, filtered));
+    setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
+  }
+
+  function handlePrintRows() {
+    const columns = sheepDailysExportColumns();
+    const ok = printRows({
+      title: 'Sheep Dailys',
+      subtitle: filtered.length + ' filtered daily reports',
+      columns,
+      rows: filtered,
+    });
+    setExportNotice(ok ? '' : 'Print is only available in the browser.');
+  }
+
   const fi = {
     padding: '6px 10px',
     borderRadius: 6,
@@ -303,6 +504,31 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
     fontFamily: 'inherit',
     background: 'white',
     width: 'auto',
+  };
+  const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
+  const publicOtherViews = savedViews.filter(
+    (v) => v.visibility === 'public' && !(myProfileId && v.owner_profile_id === myProfileId),
+  );
+  const savedViewGhostBtnS = {
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #0f766e', color: '#0f766e'};
+  const savedViewRadioLabelS = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12,
+    color: '#374151',
+    cursor: 'pointer',
   };
 
   // Summary metrics derived from feeds jsonb (hay bales + alfalfa lbs)
@@ -385,6 +611,165 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
           />
         )}
 
+        {!loadError && (
+          <>
+            <div
+              data-sheep-dailys-saved-views-row
+              style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              {savedViewsError ? (
+                <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-dailys-saved-views-error>
+                  Saved views unavailable. Filters still work.
+                </span>
+              ) : (
+                <>
+                  <select
+                    data-sheep-dailys-saved-view-select
+                    value={selectedViewId}
+                    disabled={savedViewsLoading}
+                    onChange={(e) => onSelectSavedView(e.target.value)}
+                    style={{...fi, minWidth: 200}}
+                  >
+                    <option value="">{savedViewsLoading ? 'Loading...' : 'Select a saved view'}</option>
+                    {myViews.length > 0 && (
+                      <optgroup label="My views">
+                        {myViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name + (v.visibility === 'public' ? ' - public' : ' - private')}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {publicOtherViews.length > 0 && (
+                      <optgroup label="Public views">
+                        {publicOtherViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {selectedViewIsMine && (
+                    <>
+                      <button
+                        type="button"
+                        data-sheep-dailys-saved-view-update
+                        onClick={updateSelectedView}
+                        disabled={savedViewBusy}
+                        style={savedViewGhostBtnS}
+                      >
+                        Update to current
+                      </button>
+                      <button
+                        type="button"
+                        data-sheep-dailys-saved-view-delete
+                        onClick={deleteSelectedView}
+                        disabled={savedViewBusy}
+                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <span style={{flex: 1}} />
+                  {savedViewNotice && (
+                    <span style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? '#065f46' : '#b91c1c'}}>
+                      {savedViewNotice.message}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    data-sheep-dailys-saved-view-save-open
+                    onClick={openSaveViewForm}
+                    disabled={savedViewBusy || savedViewsLoading}
+                    style={savedViewPrimaryBtnS}
+                  >
+                    Save current view
+                  </button>
+                </>
+              )}
+            </div>
+            {showSaveViewForm && (
+              <div
+                data-sheep-dailys-saved-view-form
+                style={{
+                  background: 'white',
+                  border: '1px solid #99f6e4',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <input
+                  data-sheep-dailys-saved-view-name
+                  type="text"
+                  value={saveViewName}
+                  placeholder="View name"
+                  onChange={(e) => setSaveViewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitSaveView();
+                  }}
+                  style={{...fi, flex: 1, minWidth: 200}}
+                />
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveSheepDailysViewVisibility"
+                    checked={saveViewVisibility === 'private'}
+                    onChange={() => setSaveViewVisibility('private')}
+                    data-sheep-dailys-saved-view-visibility="private"
+                  />
+                  Private
+                </label>
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveSheepDailysViewVisibility"
+                    checked={saveViewVisibility === 'public'}
+                    onChange={() => setSaveViewVisibility('public')}
+                    data-sheep-dailys-saved-view-visibility="public"
+                  />
+                  Public
+                </label>
+                <button
+                  type="button"
+                  data-sheep-dailys-saved-view-save
+                  onClick={submitSaveView}
+                  disabled={savedViewBusy}
+                  style={savedViewPrimaryBtnS}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSaveViewForm(false)}
+                  disabled={savedViewBusy}
+                  style={savedViewGhostBtnS}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {exportNotice && <div style={{marginBottom: 14, color: '#b91c1c', fontSize: 12}}>{exportNotice}</div>}
+
         <div style={{display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center'}}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{...fi, width: 130}} />
           <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
@@ -397,7 +782,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               </option>
             ))}
           </select>
-          <select value={fTeam} onChange={(e) => setFTeam(e.target.value)} style={fi}>
+          <select value={fTeam} onChange={(e) => setFTeam(e.target.value)} style={fi} data-sheep-dailys-team-filter="1">
             <option value="">All team</option>
             {teamOpts.map((t) => (
               <option key={t} value={t}>
@@ -452,6 +837,34 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            data-sheep-dailys-export-csv="1"
+            onClick={handleExportCsv}
+            disabled={loading || !!loadError}
+            style={{
+              ...fi,
+              color: loading || loadError ? '#9ca3af' : '#374151',
+              fontWeight: 600,
+              cursor: loading || loadError ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            data-sheep-dailys-print="1"
+            onClick={handlePrintRows}
+            disabled={loading || !!loadError}
+            style={{
+              ...fi,
+              color: loading || loadError ? '#9ca3af' : '#374151',
+              fontWeight: 600,
+              cursor: loading || loadError ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Print
+          </button>
         </div>
 
         <InlineNotice notice={loadError} />

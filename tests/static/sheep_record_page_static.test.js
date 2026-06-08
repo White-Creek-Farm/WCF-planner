@@ -14,6 +14,7 @@ const mainJsx = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const registry = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 
 describe('SheepFlocksView - saved views', () => {
   it('uses the shared saved-views API on the sheep.flocks surface', () => {
@@ -26,15 +27,20 @@ describe('SheepFlocksView - saved views', () => {
     expect(savedViewsApi).toContain("from('app_saved_views')");
   });
 
-  it('captures and reapplies only the current sheep search/status/sort controls', () => {
+  it('captures and reapplies the current sheep filters/sort/view controls', () => {
     expect(flocksView).toContain('function sheepFlocksViewState()');
-    expect(flocksView).toContain('search: search ||');
-    expect(flocksView).toContain('statusFilter: statusFilter ||');
-    expect(flocksView).toContain('sortBy: sortBy ||');
+    expect(flocksView).toContain('buildViewState({filters, sortRules, viewMode})');
     expect(flocksView).toContain('function applySheepSavedView(view)');
-    expect(flocksView).toContain('setSearch(typeof st.search');
-    expect(flocksView).toContain('setStatusFilter(validStatuses.has(st.statusFilter)');
-    expect(flocksView).toContain('setSortBy(validSorts.has(st.sortBy)');
+    expect(flocksView).toContain('setFilters(st.filters)');
+    expect(flocksView).toContain('setSortRules(Array.isArray(st.sortRules)');
+    expect(flocksView).toContain("setViewMode(st.viewMode === 'flat' ? 'flat' : 'grouped')");
+  });
+
+  it('keeps backward compatibility for legacy sheep saved views', () => {
+    expect(flocksView).toContain('function legacySheepFiltersFromSavedView(st)');
+    expect(flocksView).toContain('function legacySheepSortRulesFromSortBy(sortBy)');
+    expect(flocksView).toContain("if (typeof st.search === 'string' && st.search.trim()) next.textSearch = st.search");
+    expect(flocksView).toContain("setViewMode(st.statusFilter && st.statusFilter !== 'active' ? 'flat' : 'grouped')");
   });
 
   it('renders select/save/update/delete controls with sheep-specific hooks', () => {
@@ -54,6 +60,34 @@ describe('SheepFlocksView - saved views', () => {
     expect(flocksView).toContain('savedViewsError');
     expect(flocksView).toContain('data-sheep-saved-views-error');
     expect(flocksView).toMatch(/\{!loadError && \(\s*<>[\s\S]*?data-sheep-saved-views-row[\s\S]*?Top toolbar/);
+  });
+});
+
+describe('SheepFlocksView - filter/sort parity with cattle herds', () => {
+  it('uses the pure sheep filter module for list derivation', () => {
+    expect(flocksView).toContain("from '../lib/sheepFlockFilters.js'");
+    expect(flocksView).toContain('buildSheepPredicate(effectiveFilters');
+    expect(flocksView).toContain('buildSheepComparator(sortRules');
+    expect(flocksView).toContain('buildLambingEvidence(sheep, lambingRecs)');
+  });
+
+  it('renders grouped filter chips and ordered sort controls', () => {
+    expect(flocksView).toContain('data-sheep-filter-groups');
+    expect(flocksView).toContain('data-sheep-filter-group={group.key}');
+    expect(flocksView).toContain('data-sheep-filter-chip={key}');
+    expect(flocksView).toContain('data-sheep-sort-rule={rule.key}');
+    expect(flocksView).toContain('data-sheep-sort-add');
+    expect(flocksView).toContain('data-sheep-view-mode="grouped"');
+    expect(flocksView).toContain('data-sheep-view-mode="flat"');
+  });
+
+  it('keeps the cattle-style filter families visible', () => {
+    expect(flocksView).toContain("label: 'Core'");
+    expect(flocksView).toContain("label: 'Lambing/Breeding'");
+    expect(flocksView).toContain("label: 'Lineage/Other'");
+    for (const key of ['flockSet', 'sex', 'breed', 'origin', 'weightTier', 'lambedStatus', 'lambCountRange']) {
+      expect(flocksView).toContain(key);
+    }
   });
 });
 
@@ -99,6 +133,26 @@ describe('SheepFlocksView - CSV export', () => {
     ]) {
       expect(flocksView).toContain(`header: '${header}'`);
     }
+  });
+});
+
+describe('SheepFlocksView - print export', () => {
+  it('uses the shared printExport owner for browser print mechanics', () => {
+    expect(printExport).toContain('export function rowsToPrintHtml');
+    expect(printExport).toContain('export function printRows');
+    expect(printExport).toContain('data-print-export-frame');
+    expect(printExport).toContain('window.print');
+    expect(printExport).toContain('escapeHtml');
+  });
+
+  it('prints the current filtered + sorted sheep rows, not the raw sheep list', () => {
+    expect(flocksView).toContain("from '../lib/printExport.js'");
+    expect(flocksView).toContain('function handlePrintRows');
+    expect(flocksView).toContain('data-sheep-flocks-print="1"');
+    expect(flocksView).toContain("title: 'Sheep Flocks'");
+    expect(flocksView).toContain("subtitle: sorted.length + ' filtered sheep'");
+    expect(flocksView).toContain('rows: sorted');
+    expect(flocksView).not.toContain('rows: sheep');
   });
 });
 

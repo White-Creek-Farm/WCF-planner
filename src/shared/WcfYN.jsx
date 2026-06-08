@@ -7,7 +7,7 @@
 import React from 'react';
 
 const WcfYN = ({val, onChange}) => (
-  <div style={{display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+  <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
     {[
       {v: true, l: 'Yes'},
       {v: false, l: 'No'},
@@ -18,7 +18,7 @@ const WcfYN = ({val, onChange}) => (
         onClick={() => onChange(v)}
         style={{
           flex: 1,
-          padding: '9px 0',
+          padding: '10px 0',
           border: 'none',
           fontFamily: 'inherit',
           fontSize: 13,

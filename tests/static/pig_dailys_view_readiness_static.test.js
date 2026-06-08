@@ -8,6 +8,9 @@ const ROOT = path.resolve(__dirname, '..', '..');
 
 const viewSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigDailysView.jsx'), 'utf8');
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
+const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
+const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 
 describe('PigDailysView hub cold-boot readiness', () => {
   it('owns a local records load instead of rendering directly from the app pigDailys prop', () => {
@@ -58,5 +61,136 @@ describe('main.jsx PigDailysView prop handoff', () => {
     const code = render[0].replace(/\/\/[^\n]*/g, '');
     expect(code).toContain('setPigDailys');
     expect(code).not.toMatch(/\bpigDailys\b/);
+  });
+});
+
+describe('PigDailysView saved views (Lane F)', () => {
+  it('uses the shared app_saved_views API owner with a pig.dailys surface', () => {
+    expect(savedViewsApi).toContain("from('app_saved_views')");
+    expect(viewSrc).toContain("from '../lib/savedViewsApi.js'");
+    expect(viewSrc).toContain("const PIG_DAILYS_SURFACE_KEY = 'pig.dailys'");
+    expect(viewSrc).toContain('listSavedViews(sb, PIG_DAILYS_SURFACE_KEY)');
+    expect(viewSrc).toContain('surfaceKey: PIG_DAILYS_SURFACE_KEY');
+    expect(viewSrc).toContain('createSavedView(sb, {');
+    expect(viewSrc).toContain('updateSavedView(sb, selectedView.id');
+    expect(viewSrc).toContain('deleteSavedView(sb, view.id)');
+  });
+
+  it('saves and restores every pig daily filter, including the now-visible team filter', () => {
+    expect(viewSrc).toContain('function pigDailysViewState()');
+    for (const field of ['fBatch', 'fTeam', 'fFrom', 'fTo']) {
+      expect(viewSrc).toContain(`${field}: ${field} || ''`);
+      expect(viewSrc).toContain(`typeof st.${field} === 'string' ? st.${field} : ''`);
+    }
+    expect(viewSrc).toContain('srcFilter: VALID_PIG_DAILY_SOURCE_FILTERS.has(srcFilter) ? srcFilter :');
+    expect(viewSrc).toContain('setSrcFilter(VALID_PIG_DAILY_SOURCE_FILTERS.has(st.srcFilter) ? st.srcFilter :');
+    expect(viewSrc).toContain('data-pig-dailys-team-filter="1"');
+    expect(viewSrc).toContain('setFTeam(e.target.value)');
+  });
+
+  it('renders the saved-view control and degrades saved-view failures locally', () => {
+    const savedViewLoadBlock = viewSrc.slice(
+      viewSrc.indexOf('async function loadSavedViews'),
+      viewSrc.indexOf('useEffect(() => {\n    loadSavedViews();'),
+    );
+    const savedViewHandlersBlock = viewSrc.slice(
+      viewSrc.indexOf('function pigDailysViewState'),
+      viewSrc.indexOf('function handleExportCsv'),
+    );
+    for (const marker of [
+      'data-pig-dailys-saved-views-row',
+      'data-pig-dailys-saved-view-select',
+      'data-pig-dailys-saved-view-save-open',
+      'data-pig-dailys-saved-view-form',
+      'data-pig-dailys-saved-view-name',
+      'data-pig-dailys-saved-view-visibility="private"',
+      'data-pig-dailys-saved-view-visibility="public"',
+      'data-pig-dailys-saved-view-save',
+      'data-pig-dailys-saved-view-update',
+      'data-pig-dailys-saved-view-delete',
+      'data-pig-dailys-saved-views-error',
+    ]) {
+      expect(viewSrc).toContain(marker);
+    }
+    expect(viewSrc).toContain('Saved views unavailable. Filters still work.');
+    expect(savedViewLoadBlock).toContain('setSavedViewsError(e.message || String(e))');
+    expect(savedViewLoadBlock).not.toContain('setLoadError(');
+    expect(savedViewLoadBlock).not.toContain('setNotice(');
+    expect(savedViewHandlersBlock).not.toContain('setLoadError(');
+    expect(savedViewHandlersBlock).not.toContain('setNotice(');
+    expect(viewSrc).toContain('window._wcfConfirmDelete');
+    expect(viewSrc).not.toContain('window.confirm');
+    expect(viewSrc).not.toContain('window.prompt');
+  });
+});
+
+describe('PigDailysView CSV export (Lane K)', () => {
+  it('uses the shared csvExport owner for browser download mechanics', () => {
+    expect(csvExport).toContain('export function rowsToCsv');
+    expect(csvExport).toContain('export function csvFilename');
+    expect(csvExport).toContain('export function downloadCsv');
+    expect(csvExport).toContain('new Blob');
+    expect(csvExport).toContain('URL.createObjectURL');
+  });
+
+  it('exports the current filtered pig daily rows, not raw records', () => {
+    expect(viewSrc).toContain("from '../lib/csvExport.js'");
+    expect(viewSrc).toContain('function handleExportCsv');
+    expect(viewSrc).toContain('data-pig-dailys-export-csv="1"');
+    expect(viewSrc).toContain('rowsToCsv(columns, filtered)');
+    expect(viewSrc).not.toContain('rowsToCsv(columns, records)');
+  });
+
+  it('keeps pig daily export columns useful for daily review', () => {
+    for (const header of [
+      'Date',
+      'Pig group',
+      'Team member',
+      'Source',
+      'Feed lbs',
+      'Pig count',
+      'Fence voltage',
+      'Group moved',
+      'Nipple drinker moved',
+      'Nipple drinker working',
+      'Troughs moved',
+      'Fence walked',
+      'Issues',
+      'Photo count',
+      'Record ID',
+    ]) {
+      expect(viewSrc).toContain(`header: '${header}'`);
+    }
+  });
+
+  it('keeps the CSV fallback browser-only and free of window.alert/confirm', () => {
+    expect(viewSrc).toContain('CSV export is only available in the browser.');
+    expect(viewSrc).not.toContain('window.alert');
+    expect(viewSrc).not.toContain('window.confirm');
+  });
+});
+
+describe('PigDailysView print export (Lane K)', () => {
+  it('uses the shared printExport owner for browser print mechanics', () => {
+    expect(printExport).toContain('export function rowsToPrintHtml');
+    expect(printExport).toContain('export function printRows');
+    expect(printExport).toContain('data-print-export-frame');
+    expect(printExport).toContain('window.print');
+    expect(printExport).toContain('escapeHtml');
+  });
+
+  it('prints the current filtered pig daily rows, not raw records', () => {
+    expect(viewSrc).toContain("from '../lib/printExport.js'");
+    expect(viewSrc).toContain('function handlePrintRows');
+    expect(viewSrc).toContain('data-pig-dailys-print="1"');
+    expect(viewSrc).toContain("subtitle: filtered.length + ' filtered daily reports'");
+    expect(viewSrc).toContain('rows: filtered');
+    expect(viewSrc).not.toContain('rows: records');
+  });
+
+  it('uses one column spec for CSV and print', () => {
+    expect(viewSrc).toContain('function pigDailysExportColumns()');
+    expect(viewSrc).toContain('rowsToCsv(columns, filtered)');
+    expect(viewSrc).toContain('printRows({');
   });
 });

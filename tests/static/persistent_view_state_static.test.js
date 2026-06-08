@@ -36,9 +36,15 @@ describe('persistent list view state hotfix', () => {
     expect(view).toContain("usePersistentViewState('cattle.herds.sortRules'");
   });
 
-  it('persists animal list and daily-report scan filters that navigate to records', () => {
+  it('persists sheep flock filters, sort, and view mode', () => {
+    const view = src('src/sheep/SheepFlocksView.jsx');
+    expect(view).toContain("usePersistentViewState('sheep.flocks.viewMode'");
+    expect(view).toContain("usePersistentViewState('sheep.flocks.filters'");
+    expect(view).toContain("usePersistentViewState('sheep.flocks.sortRules'");
+  });
+
+  it('persists daily-report scan filters that navigate to records', () => {
     const files = [
-      ['src/sheep/SheepFlocksView.jsx', 'sheep.flocks.search'],
       ['src/cattle/CattleDailysView.jsx', 'cattle.dailys.herdFilter'],
       ['src/sheep/SheepDailysView.jsx', 'sheep.dailys.flockFilter'],
       ['src/pig/PigDailysView.jsx', 'pig.dailys.batchFilter'],

@@ -15,6 +15,7 @@
 import React from 'react';
 import {visiblePublicAssignees} from '../lib/tasks.js';
 import {listEligibleAssignees, loadPublicAssigneeAvailability} from '../lib/tasksPublicApi.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
@@ -59,12 +60,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
   const [assigneeOptions, setAssigneeOptions] = React.useState([]);
   const [configLoaded, setConfigLoaded] = React.useState(false);
 
-  const today = React.useMemo(() => {
-    const d = new Date();
-    return (
-      d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-    );
-  }, []);
+  const today = React.useMemo(() => todayCentralISO(), []);
 
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');

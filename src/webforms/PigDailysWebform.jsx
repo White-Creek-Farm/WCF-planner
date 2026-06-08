@@ -18,6 +18,7 @@
 import React from 'react';
 import {useWebformsConfig} from '../contexts/WebformsConfigContext.jsx';
 import {MAX_PHOTOS_PER_REPORT} from '../lib/dailyPhotos.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {useOfflineSubmit} from '../lib/useOfflineSubmit.js';
 import DailyPhotoCapture from './DailyPhotoCapture.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
@@ -33,9 +34,8 @@ export default function PigDailysWebform({sessionSubmitter}) {
   const [wfPhotoStatuses, setWfPhotoStatuses] = React.useState([]);
 
   const [wfForm, setWfForm] = React.useState(() => {
-    const d = new Date();
     return {
-      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      date: todayCentralISO(),
       teamMember: sessionSubmitter?.name || '',
       batchId: '',
       pigCount: '',
@@ -209,9 +209,8 @@ export default function PigDailysWebform({sessionSubmitter}) {
   }
 
   function wfReset() {
-    const d = new Date();
     setWfForm({
-      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      date: todayCentralISO(),
       teamMember: sessionSubmitter?.name || '',
       batchId: '',
       pigCount: '',
@@ -578,10 +577,9 @@ export default function PigDailysWebform({sessionSubmitter}) {
                 />
                 <span
                   onClick={() => {
-                    const d = new Date();
                     setWfForm({
                       ...wfForm,
-                      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+                      date: todayCentralISO(),
                     });
                   }}
                   style={{

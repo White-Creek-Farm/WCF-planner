@@ -44,7 +44,7 @@ export default function InlineNotice({notice, onDismiss}) {
         background: palette.bg,
         border: `1px solid ${palette.border}`,
         color: palette.fg,
-        borderRadius: 8,
+        borderRadius: 6,
         padding: '8px 12px',
         marginBottom: 12,
         display: 'flex',

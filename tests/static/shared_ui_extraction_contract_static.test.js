@@ -169,38 +169,63 @@ describe('shared UI extraction contract', () => {
     expect(main).toContain('window._wcfConfirm = confirmActionPrompt');
   });
 
-  it('locks DeleteModal typed-confirm behavior, dialog semantics, and canonical control tokens', () => {
+  it('locks shared modal focus trap, Escape cancel, and return-focus behavior', () => {
+    const src = readRuntimeSource('src/shared/useModalFocusTrap.js');
+
+    expect(src).toContain('export function useModalFocusTrap');
+    expect(src).toContain("initialFocusSelector = '[data-modal-initial-focus]'");
+    expect(src).toContain('returnFocusRef.current');
+    expect(src).toContain("e.key === 'Escape'");
+    expect(src).toContain("e.key !== 'Tab'");
+    expect(src).toContain('e.shiftKey && active === first');
+    expect(src).toContain('!e.shiftKey && active === last');
+    expect(src).toContain('target.focus()');
+  });
+
+  it('locks DeleteModal typed-confirm behavior, dialog semantics, focus trap, and canonical control tokens', () => {
     const src = readRuntimeSource('src/shared/DeleteModal.jsx');
 
+    expect(src).toContain("import {useModalFocusTrap} from './useModalFocusTrap.js'");
+    expect(src).toContain('useModalFocusTrap({onCancel})');
     expect(src).toContain('data-delete-modal="1"');
     expect(src).toContain('data-overlay-dismiss="disabled"');
+    expect(src).toContain('data-focus-trap="active"');
+    expect(src).toContain('ref={dialogRef}');
     expect(src).toContain('role="dialog"');
     expect(src).toContain('aria-modal="true"');
     expect(src).toContain('aria-labelledby="delete-modal-title"');
     expect(src).toContain('aria-describedby="delete-modal-message"');
+    expect(src).toContain('tabIndex={-1}');
+    expect(src).toContain('onKeyDown={handleDialogKeyDown}');
     expect(src).toContain('aria-label="Type delete to confirm"');
+    expect(src).toContain('data-modal-initial-focus="1"');
     expect(src).toContain('zIndex: 9000');
     expect(src).toContain("typed.trim().toLowerCase() === 'delete'");
     expect(src).toContain("e.key === 'Enter' && ready");
-    expect(src).toContain("e.key === 'Escape'");
     expect(src).toMatch(/Cancel[\s\S]*Delete/);
     expect(src).toContain("padding: '10px 16px'");
     expect(src).not.toMatch(/borderRadius:\s*(?:7|8|12)\b/);
     expect(src).not.toMatch(/window\.(?:alert|confirm|prompt)\s*\(/);
   });
 
-  it('locks ConfirmModal dialog semantics, keyboard cancel, and canonical control tokens', () => {
+  it('locks ConfirmModal dialog semantics, focus trap, and canonical control tokens', () => {
     const src = readRuntimeSource('src/shared/ConfirmModal.jsx');
 
+    expect(src).toContain("import {useModalFocusTrap} from './useModalFocusTrap.js'");
+    expect(src).toContain('useModalFocusTrap({onCancel})');
     expect(src).toContain('data-confirm-modal="1"');
     expect(src).toContain('data-overlay-dismiss="disabled"');
+    expect(src).toContain('data-focus-trap="active"');
+    expect(src).toContain('ref={dialogRef}');
     expect(src).toContain('role="dialog"');
     expect(src).toContain('aria-modal="true"');
     expect(src).toContain('aria-labelledby="confirm-modal-title"');
     expect(src).toContain('aria-describedby="confirm-modal-message"');
+    expect(src).toContain('tabIndex={-1}');
+    expect(src).toContain('onKeyDown={handleDialogKeyDown}');
     expect(src).toContain("const label = confirmLabel || 'Confirm'");
     expect(src).toContain('autoFocus');
-    expect(src).toContain("e.key === 'Escape'");
+    expect(src).toContain('data-modal-initial-focus="1"');
     expect(src).toMatch(/Cancel[\s\S]*\{label\}/);
     expect(src).toContain('zIndex: 9000');
     expect(src).toContain("padding: '10px 16px'");

@@ -21,6 +21,7 @@
 // submission and atomicity matters.
 import React from 'react';
 import {formatBroilerBatchLabel} from '../lib/broilerBatchMeta.js';
+import {todayCentralISO} from '../lib/dateUtils.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
@@ -95,10 +96,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
   }, []);
 
   React.useEffect(function () {
-    var d = new Date();
-    setDate(
-      d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
-    );
+    setDate(todayCentralISO());
   }, []);
 
   React.useEffect(function () {
@@ -328,7 +326,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
       return;
     }
     if (isRequired('team_member') && !teamMember) {
-      setErr(getLabel('team_member', 'Team Member') + ' is required.');
+      setErr(getLabel('team_member', 'Team member') + ' is required.');
       return;
     }
     // Per-program validation. None of these touch DB; they all return
@@ -794,7 +792,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
         </div>
 
         <div style={cardS}>
-          <LockedSubmitter name={lockedName} label={getLabel('team_member', 'Team Member')} labelStyle={lblS} />
+          <LockedSubmitter name={lockedName} label={getLabel('team_member', 'Team member')} labelStyle={lblS} />
         </div>
 
         <div style={cardS}>
