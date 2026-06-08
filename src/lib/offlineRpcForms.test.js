@@ -191,3 +191,136 @@ describe('offlineRpcForms registry — weigh_in_session_batch', () => {
     expect('notes' in req3.args.parent_in).toBe(false);
   });
 });
+
+// ============================================================================
+// Lane H registry coverage — equipment_fueling buildArgs
+// ----------------------------------------------------------------------------
+// Single-parent RPC (no children). buildArgs is a thin shaper that stamps the
+// hook-minted parentId/csid onto an already-computed payload. The form does
+// the heavy field math (service intervals, every-fillup checks, photo URLs);
+// the registry must not re-derive or drop any of it, and must be byte-stable
+// across replays.
+// ============================================================================
+
+const HOURS_FUELING_PAYLOAD = {
+  equipment_id: 'eq-tractor-1',
+  date: '2026-06-08',
+  team_member: 'BMAN',
+  fuel_type: 'diesel',
+  gallons: 12.5,
+  def_gallons: 2,
+  fuel_cost_per_gal: null,
+  hours_reading: 250,
+  km_reading: null,
+  every_fillup_check: [{id: 'oil', label: 'Check oil', ok: true}],
+  service_intervals_completed: [{interval: 250, kind: 'hours', label: '250h', completed_at: '2026-06-08'}],
+  photos: [
+    {
+      name: 'side.jpg',
+      path: 'fueling/tractor/1-side.jpg',
+      url: 'https://x/side.jpg',
+      uploadedAt: '2026-06-08T10:00:00.000Z',
+    },
+  ],
+  comments: 'left front tire low',
+  source: 'fuel_log_webform',
+  podio_source_app: null,
+};
+
+const KM_FUELING_PAYLOAD = {
+  equipment_id: 'eq-truck-1',
+  date: '2026-06-08',
+  team_member: 'BMAN',
+  fuel_type: 'gasoline',
+  gallons: 20,
+  def_gallons: null,
+  fuel_cost_per_gal: null,
+  hours_reading: null,
+  km_reading: 80500,
+  every_fillup_check: [],
+  service_intervals_completed: [],
+  photos: [],
+  comments: null,
+  source: 'fuel_log_webform',
+  podio_source_app: null,
+};
+
+describe('offlineRpcForms registry — equipment_fueling', () => {
+  it('exports equipment_fueling as a known form_kind mapping to submit_equipment_fueling', () => {
+    expect(RPC_FORM_KINDS).toContain('equipment_fueling');
+    const cfg = getRpcFormConfig('equipment_fueling');
+    expect(cfg.rpc).toBe('submit_equipment_fueling');
+    expect(typeof cfg.buildArgs).toBe('function');
+  });
+
+  it('is a single-parent RPC: no children_in / entries_in key', () => {
+    const req = buildRpcRequest('equipment_fueling', HOURS_FUELING_PAYLOAD, {csid: 'csid-h', parentId: 'EF-h'});
+    expect(req.rpc).toBe('submit_equipment_fueling');
+    expect('parent_in' in req.args).toBe(true);
+    expect('children_in' in req.args).toBe(false);
+    expect('entries_in' in req.args).toBe(false);
+  });
+
+  it('stamps hook-minted id + client_submission_id onto parent_in', () => {
+    const req = buildRpcRequest('equipment_fueling', HOURS_FUELING_PAYLOAD, {csid: 'csid-h', parentId: 'EF-h'});
+    expect(req.args.parent_in.id).toBe('EF-h');
+    expect(req.args.parent_in.client_submission_id).toBe('csid-h');
+  });
+
+  it('hours-tracked payload carries hours_reading + null km_reading verbatim', () => {
+    const req = buildRpcRequest('equipment_fueling', HOURS_FUELING_PAYLOAD, {csid: 'c', parentId: 'P'});
+    expect(req.args.parent_in.hours_reading).toBe(250);
+    expect(req.args.parent_in.km_reading).toBeNull();
+    expect(req.args.parent_in.equipment_id).toBe('eq-tractor-1');
+    expect(req.args.parent_in.gallons).toBe(12.5);
+    expect(req.args.parent_in.def_gallons).toBe(2);
+    expect(req.args.parent_in.fuel_type).toBe('diesel');
+    expect(req.args.parent_in.source).toBe('fuel_log_webform');
+  });
+
+  it('km-tracked payload carries km_reading + null hours_reading verbatim', () => {
+    const req = buildRpcRequest('equipment_fueling', KM_FUELING_PAYLOAD, {csid: 'c', parentId: 'P'});
+    expect(req.args.parent_in.km_reading).toBe(80500);
+    expect(req.args.parent_in.hours_reading).toBeNull();
+    expect(req.args.parent_in.def_gallons).toBeNull();
+  });
+
+  it('passes already-computed checklist + photo data straight through (no re-derivation)', () => {
+    const req = buildRpcRequest('equipment_fueling', HOURS_FUELING_PAYLOAD, {csid: 'c', parentId: 'P'});
+    expect(req.args.parent_in.every_fillup_check).toEqual(HOURS_FUELING_PAYLOAD.every_fillup_check);
+    expect(req.args.parent_in.service_intervals_completed).toEqual(HOURS_FUELING_PAYLOAD.service_intervals_completed);
+    expect(req.args.parent_in.photos).toEqual(HOURS_FUELING_PAYLOAD.photos);
+    expect(req.args.parent_in.comments).toBe('left front tire low');
+  });
+
+  it('defaults array/scalar fields when the payload omits them', () => {
+    const minimal = {
+      equipment_id: 'eq-x',
+      date: '2026-06-08',
+      team_member: 'BMAN',
+      gallons: 5,
+      hours_reading: 10,
+    };
+    const req = buildRpcRequest('equipment_fueling', minimal, {csid: 'c', parentId: 'P'});
+    expect(req.args.parent_in.every_fillup_check).toEqual([]);
+    expect(req.args.parent_in.service_intervals_completed).toEqual([]);
+    expect(req.args.parent_in.photos).toEqual([]);
+    expect(req.args.parent_in.fuel_type).toBeNull();
+    expect(req.args.parent_in.def_gallons).toBeNull();
+    expect(req.args.parent_in.fuel_cost_per_gal).toBeNull();
+    expect(req.args.parent_in.km_reading).toBeNull();
+    expect(req.args.parent_in.comments).toBeNull();
+    expect(req.args.parent_in.source).toBe('fuel_log_webform');
+    expect(req.args.parent_in.podio_source_app).toBeNull();
+  });
+
+  it('byte-identical args on repeated buildRpcRequest(payload, ids) calls (replay determinism)', () => {
+    // The queue worker re-calls sb.rpc(record.rpc, record.args) on every drain.
+    // buildArgs must be pure over (payload, ids) — no Date.now()/Math.random()
+    // inside — so a queued fueling replays the exact same parent every retry.
+    const ids = {csid: 'csid-det', parentId: 'EF-det'};
+    const a = buildRpcRequest('equipment_fueling', HOURS_FUELING_PAYLOAD, ids);
+    const b = buildRpcRequest('equipment_fueling', HOURS_FUELING_PAYLOAD, ids);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});

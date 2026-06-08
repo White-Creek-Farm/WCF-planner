@@ -171,6 +171,70 @@ const REGISTRY = Object.freeze({
       };
     },
   }),
+  // -----------------------------------------------------------------------
+  // Lane H — Equipment fueling offline RPC submit
+  // -----------------------------------------------------------------------
+  // Wraps mig 047's submit_equipment_fueling(parent_in jsonb). SECDEF,
+  // anon+authenticated EXECUTE. INSERTs one equipment_fuelings row AND bumps
+  // equipment.current_<unit> via GREATEST in one transaction. Idempotent by
+  // client_submission_id (ON CONFLICT DO NOTHING + fallback SELECT) — no
+  // 23505 ever surfaces; the hook treats any 23xxx/P0001 as schema-class.
+  //
+  // Single parent, no children (mirrors task_submit's shape, not
+  // add_feed_batch's). buildArgs is a thin shaper: it stamps the hook-minted
+  // parentId/csid onto the otherwise pre-computed payload. ALL field math
+  // (service_intervals_completed divisor rule, every_fillup_check, attachment
+  // completions, photo URLs) is done in the form's submit() and arrives in
+  // `payload` already shaped — so buildArgs stays pure and replay-stable.
+  //
+  // Photos: NOT a hasPhoto entry. The form uploads photos synchronously to
+  // the equipment-maintenance-docs bucket on file-input change (existing
+  // model, unchanged this lane). Whatever photo descriptors already landed
+  // are carried through `payload.photos` as plain data — the queued RPC
+  // replay re-sends the same URLs; no photo-blob offline queue is added.
+  //
+  // tracking_unit contract: the RPC requires hours_reading>0 for
+  // tracking_unit=hours (km_reading nulled) and the mirror for km. The form
+  // sets exactly one of the two on the payload by the piece's tracking_unit,
+  // so buildArgs passes both through verbatim (one is always null).
+  equipment_fueling: Object.freeze({
+    rpc: 'submit_equipment_fueling',
+    /**
+     * @param {object} payload — fully-computed fueling record minus identity.
+     *   {equipment_id, date, team_member, fuel_type,
+     *    gallons, def_gallons, fuel_cost_per_gal,
+     *    hours_reading, km_reading,
+     *    every_fillup_check, service_intervals_completed,
+     *    photos, comments, source, podio_source_app}
+     * @param {{csid: string, parentId: string}} ids
+     * @returns {{rpc: string, args: {parent_in: object}}}
+     */
+    buildArgs(payload, {csid, parentId}) {
+      const parent_in = {
+        id: parentId,
+        client_submission_id: csid,
+        equipment_id: payload.equipment_id,
+        date: payload.date,
+        team_member: payload.team_member,
+        fuel_type: payload.fuel_type ?? null,
+        gallons: payload.gallons,
+        def_gallons: payload.def_gallons ?? null,
+        fuel_cost_per_gal: payload.fuel_cost_per_gal ?? null,
+        hours_reading: payload.hours_reading ?? null,
+        km_reading: payload.km_reading ?? null,
+        every_fillup_check: payload.every_fillup_check ?? [],
+        service_intervals_completed: payload.service_intervals_completed ?? [],
+        photos: payload.photos ?? [],
+        comments: payload.comments ?? null,
+        source: payload.source ?? 'fuel_log_webform',
+        podio_source_app: payload.podio_source_app ?? null,
+      };
+      return {
+        rpc: 'submit_equipment_fueling',
+        args: {parent_in},
+      };
+    },
+  }),
   add_feed_batch: Object.freeze({
     rpc: 'submit_add_feed_batch',
     /**

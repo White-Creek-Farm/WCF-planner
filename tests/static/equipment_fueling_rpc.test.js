@@ -135,17 +135,37 @@ describe('Mig 047 — historical reconciliation CTE', () => {
   });
 });
 
-describe('EquipmentFuelingWebform — RPC wiring + client validation', () => {
-  it("calls sb.rpc('submit_equipment_fueling', {parent_in: rec})", () => {
-    expect(formSrc).toMatch(/sb\.rpc\(\s*'submit_equipment_fueling'\s*,\s*\{\s*parent_in:\s*rec\s*\}\s*\)/);
+describe('EquipmentFuelingWebform — offline RPC wiring + client validation', () => {
+  // Lane H: submission moved off the direct sb.rpc call onto the parent-aware
+  // offline RPC queue (useOfflineRpcSubmit('equipment_fueling')). The RPC
+  // contract (mig 047) is unchanged — only the client transport changed.
+  it("submits through useOfflineRpcSubmit('equipment_fueling')", () => {
+    expect(formSrc).toMatch(/import\s*\{\s*useOfflineRpcSubmit\s*\}\s*from\s*'\.\.\/lib\/useOfflineRpcSubmit\.js'/);
+    expect(formSrc).toMatch(/useOfflineRpcSubmit\(\s*'equipment_fueling'\s*\)/);
   });
 
-  it('imports newClientSubmissionId and mints a fresh csid for each submit', () => {
-    expect(formSrc).toMatch(/import\s*\{\s*newClientSubmissionId\s*\}\s*from\s*'\.\.\/lib\/clientSubmissionId\.js'/);
-    expect(formSrc).toMatch(/client_submission_id:\s*newClientSubmissionId\(\)/);
+  it('no longer calls sb.rpc directly for the fueling submit (queue owns the call)', () => {
+    expect(formSrc).not.toMatch(/sb\.rpc\(\s*'submit_equipment_fueling'/);
   });
 
-  it('rejects blank reading client-side before calling the RPC', () => {
+  it('no longer mints the csid inline (the hook owns client_submission_id + parent id)', () => {
+    expect(formSrc).not.toMatch(/newClientSubmissionId/);
+    expect(formSrc).not.toMatch(/client_submission_id:/);
+  });
+
+  it('tracks doneState (none/synced/queued) instead of a boolean done flag', () => {
+    expect(formSrc).toMatch(/setDoneState\(/);
+    expect(formSrc).toMatch(/data-submit-state=\{doneState\}/);
+    expect(formSrc).not.toMatch(/const \[done, setDone\]/);
+  });
+
+  it('surfaces stuck submissions via StuckSubmissionsModal + a stuck CTA', () => {
+    expect(formSrc).toMatch(/import\s+StuckSubmissionsModal\s+from\s+'\.\/StuckSubmissionsModal\.jsx'/);
+    expect(formSrc).toMatch(/<StuckSubmissionsModal/);
+    expect(formSrc).toMatch(/data-stuck-button="1"/);
+  });
+
+  it('rejects blank reading client-side before queuing the submit', () => {
     // The previously-loose hasReading guard now surfaces "Current Hours/KM
     // required" before invoking the RPC. Anchor on the inline error message.
     expect(formSrc).toMatch(/Current\s*'\s*\+\s*readingLabel\s*\+\s*'\s*required/);

@@ -8,9 +8,10 @@
 // are actually due given the reading the team just entered + history.
 import React from 'react';
 import {computeDueIntervals} from '../lib/equipment.js';
-import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
+import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 import ManualsCard from '../equipment/ManualsCard.jsx';
 import LockedSubmitter from './LockedSubmitter.jsx';
+import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
@@ -35,9 +36,30 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
   const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
   const [comments, setComments] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
-  const [done, setDone] = React.useState(false);
+  // 'none' | 'synced' | 'queued' — replaces the prior boolean `done`.
+  // synced = RPC landed online. queued = persisted in IDB; replays on
+  // online event / 60s tick / next mount.
+  const [doneState, setDoneState] = React.useState('none');
+  const [stuckOpen, setStuckOpen] = React.useState(false);
   const [err, setErr] = React.useState('');
   const [history, setHistory] = React.useState([]); // prior fuelings on this piece (for due-interval math)
+
+  // Lane H: submit through the parent-aware offline RPC queue. The RPC owns
+  // idempotency (csid) + the atomic insert+parent-bump (mig 047). Network /
+  // transient failures queue to IndexedDB and replay automatically; 3 failed
+  // replays surface in StuckSubmissionsModal.
+  const {submit: queueSubmit, stuckRows, retryStuck, discardStuck} = useOfflineRpcSubmit('equipment_fueling');
+
+  // Open the stuck modal automatically the first time we observe stuck rows
+  // (mount or after a failed sync pass). Operator can close it; we don't
+  // re-open on every render. Mirrors FuelSupply / AddFeed.
+  const initialStuckShownRef = React.useRef(false);
+  React.useEffect(() => {
+    if (stuckRows.length > 0 && !initialStuckShownRef.current) {
+      initialStuckShownRef.current = true;
+      setStuckOpen(true);
+    }
+  }, [stuckRows.length]);
 
   const eq = selectedEq;
   const fuelLabel = eq?.fuel_type === 'gasoline' ? 'Gasoline' : eq?.fuel_type === 'diesel' ? 'Diesel' : 'Fuel';
@@ -306,17 +328,22 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
     });
 
     const defNum = parseFloat(defGallons);
-    // Mig 047 SECURITY DEFINER RPC. INSERTs the equipment_fuelings row AND
-    // updates equipment.current_<unit> atomically with anon EXECUTE — the
-    // prior pattern (synchronous .insert + silent .update on equipment) was
-    // broken under prod RLS because anon has no UPDATE policy on equipment;
-    // the parent row drifted behind every public submission. The RPC's
-    // GREATEST/only-go-forward semantic means a public submission can only
-    // raise current_<unit> — admin corrections downward still go through
-    // the authenticated /fleet detail page.
-    const rec = {
-      id: 'fuel-webform-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-      client_submission_id: newClientSubmissionId(),
+    // Mig 047 SECURITY DEFINER RPC, reached through useOfflineRpcSubmit. The
+    // RPC INSERTs the equipment_fuelings row AND updates
+    // equipment.current_<unit> atomically with anon EXECUTE — the prior
+    // pattern (synchronous .insert + silent .update on equipment) was broken
+    // under prod RLS because anon has no UPDATE policy on equipment; the
+    // parent row drifted behind every public submission. The RPC's
+    // GREATEST/only-go-forward semantic means a submission can only raise
+    // current_<unit> — admin corrections downward still go through the
+    // authenticated /fleet detail page.
+    //
+    // The hook mints a stable client_submission_id + parent id once at
+    // submit() entry and persists them, so an offline-queued retry replays
+    // byte-identical args (the registry's buildArgs is pure over this
+    // payload). We pass the fully-computed record minus identity; the
+    // registry stamps id + csid.
+    const payload = {
       equipment_id: eq.id,
       date,
       team_member: teamMember,
@@ -334,14 +361,16 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
       podio_source_app: null,
     };
     setSubmitting(true);
-    const {error} = await sb.rpc('submit_equipment_fueling', {parent_in: rec});
-    if (error) {
-      setErr('Save failed: ' + error.message);
+    try {
+      const result = await queueSubmit(payload);
+      setDoneState(result.state);
+    } catch (e) {
+      // Schema/validation error — useOfflineRpcSubmit throws on PGRST/22*/23*/
+      // P0001 instead of silently queuing a deterministically-bad submission.
+      setErr('Save failed: ' + (e && e.message ? e.message : String(e)));
+    } finally {
       setSubmitting(false);
-      return;
     }
-    setSubmitting(false);
-    setDone(true);
   }
 
   const wfBg = {
@@ -398,37 +427,51 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
     </div>
   );
 
-  if (done)
+  if (doneState !== 'none') {
+    const queued = doneState === 'queued';
     return (
       <div style={wfBg}>
-        <div style={{maxWidth: 480, margin: '0 auto', paddingTop: '2rem', textAlign: 'center'}}>
+        <div
+          data-submit-state={doneState}
+          style={{maxWidth: 480, margin: '0 auto', paddingTop: '2rem', textAlign: 'center'}}
+        >
           {logoEl}
-          <div style={{fontSize: 56, marginBottom: 12}}>{'✅'}</div>
-          <div style={{fontSize: 20, fontWeight: 700, color: '#57534e', marginBottom: 8}}>Fueling saved</div>
-          <div style={{fontSize: 14, color: '#4b5563', marginBottom: 28}}>
+          <div style={{fontSize: 56, marginBottom: 12}}>{queued ? '📡' : '✅'}</div>
+          <div style={{fontSize: 20, fontWeight: 700, color: queued ? '#92400e' : '#57534e', marginBottom: 8}}>
+            {queued ? 'Saved on this device' : 'Fueling saved'}
+          </div>
+          <div style={{fontSize: 14, color: '#4b5563', marginBottom: queued ? 12 : 28}}>
             {eq ? eq.name : ''} · {gallons} gal {fuelLabel}
             {defGallons ? ' + ' + defGallons + ' gal DEF' : ''}
           </div>
+          {queued && (
+            <div
+              style={{
+                fontSize: 12,
+                color: '#78716c',
+                marginBottom: 28,
+                lineHeight: 1.5,
+                background: '#fef3c7',
+                border: '1px solid #fde68a',
+                borderRadius: 8,
+                padding: '8px 12px',
+                textAlign: 'left',
+              }}
+            >
+              No connection right now. Your fueling is queued and will sync as soon as the device is back online. The
+              equipment reading updates once it syncs.
+            </div>
+          )}
           <button
             onClick={() => {
-              if (isQuick) {
-                setSelectedEq(null);
-                setDone(false);
-                setGallons('');
-                setDefGallons('');
-                setReading('');
-                setComments('');
-                setFillupTicks(new Set());
-                setIntervalTicks(new Set());
-              } else {
-                setDone(false);
-                setGallons('');
-                setDefGallons('');
-                setReading('');
-                setComments('');
-                setFillupTicks(new Set());
-                setIntervalTicks(new Set());
-              }
+              if (isQuick) setSelectedEq(null);
+              setDoneState('none');
+              setGallons('');
+              setDefGallons('');
+              setReading('');
+              setComments('');
+              setFillupTicks(new Set());
+              setIntervalTicks(new Set());
             }}
             style={{
               width: '100%',
@@ -466,6 +509,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
         </div>
       </div>
     );
+  }
 
   return (
     <div style={wfBg}>
@@ -486,6 +530,29 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
         >
           {'‹ Back'}
         </button>
+
+        {stuckRows.length > 0 && (
+          <button
+            onClick={() => setStuckOpen(true)}
+            data-stuck-button="1"
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              borderRadius: 10,
+              border: '1px solid #fde68a',
+              background: '#fef3c7',
+              color: '#92400e',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              marginBottom: 12,
+              textAlign: 'left',
+            }}
+          >
+            ⚠ {stuckRows.length} unsynced fueling{stuckRows.length === 1 ? '' : 's'} — tap to review
+          </button>
+        )}
 
         {/* Header tile: what piece am I fueling? */}
         <div style={cardS}>
@@ -1175,6 +1242,32 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
           {submitting ? 'Saving…' : 'Save Fueling'}
         </button>
       </div>
+
+      {stuckOpen && (
+        <StuckSubmissionsModal
+          rows={stuckRows}
+          formLabel="fueling"
+          describeRow={(row) => {
+            const parent = row.record && row.record.args && row.record.args.parent_in;
+            const dateStr = parent ? parent.date : '?';
+            const galStr = parent && parent.gallons != null ? `${parent.gallons} gal` : '?';
+            const reading =
+              parent && parent.hours_reading != null
+                ? `${parent.hours_reading} h`
+                : parent && parent.km_reading != null
+                  ? `${parent.km_reading} km`
+                  : '?';
+            return `${dateStr} · ${galStr} · ${reading} (not yet sent)`;
+          }}
+          onRetry={async (csid) => {
+            await retryStuck(csid);
+          }}
+          onDiscard={async (csid) => {
+            await discardStuck(csid);
+          }}
+          onClose={() => setStuckOpen(false)}
+        />
+      )}
     </div>
   );
 }
