@@ -331,7 +331,7 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
 
         <RecordTitle>{cow.tag ? '#' + cow.tag : 'Untagged animal'}</RecordTitle>
 
-        {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
+        {notice && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
 
         <CowDetail
           key={cow.id}
