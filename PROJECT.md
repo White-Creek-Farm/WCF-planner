@@ -8,12 +8,12 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-08.
-Current pushed source checkpoint: `origin/main` commit `99e933a` - homepage
-redesign CP3 plus the merged outstanding build queue for Lanes H/I/D/F/J/K.
-Netlify auto-deploys from GitHub `main`; the earlier `91546a7` seven-lane ship
-was live-verified by bundle hash, while the later `99e933a` push has constituent
-local/Playwright validation recorded but no post-push live probe in this project
-map. Migration series live through 100.
+Current pushed source checkpoint: `origin/main` commit `d71f3de` - Lane E CP2
+Sheep daily shared controls plus Lane F/K shared weigh-in list tile and export
+builders, on top of the homepage/build-queue checkpoints. Netlify auto-deploys
+from GitHub `main`; `d71f3de` was live-verified on 2026-06-08 by HTTP 200 and
+bundle hash `assets/main-C5KiCik5.js` (matching the local merged build).
+Migration series live through 100.
 Production URL: https://wcfplanner.com.
 
 ---
@@ -158,34 +158,33 @@ plus a guard update in the same change.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Pushed source of truth: `origin/main` at `99e933a`
-  (`merge: integrate outstanding build queue (lanes H/I/D/F/J/K) into main`).
-  This includes homepage redesign CP3 (`93b42fd`) and the Codex build-queue
-  merge (`d716d31`) on top of the earlier runtime/CSV work.
-- Live verification: the `91546a7` seven-lane ship was verified at
-  wcfplanner.com by Netlify bundle-hash match (`main-DZOL_lsp.js`), HTTP 200.
-  The later `99e933a` pushed checkpoint has green constituent local validation
-  and focused Playwright before push/merge; no post-push live probe is recorded
-  in this project map.
-- Local main dirty state after the 2026-06-08 wrap: only the untracked homepage
-  design reference folder remains (`WCF Planner Redesign/`). It is intentionally
-  excluded from the CP3 commit and is not production source.
-- Parallel Codex worktree `C:\Users\Ronni\WCF-planner-codex` is reset to current
-  `main`: detached HEAD at `99e933a`, clean working tree. The merged
-  `codex/outstanding-build-queue` branch (was `d716d31`) plus the older stale
-  `codex/lane-f-weighin-saved-views`, `codex/lane-k-sheep-flocks-csv`, and
-  `codex/parallel-worktree` branches were pruned after the 2026-06-08 merge;
-  `main` is the only remaining branch. Start a new Codex lane by creating a fresh
-  `codex/<lane>` branch from current `main`.
-- Open code gates: none recorded for `origin/main` at `99e933a`. No PROD
-  migration, Storage, Vault, or Edge Function deploy gate is open.
-- Historical verified baseline before the later runtime queue: commit
-  `91546a7` (2026-06-08 seven-lane ship — see Latest Shipped Checkpoint). Deploy
-  verified live at wcfplanner.com by Netlify bundle-hash match
-  (`main-DZOL_lsp.js`) to the local integrated build, HTTP 200.
-- Integrated-`main` validation at ship: `npm run lint` 0 errors,
-  `npm test` 176 files / 4827 passed, `npm run build` green.
-- Open gates for pushed `origin/main`: none.
+- Pushed source of truth: `origin/main` at `d71f3de`
+  (`merge: integrate Lane F/K shared weigh-in list tile + export builders into
+  main`). On top of the prior `99e933a` checkpoint this session added, in order:
+  Lane I CP4 daily action-button cleanup (`859696a`); Codex Lane J image
+  alt-text policy + Lane F CP2 weigh-in empty-state parity (`04fd932`, merged
+  `09d8c09`); Lane E CP2 Sheep daily shared-control adoption (`6e31e7f`); and
+  Lane F/K shared weigh-in list tile + export builders (`3e18623`, merged
+  `d71f3de`). Code/tests only — no new PROD migration, Storage, Vault, or Edge
+  Function work this session.
+- Live verification: `https://wcfplanner.com/` returned HTTP 200 after the
+  `d71f3de` push and served `assets/main-C5KiCik5.js`, matching the local merged
+  build artifact. This confirms the Lane E CP2 + Lane F/K push deployed, not
+  merely that `origin/main` advanced.
+- Integrated-`main` validation before the `d71f3de` push: `npm run lint` 0
+  errors, `npm test` 186 files / 5108 passed, `npm run build` green.
+- Local main dirty state after this wrap: only untracked local artifacts remain —
+  the homepage design reference folder (`WCF Planner Redesign/`) and the
+  throwaway before/after screenshot folders (`cp4-shots/`, `lanee-shots/`). None
+  are production source; all are intentionally excluded from commits.
+- Parallel Codex worktree `C:\Users\Ronni\WCF-planner-codex` holds the two Codex
+  lanes shipped this session: `codex/lane-j-alt-f-empty-states` (at `04fd932`,
+  merged via `09d8c09`) and `codex/lane-fk-weighin-list-primitives` (at
+  `3e18623`, merged via `d71f3de`, currently checked out and clean but behind
+  current `origin/main`). These merged branches are not yet pruned. Start a new
+  Codex lane by creating a fresh `codex/<lane>` branch from current `main`.
+- Open code gates: none for `origin/main` at `d71f3de`. No PROD migration,
+  Storage, Vault, or Edge Function deploy gate is open.
 - PROD-applied numbered migration series is live through `100`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
   cleanup `085` was applied before unique-index migration `084`.
@@ -236,6 +235,39 @@ listed:
 Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
 work:
+
+- Record-page + weigh-in shared-primitive lanes, pushed source checkpoint
+  `d71f3de` (2026-06-08). Code/tests only; no PROD migration, Storage, Vault, or
+  Edge Function work. Integrated validation before push: lint 0 errors,
+  `npm test` 186 files / 5108 passed, build green. Live post-push probe:
+  `https://wcfplanner.com/` HTTP 200 serving `assets/main-C5KiCik5.js`, matching
+  the local merged build. Landed:
+  - Lane I CP4 (`859696a`): the six daily record pages route Retry/Revert/Save/
+    Delete through shared canonical action buttons in
+    `src/shared/recordPageControls.jsx` (`recordSaveButton` /
+    `recordSecondaryButton` / `recordDeleteButton`; radius 6, 10px16px pad,
+    fontSize 13). Retired 7/8 radii and bespoke action padding removed; Sheep
+    Save normalized blue→brand green. Add/Remove-row buttons left out of scope.
+    Guard slice in `daily_record_pages_shared_controls_static.test.js`.
+  - Lane J + Lane F CP2 (`04fd932`, merged `09d8c09`): image alt-text policy —
+    `src/lib/imageAlt.js` (`imageAltText`) drives every user-media `<img>` owner
+    with contextual fallbacks and decorative `aria-hidden`; guard
+    `image_alt_text_policy_static.test.js`. Weigh-in list empty states now
+    distinguish true-empty from filtered/search-no-results across cattle/sheep/
+    livestock, preserving load-failure suppression.
+  - Lane E CP2 (`6e31e7f`): `SheepDailyPage` drops its local `inputStyle`
+    primitive and adopts the shared `recordControl` (via the `inp` alias the
+    other daily pages use); feed/mineral row controls derive from it. Behavior,
+    options, validation, and RPC paths unchanged; `btnSmall` row buttons kept.
+    Sheep parity slice added to the shared-controls guard.
+  - Lane F/K (`3e18623`, merged `d71f3de`): shared
+    `src/shared/WeighInSessionListTile.jsx` (tile chrome + status badge with
+    beforeStatus/afterCount/children slots, embedded variant) and
+    `src/lib/weighInSessionExports.js` column builders
+    (`buildRuminantWeighInSessionColumns`, `buildLivestockWeighInSessionColumns`,
+    `averageEntryWeight`). Cattle/sheep/livestock views render through the tile
+    and still export the filtered set; the weigh-in static guard now watches
+    shared tile/helper ownership instead of duplicated view literals.
 
 - Homepage redesign CP3 + outstanding build queue merge, pushed source
   checkpoint `99e933a` (2026-06-08, commits `93b42fd`, `d716d31`, merge
@@ -449,16 +481,18 @@ work:
 ### Current Local Gates
 
 No PROD migration, storage, deploy, Vault, commit, push, or merge gate is open
-for committed source as of `origin/main` `99e933a`.
+for committed source as of `origin/main` `d71f3de`.
 
 - Main CC worktree `C:\Users\Ronni\WCF-planner` is on `main` at
-  `origin/main` `99e933a`. The only untracked local artifact is the homepage
-  design reference folder: `WCF Planner Redesign/`.
-- Codex worktree `C:\Users\Ronni\WCF-planner-codex` is already reset to current
-  `main` (detached HEAD at `99e933a`, clean). The merged
-  `codex/outstanding-build-queue` branch and the older stale `codex/*` branches
-  were pruned; `main` is the only branch. Create a fresh `codex/<lane>` branch
-  from `main` for the next Codex build lane.
+  `origin/main` `d71f3de`. The only untracked local artifacts are the homepage
+  design reference folder (`WCF Planner Redesign/`) and throwaway screenshot
+  folders (`cp4-shots/`, `lanee-shots/`).
+- Codex worktree `C:\Users\Ronni\WCF-planner-codex` is clean on
+  `codex/lane-fk-weighin-list-primitives` at `3e18623`, already merged via
+  `d71f3de` and currently behind `origin/main`. The older merged
+  `codex/lane-j-alt-f-empty-states` branch also remains local. Create a fresh
+  `codex/<lane>` branch from current `main` for the next Codex build lane, and
+  prune merged Codex branches only after Ronnie confirms branch cleanup.
 
 If a new session sees additional dirty state, inspect it before planning; do not
 assume it is disposable. Create new scoped worktrees/branches only for active
@@ -501,13 +535,15 @@ canonical dialog semantics), D (EquipmentDetail autosave flush + re-queue), E
 `app_saved_views` surface_key `sheep.flocks`), G (combined Recently Deleted
 Records recovery surface), and K-narrow (cattle-herd CSV export). The larger
 Lanes A/D/E/F/K remain open for their unshipped scope (see the lane list below).
-Additional 2026-06-08 shipped queue now on `origin/main` `99e933a`: Lane H
+Additional 2026-06-08 shipped queue now on `origin/main` `d71f3de`: Lane H
 EquipmentFueling offline queue + stuck recovery plus terminal-copy parity; Lane
-E Pig batch `RecordPageBody` CP1; Lane I homepage redesign CP1-CP3 plus shared
-token guard slice; Lane D save-model guard slice; Lane F saved-view/filter/sort
-parity across the Codex queue; Lane J modal focus/central-date policy slice; and
-Lane K CSV/print expansion through the listed daily, weigh-in, fuel-log, and
-inventory surfaces. No local-only build checkpoint remains in the queue.
+E Pig batch `RecordPageBody` CP1 plus Sheep daily CP2 shared-control parity;
+Lane I homepage redesign CP1-CP3 plus shared token/action-button guard slices;
+Lane D save-model guard slice; Lane F saved-view/filter/sort parity, weigh-in
+empty-state parity, and shared weigh-in tile primitives; Lane J modal focus/
+central-date policy plus image alt-text policy; and Lane K CSV/print expansion
+through the listed daily, weigh-in, fuel-log, inventory surfaces plus shared
+weigh-in column builders. No local-only build checkpoint remains in the queue.
 
 Detailed parity evidence lives in
 `C:\Users\Ronni\cc-research\parity-audit-2026-06-05-CC.md`; line-level findings
@@ -561,11 +597,18 @@ below.
    Shipped 2026-06-08: `EquipmentDetail` adopted `RecordPageBody`/`RecordTitle`
    and exposes `data-equipment-record-loaded`; `PigBatchPage` adopted the shared
    `RecordPageBody` loaded wrapper with `data-pig-batch-record-loaded` using the
-   approved left-aligned cap.
+   approved left-aligned cap. CP2 (`6e31e7f`): `SheepDailyPage` removed its local
+   `inputStyle` primitive and adopted the shared `recordControl` (via the `inp`
+   alias the other daily pages use) for its fields and feed/mineral row controls,
+   aligning its structure with the other daily record pages; `btnSmall`
+   Add/Remove-row buttons stay intentionally distinct. Sheep parity slice in
+   `daily_record_pages_shared_controls_static.test.js`.
    Remaining: decide whether Pig batch should move to the full standalone
    `RecordPageFrame`/`RecordTitle` model, standardize record widths and
-   loaded/error hooks, expand `recordPageControls` adoption, and align the Sheep
-   daily page structure with the other daily record pages.
+   loaded/error hooks, and expand `recordPageControls` adoption to the remaining
+   record pages. Optional follow-up: align the weigh-in feed/mineral Add/Remove
+   row-button microstyle (Sheep chip vs Cattle text-link) if full parity is
+   wanted.
    Guard target: record-page shell/chrome static guards and focused Playwright.
 7. Lane F - List, hub, filter, sort, saved-view, and empty-state parity. PARTIAL.
    Class: `ENH`. Size: large.
@@ -574,11 +617,17 @@ below.
    `surface_key = 'sheep.flocks'`; saved views and filtered CSV exports expanded
    across cattle/sheep/livestock weigh-ins, Pig Daily Reports, daily hubs,
    Equipment Fuel Log, Layer Dailys, and Egg Dailys. Saved-view load failures
-   degrade locally without blocking parent lists.
-   Remaining: extract drifting row/tile primitives, decide which remaining
-   operational lists need search/sort/saved views, standardize filtered/empty
-   states where gaps are found, and keep the real AI filter/sort investigation
-   layered on deterministic filters with explicit preview/apply behavior.
+   degrade locally without blocking parent lists. CP2 (`04fd932`): cattle/sheep/
+   livestock weigh-in list empty states now distinguish true-empty from
+   filtered/search-no-results, preserving load-failure suppression. Shared
+   weigh-in list primitives (`3e18623`): `src/shared/WeighInSessionListTile.jsx`
+   and the `src/lib/weighInSessionExports.js` column builders de-duplicate the
+   cattle/sheep/livestock session tiles and CSV/print columns.
+   Remaining: extract the remaining drifting row/tile primitives beyond weigh-ins,
+   decide which remaining operational lists need search/sort/saved views,
+   standardize filtered/empty states where gaps are found, and keep the real AI
+   filter/sort investigation layered on deterministic filters with explicit
+   preview/apply behavior.
    Guard target: per-surface filter/sort tests, saved-view tests, and static
    shared-row/empty-state guards.
 8. Lane G - Restore/recovery surface. SHIPPED 2026-06-08.
@@ -604,7 +653,13 @@ below.
     `homeRedesign.css`, and full `HomeDashboard` integration). Shared token
     slice also shipped: button padding/radius updates, `RecordTitle` default
     `26`, shared primitive radius tightening, and
-    `design_token_contract_static.test.js`.
+    `design_token_contract_static.test.js`. CP4 (`859696a`): the six daily record
+    pages route Retry/Revert/Save/Delete through shared canonical action buttons
+    (`recordSaveButton`/`recordSecondaryButton`/`recordDeleteButton` in
+    `recordPageControls.jsx`; radius 6, 10px16px pad, fontSize 13), removing the
+    retired 7/8 radii and bespoke action padding and normalizing Sheep Save from
+    blue to brand green (`daily_record_pages_shared_controls_static.test.js`
+    action-button slice).
     Remaining: source-wide typography/radius/color drift cleanup outside the
     shipped shared primitives and documented exceptions; any future homepage
     visual changes should preserve the approved `.home.theme-crisp` composition
@@ -616,9 +671,12 @@ below.
     Shipped 2026-06-08: shared Delete/Confirm modals have focus-trap behavior via
     `useModalFocusTrap.js`; central-date defaults are guarded across admin
     modals, webforms, WebformHub, and Layer/Egg daily list defaults; route/nav
-    policy guards were added in `lane_j_policy_static.test.js`.
-    Remaining: image alt text policy and any future baseline home-dashboard KPI
-    rules where program differences still need a uniform frame.
+    policy guards were added in `lane_j_policy_static.test.js`. Image alt-text
+    policy shipped (`04fd932`): `src/lib/imageAlt.js` (`imageAltText`) drives
+    every user-media `<img>` owner with contextual fallbacks and marks decorative
+    images `aria-hidden`, locked by `image_alt_text_policy_static.test.js`.
+    Remaining: any future baseline home-dashboard KPI rules where program
+    differences still need a uniform frame.
     Guard target: route/nav/date/a11y static guards plus focused Playwright once
     more decisions are made.
 12. Lane K - Export/print parity. PARTIAL. Class: `DECISION`/`ENH`.
@@ -630,7 +688,10 @@ below.
     Sessions, Equipment Fuel Log, and Cattle Weigh-In Sessions. The build-queue
     merge added `src/lib/printExport.js` plus print/CSV expansion across
     livestock/cattle/sheep weigh-ins, cattle/sheep inventory, Broiler/Pig/
-    Cattle/Sheep dailys, Layer/Egg dailys, and Equipment Fuel Log.
+    Cattle/Sheep dailys, Layer/Egg dailys, and Equipment Fuel Log. Shared
+    weigh-in column builders (`3e18623`): `src/lib/weighInSessionExports.js` owns
+    the ruminant + livestock weigh-in session CSV/print column specs, consumed by
+    the cattle/sheep/livestock views (still exporting the filtered set).
     Remaining: extend the shared CSV/print model to any remaining operational
     lists and record pages with shared column specs, keep permissions bounded to
     RLS-visible rows, and consider a fuller shared print stylesheet/screenshot
