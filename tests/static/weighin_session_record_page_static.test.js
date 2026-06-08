@@ -986,6 +986,39 @@ describe('Weigh-in list load-error states', () => {
   });
 });
 
+describe('Weigh-in list empty-state parity', () => {
+  const lists = [
+    {name: 'CattleWeighInsView', src: listSrc, label: 'cattle'},
+    {name: 'SheepWeighInsView', src: sheepListSrc, label: 'sheep'},
+    {name: 'LivestockWeighInsView', src: livestockSrc, label: 'livestock'},
+  ];
+
+  for (const list of lists) {
+    it(`${list.name} distinguishes no sessions from filtered-out sessions`, () => {
+      expect(list.src).toContain("const emptyStateKind = sessions.length === 0 ? 'none' : 'filtered';");
+      expect(list.src).toContain('data-weighin-empty-state="1"');
+      expect(list.src).toContain('data-weighin-empty-kind={emptyStateKind}');
+      expect(list.src).toContain('emptyStateMessage');
+      expect(list.src).toContain('emptyStateHint');
+      expect(list.src).toContain('Switch back to All to see every session.');
+    });
+  }
+
+  it('cattle and sheep tag-search empty states point operators to clear search', () => {
+    for (const src of [listSrc, sheepListSrc]) {
+      expect(src).toMatch(/tagQ\s*\?\s*'No /);
+      expect(src).toContain('+ tagSearch +');
+      expect(src).toContain('Clear the tag search or switch back to All.');
+    }
+  });
+
+  it('none-state copy is species-specific instead of the old generic message', () => {
+    expect(listSrc).toContain('No cattle weigh-in sessions yet.');
+    expect(sheepListSrc).toContain('No sheep weigh-in sessions yet.');
+    expect(livestockSrc).toContain("speciesLabel.toLowerCase() + ' weigh-in sessions yet.'");
+  });
+});
+
 describe('loadSheepWeighInsCached - strict read-failure contract', () => {
   it('accepts throwOnError without changing default callers', () => {
     expect(sheepCacheSrc).toContain('export async function loadSheepWeighInsCached(sb, opts = {})');

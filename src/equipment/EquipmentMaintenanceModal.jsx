@@ -4,6 +4,7 @@
 import React from 'react';
 import {EQUIPMENT_COLOR} from '../lib/equipment.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
+import {imageAltText} from '../lib/imageAlt.js';
 
 export default function EquipmentMaintenanceModal({sb, equipment, existing, authState, onClose, onSaved}) {
   const [form, setForm] = React.useState(
@@ -233,7 +234,11 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
                 <div key={i} style={{position: 'relative'}}>
                   <img
                     src={p.url}
-                    alt={p.name}
+                    alt={imageAltText(p.name, {
+                      fallback: 'Maintenance event photo',
+                      index: i,
+                      total: (form.photos || []).length,
+                    })}
                     style={{width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb'}}
                   />
                   <button

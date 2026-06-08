@@ -12,6 +12,7 @@
 import React from 'react';
 import {loadTaskInstancePhotos} from '../lib/tasksCenterApi.js';
 import {getCenterRequestPhotoSignedUrl, getCenterCompletionPhotoSignedUrl} from '../lib/tasksCenterMutationsApi.js';
+import {imageAltText} from '../lib/imageAlt.js';
 
 const OVERLAY = {
   position: 'fixed',
@@ -205,7 +206,7 @@ export default function TaskPhotoLightbox({sb, task, isOpen, onClose}) {
               ) : url ? (
                 <img
                   src={url}
-                  alt={`${KIND_LABEL[current.kind] || 'Photo'} ${index + 1} of ${total}`}
+                  alt={imageAltText('', {fallback: KIND_LABEL[current.kind] || 'Task photo', index, total})}
                   style={{maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', display: 'block'}}
                 />
               ) : (

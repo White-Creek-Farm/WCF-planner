@@ -159,6 +159,7 @@ export default function ManualsCard({equipment}) {
                           <img
                             src={thumb}
                             alt=""
+                            aria-hidden="true"
                             style={{
                               position: 'absolute',
                               top: 0,

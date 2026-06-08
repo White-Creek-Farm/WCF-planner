@@ -15,6 +15,7 @@ import LockedSubmitter from './LockedSubmitter.jsx';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
+import {imageAltText} from '../lib/imageAlt.js';
 
 export default function EquipmentFuelingWebform({sb, equipment, equipmentList, onBack, sessionSubmitter}) {
   // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
@@ -1147,7 +1148,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                   <div key={i} style={{position: 'relative'}}>
                     <img
                       src={p.url}
-                      alt={p.name}
+                      alt={imageAltText(p.name, {fallback: 'Fueling photo', index: i, total: photos.length})}
                       style={{width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb'}}
                     />
                     <button

@@ -11,6 +11,7 @@ import {
 } from '../lib/commentsApi.js';
 import {renderMentionSegments} from '../lib/activityApi.js';
 import {uploadCommentAttachment, getAttachmentSignedUrl, MAX_COMMENT_ATTACHMENTS} from '../lib/commentAttachments.js';
+import {imageAltText} from '../lib/imageAlt.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import MentionTextarea from './MentionTextarea.jsx';
 
@@ -678,7 +679,11 @@ function CommentAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
       }}
     >
       {url ? (
-        <img src={url} alt={att.name || 'attachment'} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+        <img
+          src={url}
+          alt={imageAltText(att.name, {fallback: 'Comment attachment image'})}
+          style={{width: '100%', height: '100%', objectFit: 'cover'}}
+        />
       ) : (
         <span
           style={{

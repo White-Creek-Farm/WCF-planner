@@ -9,6 +9,7 @@
 
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {imageAltText} from '../lib/imageAlt.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from './InlineNotice.jsx';
 
@@ -89,7 +90,7 @@ export default function DailyPhotoThumbnails({photos}) {
               {url ? (
                 <img
                   src={url}
-                  alt={p.name || `photo-${i + 1}`}
+                  alt={imageAltText(p.name, {fallback: 'Daily report photo', index: i, total: list.length})}
                   style={{width: '100%', height: '100%', objectFit: 'cover'}}
                 />
               ) : err ? (

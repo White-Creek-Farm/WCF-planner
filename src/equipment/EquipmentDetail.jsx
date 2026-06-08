@@ -28,6 +28,7 @@ import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx
 import {RecordPageBody, RecordTitle} from '../shared/RecordPageShell.jsx';
 import {LockedTeamMemberField, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
 import {runMutation, recordStatusChange} from '../lib/entityMutations.js';
+import {imageAltText} from '../lib/imageAlt.js';
 
 export default function EquipmentDetail({
   sb,
@@ -1052,7 +1053,11 @@ export default function EquipmentDetail({
                               >
                                 <img
                                   src={p.url}
-                                  alt={p.name || ''}
+                                  alt={imageAltText(p.name, {
+                                    fallback: 'Fueling photo',
+                                    index: i,
+                                    total: f.photos.length,
+                                  })}
                                   style={{
                                     width: 90,
                                     height: 90,
@@ -1212,7 +1217,11 @@ export default function EquipmentDetail({
                         >
                           <img
                             src={p.url}
-                            alt={p.name}
+                            alt={imageAltText(p.name, {
+                              fallback: 'Maintenance event photo',
+                              index: i,
+                              total: m.photos.length,
+                            })}
                             style={{
                               width: 80,
                               height: 80,
@@ -1336,7 +1345,7 @@ export default function EquipmentDetail({
               <img
                 onClick={(e) => e.stopPropagation()}
                 src={cur.url}
-                alt={cur.name || ''}
+                alt={imageAltText(cur.name, {fallback: 'Equipment photo', index: lightbox.index, total: photos.length})}
                 style={{
                   maxWidth: '100%',
                   maxHeight: 'calc(100vh - 80px)',

@@ -165,6 +165,13 @@ const LivestockWeighInsView = ({
   const loadFailed = !!notice;
   const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
   const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
+  const emptyStateKind = sessions.length === 0 ? 'none' : 'filtered';
+  const emptyStateMessage =
+    emptyStateKind === 'none'
+      ? 'No ' + speciesLabel.toLowerCase() + ' weigh-in sessions yet.'
+      : 'No ' + speciesLabel.toLowerCase() + ' weigh-in sessions match the current filters.';
+  const emptyStateHint =
+    emptyStateKind === 'none' ? 'Click New Weigh-In to start one.' : 'Switch back to All to see every session.';
 
   function livestockWeighInsViewState() {
     return {
@@ -646,6 +653,8 @@ const LivestockWeighInsView = ({
         {loading && <div style={{textAlign: 'center', padding: '2rem', color: '#9ca3af'}}>Loading{'…'}</div>}
         {!loading && !loadFailed && filtered.length === 0 && (
           <div
+            data-weighin-empty-state="1"
+            data-weighin-empty-kind={emptyStateKind}
             style={{
               background: 'white',
               border: '1px solid #e5e7eb',
@@ -656,7 +665,8 @@ const LivestockWeighInsView = ({
               fontSize: 13,
             }}
           >
-            No weigh-in sessions yet. Click <strong>New Weigh-In</strong> to start one.
+            <div style={{fontWeight: 700, color: '#374151', marginBottom: 4}}>{emptyStateMessage}</div>
+            <div>{emptyStateHint}</div>
           </div>
         )}
 
