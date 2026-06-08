@@ -2049,6 +2049,7 @@ function IncludeHeifersModal({
                       onComment={() => {}}
                       onEditComment={() => {}}
                       onDeleteComment={() => {}}
+                      hideComments={true}
                       onAddCalving={() => {}}
                       onDeleteCalving={() => {}}
                       onNavigateToCow={() => {}}

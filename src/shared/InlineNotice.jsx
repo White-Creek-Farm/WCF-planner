@@ -10,13 +10,15 @@ import React from 'react';
 // inside an open modal AND on the list view behind it) and dismissed once.
 //
 // Shape:
-//   notice = { kind: 'error' | 'warning' | 'success', message: string } | null
+//   notice = { kind: 'error' | 'warning' | 'success' | 'info', message: string } | null
 //
 // `kind` defaults to 'error'. Multi-line messages are honored via
 // white-space: pre-line on the body text. The 'success' kind uses a
 // green palette and is intended for short confirmation messages where
 // a banner is more visible than relying on state to re-render
-// (e.g. an admin "Synced" confirmation).
+// (e.g. an admin "Synced" confirmation). The 'info' kind uses a blue
+// palette for benign, non-error notices (e.g. "No changes to save.") so
+// they do not render with alarming error styling.
 // ============================================================================
 
 export default function InlineNotice({notice, onDismiss}) {
@@ -24,13 +26,16 @@ export default function InlineNotice({notice, onDismiss}) {
   let kind;
   if (notice.kind === 'warning') kind = 'warning';
   else if (notice.kind === 'success') kind = 'success';
+  else if (notice.kind === 'info') kind = 'info';
   else kind = 'error';
   const palette =
     kind === 'warning'
       ? {bg: '#fef3c7', border: '#fde68a', fg: '#92400e'}
       : kind === 'success'
         ? {bg: '#ecfdf5', border: '#a7f3d0', fg: '#065f46'}
-        : {bg: '#fee2e2', border: '#fecaca', fg: '#b91c1c'};
+        : kind === 'info'
+          ? {bg: '#eff6ff', border: '#bfdbfe', fg: '#1e40af'}
+          : {bg: '#fee2e2', border: '#fecaca', fg: '#b91c1c'};
   return (
     <div
       role="alert"

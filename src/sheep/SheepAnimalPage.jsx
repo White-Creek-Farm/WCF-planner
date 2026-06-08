@@ -339,7 +339,7 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
 
         <RecordTitle>{animal.tag ? '#' + animal.tag : 'Untagged animal'}</RecordTitle>
 
-        {notice && <InlineNotice kind={notice.kind} message={notice.message} onDismiss={() => setNotice(null)} />}
+        {notice && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
 
         <SheepDetail
           key={animal.id}

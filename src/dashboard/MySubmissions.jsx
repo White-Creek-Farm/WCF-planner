@@ -206,10 +206,10 @@ export default function MySubmissions({Header}) {
         <div style={{fontSize: 13, color: '#6b7280', marginBottom: 16}}>
           Equipment fuelings and fuel supplies you submitted. You can edit or delete only your own entries.
         </div>
-        {notice && <InlineNotice kind={notice.kind} message={notice.message} onClose={() => setNotice(null)} />}
+        {notice && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
         {loadError && (
           <div>
-            <InlineNotice kind="error" message={'Could not load: ' + loadError} />
+            <InlineNotice notice={{kind: 'error', message: 'Could not load: ' + loadError}} />
             <button onClick={() => setReloadKey((k) => k + 1)} style={btn('white', '#1d4ed8')}>
               Retry
             </button>
