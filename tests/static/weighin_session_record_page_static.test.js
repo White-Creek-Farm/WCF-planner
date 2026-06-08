@@ -12,6 +12,7 @@ const listSrc = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleWeighInsView.j
 const sheepListSrc = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepWeighInsView.jsx'), 'utf8');
 const livestockSrc = fs.readFileSync(path.join(ROOT, 'src/livestock/LivestockWeighInsView.jsx'), 'utf8');
 const sheepCacheSrc = fs.readFileSync(path.join(ROOT, 'src/lib/sheepCache.js'), 'utf8');
+const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
 const pigEntryBranchStart = pageSrc.indexOf('if (isPig) {');
 const pigEntryBranchEnd = pageSrc.indexOf('const cow = animals.find', pigEntryBranchStart);
 const pigEntryBranch = pageSrc.slice(pigEntryBranchStart, pigEntryBranchEnd);
@@ -469,6 +470,40 @@ describe('SheepWeighInsView — cleaned list view', () => {
   });
   it('still has tag search', () => {
     expect(sheepListSrc).toContain('tagSearch');
+  });
+});
+
+describe('SheepWeighInsView - CSV export', () => {
+  it('uses the shared csvExport owner for browser download mechanics', () => {
+    expect(csvExport).toContain('export function rowsToCsv');
+    expect(csvExport).toContain('export function csvFilename');
+    expect(csvExport).toContain('export function downloadCsv');
+    expect(csvExport).toContain('new Blob');
+    expect(csvExport).toContain('URL.createObjectURL');
+  });
+
+  it('exports the current visible sheep weigh-in sessions, not the raw session list', () => {
+    expect(sheepListSrc).toContain("from '../lib/csvExport.js'");
+    expect(sheepListSrc).toContain('function handleExportCsv');
+    expect(sheepListSrc).toContain('data-sheep-weighins-export-csv="1"');
+    expect(sheepListSrc).toContain('rowsToCsv(columns, filtered)');
+    expect(sheepListSrc).not.toContain('rowsToCsv(columns, sessions)');
+  });
+
+  it('keeps sheep weigh-in export columns useful for session review', () => {
+    for (const header of [
+      'Date',
+      'Flock',
+      'Status',
+      'Team member',
+      'Entry count',
+      'Matching tag entries',
+      'New tag count',
+      'Started at',
+      'Session ID',
+    ]) {
+      expect(sheepListSrc).toContain(`header: '${header}'`);
+    }
   });
 });
 

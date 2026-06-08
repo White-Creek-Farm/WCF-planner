@@ -13,6 +13,7 @@ const collapsible = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepCollapsibleO
 const mainJsx = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const registry = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
+const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
 
 describe('SheepFlocksView - saved views', () => {
   it('uses the shared saved-views API on the sheep.flocks surface', () => {
@@ -53,6 +54,51 @@ describe('SheepFlocksView - saved views', () => {
     expect(flocksView).toContain('savedViewsError');
     expect(flocksView).toContain('data-sheep-saved-views-error');
     expect(flocksView).toMatch(/\{!loadError && \(\s*<>[\s\S]*?data-sheep-saved-views-row[\s\S]*?Top toolbar/);
+  });
+});
+
+describe('SheepFlocksView - CSV export', () => {
+  it('uses the shared csvExport owner for browser download mechanics', () => {
+    expect(csvExport).toContain("import {centralISOFor} from './dateUtils.js'");
+    expect(csvExport).toContain('export function rowsToCsv');
+    expect(csvExport).toContain('export function downloadCsv');
+    expect(csvExport).toContain('new Blob');
+    expect(csvExport).toContain('URL.createObjectURL');
+    expect(csvExport).toContain('URL.revokeObjectURL');
+    expect(csvExport).toContain("type: 'text/csv;charset=utf-8'");
+    expect(csvExport).toContain('centralISOFor(date)');
+  });
+
+  it('exports the current filtered + sorted sheep rows, not the raw sheep list', () => {
+    expect(flocksView).toContain("from '../lib/csvExport.js'");
+    expect(flocksView).toContain('function handleExportCsv');
+    expect(flocksView).toContain('data-sheep-flocks-export-csv="1"');
+    expect(flocksView).toContain('rowsToCsv(columns, sorted)');
+    expect(flocksView).not.toContain('rowsToCsv(columns, sheep)');
+  });
+
+  it('keeps export disabled while the flock list is loading or failed', () => {
+    expect(flocksView).toContain('disabled={loading || loadError}');
+    expect(flocksView).toContain("cursor: loading || loadError ? 'not-allowed' : 'pointer'");
+  });
+
+  it('keeps sheep export columns useful for flock-list decisions', () => {
+    for (const header of [
+      'Tag',
+      'Flock',
+      'Sex',
+      'Breed',
+      'Origin',
+      'Last weight lbs',
+      'Last weighed',
+      'Last lambed',
+      'Lamb count',
+      'Dam tag',
+      'Sire tag',
+      'Record ID',
+    ]) {
+      expect(flocksView).toContain(`header: '${header}'`);
+    }
   });
 });
 

@@ -27,6 +27,7 @@ import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 
 function SheepFlocksRouter(props) {
   const location = useLocation();
@@ -218,6 +219,11 @@ const SheepFlocksHub = ({
     const w = weighIns.find((x) => tags.has(x.tag));
     return w ? parseFloat(w.weight) : null;
   }
+  function lastWeightEntry(s) {
+    const tags = sheepTagSet(s);
+    if (tags.size === 0) return null;
+    return weighIns.find((x) => tags.has(x.tag)) || null;
+  }
   function lastLambing(tag) {
     if (!tag) return null;
     return lambingRecs.find((r) => r.dam_tag === tag);
@@ -326,6 +332,38 @@ const SheepFlocksHub = ({
     } finally {
       setSavedViewBusy(false);
     }
+  }
+  function handleExportCsv() {
+    const female = (row) => row.sex === 'ewe';
+    const columns = [
+      {header: 'Tag', value: (s) => s.tag || ''},
+      {header: 'Flock', value: (s) => FLOCK_LABELS[s.flock] || s.flock || ''},
+      {header: 'Sex', value: (s) => s.sex || ''},
+      {header: 'Breed', value: (s) => s.breed || ''},
+      {header: 'Origin', value: (s) => s.origin || ''},
+      {header: 'Age', value: (s) => age(s.birth_date) || ''},
+      {header: 'Birth date', value: (s) => s.birth_date || ''},
+      {header: 'Last weight lbs', value: (s) => lastWeight(s) ?? ''},
+      {header: 'Last weighed', value: (s) => lastWeightEntry(s)?.entered_at || ''},
+      {header: 'Last lambed', value: (s) => (female(s) ? lastLambing(s.tag)?.lambing_date || '' : '')},
+      {header: 'Lamb count', value: (s) => (female(s) ? lambCount(s.tag) : '')},
+      {header: 'Breeding status', value: (s) => s.breeding_status || ''},
+      {header: 'Breeding blacklist', value: (s) => (s.breeding_blacklist ? 'yes' : 'no')},
+      {header: 'Dam tag', value: (s) => s.dam_tag || ''},
+      {header: 'Dam registration #', value: (s) => s.dam_reg_num || ''},
+      {header: 'Sire tag', value: (s) => s.sire_tag || ''},
+      {header: 'Sire registration #', value: (s) => s.sire_reg_num || ''},
+      {header: 'Registration #', value: (s) => s.registration_num || ''},
+      {header: 'Purchase date', value: (s) => s.purchase_date || ''},
+      {header: 'Purchase amount', value: (s) => s.purchase_amount ?? ''},
+      {header: 'Sale date', value: (s) => s.sale_date || ''},
+      {header: 'Sale amount', value: (s) => s.sale_amount ?? ''},
+      {header: 'Death date', value: (s) => s.death_date || ''},
+      {header: 'Death reason', value: (s) => s.death_reason || ''},
+      {header: 'Record ID', value: (s) => s.id || ''},
+    ];
+    const ok = downloadCsv(csvFilename('sheep-flocks'), rowsToCsv(columns, sorted));
+    if (!ok) setNotice({kind: 'error', message: 'CSV export is only available in the browser.'});
   }
   function deleteSelectedView() {
     if (!selectedView || !selectedViewIsMine) return;
@@ -674,6 +712,26 @@ const SheepFlocksHub = ({
                 <option value="weight-desc">Weight {'↓'}</option>
                 <option value="weight-asc">Weight {'↑'}</option>
               </select>
+              <button
+                type="button"
+                data-sheep-flocks-export-csv="1"
+                onClick={handleExportCsv}
+                disabled={loading || loadError}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 7,
+                  border: '1px solid #d1d5db',
+                  background: loading || loadError ? '#f9fafb' : 'white',
+                  color: loading || loadError ? '#9ca3af' : '#374151',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: loading || loadError ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Export CSV
+              </button>
               <button
                 onClick={() => setShowBulkImport(true)}
                 style={{
