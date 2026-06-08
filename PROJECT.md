@@ -376,15 +376,13 @@ it before planning; do not assume it is disposable.
 
 Local worktree note: the main CC worktree is at `C:\Users\Ronni\WCF-planner`
 on `main`. The runtime/app production checkpoint is `91546a7` (the seven-lane
-ship deployed to PROD); `main` HEAD is this docs-reconciliation commit sitting on
-top of it — docs-only (no bundle change), 1 ahead of `origin/main` until pushed.
-That extra commit is expected, not drift. The Codex worktree is at
-`C:\Users\Ronni\WCF-planner-codex`, currently on `codex/lane-b-fail-closed-loading`
-(merged into `main` at this ship). After this docs commit, the merged lane
-branches `fix/lane0-inline-notice`, `feature/lane-a-processing-rpc`,
-`feature/lane-a-cattle-breeding-activity`, and `codex/lane-b-fail-closed-loading`
-are safe to delete, and the Codex worktree can be reset to `main` — pending
-Ronnie's go. Create new scoped worktrees/branches only for active lanes, and
+ship deployed to PROD); `main` HEAD carries the docs-reconciliation commits on
+top (docs-only, no bundle change) and is pushed to `origin/main`. The Codex
+worktree is at `C:\Users\Ronni\WCF-planner-codex`, parked on
+`codex/parallel-worktree` reset to current `main`. The four merged lane branches
+(`fix/lane0-inline-notice`, `feature/lane-a-processing-rpc`,
+`feature/lane-a-cattle-breeding-activity`, `codex/lane-b-fail-closed-loading`)
+were deleted after the 2026-06-08 ship. Create new scoped worktrees/branches only for active lanes, and
 prune them after merge once Ronnie confirms. Per-lane worktrees need their own
 `node_modules` (`npm ci`) and gitignored `.env.test*` to run tests/Playwright.
 See [HO.md](HO.md) Parallel Codex Worktree.
