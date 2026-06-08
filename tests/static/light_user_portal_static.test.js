@@ -196,6 +196,21 @@ describe('Light role — header + portal containment', () => {
     expect(portal).not.toMatch(/navigate\('\/fleet\//);
   });
 
+  it('shared equipment-attention detail keeps the overdue quantity so non-HomeDashboard consumers still show it', () => {
+    // Regression guard: HomeDashboard split the overdue quantity into a pastel
+    // `pill` badge, but LightHomePortal renders the single shared `a.detail`
+    // field. `detail` must therefore stay the FULL string (service + quantity);
+    // `metaLabel` (service only) is the HomeDashboard-only label, and `pill`
+    // carries the badge text. If a future refactor strips the quantity out of
+    // `detail`, light users silently lose overdue severity — this locks it.
+    expect(homeAlerts).toMatch(/detail: `\$\{intervalLbl\} · \$\{Math\.round\(over\)[\s\S]*?\} overdue`/);
+    expect(homeAlerts).toMatch(/metaLabel: intervalLbl/);
+    expect(homeAlerts).toMatch(/pill: `\$\{Math\.round\(over\)[\s\S]*?\} overdue`/);
+    // LightHomePortal surfaces the full shared detail (not metaLabel/pill).
+    expect(portal).toMatch(/\{a\.detail\}/);
+    expect(portal).not.toMatch(/a\.metaLabel/);
+  });
+
   it('Light alert cards are visible but do not expose the full-dashboard global dismiss controls', () => {
     expect(portal).not.toMatch(/Clear all|clearAllMissed|clearMissedEntry/);
     expect(portal).not.toMatch(/from\('app_store'\)\.upsert/);

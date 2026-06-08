@@ -327,7 +327,12 @@ export function buildEquipmentAttention({equipment, equipmentFuelings, equipment
           kind: 'overdue',
           slug: eq.slug,
           label: eq.name,
+          // detail stays the FULL string so single-text consumers (e.g.
+          // LightHomePortal) keep the overdue quantity. HomeDashboard shows
+          // metaLabel (service only) + the quantity in a pastel pill badge.
           detail: `${intervalLbl} · ${Math.round(over).toLocaleString()} ${unitLabel} overdue`,
+          metaLabel: intervalLbl,
+          pill: `${Math.round(over).toLocaleString()} ${unitLabel} overdue`,
         });
       }
     }
@@ -359,6 +364,7 @@ export function buildEquipmentAttention({equipment, equipmentFuelings, equipment
           slug: eq.slug,
           label: eq.name,
           detail: `${itemsWithStreak.length} fillup item${itemsWithStreak.length === 1 ? '' : 's'} skipped (${maxStreak}× max streak): ${sample}${more}`,
+          pill: `${itemsWithStreak.length} skipped`,
         });
       }
     }
