@@ -40,6 +40,22 @@ describe('Custom editable-table Activity - cattle breeding cycles', () => {
   });
 });
 
+describe('CattleBreedingView — mounts the cattle.breeding Activity stream', () => {
+  it('imports the shared collaboration section', () => {
+    expect(viewSrc).toContain("from '../shared/RecordCollaborationSection.jsx'");
+  });
+  it('renders the cattle.breeding workflow stream (audit-only, no comments)', () => {
+    expect(viewSrc).toContain('data-cattle-breeding-activity');
+    expect(viewSrc).toMatch(/<RecordCollaborationSection[\s\S]*?entityType="cattle\.breeding"/);
+    expect(viewSrc).toMatch(/<RecordCollaborationSection[\s\S]*?entityId="cattle-breeding"/);
+    expect(viewSrc).toMatch(/<RecordCollaborationSection[\s\S]*?showComments=\{false\}/);
+  });
+  it('does not reintroduce legacy ActivityPanel/ActivityModal', () => {
+    expect(viewSrc).not.toContain('ActivityPanel');
+    expect(viewSrc).not.toContain('ActivityModal');
+  });
+});
+
 describe('mig 078 - _activity_can_read cattle.breeding branch', () => {
   it('replaces _activity_can_read and adds a cattle.breeding branch gated on cattle program', () => {
     expect(mig078).toMatch(/CREATE OR REPLACE FUNCTION public\._activity_can_read/);

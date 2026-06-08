@@ -29,6 +29,7 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/broiler/PoultryDailyPage.jsx',
     'src/cattle/CattleAnimalPage.jsx',
     'src/cattle/CattleBatchPage.jsx',
+    'src/cattle/CattleBreedingView.jsx',
     'src/cattle/CattleDailyPage.jsx',
     'src/cattle/CattleForecastView.jsx',
     'src/equipment/EquipmentDetail.jsx',

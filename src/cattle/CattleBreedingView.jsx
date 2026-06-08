@@ -5,6 +5,8 @@ import UsersModal from '../auth/UsersModal.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {calcCattleBreedingTimeline, buildCattleCycleSeqMap, cattleCycleLabel} from '../lib/cattleBreeding.js';
 import {upsertCattleBreedingCycle, deleteCattleBreedingCycle} from '../lib/cattleBreedingCycleApi.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 const CattleBreedingView = ({
   sb,
   fmt,
@@ -320,6 +322,21 @@ const CattleBreedingView = ({
               </div>
             );
           })}
+        </div>
+
+        {/* cattle.breeding workflow Activity stream (entity_id cattle-breeding),
+            populated by the audited upsert/delete cycle RPCs (mig 094). Audit
+            only — comments are not a breeding-workflow surface. */}
+        <div data-cattle-breeding-activity style={{marginTop: 16}}>
+          <RecordCollaborationSection
+            sb={sb}
+            authState={authState}
+            entityType="cattle.breeding"
+            entityId="cattle-breeding"
+            entityLabel="Cattle Breeding"
+            activityLimit={100}
+            showComments={false}
+          />
         </div>
       </div>
 
