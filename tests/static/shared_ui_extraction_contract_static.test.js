@@ -13,6 +13,7 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/cattle/CattleAnimalPage.jsx',
     'src/cattle/CattleBatchPage.jsx',
     'src/cattle/CattleDailyPage.jsx',
+    'src/equipment/EquipmentDetail.jsx',
     'src/layer/EggDailyPage.jsx',
     'src/layer/LayerBatchPage.jsx',
     'src/layer/LayerDailyPage.jsx',
@@ -90,6 +91,10 @@ function runtimeSourceFiles() {
   return listRuntimeSourceFiles(path.join(ROOT, 'src'));
 }
 
+function readRuntimeSource(rel) {
+  return stripComments(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+}
+
 function collectSharedImportOwners(componentName) {
   const owners = [];
   const importRe = new RegExp(`import[\\s\\S]*?['"][^'"]*shared/${componentName}\\.jsx['"]`);
@@ -130,7 +135,7 @@ describe('shared UI extraction contract', () => {
   });
 
   it('keeps RecordCollaborationSection as a pure composition wrapper', () => {
-    const src = stripComments(fs.readFileSync(path.join(ROOT, 'src/shared/RecordCollaborationSection.jsx'), 'utf8'));
+    const src = readRuntimeSource('src/shared/RecordCollaborationSection.jsx');
 
     expect(src).toContain('data-record-collaboration-section="1"');
     expect(src).toContain('<CommentsSection');
@@ -140,7 +145,7 @@ describe('shared UI extraction contract', () => {
   });
 
   it('keeps RecordPageShell presentational and free of data/collaboration concerns', () => {
-    const src = stripComments(fs.readFileSync(path.join(ROOT, 'src/shared/RecordPageShell.jsx'), 'utf8'));
+    const src = readRuntimeSource('src/shared/RecordPageShell.jsx');
 
     expect(src).toContain('export function RecordPageFrame');
     expect(src).toContain('export function RecordPageBody');
@@ -154,11 +159,50 @@ describe('shared UI extraction contract', () => {
   });
 
   it('keeps app-level confirm modal ownership centralized in main.jsx', () => {
-    const main = stripComments(fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8'));
+    const main = readRuntimeSource('src/main.jsx');
 
     expect(main).toContain("import DeleteModal from './shared/DeleteModal.jsx'");
     expect(main).toContain("import ConfirmModal from './shared/ConfirmModal.jsx'");
     expect(main).toContain('window._wcfConfirmDelete = confirmDelete');
     expect(main).toContain('window._wcfConfirm = confirmActionPrompt');
+  });
+
+  it('locks DeleteModal typed-confirm behavior, dialog semantics, and canonical control tokens', () => {
+    const src = readRuntimeSource('src/shared/DeleteModal.jsx');
+
+    expect(src).toContain('data-delete-modal="1"');
+    expect(src).toContain('data-overlay-dismiss="disabled"');
+    expect(src).toContain('role="dialog"');
+    expect(src).toContain('aria-modal="true"');
+    expect(src).toContain('aria-labelledby="delete-modal-title"');
+    expect(src).toContain('aria-describedby="delete-modal-message"');
+    expect(src).toContain('aria-label="Type delete to confirm"');
+    expect(src).toContain('zIndex: 9000');
+    expect(src).toContain("typed.trim().toLowerCase() === 'delete'");
+    expect(src).toContain("e.key === 'Enter' && ready");
+    expect(src).toContain("e.key === 'Escape'");
+    expect(src).toMatch(/Cancel[\s\S]*Delete/);
+    expect(src).toContain("padding: '10px 16px'");
+    expect(src).not.toMatch(/borderRadius:\s*(?:7|8|12)\b/);
+    expect(src).not.toMatch(/window\.(?:alert|confirm|prompt)\s*\(/);
+  });
+
+  it('locks ConfirmModal dialog semantics, keyboard cancel, and canonical control tokens', () => {
+    const src = readRuntimeSource('src/shared/ConfirmModal.jsx');
+
+    expect(src).toContain('data-confirm-modal="1"');
+    expect(src).toContain('data-overlay-dismiss="disabled"');
+    expect(src).toContain('role="dialog"');
+    expect(src).toContain('aria-modal="true"');
+    expect(src).toContain('aria-labelledby="confirm-modal-title"');
+    expect(src).toContain('aria-describedby="confirm-modal-message"');
+    expect(src).toContain("const label = confirmLabel || 'Confirm'");
+    expect(src).toContain('autoFocus');
+    expect(src).toContain("e.key === 'Escape'");
+    expect(src).toMatch(/Cancel[\s\S]*\{label\}/);
+    expect(src).toContain('zIndex: 9000');
+    expect(src).toContain("padding: '10px 16px'");
+    expect(src).not.toMatch(/borderRadius:\s*(?:7|8|12)\b/);
+    expect(src).not.toMatch(/window\.(?:alert|confirm|prompt)\s*\(/);
   });
 });

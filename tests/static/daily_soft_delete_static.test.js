@@ -196,6 +196,20 @@ describe('RecentlyDeletedDailyReports — admin view', () => {
   it('calls restoreDailyReport on restore', () => {
     expect(adminSrc).toContain('restoreDailyReport');
   });
+  it('keeps daily reports in the combined recently-deleted recovery config', () => {
+    for (const et of DAILY_ENTITY_TYPES) {
+      expect(adminSrc).toContain(`'${et}'`);
+    }
+    expect(adminSrc).toContain("recordKind: 'daily'");
+    expect(adminSrc).toContain('const RECOVERY_CONFIG = {...TABLE_CONFIG, ...ANIMAL_CONFIG};');
+  });
+  it('is a fail-closed combined records recovery surface', () => {
+    expect(adminSrc).toContain('Recently Deleted Records');
+    expect(adminSrc).toContain('Could not load recently deleted records. Please retry.');
+    expect(adminSrc).toContain('No deleted records.');
+    expect(adminSrc).toContain("data-recently-deleted-dailys-loaded={loading || loadError ? 'false' : 'true'}");
+    expect(adminSrc).toContain('data-recently-deleted-dailys-retry="1"');
+  });
   it('is wired into WebformsAdminView as Deleted tab', () => {
     expect(wfAdminSrc).toContain('RecentlyDeletedDailyReports');
     expect(wfAdminSrc).toContain("id: 'deleted'");

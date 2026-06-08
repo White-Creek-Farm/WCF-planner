@@ -8,8 +8,22 @@ import React from 'react';
 
 const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
   const label = confirmLabel || 'Confirm';
+  const confirmAndClose = () => {
+    onConfirm();
+    onCancel();
+  };
+
   return (
     <div
+      data-confirm-modal="1"
+      data-overlay-dismiss="disabled"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-modal-title"
+      aria-describedby="confirm-modal-message"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel();
+      }}
       style={{
         position: 'fixed',
         top: 0,
@@ -27,7 +41,7 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
       <div
         style={{
           background: 'white',
-          borderRadius: 12,
+          borderRadius: 10,
           padding: '24px 28px',
           maxWidth: 420,
           width: '100%',
@@ -35,14 +49,21 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
         }}
       >
         <div style={{fontSize: 20, marginBottom: 8}}>❓</div>
-        <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8}}>Confirm action</div>
-        <div style={{fontSize: 13, color: '#4b5563', marginBottom: 18, whiteSpace: 'pre-line'}}>{msg}</div>
+        <div id="confirm-modal-title" style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8}}>
+          Confirm action
+        </div>
+        <div
+          id="confirm-modal-message"
+          style={{fontSize: 13, color: '#4b5563', marginBottom: 18, whiteSpace: 'pre-line'}}
+        >
+          {msg}
+        </div>
         <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end'}}>
           <button
             onClick={onCancel}
             style={{
-              padding: '8px 18px',
-              borderRadius: 7,
+              padding: '10px 16px',
+              borderRadius: 6,
               border: '1px solid #d1d5db',
               background: 'white',
               color: '#374151',
@@ -56,16 +77,10 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
           </button>
           <button
             autoFocus
-            onClick={() => {
-              onConfirm();
-              onCancel();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') onCancel();
-            }}
+            onClick={confirmAndClose}
             style={{
-              padding: '8px 18px',
-              borderRadius: 7,
+              padding: '10px 16px',
+              borderRadius: 6,
               border: 'none',
               background: '#1d4ed8',
               color: 'white',

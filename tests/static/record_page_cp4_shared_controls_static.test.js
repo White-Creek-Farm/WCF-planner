@@ -25,6 +25,19 @@ describe('CP4: EquipmentDetail fueling edit row uses shared controls', () => {
     expect((src.match(/}, 800\)/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
+  it('flushes pending EquipmentDetail autosaves on blur, pagehide, and unmount/navigation', () => {
+    expect(src).toContain('const pendingFieldSaves = React.useRef({})');
+    expect(src).toContain('const pendingFuelingSaves = React.useRef({})');
+    expect(src).toContain('async function flushFieldSave(field)');
+    expect(src).toContain('async function flushFuelingSave(key)');
+    expect(src).toContain('async function flushAllEquipmentAutosaves()');
+    expect(src).toContain("window.addEventListener('pagehide', flush)");
+    expect(src).toContain("document.addEventListener('visibilitychange', flushOnVisibility)");
+    expect(src).toContain("onBlur={() => flushFuelingFieldSave(f.id, 'date')}");
+    expect(src).toContain("onBlur={() => flushFuelingFieldSave(f.id, 'gallons')}");
+    expect(src).toContain("onBlur={() => flushFuelingFieldSave(f.id, 'comments')}");
+  });
+
   it('fueling saves still write editable equipment_fuelings fields via queueFuelingSave', () => {
     expect(src).toContain("from('equipment_fuelings')");
     expect(src).toContain("queueFuelingSave(f.id, 'date'");

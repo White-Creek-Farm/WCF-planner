@@ -24,6 +24,8 @@ import ManualsCard from './ManualsCard.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import {RecordPageBody, RecordTitle} from '../shared/RecordPageShell.jsx';
 import {LockedTeamMemberField, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
 import {runMutation, recordStatusChange} from '../lib/entityMutations.js';
 
@@ -89,26 +91,43 @@ export default function EquipmentDetail({
   // of no typing the field patches to Supabase. Matches the cattle/sheep
   // inline-edit UX.
   const saveTimers = React.useRef({});
+  const pendingFieldSaves = React.useRef({});
+  function parseQueuedValue(rawValue, parser, {nonNegative = false} = {}) {
+    if (parser === 'number') {
+      const n = parseFloat(rawValue);
+      return Number.isFinite(n) && (!nonNegative || n >= 0) ? n : null;
+    }
+    return (rawValue || '').trim() || null;
+  }
+
   async function patchEq(fields) {
     setNotice(null);
     const {error} = await sb.from('equipment').update(fields).eq('id', eq.id);
     if (error) {
       setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-      return;
+      return false;
     }
     onReload();
+    return true;
+  }
+  async function flushFieldSave(field) {
+    const pending = pendingFieldSaves.current[field];
+    if (!pending) return true;
+    if (saveTimers.current[field]) clearTimeout(saveTimers.current[field]);
+    delete saveTimers.current[field];
+    const next = parseQueuedValue(pending.rawValue, pending.parser);
+    const ok = await patchEq({[field]: next});
+    // Clear the pending edit only after it is durably saved. On failure keep it
+    // queued so the next flush (blur/pagehide/unmount) retries instead of
+    // silently dropping it. Guard against clobbering a newer queued edit.
+    if (ok && pendingFieldSaves.current[field] === pending) delete pendingFieldSaves.current[field];
+    return ok;
   }
   function queueFieldSave(field, rawValue, parser) {
     if (saveTimers.current[field]) clearTimeout(saveTimers.current[field]);
+    pendingFieldSaves.current[field] = {rawValue, parser};
     saveTimers.current[field] = setTimeout(() => {
-      let next;
-      if (parser === 'number') {
-        const n = parseFloat(rawValue);
-        next = Number.isFinite(n) ? n : null;
-      } else {
-        next = (rawValue || '').trim() || null;
-      }
-      patchEq({[field]: next});
+      void flushFieldSave(field);
     }, 800);
   }
 
@@ -204,6 +223,7 @@ export default function EquipmentDetail({
   // above, but scoped per fueling row so we can have multiple rows open
   // and editing independently.
   const fuelingTimers = React.useRef({});
+  const pendingFuelingSaves = React.useRef({});
   async function syncCurrentReadingFromFuelings() {
     const currentField = eq.tracking_unit === 'km' ? 'current_km' : 'current_hours';
     const {data, error} = await sb
@@ -223,29 +243,85 @@ export default function EquipmentDetail({
       setNotice({kind: 'error', message: 'Fueling saved, but current reading sync failed: ' + updateError.message});
     }
   }
+
+  function fuelingSaveKey(fuelingId, field) {
+    return fuelingId + ':' + field;
+  }
+
+  async function patchFuelingField(fuelingId, field, rawValue, parser) {
+    const next = parseQueuedValue(rawValue, parser, {nonNegative: parser === 'number'});
+    const {error} = await sb
+      .from('equipment_fuelings')
+      .update({[field]: next})
+      .eq('id', fuelingId);
+    if (error) {
+      setNotice({kind: 'error', message: 'Save failed: ' + error.message});
+      return false;
+    }
+    const readingField = eq.tracking_unit === 'km' ? 'km_reading' : 'hours_reading';
+    if (field === readingField) await syncCurrentReadingFromFuelings();
+    onReload();
+    return true;
+  }
+
+  async function flushFuelingSave(key) {
+    const pending = pendingFuelingSaves.current[key];
+    if (!pending) return true;
+    if (fuelingTimers.current[key]) clearTimeout(fuelingTimers.current[key]);
+    delete fuelingTimers.current[key];
+    const ok = await patchFuelingField(pending.fuelingId, pending.field, pending.rawValue, pending.parser);
+    // Clear the pending edit only after a durable save; keep it queued on
+    // failure so a later flush retries. Guard against a newer queued edit.
+    if (ok && pendingFuelingSaves.current[key] === pending) delete pendingFuelingSaves.current[key];
+    return ok;
+  }
+
+  function flushFuelingFieldSave(fuelingId, field) {
+    return flushFuelingSave(fuelingSaveKey(fuelingId, field));
+  }
+
+  async function flushAllEquipmentAutosaves() {
+    const fieldKeys = Object.keys(pendingFieldSaves.current);
+    const fuelingKeys = Object.keys(pendingFuelingSaves.current);
+    const results = await Promise.all([
+      ...fieldKeys.map((field) => flushFieldSave(field)),
+      ...fuelingKeys.map((key) => flushFuelingSave(key)),
+    ]);
+    return results.every(Boolean);
+  }
+
+  // Reliability note: flushes triggered while the page is alive (input blur and
+  // visibilitychange) are awaited internally and re-queue on failure, so an edit
+  // is not lost there. The pagehide and unmount flushes are necessarily
+  // best-effort: the browser does not await async work during unload/teardown,
+  // so a save that is still in flight when the document is discarded may not
+  // complete. This is an inherent platform limitation, not a missing await —
+  // blur/visibilitychange are the reliable paths and cover normal navigation.
+  React.useEffect(() => {
+    const flush = () => {
+      void flushAllEquipmentAutosaves();
+    };
+    const flushOnVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', flushOnVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', flushOnVisibility);
+      flush();
+    };
+    // Captures the current equipment record so pending edits flush before the page unmounts or changes equipment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eq.id]);
+
   function queueFuelingSave(fuelingId, field, rawValue, parser) {
     setNotice(null);
-    const key = fuelingId + ':' + field;
+    const key = fuelingSaveKey(fuelingId, field);
     if (fuelingTimers.current[key]) clearTimeout(fuelingTimers.current[key]);
+    pendingFuelingSaves.current[key] = {fuelingId, field, rawValue, parser};
     fuelingTimers.current[key] = setTimeout(async () => {
-      let next;
-      if (parser === 'number') {
-        const n = parseFloat(rawValue);
-        next = Number.isFinite(n) && n >= 0 ? n : null;
-      } else {
-        next = (rawValue || '').trim() || null;
-      }
-      const {error} = await sb
-        .from('equipment_fuelings')
-        .update({[field]: next})
-        .eq('id', fuelingId);
-      if (error) {
-        setNotice({kind: 'error', message: 'Save failed: ' + error.message});
-        return;
-      }
-      const readingField = eq.tracking_unit === 'km' ? 'km_reading' : 'hours_reading';
-      if (field === readingField) await syncCurrentReadingFromFuelings();
-      onReload();
+      await flushFuelingSave(key);
     }, 800);
   }
   async function deleteFueling(fuelingId) {
@@ -286,14 +362,20 @@ export default function EquipmentDetail({
   };
 
   return (
-    <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+    <RecordPageBody
+      maxWidth={1100}
+      data-equipment-record-loaded="true"
+      style={{display: 'flex', flexDirection: 'column', gap: 16}}
+    >
       <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       {/* Header tile */}
       <div
         style={{background: 'white', border: '2px solid ' + EQUIPMENT_COLOR, borderRadius: 12, padding: '14px 20px'}}
       >
         <div style={{display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 10}}>
-          <span style={{fontSize: 20, fontWeight: 700, color: EQUIPMENT_COLOR}}>{eq.name}</span>
+          <RecordTitle fontSize={20} margin="0" style={{color: EQUIPMENT_COLOR}}>
+            {eq.name}
+          </RecordTitle>
           <span
             style={{
               fontSize: 11,
@@ -702,6 +784,7 @@ export default function EquipmentDetail({
                             type="date"
                             defaultValue={f.date || ''}
                             onChange={(e) => queueFuelingSave(f.id, 'date', e.target.value, 'text')}
+                            onBlur={() => flushFuelingFieldSave(f.id, 'date')}
                             style={recordControl}
                           />
                         </div>
@@ -721,6 +804,7 @@ export default function EquipmentDetail({
                             step="0.1"
                             defaultValue={f.gallons != null ? f.gallons : ''}
                             onChange={(e) => queueFuelingSave(f.id, 'gallons', e.target.value, 'number')}
+                            onBlur={() => flushFuelingFieldSave(f.id, 'gallons')}
                             style={recordControl}
                           />
                         </div>
@@ -733,6 +817,7 @@ export default function EquipmentDetail({
                               step="0.1"
                               defaultValue={f.def_gallons != null ? f.def_gallons : ''}
                               onChange={(e) => queueFuelingSave(f.id, 'def_gallons', e.target.value, 'number')}
+                              onBlur={() => flushFuelingFieldSave(f.id, 'def_gallons')}
                               style={recordControl}
                             />
                           </div>
@@ -752,6 +837,9 @@ export default function EquipmentDetail({
                                 'number',
                               )
                             }
+                            onBlur={() =>
+                              flushFuelingFieldSave(f.id, eq.tracking_unit === 'km' ? 'km_reading' : 'hours_reading')
+                            }
                             style={recordControl}
                           />
                         </div>
@@ -761,6 +849,7 @@ export default function EquipmentDetail({
                         <textarea
                           defaultValue={stripPodioHtml(f.comments) || ''}
                           onChange={(e) => queueFuelingSave(f.id, 'comments', e.target.value, 'text')}
+                          onBlur={() => flushFuelingFieldSave(f.id, 'comments')}
                           rows={2}
                           style={{...recordTextarea, minHeight: 60}}
                         />
@@ -1316,7 +1405,7 @@ export default function EquipmentDetail({
             </div>
           );
         })()}
-    </div>
+    </RecordPageBody>
   );
 }
 

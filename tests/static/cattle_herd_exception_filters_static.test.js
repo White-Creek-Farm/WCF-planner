@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const herdsView = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleHerdsView.jsx'), 'utf8');
 const filtersLib = fs.readFileSync(path.join(ROOT, 'src/lib/cattleHerdFilters.js'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
+const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
 
 // ============================================================================
 // Cattle herd filter UX lock (post smart-assistant removal) — surface_key
@@ -124,5 +125,45 @@ describe('Cattle herd saved views (surface_key cattle.herds)', () => {
   it('saved-view load failures degrade gracefully (cold-boot safety)', () => {
     expect(herdsView).toContain('data-saved-views-error');
     expect(herdsView).toContain('savedViewsError');
+  });
+});
+
+describe('Cattle herd CSV export', () => {
+  it('uses the shared csvExport owner for browser download mechanics', () => {
+    expect(csvExport).toContain("import {centralISOFor} from './dateUtils.js'");
+    expect(csvExport).toContain('export function rowsToCsv');
+    expect(csvExport).toContain('export function downloadCsv');
+    expect(csvExport).toContain('new Blob');
+    expect(csvExport).toContain('URL.createObjectURL');
+    expect(csvExport).toContain('URL.revokeObjectURL');
+    expect(csvExport).toContain("type: 'text/csv;charset=utf-8'");
+    expect(csvExport).toContain('centralISOFor(date)');
+  });
+
+  it('exports the current filtered + sorted cattle rows, not the raw cattle list', () => {
+    expect(herdsView).toContain("from '../lib/csvExport.js'");
+    expect(herdsView).toContain('function handleExportCsv');
+    expect(herdsView).toContain('data-cattle-herds-export-csv="1"');
+    expect(herdsView).toContain('rowsToCsv(columns, sortedFlat)');
+    expect(herdsView).not.toContain('rowsToCsv(columns, cattle)');
+  });
+
+  it('keeps cattle export columns useful for herd-list decisions', () => {
+    for (const header of [
+      'Tag',
+      'Herd',
+      'Sex',
+      'Breed',
+      'Origin',
+      'Last weight lbs',
+      'Last weighed',
+      'Last calved',
+      'Calf count',
+      'Record ID',
+    ]) {
+      expect(herdsView).toContain(`header: '${header}'`);
+    }
+    expect(herdsView).toContain('lastWeightEntryFor(c, weighIns)?.entered_at');
+    expect(herdsView).toContain('lastCalving(c.tag)?.calving_date');
   });
 });

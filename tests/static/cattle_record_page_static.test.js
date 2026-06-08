@@ -72,6 +72,46 @@ describe('CattleHerdsView — visible herd row columns', () => {
   });
 });
 
+describe('CattleHerdsView - cold-boot readiness', () => {
+  const loadAllMatch = herdsView.match(/async function loadAll\(\)[\s\S]*?\n {2}useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('fails closed on required hub read errors', () => {
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+    expect(loadAllSrc).toContain('loadCattleWeighInsCached(sb, {throwOnError: true})');
+    for (const table of [
+      'cattle',
+      'cattle_calving_records',
+      'cattle_breeds',
+      'cattle_origins',
+      'cattle_processing_batches',
+    ]) {
+      expect(loadAllSrc, `CattleHerdsView must throw on ${table} errors`).toContain(`throw new Error('${table}: ' +`);
+    }
+    for (const clearCall of [
+      'setCattle([]);',
+      'setWeighIns([]);',
+      'setCalvingRecs([]);',
+      'setBreedOpts([]);',
+      'setOriginOpts([]);',
+      'setProcessingBatches([]);',
+    ]) {
+      expect(loadAllSrc, `CattleHerdsView must clear ${clearCall} on catch`).toContain(clearCall);
+    }
+  });
+
+  it('exposes loaded/error retry markers and hides loaded hub content under error', () => {
+    expect(herdsView).toContain("data-cattle-herds-loaded={loading || loadError ? 'false' : 'true'}");
+    expect(herdsView).toContain('data-cattle-herds-load-error="true"');
+    expect(herdsView).toContain('data-cattle-herds-load-retry="1"');
+    expect(herdsView).toMatch(/data-cattle-herds-load-retry="1"[\s\S]*?onClick=\{loadAll\}/);
+    expect(herdsView).toContain('<InlineNotice notice={loadError} />');
+    expect(herdsView).toMatch(/\{!loadError && \(\s*<>[\s\S]*?data-saved-views-row/);
+  });
+});
+
 describe('CollapsibleOutcomeSections — no inline CowDetail', () => {
   it('does not render CowDetail JSX', () => {
     expect(collapsible).not.toMatch(/<CowDetail\b/);

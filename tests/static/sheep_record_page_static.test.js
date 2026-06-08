@@ -12,6 +12,49 @@ const sheepDetail = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepDetail.jsx')
 const collapsible = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepCollapsibleOutcomeSections.jsx'), 'utf8');
 const mainJsx = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const registry = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
+const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
+
+describe('SheepFlocksView - saved views', () => {
+  it('uses the shared saved-views API on the sheep.flocks surface', () => {
+    expect(flocksView).toContain("from '../lib/savedViewsApi.js'");
+    expect(flocksView).toContain("SHEEP_FLOCKS_SURFACE_KEY = 'sheep.flocks'");
+    expect(flocksView).toContain('listSavedViews(sb, SHEEP_FLOCKS_SURFACE_KEY)');
+    expect(flocksView).toContain('createSavedView(sb');
+    expect(flocksView).toContain('updateSavedView(sb');
+    expect(flocksView).toContain('deleteSavedView(sb');
+    expect(savedViewsApi).toContain("from('app_saved_views')");
+  });
+
+  it('captures and reapplies only the current sheep search/status/sort controls', () => {
+    expect(flocksView).toContain('function sheepFlocksViewState()');
+    expect(flocksView).toContain('search: search ||');
+    expect(flocksView).toContain('statusFilter: statusFilter ||');
+    expect(flocksView).toContain('sortBy: sortBy ||');
+    expect(flocksView).toContain('function applySheepSavedView(view)');
+    expect(flocksView).toContain('setSearch(typeof st.search');
+    expect(flocksView).toContain('setStatusFilter(validStatuses.has(st.statusFilter)');
+    expect(flocksView).toContain('setSortBy(validSorts.has(st.sortBy)');
+  });
+
+  it('renders select/save/update/delete controls with sheep-specific hooks', () => {
+    for (const marker of [
+      'data-sheep-saved-views-row',
+      'data-sheep-saved-view-select',
+      'data-sheep-saved-view-save',
+      'data-sheep-saved-view-update',
+      'data-sheep-saved-view-delete',
+      'data-sheep-saved-view-visibility',
+    ]) {
+      expect(flocksView).toContain(marker);
+    }
+  });
+
+  it('saved-view load failures degrade without blocking the sheep hub', () => {
+    expect(flocksView).toContain('savedViewsError');
+    expect(flocksView).toContain('data-sheep-saved-views-error');
+    expect(flocksView).toMatch(/\{!loadError && \(\s*<>[\s\S]*?data-sheep-saved-views-row[\s\S]*?Top toolbar/);
+  });
+});
 
 describe('SheepFlocksView — no legacy Activity or inline SheepDetail', () => {
   it('does not import ActivityPanel', () => {
@@ -50,6 +93,40 @@ describe('SheepFlocksView — no legacy Activity or inline SheepDetail', () => {
   });
   it('passes Header to SheepAnimalPage', () => {
     expect(flocksView).toContain('Header: props.Header');
+  });
+});
+
+describe('SheepFlocksView - cold-boot readiness', () => {
+  const loadAllMatch = flocksView.match(/async function loadAll\(\)[\s\S]*?\n {2}useEffect/);
+  const loadAllSrc = loadAllMatch ? loadAllMatch[0] : '';
+
+  it('fails closed on required hub read errors', () => {
+    expect(flocksView).toContain("import {loadSheepWeighInsCached} from '../lib/sheepCache.js'");
+    expect(loadAllSrc).toContain('try {');
+    expect(loadAllSrc).toContain('} catch (e) {');
+    expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
+    expect(loadAllSrc).toContain('loadSheepWeighInsCached(sb, {throwOnError: true})');
+    for (const table of ['sheep', 'sheep_lambing_records', 'sheep_breeds', 'sheep_origins']) {
+      expect(loadAllSrc, `SheepFlocksView must throw on ${table} errors`).toContain(`throw new Error('${table}: ' +`);
+    }
+    for (const clearCall of [
+      'setSheep([]);',
+      'setWeighIns([]);',
+      'setLambingRecs([]);',
+      'setBreedOpts([]);',
+      'setOriginOpts([]);',
+    ]) {
+      expect(loadAllSrc, `SheepFlocksView must clear ${clearCall} on catch`).toContain(clearCall);
+    }
+  });
+
+  it('exposes loaded/error retry markers and hides loaded hub content under error', () => {
+    expect(flocksView).toContain("data-sheep-flocks-loaded={loading || loadError ? 'false' : 'true'}");
+    expect(flocksView).toContain('data-sheep-flocks-load-error="true"');
+    expect(flocksView).toContain('data-sheep-flocks-load-retry="1"');
+    expect(flocksView).toMatch(/data-sheep-flocks-load-retry="1"[\s\S]*?onClick=\{loadAll\}/);
+    expect(flocksView).toContain('<InlineNotice notice={loadError} />');
+    expect(flocksView).toMatch(/\{!loadError && \(\s*<>[\s\S]*?Top toolbar/);
   });
 });
 

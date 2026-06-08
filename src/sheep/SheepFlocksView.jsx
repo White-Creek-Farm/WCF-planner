@@ -24,7 +24,9 @@ import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
+import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
+import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 
 function SheepFlocksRouter(props) {
   const location = useLocation();
@@ -41,6 +43,8 @@ function SheepFlocksRouter(props) {
   }
   return React.createElement(SheepFlocksHub, props);
 }
+
+const SHEEP_FLOCKS_SURFACE_KEY = 'sheep.flocks';
 
 const SheepFlocksHub = ({
   sb,
@@ -65,10 +69,20 @@ const SheepFlocksHub = ({
   const [breedOpts, setBreedOpts] = useState([]);
   const [originOpts, setOriginOpts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const [search, setSearch] = usePersistentViewState('sheep.flocks.search', '');
   const [statusFilter, setStatusFilter] = usePersistentViewState('sheep.flocks.statusFilter', 'active');
   const [sortBy, setSortBy] = usePersistentViewState('sheep.flocks.sortBy', 'tag-asc');
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewsError, setSavedViewsError] = useState(null);
+  const [savedViewsLoading, setSavedViewsLoading] = useState(true);
+  const [selectedViewId, setSelectedViewId] = useState('');
+  const [showSaveViewForm, setShowSaveViewForm] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  const [saveViewVisibility, setSaveViewVisibility] = useState('private');
+  const [savedViewBusy, setSavedViewBusy] = useState(false);
+  const myProfileId = authState?.user?.id || null;
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [form, setForm] = useState(null);
@@ -121,27 +135,60 @@ const SheepFlocksHub = ({
   };
 
   async function loadAll() {
-    const sessR = await sb.from('weigh_in_sessions').select('id,date,herd').eq('species', 'sheep');
-    const sessIds = (sessR.data || []).map((s) => s.id);
-    const wR =
-      sessIds.length > 0
-        ? await sb.from('weigh_ins').select('*').in('session_id', sessIds).order('entered_at', {ascending: false})
-        : {data: []};
-    const [sR, lR, brR, orR] = await Promise.all([
-      sb.from('sheep').select('*').is('deleted_at', null).order('tag'),
-      sb.from('sheep_lambing_records').select('*').order('lambing_date', {ascending: false}),
-      sb.from('sheep_breeds').select('*').order('label'),
-      sb.from('sheep_origins').select('*').order('label'),
-    ]);
-    if (sR.data) setSheep(sR.data);
-    if (wR.data) setWeighIns(wR.data);
-    if (lR.data) setLambingRecs(lR.data);
-    if (brR.data) setBreedOpts(brR.data);
-    if (orR.data) setOriginOpts(orR.data);
-    setLoading(false);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [sR, wAll, lR, brR, orR] = await Promise.all([
+        sb.from('sheep').select('*').is('deleted_at', null).order('tag'),
+        loadSheepWeighInsCached(sb, {throwOnError: true}),
+        sb.from('sheep_lambing_records').select('*').order('lambing_date', {ascending: false}),
+        sb.from('sheep_breeds').select('*').order('label'),
+        sb.from('sheep_origins').select('*').order('label'),
+      ]);
+      if (sR.error) throw new Error('sheep: ' + (sR.error.message || sR.error));
+      if (lR.error) throw new Error('sheep_lambing_records: ' + (lR.error.message || lR.error));
+      if (brR.error) throw new Error('sheep_breeds: ' + (brR.error.message || brR.error));
+      if (orR.error) throw new Error('sheep_origins: ' + (orR.error.message || orR.error));
+      setSheep(sR.data || []);
+      setWeighIns(wAll || []);
+      setLambingRecs(lR.data || []);
+      setBreedOpts(brR.data || []);
+      setOriginOpts(orR.data || []);
+    } catch (e) {
+      setSheep([]);
+      setWeighIns([]);
+      setLambingRecs([]);
+      setBreedOpts([]);
+      setOriginOpts([]);
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load sheep flocks. Please retry. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     loadAll();
+  }, []);
+
+  async function loadSavedViews() {
+    setSavedViewsLoading(true);
+    try {
+      const rows = await listSavedViews(sb, SHEEP_FLOCKS_SURFACE_KEY);
+      setSavedViews(rows);
+      setSavedViewsError(null);
+      setSelectedViewId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : ''));
+    } catch (e) {
+      setSavedViews([]);
+      setSavedViewsError(e.message || String(e));
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }
+  useEffect(() => {
+    loadSavedViews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function age(birth) {
@@ -201,6 +248,95 @@ const SheepFlocksHub = ({
     if (sortBy === 'weight-asc') return (lastWeight(a) || 0) - (lastWeight(b) || 0);
     return 0;
   });
+
+  const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
+  const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
+
+  function sheepFlocksViewState() {
+    return {
+      search: search || '',
+      statusFilter: statusFilter || 'active',
+      sortBy: sortBy || 'tag-asc',
+    };
+  }
+  function applySheepSavedView(view) {
+    if (!view) return;
+    const st = view.view_state || {};
+    const validStatuses = new Set(['active', 'all', ...ALL_FLOCKS]);
+    const validSorts = new Set(['tag-asc', 'tag-desc', 'age-asc', 'age-desc', 'weight-desc', 'weight-asc']);
+    setSearch(typeof st.search === 'string' ? st.search : '');
+    setStatusFilter(validStatuses.has(st.statusFilter) ? st.statusFilter : 'active');
+    setSortBy(validSorts.has(st.sortBy) ? st.sortBy : 'tag-asc');
+  }
+  function onSelectSavedView(id) {
+    setSelectedViewId(id);
+    if (!id) return;
+    applySheepSavedView(savedViews.find((v) => v.id === id));
+  }
+  function openSaveViewForm() {
+    setSaveViewName('');
+    setSaveViewVisibility('private');
+    setShowSaveViewForm(true);
+  }
+  async function submitSaveView() {
+    const name = saveViewName.trim();
+    if (!name) {
+      setNotice({kind: 'error', message: 'Name the view before saving.'});
+      return;
+    }
+    setSavedViewBusy(true);
+    try {
+      const created = await createSavedView(sb, {
+        surfaceKey: SHEEP_FLOCKS_SURFACE_KEY,
+        name,
+        visibility: saveViewVisibility,
+        viewState: sheepFlocksViewState(),
+      });
+      setShowSaveViewForm(false);
+      await loadSavedViews();
+      if (created?.id) setSelectedViewId(created.id);
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Save view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+  async function updateSelectedView() {
+    if (!selectedView || !selectedViewIsMine) return;
+    setSavedViewBusy(true);
+    try {
+      await updateSavedView(sb, selectedView.id, {viewState: sheepFlocksViewState()});
+      await loadSavedViews();
+      setNotice({kind: 'success', message: 'Updated "' + selectedView.name + '" to the current search/filter/sort.'});
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Update view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+  async function proceedDeleteSelectedView(view) {
+    setSavedViewBusy(true);
+    try {
+      await deleteSavedView(sb, view.id);
+      setSelectedViewId('');
+      await loadSavedViews();
+      setNotice({kind: 'success', message: 'Deleted saved view "' + view.name + '".'});
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Delete view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+  function deleteSelectedView() {
+    if (!selectedView || !selectedViewIsMine) return;
+    const view = selectedView;
+    const run = () => {
+      void proceedDeleteSelectedView(view);
+    };
+    if (window._wcfConfirmDelete) {
+      window._wcfConfirmDelete('Delete saved view "' + view.name + '"?', run);
+    }
+  }
 
   function openAdd() {
     setNotice(null);
@@ -271,6 +407,31 @@ const SheepFlocksHub = ({
   };
   const lbl = {fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500};
   const isFlatMode = search || statusFilter !== 'active';
+  const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
+  const publicOtherViews = savedViews.filter(
+    (v) => v.visibility === 'public' && !(myProfileId && v.owner_profile_id === myProfileId),
+  );
+  const savedViewGhostBtnS = {
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #0f766e', color: '#0f766e'};
+  const savedViewRadioLabelS = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12,
+    color: '#374151',
+    cursor: 'pointer',
+  };
 
   return (
     <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -285,439 +446,620 @@ const SheepFlocksHub = ({
         />
       )}
       <Header />
-      <div style={{padding: '1rem', maxWidth: 1200, margin: '0 auto'}}>
+      <div
+        style={{padding: '1rem', maxWidth: 1200, margin: '0 auto'}}
+        data-sheep-flocks-loaded={loading || loadError ? 'false' : 'true'}
+      >
         {!showAddForm && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
-        {/* Top toolbar */}
-        <div
-          style={{
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: 10,
-            padding: '12px 16px',
-            marginBottom: 14,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}
-        >
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={'Search tag, dam, sire, breed, origin…'}
-            style={{...inpS, flex: 1, minWidth: 200}}
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{...inpS, width: 'auto'}}
-          >
-            <option value="active">All Active Flocks</option>
-            <option value="all">All (including outcomes)</option>
-            <option disabled>{'───'}</option>
-            {FLOCKS.map((f) => (
-              <option key={f} value={f}>
-                {FLOCK_LABELS[f]}
-              </option>
-            ))}
-            <option disabled>{'───'}</option>
-            {OUTCOMES.map((f) => (
-              <option key={f} value={f}>
-                {FLOCK_LABELS[f]}
-              </option>
-            ))}
-          </select>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{...inpS, width: 'auto'}}>
-            <option value="tag-asc">Tag {'↑'}</option>
-            <option value="tag-desc">Tag {'↓'}</option>
-            <option value="age-asc">Age (youngest first)</option>
-            <option value="age-desc">Age (oldest first)</option>
-            <option value="weight-desc">Weight {'↓'}</option>
-            <option value="weight-asc">Weight {'↑'}</option>
-          </select>
-          <button
-            onClick={() => setShowBulkImport(true)}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 7,
-              border: '1px solid #0f766e',
-              background: 'white',
-              color: '#0f766e',
-              fontWeight: 600,
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            📥 Bulk Import
-          </button>
-          <button
-            onClick={openAdd}
-            style={{
-              padding: '7px 16px',
-              borderRadius: 7,
-              border: 'none',
-              background: '#0f766e',
-              color: 'white',
-              fontWeight: 600,
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            + Add Sheep
-          </button>
-        </div>
-
-        {showBulkImport && (
-          <SheepBulkImport
-            sb={sb}
-            breedOpts={breedOpts}
-            originOpts={originOpts}
-            existingSheep={sheep}
-            onClose={() => setShowBulkImport(false)}
-            onComplete={loadAll}
-          />
-        )}
-
-        {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'…'}</div>}
-        {!loading && sheep.length === 0 && (
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid #e5e7eb',
-              borderRadius: 12,
-              padding: '2rem',
-              textAlign: 'center',
-              color: '#6b7280',
-              fontSize: 13,
-            }}
-          >
-            No sheep records yet. Click <strong>+ Add Sheep</strong> or <strong>Bulk Import</strong>.
-          </div>
-        )}
-
-        {/* FLAT MODE — search or non-active filter */}
-        {!loading && isFlatMode && sheep.length > 0 && (
-          <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}>
-            <div
+        {loadError && (
+          <div data-sheep-flocks-load-error="true">
+            <InlineNotice notice={loadError} />
+            <button
+              type="button"
+              data-sheep-flocks-load-retry="1"
+              onClick={loadAll}
               style={{
-                padding: '10px 16px',
-                borderBottom: '1px solid #e5e7eb',
-                background: '#f9fafb',
+                padding: '7px 14px',
+                borderRadius: 6,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#085041',
                 fontSize: 12,
                 fontWeight: 600,
-                color: '#4b5563',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                marginBottom: 12,
               }}
             >
-              {sorted.length} sheep match
-            </div>
-            {sorted.length === 0 && (
-              <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
-                No sheep match the current filter.
-              </div>
-            )}
-            {sorted.map((s, i) => {
-              const fc = FLOCK_COLORS[s.flock] || FLOCK_COLORS.ewes;
-              const lw = lastWeight(s);
-              return (
-                <div
-                  key={s.id}
-                  id={'sheep-' + s.id}
-                  style={{borderBottom: i < sorted.length - 1 ? '1px solid #f3f4f6' : 'none'}}
-                >
-                  <div
-                    onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted))}
-                    style={{
-                      padding: '10px 16px 10px 0',
-                      display: 'grid',
-                      gridTemplateColumns: '48px 16px 70px 110px 60px 180px 70px 90px 1fr',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: 'pointer',
-                      background: s.breeding_blacklist ? '#fecaca' : 'white',
-                    }}
-                    className="hoverable-tile"
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: '#9ca3af',
-                        fontVariantNumeric: 'tabular-nums',
-                        alignSelf: 'stretch',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        paddingRight: 10,
-                        paddingLeft: 8,
-                        marginTop: -10,
-                        marginBottom: -10,
-                        borderRight: '1px solid #d1d5db',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {i + 1}
-                    </span>
-                    <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        fontSize: 13,
-                        color: '#111827',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      {s.tag ? '#' + s.tag : '(no tag)'}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        background: fc.bg,
-                        color: fc.tx,
-                        border: '1px solid ' + fc.bd,
-                        fontWeight: 600,
-                        textAlign: 'center',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {FLOCK_LABELS[s.flock]}
-                    </span>
-                    <span style={{fontSize: 11, color: '#6b7280'}}>{s.sex || '—'}</span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: '#6b7280',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {s.breed || '—'}
-                    </span>
-                    <span style={{fontSize: 11, color: '#6b7280'}}>{age(s.birth_date) || '—'}</span>
-                    <span style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}>
-                      {lw ? lw.toLocaleString() + ' lb' : 'no weigh-in'}
-                    </span>
-                    <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-                      {s.dam_tag && <span style={{fontSize: 11, color: '#9ca3af'}}>{'dam #' + s.dam_tag}</span>}
-                      {s.maternal_issue_flag && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 6px',
-                            borderRadius: 4,
-                            background: '#fef2f2',
-                            color: '#b91c1c',
-                            fontWeight: 600,
-                          }}
-                        >
-                          MATERNAL ISSUE
-                        </span>
-                      )}
-                      {s.breeding_blacklist && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 6px',
-                            borderRadius: 4,
-                            background: '#fef2f2',
-                            color: '#b91c1c',
-                            fontWeight: 600,
-                          }}
-                        >
-                          BLACKLIST
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+              Retry
+            </button>
           </div>
         )}
-
-        {/* TILE MODE — default view */}
-        {!loading && !isFlatMode && sheep.length > 0 && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-            {FLOCKS.map((f) => {
-              const flockSheep = sorted.filter((s) => s.flock === f);
-              const fc = FLOCK_COLORS[f];
-              const open = !!expandedFlocks[f];
-              return (
-                <div
-                  key={f}
-                  style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
-                >
-                  <div
-                    onClick={() => setExpandedFlocks({...expandedFlocks, [f]: !open})}
-                    style={{
-                      padding: '12px 18px',
-                      background: fc.bg,
-                      borderBottom: open ? '1px solid ' + fc.bd : 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      cursor: 'pointer',
-                    }}
+        {!loadError && (
+          <>
+            <div
+              data-sheep-saved-views-row
+              style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              {savedViewsError ? (
+                <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-saved-views-error>
+                  Saved views unavailable. Filters still work.
+                </span>
+              ) : (
+                <>
+                  <select
+                    data-sheep-saved-view-select
+                    value={selectedViewId}
+                    disabled={savedViewsLoading}
+                    onChange={(e) => onSelectSavedView(e.target.value)}
+                    style={{...inpS, width: 'auto', minWidth: 200, fontSize: 12, padding: '6px 10px'}}
                   >
-                    <span style={{fontSize: 12, color: fc.tx}}>{open ? '▼' : '▶'}</span>
-                    <span
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: fc.tx,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                    >
-                      <PlannerIcon iconKey={ANIMAL_ICON_KEYS.sheep} size={18} />
-                      <span>{FLOCK_LABELS[f]}</span>
-                    </span>
-                    <span style={{fontSize: 12, color: fc.tx, opacity: 0.8}}>
-                      {flockSheep.length} {flockSheep.length === 1 ? 'sheep' : 'sheep'}
-                    </span>
-                  </div>
-                  {open && flockSheep.length === 0 && (
-                    <div style={{padding: '1rem 18px', color: '#9ca3af', fontSize: 12, fontStyle: 'italic'}}>
-                      No sheep in this flock yet.
-                    </div>
+                    <option value="">{savedViewsLoading ? 'Loading...' : 'Select a saved view'}</option>
+                    {myViews.length > 0 && (
+                      <optgroup label="My views">
+                        {myViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name + (v.visibility === 'public' ? ' - public' : ' - private')}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {publicOtherViews.length > 0 && (
+                      <optgroup label="Public views">
+                        {publicOtherViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {selectedViewIsMine && (
+                    <>
+                      <button
+                        type="button"
+                        data-sheep-saved-view-update
+                        onClick={updateSelectedView}
+                        disabled={savedViewBusy}
+                        style={savedViewGhostBtnS}
+                      >
+                        Update to current
+                      </button>
+                      <button
+                        type="button"
+                        data-sheep-saved-view-delete
+                        onClick={deleteSelectedView}
+                        disabled={savedViewBusy}
+                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                      >
+                        Delete
+                      </button>
+                    </>
                   )}
-                  {open &&
-                    flockSheep.map((s, idx) => {
-                      const lw = lastWeight(s);
-                      const ll = lastLambing(s.tag);
-                      const lc = lambCount(s.tag);
-                      return (
-                        <div key={s.id} id={'sheep-' + s.id} style={{borderBottom: '1px solid #f3f4f6'}}>
-                          <div
-                            onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep))}
-                            style={{
-                              padding: '10px 18px 10px 0',
-                              display: 'grid',
-                              gridTemplateColumns: '48px 16px 70px 60px 180px 70px 90px 1fr',
-                              alignItems: 'center',
-                              gap: 10,
-                              cursor: 'pointer',
-                              background: s.breeding_blacklist ? '#fecaca' : 'transparent',
-                            }}
-                            className="hoverable-tile"
-                          >
+                  <span style={{flex: 1}} />
+                  <button
+                    type="button"
+                    data-sheep-saved-view-save-open
+                    onClick={openSaveViewForm}
+                    disabled={savedViewBusy}
+                    style={savedViewPrimaryBtnS}
+                  >
+                    Save current view
+                  </button>
+                </>
+              )}
+            </div>
+            {showSaveViewForm && (
+              <div
+                data-sheep-saved-view-form
+                style={{
+                  background: 'white',
+                  border: '1px solid #99f6e4',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <input
+                  data-sheep-saved-view-name
+                  type="text"
+                  value={saveViewName}
+                  placeholder="View name"
+                  onChange={(e) => setSaveViewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitSaveView();
+                  }}
+                  style={{...inpS, flex: 1, minWidth: 200}}
+                />
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveSheepViewVisibility"
+                    checked={saveViewVisibility === 'private'}
+                    onChange={() => setSaveViewVisibility('private')}
+                    data-sheep-saved-view-visibility="private"
+                  />
+                  Private
+                </label>
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveSheepViewVisibility"
+                    checked={saveViewVisibility === 'public'}
+                    onChange={() => setSaveViewVisibility('public')}
+                    data-sheep-saved-view-visibility="public"
+                  />
+                  Public
+                </label>
+                <button
+                  type="button"
+                  data-sheep-saved-view-save
+                  onClick={submitSaveView}
+                  disabled={savedViewBusy}
+                  style={savedViewPrimaryBtnS}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSaveViewForm(false)}
+                  disabled={savedViewBusy}
+                  style={savedViewGhostBtnS}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {/* Top toolbar */}
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: '12px 16px',
+                marginBottom: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}
+            >
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={'Search tag, dam, sire, breed, origin…'}
+                style={{...inpS, flex: 1, minWidth: 200}}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{...inpS, width: 'auto'}}
+              >
+                <option value="active">All Active Flocks</option>
+                <option value="all">All (including outcomes)</option>
+                <option disabled>{'───'}</option>
+                {FLOCKS.map((f) => (
+                  <option key={f} value={f}>
+                    {FLOCK_LABELS[f]}
+                  </option>
+                ))}
+                <option disabled>{'───'}</option>
+                {OUTCOMES.map((f) => (
+                  <option key={f} value={f}>
+                    {FLOCK_LABELS[f]}
+                  </option>
+                ))}
+              </select>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{...inpS, width: 'auto'}}>
+                <option value="tag-asc">Tag {'↑'}</option>
+                <option value="tag-desc">Tag {'↓'}</option>
+                <option value="age-asc">Age (youngest first)</option>
+                <option value="age-desc">Age (oldest first)</option>
+                <option value="weight-desc">Weight {'↓'}</option>
+                <option value="weight-asc">Weight {'↑'}</option>
+              </select>
+              <button
+                onClick={() => setShowBulkImport(true)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 7,
+                  border: '1px solid #0f766e',
+                  background: 'white',
+                  color: '#0f766e',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📥 Bulk Import
+              </button>
+              <button
+                onClick={openAdd}
+                style={{
+                  padding: '7px 16px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: '#0f766e',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                + Add Sheep
+              </button>
+            </div>
+
+            {showBulkImport && (
+              <SheepBulkImport
+                sb={sb}
+                breedOpts={breedOpts}
+                originOpts={originOpts}
+                existingSheep={sheep}
+                onClose={() => setShowBulkImport(false)}
+                onComplete={loadAll}
+              />
+            )}
+
+            {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'…'}</div>}
+            {!loading && sheep.length === 0 && (
+              <div
+                style={{
+                  background: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 12,
+                  padding: '2rem',
+                  textAlign: 'center',
+                  color: '#6b7280',
+                  fontSize: 13,
+                }}
+              >
+                No sheep records yet. Click <strong>+ Add Sheep</strong> or <strong>Bulk Import</strong>.
+              </div>
+            )}
+
+            {/* FLAT MODE — search or non-active filter */}
+            {!loading && isFlatMode && sheep.length > 0 && (
+              <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}>
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    borderBottom: '1px solid #e5e7eb',
+                    background: '#f9fafb',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#4b5563',
+                  }}
+                >
+                  {sorted.length} sheep match
+                </div>
+                {sorted.length === 0 && (
+                  <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+                    No sheep match the current filter.
+                  </div>
+                )}
+                {sorted.map((s, i) => {
+                  const fc = FLOCK_COLORS[s.flock] || FLOCK_COLORS.ewes;
+                  const lw = lastWeight(s);
+                  return (
+                    <div
+                      key={s.id}
+                      id={'sheep-' + s.id}
+                      style={{borderBottom: i < sorted.length - 1 ? '1px solid #f3f4f6' : 'none'}}
+                    >
+                      <div
+                        onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted))}
+                        style={{
+                          padding: '10px 16px 10px 0',
+                          display: 'grid',
+                          gridTemplateColumns: '48px 16px 70px 110px 60px 180px 70px 90px 1fr',
+                          alignItems: 'center',
+                          gap: 10,
+                          cursor: 'pointer',
+                          background: s.breeding_blacklist ? '#fecaca' : 'white',
+                        }}
+                        className="hoverable-tile"
+                      >
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: '#9ca3af',
+                            fontVariantNumeric: 'tabular-nums',
+                            alignSelf: 'stretch',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            paddingRight: 10,
+                            paddingLeft: 8,
+                            marginTop: -10,
+                            marginBottom: -10,
+                            borderRight: '1px solid #d1d5db',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {i + 1}
+                        </span>
+                        <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 13,
+                            color: '#111827',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          {s.tag ? '#' + s.tag : '(no tag)'}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background: fc.bg,
+                            color: fc.tx,
+                            border: '1px solid ' + fc.bd,
+                            fontWeight: 600,
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {FLOCK_LABELS[s.flock]}
+                        </span>
+                        <span style={{fontSize: 11, color: '#6b7280'}}>{s.sex || '—'}</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: '#6b7280',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {s.breed || '—'}
+                        </span>
+                        <span style={{fontSize: 11, color: '#6b7280'}}>{age(s.birth_date) || '—'}</span>
+                        <span style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}>
+                          {lw ? lw.toLocaleString() + ' lb' : 'no weigh-in'}
+                        </span>
+                        <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+                          {s.dam_tag && <span style={{fontSize: 11, color: '#9ca3af'}}>{'dam #' + s.dam_tag}</span>}
+                          {s.maternal_issue_flag && (
                             <span
                               style={{
-                                fontSize: 11,
-                                color: '#9ca3af',
-                                fontVariantNumeric: 'tabular-nums',
-                                alignSelf: 'stretch',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'flex-end',
-                                paddingRight: 10,
-                                paddingLeft: 8,
-                                marginTop: -10,
-                                marginBottom: -10,
-                                borderRight: '1px solid #d1d5db',
+                                fontSize: 10,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: '#fef2f2',
+                                color: '#b91c1c',
                                 fontWeight: 600,
                               }}
                             >
-                              {idx + 1}
+                              MATERNAL ISSUE
                             </span>
-                            <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
+                          )}
+                          {s.breeding_blacklist && (
                             <span
                               style={{
-                                fontWeight: 700,
-                                fontSize: 13,
-                                color: '#111827',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
+                                fontSize: 10,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: '#fef2f2',
+                                color: '#b91c1c',
+                                fontWeight: 600,
                               }}
                             >
-                              {s.tag ? '#' + s.tag : '(no tag)'}
+                              BLACKLIST
                             </span>
-                            <span style={{fontSize: 11, color: '#6b7280'}}>{s.sex || '—'}</span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: '#6b7280',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {s.breed || '—'}
-                            </span>
-                            <span style={{fontSize: 11, color: '#6b7280'}}>{age(s.birth_date) || '—'}</span>
-                            <span style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}>
-                              {lw ? lw.toLocaleString() + ' lb' : '—'}
-                            </span>
-                            <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-                              {f === 'ewes' && lc > 0 && (
-                                <span style={{fontSize: 11, color: '#0f766e', fontWeight: 600}}>
-                                  {lc + ' ' + (lc === 1 ? 'lamb' : 'lambs')}
-                                </span>
-                              )}
-                              {f === 'ewes' && ll && (
-                                <span style={{fontSize: 11, color: '#9ca3af'}}>
-                                  {'last lambed ' + fmt(ll.lambing_date)}
-                                </span>
-                              )}
-                              {s.maternal_issue_flag && (
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    padding: '1px 6px',
-                                    borderRadius: 4,
-                                    background: '#fef2f2',
-                                    color: '#b91c1c',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  MATERNAL
-                                </span>
-                              )}
-                              {s.breeding_blacklist && (
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    padding: '1px 6px',
-                                    borderRadius: 4,
-                                    background: '#fef2f2',
-                                    color: '#b91c1c',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  BLACKLIST
-                                </span>
-                              )}
-                            </span>
-                          </div>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* TILE MODE — default view */}
+            {!loading && !isFlatMode && sheep.length > 0 && (
+              <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+                {FLOCKS.map((f) => {
+                  const flockSheep = sorted.filter((s) => s.flock === f);
+                  const fc = FLOCK_COLORS[f];
+                  const open = !!expandedFlocks[f];
+                  return (
+                    <div
+                      key={f}
+                      style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
+                    >
+                      <div
+                        onClick={() => setExpandedFlocks({...expandedFlocks, [f]: !open})}
+                        style={{
+                          padding: '12px 18px',
+                          background: fc.bg,
+                          borderBottom: open ? '1px solid ' + fc.bd : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{fontSize: 12, color: fc.tx}}>{open ? '▼' : '▶'}</span>
+                        <span
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: fc.tx,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <PlannerIcon iconKey={ANIMAL_ICON_KEYS.sheep} size={18} />
+                          <span>{FLOCK_LABELS[f]}</span>
+                        </span>
+                        <span style={{fontSize: 12, color: fc.tx, opacity: 0.8}}>
+                          {flockSheep.length} {flockSheep.length === 1 ? 'sheep' : 'sheep'}
+                        </span>
+                      </div>
+                      {open && flockSheep.length === 0 && (
+                        <div style={{padding: '1rem 18px', color: '#9ca3af', fontSize: 12, fontStyle: 'italic'}}>
+                          No sheep in this flock yet.
                         </div>
-                      );
-                    })}
-                </div>
-              );
-            })}
-            {/* Outcome flocks shown collapsed at the bottom */}
-            <SheepCollapsibleOutcomeSections
-              sheep={sheep}
-              FLOCK_COLORS={FLOCK_COLORS}
-              FLOCK_LABELS={FLOCK_LABELS}
-              OUTCOMES={OUTCOMES}
-              fmt={fmt}
-              setStatusFilter={setStatusFilter}
-              onSheepClick={(s) => navigate('/sheep/flocks/' + s.id)}
-            />
-          </div>
+                      )}
+                      {open &&
+                        flockSheep.map((s, idx) => {
+                          const lw = lastWeight(s);
+                          const ll = lastLambing(s.tag);
+                          const lc = lambCount(s.tag);
+                          return (
+                            <div key={s.id} id={'sheep-' + s.id} style={{borderBottom: '1px solid #f3f4f6'}}>
+                              <div
+                                onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep))}
+                                style={{
+                                  padding: '10px 18px 10px 0',
+                                  display: 'grid',
+                                  gridTemplateColumns: '48px 16px 70px 60px 180px 70px 90px 1fr',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  cursor: 'pointer',
+                                  background: s.breeding_blacklist ? '#fecaca' : 'transparent',
+                                }}
+                                className="hoverable-tile"
+                              >
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: '#9ca3af',
+                                    fontVariantNumeric: 'tabular-nums',
+                                    alignSelf: 'stretch',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'flex-end',
+                                    paddingRight: 10,
+                                    paddingLeft: 8,
+                                    marginTop: -10,
+                                    marginBottom: -10,
+                                    borderRight: '1px solid #d1d5db',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {idx + 1}
+                                </span>
+                                <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
+                                <span
+                                  style={{
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                    color: '#111827',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                  }}
+                                >
+                                  {s.tag ? '#' + s.tag : '(no tag)'}
+                                </span>
+                                <span style={{fontSize: 11, color: '#6b7280'}}>{s.sex || '—'}</span>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: '#6b7280',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {s.breed || '—'}
+                                </span>
+                                <span style={{fontSize: 11, color: '#6b7280'}}>{age(s.birth_date) || '—'}</span>
+                                <span
+                                  style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}
+                                >
+                                  {lw ? lw.toLocaleString() + ' lb' : '—'}
+                                </span>
+                                <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+                                  {f === 'ewes' && lc > 0 && (
+                                    <span style={{fontSize: 11, color: '#0f766e', fontWeight: 600}}>
+                                      {lc + ' ' + (lc === 1 ? 'lamb' : 'lambs')}
+                                    </span>
+                                  )}
+                                  {f === 'ewes' && ll && (
+                                    <span style={{fontSize: 11, color: '#9ca3af'}}>
+                                      {'last lambed ' + fmt(ll.lambing_date)}
+                                    </span>
+                                  )}
+                                  {s.maternal_issue_flag && (
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        padding: '1px 6px',
+                                        borderRadius: 4,
+                                        background: '#fef2f2',
+                                        color: '#b91c1c',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      MATERNAL
+                                    </span>
+                                  )}
+                                  {s.breeding_blacklist && (
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        padding: '1px 6px',
+                                        borderRadius: 4,
+                                        background: '#fef2f2',
+                                        color: '#b91c1c',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      BLACKLIST
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  );
+                })}
+                {/* Outcome flocks shown collapsed at the bottom */}
+                <SheepCollapsibleOutcomeSections
+                  sheep={sheep}
+                  FLOCK_COLORS={FLOCK_COLORS}
+                  FLOCK_LABELS={FLOCK_LABELS}
+                  OUTCOMES={OUTCOMES}
+                  fmt={fmt}
+                  setStatusFilter={setStatusFilter}
+                  onSheepClick={(s) => navigate('/sheep/flocks/' + s.id)}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 

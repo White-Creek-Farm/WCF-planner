@@ -11,8 +11,22 @@ import React from 'react';
 const DeleteModal = ({msg, onConfirm, onCancel}) => {
   const [typed, setTyped] = React.useState('');
   const ready = typed.trim().toLowerCase() === 'delete';
+  const confirmAndClose = () => {
+    onConfirm();
+    onCancel();
+  };
+
   return (
     <div
+      data-delete-modal="1"
+      data-overlay-dismiss="disabled"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-modal-title"
+      aria-describedby="delete-modal-message"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel();
+      }}
       style={{
         position: 'fixed',
         top: 0,
@@ -30,7 +44,7 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
       <div
         style={{
           background: 'white',
-          borderRadius: 12,
+          borderRadius: 10,
           padding: '24px 28px',
           maxWidth: 420,
           width: '100%',
@@ -38,8 +52,12 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
         }}
       >
         <div style={{fontSize: 20, marginBottom: 8}}>⚠️</div>
-        <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8}}>Are you sure?</div>
-        <div style={{fontSize: 13, color: '#4b5563', marginBottom: 16}}>{msg}</div>
+        <div id="delete-modal-title" style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8}}>
+          Are you sure?
+        </div>
+        <div id="delete-modal-message" style={{fontSize: 13, color: '#4b5563', marginBottom: 16}}>
+          {msg}
+        </div>
         <div style={{fontSize: 12, color: '#6b7280', marginBottom: 6}}>
           Type <strong>delete</strong> to confirm:
         </div>
@@ -49,17 +67,16 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
           onChange={(e) => setTyped(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && ready) {
-              onConfirm();
-              onCancel();
+              confirmAndClose();
             }
-            if (e.key === 'Escape') onCancel();
           }}
+          aria-label="Type delete to confirm"
           placeholder="delete"
           style={{
             width: '100%',
             padding: '8px 12px',
             border: '1px solid #d1d5db',
-            borderRadius: 7,
+            borderRadius: 6,
             fontSize: 13,
             fontFamily: 'inherit',
             marginBottom: 16,
@@ -71,8 +88,8 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
           <button
             onClick={onCancel}
             style={{
-              padding: '8px 18px',
-              borderRadius: 7,
+              padding: '10px 16px',
+              borderRadius: 6,
               border: '1px solid #d1d5db',
               background: 'white',
               color: '#374151',
@@ -86,13 +103,10 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
           </button>
           <button
             disabled={!ready}
-            onClick={() => {
-              onConfirm();
-              onCancel();
-            }}
+            onClick={confirmAndClose}
             style={{
-              padding: '8px 18px',
-              borderRadius: 7,
+              padding: '10px 16px',
+              borderRadius: 6,
               border: 'none',
               background: ready ? '#b91c1c' : '#f3f4f6',
               color: ready ? 'white' : '#9ca3af',

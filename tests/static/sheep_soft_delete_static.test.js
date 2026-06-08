@@ -11,6 +11,7 @@ const apiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/sheepDeleteApi.js'), 'ut
 const animalSrc = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepAnimalPage.jsx'), 'utf8');
 const detailSrc = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepDetail.jsx'), 'utf8');
 const batchHelperSrc = fs.readFileSync(path.join(ROOT, 'src/lib/sheepProcessingBatch.js'), 'utf8');
+const recoveryAdminSrc = fs.readFileSync(path.join(ROOT, 'src/admin/RecentlyDeletedDailyReports.jsx'), 'utf8');
 
 // ── Migration 074 — schema: deleted_at + deleted_by columns ─────────────
 
@@ -187,6 +188,23 @@ describe('SheepAnimalPage — soft-delete via RPC, admin-gated', () => {
 describe('SheepDetail — conditional delete button', () => {
   it('conditionally renders the delete button via onDelete &&', () => {
     expect(detailSrc).toMatch(/\{onDelete && \(/);
+  });
+});
+
+describe('RecentlyDeletedDailyReports — sheep animal recovery surface', () => {
+  it('queries deleted sheep animals from the admin recovery surface', () => {
+    expect(recoveryAdminSrc).toContain("'sheep.animal'");
+    expect(recoveryAdminSrc).toContain("table: 'sheep'");
+    expect(recoveryAdminSrc).toContain("select: 'id, tag, flock, sex, deleted_at, deleted_by'");
+    expect(recoveryAdminSrc).toContain("'deleted_at', 'is', null");
+  });
+
+  it('restores sheep animals through restoreSheepAnimal', () => {
+    expect(recoveryAdminSrc).toContain("import {restoreSheepAnimal} from '../lib/sheepDeleteApi.js'");
+    expect(recoveryAdminSrc).toContain('restore: restoreSheepAnimal');
+    expect(recoveryAdminSrc).toMatch(/recordKind:\s*'animal'/);
+    expect(recoveryAdminSrc).toContain('data-recently-deleted-entity={r.entityType}');
+    expect(recoveryAdminSrc).toContain('data-recently-deleted-record-kind={r.recordKind}');
   });
 });
 

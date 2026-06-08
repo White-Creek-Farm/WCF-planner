@@ -33,6 +33,12 @@ describe('EquipmentFleetView — no legacy Activity surfaces', () => {
 });
 
 describe('EquipmentDetail — record page structure', () => {
+  it('uses shared RecordPageBody and RecordTitle chrome for the loaded detail body', () => {
+    expect(detail).toContain("from '../shared/RecordPageShell.jsx'");
+    expect(detail).toMatch(/<RecordPageBody[^>]*data-equipment-record-loaded="true"/);
+    expect(detail).toContain('<RecordTitle fontSize={20} margin="0"');
+  });
+
   it('renders RecordCollaborationSection with equipment.item', () => {
     expect(detail).toContain('RecordCollaborationSection');
     expect(detail).toContain('entityType="equipment.item"');

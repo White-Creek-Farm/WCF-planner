@@ -12,6 +12,7 @@ const herdsSrc = fs.readFileSync(path.join(ROOT, 'src/cattle/CattleHerdsView.jsx
 const cowDetailSrc = fs.readFileSync(path.join(ROOT, 'src/cattle/CowDetail.jsx'), 'utf8');
 const batchSrc = fs.readFileSync(path.join(ROOT, 'src/lib/cattleProcessingBatch.js'), 'utf8');
 const e2eSrc = fs.readFileSync(path.join(ROOT, 'tests/cattle_soft_delete.spec.js'), 'utf8');
+const recoveryAdminSrc = fs.readFileSync(path.join(ROOT, 'src/admin/RecentlyDeletedDailyReports.jsx'), 'utf8');
 
 // ── Migration 069 — schema: deleted_at + deleted_by columns ─────────────
 
@@ -186,6 +187,26 @@ describe('CattleHerdsView — admin-gated delete + restore', () => {
   });
   it('does not have Recently Deleted UI on herds page', () => {
     expect(herdsSrc).not.toContain('Recently Deleted');
+    expect(herdsSrc).not.toContain('restoreCattleAnimal');
+  });
+});
+
+// ── RecentlyDeletedDailyReports — cattle animal recovery surface ─────────────
+
+describe('RecentlyDeletedDailyReports — cattle animal recovery surface', () => {
+  it('queries deleted cattle animals from the admin recovery surface', () => {
+    expect(recoveryAdminSrc).toContain("'cattle.animal'");
+    expect(recoveryAdminSrc).toContain("table: 'cattle'");
+    expect(recoveryAdminSrc).toContain("select: 'id, tag, herd, sex, deleted_at, deleted_by'");
+    expect(recoveryAdminSrc).toContain("'deleted_at', 'is', null");
+  });
+
+  it('restores cattle animals through restoreCattleAnimal, not from the herd page', () => {
+    expect(recoveryAdminSrc).toContain("import {restoreCattleAnimal} from '../lib/cattleDeleteApi.js'");
+    expect(recoveryAdminSrc).toContain('restore: restoreCattleAnimal');
+    expect(recoveryAdminSrc).toMatch(/recordKind:\s*'animal'/);
+    expect(recoveryAdminSrc).toContain('data-recently-deleted-entity={r.entityType}');
+    expect(recoveryAdminSrc).toContain('data-recently-deleted-record-kind={r.recordKind}');
     expect(herdsSrc).not.toContain('restoreCattleAnimal');
   });
 });

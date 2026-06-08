@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const EXPECTED_READY_MARKERS = new Map([
   ['src/activity/ActivityLogView.jsx', ['data-activity-log-loaded']],
   ['src/admin/ClientErrorsView.jsx', ['data-client-errors-loaded']],
+  ['src/admin/RecentlyDeletedDailyReports.jsx', ['data-recently-deleted-dailys-loaded']],
   ['src/broiler/BroilerBatchPage.jsx', ['data-broiler-batch-record-loaded']],
   ['src/broiler/BroilerDailysView.jsx', ['data-broiler-dailys-loaded']],
   ['src/broiler/BroilerListView.jsx', ['data-broiler-batches-loaded']],
@@ -17,8 +18,11 @@ const EXPECTED_READY_MARKERS = new Map([
   ['src/cattle/CattleBatchesView.jsx', ['data-cattle-batches-loaded']],
   ['src/cattle/CattleDailyPage.jsx', ['data-cattle-daily-record-loaded']],
   ['src/cattle/CattleDailysView.jsx', ['data-cattle-dailys-loaded']],
+  ['src/cattle/CattleHerdsView.jsx', ['data-cattle-herds-loaded']],
   ['src/cattle/CattleHomeView.jsx', ['data-cattle-home-loaded']],
   ['src/cattle/CattleWeighInsView.jsx', ['data-weighin-list-loaded']],
+  ['src/dashboard/MySubmissions.jsx', ['data-my-submissions-loaded']],
+  ['src/equipment/EquipmentDetail.jsx', ['data-equipment-record-loaded']],
   ['src/equipment/EquipmentHome.jsx', ['data-equipment-home-loaded']],
   ['src/layer/EggDailyPage.jsx', ['data-egg-daily-record-loaded']],
   ['src/layer/EggDailysView.jsx', ['data-egg-dailys-loaded']],
@@ -37,6 +41,7 @@ const EXPECTED_READY_MARKERS = new Map([
   ['src/sheep/SheepBatchesView.jsx', ['data-sheep-batches-loaded']],
   ['src/sheep/SheepDailyPage.jsx', ['data-sheep-daily-record-loaded']],
   ['src/sheep/SheepDailysView.jsx', ['data-sheep-dailys-loaded']],
+  ['src/sheep/SheepFlocksView.jsx', ['data-sheep-flocks-loaded']],
   ['src/sheep/SheepHomeView.jsx', ['data-sheep-home-loaded']],
   ['src/sheep/SheepWeighInsView.jsx', ['data-weighin-list-loaded']],
   ['src/tasks/CompletedTab.jsx', ['data-tasks-completed-loaded']],
@@ -49,6 +54,7 @@ const EXPECTED_READY_MARKERS = new Map([
 const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/activity/ActivityLogView.jsx', {retry: true, inlineNotice: true}],
   ['src/admin/ClientErrorsView.jsx', {retry: true, inlineNotice: true}],
+  ['src/admin/RecentlyDeletedDailyReports.jsx', {retry: true, inlineNotice: true}],
   ['src/broiler/BroilerDailysView.jsx', {retry: true, inlineNotice: true}],
   ['src/broiler/PoultryDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleAnimalPage.jsx', {retry: true, inlineNotice: true}],
@@ -56,6 +62,7 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/cattle/CattleBatchPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleDailysView.jsx', {retry: true, inlineNotice: true}],
+  ['src/cattle/CattleHerdsView.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleHomeView.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleWeighInsView.jsx', {retry: true, inlineNotice: true}],
   ['src/dashboard/MySubmissions.jsx', {retry: true, inlineNotice: true}],
@@ -76,6 +83,7 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/sheep/SheepBatchesView.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepDailysView.jsx', {retry: true, inlineNotice: true}],
+  ['src/sheep/SheepFlocksView.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepHomeView.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepWeighInsView.jsx', {retry: true, inlineNotice: true}],
   ['src/tasks/CompletedTab.jsx', {retry: true, inlineNotice: false}],
@@ -196,5 +204,34 @@ describe('load/retry robustness inventory', () => {
       'src/tasks/RecurringTab.jsx',
       'src/tasks/SystemTasksTab.jsx',
     ]);
+  });
+});
+
+describe('load/retry fail-closed behavior details', () => {
+  const mySubmissions = fs.readFileSync(path.join(ROOT, 'src/dashboard/MySubmissions.jsx'), 'utf8');
+  const recentlyDeleted = fs.readFileSync(path.join(ROOT, 'src/admin/RecentlyDeletedDailyReports.jsx'), 'utf8');
+
+  it('keeps My Submissions from showing stale rows after a failed load', () => {
+    expect(mySubmissions).toContain("data-my-submissions-loaded={loaded && !loadError ? 'true' : 'false'}");
+    expect(mySubmissions).toContain('data-my-submissions-load-error="true"');
+    expect(mySubmissions).toContain('data-my-submissions-retry="1"');
+    expect(mySubmissions).toContain(
+      "<InlineNotice notice={{kind: 'error', message: 'Could not load: ' + loadError}} />",
+    );
+    expect(mySubmissions).toMatch(/\.catch\(\(e\) => \{[\s\S]*?setFuelings\(\[\]\);[\s\S]*?setSupplies\(\[\]\);/);
+    expect(mySubmissions).toContain('!loadError && fuelings.map');
+    expect(mySubmissions).toContain('!loadError && supplies.map');
+    expect(mySubmissions).toContain('!loadError && loaded && fuelings.length === 0');
+    expect(mySubmissions).toContain('!loadError && loaded && supplies.length === 0');
+  });
+
+  it('keeps Recently Deleted Daily Reports from showing partial recovery data after a failed load', () => {
+    expect(recentlyDeleted).toContain("data-recently-deleted-dailys-loaded={loading || loadError ? 'false' : 'true'}");
+    expect(recentlyDeleted).toContain('data-recently-deleted-dailys-load-error="true"');
+    expect(recentlyDeleted).toContain('data-recently-deleted-dailys-retry="1"');
+    expect(recentlyDeleted).toMatch(/if \(errors\.length > 0\) \{[\s\S]*?throw new Error\(errors\.join\('\\n'\)\);/);
+    expect(recentlyDeleted).toMatch(/catch \(e\) \{[\s\S]*?setRows\(\[\]\);[\s\S]*?setLoadError\(/);
+    expect(recentlyDeleted).toContain('!loading && !loadError && rows.length === 0');
+    expect(recentlyDeleted).toContain('!loading && !loadError && rows.length > 0');
   });
 });

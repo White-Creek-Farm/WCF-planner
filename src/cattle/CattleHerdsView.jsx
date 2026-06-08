@@ -24,6 +24,7 @@ import {
   mergeObservedValues,
   cowTagSet,
   lastWeightFor,
+  lastWeightEntryFor,
   calfCountFor,
   buildCalvingEvidence,
   lastCalvingRecordFor,
@@ -49,6 +50,7 @@ import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 import {softDeleteCattleAnimal} from '../lib/cattleDeleteApi.js';
 import {deleteCattleCalvingRecord} from '../lib/cattleCalvingApi.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 
 const CATTLE_EXCLUDE = ['herd', 'processing_batch_id'];
 const CATTLE_LABELS = {
@@ -266,6 +268,7 @@ const CattleHerdsHub = ({
   const [newOriginInput, setNewOriginInput] = useState('');
   const [processingBatches, setProcessingBatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   // Composable filter / sort state.
   const [viewMode, setViewMode] = usePersistentViewState('cattle.herds.viewMode', 'grouped'); // 'grouped' | 'flat'
@@ -294,21 +297,42 @@ const CattleHerdsHub = ({
   const [expandedHerds, setExpandedHerds] = useState({});
 
   async function loadAll() {
-    const [cR, wAll, calR, brR, orR, pbR] = await Promise.all([
-      sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
-      loadCattleWeighInsCached(sb),
-      sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
-      sb.from('cattle_breeds').select('*').order('label'),
-      sb.from('cattle_origins').select('*').order('label'),
-      sb.from('cattle_processing_batches').select('id,name,actual_process_date,planned_process_date'),
-    ]);
-    if (cR.data) setCattle(cR.data);
-    setWeighIns(wAll);
-    if (calR.data) setCalvingRecs(calR.data);
-    if (brR.data) setBreedOpts(brR.data);
-    if (orR.data) setOriginOpts(orR.data);
-    if (pbR.data) setProcessingBatches(pbR.data);
-    setLoading(false);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [cR, wAll, calR, brR, orR, pbR] = await Promise.all([
+        sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
+        loadCattleWeighInsCached(sb, {throwOnError: true}),
+        sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
+        sb.from('cattle_breeds').select('*').order('label'),
+        sb.from('cattle_origins').select('*').order('label'),
+        sb.from('cattle_processing_batches').select('id,name,actual_process_date,planned_process_date'),
+      ]);
+      if (cR.error) throw new Error('cattle: ' + (cR.error.message || cR.error));
+      if (calR.error) throw new Error('cattle_calving_records: ' + (calR.error.message || calR.error));
+      if (brR.error) throw new Error('cattle_breeds: ' + (brR.error.message || brR.error));
+      if (orR.error) throw new Error('cattle_origins: ' + (orR.error.message || orR.error));
+      if (pbR.error) throw new Error('cattle_processing_batches: ' + (pbR.error.message || pbR.error));
+      setCattle(cR.data || []);
+      setWeighIns(wAll || []);
+      setCalvingRecs(calR.data || []);
+      setBreedOpts(brR.data || []);
+      setOriginOpts(orR.data || []);
+      setProcessingBatches(pbR.data || []);
+    } catch (e) {
+      setCattle([]);
+      setWeighIns([]);
+      setCalvingRecs([]);
+      setBreedOpts([]);
+      setOriginOpts([]);
+      setProcessingBatches([]);
+      setLoadError({
+        kind: 'error',
+        message: 'Could not load cattle herds. Please retry. (' + ((e && e.message) || e) + ')',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     loadAll();
@@ -422,6 +446,37 @@ const CattleHerdsHub = ({
     });
     return [...filtered].sort(cmp);
   }, [filtered, sortRules, calvingEvidence, weighIns, filters.nonCalvingCutoffDate]);
+
+  function handleExportCsv() {
+    const female = (cow) => cow.sex === 'cow' || cow.sex === 'heifer';
+    const columns = [
+      {header: 'Tag', value: (c) => c.tag || ''},
+      {header: 'Herd', value: (c) => HERD_LABELS[c.herd] || c.herd || ''},
+      {header: 'Sex', value: (c) => c.sex || ''},
+      {header: 'Breed', value: (c) => c.breed || ''},
+      {header: 'Origin', value: (c) => c.origin || ''},
+      {header: 'Age', value: (c) => age(c.birth_date) || ''},
+      {header: 'Birth date', value: (c) => c.birth_date || ''},
+      {header: 'Last weight lbs', value: (c) => lastWeight(c) ?? ''},
+      {header: 'Last weighed', value: (c) => lastWeightEntryFor(c, weighIns)?.entered_at || ''},
+      {header: 'Last calved', value: (c) => (female(c) ? lastCalving(c.tag)?.calving_date || '' : '')},
+      {header: 'Calf count', value: (c) => (female(c) ? calfCount(c.tag) : '')},
+      {header: 'Breeding status', value: (c) => c.breeding_status || ''},
+      {header: 'Breeding blacklist', value: (c) => (c.breeding_blacklist ? 'yes' : 'no')},
+      {header: 'Dam tag', value: (c) => c.dam_tag || ''},
+      {header: 'Sire tag', value: (c) => c.sire_tag || ''},
+      {header: 'Percent Wagyu', value: (c) => c.pct_wagyu ?? ''},
+      {header: 'Purchase date', value: (c) => c.purchase_date || ''},
+      {header: 'Purchase amount', value: (c) => c.purchase_amount ?? ''},
+      {header: 'Sale date', value: (c) => c.sale_date || ''},
+      {header: 'Sale amount', value: (c) => c.sale_amount ?? ''},
+      {header: 'Death date', value: (c) => c.death_date || ''},
+      {header: 'Death reason', value: (c) => c.death_reason || ''},
+      {header: 'Record ID', value: (c) => c.id || ''},
+    ];
+    const ok = downloadCsv(csvFilename('cattle-herds'), rowsToCsv(columns, sortedFlat));
+    if (!ok) setNotice({kind: 'error', message: 'CSV export is only available in the browser.'});
+  }
 
   // ── filter chip handlers ───────────────────────────────────────────────────
   function setFilter(key, value) {
@@ -1284,428 +1339,480 @@ const CattleHerdsHub = ({
         />
       )}
       <Header />
-      <div style={{padding: '1rem', maxWidth: 1200, margin: '0 auto'}}>
+      <div
+        style={{padding: '1rem', maxWidth: 1200, margin: '0 auto'}}
+        data-cattle-herds-loaded={loading || loadError ? 'false' : 'true'}
+      >
         {!showAddForm && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
+        {loadError && (
+          <div data-cattle-herds-load-error="true">
+            <InlineNotice notice={loadError} />
+            <button
+              type="button"
+              data-cattle-herds-load-retry="1"
+              onClick={loadAll}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 6,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#085041',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                marginBottom: 12,
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
-        {/* Saved views control (migration 095) */}
-        <div
-          data-saved-views-row
-          style={{
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: 10,
-            padding: '10px 14px',
-            marginBottom: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
-          {savedViewsError ? (
-            <span style={{fontSize: 12, color: '#b91c1c'}} data-saved-views-error>
-              Saved views unavailable. Filters still work.
-            </span>
-          ) : (
-            <>
-              <select
-                data-saved-view-select
-                value={selectedViewId}
-                disabled={savedViewsLoading}
-                onChange={(e) => onSelectSavedView(e.target.value)}
-                style={{...inpS, width: 'auto', minWidth: 200, fontSize: 12, padding: '6px 10px'}}
-              >
-                <option value="">{savedViewsLoading ? 'Loading…' : '— Select a saved view —'}</option>
-                {myViews.length > 0 && (
-                  <optgroup label="My views">
-                    {myViews.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name + (v.visibility === 'public' ? ' · public' : ' · private')}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {publicOtherViews.length > 0 && (
-                  <optgroup label="Public views">
-                    {publicOtherViews.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-              {selectedViewIsMine && (
+        {!loadError && (
+          <>
+            {/* Saved views control (migration 095) */}
+            <div
+              data-saved-views-row
+              style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              {savedViewsError ? (
+                <span style={{fontSize: 12, color: '#b91c1c'}} data-saved-views-error>
+                  Saved views unavailable. Filters still work.
+                </span>
+              ) : (
                 <>
+                  <select
+                    data-saved-view-select
+                    value={selectedViewId}
+                    disabled={savedViewsLoading}
+                    onChange={(e) => onSelectSavedView(e.target.value)}
+                    style={{...inpS, width: 'auto', minWidth: 200, fontSize: 12, padding: '6px 10px'}}
+                  >
+                    <option value="">{savedViewsLoading ? 'Loading…' : '— Select a saved view —'}</option>
+                    {myViews.length > 0 && (
+                      <optgroup label="My views">
+                        {myViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name + (v.visibility === 'public' ? ' · public' : ' · private')}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {publicOtherViews.length > 0 && (
+                      <optgroup label="Public views">
+                        {publicOtherViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {selectedViewIsMine && (
+                    <>
+                      <button
+                        type="button"
+                        data-saved-view-update
+                        onClick={updateSelectedView}
+                        disabled={savedViewBusy}
+                        style={savedViewGhostBtnS}
+                      >
+                        Update to current
+                      </button>
+                      <button
+                        type="button"
+                        data-saved-view-delete
+                        onClick={deleteSelectedView}
+                        disabled={savedViewBusy}
+                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <span style={{flex: 1}} />
                   <button
                     type="button"
-                    data-saved-view-update
-                    onClick={updateSelectedView}
+                    data-saved-view-save-open
+                    onClick={openSaveViewForm}
                     disabled={savedViewBusy}
-                    style={savedViewGhostBtnS}
+                    style={savedViewPrimaryBtnS}
                   >
-                    Update to current
-                  </button>
-                  <button
-                    type="button"
-                    data-saved-view-delete
-                    onClick={deleteSelectedView}
-                    disabled={savedViewBusy}
-                    style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
-                  >
-                    Delete
+                    Save current view
                   </button>
                 </>
               )}
-              <span style={{flex: 1}} />
-              <button
-                type="button"
-                data-saved-view-save-open
-                onClick={openSaveViewForm}
-                disabled={savedViewBusy}
-                style={savedViewPrimaryBtnS}
-              >
-                Save current view
-              </button>
-            </>
-          )}
-        </div>
-        {showSaveViewForm && (
-          <div
-            data-saved-view-form
-            style={{
-              background: 'white',
-              border: '1px solid #bfdbfe',
-              borderRadius: 10,
-              padding: '10px 14px',
-              marginBottom: 8,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-            }}
-          >
-            <input
-              data-saved-view-name
-              type="text"
-              value={saveViewName}
-              placeholder="View name"
-              onChange={(e) => setSaveViewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submitSaveView();
-              }}
-              style={{...inpS, flex: 1, minWidth: 200}}
-            />
-            <label style={savedViewRadioLabelS}>
-              <input
-                type="radio"
-                name="saveViewVisibility"
-                checked={saveViewVisibility === 'private'}
-                onChange={() => setSaveViewVisibility('private')}
-                data-saved-view-visibility="private"
-              />
-              Private
-            </label>
-            <label style={savedViewRadioLabelS}>
-              <input
-                type="radio"
-                name="saveViewVisibility"
-                checked={saveViewVisibility === 'public'}
-                onChange={() => setSaveViewVisibility('public')}
-                data-saved-view-visibility="public"
-              />
-              Public
-            </label>
-            <button
-              type="button"
-              data-saved-view-save
-              onClick={submitSaveView}
-              disabled={savedViewBusy}
-              style={savedViewPrimaryBtnS}
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSaveViewForm(false)}
-              disabled={savedViewBusy}
-              style={savedViewGhostBtnS}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {/* Top toolbar */}
-        <div
-          style={{
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: 10,
-            padding: '12px 16px',
-            marginBottom: 14,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-          }}
-        >
-          <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setFilter('textSearch', e.target.value)}
-              placeholder="Search by tag, dam, sire, breed, origin..."
-              style={{...inpS, flex: 1, minWidth: 200}}
-            />
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-                color: '#374151',
-                border: '1px solid #d1d5db',
-                borderRadius: 6,
-                padding: '4px 8px',
-              }}
-            >
-              <span style={{color: '#6b7280', marginRight: 4}}>View</span>
-              <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                <input
-                  type="radio"
-                  name="cattleViewMode"
-                  checked={viewMode === 'grouped'}
-                  onChange={() => setViewMode('grouped')}
-                  data-view-mode="grouped"
-                />
-                Grouped
-              </label>
-              <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                <input
-                  type="radio"
-                  name="cattleViewMode"
-                  checked={viewMode === 'flat'}
-                  onChange={() => setViewMode('flat')}
-                  data-view-mode="flat"
-                />
-                Flat
-              </label>
             </div>
-            <button
-              onClick={() => setShowBulkImport(true)}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 7,
-                border: '1px solid #991b1b',
-                background: 'white',
-                color: '#991b1b',
-                fontWeight: 600,
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {'📥'} Bulk Import
-            </button>
-            <button
-              onClick={openAdd}
-              style={{
-                padding: '7px 16px',
-                borderRadius: 7,
-                border: 'none',
-                background: '#991b1b',
-                color: 'white',
-                fontWeight: 600,
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              + Add Cow
-            </button>
-          </div>
-
-          {/* Organized filter groups — always visible (no More/Hide toggle). */}
-          <div data-cattle-filter-groups style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-            {renderFilterGroups()}
-            {filterCount > 0 && (
-              <div>
+            {showSaveViewForm && (
+              <div
+                data-saved-view-form
+                style={{
+                  background: 'white',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <input
+                  data-saved-view-name
+                  type="text"
+                  value={saveViewName}
+                  placeholder="View name"
+                  onChange={(e) => setSaveViewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitSaveView();
+                  }}
+                  style={{...inpS, flex: 1, minWidth: 200}}
+                />
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveViewVisibility"
+                    checked={saveViewVisibility === 'private'}
+                    onChange={() => setSaveViewVisibility('private')}
+                    data-saved-view-visibility="private"
+                  />
+                  Private
+                </label>
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="saveViewVisibility"
+                    checked={saveViewVisibility === 'public'}
+                    onChange={() => setSaveViewVisibility('public')}
+                    data-saved-view-visibility="public"
+                  />
+                  Public
+                </label>
                 <button
                   type="button"
-                  onClick={clearAllFilters}
-                  style={{
-                    ...chipBaseS,
-                    color: '#b91c1c',
-                    border: '1px solid #fecaca',
-                    background: '#fef2f2',
-                  }}
+                  data-saved-view-save
+                  onClick={submitSaveView}
+                  disabled={savedViewBusy}
+                  style={savedViewPrimaryBtnS}
                 >
-                  Clear all filters
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSaveViewForm(false)}
+                  disabled={savedViewBusy}
+                  style={savedViewGhostBtnS}
+                >
+                  Cancel
                 </button>
               </div>
             )}
-          </div>
 
-          {sortBar()}
-
-          <div style={{fontSize: 11, color: '#6b7280'}} data-cattle-match-count>
-            {sortedFlat.length} {sortedFlat.length === 1 ? 'match' : 'cattle match'}
-            {filterCount > 0 && ' · ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
-            {sortRules.length > 0 && ' · ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
-          </div>
-        </div>
-
-        {showBulkImport && (
-          <CattleBulkImport
-            sb={sb}
-            breedOpts={breedOpts}
-            originOpts={originOpts}
-            existingCattle={cattle}
-            onClose={() => setShowBulkImport(false)}
-            onComplete={loadAll}
-          />
-        )}
-
-        {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'…'}</div>}
-        {!loading && cattle.length === 0 && (
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid #e5e7eb',
-              borderRadius: 12,
-              padding: '2rem',
-              textAlign: 'center',
-              color: '#6b7280',
-              fontSize: 13,
-            }}
-          >
-            No cattle records yet. Click <strong>+ Add Cow</strong> to add your first one, or wait for the Podio import.
-          </div>
-        )}
-
-        {/* FLAT MODE */}
-        {!loading && isFlat && cattle.length > 0 && (
-          <div
-            data-cattle-flat-list
-            style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
-          >
+            {/* Top toolbar */}
             <div
               style={{
-                padding: '10px 16px',
-                borderBottom: '1px solid #e5e7eb',
-                background: '#f9fafb',
-                fontSize: 12,
-                fontWeight: 600,
-                color: '#4b5563',
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: '12px 16px',
+                marginBottom: 14,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
               }}
             >
-              {sortedFlat.length} cattle
+              <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setFilter('textSearch', e.target.value)}
+                  placeholder="Search by tag, dam, sire, breed, origin..."
+                  style={{...inpS, flex: 1, minWidth: 200}}
+                />
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 6,
+                    padding: '4px 8px',
+                  }}
+                >
+                  <span style={{color: '#6b7280', marginRight: 4}}>View</span>
+                  <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
+                    <input
+                      type="radio"
+                      name="cattleViewMode"
+                      checked={viewMode === 'grouped'}
+                      onChange={() => setViewMode('grouped')}
+                      data-view-mode="grouped"
+                    />
+                    Grouped
+                  </label>
+                  <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
+                    <input
+                      type="radio"
+                      name="cattleViewMode"
+                      checked={viewMode === 'flat'}
+                      onChange={() => setViewMode('flat')}
+                      data-view-mode="flat"
+                    />
+                    Flat
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  data-cattle-herds-export-csv="1"
+                  onClick={handleExportCsv}
+                  disabled={loading}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #d1d5db',
+                    background: loading ? '#f9fafb' : 'white',
+                    color: loading ? '#9ca3af' : '#374151',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Export CSV
+                </button>
+                <button
+                  onClick={() => setShowBulkImport(true)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #991b1b',
+                    background: 'white',
+                    color: '#991b1b',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {'📥'} Bulk Import
+                </button>
+                <button
+                  onClick={openAdd}
+                  style={{
+                    padding: '7px 16px',
+                    borderRadius: 7,
+                    border: 'none',
+                    background: '#991b1b',
+                    color: 'white',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  + Add Cow
+                </button>
+              </div>
+
+              {/* Organized filter groups — always visible (no More/Hide toggle). */}
+              <div data-cattle-filter-groups style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+                {renderFilterGroups()}
+                {filterCount > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      style={{
+                        ...chipBaseS,
+                        color: '#b91c1c',
+                        border: '1px solid #fecaca',
+                        background: '#fef2f2',
+                      }}
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {sortBar()}
+
+              <div style={{fontSize: 11, color: '#6b7280'}} data-cattle-match-count>
+                {sortedFlat.length} {sortedFlat.length === 1 ? 'match' : 'cattle match'}
+                {filterCount > 0 && ' · ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
+                {sortRules.length > 0 && ' · ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
+              </div>
             </div>
-            {sortedFlat.length === 0 && (
-              <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
-                No cattle match the current filter.
+
+            {showBulkImport && (
+              <CattleBulkImport
+                sb={sb}
+                breedOpts={breedOpts}
+                originOpts={originOpts}
+                existingCattle={cattle}
+                onClose={() => setShowBulkImport(false)}
+                onComplete={loadAll}
+              />
+            )}
+
+            {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'…'}</div>}
+            {!loading && cattle.length === 0 && (
+              <div
+                style={{
+                  background: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 12,
+                  padding: '2rem',
+                  textAlign: 'center',
+                  color: '#6b7280',
+                  fontSize: 13,
+                }}
+              >
+                No cattle records yet. Click <strong>+ Add Cow</strong> to add your first one, or wait for the Podio
+                import.
               </div>
             )}
-            {sortedFlat.map((c, i) => (
-              <CowListRow key={c.id} c={c} index={i} navList={sortedFlat} showHerd />
-            ))}
-          </div>
-        )}
 
-        {/* GROUPED MODE — herd tiles */}
-        {!loading && !isFlat && cattle.length > 0 && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-            {CATTLE_HERD_KEYS.map((h) => {
-              // Per-tile sort applies inside the herd group (Codex implementation
-              // note 2026-05-02). Filter the global filtered list to this herd
-              // then run the comparator within.
-              const cmp = buildCattleComparator(sortRules, {
-                calvingRecs: calvingEvidence,
-                weighIns,
-                todayMs: Date.now(),
-                nonCalvingCutoffDate: filters.nonCalvingCutoffDate,
-              });
-              const cows = filtered.filter((c) => c.herd === h).sort(cmp);
-              const totalWt = cows.reduce((s, c) => s + effectiveWeight(c), 0);
-              const estCount = cows.filter(
-                (c) => (lastWeight(c) == null || lastWeight(c) === 0) && isHerdTileRecentlyPurchased(c),
-              ).length;
-              const hc = HERD_COLORS[h];
-              const herdOpen = !!expandedHerds[h];
-              return (
+            {/* FLAT MODE */}
+            {!loading && isFlat && cattle.length > 0 && (
+              <div
+                data-cattle-flat-list
+                style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
+              >
                 <div
-                  key={h}
-                  style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
+                  style={{
+                    padding: '10px 16px',
+                    borderBottom: '1px solid #e5e7eb',
+                    background: '#f9fafb',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#4b5563',
+                  }}
                 >
-                  <div
-                    onClick={() => setExpandedHerds({...expandedHerds, [h]: !herdOpen})}
-                    data-herd-tile={h}
-                    data-herd-open={herdOpen ? '1' : '0'}
-                    style={{
-                      padding: '12px 18px',
-                      background: hc.bg,
-                      borderBottom: herdOpen ? '1px solid ' + hc.bd : 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      flexWrap: 'wrap',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{fontSize: 12, color: hc.tx}}>{herdOpen ? '▼' : '▶'}</span>
-                    <span style={{fontSize: 15, fontWeight: 700, color: hc.tx}}>
-                      {renderCattleIconLabel(HERD_LABELS[h], {size: 21})}
-                    </span>
-                    <span style={{fontSize: 12, color: hc.tx, opacity: 0.8}}>
-                      {cows.length} {cows.length === 1 ? 'cow' : 'cows'}
-                    </span>
-                    {totalWt > 0 && (
-                      <span style={{fontSize: 12, color: hc.tx, opacity: 0.8}}>
-                        {'· ' + Math.round(totalWt).toLocaleString() + ' lbs total'}
-                      </span>
-                    )}
-                    {estCount > 0 && (
-                      <span style={{fontSize: 11, color: hc.tx, opacity: 0.7, fontStyle: 'italic'}}>
-                        {'(' + estCount + ' est. @ 1,000 lb)'}
-                      </span>
-                    )}
-                  </div>
-                  {herdOpen && cows.length === 0 && (
-                    <div style={{padding: '1rem 18px', color: '#9ca3af', fontSize: 12, fontStyle: 'italic'}}>
-                      {filterCount > 0 ? 'No cows match the current filters.' : 'No cows in this herd yet.'}
-                    </div>
-                  )}
-                  {herdOpen &&
-                    cows.map((c, cowIdx) => (
-                      <CowListRow key={c.id} c={c} index={cowIdx} navList={cows} showHerd={false} />
-                    ))}
+                  {sortedFlat.length} cattle
                 </div>
-              );
-            })}
-            <CollapsibleOutcomeSections
-              cattle={cattle}
-              weighIns={weighIns}
-              HERD_COLORS={HERD_COLORS}
-              HERD_LABELS={HERD_LABELS}
-              OUTCOMES={CATTLE_OUTCOME_KEYS}
-              fmt={fmt}
-              setStatusFilter={(value) => {
-                if (!value || value === 'active') return;
-                if (value === 'all') {
-                  setViewMode('flat');
-                  clearFilter('herdSet');
-                  return;
-                }
-                setViewMode('flat');
-                setFilter('herdSet', [value]);
-              }}
-              processingInfo={processingInfo}
-              onCowClick={(c) => navigate('/cattle/herds/' + c.id)}
-            />
-          </div>
+                {sortedFlat.length === 0 && (
+                  <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+                    No cattle match the current filter.
+                  </div>
+                )}
+                {sortedFlat.map((c, i) => (
+                  <CowListRow key={c.id} c={c} index={i} navList={sortedFlat} showHerd />
+                ))}
+              </div>
+            )}
+
+            {/* GROUPED MODE — herd tiles */}
+            {!loading && !isFlat && cattle.length > 0 && (
+              <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+                {CATTLE_HERD_KEYS.map((h) => {
+                  // Per-tile sort applies inside the herd group (Codex implementation
+                  // note 2026-05-02). Filter the global filtered list to this herd
+                  // then run the comparator within.
+                  const cmp = buildCattleComparator(sortRules, {
+                    calvingRecs: calvingEvidence,
+                    weighIns,
+                    todayMs: Date.now(),
+                    nonCalvingCutoffDate: filters.nonCalvingCutoffDate,
+                  });
+                  const cows = filtered.filter((c) => c.herd === h).sort(cmp);
+                  const totalWt = cows.reduce((s, c) => s + effectiveWeight(c), 0);
+                  const estCount = cows.filter(
+                    (c) => (lastWeight(c) == null || lastWeight(c) === 0) && isHerdTileRecentlyPurchased(c),
+                  ).length;
+                  const hc = HERD_COLORS[h];
+                  const herdOpen = !!expandedHerds[h];
+                  return (
+                    <div
+                      key={h}
+                      style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
+                    >
+                      <div
+                        onClick={() => setExpandedHerds({...expandedHerds, [h]: !herdOpen})}
+                        data-herd-tile={h}
+                        data-herd-open={herdOpen ? '1' : '0'}
+                        style={{
+                          padding: '12px 18px',
+                          background: hc.bg,
+                          borderBottom: herdOpen ? '1px solid ' + hc.bd : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          flexWrap: 'wrap',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{fontSize: 12, color: hc.tx}}>{herdOpen ? '▼' : '▶'}</span>
+                        <span style={{fontSize: 15, fontWeight: 700, color: hc.tx}}>
+                          {renderCattleIconLabel(HERD_LABELS[h], {size: 21})}
+                        </span>
+                        <span style={{fontSize: 12, color: hc.tx, opacity: 0.8}}>
+                          {cows.length} {cows.length === 1 ? 'cow' : 'cows'}
+                        </span>
+                        {totalWt > 0 && (
+                          <span style={{fontSize: 12, color: hc.tx, opacity: 0.8}}>
+                            {'· ' + Math.round(totalWt).toLocaleString() + ' lbs total'}
+                          </span>
+                        )}
+                        {estCount > 0 && (
+                          <span style={{fontSize: 11, color: hc.tx, opacity: 0.7, fontStyle: 'italic'}}>
+                            {'(' + estCount + ' est. @ 1,000 lb)'}
+                          </span>
+                        )}
+                      </div>
+                      {herdOpen && cows.length === 0 && (
+                        <div style={{padding: '1rem 18px', color: '#9ca3af', fontSize: 12, fontStyle: 'italic'}}>
+                          {filterCount > 0 ? 'No cows match the current filters.' : 'No cows in this herd yet.'}
+                        </div>
+                      )}
+                      {herdOpen &&
+                        cows.map((c, cowIdx) => (
+                          <CowListRow key={c.id} c={c} index={cowIdx} navList={cows} showHerd={false} />
+                        ))}
+                    </div>
+                  );
+                })}
+                <CollapsibleOutcomeSections
+                  cattle={cattle}
+                  weighIns={weighIns}
+                  HERD_COLORS={HERD_COLORS}
+                  HERD_LABELS={HERD_LABELS}
+                  OUTCOMES={CATTLE_OUTCOME_KEYS}
+                  fmt={fmt}
+                  setStatusFilter={(value) => {
+                    if (!value || value === 'active') return;
+                    if (value === 'all') {
+                      setViewMode('flat');
+                      clearFilter('herdSet');
+                      return;
+                    }
+                    setViewMode('flat');
+                    setFilter('herdSet', [value]);
+                  }}
+                  processingInfo={processingInfo}
+                  onCowClick={(c) => navigate('/cattle/herds/' + c.id)}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
