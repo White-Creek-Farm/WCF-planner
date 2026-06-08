@@ -33,6 +33,7 @@ const EXPECTED_READY_MARKERS = new Map([
   ['src/layer/LayerHousingPage.jsx', ['data-layer-housing-record-loaded']],
   ['src/livestock/LivestockWeighInsView.jsx', ['data-weighin-list-loaded']],
   ['src/livestock/WeighInSessionPage.jsx', ['data-weighin-session-record-loaded']],
+  ['src/pig/PigBatchPage.jsx', ['data-pig-batch-record-loaded']],
   ['src/pig/PigBatchesView.jsx', ['data-pig-feeders-loaded']],
   ['src/pig/PigDailyPage.jsx', ['data-pig-daily-record-loaded']],
   ['src/pig/PigDailysView.jsx', ['data-pig-dailys-loaded']],

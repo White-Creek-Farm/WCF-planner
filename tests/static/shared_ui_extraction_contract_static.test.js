@@ -19,6 +19,7 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/layer/LayerDailyPage.jsx',
     'src/layer/LayerHousingPage.jsx',
     'src/livestock/WeighInSessionPage.jsx',
+    'src/pig/PigBatchPage.jsx',
     'src/pig/PigDailyPage.jsx',
     'src/sheep/SheepAnimalPage.jsx',
     'src/sheep/SheepBatchPage.jsx',

@@ -81,3 +81,57 @@ describe('CP7: PigBatchPage adopts shared record-page controls', () => {
     expect(src).toContain('entityType="pig.batch"');
   });
 });
+
+// Lane E CP1 — the routed pig batch record adopts the shared RecordPageBody
+// wrapper + a locked loaded marker, WITHOUT taking over Header/frame/loading/
+// not-found ownership (those stay in PigBatchesView, which already renders the
+// combined hub/record Header). Per the ratified CP1 ruling: RecordPageBody
+// only, no RecordTitle (would duplicate the colored batch header), and no
+// RecordPageFrame/Loading/NotFound conversion.
+describe('Lane E CP1: PigBatchPage adopts the shared RecordPageBody chrome', () => {
+  it('imports RecordPageBody from the shared record-page shell', () => {
+    expect(src).toMatch(/import\s*\{\s*RecordPageBody\s*\}\s*from\s*'\.\.\/shared\/RecordPageShell\.jsx'/);
+  });
+
+  it('wraps the loaded record content in RecordPageBody', () => {
+    expect(src).toContain('<RecordPageBody');
+    expect(src).toContain('</RecordPageBody>');
+  });
+
+  it('exposes the locked loaded marker only on the RecordPageBody wrapper', () => {
+    expect(src).toMatch(/<RecordPageBody[\s\S]*?data-pig-batch-record-loaded="true"/);
+  });
+
+  it('keeps the body LEFT-aligned (CP1 exception) so it lines up under the PigBatchesView back link', () => {
+    // Pig owns the back link + RecordSequenceNav in PigBatchesView, OUTSIDE this
+    // body. The default centered margin:'0 auto' would detach the card from the
+    // far-left back link, so CP1 overrides to margin:0 + zero horizontal padding
+    // (also avoids double mobile inset under PigBatchesView's 1rem padding).
+    const body = src.match(/<RecordPageBody[\s\S]*?>/);
+    expect(body).not.toBeNull();
+    expect(body[0]).toContain('margin: 0');
+    expect(body[0]).toContain('paddingLeft: 0');
+    expect(body[0]).toContain('paddingRight: 0');
+  });
+
+  it('does NOT add RecordTitle (the colored batch header is preserved as the record title in CP1)', () => {
+    expect(src).not.toContain('RecordTitle');
+  });
+
+  it('does NOT take over Header/frame/loading/not-found ownership (stays in PigBatchesView)', () => {
+    expect(src).not.toContain('RecordPageFrame');
+    expect(src).not.toContain('RecordPageLoading');
+    expect(src).not.toContain('RecordPageNotFound');
+    expect(src).not.toContain('Header={Header}');
+  });
+
+  it('keeps the collaboration mount inside the shared body (identity unchanged)', () => {
+    // RecordCollaborationSection must remain inside the loaded RecordPageBody
+    // wrapper so the pig.batch comments/activity composer renders with the
+    // record, not as a detached sibling.
+    const bodyMatch = src.match(/<RecordPageBody[\s\S]*?<\/RecordPageBody>/);
+    expect(bodyMatch).not.toBeNull();
+    expect(bodyMatch[0]).toContain('RecordCollaborationSection');
+    expect(bodyMatch[0]).toContain('entityType="pig.batch"');
+  });
+});
