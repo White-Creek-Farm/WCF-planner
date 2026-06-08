@@ -13,6 +13,7 @@ const sheepListSrc = fs.readFileSync(path.join(ROOT, 'src/sheep/SheepWeighInsVie
 const livestockSrc = fs.readFileSync(path.join(ROOT, 'src/livestock/LivestockWeighInsView.jsx'), 'utf8');
 const sheepCacheSrc = fs.readFileSync(path.join(ROOT, 'src/lib/sheepCache.js'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 const pigEntryBranchStart = pageSrc.indexOf('if (isPig) {');
 const pigEntryBranchEnd = pageSrc.indexOf('const cow = animals.find', pigEntryBranchStart);
 const pigEntryBranch = pageSrc.slice(pigEntryBranchStart, pigEntryBranchEnd);
@@ -473,6 +474,140 @@ describe('SheepWeighInsView — cleaned list view', () => {
   });
 });
 
+describe('Cattle and sheep weigh-in list saved views (Lane F)', () => {
+  const views = [
+    {
+      name: 'CattleWeighInsView',
+      src: listSrc,
+      surfaceConst: 'CATTLE_WEIGHINS_SURFACE_KEY',
+      surfaceKey: 'cattle.weighins',
+      stateFn: 'cattleWeighInsViewState',
+      applyFn: 'applyCattleSavedView',
+      markerPrefix: 'data-cattle-weighins-saved',
+    },
+    {
+      name: 'SheepWeighInsView',
+      src: sheepListSrc,
+      surfaceConst: 'SHEEP_WEIGHINS_SURFACE_KEY',
+      surfaceKey: 'sheep.weighins',
+      stateFn: 'sheepWeighInsViewState',
+      applyFn: 'applySheepSavedView',
+      markerPrefix: 'data-sheep-weighins-saved',
+    },
+  ];
+
+  it('uses the shared app_saved_views API owner', () => {
+    expect(savedViewsApi).toContain("from('app_saved_views')");
+    expect(savedViewsApi).toContain('export async function listSavedViews');
+    expect(savedViewsApi).toContain('export async function createSavedView');
+    expect(savedViewsApi).toContain('export async function updateSavedView');
+    expect(savedViewsApi).toContain('export async function deleteSavedView');
+  });
+
+  for (const v of views) {
+    it(`${v.name} uses a species-specific saved-view surface`, () => {
+      expect(v.src).toContain("from '../lib/savedViewsApi.js'");
+      expect(v.src).toContain(`const ${v.surfaceConst} = '${v.surfaceKey}'`);
+      expect(v.src).toContain(`listSavedViews(sb, ${v.surfaceConst})`);
+      expect(v.src).toContain(`surfaceKey: ${v.surfaceConst}`);
+      expect(v.src).toContain('createSavedView(sb, {');
+      expect(v.src).toContain('updateSavedView(sb, selectedView.id');
+      expect(v.src).toContain('deleteSavedView(sb, view.id)');
+    });
+
+    it(`${v.name} saves and restores exactly the current status filter plus tag search`, () => {
+      expect(v.src).toContain(`function ${v.stateFn}()`);
+      expect(v.src).toContain('statusFilter: VALID_WEIGHIN_STATUS_FILTERS.has(statusFilter) ? statusFilter :');
+      expect(v.src).toContain("tagSearch: tagSearch || ''");
+      expect(v.src).toContain(`function ${v.applyFn}(view)`);
+      expect(v.src).toContain('setStatusFilter(VALID_WEIGHIN_STATUS_FILTERS.has(st.statusFilter)');
+      expect(v.src).toContain("setTagSearch(typeof st.tagSearch === 'string' ? st.tagSearch : '')");
+    });
+
+    it(`${v.name} renders the full saved-view control without browser confirm/prompt APIs`, () => {
+      for (const marker of [
+        `${v.markerPrefix}-views-row`,
+        `${v.markerPrefix}-view-select`,
+        `${v.markerPrefix}-view-save-open`,
+        `${v.markerPrefix}-view-form`,
+        `${v.markerPrefix}-view-name`,
+        `${v.markerPrefix}-view-visibility="private"`,
+        `${v.markerPrefix}-view-visibility="public"`,
+        `${v.markerPrefix}-view-save`,
+        `${v.markerPrefix}-view-update`,
+        `${v.markerPrefix}-view-delete`,
+      ]) {
+        expect(v.src).toContain(marker);
+      }
+      expect(v.src).toContain('window._wcfConfirmDelete');
+      expect(v.src).not.toContain('window.confirm');
+      expect(v.src).not.toContain('window.prompt');
+    });
+
+    it(`${v.name} degrades saved-view failures without flipping the list load state`, () => {
+      const savedViewBlock = v.src.slice(
+        v.src.indexOf('async function loadSavedViews'),
+        v.src.indexOf('function handleExportCsv'),
+      );
+      expect(v.src).toContain('Saved views unavailable. Filters still work.');
+      expect(v.src).toContain(`${v.markerPrefix}-views-error`);
+      expect(v.src).toContain('const loadFailed = !!notice;');
+      expect(savedViewBlock).toContain('setSavedViewsError(e.message || String(e))');
+      expect(savedViewBlock).toContain('setSavedViewNotice');
+      expect(savedViewBlock).not.toContain('setNotice(');
+    });
+  }
+});
+
+describe('Pig and broiler weigh-in list saved views (Lane F)', () => {
+  it('uses species-specific saved-view surfaces for the shared livestock list', () => {
+    expect(livestockSrc).toContain("from '../lib/savedViewsApi.js'");
+    expect(livestockSrc).toContain("pig: 'pig.weighins'");
+    expect(livestockSrc).toContain("broiler: 'broiler.weighins'");
+    expect(livestockSrc).toContain('listSavedViews(sb, savedViewSurfaceKey)');
+    expect(livestockSrc).toContain('surfaceKey: savedViewSurfaceKey');
+    expect(livestockSrc).toContain('createSavedView(sb, {');
+    expect(livestockSrc).toContain('updateSavedView(sb, selectedView.id');
+    expect(livestockSrc).toContain('deleteSavedView(sb, view.id)');
+  });
+
+  it('saves and restores the current status filter only', () => {
+    expect(livestockSrc).toContain('function livestockWeighInsViewState()');
+    expect(livestockSrc).toContain('statusFilter: VALID_WEIGHIN_STATUS_FILTERS.has(statusFilter) ? statusFilter :');
+    expect(livestockSrc).toContain('function applyLivestockSavedView(view)');
+    expect(livestockSrc).toContain('setStatusFilter(VALID_WEIGHIN_STATUS_FILTERS.has(st.statusFilter)');
+  });
+
+  it('renders a saved-view control and keeps saved-view failures separate from list load failure', () => {
+    const savedViewBlock = livestockSrc.slice(
+      livestockSrc.indexOf('async function loadSavedViews'),
+      livestockSrc.indexOf('function handleExportCsv'),
+    );
+    for (const marker of [
+      'data-livestock-weighins-saved-views-row',
+      'data-livestock-weighins-saved-view-select',
+      'data-livestock-weighins-saved-view-save-open',
+      'data-livestock-weighins-saved-view-form',
+      'data-livestock-weighins-saved-view-name',
+      'data-livestock-weighins-saved-view-visibility="private"',
+      'data-livestock-weighins-saved-view-visibility="public"',
+      'data-livestock-weighins-saved-view-save',
+      'data-livestock-weighins-saved-view-update',
+      'data-livestock-weighins-saved-view-delete',
+      'data-livestock-weighins-saved-views-error',
+    ]) {
+      expect(livestockSrc).toContain(marker);
+    }
+    expect(livestockSrc).toContain('Saved views unavailable. Filters still work.');
+    expect(livestockSrc).toContain('const loadFailed = !!notice;');
+    expect(savedViewBlock).toContain('setSavedViewsError(e.message || String(e))');
+    expect(savedViewBlock).not.toContain('setNotice(');
+    expect(livestockSrc).toContain('window._wcfConfirmDelete');
+    expect(livestockSrc).not.toContain('window.confirm');
+    expect(livestockSrc).not.toContain('window.prompt');
+  });
+});
+
 describe('SheepWeighInsView - CSV export', () => {
   it('uses the shared csvExport owner for browser download mechanics', () => {
     expect(csvExport).toContain('export function rowsToCsv');
@@ -806,5 +941,46 @@ describe('loadSheepWeighInsCached - strict read-failure contract', () => {
     expect(sheepCacheSrc).toMatch(/if \(pageError\)[\s\S]*?throw new Error\('loadSheepWeighInsCached weigh_ins: '/);
     expect(sheepCacheSrc).toContain('return _sheepWeighInsCache || [];');
     expect(sheepCacheSrc).toContain('return _sheepWeighInsCache || rows;');
+  });
+});
+
+describe('LivestockWeighInsView - CSV export (Lane K)', () => {
+  it('uses the shared csvExport owner for browser download mechanics', () => {
+    expect(csvExport).toContain('export function rowsToCsv');
+    expect(csvExport).toContain('export function csvFilename');
+    expect(csvExport).toContain('export function downloadCsv');
+    expect(csvExport).toContain('new Blob');
+    expect(csvExport).toContain('URL.createObjectURL');
+  });
+
+  it('exports the current visible pig/broiler weigh-in sessions, not the raw session list', () => {
+    expect(livestockSrc).toContain("from '../lib/csvExport.js'");
+    expect(livestockSrc).toContain('function handleExportCsv');
+    expect(livestockSrc).toContain('data-livestock-weighins-export-csv="1"');
+    expect(livestockSrc).toContain('rowsToCsv(columns, filtered)');
+    expect(livestockSrc).not.toContain('rowsToCsv(columns, sessions)');
+  });
+
+  it('keeps livestock weigh-in export columns useful for session review', () => {
+    for (const header of [
+      'Date',
+      'Species',
+      'Batch ID',
+      'Broiler week',
+      'Status',
+      'Team member',
+      'Entry count',
+      'Average weight',
+      'Started at',
+      'Session ID',
+    ]) {
+      expect(livestockSrc).toContain(`header: '${header}'`);
+    }
+  });
+
+  it('keeps the export fallback browser-only and free of window.alert/confirm', () => {
+    expect(livestockSrc).toContain('CSV export is only available in the browser.');
+    expect(livestockSrc).not.toContain('window.alert');
+    expect(livestockSrc).not.toContain('window.confirm');
   });
 });

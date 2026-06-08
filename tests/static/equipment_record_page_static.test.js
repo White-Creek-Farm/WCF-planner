@@ -12,6 +12,7 @@ const home = fs.readFileSync(path.join(ROOT, 'src/equipment/EquipmentHome.jsx'),
 const registry = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), 'utf8');
 const fuelLog = fs.readFileSync(path.join(ROOT, 'src/equipment/EquipmentFuelLogView.jsx'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 
 describe('EquipmentFleetView — no legacy Activity surfaces', () => {
   it('does not import ActivityPanel', () => {
@@ -142,6 +143,60 @@ describe('EquipmentFuelLogView — CSV export (Lane K CP2)', () => {
     expect(fuelLog).toContain('CSV export is only available in the browser.');
     expect(fuelLog).not.toContain('window.alert');
     expect(fuelLog).not.toContain('window.confirm');
+  });
+});
+
+describe('EquipmentFuelLogView - saved views (Lane F)', () => {
+  it('receives sb/authState from EquipmentHome for saved-view ownership', () => {
+    expect(home).toContain('<EquipmentFuelLogView');
+    expect(home).toContain('sb={sb}');
+    expect(home).toContain('authState={authState}');
+  });
+
+  it('uses the shared app_saved_views API owner and equipment fuel-log surface', () => {
+    expect(savedViewsApi).toContain("from('app_saved_views')");
+    expect(fuelLog).toContain("from '../lib/savedViewsApi.js'");
+    expect(fuelLog).toContain("const EQUIPMENT_FUEL_LOG_SURFACE_KEY = 'equipment.fuelLog'");
+    expect(fuelLog).toContain('listSavedViews(sb, EQUIPMENT_FUEL_LOG_SURFACE_KEY)');
+    expect(fuelLog).toContain('surfaceKey: EQUIPMENT_FUEL_LOG_SURFACE_KEY');
+    expect(fuelLog).toContain('createSavedView(sb, {');
+    expect(fuelLog).toContain('updateSavedView(sb, selectedView.id');
+    expect(fuelLog).toContain('deleteSavedView(sb, view.id)');
+  });
+
+  it('saves and restores every fuel-log filter', () => {
+    expect(fuelLog).toContain('function equipmentFuelLogViewState()');
+    for (const field of ['eqFilter', 'fuelFilter', 'teamFilter', 'fromDate', 'toDate']) {
+      expect(fuelLog).toContain(`${field}: ${field} || ''`);
+      expect(fuelLog).toContain(`typeof st.${field} === 'string' ? st.${field} : ''`);
+    }
+  });
+
+  it('renders the saved-view control and degrades saved-view failures locally', () => {
+    const savedViewBlock = fuelLog.slice(
+      fuelLog.indexOf('async function loadSavedViews'),
+      fuelLog.indexOf('const totals = {'),
+    );
+    for (const marker of [
+      'data-equipment-fuel-log-saved-views-row',
+      'data-equipment-fuel-log-saved-view-select',
+      'data-equipment-fuel-log-saved-view-save-open',
+      'data-equipment-fuel-log-saved-view-form',
+      'data-equipment-fuel-log-saved-view-name',
+      'data-equipment-fuel-log-saved-view-visibility="private"',
+      'data-equipment-fuel-log-saved-view-visibility="public"',
+      'data-equipment-fuel-log-saved-view-save',
+      'data-equipment-fuel-log-saved-view-update',
+      'data-equipment-fuel-log-saved-view-delete',
+      'data-equipment-fuel-log-saved-views-error',
+    ]) {
+      expect(fuelLog).toContain(marker);
+    }
+    expect(fuelLog).toContain('Saved views unavailable. Filters still work.');
+    expect(savedViewBlock).toContain('setSavedViewsError(e.message || String(e))');
+    expect(fuelLog).toContain('window._wcfConfirmDelete');
+    expect(fuelLog).not.toContain('window.confirm');
+    expect(fuelLog).not.toContain('window.prompt');
   });
 });
 

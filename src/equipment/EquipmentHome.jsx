@@ -295,7 +295,7 @@ export default function EquipmentHome({
           </div>
         )}
         {!loading && !missingSchema && !loadError && subView === 'fuel-log' && !isEquipmentTech && (
-          <EquipmentFuelLogView equipment={equipment} fuelings={fuelings} fmt={fmt} />
+          <EquipmentFuelLogView sb={sb} authState={authState} equipment={equipment} fuelings={fuelings} fmt={fmt} />
         )}
         {!loading && !missingSchema && !loadError && subView === 'detail' && activeEq && (
           <>

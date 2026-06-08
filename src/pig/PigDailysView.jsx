@@ -5,6 +5,8 @@ import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
@@ -12,8 +14,10 @@ import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
-// eslint-disable-next-line no-unused-vars -- JSX-only use
 import PigDailyPage from './PigDailyPage.jsx';
+
+const PIG_DAILYS_SURFACE_KEY = 'pig.dailys';
+const VALID_PIG_DAILY_SOURCE_FILTERS = new Set(['all', 'daily', 'addfeed']);
 
 function PigDailysRouter(props) {
   const location = useLocation();
@@ -81,6 +85,17 @@ const PigDailysHub = ({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [exportNotice, setExportNotice] = useState('');
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewsError, setSavedViewsError] = useState(null);
+  const [savedViewsLoading, setSavedViewsLoading] = useState(true);
+  const [selectedViewId, setSelectedViewId] = useState('');
+  const [showSaveViewForm, setShowSaveViewForm] = useState(false);
+  const [saveViewName, setSaveViewName] = useState('');
+  const [saveViewVisibility, setSaveViewVisibility] = useState('private');
+  const [savedViewBusy, setSavedViewBusy] = useState(false);
+  const [savedViewNotice, setSavedViewNotice] = useState(null);
+  const myProfileId = authState?.user?.id || null;
 
   const fromRecords = [...new Set(records.map((d) => d.batch_label).filter(Boolean))].sort();
   const groupList = [
@@ -139,6 +154,26 @@ const PigDailysHub = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reloadKey is the user-gated retry trigger.
   }, [reloadKey]);
+
+  async function loadSavedViews() {
+    setSavedViewsLoading(true);
+    try {
+      const rows = await listSavedViews(sb, PIG_DAILYS_SURFACE_KEY);
+      setSavedViews(rows);
+      setSavedViewsError(null);
+      setSelectedViewId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : ''));
+    } catch (e) {
+      setSavedViews([]);
+      setSavedViewsError(e.message || String(e));
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSavedViews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   React.useEffect(() => {
     if (!isLightRole || !signedInUser) return;
@@ -274,6 +309,130 @@ const PigDailysHub = ({
         (srcFilter === 'daily' && r.source !== 'add_feed_webform') ||
         (srcFilter === 'addfeed' && r.source === 'add_feed_webform')),
   );
+  const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
+  const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
+
+  function pigDailysViewState() {
+    return {
+      fBatch: fBatch || '',
+      fTeam: fTeam || '',
+      fFrom: fFrom || '',
+      fTo: fTo || '',
+      srcFilter: VALID_PIG_DAILY_SOURCE_FILTERS.has(srcFilter) ? srcFilter : 'all',
+    };
+  }
+
+  function applyPigDailysSavedView(view) {
+    if (!view) return;
+    const st = view.view_state || {};
+    setFBatch(typeof st.fBatch === 'string' ? st.fBatch : '');
+    setFTeam(typeof st.fTeam === 'string' ? st.fTeam : '');
+    setFFrom(typeof st.fFrom === 'string' ? st.fFrom : '');
+    setFTo(typeof st.fTo === 'string' ? st.fTo : '');
+    setSrcFilter(VALID_PIG_DAILY_SOURCE_FILTERS.has(st.srcFilter) ? st.srcFilter : 'all');
+    setSavedViewNotice(null);
+  }
+
+  function onSelectSavedView(id) {
+    setSelectedViewId(id);
+    setSavedViewNotice(null);
+    if (!id) return;
+    applyPigDailysSavedView(savedViews.find((v) => v.id === id));
+  }
+
+  function openSaveViewForm() {
+    setSaveViewName('');
+    setSaveViewVisibility('private');
+    setSavedViewNotice(null);
+    setShowSaveViewForm(true);
+  }
+
+  async function submitSaveView() {
+    const name = saveViewName.trim();
+    if (!name) {
+      setSavedViewNotice({kind: 'error', message: 'Name the view before saving.'});
+      return;
+    }
+    setSavedViewBusy(true);
+    try {
+      const created = await createSavedView(sb, {
+        surfaceKey: PIG_DAILYS_SURFACE_KEY,
+        name,
+        visibility: saveViewVisibility,
+        viewState: pigDailysViewState(),
+      });
+      setShowSaveViewForm(false);
+      setSavedViewNotice({kind: 'success', message: 'Saved view "' + name + '".'});
+      await loadSavedViews();
+      if (created?.id) setSelectedViewId(created.id);
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Save view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function updateSelectedView() {
+    if (!selectedView || !selectedViewIsMine) return;
+    setSavedViewBusy(true);
+    try {
+      await updateSavedView(sb, selectedView.id, {viewState: pigDailysViewState()});
+      await loadSavedViews();
+      setSavedViewNotice({
+        kind: 'success',
+        message: 'Updated "' + selectedView.name + '" to the current filters.',
+      });
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Update view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  async function proceedDeleteSelectedView(view) {
+    setSavedViewBusy(true);
+    try {
+      await deleteSavedView(sb, view.id);
+      setSelectedViewId('');
+      await loadSavedViews();
+      setSavedViewNotice({kind: 'success', message: 'Deleted saved view "' + view.name + '".'});
+    } catch (e) {
+      setSavedViewNotice({kind: 'error', message: 'Delete view failed: ' + (e.message || String(e))});
+    } finally {
+      setSavedViewBusy(false);
+    }
+  }
+
+  function deleteSelectedView() {
+    if (!selectedView || !selectedViewIsMine || !window._wcfConfirmDelete) return;
+    window._wcfConfirmDelete('Delete saved view "' + selectedView.name + '"?', () => {
+      void proceedDeleteSelectedView(selectedView);
+    });
+  }
+
+  function handleExportCsv() {
+    const yesNo = (v) => (v === false ? 'no' : 'yes');
+    const columns = [
+      {header: 'Date', value: (r) => r.date || ''},
+      {header: 'Pig group', value: (r) => r.batch_label || ''},
+      {header: 'Team member', value: (r) => r.team_member || ''},
+      {header: 'Source', value: (r) => (r.source === 'add_feed_webform' ? 'Add Feed' : 'Daily Report')},
+      {header: 'Feed lbs', value: (r) => r.feed_lbs ?? ''},
+      {header: 'Pig count', value: (r) => r.pig_count ?? ''},
+      {header: 'Fence voltage', value: (r) => r.fence_voltage ?? ''},
+      {header: 'Group moved', value: (r) => yesNo(r.group_moved)},
+      {header: 'Nipple drinker moved', value: (r) => yesNo(r.nipple_drinker_moved)},
+      {header: 'Nipple drinker working', value: (r) => yesNo(r.nipple_drinker_working)},
+      {header: 'Troughs moved', value: (r) => yesNo(r.troughs_moved)},
+      {header: 'Fence walked', value: (r) => yesNo(r.fence_walked)},
+      {header: 'Issues', value: (r) => r.issues || ''},
+      {header: 'Photo count', value: (r) => (Array.isArray(r.photos) ? r.photos.length : 0)},
+      {header: 'Record ID', value: (r) => r.id || ''},
+    ];
+    const ok = downloadCsv(csvFilename('pig-dailys'), rowsToCsv(columns, filtered));
+    setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
+  }
+
   const totalFeed = filtered.reduce((s, r) => s + (parseFloat(r.feed_lbs) || 0), 0);
   const voltColor = (v) => (v == null ? '#9ca3af' : v < 3 ? '#b91c1c' : v < 5 ? '#92400e' : '#065f46');
   const fi = {
@@ -284,6 +443,31 @@ const PigDailysHub = ({
     fontFamily: 'inherit',
     background: 'white',
     width: 'auto',
+  };
+  const myViews = savedViews.filter((v) => myProfileId && v.owner_profile_id === myProfileId);
+  const publicOtherViews = savedViews.filter(
+    (v) => v.visibility === 'public' && !(myProfileId && v.owner_profile_id === myProfileId),
+  );
+  const savedViewGhostBtnS = {
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'white',
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #92400e', color: '#92400e'};
+  const savedViewRadioLabelS = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 12,
+    color: '#374151',
+    cursor: 'pointer',
   };
 
   return (
@@ -340,6 +524,164 @@ const PigDailysHub = ({
             }}
           />
         )}
+        {!loadError && (
+          <>
+            <div
+              data-pig-dailys-saved-views-row
+              style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              {savedViewsError ? (
+                <span style={{fontSize: 12, color: '#b91c1c'}} data-pig-dailys-saved-views-error>
+                  Saved views unavailable. Filters still work.
+                </span>
+              ) : (
+                <>
+                  <select
+                    data-pig-dailys-saved-view-select
+                    value={selectedViewId}
+                    disabled={savedViewsLoading}
+                    onChange={(e) => onSelectSavedView(e.target.value)}
+                    style={{...fi, minWidth: 200}}
+                  >
+                    <option value="">{savedViewsLoading ? 'Loading...' : 'Select a saved view'}</option>
+                    {myViews.length > 0 && (
+                      <optgroup label="My views">
+                        {myViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name + (v.visibility === 'public' ? ' - public' : ' - private')}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {publicOtherViews.length > 0 && (
+                      <optgroup label="Public views">
+                        {publicOtherViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {selectedViewIsMine && (
+                    <>
+                      <button
+                        type="button"
+                        data-pig-dailys-saved-view-update
+                        onClick={updateSelectedView}
+                        disabled={savedViewBusy}
+                        style={savedViewGhostBtnS}
+                      >
+                        Update to current
+                      </button>
+                      <button
+                        type="button"
+                        data-pig-dailys-saved-view-delete
+                        onClick={deleteSelectedView}
+                        disabled={savedViewBusy}
+                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <span style={{flex: 1}} />
+                  {savedViewNotice && (
+                    <span style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? '#065f46' : '#b91c1c'}}>
+                      {savedViewNotice.message}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    data-pig-dailys-saved-view-save-open
+                    onClick={openSaveViewForm}
+                    disabled={savedViewBusy || savedViewsLoading}
+                    style={savedViewPrimaryBtnS}
+                  >
+                    Save current view
+                  </button>
+                </>
+              )}
+            </div>
+            {showSaveViewForm && (
+              <div
+                data-pig-dailys-saved-view-form
+                style={{
+                  background: 'white',
+                  border: '1px solid #fde68a',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <input
+                  data-pig-dailys-saved-view-name
+                  type="text"
+                  value={saveViewName}
+                  placeholder="View name"
+                  onChange={(e) => setSaveViewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitSaveView();
+                  }}
+                  style={{...fi, flex: 1, minWidth: 200}}
+                />
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="savePigDailysViewVisibility"
+                    checked={saveViewVisibility === 'private'}
+                    onChange={() => setSaveViewVisibility('private')}
+                    data-pig-dailys-saved-view-visibility="private"
+                  />
+                  Private
+                </label>
+                <label style={savedViewRadioLabelS}>
+                  <input
+                    type="radio"
+                    name="savePigDailysViewVisibility"
+                    checked={saveViewVisibility === 'public'}
+                    onChange={() => setSaveViewVisibility('public')}
+                    data-pig-dailys-saved-view-visibility="public"
+                  />
+                  Public
+                </label>
+                <button
+                  type="button"
+                  data-pig-dailys-saved-view-save
+                  onClick={submitSaveView}
+                  disabled={savedViewBusy}
+                  style={savedViewPrimaryBtnS}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSaveViewForm(false)}
+                  disabled={savedViewBusy}
+                  style={savedViewGhostBtnS}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {exportNotice && <div style={{marginBottom: 14, color: '#b91c1c', fontSize: 12}}>{exportNotice}</div>}
         <div style={{display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center'}}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{...fi, width: 130}} />
           <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
@@ -352,10 +694,19 @@ const PigDailysHub = ({
               </option>
             ))}
           </select>
-          {(fBatch || fFrom || fTo || srcFilter !== 'all') && (
+          <select value={fTeam} onChange={(e) => setFTeam(e.target.value)} style={fi} data-pig-dailys-team-filter="1">
+            <option value="">All team members</option>
+            {teamOpts.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          {(fBatch || fTeam || fFrom || fTo || srcFilter !== 'all') && (
             <button
               onClick={() => {
                 setFBatch('');
+                setFTeam('');
                 setFFrom('');
                 setFTo('');
                 setSrcFilter('all');
@@ -402,6 +753,20 @@ const PigDailysHub = ({
               );
             })}
           </div>
+          <button
+            type="button"
+            data-pig-dailys-export-csv="1"
+            onClick={handleExportCsv}
+            disabled={loading || !!loadError}
+            style={{
+              ...fi,
+              color: loading || loadError ? '#9ca3af' : '#374151',
+              fontWeight: 600,
+              cursor: loading || loadError ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Export CSV
+          </button>
         </div>
         <InlineNotice notice={loadError} />
         {loadError && (
