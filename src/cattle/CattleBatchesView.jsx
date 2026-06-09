@@ -7,6 +7,9 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 import {buildForecast} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {buildProcessingBatchExportColumns} from '../lib/operationalExportColumns.js';
 import CattleBatchPage from './CattleBatchPage.jsx';
 
 const CattleBatchesHub = ({
@@ -172,6 +175,42 @@ const CattleBatchesHub = ({
   // processed ONLY when the Show Processed Batches section is expanded).
   // Virtual/planned forecast tiles are excluded — they don't route.
   const batchSeqRows = [...scheduledList, ...active, ...(showCompleted ? completed : [])];
+  const batchExportRows = batchSeqRows.map((batch) => {
+    const detailRows = Array.isArray(batch.cows_detail) ? batch.cows_detail : [];
+    const totalLiveWeight = detailRows.reduce((sum, row) => sum + (parseFloat(row.live_weight) || 0), 0);
+    const totalHangingWeight = detailRows.reduce((sum, row) => sum + (parseFloat(row.hanging_weight) || 0), 0);
+    return {
+      ...batch,
+      animal_count: detailRows.length,
+      total_live_weight: totalLiveWeight,
+      total_hanging_weight: totalHangingWeight,
+      yield_pct: totalLiveWeight > 0 && totalHangingWeight > 0 ? (totalHangingWeight / totalLiveWeight) * 100 : null,
+    };
+  });
+  const exportColumns = buildProcessingBatchExportColumns({fmt, animalLabel: 'Cow'});
+
+  function handleExportCsv() {
+    if (!batchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No visible cattle processing batches to export.'});
+      return;
+    }
+    const ok = downloadCsv(csvFilename('cattle-processing-batches'), rowsToCsv(exportColumns, batchExportRows));
+    if (!ok) setNotice({kind: 'warning', message: 'CSV export is unavailable in this browser.'});
+  }
+
+  function handlePrintRows() {
+    if (!batchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No visible cattle processing batches to print.'});
+      return;
+    }
+    const ok = printRows({
+      title: 'Cattle Processing Batches',
+      subtitle: batchExportRows.length + ' visible batches',
+      columns: exportColumns,
+      rows: batchExportRows,
+    });
+    if (!ok) setNotice({kind: 'warning', message: 'Print export is unavailable in this browser.'});
+  }
 
   return (
     <div
@@ -219,21 +258,59 @@ const CattleBatchesHub = ({
               {scheduledList.length} scheduled · {active.length} active · {completed.length} processed
             </span>
           </div>
-          {!canEdit && (
-            <span
+          <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              data-cattle-batches-export-csv="1"
               style={{
-                fontSize: 11,
-                padding: '3px 8px',
-                background: '#eff6ff',
-                border: '1px solid #bfdbfe',
-                borderRadius: 6,
-                color: '#1e40af',
+                padding: '7px 12px',
+                borderRadius: 7,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#374151',
+                fontSize: 12,
                 fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
               }}
             >
-              READ-ONLY
-            </span>
-          )}
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintRows}
+              data-cattle-batches-print="1"
+              style={{
+                padding: '7px 12px',
+                borderRadius: 7,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#374151',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Print
+            </button>
+            {!canEdit && (
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: '3px 8px',
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 6,
+                  color: '#1e40af',
+                  fontWeight: 600,
+                }}
+              >
+                READ-ONLY
+              </span>
+            )}
+          </div>
         </div>
 
         {loading && <div style={{textAlign: 'center', padding: '2rem', color: '#9ca3af'}}>Loading{'…'}</div>}

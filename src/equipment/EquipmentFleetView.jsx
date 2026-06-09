@@ -15,9 +15,14 @@ import {
 } from '../lib/equipment.js';
 import EquipmentAddModal from './EquipmentAddModal.jsx';
 import EquipmentCategoryIcon from '../components/EquipmentCategoryIcon.jsx';
+import InlineNotice from '../shared/InlineNotice.jsx';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {buildEquipmentFleetExportColumns} from '../lib/operationalExportColumns.js';
 
 export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen, onReload}) {
   const [showAdd, setShowAdd] = React.useState(false);
+  const [exportNotice, setExportNotice] = React.useState(null);
 
   if (!equipment || equipment.length === 0) {
     return (
@@ -65,6 +70,32 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
   const sold = equipment.filter((e) => e.status === 'sold').sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   // Visible/rendered order (category groups, then sold) for record sequence nav.
   const fleetSeqRows = [...grouped.flatMap((g) => g.rows), ...sold];
+  const fleetExportRows = fleetSeqRows.map((eq) => {
+    const latestFuel = latestFuelingById.get(eq.id);
+    const reading = eq.tracking_unit === 'km' ? eq.current_km : eq.current_hours;
+    return {
+      ...eq,
+      category: (CATEGORY_BY_KEY[eq.category] && CATEGORY_BY_KEY[eq.category].label) || eq.category,
+      current_reading: reading,
+      last_fueling_date: latestFuel && latestFuel.date,
+    };
+  });
+  const exportColumns = buildEquipmentFleetExportColumns({fmt, fmtReading});
+
+  function handleExportCsv() {
+    const ok = downloadCsv(csvFilename('equipment-fleet'), rowsToCsv(exportColumns, fleetExportRows));
+    setExportNotice(ok ? null : {kind: 'error', message: 'CSV export is only available in the browser.'});
+  }
+
+  function handlePrintRows() {
+    const ok = printRows({
+      title: 'Equipment Fleet',
+      subtitle: fleetExportRows.length + ' equipment records',
+      columns: exportColumns,
+      rows: fleetExportRows,
+    });
+    setExportNotice(ok ? null : {kind: 'error', message: 'Print is only available in the browser.'});
+  }
 
   const tile = (eq) => {
     const reading = eq.tracking_unit === 'km' ? eq.current_km : eq.current_hours;
@@ -159,7 +190,43 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
 
   return (
     <div style={{display: 'flex', flexDirection: 'column', gap: 18}}>
-      <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: -8}}>
+      <div style={{display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: -8, flexWrap: 'wrap'}}>
+        <button
+          type="button"
+          data-equipment-fleet-export-csv="1"
+          onClick={handleExportCsv}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#374151',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          Export CSV
+        </button>
+        <button
+          type="button"
+          data-equipment-fleet-print="1"
+          onClick={handlePrintRows}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #d1d5db',
+            background: 'white',
+            color: '#374151',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          Print
+        </button>
         <button
           onClick={() => setShowAdd(true)}
           style={{
@@ -177,6 +244,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
           + Add Equipment
         </button>
       </div>
+      <InlineNotice notice={exportNotice} onDismiss={() => setExportNotice(null)} />
       {showAdd && (
         <EquipmentAddModal
           sb={sb}

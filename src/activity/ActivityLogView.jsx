@@ -5,6 +5,9 @@ import {loadGlobalActivity} from '../lib/globalActivityApi.js';
 import {getActivityEntityMeta} from '../lib/activityRegistry.js';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {buildActivityLogExportColumns} from '../lib/operationalExportColumns.js';
 
 const ENTITY_TYPE_LABELS = {
   'task.instance': 'Task',
@@ -76,6 +79,11 @@ export default function ActivityLogView({Header}) {
   const [entityFilter, setEntityFilter] = usePersistentViewState('activity.log.entityFilter', '');
   const [hasMore, setHasMore] = React.useState(false);
   const [reloadKey, setReloadKey] = React.useState(0);
+  const [exportNotice, setExportNotice] = React.useState(null);
+  const exportColumns = React.useMemo(
+    () => buildActivityLogExportColumns({entityTypeLabels: ENTITY_TYPE_LABELS, eventTypeLabels: EVENT_TYPE_LABELS}),
+    [],
+  );
 
   const load = React.useCallback(
     async (append) => {
@@ -128,6 +136,29 @@ export default function ActivityLogView({Header}) {
   function handleSearch(e) {
     e.preventDefault();
     load(false);
+  }
+
+  function handleExportCsv() {
+    if (!rows.length) {
+      setExportNotice({kind: 'warning', message: 'No loaded activity rows to export.'});
+      return;
+    }
+    const ok = downloadCsv(csvFilename('activity-log'), rowsToCsv(exportColumns, rows));
+    setExportNotice(ok ? null : {kind: 'error', message: 'CSV export is only available in the browser.'});
+  }
+
+  function handlePrintRows() {
+    if (!rows.length) {
+      setExportNotice({kind: 'warning', message: 'No loaded activity rows to print.'});
+      return;
+    }
+    const ok = printRows({
+      title: 'Activity Log',
+      subtitle: rows.length + ' loaded activity rows',
+      columns: exportColumns,
+      rows,
+    });
+    setExportNotice(ok ? null : {kind: 'error', message: 'Print is only available in the browser.'});
   }
 
   // Global Activity Log is read-only audit history. A row click navigates to
@@ -220,7 +251,48 @@ export default function ActivityLogView({Header}) {
           },
           'Search',
         ),
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: handleExportCsv,
+            'data-activity-log-export-csv': '1',
+            style: {
+              padding: '6px 14px',
+              borderRadius: 6,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            },
+          },
+          'Export CSV',
+        ),
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: handlePrintRows,
+            'data-activity-log-print': '1',
+            style: {
+              padding: '6px 14px',
+              borderRadius: 6,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            },
+          },
+          'Print',
+        ),
       ),
+      exportNotice && React.createElement(InlineNotice, {notice: exportNotice, onDismiss: () => setExportNotice(null)}),
 
       // Error
       loadError &&

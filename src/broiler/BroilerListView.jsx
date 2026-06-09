@@ -26,6 +26,9 @@ import UsersModal from '../auth/UsersModal.jsx';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {buildBroilerBatchExportColumns} from '../lib/operationalExportColumns.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
@@ -67,6 +70,56 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
   const processedCardRows = batches
     .filter((b) => b.status === 'processed')
     .sort((a, b) => (b.processingDate || b.hatchDate || '').localeCompare(a.processingDate || a.hatchDate || ''));
+  const broilerExportRows = [...activeRows, ...processedCardRows].map((batch) => {
+    const n = (value) => parseFloat(value) || 0;
+    const stats = calcBroilerStatsFromDailys(batch, broilerDailys);
+    const useManualFeedFallback = !stats.legacy && stats.starterFeed === 0 && stats.growerFeed === 0;
+    const starterLbs = useManualFeedFallback ? n(batch.brooderFeedLbs) : stats.starterFeed;
+    const growerLbs = useManualFeedFallback ? n(batch.schoonerFeedLbs) : stats.growerFeed;
+    const totalFeed = starterLbs + growerLbs;
+    const processed = n(batch.totalToProcessor);
+    let timeOnFarm = '';
+    if (batch.hatchDate && batch.processingDate) {
+      const days = Math.round(
+        (new Date(batch.processingDate + 'T12:00:00') - new Date(batch.hatchDate + 'T12:00:00')) / 86400000,
+      );
+      timeOnFarm = Math.floor(days / 7) + 'w ' + (days % 7) + 'd';
+    }
+    return {
+      ...batch,
+      export_status: calcPoultryStatus(batch),
+      time_on_farm: timeOnFarm,
+      export_mortality: stats.mortality,
+      export_starter_lbs: starterLbs,
+      export_grower_lbs: growerLbs,
+      export_total_feed_lbs: totalFeed,
+      export_feed_per_processed_bird: processed > 0 && totalFeed > 0 ? totalFeed / processed : null,
+    };
+  });
+  const exportColumns = buildBroilerBatchExportColumns({fmt});
+
+  function handleExportCsv() {
+    if (!broilerExportRows.length) {
+      setListNotice({kind: 'warning', message: 'No broiler batches to export.'});
+      return;
+    }
+    const ok = downloadCsv(csvFilename('broiler-batches'), rowsToCsv(exportColumns, broilerExportRows));
+    if (!ok) setListNotice({kind: 'warning', message: 'CSV export is unavailable in this browser.'});
+  }
+
+  function handlePrintRows() {
+    if (!broilerExportRows.length) {
+      setListNotice({kind: 'warning', message: 'No broiler batches to print.'});
+      return;
+    }
+    const ok = printRows({
+      title: 'Broiler Batches',
+      subtitle: broilerExportRows.length + ' batches',
+      columns: exportColumns,
+      rows: broilerExportRows,
+    });
+    if (!ok) setListNotice({kind: 'warning', message: 'Print export is unavailable in this browser.'});
+  }
 
   return (
     <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
@@ -82,7 +135,43 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
       )}
       <Header />
       <div style={{padding: '1rem'}} data-broiler-batches-loaded={dataLoaded ? 'true' : 'false'}>
-        <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: 10}}>
+        <div style={{display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap', marginBottom: 10}}>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            data-broiler-batches-export-csv="1"
+            style={{
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: 0.1,
+            }}
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={handlePrintRows}
+            data-broiler-batches-print="1"
+            style={{
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: '1px solid #d1d5db',
+              background: 'white',
+              color: '#374151',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: 0.1,
+            }}
+          >
+            Print
+          </button>
           <button
             style={{
               padding: '7px 18px',
