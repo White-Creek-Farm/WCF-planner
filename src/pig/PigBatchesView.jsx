@@ -26,6 +26,10 @@ import {
   computeSubCurrentCount,
   batchStartedCount,
   pigTransfersForBatch,
+  processingTripPigCount,
+  tripTotalLive,
+  pigMortalityForBatch,
+  computePigBatchFCR,
 } from '../lib/pig.js';
 import {
   PLANNED_TRIP_TARGET_WEIGHT_LBS,
@@ -41,6 +45,9 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {useNavigate, useLocation} from 'react-router-dom';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {buildPigBatchExportColumns} from '../lib/operationalExportColumns.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
@@ -190,6 +197,82 @@ export default function PigBatchesView({
 
   const statusColors = {active: {bg: '#085041', tx: 'white'}, processed: {bg: '#4b5563', tx: 'white'}};
   const cycleSeqMap = buildCycleSeqMap(breedingCycles);
+  function latestDailyPigCountForBatch(group) {
+    if (!group || (group.subBatches || []).length > 0) return null;
+    const rows = dailysForName(group.batchName);
+    const sorted = [...rows].sort(
+      (a, b) =>
+        (b.date || '').localeCompare(a.date || '') || (b.submitted_at || '').localeCompare(a.submitted_at || '') || 0,
+    );
+    return sorted[0]?.pig_count ?? null;
+  }
+
+  function adjustedFeedForBatch(group) {
+    if (!group) return 0;
+    const subs = group.subBatches || [];
+    let rawFeed = parseFloat(group.legacyFeedLbs) || parseFloat(group.totalFeedLbs) || 0;
+    if (subs.length > 0) {
+      for (const sub of subs) {
+        rawFeed += parseFloat(sub.legacyFeedLbs) || 0;
+        for (const row of dailysForName(sub.name)) rawFeed += parseFloat(row.feed_lbs) || 0;
+      }
+    } else {
+      for (const row of dailysForName(group.batchName)) rawFeed += parseFloat(row.feed_lbs) || 0;
+    }
+    const transfers = pigTransfersForBatch(breeders, group.batchName);
+    const transferCredit =
+      transfers.feedAllocLbs > 0 ? transfers.feedAllocLbs : parseFloat(group.feedAllocatedToTransfers) || 0;
+    return Math.max(0, rawFeed - transferCredit);
+  }
+
+  const pigBatchExportRows = visiblePigBatches.map((group) => {
+    const tripOptions = {tripSourceSummary: processingTrips.tripSourceSummary};
+    const transfers = pigTransfersForBatch(breeders, group.batchName);
+    const cycle = (breedingCycles || []).find((c) => c && c.id === group.cycleId);
+    const current = computeBatchCurrentCount(group, breeders, {
+      latestDailyPigCount: latestDailyPigCountForBatch(group),
+      tripSourceSummary: processingTrips.tripSourceSummary,
+    });
+    return {
+      ...group,
+      started_count: batchStartedCount(group),
+      current_count: current,
+      trip_pigs: (group.processingTrips || []).reduce(
+        (sum, trip) => sum + processingTripPigCount(trip, tripOptions),
+        0,
+      ),
+      transfer_pigs: transfers.count,
+      mortality_count: pigMortalityForBatch(group),
+      total_live_lbs: (group.processingTrips || []).reduce((sum, trip) => sum + tripTotalLive(trip, tripOptions), 0),
+      adjusted_feed_lbs: adjustedFeedForBatch(group),
+      fcr: computePigBatchFCR(group, dailysForName, breeders, tripOptions),
+      cycle_label: cycle ? cycleLabel(cycle, cycleSeqMap) : '',
+    };
+  });
+  const exportColumns = buildPigBatchExportColumns({fmt: fmtS});
+
+  function handleExportCsv() {
+    if (!pigBatchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No visible pig batches to export.'});
+      return;
+    }
+    const ok = downloadCsv(csvFilename('pig-batches'), rowsToCsv(exportColumns, pigBatchExportRows));
+    if (!ok) setNotice({kind: 'warning', message: 'CSV export is unavailable in this browser.'});
+  }
+
+  function handlePrintRows() {
+    if (!pigBatchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No visible pig batches to print.'});
+      return;
+    }
+    const ok = printRows({
+      title: 'Pig Batches',
+      subtitle: pigBatchExportRows.length + ' visible batches',
+      columns: exportColumns,
+      rows: pigBatchExportRows,
+    });
+    if (!ok) setNotice({kind: 'warning', message: 'Print export is unavailable in this browser.'});
+  }
   // Processing-trip source tracking + handlers live in usePigProcessingTrips
   // (CP10); tripSourceCounts is consumed by the trip JSX via the hook.
 
@@ -888,7 +971,43 @@ export default function PigBatchesView({
         )}
         {!recordMode && (
           <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: 12}}>
-            <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+            <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                data-pig-batches-export-csv="1"
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  fontWeight: 600,
+                }}
+              >
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintRows}
+                data-pig-batches-print="1"
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  fontWeight: 600,
+                }}
+              >
+                Print
+              </button>
               {feederGroups.some((g) => g.status === 'processed') && (
                 <button
                   onClick={() => setShowArchBatches((s) => !s)}

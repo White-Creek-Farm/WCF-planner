@@ -12,6 +12,9 @@ import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {buildProcessingBatchExportColumns} from '../lib/operationalExportColumns.js';
 import SheepBatchPage from './SheepBatchPage.jsx';
 
 const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, allUsers, setAllUsers, loadUsers}) => {
@@ -123,6 +126,42 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
   const completed = batches.filter((b) => b.status === 'complete');
   // Combined visible order (planned → complete) for record sequence nav.
   const batchSeqRows = [...planned, ...completed];
+  const batchExportRows = batchSeqRows.map((batch) => {
+    const detailRows = Array.isArray(batch.sheep_detail) ? batch.sheep_detail : [];
+    const totalLiveWeight = detailRows.reduce((sum, row) => sum + (parseFloat(row.live_weight) || 0), 0);
+    const totalHangingWeight = detailRows.reduce((sum, row) => sum + (parseFloat(row.hanging_weight) || 0), 0);
+    return {
+      ...batch,
+      animal_count: detailRows.length,
+      total_live_weight: totalLiveWeight,
+      total_hanging_weight: totalHangingWeight,
+      yield_pct: totalLiveWeight > 0 && totalHangingWeight > 0 ? (totalHangingWeight / totalLiveWeight) * 100 : null,
+    };
+  });
+  const exportColumns = buildProcessingBatchExportColumns({fmt, animalLabel: 'Sheep'});
+
+  function handleExportCsv() {
+    if (!batchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No sheep processing batches to export.'});
+      return;
+    }
+    const ok = downloadCsv(csvFilename('sheep-processing-batches'), rowsToCsv(exportColumns, batchExportRows));
+    if (!ok) setNotice({kind: 'warning', message: 'CSV export is unavailable in this browser.'});
+  }
+
+  function handlePrintRows() {
+    if (!batchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No sheep processing batches to print.'});
+      return;
+    }
+    const ok = printRows({
+      title: 'Sheep Processing Batches',
+      subtitle: batchExportRows.length + ' batches',
+      columns: exportColumns,
+      rows: batchExportRows,
+    });
+    if (!ok) setNotice({kind: 'warning', message: 'Print export is unavailable in this browser.'});
+  }
 
   const inpS = {
     fontSize: 13,
@@ -184,25 +223,63 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
               {planned.length} planned · {completed.length} complete
             </span>
           </div>
-          {canEdit && (
+          <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
             <button
               type="button"
-              onClick={openAdd}
+              onClick={handleExportCsv}
+              data-sheep-batches-export-csv="1"
               style={{
-                padding: '7px 16px',
+                padding: '7px 12px',
                 borderRadius: 7,
-                border: 'none',
-                background: '#0f766e',
-                color: 'white',
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#374151',
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
               }}
             >
-              + New Batch
+              Export CSV
             </button>
-          )}
+            <button
+              type="button"
+              onClick={handlePrintRows}
+              data-sheep-batches-print="1"
+              style={{
+                padding: '7px 12px',
+                borderRadius: 7,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#374151',
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Print
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={openAdd}
+                style={{
+                  padding: '7px 16px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: '#0f766e',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                + New Batch
+              </button>
+            )}
+          </div>
         </div>
 
         {loading && <div style={{textAlign: 'center', padding: '2rem', color: '#9ca3af'}}>Loading{'…'}</div>}

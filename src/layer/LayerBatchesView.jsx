@@ -12,6 +12,9 @@ import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {computeHousingDisplayCount, computeLayerFeedCost} from '../lib/layerHousing.js';
+import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {printRows} from '../lib/printExport.js';
+import {buildLayerBatchExportColumns} from '../lib/operationalExportColumns.js';
 import {computeBatchStats} from './layerBatchStats.js';
 import LayerBatchPage from './LayerBatchPage.jsx';
 import LayerHousingPage from './LayerHousingPage.jsx';
@@ -193,6 +196,49 @@ const LayerBatchesHub = ({
   const retiredBatches = (layerBatches || []).filter((b) => b.status === 'retired');
   // Combined visible order (active → retired) for record sequence nav.
   const batchSeqRows = [...activeBatches, ...retiredBatches];
+  const layerBatchExportRows = batchSeqRows.map((batch) => {
+    const stats = batchStats[batch.id] || {};
+    const activeHousings = (layerHousings || []).filter((h) => h.batch_id === batch.id && h.status === 'active');
+    const currentHens = activeHousings.reduce(
+      (sum, housing) => sum + computeHousingDisplayCount(housing, rawLayerDailys),
+      0,
+    );
+    return {
+      ...batch,
+      active_housing_names: activeHousings
+        .map((h) => h.housing_name)
+        .filter(Boolean)
+        .join(', '),
+      current_hens: currentHens,
+      total_feed_lbs: stats.totalFeed || 0,
+      total_mortality: stats.totalMort || 0,
+      total_dozens: stats.totalEggs > 0 ? Math.floor(stats.totalEggs / 12) : 0,
+      feed_cost: computeLayerFeedCost(stats.starterFeed, stats.growerFeed, stats.layerFeed, batch),
+    };
+  });
+  const exportColumns = buildLayerBatchExportColumns({fmt});
+  function handleExportCsv() {
+    if (!layerBatchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No layer batches to export.'});
+      return;
+    }
+    const ok = downloadCsv(csvFilename('layer-batches'), rowsToCsv(exportColumns, layerBatchExportRows));
+    if (!ok) setNotice({kind: 'warning', message: 'CSV export is unavailable in this browser.'});
+  }
+
+  function handlePrintRows() {
+    if (!layerBatchExportRows.length) {
+      setNotice({kind: 'warning', message: 'No layer batches to print.'});
+      return;
+    }
+    const ok = printRows({
+      title: 'Layer Batches',
+      subtitle: layerBatchExportRows.length + ' batches',
+      columns: exportColumns,
+      rows: layerBatchExportRows,
+    });
+    if (!ok) setNotice({kind: 'warning', message: 'Print export is unavailable in this browser.'});
+  }
   const batchColors = [
     {bg: '#ecfdf5', bd: '#a7f3d0', tx: '#065f46'},
     {bg: '#eff6ff', bd: '#bfdbfe', tx: '#1e40af'},
@@ -237,25 +283,61 @@ const LayerBatchesHub = ({
               {activeBatches.length} active
             </span>
           </div>
-          {canEdit && (
+          <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
             <button
               type="button"
-              onClick={openAdd}
-              data-layer-new-batch
+              onClick={handleExportCsv}
+              data-layer-batches-export-csv="1"
               style={{
-                padding: '7px 18px',
+                padding: '7px 12px',
                 borderRadius: 8,
-                border: 'none',
-                background: '#085041',
-                color: 'white',
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#374151',
                 cursor: 'pointer',
                 fontSize: 12,
                 fontWeight: 600,
               }}
             >
-              + New Batch
+              Export CSV
             </button>
-          )}
+            <button
+              type="button"
+              onClick={handlePrintRows}
+              data-layer-batches-print="1"
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                background: 'white',
+                color: '#374151',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              Print
+            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={openAdd}
+                data-layer-new-batch
+                style={{
+                  padding: '7px 18px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#085041',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                + New Batch
+              </button>
+            )}
+          </div>
         </div>
 
         {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
