@@ -382,14 +382,14 @@ describe('CattleAnimalPage - cold-boot readiness', () => {
     expect(loadAllSrc).toContain('setCalvingRecs([]);');
     expect(loadAllSrc).toContain('setBreedOpts([]);');
     expect(loadAllSrc).toContain('setOriginOpts([]);');
-    expect(animalPage).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+    expect(animalPage).toMatch(/if \(loadError\)[\s\S]*?<RecordPageLoadError[\s\S]*notice=\{loadError\}/);
   });
 
   it('keeps load failures non-dismissible with a retry action', () => {
+    expect(animalPage).toContain("from '../shared/RecordPageLoadError.jsx'");
     expect(animalPage).toContain('data-cattle-animal-load-error="true"');
-    expect(animalPage).toContain('<InlineNotice notice={loadError} />');
     expect(animalPage).not.toContain('<InlineNotice notice={loadError} onDismiss');
-    expect(animalPage).toMatch(/onClick=\{loadAll\}[\s\S]*?Retry/);
+    expect(animalPage).toMatch(/<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
   });
 
   it('keeps the resolved record body marker used by Playwright helpers', () => {

@@ -159,14 +159,14 @@ describe('TaskInstancePage - cold-boot readiness', () => {
     expect(loadAllSrc).toContain('setRecord(null);');
     expect(loadAllSrc).toContain('setProfiles({});');
     expect(loadAllSrc).toContain('setAssignableProfiles({});');
-    expect(pageSrc).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+    expect(pageSrc).toContain("from '../shared/RecordPageLoadError.jsx'");
+    expect(pageSrc).toMatch(/if \(loadError\)[\s\S]*?<RecordPageLoadError[\s\S]*notice=\{loadError\}/);
   });
 
   it('keeps load failures non-dismissible with a retry action', () => {
     expect(pageSrc).toContain('data-task-instance-load-error="true"');
-    expect(pageSrc).toContain('<InlineNotice notice={loadError} />');
     expect(pageSrc).not.toContain('<InlineNotice notice={loadError} onDismiss');
-    expect(pageSrc).toMatch(/onClick=\{loadAll\}[\s\S]*?Retry/);
+    expect(pageSrc).toMatch(/<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
   });
 
   it('exposes a loaded marker only on the resolved task record body', () => {

@@ -17,58 +17,15 @@
 
 import React from 'react';
 import {completeTaskInstanceV2, uploadTaskCompletionPhotos} from '../lib/tasksCenterMutationsApi.js';
-
-const OVERLAY = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,.5)',
-  zIndex: 250,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 16,
-};
-const PANEL = {
-  background: 'white',
-  borderRadius: 12,
-  padding: 18,
-  width: 'min(560px, 96vw)',
-  maxHeight: '92vh',
-  overflowY: 'auto',
-  fontFamily: 'inherit',
-};
-const FIELD_LABEL = {fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block'};
-const INPUT = {
-  width: '100%',
-  padding: '8px 10px',
-  border: '1px solid #d1d5db',
-  borderRadius: 8,
-  fontSize: 14,
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-};
-const BTN_PRIMARY = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #085041',
-  background: '#085041',
-  color: 'white',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  fontFamily: 'inherit',
-};
-const BTN_GHOST = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  background: 'white',
-  color: '#374151',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 500,
-  fontFamily: 'inherit',
-};
+import {
+  taskModalErrorNotice as ERROR_NOTICE,
+  taskModalFieldLabel as FIELD_LABEL,
+  taskModalGhostButton as BTN_GHOST,
+  taskModalInput as INPUT,
+  taskModalOverlay as OVERLAY,
+  taskModalPanel as PANEL,
+  taskModalPrimaryButton as BTN_PRIMARY,
+} from './taskModalStyles.js';
 
 export default function CompleteTaskModal({sb, task, isOpen, onClose, onCompleted, authState}) {
   const [note, setNote] = React.useState('');
@@ -206,18 +163,7 @@ export default function CompleteTaskModal({sb, task, isOpen, onClose, onComplete
         </div>
 
         {err && (
-          <div
-            data-complete-task-error="1"
-            style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#991b1b',
-              padding: '8px 12px',
-              borderRadius: 8,
-              marginTop: 12,
-              fontSize: 13,
-            }}
-          >
+          <div data-complete-task-error="1" style={ERROR_NOTICE}>
             {err}
           </div>
         )}

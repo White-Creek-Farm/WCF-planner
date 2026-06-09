@@ -6,10 +6,12 @@ import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {buildEggDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
+import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
@@ -376,39 +378,14 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
     });
   }
 
-  function eggDailysExportColumns() {
-    const totalForRow = (r) =>
-      (parseInt(r.group1_count) || 0) +
-      (parseInt(r.group2_count) || 0) +
-      (parseInt(r.group3_count) || 0) +
-      (parseInt(r.group4_count) || 0);
-    return [
-      {header: 'Date', value: (r) => r.date || ''},
-      {header: 'Team member', value: (r) => r.team_member || ''},
-      {header: 'Group 1 name', value: (r) => r.group1_name || ''},
-      {header: 'Group 1 eggs', value: (r) => r.group1_count ?? ''},
-      {header: 'Group 2 name', value: (r) => r.group2_name || ''},
-      {header: 'Group 2 eggs', value: (r) => r.group2_count ?? ''},
-      {header: 'Group 3 name', value: (r) => r.group3_name || ''},
-      {header: 'Group 3 eggs', value: (r) => r.group3_count ?? ''},
-      {header: 'Group 4 name', value: (r) => r.group4_name || ''},
-      {header: 'Group 4 eggs', value: (r) => r.group4_count ?? ''},
-      {header: 'Total eggs', value: totalForRow},
-      {header: 'Daily dozens', value: (r) => r.daily_dozen_count ?? ''},
-      {header: 'Dozens on hand', value: (r) => r.dozens_on_hand ?? ''},
-      {header: 'Comments', value: (r) => r.comments || ''},
-      {header: 'Record ID', value: (r) => r.id || ''},
-    ];
-  }
-
   function handleExportCsv() {
-    const columns = eggDailysExportColumns();
+    const columns = buildEggDailyExportColumns();
     const ok = downloadCsv(csvFilename('egg-dailys'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
   }
 
   function handlePrintRows() {
-    const columns = eggDailysExportColumns();
+    const columns = buildEggDailyExportColumns();
     const ok = printRows({
       title: 'Egg Dailys',
       subtitle: filtered.length + ' filtered egg reports',
@@ -737,10 +714,15 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
-        {!loading && filtered.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>No records found</div>
-        )}
-        {!loading && filtered.length > 0 && (
+        <OperationalListEmptyState
+          loading={loading}
+          loadError={loadError}
+          totalCount={records.length}
+          filteredCount={filtered.length}
+          emptyLabel="No egg reports yet"
+          filteredLabel="No egg reports match the current filters"
+        />
+        {!loading && !loadError && filtered.length > 0 && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
             {filtered.map((d, i) => {
               const total =

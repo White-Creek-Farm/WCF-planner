@@ -17,6 +17,7 @@ import {
 /* eslint-enable no-unused-vars */
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
 import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 import {softDeleteSheepAnimal} from '../lib/sheepDeleteApi.js';
 import {transferSheepAnimal} from '../lib/animalTransferApi.js';
@@ -287,30 +288,14 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
 
   if (loadError) {
     return (
-      <RecordPageFrame Header={Header}>
-        <RecordPageBody data-sheep-animal-load-error="true">
-          <RecordBackLink label="Back to Flocks" onBack={() => navigate('/sheep/flocks')} />
-          <InlineNotice notice={loadError} />
-          <button
-            type="button"
-            onClick={loadAll}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#0f766e',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              marginTop: 10,
-            }}
-          >
-            Retry
-          </button>
-        </RecordPageBody>
-      </RecordPageFrame>
+      <RecordPageLoadError
+        Header={Header}
+        backLabel="Back to Flocks"
+        onBack={() => navigate('/sheep/flocks')}
+        notice={loadError}
+        onRetry={loadAll}
+        data-sheep-animal-load-error="true"
+      />
     );
   }
 

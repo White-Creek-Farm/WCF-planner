@@ -324,9 +324,10 @@ describe('Layer cold-boot readiness required metric reads', () => {
     const notFoundIdx = batchPage.indexOf('if (!batch)');
     expect(loadErrorIdx).toBeGreaterThan(-1);
     expect(notFoundIdx).toBeGreaterThan(loadErrorIdx);
+    expect(batchPage).toContain("from '../shared/RecordPageLoadError.jsx'");
     expect(batchPage).toContain('data-layer-batch-load-error="true"');
-    expect(batchPage).toMatch(/<InlineNotice notice=\{loadError\} \/>/);
-    expect(batchPage).toMatch(/onClick=\{loadAll\}[\s\S]*?Retry/);
+    expect(batchPage).toMatch(/<RecordPageLoadError[\s\S]*notice=\{loadError\}/);
+    expect(batchPage).toMatch(/<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
   });
 
   it('housing record page renders a retryable load-error state before not-found/record content', () => {
@@ -334,8 +335,9 @@ describe('Layer cold-boot readiness required metric reads', () => {
     const notFoundIdx = housingPage.indexOf('if (!housing)');
     expect(loadErrorIdx).toBeGreaterThan(-1);
     expect(notFoundIdx).toBeGreaterThan(loadErrorIdx);
+    expect(housingPage).toContain("from '../shared/RecordPageLoadError.jsx'");
     expect(housingPage).toContain('data-layer-housing-load-error="true"');
-    expect(housingPage).toMatch(/<InlineNotice notice=\{loadError\} \/>/);
-    expect(housingPage).toMatch(/onClick=\{loadAll\}[\s\S]*?Retry/);
+    expect(housingPage).toMatch(/<RecordPageLoadError[\s\S]*notice=\{loadError\}/);
+    expect(housingPage).toMatch(/<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
   });
 });

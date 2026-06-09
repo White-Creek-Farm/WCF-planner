@@ -7,6 +7,7 @@ import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
   RecordPageFrame,
@@ -354,29 +355,15 @@ export default function LayerBatchPage({
 
   if (loadError) {
     return (
-      <RecordPageFrame Header={Header}>
-        <RecordPageBody maxWidth={900} data-layer-batch-load-error="true">
-          <RecordBackLink label="Back to Layer Batches" onBack={() => navigate('/layer/batches')} />
-          <InlineNotice notice={loadError} />
-          <button
-            type="button"
-            onClick={loadAll}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#085041',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            Retry
-          </button>
-        </RecordPageBody>
-      </RecordPageFrame>
+      <RecordPageLoadError
+        Header={Header}
+        backLabel="Back to Layer Batches"
+        onBack={() => navigate('/layer/batches')}
+        notice={loadError}
+        onRetry={loadAll}
+        maxWidth={900}
+        data-layer-batch-load-error="true"
+      />
     );
   }
 

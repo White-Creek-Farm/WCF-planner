@@ -9,6 +9,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const savedViewsApi = read('src/lib/savedViewsApi.js');
 const csvExport = read('src/lib/csvExport.js');
+const dailyReportExports = read('src/lib/dailyReportExports.js');
 const printExport = read('src/lib/printExport.js');
 const layerDailysSrc = read('src/layer/LayerDailysView.jsx');
 const eggDailysSrc = read('src/layer/EggDailysView.jsx');
@@ -26,6 +27,7 @@ const DAILY_HUBS = [
     filters: ['fBatch', 'fTeam', 'fFrom', 'fTo'],
     csvBase: 'broiler-dailys',
     rawRowsName: 'records',
+    builder: 'buildBroilerDailyExportColumns',
     headers: [
       'Date',
       'Broiler group',
@@ -55,6 +57,7 @@ const DAILY_HUBS = [
     filters: ['fHerd', 'fTeam', 'fFrom', 'fTo'],
     csvBase: 'cattle-dailys',
     rawRowsName: 'records',
+    builder: 'buildCattleDailyExportColumns',
     headers: [
       'Date',
       'Herd',
@@ -85,6 +88,7 @@ const DAILY_HUBS = [
     filters: ['fFlock', 'fTeam', 'fFrom', 'fTo'],
     csvBase: 'sheep-dailys',
     rawRowsName: 'records',
+    builder: 'buildSheepDailyExportColumns',
     headers: [
       'Date',
       'Flock',
@@ -238,6 +242,19 @@ describe('layer and egg daily saved views (Lane F)', () => {
 });
 
 describe('daily hub CSV export (Lane K)', () => {
+  it('uses the shared dailyReportExports owner for daily column specs', () => {
+    for (const name of [
+      'buildBroilerDailyExportColumns',
+      'buildPigDailyExportColumns',
+      'buildCattleDailyExportColumns',
+      'buildSheepDailyExportColumns',
+      'buildLayerDailyExportColumns',
+      'buildEggDailyExportColumns',
+    ]) {
+      expect(dailyReportExports).toContain(`export function ${name}`);
+    }
+  });
+
   it('uses the shared csvExport owner for browser download mechanics', () => {
     expect(csvExport).toContain('export function rowsToCsv');
     expect(csvExport).toContain('export function csvFilename');
@@ -249,16 +266,18 @@ describe('daily hub CSV export (Lane K)', () => {
   for (const hub of DAILY_HUBS) {
     it(`${hub.name} exports the current filtered rows, not raw records`, () => {
       expect(hub.src).toContain("from '../lib/csvExport.js'");
+      expect(hub.src).toContain("from '../lib/dailyReportExports.js'");
       expect(hub.src).toContain('function handleExportCsv');
       expect(hub.src).toContain(`data-${hub.prefix}-export-csv="1"`);
       expect(hub.src).toContain(`csvFilename('${hub.csvBase}')`);
+      expect(hub.src).toContain(`const columns = ${hub.builder}(`);
       expect(hub.src).toContain('rowsToCsv(columns, filtered)');
       expect(hub.src).not.toContain(`rowsToCsv(columns, ${hub.rawRowsName})`);
     });
 
     it(`${hub.name} keeps export columns useful for daily review`, () => {
       for (const header of hub.headers) {
-        expect(hub.src).toContain(`header: '${header}'`);
+        expect(dailyReportExports).toContain(`header: '${header}'`);
       }
     });
 
@@ -290,7 +309,7 @@ describe('daily hub print export (Lane K)', () => {
     });
 
     it(`${hub.name} uses one column spec for CSV and print`, () => {
-      expect(hub.src).toMatch(/function\s+\w+DailysExportColumns\(\)/);
+      expect(hub.src).toContain(`const columns = ${hub.builder}(`);
       expect(hub.src).toContain('rowsToCsv(columns, filtered)');
       expect(hub.src).toContain('printRows({');
     });
@@ -304,7 +323,7 @@ describe('layer and egg daily list export parity (Lane K)', () => {
       src: layerDailysSrc,
       prefix: 'layer-dailys',
       csvBase: 'layer-dailys',
-      fn: 'layerDailysExportColumns',
+      builder: 'buildLayerDailyExportColumns',
       subtitle: "subtitle: filtered.length + ' filtered daily reports'",
       headers: [
         'Date',
@@ -329,7 +348,7 @@ describe('layer and egg daily list export parity (Lane K)', () => {
       src: eggDailysSrc,
       prefix: 'egg-dailys',
       csvBase: 'egg-dailys',
-      fn: 'eggDailysExportColumns',
+      builder: 'buildEggDailyExportColumns',
       subtitle: "subtitle: filtered.length + ' filtered egg reports'",
       headers: [
         'Date',
@@ -354,10 +373,11 @@ describe('layer and egg daily list export parity (Lane K)', () => {
   for (const hub of layerEggHubs) {
     it(`${hub.name} exports the current filtered rows through the shared CSV owner`, () => {
       expect(hub.src).toContain("from '../lib/csvExport.js'");
-      expect(hub.src).toContain(`function ${hub.fn}()`);
+      expect(hub.src).toContain("from '../lib/dailyReportExports.js'");
       expect(hub.src).toContain('function handleExportCsv');
       expect(hub.src).toContain(`data-${hub.prefix}-export-csv="1"`);
       expect(hub.src).toContain(`csvFilename('${hub.csvBase}')`);
+      expect(hub.src).toContain(`const columns = ${hub.builder}(`);
       expect(hub.src).toContain('rowsToCsv(columns, filtered)');
       expect(hub.src).not.toContain('rowsToCsv(columns, records)');
     });
@@ -372,11 +392,11 @@ describe('layer and egg daily list export parity (Lane K)', () => {
     });
 
     it(`${hub.name} keeps CSV and print on one column spec`, () => {
-      expect(hub.src).toContain(`const columns = ${hub.fn}();`);
+      expect(hub.src).toContain(`const columns = ${hub.builder}(`);
       expect(hub.src).toContain('rowsToCsv(columns, filtered)');
       expect(hub.src).toContain('printRows({');
       for (const header of hub.headers) {
-        expect(hub.src).toContain(`header: '${header}'`);
+        expect(dailyReportExports).toContain(`header: '${header}'`);
       }
     });
 

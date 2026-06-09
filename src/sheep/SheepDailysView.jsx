@@ -11,11 +11,13 @@ import {S} from '../lib/styles.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {buildSheepDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
+import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
@@ -432,61 +434,14 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
     });
   }
 
-  function sheepDailysExportColumns() {
-    const yesNo = (v) => (v === false ? 'no' : 'yes');
-    const feedSummary = (r) =>
-      Array.isArray(r.feeds)
-        ? r.feeds
-            .map((f) => (f.feed_name || '?') + (f.qty != null ? ' ' + f.qty + ' ' + (f.unit || '') : ''))
-            .join(', ')
-        : '';
-    const mineralSummary = (r) =>
-      Array.isArray(r.minerals)
-        ? r.minerals
-            .map((m) => {
-              const parts = [m.name || '?'];
-              if (m.lbs != null) parts.push(m.lbs + ' lb');
-              return parts.join(' ');
-            })
-            .join(', ')
-        : '';
-    const sumFeedLbs = (r) =>
-      Array.isArray(r.feeds) ? r.feeds.reduce((s, f) => s + (parseFloat(f.lbs_as_fed) || 0), 0).toFixed(2) : '';
-    const sumHayBales = (r) =>
-      Array.isArray(r.feeds)
-        ? r.feeds
-            .reduce((s, f) => s + (f.category === 'hay' && f.unit === 'bale' ? parseFloat(f.qty) || 0 : 0), 0)
-            .toFixed(2)
-        : '';
-    const sumMineralLbs = (r) =>
-      Array.isArray(r.minerals) ? r.minerals.reduce((s, m) => s + (parseFloat(m.lbs) || 0), 0).toFixed(2) : '';
-    return [
-      {header: 'Date', value: (r) => r.date || ''},
-      {header: 'Flock', value: (r) => FLOCK_LABELS[r.flock] || r.flock || ''},
-      {header: 'Team member', value: (r) => r.team_member || ''},
-      {header: 'Source', value: (r) => (r.source === 'add_feed_webform' ? 'Add Feed' : 'Daily Report')},
-      {header: 'Feed summary', value: feedSummary},
-      {header: 'Feed lbs as fed', value: sumFeedLbs},
-      {header: 'Hay bales', value: sumHayBales},
-      {header: 'Mineral summary', value: mineralSummary},
-      {header: 'Mineral lbs', value: sumMineralLbs},
-      {header: 'Fence voltage kV', value: (r) => r.fence_voltage_kv ?? ''},
-      {header: 'Waterers working', value: (r) => yesNo(r.waterers_working)},
-      {header: 'Mortality count', value: (r) => r.mortality_count ?? ''},
-      {header: 'Comments', value: (r) => (isSentinelComment(r.comments) ? '' : r.comments || '')},
-      {header: 'Photo count', value: (r) => (Array.isArray(r.photos) ? r.photos.length : 0)},
-      {header: 'Record ID', value: (r) => r.id || ''},
-    ];
-  }
-
   function handleExportCsv() {
-    const columns = sheepDailysExportColumns();
+    const columns = buildSheepDailyExportColumns({flockLabels: FLOCK_LABELS, isSentinelComment});
     const ok = downloadCsv(csvFilename('sheep-dailys'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
   }
 
   function handlePrintRows() {
-    const columns = sheepDailysExportColumns();
+    const columns = buildSheepDailyExportColumns({flockLabels: FLOCK_LABELS, isSentinelComment});
     const ok = printRows({
       title: 'Sheep Dailys',
       subtitle: filtered.length + ' filtered daily reports',
@@ -891,10 +846,14 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'…'}</div>}
-        {!loading && filtered.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>No records found</div>
-        )}
-        {!loading && filtered.length > 0 && (
+        <OperationalListEmptyState
+          loading={loading}
+          loadError={loadError}
+          totalCount={records.length}
+          filteredCount={filtered.length}
+          emptyLabel="No sheep daily reports yet"
+        />
+        {!loading && !loadError && filtered.length > 0 && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
             {(() => {
               const dates = [...new Set(filtered.map((r) => r.date))];

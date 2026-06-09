@@ -17,6 +17,7 @@ import {
 /* eslint-enable no-unused-vars */
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 import {CATTLE_ALL_HERD_KEYS, CATTLE_HERD_KEYS, cowTagSet} from '../lib/cattleHerdFilters.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
@@ -279,30 +280,14 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
 
   if (loadError) {
     return (
-      <RecordPageFrame Header={Header}>
-        <RecordPageBody data-cattle-animal-load-error="true">
-          <RecordBackLink label="Back to Herds" onBack={() => navigate('/cattle/herds')} />
-          <InlineNotice notice={loadError} />
-          <button
-            type="button"
-            onClick={loadAll}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#085041',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              marginTop: 10,
-            }}
-          >
-            Retry
-          </button>
-        </RecordPageBody>
-      </RecordPageFrame>
+      <RecordPageLoadError
+        Header={Header}
+        backLabel="Back to Herds"
+        onBack={() => navigate('/cattle/herds')}
+        notice={loadError}
+        onRetry={loadAll}
+        data-cattle-animal-load-error="true"
+      />
     );
   }
 

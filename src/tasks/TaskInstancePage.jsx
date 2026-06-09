@@ -7,6 +7,7 @@ import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
   RecordPageFrame,
@@ -17,7 +18,14 @@ import {
   RecordTitle,
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
-import {recordFormCard, recordFieldRowClass, recordFieldLabel} from '../shared/recordPageControls.jsx';
+import {
+  recordFormCard,
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordSaveButton,
+  recordSecondaryButton,
+  recordDeleteButton,
+} from '../shared/recordPageControls.jsx';
 import {
   loadTaskInstanceById,
   loadEligibleProfilesById,
@@ -163,30 +171,15 @@ export default function TaskInstancePage({sb, authState, Header}) {
 
   if (loadError) {
     return (
-      <RecordPageFrame Header={Header}>
-        <RecordPageBody maxWidth={760} data-task-instance-load-error="true">
-          <RecordBackLink label="Back to Task Center" onBack={() => navigate('/tasks')} />
-          <InlineNotice notice={loadError} />
-          <button
-            type="button"
-            onClick={loadAll}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#085041',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              marginTop: 10,
-            }}
-          >
-            Retry
-          </button>
-        </RecordPageBody>
-      </RecordPageFrame>
+      <RecordPageLoadError
+        Header={Header}
+        backLabel="Back to Task Center"
+        onBack={() => navigate('/tasks')}
+        notice={loadError}
+        onRetry={loadAll}
+        maxWidth={760}
+        data-task-instance-load-error="true"
+      />
     );
   }
 
@@ -359,17 +352,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
                     type="button"
                     data-task-complete-button="1"
                     onClick={() => setCompleteTarget(record)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 8,
-                      border: '1px solid #085041',
-                      background: '#085041',
-                      color: 'white',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      fontFamily: 'inherit',
-                    }}
+                    style={recordSaveButton}
                   >
                     Complete
                   </button>
@@ -379,17 +362,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
                     type="button"
                     data-task-edit-due-button="1"
                     onClick={() => setEditDueTarget(record)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 8,
-                      border: '1px solid #d1d5db',
-                      background: 'white',
-                      color: '#374151',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      fontFamily: 'inherit',
-                    }}
+                    style={recordSecondaryButton}
                   >
                     Edit Due
                   </button>
@@ -399,17 +372,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
                     type="button"
                     data-task-assign-button="1"
                     onClick={() => setAssignTarget(record)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 8,
-                      border: '1px solid #d1d5db',
-                      background: 'white',
-                      color: '#374151',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      fontFamily: 'inherit',
-                    }}
+                    style={recordSecondaryButton}
                   >
                     Reassign
                   </button>
@@ -419,17 +382,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
                     type="button"
                     data-task-delete-button="1"
                     onClick={() => setDeleteTarget(record)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 8,
-                      border: '1px solid #b91c1c',
-                      background: 'white',
-                      color: '#b91c1c',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      fontFamily: 'inherit',
-                    }}
+                    style={recordDeleteButton}
                   >
                     Delete
                   </button>

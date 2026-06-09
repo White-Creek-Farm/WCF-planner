@@ -17,6 +17,7 @@ const TOKEN_LOCKED_FILES = [
   'src/shared/WcfToggle.jsx',
   'src/shared/WcfYN.jsx',
   'src/shared/recordPageControls.jsx',
+  'src/tasks/taskModalStyles.js',
   'src/webforms/LockedSubmitter.jsx',
 ];
 

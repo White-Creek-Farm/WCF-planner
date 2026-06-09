@@ -148,8 +148,8 @@ describe('record-page wiring', () => {
     expect(sheepSrc).not.toContain("from '../lib/sheepProcessingBatch.js'");
   });
   it('both record pages provide a Retry action on the loadError branch', () => {
-    expect(cattleSrc).toMatch(/if \(loadError\)[\s\S]*?onClick=\{loadAll\}[\s\S]*?Retry/);
-    expect(sheepSrc).toMatch(/if \(loadError\)[\s\S]*?onClick=\{loadAll\}[\s\S]*?Retry/);
+    expect(cattleSrc).toMatch(/if \(loadError\)[\s\S]*?<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
+    expect(sheepSrc).toMatch(/if \(loadError\)[\s\S]*?<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
   });
 });
 

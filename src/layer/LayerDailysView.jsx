@@ -6,12 +6,14 @@ import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {buildLayerDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
+import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
@@ -472,35 +474,14 @@ const LayerDailysHub = ({
     });
   }
 
-  function layerDailysExportColumns() {
-    const yesNo = (v) => (v === false ? 'no' : 'yes');
-    return [
-      {header: 'Date', value: (r) => r.date || ''},
-      {header: 'Layer group', value: (r) => r.batch_label || ''},
-      {header: 'Team member', value: (r) => r.team_member || ''},
-      {header: 'Source', value: (r) => (r.source === 'add_feed_webform' ? 'Add Feed' : 'Daily Report')},
-      {header: 'Feed type', value: (r) => r.feed_type || ''},
-      {header: 'Feed lbs', value: (r) => r.feed_lbs ?? ''},
-      {header: 'Grit lbs', value: (r) => r.grit_lbs ?? ''},
-      {header: 'Layer count', value: (r) => r.layer_count ?? ''},
-      {header: 'Group moved', value: (r) => yesNo(r.group_moved)},
-      {header: 'Waterer checked', value: (r) => yesNo(r.waterer_checked)},
-      {header: 'Mortality count', value: (r) => r.mortality_count ?? ''},
-      {header: 'Mortality reason', value: (r) => r.mortality_reason || ''},
-      {header: 'Comments', value: (r) => r.comments || ''},
-      {header: 'Photo count', value: (r) => (Array.isArray(r.photos) ? r.photos.length : 0)},
-      {header: 'Record ID', value: (r) => r.id || ''},
-    ];
-  }
-
   function handleExportCsv() {
-    const columns = layerDailysExportColumns();
+    const columns = buildLayerDailyExportColumns();
     const ok = downloadCsv(csvFilename('layer-dailys'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
   }
 
   function handlePrintRows() {
-    const columns = layerDailysExportColumns();
+    const columns = buildLayerDailyExportColumns();
     const ok = printRows({
       title: 'Layer Dailys',
       subtitle: filtered.length + ' filtered daily reports',
@@ -876,10 +857,14 @@ const LayerDailysHub = ({
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
-        {!loading && filtered.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>No records found</div>
-        )}
-        {!loading && filtered.length > 0 && (
+        <OperationalListEmptyState
+          loading={loading}
+          loadError={loadError}
+          totalCount={records.length}
+          filteredCount={filtered.length}
+          emptyLabel="No layer daily reports yet"
+        />
+        {!loading && !loadError && filtered.length > 0 && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
             {(() => {
               const dates = [...new Set(filtered.map((r) => r.date))];

@@ -13,56 +13,15 @@
 
 import React from 'react';
 import {deleteTaskInstanceV2} from '../lib/tasksCenterMutationsApi.js';
-
-const OVERLAY = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,.5)',
-  zIndex: 250,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 16,
-};
-const PANEL = {
-  background: 'white',
-  borderRadius: 12,
-  padding: 18,
-  width: 'min(480px, 96vw)',
-  fontFamily: 'inherit',
-};
-const FIELD_LABEL = {fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block'};
-const INPUT = {
-  width: '100%',
-  padding: '8px 10px',
-  border: '1px solid #d1d5db',
-  borderRadius: 8,
-  fontSize: 14,
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-};
-const BTN_DANGER = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #b91c1c',
-  background: '#b91c1c',
-  color: 'white',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  fontFamily: 'inherit',
-};
-const BTN_GHOST = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  background: 'white',
-  color: '#374151',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 500,
-  fontFamily: 'inherit',
-};
+import {
+  taskModalDangerButton as BTN_DANGER,
+  taskModalErrorNotice as ERROR_NOTICE,
+  taskModalFieldLabel as FIELD_LABEL,
+  taskModalGhostButton as BTN_GHOST,
+  taskModalInput as INPUT,
+  taskModalOverlay as OVERLAY,
+  taskModalSmallPanel as PANEL,
+} from './taskModalStyles.js';
 
 const CONFIRM_PHRASE = 'DELETE';
 
@@ -130,18 +89,7 @@ export default function DeleteTaskModal({sb, task, isOpen, onClose, onDeleted}) 
         />
 
         {err && (
-          <div
-            data-delete-task-error="1"
-            style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#991b1b',
-              padding: '8px 12px',
-              borderRadius: 8,
-              marginTop: 12,
-              fontSize: 13,
-            }}
-          >
+          <div data-delete-task-error="1" style={ERROR_NOTICE}>
             {err}
           </div>
         )}

@@ -7,6 +7,7 @@ import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
   RecordPageFrame,
@@ -311,30 +312,15 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
 
   if (loadError) {
     return (
-      <RecordPageFrame Header={Header}>
-        <RecordPageBody maxWidth={900}>
-          <RecordBackLink label="Back to Processing Batches" onBack={() => navigate('/sheep/batches')} />
-          <InlineNotice notice={loadError} />
-          <button
-            type="button"
-            onClick={loadAll}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#1d4ed8',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              marginTop: 12,
-            }}
-          >
-            Retry
-          </button>
-        </RecordPageBody>
-      </RecordPageFrame>
+      <RecordPageLoadError
+        Header={Header}
+        backLabel="Back to Processing Batches"
+        onBack={() => navigate('/sheep/batches')}
+        notice={loadError}
+        onRetry={loadAll}
+        maxWidth={900}
+        data-sheep-batch-load-error="true"
+      />
     );
   }
 

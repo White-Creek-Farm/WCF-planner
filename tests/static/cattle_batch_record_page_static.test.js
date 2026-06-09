@@ -276,7 +276,9 @@ describe('CattleBatchPage - cold-boot readiness', () => {
     expect(loadAllSrc).toContain('setAllBatches([]);');
     expect(loadAllSrc).toContain("setRenameDraft('');");
     expect(loadAllSrc).toContain("setScheduledDateDraft('');");
-    expect(pageSrc).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+    expect(pageSrc).toContain("from '../shared/RecordPageLoadError.jsx'");
+    expect(pageSrc).toMatch(/if \(loadError\)[\s\S]*?<RecordPageLoadError[\s\S]*notice=\{loadError\}/);
+    expect(pageSrc).toMatch(/<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
   });
 
   it('exposes a loaded marker only on the resolved record body', () => {

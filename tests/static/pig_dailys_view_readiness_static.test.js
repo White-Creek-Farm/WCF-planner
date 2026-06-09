@@ -10,6 +10,7 @@ const viewSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigDailysView.jsx'), 'u
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
+const dailyReportExports = fs.readFileSync(path.join(ROOT, 'src/lib/dailyReportExports.js'), 'utf8');
 const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 
 describe('PigDailysView hub cold-boot readiness', () => {
@@ -42,8 +43,11 @@ describe('PigDailysView hub cold-boot readiness', () => {
 
   it('does not render empty-state or row content while loading or loadError is active', () => {
     expect(viewSrc).toMatch(/loading && <div[\s\S]*?>Loading\.\.\.<\/div>/);
-    expect(viewSrc).toContain('!loading && !loadError && records.length === 0');
-    expect(viewSrc).toContain('!loading && !loadError && records.length > 0 && filtered.length === 0');
+    expect(viewSrc).toContain("from '../shared/OperationalListEmptyState.jsx'");
+    expect(viewSrc).toContain('<OperationalListEmptyState');
+    expect(viewSrc).toContain('loadError={loadError}');
+    expect(viewSrc).toContain('totalCount={records.length}');
+    expect(viewSrc).toContain('filteredCount={filtered.length}');
     expect(viewSrc).toContain('!loading && !loadError && filtered.length > 0');
   });
 });
@@ -135,8 +139,10 @@ describe('PigDailysView CSV export (Lane K)', () => {
 
   it('exports the current filtered pig daily rows, not raw records', () => {
     expect(viewSrc).toContain("from '../lib/csvExport.js'");
+    expect(viewSrc).toContain("from '../lib/dailyReportExports.js'");
     expect(viewSrc).toContain('function handleExportCsv');
     expect(viewSrc).toContain('data-pig-dailys-export-csv="1"');
+    expect(viewSrc).toContain('const columns = buildPigDailyExportColumns();');
     expect(viewSrc).toContain('rowsToCsv(columns, filtered)');
     expect(viewSrc).not.toContain('rowsToCsv(columns, records)');
   });
@@ -159,7 +165,7 @@ describe('PigDailysView CSV export (Lane K)', () => {
       'Photo count',
       'Record ID',
     ]) {
-      expect(viewSrc).toContain(`header: '${header}'`);
+      expect(dailyReportExports).toContain(`header: '${header}'`);
     }
   });
 
@@ -189,7 +195,8 @@ describe('PigDailysView print export (Lane K)', () => {
   });
 
   it('uses one column spec for CSV and print', () => {
-    expect(viewSrc).toContain('function pigDailysExportColumns()');
+    expect(dailyReportExports).toContain('export function buildPigDailyExportColumns');
+    expect(viewSrc).toContain('const columns = buildPigDailyExportColumns();');
     expect(viewSrc).toContain('rowsToCsv(columns, filtered)');
     expect(viewSrc).toContain('printRows({');
   });

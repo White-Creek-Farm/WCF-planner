@@ -160,11 +160,14 @@ function collectLoadErrorSurfaces() {
 
   for (const file of runtimeSourceFiles()) {
     const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+    if (rel === 'src/shared/OperationalListEmptyState.jsx') continue;
+
     const code = stripComments(fs.readFileSync(file, 'utf8'));
     if (!/\b(loadError|loadFailed|notifLoadError)\b/.test(code)) continue;
+    const usesRecordPageLoadError = /\bRecordPageLoadError\b/.test(code);
     out.set(rel, {
-      retry: /\bRetry\b|Retry loading more/.test(code),
-      inlineNotice: /\bInlineNotice\b/.test(code),
+      retry: /\bRetry\b|Retry loading more/.test(code) || /<RecordPageLoadError[\s\S]*onRetry=/.test(code),
+      inlineNotice: /\bInlineNotice\b/.test(code) || usesRecordPageLoadError,
     });
   }
 

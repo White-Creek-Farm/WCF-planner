@@ -6,11 +6,13 @@ import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
+import {buildPigDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
+import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
@@ -411,35 +413,14 @@ const PigDailysHub = ({
     });
   }
 
-  function pigDailysExportColumns() {
-    const yesNo = (v) => (v === false ? 'no' : 'yes');
-    return [
-      {header: 'Date', value: (r) => r.date || ''},
-      {header: 'Pig group', value: (r) => r.batch_label || ''},
-      {header: 'Team member', value: (r) => r.team_member || ''},
-      {header: 'Source', value: (r) => (r.source === 'add_feed_webform' ? 'Add Feed' : 'Daily Report')},
-      {header: 'Feed lbs', value: (r) => r.feed_lbs ?? ''},
-      {header: 'Pig count', value: (r) => r.pig_count ?? ''},
-      {header: 'Fence voltage', value: (r) => r.fence_voltage ?? ''},
-      {header: 'Group moved', value: (r) => yesNo(r.group_moved)},
-      {header: 'Nipple drinker moved', value: (r) => yesNo(r.nipple_drinker_moved)},
-      {header: 'Nipple drinker working', value: (r) => yesNo(r.nipple_drinker_working)},
-      {header: 'Troughs moved', value: (r) => yesNo(r.troughs_moved)},
-      {header: 'Fence walked', value: (r) => yesNo(r.fence_walked)},
-      {header: 'Issues', value: (r) => r.issues || ''},
-      {header: 'Photo count', value: (r) => (Array.isArray(r.photos) ? r.photos.length : 0)},
-      {header: 'Record ID', value: (r) => r.id || ''},
-    ];
-  }
-
   function handleExportCsv() {
-    const columns = pigDailysExportColumns();
+    const columns = buildPigDailyExportColumns();
     const ok = downloadCsv(csvFilename('pig-dailys'), rowsToCsv(columns, filtered));
     setExportNotice(ok ? '' : 'CSV export is only available in the browser.');
   }
 
   function handlePrintRows() {
-    const columns = pigDailysExportColumns();
+    const columns = buildPigDailyExportColumns();
     const ok = printRows({
       title: 'Pig Dailys',
       subtitle: filtered.length + ' filtered daily reports',
@@ -822,16 +803,13 @@ const PigDailysHub = ({
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
         {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
-        {!loading && !loadError && records.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
-            No pig daily reports yet
-          </div>
-        )}
-        {!loading && !loadError && records.length > 0 && filtered.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
-            No records match the current filters
-          </div>
-        )}
+        <OperationalListEmptyState
+          loading={loading}
+          loadError={loadError}
+          totalCount={records.length}
+          filteredCount={filtered.length}
+          emptyLabel="No pig daily reports yet"
+        />
         {!loading && !loadError && filtered.length > 0 && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
             {(() => {
