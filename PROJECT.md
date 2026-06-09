@@ -7,13 +7,15 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-08.
-Current pushed source checkpoint: `origin/main` commit `d71f3de` - Lane E CP2
-Sheep daily shared controls plus Lane F/K shared weigh-in list tile and export
-builders, on top of the homepage/build-queue checkpoints. Netlify auto-deploys
-from GitHub `main`; `d71f3de` was live-verified on 2026-06-08 by HTTP 200 and
-bundle hash `assets/main-C5KiCik5.js` (matching the local merged build).
-Migration series live through 100.
+Last updated: 2026-06-09.
+Current pushed source checkpoint: `origin/main` commit `5dde0fe` - Lane A CP3
+follow-up that renames the privileged equipment-fueling delete RPC (migration
+`104`) to remove a name collision, on top of the Lane A CP2/CP3 audited-delete
+RPC work (migrations `101`-`103`) and the Codex five-lane record/list/modal
+shared-primitive merge (`fcb340b`). Netlify auto-deploys from GitHub `main`;
+`5dde0fe` was live-verified on 2026-06-09 by asset-hash rotation to
+`assets/main-DY8s-Ips.js` (matching the local build).
+Migration series live through 104.
 Production URL: https://wcfplanner.com.
 
 ---
@@ -158,34 +160,33 @@ plus a guard update in the same change.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Pushed source of truth: `origin/main` at `d71f3de`
-  (`merge: integrate Lane F/K shared weigh-in list tile + export builders into
-  main`). On top of the prior `99e933a` checkpoint this session added, in order:
-  Lane I CP4 daily action-button cleanup (`859696a`); Codex Lane J image
-  alt-text policy + Lane F CP2 weigh-in empty-state parity (`04fd932`, merged
-  `09d8c09`); Lane E CP2 Sheep daily shared-control adoption (`6e31e7f`); and
-  Lane F/K shared weigh-in list tile + export builders (`3e18623`, merged
-  `d71f3de`). Code/tests only — no new PROD migration, Storage, Vault, or Edge
-  Function work this session.
-- Live verification: `https://wcfplanner.com/` returned HTTP 200 after the
-  `d71f3de` push and served `assets/main-C5KiCik5.js`, matching the local merged
-  build artifact. This confirms the Lane E CP2 + Lane F/K push deployed, not
-  merely that `origin/main` advanced.
-- Integrated-`main` validation before the `d71f3de` push: `npm run lint` 0
-  errors, `npm test` 186 files / 5108 passed, `npm run build` green.
+- Pushed source of truth: `origin/main` at `5dde0fe`. On top of the prior
+  `d71f3de` wrap, 2026-06-09 added, in order: Lane A CP2 transactional weigh-in
+  delete RPCs (`a417d87`, migration `101`); Lane A CP3 transactional
+  equipment-log delete RPCs plus weigh-in delete `FOR UPDATE` hardening
+  (`428ec2e`, migrations `102`/`103`); the Codex five-lane record/list/modal
+  shared-primitive work (`0e3c9e1`, merged `fcb340b`); and the Lane A CP3
+  follow-up that renames the privileged fueling-delete RPC to remove a name
+  collision (`5dde0fe`, migration `104`). Migrations `101`-`104` were applied to
+  PROD and verified this session (see the migration bullet below).
+- Live verification: `https://wcfplanner.com/` served `assets/main-DY8s-Ips.js`
+  after the `5dde0fe` push (asset-hash rotation from the prior bundle), matching
+  the local build and confirming the runtime deployed, not merely that
+  `origin/main` advanced.
+- Integrated-`main` validation before the final push: `npm run lint` 0 errors,
+  `npm test` 191 files / 5168 passed, `npm run build` green.
 - Local main dirty state after this wrap: only untracked local artifacts remain —
   the homepage design reference folder (`WCF Planner Redesign/`) and the
   throwaway before/after screenshot folders (`cp4-shots/`, `lanee-shots/`). None
   are production source; all are intentionally excluded from commits.
-- Parallel Codex worktree `C:\Users\Ronni\WCF-planner-codex` holds the two Codex
-  lanes shipped this session: `codex/lane-j-alt-f-empty-states` (at `04fd932`,
-  merged via `09d8c09`) and `codex/lane-fk-weighin-list-primitives` (at
-  `3e18623`, merged via `d71f3de`, currently checked out and clean but behind
-  current `origin/main`). These merged branches are not yet pruned. Start a new
-  Codex lane by creating a fresh `codex/<lane>` branch from current `main`.
-- Open code gates: none for `origin/main` at `d71f3de`. No PROD migration,
+- Parallel Codex worktree `C:\Users\Ronni\WCF-planner-codex` is on
+  `codex/lane-e-record-chrome-cp3` (committed `0e3c9e1`, merged into `main` via
+  `fcb340b` and pushed). This and the prior merged Codex lane branches are not
+  yet pruned. Start a new Codex lane by creating a fresh `codex/<lane>` branch
+  from current `main`.
+- Open code gates: none for `origin/main` at `5dde0fe`. No PROD migration,
   Storage, Vault, or Edge Function deploy gate is open.
-- PROD-applied numbered migration series is live through `100`. Migration `082`
+- PROD-applied numbered migration series is live through `104`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
   cleanup `085` was applied before unique-index migration `084`.
 - Migration `100` (`processing_batch_lifecycle_rpcs`) was applied to TEST
@@ -197,6 +198,22 @@ plus a guard update in the same change.
   `record.deleted` audit) ran clean inside a rolled-back transaction (zero PROD
   trace); PostgREST cache reload confirmed by the anon REST 401 (registered, not
   404).
+- Migrations `101`-`104` (Lane A audited-delete RPCs) were applied to TEST
+  (`exec_sql`) then PROD (`psql --single-transaction`, `ON_ERROR_STOP=1`) and
+  verified on 2026-06-09. `101` adds `delete_weigh_in_entry` /
+  `delete_weigh_in_session`; `102` adds the privileged fueling delete (later
+  renamed) plus `delete_equipment_maintenance_event`; `103` hardens the weigh-in
+  RPCs with target-row `FOR UPDATE` (idempotent under concurrency — no
+  double-audit, no false ok on a second 0-row delete); `104` renames the
+  privileged fueling RPC to `admin_delete_equipment_fueling` and drops the
+  colliding `delete_equipment_fueling(text,text,text)` overload while preserving
+  migration `091`'s owner-scoped `delete_equipment_fueling(text)`. Each is
+  SECURITY DEFINER with `search_path = public`, `authenticated` EXECUTE, anon
+  revoked (REST probe → 401); behavioral round-trips (seed → RPC → row gone +
+  `record.deleted` audit, plus second-delete idempotency) ran clean inside
+  rolled-back transactions (zero PROD trace). Fueling delete is role-gated
+  (admin/management/farm_team/equipment_tech, mirroring migration `092`);
+  weigh-in and maintenance-event deletes remain authenticated-only.
 - Migrations `097`–`099` were applied to TEST (`exec_sql`) then PROD
   (`psql --single-transaction`, `ON_ERROR_STOP=1`) and verified on 2026-06-06:
   `097` locks the public Tasks `submit_task_instance` to authenticated callers
@@ -236,6 +253,25 @@ Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
 work:
 
+- Lane A audited-delete RPCs + Codex five-lane shared primitives, pushed source
+  checkpoint `5dde0fe` (2026-06-09). PROD migrations `101`-`104` applied +
+  verified (detail under Current State). Integrated validation before the final
+  push: lint 0 errors, `npm test` 191 files / 5168 passed, build green; live
+  post-push asset-hash rotation to `assets/main-DY8s-Ips.js`. Landed:
+  - Lane A CP2 (`a417d87`, mig `101`): `delete_weigh_in_entry` /
+    `delete_weigh_in_session` SECDEF RPCs — weigh-in entry/session deletes plus
+    comment cleanup and `record.deleted` audit in one transaction.
+  - Lane A CP3 (`428ec2e`, mig `102`/`103`): role-gated fueling delete +
+    `delete_equipment_maintenance_event` SECDEF RPCs for the EquipmentDetail
+    child-log deletes; `103` adds `FOR UPDATE` idempotency to the weigh-in RPCs.
+  - Lane A CP3 follow-up (`5dde0fe`, mig `104`): privileged fueling RPC renamed to
+    `admin_delete_equipment_fueling`, dropping the `delete_equipment_fueling`
+    name collision with migration `091`'s owner-scoped delete.
+  - Codex five-lane (`0e3c9e1`, merged `fcb340b`): `RecordPageLoadError` (Lane E
+    CP4, seven record pages), `OperationalListEmptyState` (Lane F CP3, six daily
+    hubs), `taskModalStyles` (Lane I CP5, five task modals), `dailyReportExports`
+    (Lane K CP2, six daily hubs), and non-daily record action buttons on shared
+    tokens (Lane E CP3). UI preview (desktop + mobile) captured + approved.
 - Record-page + weigh-in shared-primitive lanes, pushed source checkpoint
   `d71f3de` (2026-06-08). Code/tests only; no PROD migration, Storage, Vault, or
   Edge Function work. Integrated validation before push: lint 0 errors,
@@ -481,18 +517,18 @@ work:
 ### Current Local Gates
 
 No PROD migration, storage, deploy, Vault, commit, push, or merge gate is open
-for committed source as of `origin/main` `d71f3de`.
+for committed source as of `origin/main` `5dde0fe`.
 
 - Main CC worktree `C:\Users\Ronni\WCF-planner` is on `main` at
-  `origin/main` `d71f3de`. The only untracked local artifacts are the homepage
+  `origin/main` `5dde0fe`. The only untracked local artifacts are the homepage
   design reference folder (`WCF Planner Redesign/`) and throwaway screenshot
   folders (`cp4-shots/`, `lanee-shots/`).
-- Codex worktree `C:\Users\Ronni\WCF-planner-codex` is clean on
-  `codex/lane-fk-weighin-list-primitives` at `3e18623`, already merged via
-  `d71f3de` and currently behind `origin/main`. The older merged
-  `codex/lane-j-alt-f-empty-states` branch also remains local. Create a fresh
-  `codex/<lane>` branch from current `main` for the next Codex build lane, and
-  prune merged Codex branches only after Ronnie confirms branch cleanup.
+- Codex worktree `C:\Users\Ronni\WCF-planner-codex` is on
+  `codex/lane-e-record-chrome-cp3` at `0e3c9e1`, already merged into `main` via
+  `fcb340b` and pushed. Older merged Codex lane branches also remain local.
+  Create a fresh `codex/<lane>` branch from current `main` for the next Codex
+  build lane, and prune merged Codex branches only after Ronnie confirms branch
+  cleanup.
 
 If a new session sees additional dirty state, inspect it before planning; do not
 assume it is disposable. Create new scoped worktrees/branches only for active
@@ -544,6 +580,23 @@ empty-state parity, and shared weigh-in tile primitives; Lane J modal focus/
 central-date policy plus image alt-text policy; and Lane K CSV/print expansion
 through the listed daily, weigh-in, fuel-log, inventory surfaces plus shared
 weigh-in column builders. No local-only build checkpoint remains in the queue.
+Additional 2026-06-09 Lane A work (PROD-applied + verified, not source-only):
+weigh-in entry/session deletes (`101`) and EquipmentDetail fueling/maintenance
+deletes (`102`) route through transactional audited RPCs; `103` hardens the
+weigh-in delete RPCs with target-row `FOR UPDATE`; and `104` renames the
+privileged fueling RPC to `admin_delete_equipment_fueling`, dropping a name
+collision with the migration-`091` owner-scoped delete. Current State carries the
+live PROD apply/verification detail.
+Also shipped 2026-06-09 (Codex five-lane, `0e3c9e1` merged via `fcb340b`):
+shared record/list/modal primitives — non-daily record-page action buttons on
+shared record tokens (Lane E CP3); `src/lib/dailyReportExports.js` daily-hub
+CSV/print column builders consumed by the six daily hubs (Lane K CP2);
+`src/tasks/taskModalStyles.js` task-modal token extraction across the five task
+modals (Lane I CP5); shared `src/shared/RecordPageLoadError.jsx` adopted by seven
+non-daily record pages (Lane E CP4); and shared
+`src/shared/OperationalListEmptyState.jsx` adopted by six daily list hubs with
+row rendering gated behind successful load + nonempty filtered rows (Lane F CP3).
+UI preview (desktop + mobile) was captured and approved before merge.
 
 Detailed parity evidence lives in
 `C:\Users\Ronni\cc-research\parity-audit-2026-06-05-CC.md`; line-level findings
@@ -552,6 +605,24 @@ stay there, not in this durable map.
 Class legend: `DEFECT` = build without a product decision once scoped;
 `DECISION` = Ronnie must choose product/UX/policy before build; `ENH` =
 enhancement/polish lane.
+
+Locked queue direction from Ronnie (2026-06-09):
+- Physically deleted root records keep durable history in global Activity only;
+  do not build tombstone/deleted-record pages unless reopened.
+- Move destructive flows to SECDEF RPCs only when they are audit-critical,
+  multi-table, lifecycle/cascade, or cleanup-sensitive. Do not wrap tiny
+  owner-scoped preference/config deletes just for uniformity.
+- Pig batch should move to full record-page chrome parity when scoped, while
+  preserving its heavier workflow.
+- Saved views, richer search, sort, and filters are for high-repeat operational
+  lists only, not every small admin/config list.
+- AI-assisted filtering/sorting stays later-roadmap work until deterministic
+  list parity is done; if built, it suggests filters/sorts with preview/apply.
+- CSV/print expansion is for operational/reporting surfaces only.
+- Visual-token cleanup should be strict and source-wide, with screenshots for
+  visible UI changes.
+- Homepage/program KPIs should use a uniform frame with domain-specific metrics
+  inside that frame.
 
 Sprint assignment (executed 2026-06-08): the CC Sprints 1 + 2 (Lane 0
 correctness, Lane A audit/RPC atomicity) and Codex Sprints 3 + 4 (Lanes B/C +
@@ -568,11 +639,16 @@ below.
    PARTIAL. Class: `DEFECT`/`DECISION`. Size: large.
    Shipped 2026-06-08: processing-batch unschedule/delete moved to audited SECDEF
    RPCs (migration `100`); the cattle.breeding Activity stream is now mounted.
-   Remaining: move the other audit-critical pig/broiler/layer/cattle/sheep
-   destructive or multi-table flows to SECDEF RPCs where needed, ensure other
-   mounted Activity streams receive meaningful events, and design the root
-   hard-delete tombstone/deleted-record model before expanding physical root
-   deletes.
+   Shipped 2026-06-09 (PROD-applied + verified): weigh-in entry/session deletes
+   and EquipmentDetail fueling/maintenance deletes moved to audited transactional
+   RPCs (`101`/`102`) with `FOR UPDATE` hardening (`103`); the privileged fueling
+   RPC was renamed to `admin_delete_equipment_fueling` to remove a migration-`091`
+   name collision (`104`). Remaining: inventory
+   the other pig/broiler/layer/cattle/sheep destructive or multi-table flows and
+   move only audit-critical, lifecycle/cascade, or cleanup-sensitive flows to
+   SECDEF RPCs where needed; ensure mounted Activity streams receive meaningful
+   events. Deleted root records use global Activity only; do not build a
+   tombstone/deleted-record page model unless Ronnie reopens that decision.
    Guard target: extend mutation semantics, hard-delete owner, delete/recovery,
    and Activity static guards.
 3. Lane B - Fail-closed loading parity. SHIPPED 2026-06-08 (core).
@@ -603,12 +679,12 @@ below.
    aligning its structure with the other daily record pages; `btnSmall`
    Add/Remove-row buttons stay intentionally distinct. Sheep parity slice in
    `daily_record_pages_shared_controls_static.test.js`.
-   Remaining: decide whether Pig batch should move to the full standalone
-   `RecordPageFrame`/`RecordTitle` model, standardize record widths and
-   loaded/error hooks, and expand `recordPageControls` adoption to the remaining
-   record pages. Optional follow-up: align the weigh-in feed/mineral Add/Remove
-   row-button microstyle (Sheep chip vs Cattle text-link) if full parity is
-   wanted.
+   Remaining: move Pig batch toward the full standalone
+   `RecordPageFrame`/`RecordTitle` model while preserving its heavier workflow,
+   standardize record widths and loaded/error hooks, and expand
+   `recordPageControls` adoption to the remaining record pages. Optional
+   follow-up: align the weigh-in feed/mineral Add/Remove row-button microstyle
+   (Sheep chip vs Cattle text-link) if full parity is wanted.
    Guard target: record-page shell/chrome static guards and focused Playwright.
 7. Lane F - List, hub, filter, sort, saved-view, and empty-state parity. PARTIAL.
    Class: `ENH`. Size: large.
@@ -624,10 +700,10 @@ below.
    and the `src/lib/weighInSessionExports.js` column builders de-duplicate the
    cattle/sheep/livestock session tiles and CSV/print columns.
    Remaining: extract the remaining drifting row/tile primitives beyond weigh-ins,
-   decide which remaining operational lists need search/sort/saved views,
-   standardize filtered/empty states where gaps are found, and keep the real AI
-   filter/sort investigation layered on deterministic filters with explicit
-   preview/apply behavior.
+   add search/sort/saved views only to high-repeat operational lists, standardize
+   filtered/empty states where gaps are found, and defer real AI filter/sort
+   work until deterministic list parity is done. Any later AI filter/sort must
+   suggest changes with explicit preview/apply behavior.
    Guard target: per-surface filter/sort tests, saved-view tests, and static
    shared-row/empty-state guards.
 8. Lane G - Restore/recovery surface. SHIPPED 2026-06-08.
@@ -660,10 +736,11 @@ below.
     retired 7/8 radii and bespoke action padding and normalizing Sheep Save from
     blue to brand green (`daily_record_pages_shared_controls_static.test.js`
     action-button slice).
-    Remaining: source-wide typography/radius/color drift cleanup outside the
-    shipped shared primitives and documented exceptions; any future homepage
-    visual changes should preserve the approved `.home.theme-crisp` composition
-    unless Ronnie reopens the design.
+    Remaining: strict source-wide typography/radius/color drift cleanup outside
+    the shipped shared primitives and documented exceptions; visible UI changes
+    need targeted screenshots. Any future homepage visual changes should
+    preserve the approved `.home.theme-crisp` composition unless Ronnie reopens
+    the design.
     Guard target: typography, radius, button-control, z-index, shared-ui/token
     static guards, plus targeted visual Playwright/screenshots where needed.
 11. Lane J - Cross-cutting product and accessibility policy. PARTIAL.
@@ -675,8 +752,8 @@ below.
     policy shipped (`04fd932`): `src/lib/imageAlt.js` (`imageAltText`) drives
     every user-media `<img>` owner with contextual fallbacks and marks decorative
     images `aria-hidden`, locked by `image_alt_text_policy_static.test.js`.
-    Remaining: any future baseline home-dashboard KPI rules where program
-    differences still need a uniform frame.
+    Remaining: baseline home-dashboard KPI rules should use one uniform frame
+    while allowing domain-specific metrics inside the frame.
     Guard target: route/nav/date/a11y static guards plus focused Playwright once
     more decisions are made.
 12. Lane K - Export/print parity. PARTIAL. Class: `DECISION`/`ENH`.
@@ -692,12 +769,110 @@ below.
     weigh-in column builders (`3e18623`): `src/lib/weighInSessionExports.js` owns
     the ruminant + livestock weigh-in session CSV/print column specs, consumed by
     the cattle/sheep/livestock views (still exporting the filtered set).
-    Remaining: extend the shared CSV/print model to any remaining operational
-    lists and record pages with shared column specs, keep permissions bounded to
-    RLS-visible rows, and consider a fuller shared print stylesheet/screenshot
-    gate if print use becomes more central.
+    Remaining: extend the shared CSV/print model only to remaining operational
+    or reporting surfaces where export supports work, billing, feed, records, or
+    audit. Keep permissions bounded to RLS-visible rows, use shared column specs
+    where useful, and consider a fuller shared print stylesheet/screenshot gate
+    if print use becomes more central.
     Guard target: column-spec/export tests and print stylesheet/screenshot checks
     (`csvExport.js` owns CSV download; `printExport.js` owns row-print output).
+
+13. Record Nav UX Fix. Class: `DEFECT`. Size: medium.
+    Problem: fixed text Prev/Next pills on record pages can overlap record data,
+    especially dense pages such as pig batches and weigh-in sessions. Direction:
+    desktop record sequence navigation should become simple fixed-edge chevrons
+    with accessible labels/tooltips for the target record; mobile should not use
+    side-fixed controls and should instead show a compact static top row below
+    the Back link/title area. Equipment record pages keep sequence navigation
+    and should follow the same global model.
+    Guard target: `RecordSequenceNav` tests, per-record sequence Playwright, and
+    desktop/mobile screenshots for at least one dense record page.
+14. Pig Operations Parity. Class: `DEFECT`/`ENH`. Size: large.
+    Scope:
+    - Pig processing-trip actual weights must come from linked weigh-in data,
+      be read-only on the trip, and require a weigh-in source before completing
+      or recording the processing trip.
+    - Pig Batches tab should keep its existing page/tiles but present all batch
+      statuses in a column-style comparison layout with the important stats and
+      metrics visible for at-a-glance comparison.
+    - Breeding pig tiles stay as-is; add breeding-pig record pages whose first
+      version shows the exact same data currently shown in the pop-out modal.
+    - Fix `/pig/breeding` jumping to the top during normal scrolling.
+    Guard target: pig batch/trip static guards, focused pig Playwright for trip
+    weight source and breeding scroll stability, and record-page chrome guards
+    for breeding pig records.
+15. Tasks Creation And Public Config UX. Class: `DEFECT`/`ENH`. Size: medium.
+    Scope:
+    - Public Tasks assignee checkbox names should render as a simple aligned
+      checkbox grid with readable rows/columns and clean spacing; no role
+      grouping or searchable picker in the first pass.
+    - Task Center `New Task` should support a One-time / Recurring toggle in the
+      existing modal. Recurring creation is available to all authenticated roles
+      except Light users.
+    Guard target: task static guards, public Tasks config screenshot/static
+    checks, and focused Tasks Playwright for recurring creation visibility by
+    role where practical.
+16. Broiler Dashboard And Batches UX. Class: `DEFECT`/`ENH`. Size: medium.
+    Scope:
+    - Broiler dashboard "LBS PRODUCED TREND - LAST 9 BATCHES" should select the
+      latest nine processed batches. Tables/lists show newest first; charts show
+      oldest left to newest right.
+    - Broiler Batches tab Batch Comparison should include Hatchery as a visible
+      column/metric immediately after Breed. Batch Comparison remains a
+      processed-batch comparison surface.
+    - Active batch tiles on the Broiler Dashboard should open the corresponding
+      broiler batch record page.
+    Guard target: broiler dashboard/batch static guards plus focused Playwright
+    for dashboard tile navigation and trend ordering.
+17. Equipment Attention And Fueling Checklist Record Pages. Class:
+    `DEFECT`/`ENH`. Size: medium/large.
+    Scope:
+    - Combine duplicate equipment attention notices for the same equipment into
+      one notice with multiple due items inside. The notice must distinguish
+      checklist/material/service items clearly (for example, a 50-hour checklist
+      due item should not look like a duplicate service alert).
+    - Add full audit record pages for fueling/checklist entries using record
+      chrome and the existing checklist data plus Comments and Activity.
+    Guard target: home/equipment attention static guards, equipment record-page
+    guards, Activity/comment guards, and focused equipment Playwright.
+18. Cattle Weigh-In Record Page Entry Parity. Class: `DEFECT`/`ENH`. Size: medium.
+    Context: herd selection for cattle weigh-in sessions still works (not a gap).
+    The parity gap is on the authenticated cattle weigh-in record page
+    (`WeighInSessionPage`): the public `WeighInsWebform` still has the desired
+    cattle workflow — `remainingTags` (herd-scoped cow tags minus tags already
+    weighed in the session), `remainingCows` (herd-scoped unaccounted-for cows for
+    replacement/lost-tag reconciliation), `pendingReconciles` (`new_tag_flag`
+    entries that must reconcile before completion), and "Pool narrows as more cows
+    get weighed" behavior. The record page has lower-level reconcile/tag-swap
+    mechanics, but its entry UI is free-text and the reconcile dropdown shows all
+    cattle with tags, not the diminishing herd-scoped pool.
+    Direction:
+    - Convert cattle weigh-in record-page entries from card/grid to a dense
+      list/table sorted ascending by numeric tag.
+    - Preserve autosave/edit, delete, note, prior weight/date, days-since, weight
+      delta, ADG, processor flag, comments/Activity side effects, and record-page
+      chrome.
+    - Columns for scanning: Tag, Weight, Note, Prior, Days, +/- Delta, ADG,
+      Herd/Status or Processor, Time, Actions.
+    - Normal cattle entry defaults to a herd-scoped "available cows to weigh"
+      picker/list that removes cows already weighed in that session.
+    - Lost/replacement/new-tag entries use a dedicated reconciliation panel scoped
+      to that session's remaining herd cows, not all cattle.
+    - Reconciliation keeps existing behavior: update the cow's current tag, append
+      the prior tag into `old_tags`, clear `weigh_ins.new_tag_flag`, stitch
+      `cattle_comments` to the cow/tag, and log Activity.
+    - Block completion while unresolved `new_tag_flag` entries remain (matching the
+      public form).
+    - Keep explicit swap/new-tag escape hatches, but make the main workflow
+      picker/list driven.
+    Guard target: static guard that the cattle record page computes/uses
+    herd-scoped diminishing pools (`remainingTags`/`remainingCows` or equivalent);
+    static guard that the reconcile dropdown does not use all animals blindly;
+    static/Playwright guard that cattle entries render as a list/table sorted
+    ascending by tag; focused Playwright for a cattle session (choose herd/session,
+    weigh cows from the diminishing list, create a replacement/new-tag entry,
+    reconcile it to a remaining cow, and verify completion is blocked until
+    resolved).
 
 ### Light-User Portal Contract
 
