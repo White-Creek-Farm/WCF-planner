@@ -33,7 +33,11 @@ async function seedFeeders(supabaseAdmin, groups) {
 }
 
 test.describe('Pig batch record-page sequence navigation', () => {
-  test('hub tile opens with Prev/Next; Next advances within the sequence', async ({page, supabaseAdmin, resetDb}) => {
+  test('hub tile opens with Prev/Next; Next advances within the visible newest-first sequence', async ({
+    page,
+    supabaseAdmin,
+    resetDb,
+  }) => {
     await resetDb();
     await seedFeeders(supabaseAdmin, [group('pig-a', 'P-A'), group('pig-b', 'P-B'), group('pig-c', 'P-C')]);
 
@@ -42,7 +46,7 @@ test.describe('Pig batch record-page sequence navigation', () => {
     await expect(page.locator('[data-pig-batch-tile]').first()).toBeVisible({timeout: 15_000});
     await page.locator('[data-pig-batch-tile]').first().click();
 
-    await expect(page).toHaveURL(/\/pig\/batches\/pig-a$/, {timeout: 10_000});
+    await expect(page).toHaveURL(/\/pig\/batches\/pig-c$/, {timeout: 10_000});
     await waitForPigFeedersLoaded(page);
     await expect(page.locator('[data-record-seq-nav="1"]')).toBeVisible();
     await expect(page.locator('[data-record-seq-position="1"]')).toHaveText('1 of 3');

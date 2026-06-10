@@ -22,15 +22,8 @@ import {
   pigMortalityForSub,
   calcAgeRange as libCalcAgeRange,
   pigSlug,
-  computeBatchCurrentCount,
-  computeSubCurrentCount,
-  batchStartedCount,
-  pigTransfersForBatch,
-  processingTripPigCount,
-  tripTotalLive,
-  pigMortalityForBatch,
-  computePigBatchFCR,
 } from '../lib/pig.js';
+import {buildPigBatchGridMetrics} from '../lib/pigBatchGridMetrics.js';
 import {
   PLANNED_TRIP_TARGET_WEIGHT_LBS,
   allocatePlannedTrips,
@@ -61,7 +54,7 @@ import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
-import PigBatchHubTile, {PIG_BATCH_GRID_COLUMNS} from './PigBatchHubTile.jsx';
+import PigBatchHubTile, {PIG_BATCH_GRID_COLUMNS, PIG_BATCH_GRID_HEADERS} from './PigBatchHubTile.jsx';
 import {usePigMortality} from './usePigMortality.js';
 import {usePigSubBatches} from './usePigSubBatches.js';
 import {usePigPlannedTrips} from './usePigPlannedTrips.js';
@@ -76,9 +69,9 @@ const PIG_BATCHES_SURFACE_KEY = 'pig.batches';
 const PIG_BATCH_SORT_KEY_LABELS = {
   batchName: 'Batch name',
   status: 'Status',
-  started: 'Started pigs',
-  current: 'Current pigs',
-  feedPerStarted: 'Feed / started',
+  started: 'Started head',
+  current: 'Current head',
+  feedPerStarted: 'Feed / Pig',
   startDate: 'Start date',
 };
 
@@ -206,21 +199,19 @@ export default function PigBatchesView({
   const recordGroup = recordMode ? (feederGroups || []).find((g) => g.id === recordId) : null;
   // Originating list order handed through route state; absent on direct links.
   const recordSeq = location.state?.recordSeq || null;
-  // Per-batch metrics (started / current / feed-per-started) keyed by group.id.
+  // Per-batch grid metrics keyed by group.id.
   // These need breeders + dailys, so the pure filter lib can't derive them — the
   // view computes them once here and threads the map through `ctx` so the
-  // started/current/feedPerStarted SORTS agree with what each row renders. Same
-  // math the hub tile uses (latestDailyPigCount + batchHubTileInfo).
+  // started/current/feedPerStarted SORTS agree with what each row renders.
   const pigBatchMetricsById = React.useMemo(() => {
     const map = {};
     for (const g of feederGroups || []) {
-      const started = batchStartedCount(g);
-      const current = computeBatchCurrentCount(g, breeders, {
-        latestDailyPigCount: latestDailyPigCountForBatch(g),
+      const metrics = buildPigBatchGridMetrics(g, {
+        breeders,
+        dailysForName,
         tripSourceSummary: processingTrips.tripSourceSummary,
       });
-      const tileInfo = batchHubTileInfo(g, started);
-      map[g.id] = {started, current, feedPerStarted: tileInfo.feedPerStarted};
+      map[g.id] = {...metrics, feedPerStarted: metrics.feedPerPig};
     }
     return map;
     // breeders / dailys / processingTrips feed the ledger + feed math; recompute
@@ -248,55 +239,25 @@ export default function PigBatchesView({
 
   const statusColors = {active: {bg: '#085041', tx: 'white'}, processed: {bg: '#4b5563', tx: 'white'}};
   const cycleSeqMap = buildCycleSeqMap(breedingCycles);
-  function latestDailyPigCountForBatch(group) {
-    if (!group || (group.subBatches || []).length > 0) return null;
-    const rows = dailysForName(group.batchName);
-    const sorted = [...rows].sort(
-      (a, b) =>
-        (b.date || '').localeCompare(a.date || '') || (b.submitted_at || '').localeCompare(a.submitted_at || '') || 0,
-    );
-    return sorted[0]?.pig_count ?? null;
-  }
-
-  function adjustedFeedForBatch(group) {
-    if (!group) return 0;
-    const subs = group.subBatches || [];
-    let rawFeed = parseFloat(group.legacyFeedLbs) || parseFloat(group.totalFeedLbs) || 0;
-    if (subs.length > 0) {
-      for (const sub of subs) {
-        rawFeed += parseFloat(sub.legacyFeedLbs) || 0;
-        for (const row of dailysForName(sub.name)) rawFeed += parseFloat(row.feed_lbs) || 0;
-      }
-    } else {
-      for (const row of dailysForName(group.batchName)) rawFeed += parseFloat(row.feed_lbs) || 0;
-    }
-    const transfers = pigTransfersForBatch(breeders, group.batchName);
-    const transferCredit =
-      transfers.feedAllocLbs > 0 ? transfers.feedAllocLbs : parseFloat(group.feedAllocatedToTransfers) || 0;
-    return Math.max(0, rawFeed - transferCredit);
-  }
-
   const pigBatchExportRows = visiblePigBatches.map((group) => {
-    const tripOptions = {tripSourceSummary: processingTrips.tripSourceSummary};
-    const transfers = pigTransfersForBatch(breeders, group.batchName);
     const cycle = (breedingCycles || []).find((c) => c && c.id === group.cycleId);
-    const current = computeBatchCurrentCount(group, breeders, {
-      latestDailyPigCount: latestDailyPigCountForBatch(group),
-      tripSourceSummary: processingTrips.tripSourceSummary,
-    });
+    const metrics =
+      pigBatchMetricsById[group.id] ||
+      buildPigBatchGridMetrics(group, {breeders, dailysForName, tripSourceSummary: processingTrips.tripSourceSummary});
     return {
       ...group,
-      started_count: batchStartedCount(group),
-      current_count: current,
-      trip_pigs: (group.processingTrips || []).reduce(
-        (sum, trip) => sum + processingTripPigCount(trip, tripOptions),
-        0,
-      ),
-      transfer_pigs: transfers.count,
-      mortality_count: pigMortalityForBatch(group),
-      total_live_lbs: (group.processingTrips || []).reduce((sum, trip) => sum + tripTotalLive(trip, tripOptions), 0),
-      adjusted_feed_lbs: adjustedFeedForBatch(group),
-      fcr: computePigBatchFCR(group, dailysForName, breeders, tripOptions),
+      started_head: metrics.started,
+      current_head: metrics.current,
+      total_feed_lbs: metrics.totalFeedLbs,
+      feed_per_pig: metrics.feedPerPig,
+      gilts_started: metrics.gilts.started,
+      gilts_current: metrics.gilts.current,
+      gilts_total_feed_lbs: metrics.gilts.totalFeedLbs,
+      gilts_feed_per_pig: metrics.gilts.feedPerPig,
+      boars_started: metrics.boars.started,
+      boars_current: metrics.boars.current,
+      boars_total_feed_lbs: metrics.boars.totalFeedLbs,
+      boars_feed_per_pig: metrics.boars.feedPerPig,
       cycle_label: cycle ? cycleLabel(cycle, cycleSeqMap) : '',
     };
   });
@@ -736,80 +697,16 @@ export default function PigBatchesView({
     });
   }
 
-  function batchHubTileInfo(g, started) {
-    const subs = g.subBatches || [];
-    const parentLegacy = parseFloat(g.legacyFeedLbs) || parseFloat(g.totalFeedLbs) || 0;
-    if (subs.length > 0) {
-      const subSummaries = subs.map((sb) => {
-        const rows = dailysForName(sb.name);
-        const rawFeedLbs =
-          rows.reduce((sum, d) => sum + (parseFloat(d.feed_lbs) || 0), 0) + (parseFloat(sb.legacyFeedLbs) || 0);
-        const transfers = pigTransfersForSub(breeders, g.batchName, sb.name);
-        const adjustedFeedLbs = Math.max(0, rawFeedLbs - transfers.feedAllocLbs);
-        const subStarted = (parseInt(sb.giltCount) || 0) + (parseInt(sb.boarCount) || 0);
-        return {
-          id: sb.id,
-          name: sb.name,
-          status: sb.status,
-          started: subStarted,
-          current: computeSubCurrentCount(g, sb, breeders, {tripSourceSummary: processingTrips.tripSourceSummary}),
-          feedPerStarted: subStarted > 0 && adjustedFeedLbs > 0 ? adjustedFeedLbs / subStarted : null,
-          adjustedFeedLbs,
-        };
-      });
-      const startedDenominator = started > 0 ? started : subSummaries.reduce((sum, s) => sum + s.started, 0);
-      const feedTotalLbs = parentLegacy + subSummaries.reduce((sum, s) => sum + s.adjustedFeedLbs, 0);
-      return {
-        subSummaries,
-        feedPerStarted: startedDenominator > 0 && feedTotalLbs > 0 ? feedTotalLbs / startedDenominator : null,
-      };
-    }
-
-    const feedRows = dailysForName(g.batchName);
-    const rawFeedLbs = feedRows.reduce((sum, d) => sum + (parseFloat(d.feed_lbs) || 0), 0) + parentLegacy;
-    const transferCredit =
-      pigTransfersForBatch(breeders, g.batchName).feedAllocLbs || parseFloat(g.feedAllocatedToTransfers) || 0;
-    const adjustedFeedLbs = Math.max(0, rawFeedLbs - transferCredit);
-    return {
-      subSummaries: [],
-      feedPerStarted: started > 0 && adjustedFeedLbs > 0 ? adjustedFeedLbs / started : null,
-    };
-  }
-
   function renderPigBatchTile(g, rowsForSequence) {
     const sc = statusColors[g.status] || statusColors.active;
-    const subs = g.subBatches || [];
-    const latestDailyPigCount =
-      subs.length > 0
-        ? null
-        : (() => {
-            // Same ordering as the record workspace (date desc, then
-            // submitted_at desc) so the hub tile and record page can't
-            // disagree on "Current" when a parent-only batch has multiple
-            // reports on the same date.
-            const rows = dailysForName(g.batchName);
-            const sorted = [...rows].sort(
-              (a, b) =>
-                (b.date || '').localeCompare(a.date || '') ||
-                (b.submitted_at || '').localeCompare(a.submitted_at || '') ||
-                0,
-            );
-            return sorted[0]?.pig_count ?? null;
-          })();
-    const current = computeBatchCurrentCount(g, breeders, {
-      latestDailyPigCount,
-      tripSourceSummary: processingTrips.tripSourceSummary,
-    });
-    const started = batchStartedCount(g);
-    const tileInfo = batchHubTileInfo(g, started);
+    const metrics =
+      pigBatchMetricsById[g.id] ||
+      buildPigBatchGridMetrics(g, {breeders, dailysForName, tripSourceSummary: processingTrips.tripSourceSummary});
     return (
       <PigBatchHubTile
         key={g.id}
         group={g}
-        current={current}
-        started={started}
-        feedPerStarted={tileInfo.feedPerStarted}
-        subSummaries={tileInfo.subSummaries}
+        metrics={metrics}
         statusColor={sc}
         onOpen={() => goToBatch(g.id, rowsForSequence)}
       />
@@ -2267,7 +2164,7 @@ export default function PigBatchesView({
             the table readable without collapsing the column alignment. */}
         {!recordMode && visiblePigBatches.length > 0 && (
           <div style={{overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 10, background: 'white'}}>
-            <div data-pig-batch-grid="1" style={{minWidth: 720}}>
+            <div data-pig-batch-grid="1" style={{minWidth: 1390}}>
               <div
                 style={{
                   display: 'grid',
@@ -2282,25 +2179,33 @@ export default function PigBatchesView({
                   zIndex: 1,
                 }}
               >
-                {['Batch', 'Status', 'Started', 'Current', 'Feed/started', 'Sub-batches · Gilts/Boars', ''].map(
-                  (h, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#6b7280',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.3,
-                      }}
-                    >
-                      {h}
-                    </span>
-                  ),
-                )}
+                {PIG_BATCH_GRID_HEADERS.map((h, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.3,
+                      textAlign: i >= 2 ? 'right' : 'left',
+                    }}
+                  >
+                    {h}
+                  </span>
+                ))}
               </div>
               {visiblePigBatches.map((g) => renderPigBatchTile(g, visiblePigBatches))}
             </div>
+          </div>
+        )}
+
+        {/* Data-provenance note — only when a visible row carries proportional
+            sex-split estimates (source records without sex attribution). */}
+        {!recordMode && visiblePigBatches.some((g) => (pigBatchMetricsById[g.id] || {}).hasEstimates) && (
+          <div data-pig-batch-estimate-note="1" style={{fontSize: 11, color: '#6b7280', margin: '6px 2px 0'}}>
+            Sex-split current/feed values marked ~ are estimated from started-head split when records lack sex
+            attribution.
           </div>
         )}
 

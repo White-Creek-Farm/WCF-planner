@@ -68,7 +68,9 @@ describe('Display — farm-born batches suppress the Gilts/Boars main count', ()
     expect(src).toMatch(/!g\.farmBorn && <span[^>]*>Boars:/);
   });
   it('PigBatchesView hub tile started uses batchStartedCount', () => {
-    const src = read('src/pig/PigBatchesView.jsx');
-    expect(src).toContain('const started = batchStartedCount(g)');
+    const viewSrc = read('src/pig/PigBatchesView.jsx');
+    const metricSrc = read('src/lib/pigBatchGridMetrics.js');
+    expect(viewSrc).toContain('buildPigBatchGridMetrics(g, {');
+    expect(metricSrc).toContain('const started = batchStartedCount(group)');
   });
 });

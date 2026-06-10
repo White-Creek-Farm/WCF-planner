@@ -137,6 +137,16 @@ describe('buildPigBatchComparator — single rule + processed-below-active defau
     expect(sorted.map((r) => r.id)).toEqual(['b', 'a', 'p']);
   });
 
+  it('sorts active status groups newest-first by batch name before processed rows', () => {
+    const sorted = [
+      {id: 'older', batchName: 'P-26-02', status: 'active'},
+      {id: 'processed', batchName: 'P-28-01', status: 'processed'},
+      {id: 'newer', batchName: 'P-27-01', status: 'active'},
+    ].sort(buildPigBatchComparator({key: 'status', dir: 'asc'}));
+
+    expect(sorted.map((r) => r.id)).toEqual(['newer', 'older', 'processed']);
+  });
+
   it('sorts by batchName within the active block (numeric-aware locale compare)', () => {
     const sorted = [...rows].sort(buildPigBatchComparator({key: 'batchName', dir: 'desc'}));
     // active block desc: Beta, Alpha; processed always last.
@@ -199,6 +209,9 @@ describe('PigBatchesView wiring', () => {
     expect(viewSrc).toMatch(/rowsToCsv\(exportColumns, pigBatchExportRows\)/);
     expect(viewSrc).toMatch(/rows: pigBatchExportRows/);
     expect(viewSrc).toMatch(/buildPigBatchExportColumns\(\{fmt: fmtS\}\)/);
+    expect(viewSrc).toContain('started_head: metrics.started');
+    expect(viewSrc).toContain('gilts_feed_per_pig: metrics.gilts.feedPerPig');
+    expect(viewSrc).toContain('boars_feed_per_pig: metrics.boars.feedPerPig');
   });
 
   it('passes the SORTED set as the record-sequence order to row click-through', () => {

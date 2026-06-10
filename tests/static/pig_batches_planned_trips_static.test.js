@@ -25,6 +25,7 @@ const viewSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), '
 const forecastSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pigForecast.js'), 'utf8');
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const tileSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchHubTile.jsx'), 'utf8');
+const metricSrc = fs.readFileSync(path.join(ROOT, 'src/lib/pigBatchGridMetrics.js'), 'utf8');
 const mortalityHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigMortality.js'), 'utf8');
 const subHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigSubBatches.js'), 'utf8');
 const plannedHookSrc = fs.readFileSync(path.join(ROOT, 'src/pig/usePigPlannedTrips.js'), 'utf8');
@@ -387,7 +388,8 @@ describe('CP2 — pig.batch record-page helper extraction (no re-inlining)', () 
     expect(pageSrc).toMatch(/computeSubLedgerCurrent/);
     expect(pageSrc).toMatch(/computeSubCurrentCount/);
     expect(pageSrc).toMatch(/computeBatchCurrentCount/);
-    expect(viewSrc).toMatch(/computeBatchCurrentCount/);
+    expect(metricSrc).toMatch(/computeBatchCurrentCount/);
+    expect(viewSrc).toMatch(/buildPigBatchGridMetrics/);
   });
 
   it('deleteReconciliationRecipient is provided by lib/pigForecast.js and consumed by the planned-trip hook (CP9)', () => {
@@ -404,10 +406,12 @@ describe('CP2 — pig.batch record-page helper extraction (no re-inlining)', () 
   });
 
   it('no longer re-inlines the parent-only current-count ledger branch', () => {
-    // The parentStarted/parentTrips else-branch moved into computeBatchCurrentCount.
+    // The parentStarted/parentTrips else-branch moved into computeBatchCurrentCount,
+    // and the hub consumes it through the grid metric owner.
     expect(viewSrc).not.toMatch(/const parentStarted =/);
     expect(viewSrc).not.toMatch(/parentStarted > 0/);
-    expect(viewSrc).toMatch(/computeBatchCurrentCount\(g, breeders, \{/);
+    expect(metricSrc).toMatch(/computeBatchCurrentCount\(group, breeders, \{/);
+    expect(viewSrc).toMatch(/buildPigBatchGridMetrics\(g, \{/);
   });
 });
 
@@ -441,9 +445,12 @@ describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', ()
     // Unified grid: shared column template + grid container hook, and every
     // visible batch row is rendered in one stack in visiblePigBatches order
     // (which is also the record-sequence order passed to each row).
-    expect(viewSrc).toMatch(/import PigBatchHubTile, \{PIG_BATCH_GRID_COLUMNS\} from '\.\/PigBatchHubTile\.jsx'/);
+    expect(viewSrc).toMatch(
+      /import PigBatchHubTile, \{PIG_BATCH_GRID_COLUMNS, PIG_BATCH_GRID_HEADERS\} from '\.\/PigBatchHubTile\.jsx'/,
+    );
     expect(viewSrc).toContain('data-pig-batch-grid="1"');
     expect(viewSrc).toMatch(/gridTemplateColumns:\s*PIG_BATCH_GRID_COLUMNS/);
+    expect(viewSrc).toMatch(/PIG_BATCH_GRID_HEADERS\.map/);
     expect(viewSrc).toMatch(/visiblePigBatches\.map\(\(g\) => renderPigBatchTile\(g, visiblePigBatches\)\)/);
     // Operational-list parity: visiblePigBatches is now the predicate-filtered,
     // comparator-sorted set. Active rows still render first with processed at
@@ -454,11 +461,57 @@ describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', ()
     expect(viewSrc).toMatch(/\.sort\(buildPigBatchComparator\(sortRule, pigBatchFilterCtx\)\)/);
     // The tile owns the same shared column template so header + rows align.
     expect(tileSrc).toMatch(/export const PIG_BATCH_GRID_COLUMNS =/);
+    expect(tileSrc).toContain('export const PIG_BATCH_GRID_HEADERS = Object.freeze');
+    for (const label of [
+      'Started Head',
+      'Current Head',
+      'Total Feed',
+      'Feed / Pig',
+      'Gilts Started',
+      'Gilts Current',
+      'Gilts Total Feed',
+      'Gilts Feed / Pig',
+      'Boars Started',
+      'Boars Current',
+      'Boars Total Feed',
+      'Boars Feed / Pig',
+    ]) {
+      expect(tileSrc).toContain(label);
+    }
     expect(tileSrc).toMatch(/gridTemplateColumns:\s*PIG_BATCH_GRID_COLUMNS/);
+    expect(tileSrc).not.toContain('Open ->');
+    expect(tileSrc).not.toContain('data-pig-batch-sub-batches');
     // Reject the retired status-swimlane hooks.
     expect(viewSrc).not.toContain('pigBatchStatusColumns');
     expect(viewSrc).not.toContain('data-pig-batch-status-columns');
     expect(viewSrc).not.toContain('data-pig-batch-status-column');
+  });
+
+  it('marks proportional sex-split values as estimates and keeps exact values unmarked', () => {
+    // Helper carries per-sex provenance flags; the proportional both-sexes
+    // split is the only branch that sets estimated.
+    expect(metricSrc).toContain('currentEstimated');
+    expect(metricSrc).toContain('feedEstimated');
+    expect(metricSrc).toContain('hasEstimates:');
+    // Tile renders '~' + hover/aria hint on estimated cells only, and uses the
+    // app's em-dash empty convention (no ASCII hyphen placeholders).
+    expect(tileSrc).toContain("const ESTIMATED_HINT = 'Estimated from started-head split'");
+    expect(tileSrc).toMatch(/\(marked \? '~' : ''\) \+ display/);
+    expect(tileSrc).toContain('estimated={gilts.currentEstimated}');
+    expect(tileSrc).toContain('estimated={gilts.feedEstimated}');
+    expect(tileSrc).toContain('estimated={boars.currentEstimated}');
+    expect(tileSrc).toContain('estimated={boars.feedEstimated}');
+    expect(tileSrc).toContain("const EMPTY_CELL = '—'");
+    expect(tileSrc).not.toMatch(/'-'/);
+    // Started counts are source attributes, never estimates.
+    expect(tileSrc).not.toContain('estimated={gilts.started');
+    expect(tileSrc).not.toContain('estimated={boars.started');
+    // Hub shows the provenance note only when a visible row has estimates.
+    expect(viewSrc).toContain('data-pig-batch-estimate-note="1"');
+    expect(viewSrc).toMatch(
+      /visiblePigBatches\.some\(\(g\) => \(pigBatchMetricsById\[g\.id\] \|\| \{\}\)\.hasEstimates\)/,
+    );
+    expect(viewSrc).toContain('estimated from started-head split when records lack sex');
   });
 
   it('renders a not-found state for an unknown id', () => {
@@ -473,7 +526,7 @@ describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', ()
   it('hub-tile current-count fallback sorts dailys by date then submitted_at (cannot drift from the record page)', () => {
     // Both the hub tile and the record workspace must pick the same latest
     // daily for a parent-only batch — date desc, then submitted_at desc.
-    const tileFallback = viewSrc.match(/const rows = dailysForName\(g\.batchName\);[\s\S]*?\.sort\([\s\S]*?\);/);
+    const tileFallback = metricSrc.match(/function latestDailyPigCountForBatch\([\s\S]*?\.sort\([\s\S]*?\);/);
     expect(tileFallback, 'expected the hub-tile latestDailyPigCount fallback').not.toBeNull();
     expect(tileFallback[0]).toMatch(/b\.date \|\| ''\)\.localeCompare\(a\.date/);
     expect(tileFallback[0]).toMatch(/b\.submitted_at \|\| ''\)\.localeCompare\(a\.submitted_at/);
@@ -495,11 +548,14 @@ describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', ()
 describe('CP6 — presentational extraction (behavior unchanged)', () => {
   it('PigBatchHubTile is a render-only component carrying the tile hook + open handler', () => {
     expect(tileSrc).toMatch(
-      /export default function PigBatchHubTile\(\{[\s\S]*?group,[\s\S]*?current,[\s\S]*?started,[\s\S]*?feedPerStarted,[\s\S]*?subSummaries = \[\],[\s\S]*?statusColor,[\s\S]*?onOpen,[\s\S]*?\}\)/,
+      /export default function PigBatchHubTile\(\{[\s\S]*?group,[\s\S]*?metrics,[\s\S]*?statusColor,[\s\S]*?onOpen[\s\S]*?\}\)/,
     );
     expect(tileSrc).toMatch(/data-pig-batch-tile=\{group\.id\}/);
-    expect(tileSrc).toMatch(/data-pig-batch-sub-batches=\{group\.id\}/);
+    expect(tileSrc).toContain('data-pig-batch-openable-row="1"');
     expect(tileSrc).toMatch(/onClick=\{onOpen\}/);
+    expect(tileSrc).toContain('role="button"');
+    expect(tileSrc).toContain('tabIndex={0}');
+    expect(tileSrc).toContain("e.key !== 'Enter' && e.key !== ' '");
     // Presentational only — no data/hooks/mutations leaked into the tile.
     expect(tileSrc).not.toContain('useState');
     expect(tileSrc).not.toContain('computeBatchCurrentCount');
@@ -730,7 +786,9 @@ describe('CP11 — record-page render surface extracted to PigBatchPage', () => 
     expect(viewSrc).toMatch(/['"]ppp-pig-global-adg-v1['"]/); // Global ADG persistence
     // Unified-grid redesign: the view also imports the shared column template
     // (PIG_BATCH_GRID_COLUMNS) alongside the default tile component.
-    expect(viewSrc).toMatch(/import PigBatchHubTile, \{PIG_BATCH_GRID_COLUMNS\} from '\.\/PigBatchHubTile\.jsx'/);
+    expect(viewSrc).toMatch(
+      /import PigBatchHubTile, \{PIG_BATCH_GRID_COLUMNS, PIG_BATCH_GRID_HEADERS\} from '\.\/PigBatchHubTile\.jsx'/,
+    );
     expect(viewSrc).toMatch(/<PigBatchHubTile/);
     // Archive/unarchive batch handlers stay view-owned and are threaded into the page.
     expect(viewSrc).toMatch(/archiveBatch/);

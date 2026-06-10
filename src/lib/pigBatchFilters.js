@@ -128,18 +128,13 @@ function compareNumeric(av, bv, dir) {
 
 function compareByKey(key, a, b, dir, ctx) {
   switch (key) {
-    case 'batchName': {
-      const av = (a.batchName || '').trim();
-      const bv = (b.batchName || '').trim();
-      if (!av && !bv) return 0;
-      if (!av) return 1;
-      if (!bv) return -1;
-      return applyDir(av.localeCompare(bv, undefined, {numeric: true}), dir);
-    }
+    case 'batchName':
+      return compareBatchName(a, b, dir);
     case 'status': {
       const ai = STATUS_ORDER.indexOf(a.status || 'active');
       const bi = STATUS_ORDER.indexOf(b.status || 'active');
-      return applyDir((ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi), dir);
+      const statusCompare = applyDir((ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi), dir);
+      return statusCompare || compareBatchName(a, b, 'desc');
     }
     case 'started':
       return compareNumeric(startedCountOf(ctx, a), startedCountOf(ctx, b), dir);
@@ -158,4 +153,13 @@ function compareByKey(key, a, b, dir, ctx) {
     default:
       return 0;
   }
+}
+
+function compareBatchName(a, b, dir) {
+  const av = (a.batchName || '').trim();
+  const bv = (b.batchName || '').trim();
+  if (!av && !bv) return 0;
+  if (!av) return 1;
+  if (!bv) return -1;
+  return applyDir(av.localeCompare(bv, undefined, {numeric: true}), dir);
 }

@@ -93,24 +93,30 @@ describe('operational export columns', () => {
     expect(valueFor(columns, 'Feed cost', row)).toBe('$321.50');
   });
 
-  it('exports pig batch source-derived counts and FCR', () => {
+  it('exports pig batch grid metrics', () => {
     const columns = buildPigBatchExportColumns({fmt: (value) => 'date:' + value});
     const row = {
       batchName: 'P-26-01',
       startDate: '2026-01-02',
-      started_count: 20,
-      current_count: 12,
-      trip_pigs: 6,
-      transfer_pigs: 1,
-      mortality_count: 1,
-      total_live_lbs: 1567.44,
-      adjusted_feed_lbs: 5123.22,
-      fcr: 3.2684,
+      started_head: 20,
+      current_head: 12,
+      total_feed_lbs: 5123.22,
+      feed_per_pig: 256.161,
+      gilts_started: 12,
+      gilts_current: 8,
+      gilts_total_feed_lbs: 3073.93,
+      gilts_feed_per_pig: 256.161,
+      boars_started: 8,
+      boars_current: 4,
+      boars_total_feed_lbs: 2049.29,
+      boars_feed_per_pig: 256.161,
       cycle_label: 'Cycle 4',
     };
     expect(valueFor(columns, 'Start date', row)).toBe('date:2026-01-02');
-    expect(valueFor(columns, 'Current pigs', row)).toBe(12);
-    expect(valueFor(columns, 'Total live lbs', row)).toBe(1567.4);
-    expect(valueFor(columns, 'FCR', row)).toBe(3.268);
+    expect(valueFor(columns, 'Current Head', row)).toBe(12);
+    expect(valueFor(columns, 'Total Feed', row)).toBe(5123.2);
+    expect(valueFor(columns, 'Feed / Pig', row)).toBe(256.2);
+    expect(valueFor(columns, 'Gilts Feed / Pig', row)).toBe(256.2);
+    expect(valueFor(columns, 'Boars Current', row)).toBe(4);
   });
 });

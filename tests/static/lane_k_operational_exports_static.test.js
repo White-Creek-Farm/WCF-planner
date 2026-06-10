@@ -143,20 +143,22 @@ describe('Lane K operational export surface wiring', () => {
     expect(src).toContain('active_housing_names');
   });
 
-  it('pig exports keep source-derived trips, transfers, mortality, feed, and FCR wired through helpers', () => {
+  it('pig exports use the same metric model as the visible hub grid', () => {
     const src = read('src/pig/PigBatchesView.jsx');
+    const columns = read('src/lib/operationalExportColumns.js');
     for (const token of [
-      'processingTripPigCount',
-      'tripTotalLive',
-      'pigMortalityForBatch',
-      'computePigBatchFCR',
-      'adjustedFeedForBatch',
-      'latestDailyPigCountForBatch',
+      'buildPigBatchGridMetrics',
+      'started_head: metrics.started',
+      'current_head: metrics.current',
+      'total_feed_lbs: metrics.totalFeedLbs',
+      'feed_per_pig: metrics.feedPerPig',
+      'gilts_started: metrics.gilts.started',
+      'boars_feed_per_pig: metrics.boars.feedPerPig',
     ]) {
       expect(src).toContain(token);
     }
-    expect(src).toMatch(
-      /computeBatchCurrentCount\(group,\s*breeders,\s*\{[\s\S]*?tripSourceSummary:\s*processingTrips\.tripSourceSummary[\s\S]*?\}\)/,
-    );
+    for (const header of ['Started Head', 'Current Head', 'Feed / Pig', 'Gilts Feed / Pig', 'Boars Feed / Pig']) {
+      expect(columns).toContain(header);
+    }
   });
 });
