@@ -22,6 +22,8 @@ async function seedBatch(supabaseAdmin) {
     status: 'active',
     hatchDate: '2026-01-01',
     birdCount: 750,
+    week4Lbs: 1.5,
+    week6Lbs: 4.25,
     notes: '',
   };
   const {error} = await supabaseAdmin.from('app_store').upsert({key: 'ppp-v4', data: [batch]}, {onConflict: 'key'});
@@ -40,6 +42,8 @@ test('broiler record page: text + select edits stick and autosave persists', asy
   await page.goto('/broiler/batches/' + encodeURIComponent(BATCH_NAME));
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
   await expect(page.locator('[data-record-title]').first()).toHaveText(BATCH_NAME, {timeout: 15_000});
+  await expect(page.locator('[data-broiler-week4-weight-readonly="1"]')).toHaveText('1.5 lbs');
+  await expect(page.locator('[data-broiler-week6-weight-readonly="1"]')).toHaveText('4.25 lbs');
 
   // ── Text field: typed value must remain (not be replayed/reset) ──
   const notes = page.getByPlaceholder(NOTES_PLACEHOLDER);

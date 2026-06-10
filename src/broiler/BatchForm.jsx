@@ -38,6 +38,24 @@ import {useBatches} from '../contexts/BatchesContext.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 
+const weighInSourcedValueBox = {
+  ...recordControl,
+  background: '#f9fafb',
+  borderColor: '#e5e7eb',
+  color: '#374151',
+  fontWeight: 600,
+  display: 'flex',
+  alignItems: 'center',
+};
+
+const weighInSourcedHint = {fontSize: 11, color: '#9ca3af', marginTop: 3};
+
+function broilerWeekWeightLabel(value) {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 'Not recorded';
+  return Math.round(parsed * 100) / 100 + ' lbs';
+}
+
 export default function BatchForm({
   Header,
   loadUsers,
@@ -549,25 +567,17 @@ export default function BatchForm({
                 </div>
                 <div>
                   <label style={recordFieldLabel}>4-Week Weight (lbs)</label>
-                  <input
-                    style={recordControl}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.week4Lbs || ''}
-                    onChange={(e) => upd('week4Lbs', e.target.value)}
-                  />
+                  <div data-broiler-week4-weight-readonly="1" style={weighInSourcedValueBox}>
+                    {broilerWeekWeightLabel(form.week4Lbs)}
+                  </div>
+                  <div style={weighInSourcedHint}>Pulled from completed Week 4 weigh-ins.</div>
                 </div>
                 <div>
                   <label style={recordFieldLabel}>6-Week Weight (lbs)</label>
-                  <input
-                    style={recordControl}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.week6Lbs || ''}
-                    onChange={(e) => upd('week6Lbs', e.target.value)}
-                  />
+                  <div data-broiler-week6-weight-readonly="1" style={weighInSourcedValueBox}>
+                    {broilerWeekWeightLabel(form.week6Lbs)}
+                  </div>
+                  <div style={weighInSourcedHint}>Pulled from completed Week 6 weigh-ins.</div>
                 </div>
                 {(() => {
                   const stats = calcBroilerStatsFromDailys(form, broilerDailys);

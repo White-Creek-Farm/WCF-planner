@@ -316,6 +316,16 @@ describe('BatchForm — embedded mode + record-page overrides', () => {
   it('Close button calls onClose when provided, else closeForm', () => {
     expect(formSrc).toMatch(/typeof onClose === 'function'[\s\S]*?onClose\(\)[\s\S]*?closeForm\(\)/);
   });
+  it('renders 4-week and 6-week broiler weights as read-only weigh-in sourced values', () => {
+    expect(formSrc).toContain('data-broiler-week4-weight-readonly="1"');
+    expect(formSrc).toContain('data-broiler-week6-weight-readonly="1"');
+    expect(formSrc).toContain('broilerWeekWeightLabel(form.week4Lbs)');
+    expect(formSrc).toContain('broilerWeekWeightLabel(form.week6Lbs)');
+    expect(formSrc).toContain('Pulled from completed Week 4 weigh-ins.');
+    expect(formSrc).toContain('Pulled from completed Week 6 weigh-ins.');
+    expect(formSrc).not.toContain("upd('week4Lbs'");
+    expect(formSrc).not.toContain("upd('week6Lbs'");
+  });
 });
 
 describe('BroilerListView — navigation-only hub + router', () => {
