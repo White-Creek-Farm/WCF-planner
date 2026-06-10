@@ -3,9 +3,9 @@
 // expiry, matches the fuel-bills bucket pattern). Click → fresh signed URL
 // in a new tab so it never expires while the modal sat open.
 //
-// Read-only in v1 — no add/remove. The daily-photos bucket grants anon
-// INSERT + authenticated SELECT only; admin add/remove is a future build
-// (would need mig 032 daily_photos_auth_insert policy + a delete path).
+// Read-only in v1 — no add/remove. The daily-photos bucket grants authenticated
+// INSERT (mig 099) + authenticated SELECT (mig 031) only; admin add/remove is a
+// future build (would need an UPDATE/DELETE policy + a delete path).
 
 import React from 'react';
 import {sb} from '../lib/supabase.js';

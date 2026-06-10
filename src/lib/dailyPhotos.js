@@ -52,8 +52,9 @@ export function buildPhotoPath(formKind, csid, photoKey) {
 /**
  * Compress + upload a single daily-report photo.
  *
- * @param {object} sb — supabase client (anon for public webforms; auth
- *   would also work but isn't the design path).
+ * @param {object} sb — the shared authenticated supabase client. Daily-report
+ *   forms are login-required, so uploads run as the authenticated role under
+ *   daily_photos_auth_insert (mig 099).
  * @param {string} formKind — one of `cattle_dailys` / `sheep_dailys` / etc.
  * @param {string} csid — client_submission_id for the parent daily row.
  * @param {string} photoKey — stable per-photo key, e.g. 'photo-1'.
@@ -132,9 +133,11 @@ export const _VALID_FORM_KINDS = VALID_FORM_KINDS;
 //   4. Replay uses the stored blob with upsert:false and never re-compresses.
 //      An already-uploaded path returns 409 which the storage classifier
 //      treats as success-continue. (Phase 1D-A originally specified
-//      upsert:true; switched to upsert:false because mig 031 grants anon
-//      INSERT only — the upsert path triggers anon UPDATE policy check
-//      and 403s even on fresh paths. Net replay behavior identical.)
+//      upsert:true; switched to upsert:false because daily-photos grants
+//      authenticated INSERT only (mig 099; the dead anon INSERT policy was
+//      dropped by mig 109) with no UPDATE policy — the upsert path triggers
+//      an UPDATE policy check and 403s even on fresh paths. Net replay
+//      behavior identical.)
 //
 // PreparedPhoto carries everything the row's photos jsonb needs PLUS the
 // raw compressed blob. The hook strips the blob before writing the
