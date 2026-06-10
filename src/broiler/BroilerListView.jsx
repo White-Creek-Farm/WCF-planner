@@ -829,6 +829,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                   <tr
                     key={b.id}
                     onClick={() => openBatch(b, activeRows)}
+                    className="hoverable-row"
                     style={{
                       borderBottom: '1px solid #e5e7eb',
                       background: i % 2 === 0 ? 'white' : '#fafafa',
@@ -1158,7 +1159,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                             background: i % 2 === 0 ? 'white' : '#fafafa',
                             cursor: 'pointer',
                           }}
-                          className="hoverable-tile"
+                          className="hoverable-row"
                         >
                           <td style={{padding: '7px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#111827'}}>
                             {b.name}

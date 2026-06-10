@@ -132,8 +132,27 @@
   .btn-another{display:inline-block;padding:10px 28px;border:2px solid var(--green);border-radius:var(--r-md);background:#fff;color:var(--green);font-size:14px;font-weight:600;cursor:pointer}
   .loading-msg{text-align:center;padding:3rem;color:var(--muted);font-size:14px}
   @media(max-width:400px){.grid2{grid-template-columns:1fr}}
-  .hoverable-tile:hover{background:#f0fdf4 !important;}
-  .hoverable-row:hover td{background:#f0fdf4 !important;}
+  /* ── Global openable affordance ──
+     Contract locked by tests/static/openable_hover_affordance_static.test.js;
+     keep this block byte-identical across index.html / dailys.html /
+     equipment.html.
+       .hoverable-tile — openable div-based card/tile/grid row.
+       .hoverable-row  — openable <tr> inside a real <table> (wash only:
+       transforms are unreliable on table rows).
+     Hover/focus may only change paint (background/box-shadow/outline/
+     transform) — never box metrics — so no layout shift. !important lets
+     the wash win over the inline `background` most call sites set; hover
+     is gated behind (hover:hover) so touch devices get the :active wash
+     instead of a sticky lift. */
+  .hoverable-tile{cursor:pointer;transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
+  .hoverable-row{cursor:pointer}
+  @media (hover:hover){
+    .hoverable-tile:hover{background:#f0fdf4 !important;transform:translateY(-1px);box-shadow:0 3px 10px rgba(16,67,58,.12)}
+    .hoverable-row:hover td{background:#f0fdf4 !important}
+  }
+  .hoverable-tile:active{background:#f0fdf4 !important;transform:none;box-shadow:none}
+  .hoverable-row:active td{background:#f0fdf4 !important}
+  .hoverable-tile:focus-visible,.hoverable-row:focus-visible{outline:2px solid var(--green-500);outline-offset:-2px;background:#f0fdf4 !important}
 
   /* Authenticated-app mobile overrides. Public webforms set their own
      layout above and intentionally don't carry these data-* hooks, so

@@ -414,6 +414,24 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
     return {reading, dueInfo, latestFuel, daysSinceFuel, missedFuel, warrantyExpiresSoon};
   }
 
+  // Openable click + keyboard props shared by tile + flat row. Both render a
+  // single whole-element action with no nested controls, so button semantics
+  // are safe and the global .hoverable-tile :focus-visible affordance applies.
+  const openableProps = (eq) => {
+    const open = () => onOpen(eq.slug, fleetSeqRows);
+    return {
+      onClick: open,
+      role: 'button',
+      tabIndex: 0,
+      onKeyDown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
+      },
+    };
+  };
+
   const tile = (eq) => {
     const {reading, dueInfo, latestFuel, daysSinceFuel, missedFuel, warrantyExpiresSoon} = rowMeta(eq);
     const cat = CATEGORY_BY_KEY[eq.category] || {color: '#57534e', bg: '#fafaf9', bd: '#d6d3d1'};
@@ -422,7 +440,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
       <div
         key={eq.id}
         data-equipment-tile={eq.slug}
-        onClick={() => onOpen(eq.slug, fleetSeqRows)}
+        {...openableProps(eq)}
         className="hoverable-tile"
         style={{
           background: eq.status === 'sold' ? '#f9fafb' : 'white',
@@ -430,7 +448,6 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
           borderRadius: 12,
           padding: '14px 18px',
           cursor: 'pointer',
-          transition: 'transform .1s',
           minWidth: 0,
           opacity: eq.status === 'sold' ? 0.8 : 1,
         }}
@@ -506,7 +523,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
       <div
         key={eq.id}
         data-equipment-row={eq.slug}
-        onClick={() => onOpen(eq.slug, fleetSeqRows)}
+        {...openableProps(eq)}
         className="hoverable-tile"
         style={{
           display: 'grid',

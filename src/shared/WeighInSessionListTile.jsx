@@ -53,10 +53,22 @@ export default function WeighInSessionListTile({
   embedded = false,
   children = null,
 }) {
+  // The whole tile is one action and every child is a static badge/label, so
+  // it can safely carry button semantics for the keyboard :focus-visible
+  // affordance. Callers that pass interactive children must drop these props.
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (onClick) onClick(e);
+    }
+  };
   return (
     <div
       data-weighin-session-tile={session.id}
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={onKeyDown}
       className="hoverable-tile"
       style={embedded ? embeddedTileStyle : listTileStyle}
     >
