@@ -129,7 +129,7 @@ const USER_TXT = {
   display: 'flex',
   flexDirection: 'column',
   lineHeight: 1.05,
-  fontSize: 12.5,
+  fontSize: 13,
   fontWeight: 650,
   color: '#ffffff',
 };
@@ -222,7 +222,7 @@ const ROLE_PREVIEW_LABELS = {
 const ROLE_PREVIEW_SELECT = {
   width: '100%',
   padding: '7px 9px',
-  borderRadius: 8,
+  borderRadius: 6,
   border: '1px solid #d1d5db',
   background: 'white',
   color: '#111827',
@@ -413,7 +413,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   const inSubnav = inPoultry || inPigs || inLayers || inCattle || inSheep;
   const nb = (active) => ({
     padding: '7px 16px',
-    borderRadius: 8,
+    borderRadius: 6,
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: 12,
@@ -425,7 +425,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   });
   const ghostBtn = {
     padding: '7px 12px',
-    borderRadius: 8,
+    borderRadius: 6,
     border: '1px solid #d1d5db',
     cursor: 'pointer',
     fontSize: 12,
@@ -500,7 +500,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
             gap: 10,
           }}
         >
-          <div style={{fontSize: 17, fontWeight: 700, letterSpacing: '-.4px', color: 'white'}}>WCF Planner</div>
+          <div style={{fontSize: 18, fontWeight: 700, letterSpacing: '-.4px', color: 'white'}}>WCF Planner</div>
           {inPoultry && (
             <span data-header-section-pill="1" style={SECTION_PILL_STYLE}>
               BROILERS
@@ -549,7 +549,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
               <span data-header-username="1" style={USER_TXT}>
                 <span>{authState.name}</span>
                 <span
-                  style={{fontSize: 10.5, fontWeight: 600, color: 'rgba(255,255,255,.82)', textTransform: 'capitalize'}}
+                  style={{fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.82)', textTransform: 'capitalize'}}
                 >
                   {authState?.role}
                 </span>
@@ -796,7 +796,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                             )}
                             <div
                               style={{
-                                fontSize: 10.5,
+                                fontSize: 11,
                                 color: '#6b7280',
                                 marginTop: 4,
                                 fontVariantNumeric: 'tabular-nums',

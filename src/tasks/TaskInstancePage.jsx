@@ -299,7 +299,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
                   padding: '10px 14px',
                   background: '#f0fdf4',
                   border: '1px solid #bbf7d0',
-                  borderRadius: 8,
+                  borderRadius: 6,
                 }}
               >
                 <div style={{fontSize: 12, fontWeight: 600, color: '#065f46', marginBottom: 4}}>Completed</div>

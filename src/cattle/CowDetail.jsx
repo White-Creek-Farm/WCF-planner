@@ -162,7 +162,7 @@ const CowDetail = ({
         background: '#ffffff',
         padding: '14px 18px',
         border: '2px solid ' + accentColor,
-        borderRadius: 8,
+        borderRadius: 6,
         boxShadow: '0 2px 6px rgba(0,0,0,.06)',
         margin: '8px 12px 14px',
       }}
@@ -672,7 +672,7 @@ const CowDetail = ({
                   style={{
                     background: 'white',
                     border: '1px solid #e5e7eb',
-                    borderRadius: 8,
+                    borderRadius: 6,
                     overflow: 'hidden',
                     maxWidth: 640,
                   }}
@@ -719,7 +719,7 @@ const CowDetail = ({
                           {r.isReceiving && (
                             <div
                               style={{
-                                fontSize: 9,
+                                fontSize: 10,
                                 color: '#92400e',
                                 marginTop: 2,
                                 padding: '1px 5px',
@@ -793,7 +793,7 @@ const CowDetail = ({
               )}
 
               {weightView === 'chart' && (
-                <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px'}}>
+                <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 6, padding: '10px 12px'}}>
                   <svg
                     viewBox={'0 0 ' + W + ' ' + H}
                     preserveAspectRatio="none"
@@ -984,7 +984,7 @@ const CowDetail = ({
               style={{
                 background: '#fef2f2',
                 border: '1px solid #fca5a5',
-                borderRadius: 8,
+                borderRadius: 6,
                 padding: '10px 12px',
                 marginBottom: 8,
               }}
@@ -1060,7 +1060,7 @@ const CowDetail = ({
                   type="button"
                   onClick={submitCalving}
                   style={{
-                    padding: '6px 14px',
+                    padding: '10px 16px',
                     borderRadius: 6,
                     border: 'none',
                     background: '#991b1b',
@@ -1252,7 +1252,7 @@ const CowDetail = ({
               }}
               disabled={!commentText.trim()}
               style={{
-                padding: '6px 14px',
+                padding: '10px 16px',
                 borderRadius: 6,
                 border: 'none',
                 background: commentText.trim() ? '#991b1b' : '#d1d5db',

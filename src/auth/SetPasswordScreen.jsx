@@ -211,14 +211,14 @@ function SetPasswordScreen({onDone, prefilledEmail}) {
             </div>
             {!sessionReady && !error && (
               <div
-                style={{color: '#92400e', fontSize: 12, background: '#fffbeb', padding: '8px 12px', borderRadius: 8}}
+                style={{color: '#92400e', fontSize: 12, background: '#fffbeb', padding: '8px 12px', borderRadius: 6}}
               >
                 Validating reset link{'\u2026'}
               </div>
             )}
             {error && (
               <div
-                style={{color: '#b91c1c', fontSize: 12, background: '#fef2f2', padding: '8px 12px', borderRadius: 8}}
+                style={{color: '#b91c1c', fontSize: 12, background: '#fef2f2', padding: '8px 12px', borderRadius: 6}}
               >
                 {error}
               </div>

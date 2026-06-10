@@ -52,7 +52,7 @@ import {buildPigBatchExportColumns} from '../lib/operationalExportColumns.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
-import PigBatchHubTile from './PigBatchHubTile.jsx';
+import PigBatchHubTile, {PIG_BATCH_GRID_COLUMNS} from './PigBatchHubTile.jsx';
 import {usePigMortality} from './usePigMortality.js';
 import {usePigSubBatches} from './usePigSubBatches.js';
 import {usePigPlannedTrips} from './usePigPlannedTrips.js';
@@ -61,6 +61,7 @@ import {usePigProcessingTrips} from './usePigProcessingTrips.js';
 import PigBatchPage from './PigBatchPage.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
+import {RecordPageLoading, RecordPageNotFound} from '../shared/RecordPageShell.jsx';
 
 export default function PigBatchesView({
   Header,
@@ -172,21 +173,15 @@ export default function PigBatchesView({
   const recordGroup = recordMode ? (feederGroups || []).find((g) => g.id === recordId) : null;
   // Originating list order handed through route state; absent on direct links.
   const recordSeq = location.state?.recordSeq || null;
-  // Visible hub order (active first; processed can be hidden). All visible
-  // tiles route to a record page — no virtual/planned rows for pig.
-  const visiblePigBatches = (feederGroups || []).filter((g) => showArchBatches || g.status !== 'processed');
-  const pigBatchStatusColumns = [
-    {
-      key: 'active',
-      label: 'Active',
-      rows: visiblePigBatches.filter((g) => g.status !== 'processed'),
-    },
-    {
-      key: 'processed',
-      label: 'Processed',
-      rows: visiblePigBatches.filter((g) => g.status === 'processed'),
-    },
-  ].filter((c) => c.key !== 'processed' || showArchBatches || c.rows.length > 0);
+  // Visible hub order: active batches first, then processed at the bottom
+  // (stable within each group, so persisted order is preserved inside the
+  // active block and inside the processed block). Processed rows are hidden
+  // entirely when the Show/Hide toggle is off. One unified row stack (no status
+  // swimlanes); this same array is the record-sequence + CSV/print order.
+  const visiblePigBatches = (feederGroups || [])
+    .filter((g) => showArchBatches || g.status !== 'processed')
+    .slice()
+    .sort((a, b) => (a.status === 'processed' ? 1 : 0) - (b.status === 'processed' ? 1 : 0));
   const goToBatch = (id, rows) =>
     navigate(
       '/pig/batches/' + encodeURIComponent(id),
@@ -819,7 +814,7 @@ export default function PigBatchesView({
   };
   return (
     <div data-pig-feeders-loaded={feedersLoaded ? 'true' : 'false'}>
-      <Header />
+      {!recordMode && <Header />}
       <div style={{padding: '0 12px'}}>
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       </div>
@@ -1589,67 +1584,64 @@ export default function PigBatchesView({
             Showing the not-found state during this window would flash
             "Batch not found" on a valid deep-link before data loads. */}
         {recordMode && !recordGroup && !feedersLoaded && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>Loading…</div>
+          <RecordPageLoading Header={Header} label="Loading pig batch…" />
         )}
 
         {/* Record-page not-found: data loaded, but the URL id is genuinely
             absent from the feeder groups. */}
         {recordMode && !recordGroup && feedersLoaded && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
-            Batch not found.{' '}
-            <button
-              onClick={goToHub}
-              style={{color: '#085041', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit'}}
-            >
-              Back to Pig Batches
-            </button>
-          </div>
+          <RecordPageNotFound
+            Header={Header}
+            backLabel="Back to Pig Batches"
+            onBack={goToHub}
+            message="Batch not found."
+          />
         )}
 
-        {/* Hub: status comparison columns of nav-only batch tiles. Clicking a
-            tile opens the record page; the full workspace renders there. */}
+        {/* Hub: one unified vertical inspection grid — one row per visible
+            batch, active and processed in the same row stack (the Show/Hide
+            processed toggle controls whether processed rows are included).
+            Consistent columns let every batch's key metrics be compared at a
+            glance; clicking a row opens that batch's record-page workspace.
+            The header row and each batch row share PIG_BATCH_GRID_COLUMNS so
+            the columns stay aligned. Horizontal scroll on narrow screens keeps
+            the table readable without collapsing the column alignment. */}
         {!recordMode && visiblePigBatches.length > 0 && (
-          <div
-            data-pig-batch-status-columns="1"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: 12,
-              alignItems: 'start',
-            }}
-          >
-            {pigBatchStatusColumns.map((col) => (
-              <section key={col.key} data-pig-batch-status-column={col.key}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    margin: '0 0 8px',
-                    padding: '0 2px',
-                  }}
-                >
-                  <h2 style={{fontSize: 13, color: '#374151', margin: 0}}>{col.label}</h2>
-                  <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>{col.rows.length}</span>
-                </div>
-                {col.rows.length > 0 ? (
-                  col.rows.map((g) => renderPigBatchTile(g, visiblePigBatches))
-                ) : (
-                  <div
-                    style={{
-                      background: 'white',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 6,
-                      padding: '14px 16px',
-                      color: '#9ca3af',
-                      fontSize: 12,
-                    }}
-                  >
-                    No {col.label.toLowerCase()} batches.
-                  </div>
+          <div style={{overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 10, background: 'white'}}>
+            <div data-pig-batch-grid="1" style={{minWidth: 720}}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: PIG_BATCH_GRID_COLUMNS,
+                  gap: 10,
+                  alignItems: 'center',
+                  padding: '8px 14px',
+                  borderBottom: '1px solid #e5e7eb',
+                  background: '#f9fafb',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 1,
+                }}
+              >
+                {['Batch', 'Status', 'Started', 'Current', 'Feed/started', 'Sub-batches · Gilts/Boars', ''].map(
+                  (h, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.3,
+                      }}
+                    >
+                      {h}
+                    </span>
+                  ),
                 )}
-              </section>
-            ))}
+              </div>
+              {visiblePigBatches.map((g) => renderPigBatchTile(g, visiblePigBatches))}
+            </div>
           </div>
         )}
 
@@ -1659,6 +1651,7 @@ export default function PigBatchesView({
             via direct link). */}
         {recordMode && recordGroup && (
           <PigBatchPage
+            Header={Header}
             group={recordGroup}
             view={pigBatchPageView}
             recordSeq={recordSeq}

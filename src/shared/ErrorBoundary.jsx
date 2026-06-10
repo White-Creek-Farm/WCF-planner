@@ -23,7 +23,7 @@ const CARD = {
 const BTN = {
   marginTop: 16,
   padding: '10px 24px',
-  borderRadius: 8,
+  borderRadius: 6,
   border: 'none',
   background: '#085041',
   color: 'white',
@@ -54,7 +54,7 @@ export default class ErrorBoundary extends React.Component {
       return (
         <div style={WRAP}>
           <div style={CARD}>
-            <div style={{fontSize: 28, marginBottom: 8}}>{'\u{1F404}'}</div>
+            <div style={{fontSize: 26, marginBottom: 8}}>{'\u{1F404}'}</div>
             <h1 style={{fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 8px'}}>Something went wrong</h1>
             <p style={{fontSize: 14, color: '#6b7280', margin: '0 0 4px', lineHeight: 1.5}}>
               The app ran into an unexpected problem. Your data is safe.

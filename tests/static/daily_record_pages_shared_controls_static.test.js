@@ -50,13 +50,12 @@ describe('daily record pages use the shared record-page controls', () => {
     });
   }
 
-  it('the shared helper documents its intended future record-page consumers', () => {
+  it('the shared helper documents when record pages should use shared controls', () => {
     const src = read('src/shared/recordPageControls.jsx');
-    expect(src).toMatch(/FUTURE CONSUMERS/);
+    expect(src).toMatch(/standard label\/value edit form/);
+    expect(src).toContain('Dense scan-first panels can');
+    expect(src).toContain('stay local when a guard documents the exception');
     expect(src).toContain('data-team-member-select-locked');
-    for (const consumer of ['task', 'weigh-in', 'equipment']) {
-      expect(src.toLowerCase()).toContain(consumer);
-    }
   });
 });
 

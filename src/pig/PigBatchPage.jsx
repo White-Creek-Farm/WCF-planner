@@ -2,7 +2,14 @@ import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
-import {recordFieldRowClass, recordFieldLabel, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
+import {
+  recordFieldRowClass,
+  recordFieldLabel,
+  recordControl,
+  recordTextarea,
+  recordSaveButton,
+  recordSecondaryButton,
+} from '../shared/recordPageControls.jsx';
 import {
   PIG_GROUP_COLORS,
   getReadableText,
@@ -40,7 +47,7 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
-import {RecordPageBody, RecordBackLink, RecordTitle} from '../shared/RecordPageShell.jsx';
+import {RecordPageFrame, RecordPageBody, RecordBackLink, RecordTitle} from '../shared/RecordPageShell.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 
@@ -51,7 +58,7 @@ import {usePig} from '../contexts/PigContext.jsx';
 // threaded in via the `view` bundle); shared PigContext is consumed directly
 // here. PigBatchesView remains the hub/router and renders this only when
 // recordGroup exists.
-export default function PigBatchPage({group, view, recordSeq = null, recordId = null, onNavigateSeq, onBack}) {
+export default function PigBatchPage({Header, group, view, recordSeq = null, recordId = null, onNavigateSeq, onBack}) {
   const {authState} = useAuth();
   const {
     breedingCycles,
@@ -142,7 +149,7 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
   }
 
   return (
-    <>
+    <RecordPageFrame Header={Header} data-pig-batch-record-frame="true">
       {/* Mortality entry modal — overlay across the page */}
       {mortalityModal &&
         (() => {
@@ -267,15 +274,8 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                     onClick={() => setMortalityModal(null)}
                     disabled={mortalityBusy}
                     style={{
-                      padding: '8px 14px',
-                      borderRadius: 7,
-                      border: '1px solid #d1d5db',
-                      background: 'white',
-                      color: '#374151',
-                      fontWeight: 600,
-                      fontSize: 12,
+                      ...recordSecondaryButton,
                       cursor: mortalityBusy ? 'not-allowed' : 'pointer',
-                      fontFamily: 'inherit',
                     }}
                   >
                     Cancel
@@ -284,15 +284,10 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                     onClick={saveMortality}
                     disabled={mortalityBusy || !mortalityForm.count}
                     style={{
-                      padding: '8px 16px',
-                      borderRadius: 7,
-                      border: 'none',
+                      ...recordSaveButton,
+                      borderColor: mortalityBusy || !mortalityForm.count ? '#9ca3af' : '#b91c1c',
                       background: mortalityBusy || !mortalityForm.count ? '#9ca3af' : '#b91c1c',
-                      color: 'white',
-                      fontWeight: 700,
-                      fontSize: 12,
                       cursor: mortalityBusy || !mortalityForm.count ? 'not-allowed' : 'pointer',
-                      fontFamily: 'inherit',
                     }}
                   >
                     {mortalityBusy ? 'Saving…' : 'Save Mortality'}
@@ -350,7 +345,10 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                 (a, b) => b.date.localeCompare(a.date) || b.submitted_at?.localeCompare(a.submitted_at || '') || 0,
               )[0] || null;
             const transfers = pigTransfersForSub(breeders, g.batchName, sb.name);
-            const tripPigs = pigTripPigsForSub(g.processingTrips || [], sb.id, {...tripSourceOptions, subName: sb.name});
+            const tripPigs = pigTripPigsForSub(g.processingTrips || [], sb.id, {
+              ...tripSourceOptions,
+              subName: sb.name,
+            });
             const mortality = pigMortalityForSub(g, sb.name);
             const started = (parseInt(sb.giltCount) || 0) + (parseInt(sb.boarCount) || 0);
             // Ledger current + processed-aware current via the shared lib
@@ -766,7 +764,7 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                           textAlign: 'center',
                           background: 'white',
                           border: '1px solid #e5e7eb',
-                          borderRadius: 8,
+                          borderRadius: 6,
                           padding: '6px 10px',
                         }}
                       >
@@ -815,7 +813,7 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                 return (
                   <div
                     style={{
-                      padding: '8px 16px',
+                      padding: '10px 16px',
                       borderBottom: '1px solid #e5e7eb',
                       background: '#f5f3ff',
                       fontSize: 12,
@@ -1012,7 +1010,7 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                                 padding: '10px 12px',
                                 background: '#f9fafb',
                                 border: '1px solid #e5e7eb',
-                                borderRadius: 8,
+                                borderRadius: 6,
                               }}
                             >
                               <div style={{fontSize: 11, color: '#9ca3af', marginBottom: 4}}>
@@ -1120,7 +1118,7 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                           alignItems: 'center',
                           gap: '6px 12px',
                           padding: '8px 10px',
-                          borderRadius: 7,
+                          borderRadius: 6,
                           border: '1px solid #e5e7eb',
                           marginBottom: 6,
                           background: sb.status === 'processed' ? '#f9fafb' : 'white',
@@ -1259,7 +1257,7 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                           style={{
                             margin: '0 0 8px 0',
                             padding: '6px 10px',
-                            borderRadius: 7,
+                            borderRadius: 6,
                             border: '1px dashed #d1d5db',
                             background: '#fafafa',
                           }}
@@ -1702,10 +1700,10 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                                       {t.ready && (
                                         <span
                                           style={{
-                                            fontSize: 9,
+                                            fontSize: 10,
                                             fontWeight: 700,
                                             padding: '1px 6px',
-                                            borderRadius: 8,
+                                            borderRadius: 6,
                                             background: '#d1fae5',
                                             color: '#065f46',
                                             textTransform: 'uppercase',
@@ -1717,10 +1715,10 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                                       {t.warnings.includes('undersized') && (
                                         <span
                                           style={{
-                                            fontSize: 9,
+                                            fontSize: 10,
                                             fontWeight: 700,
                                             padding: '1px 6px',
-                                            borderRadius: 8,
+                                            borderRadius: 6,
                                             background: '#fef3c7',
                                             color: '#92400e',
                                             textTransform: 'uppercase',
@@ -1732,10 +1730,10 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                                       {t.warnings.includes('overweight') && (
                                         <span
                                           style={{
-                                            fontSize: 9,
+                                            fontSize: 10,
                                             fontWeight: 700,
                                             padding: '1px 6px',
-                                            borderRadius: 8,
+                                            borderRadius: 6,
                                             background: '#fee2e2',
                                             color: '#991b1b',
                                             textTransform: 'uppercase',
@@ -2025,8 +2023,8 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                                   </div>
                                   {displayWeights.length > 0 && (
                                     <div style={{fontSize: 11, color: '#085041', marginTop: 3}}>
-                                      {displayWeights.length} pigs {'\u00b7'} Total: {Math.round(totalLive)} lbs{'\u00b7'}{' '}
-                                      Avg: {Math.round(avgLive)} lbs/pig
+                                      {displayWeights.length} pigs {'\u00b7'} Total: {Math.round(totalLive)} lbs
+                                      {'\u00b7'} Avg: {Math.round(avgLive)} lbs/pig
                                       {source.count === 0 ? ' (stored legacy)' : ''}
                                     </div>
                                   )}
@@ -2059,8 +2057,8 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                                         borderRadius: 5,
                                       }}
                                     >
-                                      No linked weigh-in entries found. This existing trip is using stored legacy weights;
-                                      new processing trips still come only from Send-to-Trip weigh-in rows.
+                                      No linked weigh-in entries found. This existing trip is using stored legacy
+                                      weights; new processing trips still come only from Send-to-Trip weigh-in rows.
                                     </div>
                                   )}
                                 </>
@@ -2154,7 +2152,8 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
                     >
                       <div style={{fontWeight: 600, minWidth: 90, color: '#111827'}}>{fmt(t.date)}</div>
                       <span>
-                        {pigCount > 0 ? pigCount : 'No linked'} pigs{source.count === 0 && pigCount > 0 ? ' (stored)' : ''}
+                        {pigCount > 0 ? pigCount : 'No linked'} pigs
+                        {source.count === 0 && pigCount > 0 ? ' (stored)' : ''}
                       </span>
                       {live > 0 && (
                         <span style={{color: '#1d4ed8'}}>
@@ -2345,6 +2344,6 @@ export default function PigBatchPage({group, view, recordSeq = null, recordId = 
           entityLabel={group.batchName}
         />
       </RecordPageBody>
-    </>
+    </RecordPageFrame>
   );
 }

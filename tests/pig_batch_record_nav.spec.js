@@ -98,7 +98,10 @@ test('pig.batch hub tiles navigate to the record page; unknown id is not-found',
   const tile1 = page.locator(`[data-pig-batch-tile="${G1}"]`);
   await expect(tile1).toBeVisible({timeout: 15_000});
   await expect(page.locator(`[data-pig-batch-tile="${G2}"]`)).toBeVisible();
-  await expect(tile1).toContainText('Current:');
+  // Unified-grid redesign: metric labels live once in the header row, so a
+  // batch row no longer repeats "Current:" inline — the grid header carries the
+  // label and the row shows the ledger current count (15) in the Current column.
+  await expect(page.locator('[data-pig-batch-grid="1"]')).toContainText('Current');
   await expect(tile1).toContainText('15');
 
   // Tile click routes to the record page and mounts the full workspace card.

@@ -65,7 +65,7 @@ function LoginScreen({onLogin}) {
         }}
       >
         <div style={{textAlign: 'center', marginBottom: '2rem'}}>
-          <div style={{fontSize: 24, fontWeight: 700, color: '#085041'}}>WCF Planner</div>
+          <div style={{fontSize: 22, fontWeight: 700, color: '#085041'}}>WCF Planner</div>
         </div>
         {mode === 'login' ? (
           <form onSubmit={handleLogin} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
@@ -92,7 +92,7 @@ function LoginScreen({onLogin}) {
             </div>
             {error && (
               <div
-                style={{color: '#b91c1c', fontSize: 12, background: '#fef2f2', padding: '8px 12px', borderRadius: 8}}
+                style={{color: '#b91c1c', fontSize: 12, background: '#fef2f2', padding: '8px 12px', borderRadius: 6}}
               >
                 {error}
               </div>
@@ -155,7 +155,7 @@ function LoginScreen({onLogin}) {
                       fontSize: 12,
                       background: '#fef2f2',
                       padding: '8px 12px',
-                      borderRadius: 8,
+                      borderRadius: 6,
                     }}
                   >
                     {error}

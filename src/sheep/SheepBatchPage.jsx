@@ -523,7 +523,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                     data-batch-sheep-row={r.sheep_id}
                     style={{
                       border: '1px solid #f3f4f6',
-                      borderRadius: 8,
+                      borderRadius: 6,
                       padding: '8px 10px',
                       fontSize: 12,
                     }}
@@ -631,7 +631,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                 onClick={handleDeleteBatch}
                 data-sheep-batch-delete={batch.id}
                 style={{
-                  padding: '6px 14px',
+                  padding: '10px 16px',
                   borderRadius: 6,
                   border: '1px solid #fca5a5',
                   background: 'white',

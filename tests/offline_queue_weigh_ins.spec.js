@@ -85,11 +85,7 @@ async function unblockWeighInsRpc(page) {
 }
 
 async function getLockedSubmitterName(page) {
-  const raw = await page
-    .locator('[data-locked-submitter="1"]')
-    .locator('span')
-    .nth(1)
-    .textContent();
+  const raw = await page.locator('[data-locked-submitter="1"]').locator('span').nth(1).textContent();
   return raw?.trim() || FALLBACK_SUBMITTER_NAME;
 }
 

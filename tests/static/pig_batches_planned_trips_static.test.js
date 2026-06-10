@@ -432,12 +432,30 @@ describe('CP3 — /pig/batches/<id> record-page routing + hub/record branch', ()
     expect(tileSrc).toMatch(/data-pig-batch-tile=\{group\.id\}/);
   });
 
-  it('hub renders pig batches in status comparison columns with processed visible by default', () => {
+  it('hub renders pig batches in one unified inspection grid (no status swimlanes), processed visible by default', () => {
+    // Redesign: the side-by-side Active/Processed status swimlanes are retired
+    // in favor of ONE full-width vertical grid — one row per visible batch,
+    // active and processed in the same row stack. Processed stays visible by
+    // default (showArchBatches defaults true); the Show/Hide toggle filters it.
     expect(viewSrc).toMatch(/const \[showArchBatches, setShowArchBatches\] = React\.useState\(true\)/);
-    expect(viewSrc).toContain('const pigBatchStatusColumns =');
-    expect(viewSrc).toContain('data-pig-batch-status-columns="1"');
-    expect(viewSrc).toContain('data-pig-batch-status-column={col.key}');
-    expect(viewSrc).toMatch(/col\.rows\.map\(\(g\) => renderPigBatchTile\(g, visiblePigBatches\)\)/);
+    // Unified grid: shared column template + grid container hook, and every
+    // visible batch row is rendered in one stack in visiblePigBatches order
+    // (which is also the record-sequence order passed to each row).
+    expect(viewSrc).toMatch(/import PigBatchHubTile, \{PIG_BATCH_GRID_COLUMNS\} from '\.\/PigBatchHubTile\.jsx'/);
+    expect(viewSrc).toContain('data-pig-batch-grid="1"');
+    expect(viewSrc).toMatch(/gridTemplateColumns:\s*PIG_BATCH_GRID_COLUMNS/);
+    expect(viewSrc).toMatch(/visiblePigBatches\.map\(\(g\) => renderPigBatchTile\(g, visiblePigBatches\)\)/);
+    // Active rows render first, processed sorted to the bottom (stable sort).
+    expect(viewSrc).toMatch(
+      /\.sort\(\(a, b\) => \(a\.status === 'processed' \? 1 : 0\) - \(b\.status === 'processed' \? 1 : 0\)\)/,
+    );
+    // The tile owns the same shared column template so header + rows align.
+    expect(tileSrc).toMatch(/export const PIG_BATCH_GRID_COLUMNS =/);
+    expect(tileSrc).toMatch(/gridTemplateColumns:\s*PIG_BATCH_GRID_COLUMNS/);
+    // Reject the retired status-swimlane hooks.
+    expect(viewSrc).not.toContain('pigBatchStatusColumns');
+    expect(viewSrc).not.toContain('data-pig-batch-status-columns');
+    expect(viewSrc).not.toContain('data-pig-batch-status-column');
   });
 
   it('renders a not-found state for an unknown id', () => {
@@ -675,7 +693,7 @@ describe('CP11 — record-page render surface extracted to PigBatchPage', () => 
 
   it('PigBatchPage is a context-consuming component that takes record chrome props', () => {
     expect(pageSrc).toMatch(
-      /export default function PigBatchPage\(\{group, view, recordSeq = null, recordId = null, onNavigateSeq, onBack\}\)/,
+      /export default function PigBatchPage\(\{Header, group, view, recordSeq = null, recordId = null, onNavigateSeq, onBack\}\)/,
     );
     // Consumes the shared contexts directly rather than re-threading them.
     expect(pageSrc).toMatch(/const \{authState\} = useAuth\(\)/);
@@ -707,7 +725,9 @@ describe('CP11 — record-page render surface extracted to PigBatchPage', () => 
 
   it('PigBatchesView keeps the hub-only surfaces (Global ADG, Add Batch, archive, hub tile)', () => {
     expect(viewSrc).toMatch(/['"]ppp-pig-global-adg-v1['"]/); // Global ADG persistence
-    expect(viewSrc).toMatch(/import PigBatchHubTile from '\.\/PigBatchHubTile\.jsx'/);
+    // Unified-grid redesign: the view also imports the shared column template
+    // (PIG_BATCH_GRID_COLUMNS) alongside the default tile component.
+    expect(viewSrc).toMatch(/import PigBatchHubTile, \{PIG_BATCH_GRID_COLUMNS\} from '\.\/PigBatchHubTile\.jsx'/);
     expect(viewSrc).toMatch(/<PigBatchHubTile/);
     // Archive/unarchive batch handlers stay view-owned and are threaded into the page.
     expect(viewSrc).toMatch(/archiveBatch/);

@@ -99,10 +99,10 @@ export default function RecordActivityLog({sb, entityType, entityId, limit = 50,
             padding: 14,
           }}
         >
-          {events.length === 0 && <div style={{fontSize: 12.5, color: '#6b7280'}}>No audit events yet.</div>}
+          {events.length === 0 && <div style={{fontSize: 13, color: '#6b7280'}}>No audit events yet.</div>}
           {events.map((ev) => (
             <div key={ev.id} style={{padding: '6px 0', borderBottom: '1px solid #f3f4f6', fontSize: 12}}>
-              <span style={{fontWeight: 700, color: '#111827', fontSize: 12.5}}>
+              <span style={{fontWeight: 700, color: '#111827', fontSize: 13}}>
                 {ev.actor_display_name || (ev.actor_profile_id ? 'Unknown user' : 'System')}
               </span>{' '}
               <span

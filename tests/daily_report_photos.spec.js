@@ -345,7 +345,11 @@ test('photo upload failure routes to state="queued" (no row inserted yet)', asyn
 // photos AND extra groups are present. This test exercises the broiler
 // branch end-to-end (authenticated, real form). No upload fires; no row
 // lands; operator gets a clear error.
-test('multi-row daily block: photos + extra group rejected, no row inserted', async ({page, supabaseAdmin, resetDb}) => {
+test('multi-row daily block: photos + extra group rejected, no row inserted', async ({
+  page,
+  supabaseAdmin,
+  resetDb,
+}) => {
   await resetDb();
 
   // Broiler-specific seed: a couple of batches + Add-Group enabled. The form is
@@ -371,10 +375,12 @@ test('multi-row daily block: photos + extra group rejected, no row inserted', as
     },
     {onConflict: 'key'},
   );
-  await supabaseAdmin.from('app_store').upsert(
-    {key: 'ppp-webforms-v1', data: {webforms: [{id: 'broiler-dailys', allowAddGroup: true, sections: []}]}},
-    {onConflict: 'key'},
-  );
+  await supabaseAdmin
+    .from('app_store')
+    .upsert(
+      {key: 'ppp-webforms-v1', data: {webforms: [{id: 'broiler-dailys', allowAddGroup: true, sections: []}]}},
+      {onConflict: 'key'},
+    );
 
   await page.goto('/webforms/broiler');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});

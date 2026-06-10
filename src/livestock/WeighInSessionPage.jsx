@@ -1685,7 +1685,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 data-testid="broiler-meta-panel"
                 style={{
                   border: '1px solid #e5e7eb',
-                  borderRadius: 8,
+                  borderRadius: 6,
                   padding: '10px 12px',
                   marginBottom: 10,
                   background: 'white',
@@ -1782,7 +1782,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                       : undefined
                   }
                   style={{
-                    padding: '6px 14px',
+                    padding: '10px 16px',
                     borderRadius: 6,
                     border: '1px solid ' + (blockComplete ? '#9ca3af' : '#047857'),
                     background: blockComplete ? '#9ca3af' : '#047857',
@@ -1807,7 +1807,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             <button
               onClick={reopenSession}
               style={{
-                padding: '6px 14px',
+                padding: '10px 16px',
                 borderRadius: 6,
                 border: '1px solid #d1d5db',
                 background: 'white',
@@ -1823,7 +1823,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           <button
             onClick={deleteSession}
             style={{
-              padding: '6px 14px',
+              padding: '10px 16px',
               borderRadius: 6,
               border: '1px solid #fca5a5',
               background: 'white',
@@ -1839,7 +1839,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             <button
               onClick={openTripModal}
               style={{
-                padding: '6px 14px',
+                padding: '10px 16px',
                 borderRadius: 6,
                 border: '1px solid #047857',
                 background: '#047857',
@@ -1980,8 +1980,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               onClick={saveBroilerGrid}
               disabled={savingGrid}
               style={{
-                padding: '8px 16px',
-                borderRadius: 7,
+                padding: '10px 16px',
+                borderRadius: 6,
                 border: 'none',
                 background: savingGrid ? '#9ca3af' : '#1e40af',
                 color: 'white',
@@ -2866,7 +2866,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 }}
                 disabled={transferBusy}
                 style={{
-                  padding: '6px 14px',
+                  padding: '10px 16px',
                   borderRadius: 6,
                   border: '1px solid #d1d5db',
                   background: 'white',
@@ -2882,7 +2882,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 onClick={transferToBreeding}
                 disabled={transferBusy}
                 style={{
-                  padding: '6px 14px',
+                  padding: '10px 16px',
                   borderRadius: 6,
                   border: 'none',
                   background: '#3730a3',

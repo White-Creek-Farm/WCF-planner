@@ -35,8 +35,12 @@ describe('mig 094 - delete_sheep_lambing_record RPC', () => {
   });
 
   it('REVOKEs anon and GRANTs authenticated; reloads PostgREST', () => {
-    expect(mig094).toMatch(/REVOKE ALL ON FUNCTION public\.delete_sheep_lambing_record\(text, text\) FROM PUBLIC, anon/);
-    expect(mig094).toMatch(/GRANT EXECUTE ON FUNCTION public\.delete_sheep_lambing_record\(text, text\) TO authenticated/);
+    expect(mig094).toMatch(
+      /REVOKE ALL ON FUNCTION public\.delete_sheep_lambing_record\(text, text\) FROM PUBLIC, anon/,
+    );
+    expect(mig094).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.delete_sheep_lambing_record\(text, text\) TO authenticated/,
+    );
     expect(mig094).toMatch(/NOTIFY pgrst, 'reload schema'/);
   });
 });

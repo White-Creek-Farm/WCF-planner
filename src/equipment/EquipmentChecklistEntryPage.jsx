@@ -20,7 +20,6 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
-  RecordPageFrame,
   RecordPageLoading,
   RecordPageNotFound,
   RecordPageBody,
@@ -28,6 +27,7 @@ import {
   RecordTitle,
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
+import {recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 const sectionTitle = {
   fontSize: 11,
@@ -67,21 +67,7 @@ export default function EquipmentChecklistEntryPage({
       <RecordPageBody maxWidth={760} data-equipment-checklist-load-error="true">
         <RecordBackLink label="Back to Fleet" onBack={onBack} />
         <InlineNotice notice={loadError} />
-        <button
-          type="button"
-          onClick={onRetry}
-          style={{
-            padding: '7px 14px',
-            borderRadius: 7,
-            border: '1px solid #d1d5db',
-            background: 'white',
-            color: '#57534e',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
+        <button type="button" onClick={onRetry} style={{...recordSecondaryButton, marginTop: 10}}>
           Retry
         </button>
       </RecordPageBody>

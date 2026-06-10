@@ -40,8 +40,8 @@ const COUNT_BADGE = {
   padding: '1px 7px',
 };
 const POST_BTN = {
-  padding: '6px 14px',
-  borderRadius: 8,
+  padding: '10px 16px',
+  borderRadius: 6,
   border: '1px solid #085041',
   background: '#085041',
   color: 'white',
@@ -69,7 +69,7 @@ const COMMENT_HEAD = {
   flexWrap: 'wrap',
 };
 const AUTHOR = {
-  fontSize: 12.5,
+  fontSize: 13,
   fontWeight: 700,
   color: '#111827',
 };
@@ -92,7 +92,7 @@ const MENTION_CHIP = {
 const DELETED_PLACEHOLDER = {
   padding: '8px 0',
   borderBottom: '1px solid #f3f4f6',
-  fontSize: 12.5,
+  fontSize: 13,
   color: '#9ca3af',
   fontStyle: 'italic',
 };
@@ -117,7 +117,7 @@ const ACTION_BTN = {
 const EDIT_HISTORY = {
   background: '#f9fafb',
   border: '1px solid #e5e7eb',
-  borderRadius: 8,
+  borderRadius: 6,
   padding: 10,
   marginTop: 6,
   fontSize: 12,
@@ -408,7 +408,7 @@ export default function CommentsSection({sb, authState, entityType, entityId, en
           <div style={{fontSize: 12, color: '#6b7280', padding: '8px 0'}}>Loading…</div>
         )}
         {!loading && comments.length === 0 && (
-          <div data-comments-empty="1" style={{fontSize: 12.5, color: '#6b7280', padding: '8px 0'}}>
+          <div data-comments-empty="1" style={{fontSize: 13, color: '#6b7280', padding: '8px 0'}}>
             No comments yet.
           </div>
         )}

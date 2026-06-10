@@ -27,7 +27,12 @@ if (url.includes(PROD_REF)) {
   console.error('refusing to run against PROD url');
   process.exit(2);
 }
-const file = path.join(__dirname, '..', 'supabase-migrations', '093_tasks_summary_sunday_chicago_completion_digest.sql');
+const file = path.join(
+  __dirname,
+  '..',
+  'supabase-migrations',
+  '093_tasks_summary_sunday_chicago_completion_digest.sql',
+);
 let sql = fs.readFileSync(file, 'utf8');
 // Strip the transaction-control statements (exec_sql forbids them). Only the
 // standalone `BEGIN;` / `COMMIT;` lines match — PL/pgSQL block `BEGIN`/`END`

@@ -409,7 +409,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                 data-scheduled-batch-unschedule={batch.id}
                 style={{
                   fontSize: 12,
-                  padding: '6px 14px',
+                  padding: '10px 16px',
                   borderRadius: 6,
                   border: '1px solid #fca5a5',
                   background: 'white',
@@ -514,7 +514,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                     data-mark-complete={batch.id}
                     style={{
                       fontSize: 12,
-                      padding: '6px 14px',
+                      padding: '10px 16px',
                       borderRadius: 6,
                       border: 'none',
                       background: '#374151',
@@ -532,7 +532,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                     data-reopen={batch.id}
                     style={{
                       fontSize: 12,
-                      padding: '6px 14px',
+                      padding: '10px 16px',
                       borderRadius: 6,
                       border: '1px solid #1d4ed8',
                       background: 'white',
@@ -595,7 +595,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                       data-batch-cow-row={r.cattle_id}
                       style={{
                         border: '1px solid #f3f4f6',
-                        borderRadius: 8,
+                        borderRadius: 6,
                         padding: '8px 10px',
                         fontSize: 12,
                       }}

@@ -3,11 +3,9 @@
 // label/value grid, predictable control widths, aligned boolean controls,
 // roomy textareas, and a responsive (stacks on mobile) field row.
 //
-// FUTURE CONSUMERS (migrate onto these in a dedicated "record page visual
-// consistency" lane — do NOT refactor them here): task instance, weigh-in
-// session, cattle/sheep animal, cattle/sheep/layer processing batch, layer
-// batch + housing, equipment item, and future equipment fueling / checklist
-// record pages. The six daily record pages are the first consumers.
+// Consumers should use these instead of local record-form primitives when a
+// surface has a standard label/value edit form. Dense scan-first panels can
+// stay local when a guard documents the exception.
 
 import React from 'react';
 
@@ -85,8 +83,7 @@ export const recordCheckbox = {width: 18, height: 18, cursor: 'pointer'};
 // radius 6 (the retired 7/8 values are gone), the standard 10px 16px button pad,
 // and the canonical font-size scale. Call sites keep their own data hooks,
 // disabled logic, labels, and any layout-only override (e.g. marginTop) via a
-// spread. The six daily record pages are the first consumers; other record
-// pages migrate onto these in the same visual-consistency lane.
+// spread.
 const recordActionButtonBase = {
   padding: '10px 16px',
   borderRadius: 6,

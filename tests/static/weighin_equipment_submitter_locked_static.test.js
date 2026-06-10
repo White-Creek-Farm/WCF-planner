@@ -12,10 +12,7 @@ function stripComments(src) {
 }
 
 describe('Weigh-in and equipment fueling submitter identity is locked', () => {
-  const publicForms = [
-    'src/webforms/WeighInsWebform.jsx',
-    'src/webforms/EquipmentFuelingWebform.jsx',
-  ];
+  const publicForms = ['src/webforms/WeighInsWebform.jsx', 'src/webforms/EquipmentFuelingWebform.jsx'];
 
   for (const rel of publicForms) {
     it(`${rel} stamps the signed-in user without roster dropdowns`, () => {

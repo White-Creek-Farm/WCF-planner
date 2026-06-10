@@ -540,7 +540,7 @@ export default function EquipmentDetail({
                     style={{
                       background: bg,
                       border: '1px solid ' + bd,
-                      borderRadius: 8,
+                      borderRadius: 6,
                       padding: '8px 10px',
                       fontSize: 11,
                     }}
@@ -550,7 +550,7 @@ export default function EquipmentDetail({
                       <div
                         data-interval-size="1"
                         style={{
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: 700,
                           color: color,
                           letterSpacing: 0.3,
@@ -646,7 +646,7 @@ export default function EquipmentDetail({
           <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic'}}>No fueling entries yet.</div>
         )}
         {sortedFuelings.length > 0 && (
-          <div style={{border: '1px solid #f3f4f6', borderRadius: 8, overflow: 'hidden'}}>
+          <div style={{border: '1px solid #f3f4f6', borderRadius: 6, overflow: 'hidden'}}>
             <div
               style={{
                 display: 'grid',
@@ -1189,7 +1189,7 @@ export default function EquipmentDetail({
               {maintenance.map((m) => (
                 <div
                   key={m.id}
-                  style={{background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 14px'}}
+                  style={{background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 6, padding: '10px 14px'}}
                 >
                   <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap'}}>
                     <strong style={{fontSize: 13, color: '#111827'}}>{fmt(m.event_date)}</strong>
@@ -1394,11 +1394,11 @@ export default function EquipmentDetail({
                     transform: 'translateY(-50%)',
                     width: 48,
                     height: 64,
-                    borderRadius: 8,
+                    borderRadius: 6,
                     border: 'none',
                     background: 'rgba(255,255,255,.12)',
                     color: 'white',
-                    fontSize: 28,
+                    fontSize: 26,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                   }}
@@ -1429,11 +1429,11 @@ export default function EquipmentDetail({
                     transform: 'translateY(-50%)',
                     width: 48,
                     height: 64,
-                    borderRadius: 8,
+                    borderRadius: 6,
                     border: 'none',
                     background: 'rgba(255,255,255,.12)',
                     color: 'white',
-                    fontSize: 28,
+                    fontSize: 26,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                   }}
@@ -1450,8 +1450,8 @@ export default function EquipmentDetail({
                   transform: 'translateX(-50%)',
                   background: 'rgba(0,0,0,.65)',
                   color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: 8,
+                  padding: '10px 16px',
+                  borderRadius: 6,
                   fontSize: 12,
                   maxWidth: '80%',
                   textAlign: 'center',

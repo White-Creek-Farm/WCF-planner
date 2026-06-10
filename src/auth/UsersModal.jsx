@@ -224,7 +224,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
             style={{
               background: 'none',
               border: 'none',
-              fontSize: 24,
+              fontSize: 22,
               cursor: 'pointer',
               color: '#9ca3af',
               lineHeight: 1,
@@ -271,7 +271,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               style={{
                 background: '#ecfdf5',
                 border: '1px solid #a7f3d0',
-                borderRadius: 8,
+                borderRadius: 6,
                 padding: '10px 14px',
                 fontSize: 12,
                 color: '#065f46',
@@ -286,7 +286,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               style={{
                 background: '#fef2f2',
                 border: '1px solid #fecaca',
-                borderRadius: 8,
+                borderRadius: 6,
                 padding: '10px 14px',
                 fontSize: 12,
                 color: '#b91c1c',
@@ -304,7 +304,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                 style={{
                   background: '#f8fafc',
                   border: '1px solid #e5e7eb',
-                  borderRadius: 8,
+                  borderRadius: 6,
                   padding: '10px 14px',
                   fontSize: 11,
                   marginBottom: 14,
@@ -627,7 +627,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                 style={{
                   background: '#fffbeb',
                   border: '1px solid #fde68a',
-                  borderRadius: 8,
+                  borderRadius: 6,
                   padding: '10px 14px',
                   fontSize: 12,
                   color: '#92400e',
@@ -715,7 +715,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   width: '100%',
                   marginTop: 16,
                   padding: '10px',
-                  borderRadius: 8,
+                  borderRadius: 6,
                   border: 'none',
                   background: umLoading ? '#9ca3af' : '#085041',
                   color: 'white',

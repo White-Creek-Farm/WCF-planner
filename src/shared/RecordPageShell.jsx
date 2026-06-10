@@ -34,9 +34,9 @@ export function RecordPageFrame({Header, children, ...rest}) {
 }
 
 // Centered loading state.
-export function RecordPageLoading({Header, label = 'Loading…'}) {
+export function RecordPageLoading({Header, label = 'Loading…', ...rest}) {
   return (
-    <RecordPageFrame Header={Header}>
+    <RecordPageFrame Header={Header} {...rest}>
       <div style={{padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 14}}>{label}</div>
     </RecordPageFrame>
   );

@@ -85,22 +85,22 @@ describe('CP7: PigBatchPage adopts shared record-page controls', () => {
   });
 });
 
-// Lane E CP1 — the routed pig batch record adopts the shared RecordPageBody
-// wrapper + a locked loaded marker, WITHOUT taking over Header/frame/loading/
-// not-found ownership (those stay in PigBatchesView, which already renders the
-// combined hub/record Header). Per the ratified CP1 ruling: RecordPageBody
-// only, no RecordTitle (would duplicate the colored batch header), and no
-// RecordPageFrame/Loading/NotFound conversion.
+// Lane E closure — the routed pig batch record now owns the full shared
+// record-page frame + body + title stack while preserving the heavier pig
+// workflow. PigBatchesView remains the hub/router and composes shared
+// loading/not-found states for deep links.
 describe('Lane E: PigBatchPage owns shared record-page chrome', () => {
-  it('imports RecordPageBody from the shared record-page shell', () => {
+  it('imports the shared record-page shell primitives', () => {
     expect(src).toMatch(
-      /import\s*\{\s*RecordPageBody,\s*RecordBackLink,\s*RecordTitle\s*\}\s*from\s*'\.\.\/shared\/RecordPageShell\.jsx'/,
+      /import\s*\{\s*RecordPageFrame,\s*RecordPageBody,\s*RecordBackLink,\s*RecordTitle\s*\}\s*from\s*'\.\.\/shared\/RecordPageShell\.jsx'/,
     );
     expect(src).toContain("import RecordSequenceNav from '../shared/RecordSequenceNav.jsx'");
   });
 
-  it('wraps the loaded record content in RecordPageBody', () => {
+  it('wraps the loaded record content in RecordPageFrame and RecordPageBody', () => {
+    expect(src).toContain('<RecordPageFrame Header={Header}');
     expect(src).toContain('<RecordPageBody');
+    expect(src).toContain('</RecordPageFrame>');
     expect(src).toContain('</RecordPageBody>');
   });
 
@@ -126,11 +126,19 @@ describe('Lane E: PigBatchPage owns shared record-page chrome', () => {
     expect(body[0]).not.toContain('paddingRight: 0');
   });
 
-  it('still leaves Header/loading/not-found ownership in PigBatchesView', () => {
-    expect(src).not.toContain('RecordPageFrame');
+  it('takes Header/frame ownership for the loaded record', () => {
+    expect(src).toContain('Header={Header}');
     expect(src).not.toContain('RecordPageLoading');
     expect(src).not.toContain('RecordPageNotFound');
-    expect(src).not.toContain('Header={Header}');
+  });
+
+  it('PigBatchesView composes shared loading/not-found states without duplicating Header on records', () => {
+    const view = fs.readFileSync(path.join(ROOT, 'src/pig/PigBatchesView.jsx'), 'utf8');
+    expect(view).toContain("from '../shared/RecordPageShell.jsx'");
+    expect(view).toContain('<RecordPageLoading Header={Header}');
+    expect(view).toContain('<RecordPageNotFound');
+    expect(view).toContain('{!recordMode && <Header />}');
+    expect(view).toContain('Header={Header}');
   });
 
   it('keeps the collaboration mount inside the shared body (identity unchanged)', () => {
