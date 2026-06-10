@@ -743,6 +743,52 @@ Locked queue direction from Ronnie (2026-06-09):
 - Homepage/program KPIs should use a uniform frame with domain-specific metrics
   inside that frame.
 
+Next-session priority lanes (planned 2026-06-10):
+
+1. Codex - Pig Batch Metrics Grid Cleanup. Class: `DEFECT`/`ENH`. Size: medium.
+   Scope: Pig Batches hub only. Replace the packed sub-batch metric pills and
+   redundant `Open` column with an inspection table whose visible columns are:
+   `Batch`, `Status`, `Started Head`, `Current Head`, `Total Feed`,
+   `Feed / Pig`, `Gilts Started`, `Gilts Current`, `Gilts Total Feed`,
+   `Gilts Feed / Pig`, `Boars Started`, `Boars Current`, `Boars Total Feed`,
+   and `Boars Feed / Pig`. The whole row should open the batch record using the
+   shared openable-row hover class; do not build the global hover redesign in
+   this lane. Sort active batches newest-first so `P-27-01` appears above
+   `P-26-02`; keep processed batches at the bottom. Processed/closed batches
+   should display current head as `0` on the hub. `Feed / Pig` is the readable
+   hub label for the normalized feed metric; keep the implementation consistent
+   with the current per-started-head calculation unless Ronnie explicitly
+   reopens the formula. Preserve CSV/print/filter/saved-view behavior with the
+   new column model.
+   Success criteria: hub rows are legible at a glance, no sub-batch metric is
+   hidden in a dense chip, the latest active batch sorts first, processed current
+   counts do not show stale live head counts, and the row hover clearly signals
+   openability without an `Open` column.
+   Guard target: Pig Batch hub static guards, pure comparator/filter tests,
+   processed-current metric coverage, export/print column checks, and focused Pig
+   Batch Playwright smoke where practical. Migration/Storage/PROD gate: none
+   expected; if a live data correction is discovered, stop for Ronnie approval
+   before any PROD mutation.
+
+2. CC - Global Openable Hover Affordance. Class: `ENH`. Size: medium.
+   Scope: cross-app hover/focus polish for openable rows/cards. Formalize one
+   global `.hoverable-tile` style, or the equivalent shared class, so openable
+   operational rows and cards share the home-screen feel: pointer cursor,
+   subtle hover highlight/lift/border/shadow where appropriate,
+   `:focus-visible` keyboard affordance, and no layout shift. Audit existing
+   `className="hoverable-tile"` usage and make sure dense tables, list tiles,
+   home/dashboard tiles, and record-linked cards improve without becoming noisy.
+   Remove explicit `Open` affordances only where the whole row/card already opens
+   and the removal is safe; otherwise document remaining explicit affordances as
+   intentional follow-up. Do not redesign Pig Batch columns in this lane.
+   Success criteria: openable things across the app feel consistently clickable,
+   non-openable rows stay visually plain, keyboard users get the same affordance,
+   and the Pig Batch metrics lane can consume the shared hover class without
+   inventing a local style.
+   Guard target: global style/static guard for the hover class, representative
+   row/tile ownership guards, targeted UI smoke where practical, plus format,
+   lint, relevant static tests, and build. Migration/Storage/PROD gate: none.
+
 Sprint assignment (executed 2026-06-08): the CC Sprints 1 + 2 (Lane 0
 correctness, Lane A audit/RPC atomicity) and Codex Sprints 3 + 4 (Lanes B/C +
 D/E, plus the F/G/K slices) shipped in the seven-lane integration above. Those
