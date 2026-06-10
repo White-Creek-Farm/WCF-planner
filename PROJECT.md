@@ -7,20 +7,21 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-09.
-Current pushed source checkpoint: `origin/main` commit `ab39eb2` - integrated
-ship of three lanes on top of the `2c421f2` pig-ops/record-nav merge: Lane A
-remaining audited destructive flows (cascade-delete SECDEF RPCs, migrations
-`106`-`108`, plus best-effort pig/broiler/layer/sheep Activity emissions),
-Lane K operational export/print parity (shared `operationalExportColumns.js`
-column owner across 7 hubs), and the Light portal design parity + admin
-role-preview tool. Earlier this session: the CC five-lane UX batch +
-recurring-task RPC (`3d98701`, migration `105`) and the Codex
-pig-ops/record-nav/breeding/export + source-derived trip-metrics merge
-(`2c421f2`). Netlify auto-deploys from GitHub `main`; `ab39eb2` was
-live-verified on 2026-06-09 by asset-hash rotation to `assets/main--Ra4Hm4n.js`
-(matching the local build).
-Migration series live through 108.
+Last updated: 2026-06-10.
+Current pushed checkpoint: `origin/main` commit `d7fc2c9` (all source pushed; no
+docs-vs-code split). On top of the `ab39eb2` three-lane ship, 2026-06-10 pushed
+two integrations: (1) two power-failure-recovery lanes — source-wide
+record/shared/auth visual-token closure + the Pig Batches unified inspection grid
+(`b192a2a`, merged `434c6b3`), and the daily-photo anon-policy drop (migration
+`109`) + roster-teardown cleanup (`44be516`, merged `a3e6220`); and (2)
+operational-list parity — right-sized search/filter/sort/saved-views + filtered
+CSV/print across six hubs (Pig, Cattle, Broiler, Layer, Sheep Batches +
+Equipment Fleet; Layer + Sheep also converted cards→unified grid) (`21a4532`,
+merged `6b650aa`), plus the scoped modal/action token closure, Lane E/I
+(`49a94f9`, merged `d7fc2c9`). Netlify auto-deploys from GitHub `main`; `d7fc2c9`
+was live-verified on 2026-06-10 by asset-hash rotation to
+`assets/main-CkhY001g.js` (matching the local build).
+Migration series live through 109 (`109` PROD-applied 2026-06-10).
 Production URL: https://wcfplanner.com.
 
 ---
@@ -165,25 +166,31 @@ plus a guard update in the same change.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Pushed source of truth: `origin/main` at `ab39eb2`. On top of the prior
-  `5dde0fe`/`52c513a` wrap, 2026-06-09 shipped, in order: the CC five-lane UX
-  batch + recurring-task RPC (`3d98701`, migration `105`); the Codex
-  pig-ops/record-nav/breeding/export + source-derived trip-metrics work
-  (`bff16e2`, merged `2c421f2`); Lane A remaining audited destructive flows
-  (`8492fd9`, migrations `106`-`108`); Lane K operational export/print parity
-  (`1dec915`, merged `77e94c9`); and the Light portal design parity + admin
-  role-preview tool (`8e3a63c`, merged `ab39eb2`). Migrations `105`-`108` were
-  applied to PROD and verified this session (see the migration bullets below).
-- Live verification: `https://wcfplanner.com/` served `assets/main--Ra4Hm4n.js`
-  after the `ab39eb2` push (asset-hash rotation from `main-Cmt3W9ui.js`),
-  matching the local build and confirming the runtime deployed, not merely that
-  `origin/main` advanced.
+- Current `origin/main`: `d7fc2c9` (all source pushed; no docs-vs-code split). On
+  top of the `ab39eb2` three-lane ship, 2026-06-10 pushed: the two
+  power-failure-recovery lanes (record/shared/auth token closure + Pig Batches
+  unified grid, `b192a2a`→`434c6b3`; daily-photo anon-policy drop migration `109`
+  + roster cleanup, `44be516`→`a3e6220`), then operational-list parity across six
+  hubs (`21a4532`→`6b650aa`) and the scoped modal/action token closure, Lane E/I
+  (`49a94f9`→`d7fc2c9`). See Latest Shipped Checkpoint for per-lane detail.
+- Live verification: `https://wcfplanner.com/` served `assets/main-CkhY001g.js`
+  after the `d7fc2c9` push (asset-hash rotation), matching the local build and
+  confirming the runtime deployed, not merely that `origin/main` advanced.
 - Integrated-`main` validation before the final push: `npm run lint` 0 errors,
-  `npm test` 198 files / 5335 passed, `npm run build` green.
-- Local main dirty state after this wrap: only untracked local artifacts remain —
-  the homepage design reference folder (`WCF Planner Redesign/`) and the
-  throwaway before/after screenshot folders (`cp4-shots/`, `lanee-shots/`). None
-  are production source; all are intentionally excluded from commits.
+  `npm test` 206 files / 5485 passed, `npm run build` green.
+- Local main dirty state: only untracked local artifacts remain — the homepage
+  design reference folder (`WCF Planner Redesign/`) and throwaway screenshot
+  folders (`cp4-shots/`, `lanee-shots/`). None are production source; all are
+  intentionally excluded from commits.
+- Migration `109` (`drop_daily_photos_anon_insert`) applied to TEST (`exec_sql`)
+  then PROD (`psql --single-transaction`, `ON_ERROR_STOP=1`) and verified
+  2026-06-10: precheck found all three daily-photos storage policies present; the
+  apply dropped only the dead anon-insert policy (the daily-report forms are
+  login-required — uploads run authenticated under `daily_photos_auth_insert`
+  (`099`), signed-URL reads under `daily_photos_auth_select` (`031`)); postcheck
+  confirms `daily_photos_anon_insert` absent and both auth policies present. Zero
+  runtime code impact; an authenticated daily-photo upload round-trip passed on
+  TEST with the anon policy dropped.
 - Migrations `105`-`108` applied to PROD and verified 2026-06-09: `105`
   `create_recurring_task_template` (non-admin recurring-task creation via the New
   Task modal); `106` `delete_layer_batch`, `107` `delete_fuel_bill`, `108`
@@ -194,14 +201,16 @@ plus a guard update in the same change.
   children gone + one `record.deleted` audit) inside a rolled-back transaction
   (zero PROD trace). `106` auth-gated, `107` admin-gated, `108` authenticated
   (mirrors each surface's existing access).
-- Parallel worktrees: `C:\Users\Ronni\WCF-planner-codex` and
-  `C:\Users\Ronni\WCF-planner-light-audit` both sit detached at `ab39eb2` after
-  branch cleanup (all merged `codex/*` lane branches pruned). Start a new
-  parallel lane by creating a fresh `codex/<lane>` branch from current `main` in
-  a worktree.
-- Open code gates: none for `origin/main` at `ab39eb2`. No PROD migration,
-  Storage, Vault, or Edge Function deploy gate is open.
-- PROD-applied numbered migration series is live through `108`. Migration `082`
+- Parallel worktrees: only the primary `C:\Users\Ronni\WCF-planner` (`main`) and
+  `C:\Users\Ronni\WCF-planner-light-audit` (detached at `ab39eb2`) remain; the
+  four merged feature worktrees/branches from this session
+  (`cc/operational-list-parity-sprint`, `codex/record-token-parity-sprint`,
+  `cc/list-export-closure`, `codex/record-token-closure`) were pruned after
+  merge. Start a new parallel lane by creating a fresh scoped branch from current
+  `main` in a worktree.
+- Open code gates: none for `origin/main` `d7fc2c9`. No PROD migration, Storage,
+  Vault, or Edge Function deploy gate is open.
+- PROD-applied numbered migration series is live through `109`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
   cleanup `085` was applied before unique-index migration `084`.
 - Migration `100` (`processing_batch_lifecycle_rpcs`) was applied to TEST
@@ -268,6 +277,44 @@ Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
 work:
 
+- Operational-list parity + modal token closure, pushed `origin/main` `d7fc2c9`
+  (2026-06-10). Code/tests only; no migration/storage/Vault/deploy. Two
+  integrated lanes, disjoint files, conflict-free:
+  - Six-hub operational-list parity (`21a4532`, merged `6b650aa`): right-sized
+    search/filter/sort + saved views + filtered CSV/print on Pig Batches
+    (`pig.batches`), Cattle Batches (`cattle.batches`), Broiler Batches
+    (`broiler.batches`), Layer Batches (`layer.batches`), Sheep Batches
+    (`sheep.batches`), and Equipment Fleet (`equipment.fleet`). Layer + Sheep
+    Batches converted cards→unified inspection grid. Per-hub pure filter libs
+    (`src/lib/{pig,cattle,broiler,layer,sheep}BatchFilters.js`,
+    `equipmentFleetFilters.js`) own the predicate + single-rule comparator;
+    saved views use the existing `app_saved_views` table + `savedViewsApi` with
+    new `surface_key` strings (no migration). Broiler + Layer exports refactored
+    from hard-coded subsets to the filtered+sorted set; Cattle Batch export count
+    restored to attached-detail-rows only (Lane K parity with sheep); Equipment
+    Fleet fuel-type filter uses the canonical `gasoline` value; Equipment Fuel
+    Log gained a Retry on saved-views load failure. Validation: lint 0 errors,
+    `npm test` 206 files / 5485 passed, build green, per-hub sequence-nav
+    Playwright all pass.
+  - Scoped modal/action token closure, Lane E/I (`49a94f9`, merged `d7fc2c9`):
+    `taskModalStyles` extended to own the recurring/system task modal + lightbox
+    tokens; the admin/cattle/sheep/pig/equipment action modals spread the shared
+    `recordSaveButton`/`recordSecondaryButton` tokens (existing colors preserved
+    via background overrides); cattle send-modal panels move retired radius `8`→
+    `6`. Guards: `modal_action_tokens_static`, `task_modal_tokens_static`.
+- Power-failure-recovery lanes, pushed `origin/main` `a3e6220` (2026-06-10).
+  - Record/shared/auth token closure + Pig Batches unified grid (`b192a2a`,
+    merged `434c6b3`): canonical font/radius conformance across 23
+    record/shared/auth surfaces (guard `record_page_token_closure_static`); the
+    Pig Batches hub redesigned from Active|Processed swimlanes into one unified
+    vertical inspection grid (`PigBatchHubTile` card→row, shared
+    `PIG_BATCH_GRID_COLUMNS`, active-first/processed-bottom sort).
+  - Daily-photo anon-policy drop (migration `109`) + roster-teardown cleanup
+    (`44be516`, merged `a3e6220`): drops the dead `daily_photos_anon_insert`
+    storage policy (PROD-applied + verified 2026-06-10 — see Current State);
+    removes the obsolete broiler `T_negative` runtime app_store-isolation test
+    (source isolation still locked by `weighinswebform_no_app_store`);
+    comment-only updates to the daily-photo upload helpers.
 - Lane A audited-delete RPCs + Codex five-lane shared primitives, pushed source
   checkpoint `5dde0fe` (2026-06-09). PROD migrations `101`-`104` applied +
   verified (detail under Current State). Integrated validation before the final
@@ -531,18 +578,19 @@ work:
 
 ### Current Local Gates
 
-No PROD migration, storage, deploy, Vault, commit, push, or merge gate is open
-for committed source as of `origin/main` `ab39eb2`.
+No PROD migration, storage, deploy, Vault, commit, push, or merge gate is open as
+of `origin/main` `d7fc2c9`.
 
-- Main CC worktree `C:\Users\Ronni\WCF-planner` is on `main` at
-  `origin/main` `ab39eb2`. The only untracked local artifacts are the homepage
-  design reference folder (`WCF Planner Redesign/`) and throwaway screenshot
-  folders (`cp4-shots/`, `lanee-shots/`).
-- Parallel worktrees `C:\Users\Ronni\WCF-planner-codex` and
-  `C:\Users\Ronni\WCF-planner-light-audit` are both detached at `ab39eb2` after
-  this session's branch cleanup — all merged `codex/*` lane branches were pruned,
-  so only `main` remains. Create a fresh `codex/<lane>` branch from current
-  `main` in a worktree for the next parallel build lane.
+- Main CC worktree `C:\Users\Ronni\WCF-planner` is on `main` at `origin/main`
+  `d7fc2c9`. The only untracked local artifacts are the homepage design reference
+  folder (`WCF Planner Redesign/`) and throwaway screenshot folders
+  (`cp4-shots/`, `lanee-shots/`).
+- Only one parallel worktree remains: `C:\Users\Ronni\WCF-planner-light-audit`
+  (detached at `ab39eb2`). The four feature worktrees/branches from this session
+  (`cc/operational-list-parity-sprint`, `codex/record-token-parity-sprint`,
+  `cc/list-export-closure`, `codex/record-token-closure`) were pruned after
+  merge. Create a fresh scoped branch from current `main` in a worktree for the
+  next parallel build lane.
 
 If a new session sees additional dirty state, inspect it before planning; do not
 assume it is disposable. Create new scoped worktrees/branches only for active
@@ -611,8 +659,23 @@ non-daily record pages (Lane E CP4); and shared
 `src/shared/OperationalListEmptyState.jsx` adopted by six daily list hubs with
 row rendering gated behind successful load + nonempty filtered rows (Lane F CP3).
 UI preview (desktop + mobile) was captured and approved before merge.
-Shipped 2026-06-09 (this session, now on `origin/main` `ab39eb2`; visual preview
-waived by Ronnie for this push):
+Shipped 2026-06-10 (this session, pushed `origin/main` `d7fc2c9`):
+- Power-failure recovery: source-wide record/shared/auth visual-token closure +
+  the Pig Batches swimlanes→unified-inspection-grid redesign (`b192a2a`); the
+  daily-photo dead anon-policy drop (migration `109`, PROD-applied) + roster
+  cleanup (`44be516`).
+- Lane F + Lane K six-hub operational-list parity: right-sized search/filter/sort
+  + saved views (new `app_saved_views` surface_keys `pig.batches` / `cattle.batches`
+  / `broiler.batches` / `layer.batches` / `sheep.batches` / `equipment.fleet`, no
+  migration) + filtered CSV/print, via per-hub pure filter libs; Layer + Sheep
+  Batches converted cards→unified grid; Equipment Fuel Log saved-views Retry
+  (`21a4532`).
+- Lane E/I scoped modal/action token closure across the task + weigh-in +
+  send-to-processor + equipment modals (`49a94f9`).
+Detail in Latest Shipped Checkpoint above; six-hub visual screenshots waived by
+Ronnie.
+Shipped 2026-06-09 (this session, code checkpoint `ab39eb2`, followed by docs
+wrap `b5f433d`; visual preview waived by Ronnie for this push):
 - Lane 15 Tasks creation/public config: Public Tasks assignee checkbox grid;
   New Task modal One-time/Recurring toggle, recurring available to all
   authenticated roles except Light via the new `create_recurring_task_template`
@@ -758,11 +821,18 @@ below.
    weigh-in list primitives (`3e18623`): `src/shared/WeighInSessionListTile.jsx`
    and the `src/lib/weighInSessionExports.js` column builders de-duplicate the
    cattle/sheep/livestock session tiles and CSV/print columns.
-   Remaining: extract the remaining drifting row/tile primitives beyond weigh-ins,
-   add search/sort/saved views only to high-repeat operational lists, standardize
-   filtered/empty states where gaps are found, and defer real AI filter/sort
-   work until deterministic list parity is done. Any later AI filter/sort must
-   suggest changes with explicit preview/apply behavior.
+   Shipped 2026-06-10 (`21a4532`): right-sized search/filter/sort + saved views +
+   filtered CSV/print on the six high-repeat hubs — Pig/Cattle/Broiler/Layer/Sheep
+   Batches + Equipment Fleet. Per-hub pure filter libs
+   (`src/lib/{pig,cattle,broiler,layer,sheep}BatchFilters.js`,
+   `equipmentFleetFilters.js`); new `app_saved_views` surface_keys (no migration);
+   Layer + Sheep Batches converted cards→unified grid. Per-hub filter static
+   guards added.
+   Remaining: extract any remaining drifting row/tile primitives beyond weigh-ins,
+   add search/sort/saved views only to any further high-repeat operational lists,
+   standardize filtered/empty states where gaps are found, and defer real AI
+   filter/sort work until deterministic list parity is done. Any later AI
+   filter/sort must suggest changes with explicit preview/apply behavior.
    Guard target: per-surface filter/sort tests, saved-view tests, and static
    shared-row/empty-state guards.
 8. Lane G - Restore/recovery surface. SHIPPED 2026-06-08.
@@ -795,11 +865,16 @@ below.
     retired 7/8 radii and bespoke action padding and normalizing Sheep Save from
     blue to brand green (`daily_record_pages_shared_controls_static.test.js`
     action-button slice).
-    Remaining: strict source-wide typography/radius/color drift cleanup outside
-    the shipped shared primitives and documented exceptions; visible UI changes
-    need targeted screenshots. Any future homepage visual changes should
-    preserve the approved `.home.theme-crisp` composition unless Ronnie reopens
-    the design.
+    Shipped 2026-06-10: source-wide record/shared/auth visual-token closure
+    (`b192a2a`, guard `record_page_token_closure_static`) across 23 surfaces, plus
+    the scoped modal/action token closure (`49a94f9`, Lane E/I — the task /
+    weigh-in / send-to-processor / equipment modals adopt shared
+    `recordSaveButton` / `recordSecondaryButton`; guards `modal_action_tokens_static`,
+    `task_modal_tokens_static`).
+    Remaining: any residual source-wide typography/radius/color drift outside the
+    shipped shared primitives and documented exceptions; visible UI changes need
+    targeted screenshots. Any future homepage visual changes should preserve the
+    approved `.home.theme-crisp` composition unless Ronnie reopens the design.
     Guard target: typography, radius, button-control, z-index, shared-ui/token
     static guards, plus targeted visual Playwright/screenshots where needed.
 11. Lane J - Cross-cutting product and accessibility policy. PARTIAL; the
@@ -832,6 +907,11 @@ below.
     weigh-in column builders (`3e18623`): `src/lib/weighInSessionExports.js` owns
     the ruminant + livestock weigh-in session CSV/print column specs, consumed by
     the cattle/sheep/livestock views (still exporting the filtered set).
+    Shipped 2026-06-10 (`21a4532`): the six operational hubs now export the
+    VISIBLE filtered+sorted rows — Broiler + Layer Batch exports refactored off
+    their hard-coded subsets, and the Cattle Batch export count restored to
+    attached-detail-rows only (parity with sheep). All via the existing shared
+    `csvExport`/`printExport` + `operationalExportColumns` owners.
     Remaining: extend the shared CSV/print model only to remaining operational
     or reporting surfaces where export supports work, billing, feed, records, or
     audit. Keep permissions bounded to RLS-visible rows, use shared column specs
