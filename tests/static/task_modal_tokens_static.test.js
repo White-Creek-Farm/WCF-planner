@@ -8,12 +8,15 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const taskModalStyles = read('src/tasks/taskModalStyles.js');
-const CORE_TASK_MODALS = [
+const TOKENIZED_TASK_MODALS = [
   'src/tasks/NewTaskModal.jsx',
   'src/tasks/CompleteTaskModal.jsx',
   'src/tasks/EditDueDateModal.jsx',
   'src/tasks/AssignTaskModal.jsx',
   'src/tasks/DeleteTaskModal.jsx',
+  'src/tasks/RecurringTemplateModal.jsx',
+  'src/tasks/SystemRuleEditModal.jsx',
+  'src/tasks/TaskPhotoLightbox.jsx',
 ];
 
 describe('Lane I CP5 task modal token cleanup', () => {
@@ -22,14 +25,20 @@ describe('Lane I CP5 task modal token cleanup', () => {
       'taskModalOverlay',
       'taskModalPanel',
       'taskModalSmallPanel',
+      'taskModalSystemRulePanel',
       'taskModalFieldLabel',
       'taskModalInput',
+      'taskModalReadOnlyBlock',
       'taskModalPrimaryButton',
       'taskModalDangerButton',
       'taskModalGhostButton',
       'taskModalErrorNotice',
       'taskModalHistoryRow',
       'taskModalSubtleText',
+      'taskPhotoLightboxOverlay',
+      'taskPhotoLightboxPanel',
+      'taskPhotoLightboxButton',
+      'taskPhotoLightboxFrame',
     ]) {
       expect(taskModalStyles).toContain(`export const ${name}`);
     }
@@ -38,7 +47,7 @@ describe('Lane I CP5 task modal token cleanup', () => {
     expect(taskModalStyles).toContain('borderRadius: 6');
   });
 
-  for (const rel of CORE_TASK_MODALS) {
+  for (const rel of TOKENIZED_TASK_MODALS) {
     it(`${rel} consumes taskModalStyles instead of local modal token copies`, () => {
       const src = read(rel);
       expect(src).toContain("from './taskModalStyles.js'");
@@ -51,6 +60,7 @@ describe('Lane I CP5 task modal token cleanup', () => {
         'const BTN_GHOST = {',
         'const BTN_DANGER = {',
         'const SUB = {',
+        'const BTN = {',
       ]) {
         expect(src).not.toContain(oldLocalName);
       }

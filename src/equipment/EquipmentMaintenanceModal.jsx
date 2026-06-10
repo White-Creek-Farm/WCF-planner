@@ -5,6 +5,7 @@ import React from 'react';
 import {EQUIPMENT_COLOR} from '../lib/equipment.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import {imageAltText} from '../lib/imageAlt.js';
+import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 export default function EquipmentMaintenanceModal({sb, equipment, existing, authState, onClose, onSaved}) {
   const [form, setForm] = React.useState(
@@ -304,14 +305,8 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
           <button
             onClick={onClose}
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
+              ...recordSecondaryButton,
               color: '#6b7280',
-              fontSize: 13,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -320,15 +315,10 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
             onClick={save}
             disabled={saving || uploading}
             style={{
-              padding: '8px 20px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background: saving || uploading ? '#9ca3af' : EQUIPMENT_COLOR,
-              color: 'white',
-              fontWeight: 600,
-              fontSize: 13,
               cursor: saving || uploading ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {saving ? 'Saving…' : existing ? 'Save' : 'Add Event'}

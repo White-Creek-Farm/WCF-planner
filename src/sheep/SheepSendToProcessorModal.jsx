@@ -12,6 +12,7 @@
 import React from 'react';
 import {createProcessingBatch, attachEntriesToBatch} from '../lib/sheepProcessingBatch.js';
 import {attachSheepToProcessingBatch} from '../lib/processingAttachApi.js';
+import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 export default function SheepSendToProcessorModal({
   sb,
@@ -280,15 +281,8 @@ export default function SheepSendToProcessorModal({
             onClick={onCancel}
             disabled={busy}
             style={{
-              padding: '8px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#374151',
-              fontWeight: 600,
-              fontSize: 12,
+              ...recordSecondaryButton,
               cursor: busy ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -299,21 +293,17 @@ export default function SheepSendToProcessorModal({
               busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
             }
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background:
                 busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
                   ? '#9ca3af'
                   : '#0f766e',
-              color: 'white',
               fontWeight: 700,
-              fontSize: 12,
               cursor:
                 busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
                   ? 'not-allowed'
                   : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {busy ? 'Attaching…' : 'Send to processor'}

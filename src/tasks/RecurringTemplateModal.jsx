@@ -17,58 +17,15 @@ import React from 'react';
 import {upsertRecurringTaskTemplate, updateRecurringTaskTemplate} from '../lib/tasksCenterMutationsApi.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 import {RECURRENCE_OPTIONS} from '../lib/tasks.js';
-
-const OVERLAY = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,.5)',
-  zIndex: 250,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 16,
-};
-const PANEL = {
-  background: 'white',
-  borderRadius: 12,
-  padding: 18,
-  width: 'min(560px, 96vw)',
-  maxHeight: '92vh',
-  overflowY: 'auto',
-  fontFamily: 'inherit',
-};
-const FIELD_LABEL = {fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block'};
-const INPUT = {
-  width: '100%',
-  padding: '8px 10px',
-  border: '1px solid #d1d5db',
-  borderRadius: 8,
-  fontSize: 14,
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-};
-const BTN_PRIMARY = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #085041',
-  background: '#085041',
-  color: 'white',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  fontFamily: 'inherit',
-};
-const BTN_GHOST = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  background: 'white',
-  color: '#374151',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 500,
-  fontFamily: 'inherit',
-};
+import {
+  taskModalErrorNotice,
+  taskModalFieldLabel as FIELD_LABEL,
+  taskModalGhostButton as BTN_GHOST,
+  taskModalInput as INPUT,
+  taskModalOverlay as OVERLAY,
+  taskModalPanel as PANEL,
+  taskModalPrimaryButton as BTN_PRIMARY,
+} from './taskModalStyles.js';
 
 // Canonical recurrence labels — derived from RECURRENCE_OPTIONS
 // (src/lib/tasks.js) so the dropdown always shows every value the
@@ -385,18 +342,7 @@ export default function RecurringTemplateModal({
         </div>
 
         {err && (
-          <div
-            data-recurring-template-error="1"
-            style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#991b1b',
-              padding: '8px 12px',
-              borderRadius: 8,
-              marginTop: 12,
-              fontSize: 13,
-            }}
-          >
+          <div data-recurring-template-error="1" style={taskModalErrorNotice}>
             {err}
           </div>
         )}
