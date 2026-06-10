@@ -23,6 +23,7 @@ import {createProcessingBatch, attachEntriesToBatch, promoteScheduledBatch} from
 import {attachCattleToProcessingBatch} from '../lib/processingAttachApi.js';
 import {buildForecast, checkProcessorGate} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
+import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 export default function CattleSendToProcessorModal({
   sb,
@@ -246,7 +247,7 @@ export default function CattleSendToProcessorModal({
               padding: '10px 12px',
               border: '1px solid #fca5a5',
               borderLeft: '4px solid #991b1b',
-              borderRadius: 8,
+              borderRadius: 6,
               background: '#fef2f2',
               marginBottom: 12,
             }}
@@ -268,7 +269,7 @@ export default function CattleSendToProcessorModal({
           <div
             style={{
               padding: '10px 12px',
-              borderRadius: 8,
+              borderRadius: 6,
               background: '#fef2f2',
               border: '1px solid #fca5a5',
               color: '#991b1b',
@@ -287,7 +288,7 @@ export default function CattleSendToProcessorModal({
             data-send-modal-outside-reason={isEmptyScheduled ? 'empty_scheduled' : 'outside_projection'}
             style={{
               padding: '10px 12px',
-              borderRadius: 8,
+              borderRadius: 6,
               background: '#fffbeb',
               border: '1px solid #fde68a',
               color: '#92400e',
@@ -355,15 +356,8 @@ export default function CattleSendToProcessorModal({
             onClick={onCancel}
             disabled={busy}
             style={{
-              padding: '8px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#374151',
-              fontWeight: 600,
-              fontSize: 12,
+              ...recordSecondaryButton,
               cursor: busy ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -373,15 +367,11 @@ export default function CattleSendToProcessorModal({
             disabled={busy || loading || hardBlocked || !canSend}
             data-send-modal-confirm
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background: busy || loading || hardBlocked || !canSend ? '#9ca3af' : '#991b1b',
-              color: 'white',
               fontWeight: 700,
-              fontSize: 12,
               cursor: busy || loading || hardBlocked || !canSend ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {busy ? 'Attaching…' : 'Send to processor'}

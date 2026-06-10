@@ -10,7 +10,7 @@ import React from 'react';
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
-import {LockedTeamMemberField} from './recordPageControls.jsx';
+import {LockedTeamMemberField, recordSaveButton, recordSecondaryButton} from './recordPageControls.jsx';
 const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
   const {useState, useEffect} = React;
   const lockedTeamName =
@@ -202,15 +202,8 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
             onClick={onClose}
             disabled={busy}
             style={{
-              padding: '8px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#374151',
-              fontWeight: 600,
-              fontSize: 12,
+              ...recordSecondaryButton,
               cursor: busy ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -219,15 +212,11 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
             onClick={create}
             disabled={busy || !team || !batchId}
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background: busy || !team || !batchId ? '#9ca3af' : '#1e40af',
-              color: 'white',
               fontWeight: 700,
-              fontSize: 12,
               cursor: busy || !team || !batchId ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {busy ? 'Creating\u2026' : 'Create Weigh-In'}

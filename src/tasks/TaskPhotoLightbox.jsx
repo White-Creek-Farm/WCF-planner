@@ -13,38 +13,12 @@ import React from 'react';
 import {loadTaskInstancePhotos} from '../lib/tasksCenterApi.js';
 import {getCenterRequestPhotoSignedUrl, getCenterCompletionPhotoSignedUrl} from '../lib/tasksCenterMutationsApi.js';
 import {imageAltText} from '../lib/imageAlt.js';
-
-const OVERLAY = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,.8)',
-  zIndex: 300,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexDirection: 'column',
-  padding: 16,
-};
-const PANEL = {
-  background: 'white',
-  borderRadius: 12,
-  padding: 16,
-  maxWidth: 'min(900px, 96vw)',
-  maxHeight: '92vh',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-};
-const BTN = {
-  padding: '6px 12px',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  background: 'white',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 500,
-  fontFamily: 'inherit',
-};
+import {
+  taskPhotoLightboxButton as BTN,
+  taskPhotoLightboxFrame,
+  taskPhotoLightboxOverlay as OVERLAY,
+  taskPhotoLightboxPanel as PANEL,
+} from './taskModalStyles.js';
 const KIND_LABEL = {creation: 'Request photo', completion: 'Completion photo'};
 
 function fallbackPhotosFromRow(task) {
@@ -188,19 +162,7 @@ export default function TaskPhotoLightbox({sb, task, isOpen, onClose}) {
 
         {!loading && total > 0 && current && (
           <>
-            <div
-              data-lightbox-photo-kind={current.kind}
-              style={{
-                background: '#0b0b0b',
-                borderRadius: 8,
-                padding: 8,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: 240,
-                maxHeight: '70vh',
-              }}
-            >
+            <div data-lightbox-photo-kind={current.kind} style={taskPhotoLightboxFrame}>
               {url === undefined ? (
                 <div style={{color: '#d1d5db', fontSize: 13}}>Loading photo…</div>
               ) : url ? (

@@ -28,6 +28,11 @@ export const taskModalSmallPanel = {
   width: 'min(480px, 96vw)',
 };
 
+export const taskModalSystemRulePanel = {
+  ...taskModalSmallPanel,
+  width: 'min(520px, 96vw)',
+};
+
 export const taskModalFieldLabel = {
   fontSize: 12,
   fontWeight: 600,
@@ -44,6 +49,16 @@ export const taskModalInput = {
   fontSize: 14,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
+};
+
+export const taskModalReadOnlyBlock = {
+  background: '#f9fafb',
+  border: '1px solid #e5e7eb',
+  borderRadius: 6,
+  padding: '8px 12px',
+  fontSize: 13,
+  color: '#374151',
+  marginBottom: 10,
 };
 
 const taskModalButtonBase = {
@@ -96,3 +111,37 @@ export const taskModalHistoryRow = {
 };
 
 export const taskModalSubtleText = {fontSize: 12, color: '#6b7280'};
+
+export const taskPhotoLightboxOverlay = {
+  ...taskModalOverlay,
+  background: 'rgba(0,0,0,.8)',
+  zIndex: 300,
+  flexDirection: 'column',
+};
+
+export const taskPhotoLightboxPanel = {
+  background: 'white',
+  borderRadius: 10,
+  padding: 16,
+  maxWidth: 'min(900px, 96vw)',
+  maxHeight: '92vh',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+};
+
+export const taskPhotoLightboxButton = {
+  ...taskModalGhostButton,
+  fontWeight: 500,
+};
+
+export const taskPhotoLightboxFrame = {
+  background: '#0b0b0b',
+  borderRadius: 10,
+  padding: 8,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 240,
+  maxHeight: '70vh',
+};

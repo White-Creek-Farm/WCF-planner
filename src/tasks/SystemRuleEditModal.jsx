@@ -9,66 +9,17 @@
 
 import React from 'react';
 import {updateSystemTaskRule} from '../lib/tasksCenterMutationsApi.js';
-
-const OVERLAY = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,.5)',
-  zIndex: 250,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 16,
-};
-const PANEL = {
-  background: 'white',
-  borderRadius: 12,
-  padding: 18,
-  width: 'min(520px, 96vw)',
-  fontFamily: 'inherit',
-};
-const FIELD_LABEL = {fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block'};
-const READ_ONLY_BLOCK = {
-  background: '#f9fafb',
-  border: '1px solid #e5e7eb',
-  borderRadius: 8,
-  padding: '8px 12px',
-  fontSize: 13,
-  color: '#374151',
-  marginBottom: 10,
-};
-const INPUT = {
-  width: '100%',
-  padding: '8px 10px',
-  border: '1px solid #d1d5db',
-  borderRadius: 8,
-  fontSize: 14,
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-};
-const BTN_PRIMARY = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #085041',
-  background: '#085041',
-  color: 'white',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  fontFamily: 'inherit',
-};
-const BTN_GHOST = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  background: 'white',
-  color: '#374151',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 500,
-  fontFamily: 'inherit',
-};
-const SUB = {fontSize: 12, color: '#6b7280'};
+import {
+  taskModalErrorNotice,
+  taskModalFieldLabel as FIELD_LABEL,
+  taskModalGhostButton as BTN_GHOST,
+  taskModalInput as INPUT,
+  taskModalOverlay as OVERLAY,
+  taskModalPrimaryButton as BTN_PRIMARY,
+  taskModalReadOnlyBlock as READ_ONLY_BLOCK,
+  taskModalSubtleText as SUB,
+  taskModalSystemRulePanel as PANEL,
+} from './taskModalStyles.js';
 
 export default function SystemRuleEditModal({sb, isOpen, rule, profilesById, onClose, onSaved}) {
   const [assigneeId, setAssigneeId] = React.useState('');
@@ -217,18 +168,7 @@ export default function SystemRuleEditModal({sb, isOpen, rule, profilesById, onC
         </div>
 
         {err && (
-          <div
-            data-system-rule-error="1"
-            style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#991b1b',
-              padding: '8px 12px',
-              borderRadius: 8,
-              marginTop: 12,
-              fontSize: 13,
-            }}
-          >
+          <div data-system-rule-error="1" style={taskModalErrorNotice}>
             {err}
           </div>
         )}

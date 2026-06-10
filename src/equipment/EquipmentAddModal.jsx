@@ -5,6 +5,7 @@
 // /fueling reads the equipment table directly.
 import React from 'react';
 import {EQUIPMENT_COLOR, EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
+import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 export default function EquipmentAddModal({sb, onClose, onCreated}) {
   const [form, setForm] = React.useState({
@@ -255,14 +256,8 @@ export default function EquipmentAddModal({sb, onClose, onCreated}) {
           <button
             onClick={onClose}
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
+              ...recordSecondaryButton,
               color: '#6b7280',
-              fontSize: 13,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -271,15 +266,10 @@ export default function EquipmentAddModal({sb, onClose, onCreated}) {
             onClick={save}
             disabled={saving || !form.name.trim()}
             style={{
-              padding: '8px 20px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background: saving || !form.name.trim() ? '#9ca3af' : EQUIPMENT_COLOR,
-              color: 'white',
-              fontWeight: 600,
-              fontSize: 13,
               cursor: saving || !form.name.trim() ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {saving ? 'Creating…' : 'Create Equipment'}

@@ -25,6 +25,7 @@ import React from 'react';
 import {fmt, todayCentralISO} from '../lib/dateUtils.js';
 import {pigSlug} from '../lib/pig.js';
 import {reconcilePlannedTripsForSend} from '../lib/pigForecast.js';
+import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 function resolveSourceSub(session, feederGroups) {
   if (!session || !session.batch_id) return null;
@@ -228,15 +229,8 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
             onClick={onClose}
             disabled={busy}
             style={{
-              padding: '8px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#374151',
-              fontWeight: 600,
-              fontSize: 12,
+              ...recordSecondaryButton,
               cursor: busy ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -246,15 +240,11 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
             onClick={go}
             disabled={busy || !!blockerError || !recon}
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background: busy || !!blockerError || !recon ? '#9ca3af' : '#047857',
-              color: 'white',
               fontWeight: 700,
-              fontSize: 12,
               cursor: busy || !!blockerError || !recon ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {busy ? 'Sending…' : 'Send'}

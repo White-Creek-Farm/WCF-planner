@@ -5,7 +5,7 @@ import React from 'react';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
-import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
+import {LockedTeamMemberField, recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
   const {useState, useEffect} = React;
@@ -136,15 +136,8 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
             onClick={onClose}
             disabled={busy}
             style={{
-              padding: '8px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#374151',
-              fontWeight: 600,
-              fontSize: 12,
+              ...recordSecondaryButton,
               cursor: busy ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -153,15 +146,11 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
             onClick={create}
             disabled={busy || !team || !herd}
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background: busy || !team || !herd ? '#9ca3af' : '#0f766e',
-              color: 'white',
               fontWeight: 700,
-              fontSize: 12,
               cursor: busy || !team || !herd ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {busy ? 'Creating…' : 'Create Session'}

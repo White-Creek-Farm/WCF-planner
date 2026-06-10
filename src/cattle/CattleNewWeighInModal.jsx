@@ -6,7 +6,7 @@
 // ============================================================================
 import React from 'react';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
-import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
+import {LockedTeamMemberField, recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 const CattleNewWeighInModal = ({onClose, onCreate, authState}) => {
   const {useState, useEffect} = React;
   const lockedTeamName =
@@ -126,15 +126,8 @@ const CattleNewWeighInModal = ({onClose, onCreate, authState}) => {
             onClick={onClose}
             disabled={busy}
             style={{
-              padding: '8px 14px',
-              borderRadius: 7,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#374151',
-              fontWeight: 600,
-              fontSize: 12,
+              ...recordSecondaryButton,
               cursor: busy ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             Cancel
@@ -143,15 +136,11 @@ const CattleNewWeighInModal = ({onClose, onCreate, authState}) => {
             onClick={create}
             disabled={busy || !team || !herd}
             style={{
-              padding: '8px 16px',
-              borderRadius: 7,
+              ...recordSaveButton,
               border: 'none',
               background: busy || !team || !herd ? '#9ca3af' : '#1e40af',
-              color: 'white',
               fontWeight: 700,
-              fontSize: 12,
               cursor: busy || !team || !herd ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
             }}
           >
             {busy ? 'Creating\u2026' : 'Create Session'}
