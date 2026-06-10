@@ -574,9 +574,10 @@ export async function _syncQueuedEntry(formKind, entry, sbClient = sb) {
         return;
       }
     }
-    // Sequential upload with upsert:false. Anon RLS on `daily-photos` grants
-    // INSERT only (mig 031 daily_photos_anon_insert) — anon UPDATE is NOT
-    // permitted. upsert:true would trigger an UPSERT (INSERT-OR-UPDATE) and
+    // Sequential upload with upsert:false. RLS on `daily-photos` grants
+    // authenticated INSERT only (mig 099 daily_photos_auth_insert; the dead
+    // anon INSERT policy was dropped by mig 109) — there is NO UPDATE policy.
+    // upsert:true would trigger an UPSERT (INSERT-OR-UPDATE) and
     // fail 403 RLS even on a fresh INSERT path because supabase-storage's
     // upsert path checks the UPDATE policy too. With upsert:false, a fresh
     // path INSERTs cleanly; an already-existing path 409s, which the

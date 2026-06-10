@@ -13,11 +13,13 @@ import {test, expect} from './fixtures.js';
 // The done-screen "New Weigh-In" CTA is hidden for broiler outcomes (both
 // queued and online done branches).
 //
-// Independence from app_store is proven by:
-//   - This spec's network-route lock (T_negative): the public flow makes ZERO
-//     /rest/v1/app_store?...=eq.ppp-v4 requests.
-//   - tests/static/weighinswebform_no_app_store.test.js (vitest): the public
-//     form's source file contains no 'app_store' / 'ppp-v4' literals.
+// Independence from app_store is proven at the source level by
+// tests/static/weighinswebform_no_app_store.test.js (vitest): WeighInsWebform.jsx
+// and all of src/webforms contain no 'app_store' / 'ppp-v4' literals. (A former
+// runtime network-route lock, T_negative, was removed once the form became
+// login-required and renders inside the authed admin shell, whose boot does a
+// legitimate bulk app_store read — making a page-level "zero app_store requests"
+// assertion structurally impossible and unrelated to the form's isolation.)
 // ============================================================================
 
 const DB_NAME = 'wcf-offline-queue';
@@ -31,19 +33,6 @@ async function wipeOfflineQueue(page) {
       }),
     DB_NAME,
   );
-}
-
-async function recordAppStoreRequests(page) {
-  const hits = [];
-  const handler = (req) => {
-    const url = req.url();
-    if (/\/rest\/v1\/app_store/.test(url)) hits.push(url);
-  };
-  page.on('request', handler);
-  return {
-    hits,
-    stop: () => page.off('request', handler),
-  };
 }
 
 async function startBroilerSession(page, batchName, week = 4) {
@@ -270,40 +259,14 @@ test.describe('public broiler weigh-in', () => {
     expect(Number(batch.week6Lbs)).toBe(4.3);
   });
 
-  // T_negative — Public flow makes zero requests to /rest/v1/app_store
-  //
-  // OBSOLETE under the login-required change (Lane 1 CP1). The /weighins form is
-  // now login-required, so it renders inside the full authenticated admin app,
-  // whose boot sequence loads app_store (a single `?select=*` bulk store read)
-  // on every page regardless of which view is shown. That boot read is NOT the
-  // weigh-in form requesting app_store — the form still reads
-  // webform_config.broiler_batch_meta exclusively — but it makes this
-  // page-level "zero app_store requests" assertion structurally impossible to
-  // satisfy. The form's independence from app_store is unchanged and is fully
-  // locked at the source level by tests/static/weighinswebform_no_app_store.js
-  // (WeighInsWebform.jsx + all of src/webforms contain no app_store/ppp-v4
-  // literal; the form reads broiler_batch_meta from webform_config). Skipped
-  // rather than force-converted because filtering the boot read out of the
-  // recorder would turn a meaningful network-isolation proof into a false pass.
-  test.skip('T_negative: public broiler flow does NOT request app_store', async ({
-    page,
-    broilerWeighInSchoonersScenario,
-  }) => {
-    void broilerWeighInSchoonersScenario;
-    await page.goto('/weighins');
-    await wipeOfflineQueue(page);
-    const recorder = await recordAppStoreRequests(page);
-
-    await startBroilerSession(page, 'B-26-01');
-    await expect(page.getByText('Bird weights (lbs)')).toBeVisible({timeout: 10_000});
-
-    await page.locator('input[type="number"]').nth(0).fill('2.0');
-    await page.getByRole('button', {name: 'Save Weights'}).click();
-    await expect(page.locator('[data-submit-state="synced"]')).toHaveCount(1, {timeout: 15_000});
-
-    recorder.stop();
-    expect(recorder.hits, `Public form must not request app_store. Hits: ${JSON.stringify(recorder.hits)}`).toEqual([]);
-  });
+  // (Former T_negative — a runtime "public flow makes zero /rest/v1/app_store
+  // requests" lock — was removed here. Once the /weighins form became
+  // login-required it renders inside the authed admin shell, whose boot does a
+  // legitimate bulk app_store read, so a page-level zero-request assertion is
+  // structurally impossible and no longer measures the form. The form's
+  // app_store independence is locked at the source level by
+  // tests/static/weighinswebform_no_app_store.test.js, and the positive
+  // server-side stamp path is covered by T8/T9 below.)
 
   // T7 — Resume of a draft for a now-empty-schooner batch is blocked
   test('T7: resume of a zero-schooner batch blocks with explicit error', async ({

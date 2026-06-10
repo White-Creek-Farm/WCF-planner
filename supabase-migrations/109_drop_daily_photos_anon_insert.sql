@@ -1,0 +1,31 @@
+-- ============================================================================
+-- 109_drop_daily_photos_anon_insert.sql
+-- ----------------------------------------------------------------------------
+-- Roster-teardown follow-up cleanup. Migration 031 granted
+-- daily_photos_anon_insert (anon role INSERT into the private daily-photos
+-- bucket) back when the daily-report photo webforms were public/anonymous.
+-- The forms are now login-required (roster teardown): every daily-report form
+-- surface renders below the authState===false -> LoginScreen gate in main.jsx,
+-- and all three daily-photos upload call sites (uploadDailyPhoto /
+-- uploadPreparedPhoto in src/lib/dailyPhotos.js, and the offline-queue replay
+-- in src/lib/useOfflineSubmit.js) use the single shared, authenticated
+-- supabase client (src/lib/supabase.js). There is no second/anon-only client
+-- and no logged-out upload path. Authenticated uploads run under
+-- daily_photos_auth_insert (migration 099). The anon INSERT policy is now
+-- provably dead, so this drops it to shrink the anon attack surface.
+--
+-- Leaves untouched: daily_photos_auth_insert (099, live upload path) and
+-- daily_photos_auth_select (031, signed-URL read path).
+--
+-- Idempotent: DROP POLICY IF EXISTS is natively idempotent (no DO-block guard
+-- needed). No BEGIN/COMMIT, so this applies via exec_sql on TEST; PROD runs it
+-- under psql --single-transaction.
+--
+-- Apply order: TEST first, PROD after explicit Ronnie approval.
+-- ============================================================================
+
+DROP POLICY IF EXISTS daily_photos_anon_insert ON storage.objects;
+
+-- ============================================================================
+-- End of 109_drop_daily_photos_anon_insert.sql
+-- ============================================================================
