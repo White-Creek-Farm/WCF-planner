@@ -2738,14 +2738,17 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
               const showProcessorBtn = isFinishers || isFeeders;
               const recentEntryGridS = {
                 display: 'grid',
-                gridTemplateColumns: '64px 54px 96px 78px 96px minmax(70px, 1fr) 104px',
-                gap: 8,
+                gridTemplateColumns: '64px 54px minmax(82px, 1fr) 72px 88px minmax(0, 86px) 92px',
+                columnGap: 8,
+                rowGap: 3,
                 alignItems: 'center',
-                minWidth: 570,
+                width: '100%',
               };
               const recentEntryCellS = {
                 minWidth: 0,
                 whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               };
               const renderRow = (e, highlight) => {
                 const animal = directory.find((a) => a.tag === e.tag);
@@ -2853,7 +2856,6 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       flexDirection: 'column',
                       gap: 3,
                       background: highlight ? '#fff7ed' : 'transparent',
-                      overflowX: 'auto',
                     }}
                   >
                     <div data-public-weighin-recent-entry-grid="1" style={recentEntryGridS}>

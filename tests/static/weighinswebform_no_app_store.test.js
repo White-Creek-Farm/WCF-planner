@@ -122,8 +122,9 @@ describe('WeighInsWebform.jsx static lock', () => {
 
   it('aligns public cattle and sheep recent entries on a fixed grid', () => {
     expect(source).toContain('data-public-weighin-recent-entry-grid="1"');
-    expect(source).toContain("gridTemplateColumns: '64px 54px 96px 78px 96px minmax(70px, 1fr) 104px'");
-    expect(source).toContain('minWidth: 570');
+    expect(source).toContain("gridTemplateColumns: '64px 54px minmax(82px, 1fr) 72px 88px minmax(0, 86px) 92px'");
+    expect(source).toContain("width: '100%'");
+    expect(source).not.toContain("overflowX: 'auto'");
   });
 });
 
