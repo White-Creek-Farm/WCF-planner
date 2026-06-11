@@ -16,6 +16,8 @@ import {
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
 // eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 /* eslint-disable no-unused-vars -- LockedTeamMemberField is JSX-only */
 import {
@@ -223,20 +225,16 @@ export default function EggDailyPage({sb, authState, Header}) {
 
   if (loadError) {
     return (
-      <RecordPageFrame Header={Header}>
-        <RecordPageBody maxWidth={960} data-egg-daily-load-error="true">
-          <RecordBackLink label="Back to Egg Reports" onBack={() => navigate('/layer/eggs')} />
-          <InlineNotice notice={loadError} />
-          <button
-            type="button"
-            data-daily-record-retry="1"
-            onClick={() => loadAll()}
-            style={{...recordSecondaryButton, marginTop: 10}}
-          >
-            Retry
-          </button>
-        </RecordPageBody>
-      </RecordPageFrame>
+      <RecordPageLoadError
+        Header={Header}
+        backLabel="Back to Egg Reports"
+        onBack={() => navigate('/layer/eggs')}
+        notice={loadError}
+        onRetry={loadAll}
+        maxWidth={960}
+        retryButtonProps={{'data-daily-record-retry': '1'}}
+        data-egg-daily-load-error="true"
+      />
     );
   }
 

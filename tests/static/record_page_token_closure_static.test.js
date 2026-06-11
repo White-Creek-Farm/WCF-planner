@@ -25,6 +25,7 @@ const TOKEN_CLOSURE_FILES = [
   'src/shared/Header.jsx',
   'src/shared/MentionTextarea.jsx',
   'src/shared/RecordActivityLog.jsx',
+  'src/shared/RecordPageLoadError.jsx',
   'src/shared/RecordPageShell.jsx',
   'src/sheep/SheepAnimalPage.jsx',
   'src/sheep/SheepBatchPage.jsx',
@@ -62,14 +63,18 @@ describe('Lane I record/shared token closure', () => {
   });
 
   it('equipment entry load-error Retry buttons use the shared record action token', () => {
+    const loadError = read('src/shared/RecordPageLoadError.jsx');
+    expect(loadError).toContain("from './recordPageControls.jsx'");
+    expect(loadError).toContain('recordSecondaryButton');
+    expect(loadError).toContain('style={{...recordSecondaryButton, marginTop: 10');
+
     for (const rel of [
       'src/equipment/EquipmentFuelingEntryPage.jsx',
       'src/equipment/EquipmentChecklistEntryPage.jsx',
     ]) {
       const src = read(rel);
-      expect(src).toContain("from '../shared/recordPageControls.jsx'");
-      expect(src).toContain('recordSecondaryButton');
-      expect(src).toContain('style={{...recordSecondaryButton, marginTop: 10}}');
+      expect(src).toContain("RecordPageLoadError from '../shared/RecordPageLoadError.jsx'");
+      expect(src).toMatch(/if \(loadError\)[\s\S]*?<RecordPageLoadError[\s\S]*notice=\{loadError\}/);
     }
   });
 });

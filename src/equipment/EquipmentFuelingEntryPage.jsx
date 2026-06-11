@@ -14,8 +14,6 @@ import React from 'react';
 import {EQUIPMENT_COLOR, fmtReading, stripPodioHtml} from '../lib/equipment.js';
 import {imageAltText} from '../lib/imageAlt.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
-import InlineNotice from '../shared/InlineNotice.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
@@ -26,7 +24,8 @@ import {
   RecordTitle,
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
-import {recordSecondaryButton} from '../shared/recordPageControls.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
 
 const sectionTitle = {
   fontSize: 11,
@@ -63,13 +62,14 @@ export default function EquipmentFuelingEntryPage({
   }
   if (loadError) {
     return (
-      <RecordPageBody maxWidth={760} data-equipment-fueling-load-error="true">
-        <RecordBackLink label="Back to Fleet" onBack={onBack} />
-        <InlineNotice notice={loadError} />
-        <button type="button" onClick={onRetry} style={{...recordSecondaryButton, marginTop: 10}}>
-          Retry
-        </button>
-      </RecordPageBody>
+      <RecordPageLoadError
+        backLabel="Back to Fleet"
+        onBack={onBack}
+        notice={loadError}
+        onRetry={onRetry}
+        maxWidth={760}
+        data-equipment-fueling-load-error="true"
+      />
     );
   }
   if (!equipment || !fueling) {
