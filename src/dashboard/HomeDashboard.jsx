@@ -604,16 +604,10 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
           ).length;
           const totalAll = broilerOnFarm + totalHens + totalPigs + cattleOnFarmCount + sheepOnFarm;
           return (
-            // Real on-farm counts (kept). Per the design + Ronnie, the whole card
-            // clicks through to the not-yet-built on-farm-by-month view via the
-            // in-app coming-soon page. data-home-grid="animals" stays on the row;
-            // species use the design dot+label treatment.
-            <button
-              type="button"
-              className="card stats lift"
-              data-status="not-built"
-              onClick={() => setComingSoon('Animals on Farm')}
-            >
+            // Real on-farm counts (kept). The whole card opens the month-by-month
+            // Animals on Farm history page. data-home-grid="animals" stays on the
+            // row; species use the design dot+label treatment.
+            <button type="button" className="card stats lift" onClick={() => setView('animalHistory')}>
               <div className="stats-head">
                 <div className="card-label">Animals on Farm</div>
                 <Chevron className="go" />
