@@ -110,14 +110,33 @@ describe('WeighInsWebform.jsx static lock', () => {
   it('shades blacklisted cattle in the public weigh-in dropdowns', () => {
     expect(source).toContain('breeding_blacklist');
     expect(source).toContain('blacklistOptionS');
+    expect(source).toContain('blacklistSelectS');
     expect(source).toContain('data-breeding-blacklist-option');
+    expect(source).toContain('data-selected-breeding-blacklist');
+    expect(source).toContain('selectedCattleIsBlacklisted');
     expect(source).toContain("backgroundColor: '#fee2e2'");
     expect(source).toContain("color: '#991b1b'");
+  });
+
+  it('keeps blacklisted cattle red after they are weighed', () => {
+    expect(source).toContain('data-breeding-blacklist-recent-entry');
+    expect(source).toContain("species === 'cattle' && !!(animal && animal.breeding_blacklist)");
+    expect(source).toContain("background: isBlacklisted ? '#fef2f2'");
+    expect(source).toContain("borderLeft: isBlacklisted ? '3px solid #dc2626'");
+    expect(source).toContain("color: isBlacklisted ? '#991b1b'");
   });
 
   it('includes sex in the public animal dropdown label', () => {
     expect(source).toContain('const sex = animal.sex ?');
     expect(source).toContain("return '#' + tag + sex +");
+  });
+
+  it('lets inline new-cow weigh-in entries capture optional DOB', () => {
+    expect(source).toContain('const [newCowBirthDate, setNewCowBirthDate] = React.useState');
+    expect(source).toContain('birth_date: birthDate || null');
+    expect(source).toContain('type="date"');
+    expect(source).toContain('value={newCowBirthDate}');
+    expect(source).toContain('birthDate: newCowBirthDate');
   });
 
   it('aligns public cattle and sheep recent entries on a fixed grid', () => {

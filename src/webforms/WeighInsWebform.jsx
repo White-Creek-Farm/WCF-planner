@@ -69,6 +69,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
   //                                    until someone reconciles it to a known cow.
   const [entryMode, setEntryMode] = React.useState('normal');
   const [newCowSex, setNewCowSex] = React.useState('cow');
+  const [newCowBirthDate, setNewCowBirthDate] = React.useState('');
   // Optional prior tag for "+ New Cow" — captures the tag the cow was wearing
   // when purchased from another farm so its history is recorded on arrival.
   const [priorTagInput, setPriorTagInput] = React.useState('');
@@ -649,7 +650,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
   //                   tag to the new one + appends an old_tags entry. Useful
   //                   for bulk retag of a 20-head buy where reconciling
   //                   after the fact would be a nightmare.
-  async function saveEntry({tag, weight, note, mode, sex, priorTag}) {
+  async function saveEntry({tag, weight, note, mode, sex, priorTag, birthDate}) {
     if (!session) return;
     if (!weight || parseFloat(weight) <= 0) {
       setErr('Weight is required.');
@@ -730,7 +731,14 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
         priorTag && priorTag.trim()
           ? [{tag: priorTag.trim(), changed_at: new Date().toISOString(), source: 'import'}]
           : [];
-      const cowRec = {id: cowId, tag: tag, herd: herd, sex: sex, old_tags: oldTags};
+      const cowRec = {
+        id: cowId,
+        tag: tag,
+        herd: herd,
+        sex: sex,
+        birth_date: birthDate || null,
+        old_tags: oldTags,
+      };
       const cowIns = await sb.from('cattle').insert(cowRec);
       if (cowIns.error) {
         setBusy(false);
@@ -815,6 +823,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     setNoteInput('');
     setEntryMode('normal');
     setNewCowSex('cow');
+    setNewCowBirthDate('');
     setPriorTagInput('');
     setBusy(false);
   }
@@ -1111,8 +1120,12 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
         return false;
       }
     }
-    if (noteInput && noteInput.trim()) {
-      await sb.from('weigh_in_sessions').update({notes: noteInput.trim()}).eq('id', session.id);
+    const sessionNote = noteInput && noteInput.trim() ? noteInput.trim() : null;
+    const noteUp = await sb.from('weigh_in_sessions').update({notes: sessionNote}).eq('id', session.id);
+    if (noteUp.error) {
+      setBusy(false);
+      setErr('Save failed (note): ' + noteUp.error.message);
+      return false;
     }
     setEntries(recs);
     // No batch-avg write here -- saveBatch only runs while status='draft',
@@ -1208,6 +1221,11 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
   const pendingReconciles = entries.filter((e) => e.new_tag_flag === true);
   const expectedTags =
     species === 'cattle' && cattleHerd ? cattleList.filter((c) => c.herd === cattleHerd && c.tag).length : 0;
+  const selectedCattle =
+    species === 'cattle' && cattleHerd && tagInput
+      ? cattleList.find((c) => c.herd === cattleHerd && c.tag === tagInput)
+      : null;
+  const selectedCattleIsBlacklisted = !!(selectedCattle && selectedCattle.breeding_blacklist);
 
   const wfBg = {
     minHeight: '100vh',
@@ -1235,6 +1253,12 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     boxSizing: 'border-box',
   };
   const blacklistOptionS = {backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 700};
+  const blacklistSelectS = {
+    backgroundColor: '#fee2e2',
+    color: '#991b1b',
+    border: '1px solid #f87171',
+    fontWeight: 700,
+  };
   const lblS = {display: 'block', fontSize: 13, color: '#374151', marginBottom: 5, fontWeight: 500};
   const logoEl = (
     <div style={{textAlign: 'center', marginBottom: 20}}>
@@ -1874,7 +1898,12 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                 <React.Fragment>
                   <div style={{marginBottom: 10}}>
                     <label style={lblS}>Tag #</label>
-                    <select value={tagInput} onChange={(e) => setTagInput(e.target.value)} style={inpS}>
+                    <select
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      style={selectedCattleIsBlacklisted ? {...inpS, ...blacklistSelectS} : inpS}
+                      data-selected-breeding-blacklist={selectedCattleIsBlacklisted ? '1' : undefined}
+                    >
                       <option value="">Select tag... ({remainingTags.length} remaining)</option>
                       {remainingTags.map((t) => {
                         const cow = cattleList.find((c) => c.tag === t && c.herd === cattleHerd);
@@ -1898,6 +1927,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                         setEntryMode('new_cow');
                         setTagInput('');
                         setNewCowSex('cow');
+                        setNewCowBirthDate('');
                         setPriorTagInput('');
                       }}
                       style={{
@@ -1927,6 +1957,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                         }
                         const selected = tagInput;
                         setEntryMode('retag');
+                        setNewCowBirthDate('');
                         setPriorTagInput(selected);
                         setTagInput('');
                       }}
@@ -1951,6 +1982,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       onClick={() => {
                         setEntryMode('replacement');
                         setTagInput('');
+                        setNewCowBirthDate('');
                       }}
                       style={{
                         flex: '1 1 120px',
@@ -1994,6 +2026,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       onClick={() => {
                         setEntryMode('normal');
                         setTagInput('');
+                        setNewCowBirthDate('');
                         setPriorTagInput('');
                         setErr('');
                       }}
@@ -2048,6 +2081,17 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       ))}
                     </div>
                   </div>
+                  <div style={{marginBottom: 8}}>
+                    <label style={lblS}>
+                      DOB <span style={{fontSize: 10, color: '#9ca3af'}}>(optional)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={newCowBirthDate}
+                      onChange={(e) => setNewCowBirthDate(e.target.value)}
+                      style={inpS}
+                    />
+                  </div>
                   <div style={{marginBottom: 0}}>
                     <label style={lblS}>
                       Prior tag{' '}
@@ -2087,6 +2131,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       onClick={() => {
                         setEntryMode('normal');
                         setTagInput('');
+                        setNewCowBirthDate('');
                         setPriorTagInput('');
                         setErr('');
                       }}
@@ -2156,6 +2201,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       onClick={() => {
                         setEntryMode('normal');
                         setTagInput('');
+                        setNewCowBirthDate('');
                         setErr('');
                       }}
                       style={{
@@ -2229,6 +2275,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     note: noteInput,
                     mode: entryMode,
                     sex: newCowSex,
+                    birthDate: newCowBirthDate,
                     priorTag: priorTagInput,
                   })
                 }
@@ -2752,6 +2799,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
               };
               const renderRow = (e, highlight) => {
                 const animal = directory.find((a) => a.tag === e.tag);
+                const isBlacklisted = species === 'cattle' && !!(animal && animal.breeding_blacklist);
                 const age = ageYM(animal ? animal.birth_date : null, curDate);
                 const prior = priorByTag[e.tag];
                 const adg = prior ? adgLbPerDay(prior.weight, prior.date, e.weight, curDate) : null;
@@ -2760,17 +2808,31 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                   return (
                     <div
                       key={e.id}
+                      data-breeding-blacklist-recent-entry={isBlacklisted ? '1' : undefined}
                       style={{
-                        padding: '8px 0',
+                        padding: isBlacklisted ? '8px 8px' : '8px 0',
                         borderBottom: '1px solid #f3f4f6',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 6,
+                        background: isBlacklisted ? '#fef2f2' : 'transparent',
+                        borderLeft: isBlacklisted ? '3px solid #dc2626' : 'none',
+                        borderRadius: isBlacklisted ? 6 : 0,
+                        boxSizing: 'border-box',
                       }}
                     >
                       <div style={{display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap'}}>
                         {e.tag && (
-                          <span style={{fontWeight: 700, color: '#111827', minWidth: 50, fontSize: 12}}>#{e.tag}</span>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: isBlacklisted ? '#991b1b' : '#111827',
+                              minWidth: 50,
+                              fontSize: 12,
+                            }}
+                          >
+                            #{e.tag}
+                          </span>
                         )}
                         <input
                           type="number"
@@ -2848,18 +2910,24 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                 return (
                   <div
                     key={e.id}
+                    data-breeding-blacklist-recent-entry={isBlacklisted ? '1' : undefined}
                     style={{
-                      padding: '6px 0',
+                      padding: isBlacklisted ? '6px 8px' : '6px 0',
                       borderBottom: '1px solid #f3f4f6',
                       fontSize: 12,
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 3,
-                      background: highlight ? '#fff7ed' : 'transparent',
+                      background: isBlacklisted ? '#fef2f2' : highlight ? '#fff7ed' : 'transparent',
+                      borderLeft: isBlacklisted ? '3px solid #dc2626' : 'none',
+                      borderRadius: isBlacklisted ? 6 : 0,
+                      boxSizing: 'border-box',
                     }}
                   >
                     <div data-public-weighin-recent-entry-grid="1" style={recentEntryGridS}>
-                      <span style={{...recentEntryCellS, fontWeight: 700, color: '#111827'}}>
+                      <span
+                        style={{...recentEntryCellS, fontWeight: 700, color: isBlacklisted ? '#991b1b' : '#111827'}}
+                      >
                         {e.tag ? '#' + e.tag : '\u2014'}
                       </span>
                       <span style={{...recentEntryCellS, fontSize: 11, color: '#6b7280'}}>{age}</span>
