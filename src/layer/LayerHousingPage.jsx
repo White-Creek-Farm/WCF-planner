@@ -343,7 +343,7 @@ export default function LayerHousingPage({
         <RecordSequenceNav seq={recordSeq} currentId={housingId} onNavigate={navigateSeq} />
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
-          <RecordTitle fontSize={24} margin={0}>
+          <RecordTitle fontSize={22} margin={0}>
             {'🏠 ' + housing.housing_name}
           </RecordTitle>
           <span

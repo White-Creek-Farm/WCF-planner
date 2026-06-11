@@ -346,7 +346,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
         <RecordSequenceNav seq={recordSeq} currentId={batchId} onNavigate={navigateSeq} />
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
-          <RecordTitle fontSize={24} margin={0}>
+          <RecordTitle fontSize={22} margin={0}>
             {batch.name}
           </RecordTitle>
           <span

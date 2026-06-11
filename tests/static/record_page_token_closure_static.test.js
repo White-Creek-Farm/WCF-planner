@@ -37,6 +37,7 @@ const RETIRED_TOKEN_PATTERNS = [
   [/borderRadius:\s*(7|8)\b/g, 'retired 7/8 inline borderRadius'],
   [/border-radius:\s*(7|8)px/g, 'retired 7/8 CSS border-radius'],
   [/fontSize:\s*(9|10\.5|11\.5|12\.5|17|24|28)\b/g, 'retired fontSize'],
+  [/fontSize=\{(9|10\.5|11\.5|12\.5|17|24|28)\}/g, 'retired JSX fontSize prop'],
   [/font-size:\s*(9|10\.5|11\.5|12\.5|17|24|28)px/g, 'retired CSS font-size'],
   [/padding:\s*'(6px 14px|8px 14px|8px 16px)'/g, 'retired ad hoc action padding'],
 ];

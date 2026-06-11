@@ -188,7 +188,7 @@ export default function BroilerBatchPage({
         <RecordSequenceNav seq={recordSeq} currentId={batch.id} onNavigate={navigateToBatchId} />
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
-          <RecordTitle fontSize={24} margin={0}>
+          <RecordTitle fontSize={22} margin={0}>
             {batch.name}
           </RecordTitle>
           <span

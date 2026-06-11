@@ -1573,7 +1573,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
         <RecordSequenceNav seq={recordSeq} currentId={sessionId} onNavigate={navigateSeq} />
 
         <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
-          <RecordTitle fontSize={24} margin={0}>
+          <RecordTitle fontSize={22} margin={0}>
             {groupName} — {fmt(session.date)}
           </RecordTitle>
           <span
