@@ -98,9 +98,10 @@ describe('Daily record pages - cold-boot readiness', () => {
       expect(src).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
     });
 
-    it(`${file} renders a loadError state with InlineNotice and clears stale record state`, () => {
+    it(`${file} renders a shared loadError state with InlineNotice and clears stale record state`, () => {
       expect(src).toContain('const [loadError, setLoadError]');
-      expect(src).toMatch(/if \(loadError\)[\s\S]*?<InlineNotice notice=\{loadError\}/);
+      expect(src).toMatch(/if \(loadError\)[\s\S]*?<RecordPageLoadError[\s\S]*notice=\{loadError\}/);
+      expect(read('src/shared/RecordPageLoadError.jsx')).toContain('<InlineNotice notice={notice} />');
       expect(src).toContain('setRecord(null);');
       expect(src).toContain('setForm(null);');
     });
@@ -200,10 +201,10 @@ describe('Daily record pages - Retry affordance (non-dismissible loadError)', ()
   for (const {file, errMarker} of RECORD_RETRY) {
     const src = read(file);
     it(`${file} keeps load failures non-dismissible with a Retry that re-runs loadAll`, () => {
-      expect(src).toContain('<InlineNotice notice={loadError} />');
+      expect(src).toContain("RecordPageLoadError from '../shared/RecordPageLoadError.jsx'");
+      expect(src).toMatch(/<RecordPageLoadError[\s\S]*notice=\{loadError\}[\s\S]*onRetry=\{loadAll\}/);
       expect(src).not.toContain('notice={loadError} onDismiss');
-      expect(src).toContain('data-daily-record-retry="1"');
-      expect(src).toContain('onClick={() => loadAll()}');
+      expect(src).toContain("retryButtonProps={{'data-daily-record-retry': '1'}}");
       expect(src).toContain(errMarker);
     });
   }

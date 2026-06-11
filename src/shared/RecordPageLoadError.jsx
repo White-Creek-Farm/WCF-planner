@@ -13,14 +13,21 @@ export default function RecordPageLoadError({
   onRetry,
   maxWidth = 800,
   retryLabel = 'Retry',
+  retryButtonProps = {},
   ...bodyProps
 }) {
+  const {style: retryButtonStyle, ...restRetryButtonProps} = retryButtonProps;
   return (
     <RecordPageFrame Header={Header}>
       <RecordPageBody maxWidth={maxWidth} {...bodyProps}>
         <RecordBackLink label={backLabel} onBack={onBack} />
         <InlineNotice notice={notice} />
-        <button type="button" onClick={onRetry} style={{...recordSecondaryButton, marginTop: 10}}>
+        <button
+          type="button"
+          {...restRetryButtonProps}
+          onClick={onRetry}
+          style={{...recordSecondaryButton, marginTop: 10, ...retryButtonStyle}}
+        >
           {retryLabel}
         </button>
       </RecordPageBody>
