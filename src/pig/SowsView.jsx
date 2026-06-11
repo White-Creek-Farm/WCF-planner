@@ -7,6 +7,7 @@
 // ============================================================================
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
@@ -420,7 +421,7 @@ export default function SowsView({
       >
         {/* Tile header */}
         <div
-          onClick={() => {
+          {...openableProps(() => {
             setNotice(null);
             setBreederForm({
               tag: pig.tag,
@@ -437,7 +438,8 @@ export default function SowsView({
             });
             setEditBreederId(pig.id);
             setShowBreederForm(true);
-          }}
+          })}
+          className="hoverable-tile"
           style={{padding: '12px 16px', background: 'white', borderBottom: '1px solid #e5e7eb', cursor: 'pointer'}}
         >
           <div style={{fontSize: 16, fontWeight: 700, color: '#111827'}}>

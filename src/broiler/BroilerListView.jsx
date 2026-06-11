@@ -9,6 +9,7 @@
 // ============================================================================
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {sb} from '../lib/supabase.js';
 import {recordActivityEvent} from '../lib/activityApi.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
@@ -828,7 +829,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 return (
                   <tr
                     key={b.id}
-                    onClick={() => openBatch(b, activeRows)}
+                    {...openableProps(() => openBatch(b, activeRows))}
                     className="hoverable-row"
                     style={{
                       borderBottom: '1px solid #e5e7eb',
@@ -1153,7 +1154,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       return (
                         <tr
                           key={b.id}
-                          onClick={() => openBatch(b, displayed)}
+                          {...openableProps(() => openBatch(b, displayed))}
                           style={{
                             borderBottom: '1px solid #e5e7eb',
                             background: i % 2 === 0 ? 'white' : '#fafafa',
@@ -1280,7 +1281,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
               return (
                 <div
                   key={b.id}
-                  onClick={() => openBatch(b, processedCardRows)}
+                  {...openableProps(() => openBatch(b, processedCardRows))}
                   style={{
                     background: 'white',
                     border: '1px solid #e5e7eb',

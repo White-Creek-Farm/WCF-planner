@@ -7,6 +7,7 @@
 
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 import {deleteFuelBill} from '../lib/fuelBillDeleteApi.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -150,7 +151,11 @@ export default function FuelBillsView() {
                 const open = expanded === b.id;
                 return (
                   <React.Fragment key={b.id}>
-                    <tr style={{cursor: 'pointer'}} onClick={() => setExpanded(open ? null : b.id)}>
+                    <tr
+                      style={{cursor: 'pointer'}}
+                      {...openableProps(() => setExpanded(open ? null : b.id))}
+                      className="hoverable-row"
+                    >
                       <td style={td}>{fmtDate(b.delivery_date)}</td>
                       <td style={{...td, fontWeight: 600}}>{b.invoice_number || '—'}</td>
                       <td style={{...td, color: '#6b7280'}}>{b.supplier || '—'}</td>

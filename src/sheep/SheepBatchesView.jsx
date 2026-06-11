@@ -8,6 +8,7 @@
 // record page.
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -1107,7 +1108,7 @@ function BatchRow({batch, fmt, onOpen}) {
       data-batch-row={batch.id}
       data-batch-name={batch.name}
       data-batch-status={batch.status}
-      onClick={onOpen}
+      {...openableProps(onOpen)}
       className="hoverable-tile"
       style={{
         display: 'grid',

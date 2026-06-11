@@ -2,6 +2,7 @@
 // in tile mode. Mirrors cattle/CollapsibleOutcomeSections with sheep field
 // names. Processed / Deceased / Sold each get their own panel.
 import React from 'react';
+import {openableProps} from '../shared/openable.js';
 
 const SheepCollapsibleOutcomeSections = ({
   sheep,
@@ -32,7 +33,8 @@ const SheepCollapsibleOutcomeSections = ({
             }}
           >
             <div
-              onClick={() => setExpanded({...expanded, [f]: !isExpanded})}
+              {...openableProps(() => setExpanded({...expanded, [f]: !isExpanded}))}
+              className="hoverable-tile"
               style={{
                 padding: '10px 16px',
                 background: fc.bg,
@@ -68,7 +70,7 @@ const SheepCollapsibleOutcomeSections = ({
                 {rows.slice(0, 50).map((s) => (
                   <div key={s.id} id={'sheep-' + s.id} style={{borderTop: '1px solid #f3f4f6'}}>
                     <div
-                      onClick={onSheepClick ? () => onSheepClick(s) : undefined}
+                      {...(onSheepClick ? openableProps(() => onSheepClick(s)) : {})}
                       style={{
                         padding: '8px 16px',
                         fontSize: 12,

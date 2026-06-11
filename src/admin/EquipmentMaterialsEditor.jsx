@@ -19,6 +19,7 @@
 // 2026-05-14); this editor is the only un-clear surface (Codex amendment 2).
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 
 const inpS = {
   fontSize: 12,
@@ -349,7 +350,8 @@ export default function EquipmentMaterialsEditor({equipment}) {
                 data-materials-group={g.key}
               >
                 <div
-                  onClick={() => setExpandedKey(isExpanded ? null : g.key)}
+                  {...openableProps(() => setExpandedKey(isExpanded ? null : g.key))}
+                  className="hoverable-tile"
                   style={{
                     padding: '8px 12px',
                     display: 'flex',

@@ -7,6 +7,7 @@
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {
@@ -588,7 +589,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                   return (
                     <div
                       key={g.id}
-                      onClick={() => setView('pigbatches')}
+                      {...openableProps(() => setView('pigbatches'))}
                       style={{
                         background: 'white',
                         border: '1px solid #e5e7eb',

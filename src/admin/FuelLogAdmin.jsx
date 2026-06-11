@@ -7,6 +7,7 @@
 
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 import FuelBillsView from './FuelBillsView.jsx';
 import FuelReconcileView from './FuelReconcileView.jsx';
 
@@ -286,7 +287,12 @@ export default function FuelLogAdmin() {
                           );
                         }
                         return (
-                          <tr key={r.id} style={{cursor: 'pointer'}} onClick={() => setEditingId(r.id)}>
+                          <tr
+                            key={r.id}
+                            style={{cursor: 'pointer'}}
+                            {...openableProps(() => setEditingId(r.id))}
+                            className="hoverable-row"
+                          >
                             <td style={td}>{fmtDate(r.date)}</td>
                             <td style={{...td, textAlign: 'right', fontWeight: 600}}>
                               {Number(r.gallons).toLocaleString(undefined, {maximumFractionDigits: 1})}

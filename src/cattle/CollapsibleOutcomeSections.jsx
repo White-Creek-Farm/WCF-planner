@@ -2,6 +2,7 @@
 // in tile mode. Each outcome (Processed / Deceased / Sold) is its own
 // collapsible panel. Clicking a cow row navigates to the record page.
 import React from 'react';
+import {openableProps} from '../shared/openable.js';
 
 const CollapsibleOutcomeSections = ({
   cattle,
@@ -34,7 +35,8 @@ const CollapsibleOutcomeSections = ({
             }}
           >
             <div
-              onClick={() => setExpanded({...expanded, [h]: !isExpanded})}
+              {...openableProps(() => setExpanded({...expanded, [h]: !isExpanded}))}
+              className="hoverable-tile"
               style={{
                 padding: '10px 16px',
                 background: hc.bg,
@@ -73,7 +75,7 @@ const CollapsibleOutcomeSections = ({
                   return (
                     <div key={c.id} id={'cow-' + c.id} style={{borderTop: '1px solid #f3f4f6'}}>
                       <div
-                        onClick={clickable ? () => onCowClick(c) : undefined}
+                        {...(clickable ? openableProps(() => onCowClick(c)) : {})}
                         style={{
                           padding: '8px 16px',
                           fontSize: 12,

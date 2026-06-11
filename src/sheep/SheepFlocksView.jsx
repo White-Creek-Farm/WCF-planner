@@ -14,6 +14,7 @@
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import UsersModal from '../auth/UsersModal.jsx';
+import {openableProps} from '../shared/openable.js';
 import SheepBulkImport from './SheepBulkImport.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import SheepAnimalPage from './SheepAnimalPage.jsx';
@@ -1370,7 +1371,7 @@ const SheepFlocksHub = ({
                       style={{borderBottom: i < sorted.length - 1 ? '1px solid #f3f4f6' : 'none'}}
                     >
                       <div
-                        onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted))}
+                        {...openableProps(() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted)))}
                         style={{
                           padding: '10px 16px 10px 0',
                           display: 'grid',
@@ -1498,7 +1499,8 @@ const SheepFlocksHub = ({
                       style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
                     >
                       <div
-                        onClick={() => setExpandedFlocks({...expandedFlocks, [f]: !open})}
+                        {...openableProps(() => setExpandedFlocks({...expandedFlocks, [f]: !open}))}
+                        className="hoverable-tile"
                         style={{
                           padding: '12px 18px',
                           background: fc.bg,
@@ -1540,7 +1542,9 @@ const SheepFlocksHub = ({
                           return (
                             <div key={s.id} id={'sheep-' + s.id} style={{borderBottom: '1px solid #f3f4f6'}}>
                               <div
-                                onClick={() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep))}
+                                {...openableProps(() =>
+                                  navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep)),
+                                )}
                                 style={{
                                   padding: '10px 18px 10px 0',
                                   display: 'grid',

@@ -4,6 +4,7 @@ import {sb} from '../lib/supabase.js';
 import {loadGlobalActivity} from '../lib/globalActivityApi.js';
 import {getActivityEntityMeta} from '../lib/activityRegistry.js';
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {openableProps} from '../shared/openable.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
@@ -355,7 +356,8 @@ export default function ActivityLogView({Header}) {
               'div',
               {
                 key: r.id,
-                onClick: routable ? () => handleRowClick(r) : undefined,
+                ...(routable ? openableProps(() => handleRowClick(r)) : {}),
+                className: routable ? 'hoverable-tile' : undefined,
                 style: {
                   padding: '10px 14px',
                   background: r.deleted_at ? '#fafafa' : 'white',

@@ -8,6 +8,7 @@
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 import {fmt, fmtS, todayISO, addDays, toISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {computeHousingDisplayCount, computeLayerFeedCost} from '../lib/layerHousing.js';
@@ -462,7 +463,7 @@ export default function LayersHomeView({Header, loadUsers}) {
             return (
               <div
                 key={batch.id}
-                onClick={() => setView('layerbatches')}
+                {...openableProps(() => setView('layerbatches'))}
                 style={{
                   background: 'white',
                   border: '1px solid #e5e7eb',
@@ -605,7 +606,7 @@ export default function LayersHomeView({Header, loadUsers}) {
                   />
                 </div>
                 <div
-                  onClick={() => setView('layerbatches')}
+                  {...openableProps(() => setView('layerbatches'))}
                   style={{
                     background: 'white',
                     border: '2px solid #e5d4b1',

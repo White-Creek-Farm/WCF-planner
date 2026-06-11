@@ -1,5 +1,6 @@
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -1044,9 +1045,9 @@ const CattleBatchesHub = ({
                     key={sb2.id}
                     data-scheduled-batch={sb2.name}
                     data-batch-row={sb2.id}
-                    onClick={() =>
-                      navigate('/cattle/batches/' + sb2.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
-                    }
+                    {...openableProps(() =>
+                      navigate('/cattle/batches/' + sb2.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name'))),
+                    )}
                     className="hoverable-tile"
                     style={{
                       display: 'flex',
@@ -1153,9 +1154,9 @@ const CattleBatchesHub = ({
                       data-batch-row={b.id}
                       data-batch-name={b.name}
                       data-batch-status={b.status}
-                      onClick={() =>
-                        navigate('/cattle/batches/' + b.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
-                      }
+                      {...openableProps(() =>
+                        navigate('/cattle/batches/' + b.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name'))),
+                      )}
                       className="hoverable-tile"
                       style={{
                         background: 'white',
@@ -1238,12 +1239,12 @@ const CattleBatchesHub = ({
                         data-batch-row={b.id}
                         data-batch-name={b.name}
                         data-batch-status={b.status}
-                        onClick={() =>
+                        {...openableProps(() =>
                           navigate(
                             '/cattle/batches/' + b.id,
                             recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')),
-                          )
-                        }
+                          ),
+                        )}
                         className="hoverable-tile"
                         style={{
                           background: 'white',
@@ -1302,7 +1303,8 @@ function CollapsibleSection({label, count, expanded, onToggle, color, border, te
       data-batches-section={dataKey}
     >
       <div
-        onClick={onToggle}
+        {...openableProps(onToggle)}
+        className="hoverable-tile"
         style={{
           padding: '12px 16px',
           background: color,

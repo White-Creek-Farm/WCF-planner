@@ -1,5 +1,6 @@
 // Phase 2 Round 4 extraction (verbatim).
 import React from 'react';
+import {openableProps} from '../shared/openable.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {buildChanges, countSummary} from '../lib/activityChangeDiff.js';
 import {recordActivityEvent} from '../lib/entityMutations.js';
@@ -718,7 +719,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
               key={f.id}
               data-feed-input-row={f.id}
               data-feed-input-status={inactive ? 'inactive' : 'active'}
-              onClick={() => openEdit(f)}
+              {...openableProps(() => openEdit(f))}
               style={{
                 display: 'grid',
                 gridTemplateColumns: FEED_GRID_COLUMNS,
@@ -851,7 +852,8 @@ const LivestockFeedInputsPanel = ({sb}) => {
     <div style={{marginTop: 16}}>
       <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '20px'}}>
         <div
-          onClick={() => setExpanded(!expanded)}
+          {...openableProps(() => setExpanded(!expanded))}
+          className="hoverable-tile"
           style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 10}}
         >
           <div style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1}}>

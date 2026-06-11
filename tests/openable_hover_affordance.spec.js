@@ -92,7 +92,7 @@ test('fleet tile: pointer cursor, hover wash + lift, keyboard focus + Enter open
   await expect(page).toHaveURL(/\/fleet\/eq-a$/, {timeout: 10_000});
 });
 
-test('broiler batches row: pointer cursor and hover wash on table cells, no transform', async ({
+test('broiler batches row: pointer cursor, hover wash on cells, no transform, Enter opens the record', async ({
   page,
   broilerTimelineScenario,
 }) => {
@@ -110,4 +110,74 @@ test('broiler batches row: pointer cursor and hover wash on table cells, no tran
     .toBe(WASH);
   // Rows wash only — the tile lift must not leak onto table rows.
   expect(await row.evaluate((el) => getComputedStyle(el).transform)).toBe('none');
+
+  // Keyboard parity (rollout lane): the row is a focusable button-role
+  // openable, and Enter activates the same navigation as click.
+  expect(await row.getAttribute('role')).toBe('button');
+  expect(await row.getAttribute('tabindex')).toBe('0');
+  await row.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/broiler\/batches\/.+/, {timeout: 10_000});
+});
+
+// ============================================================================
+// Home Weather (rollout lane): the collapsed weather card is a real <button>
+// carrying the approved `card weather-card lift` home treatment — design lift
+// on hover (translateY(-2px) + shadow) — and opens the weather modal, whose
+// Refresh/close controls stay plain buttons. The forecast endpoint is mocked
+// so the card renders deterministically.
+// ============================================================================
+
+const FORECAST_FIXTURE = {
+  current: {temp: 72, weatherCode: 1101},
+  today: {high: 88, low: 69, precipProb: 40},
+  rainSummary: 'Rain likely this afternoon',
+  freezeWarning: null,
+  dailySource: 'open-meteo',
+  daily: Array.from({length: 10}, (_, i) => ({
+    date: `2026-06-${String(11 + i).padStart(2, '0')}`,
+    tempMax: 88,
+    tempMin: 69,
+    precipProbMax: 40,
+    weatherCodeMax: 1101,
+  })),
+  hourly: [],
+  location: {lat: 30.84, lon: -86.43, label: 'Farm'},
+};
+
+test('home weather card: button with card/lift treatment, hover lift, click opens modal', async ({page, resetDb}) => {
+  await resetDb();
+  await page.route('**/.netlify/functions/weather-forecast*', (route) =>
+    route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(FORECAST_FIXTURE)}),
+  );
+  await page.goto('/');
+
+  const card = page.locator('[data-weather-card="collapsed"]');
+  await expect(card).toBeVisible({timeout: 15_000});
+
+  // Approved home treatment: a real <button> (native keyboard) with the
+  // design's card + weather-card + lift classes.
+  expect(await card.evaluate((el) => el.tagName)).toBe('BUTTON');
+  expect(await card.evaluate((el) => el.className)).toContain('card');
+  expect(await card.evaluate((el) => el.className)).toContain('weather-card');
+  expect(await card.evaluate((el) => el.className)).toContain('lift');
+  expect(await card.evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
+  expect(await card.evaluate((el) => getComputedStyle(el).transform)).toBe('none');
+
+  // Design lift on hover: translateY(-2px) + hover shadow (paint-only).
+  await card.hover();
+  await expect
+    .poll(async () => matrixTranslateY(await card.evaluate((el) => getComputedStyle(el).transform)), {timeout: 3_000})
+    .toBeLessThanOrEqual(-1.9);
+  expect(await card.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
+
+  // Click opens the expanded weather modal; its controls remain buttons.
+  await card.click();
+  const modal = page.locator('[data-weather-card="expanded"]');
+  await expect(modal).toBeVisible({timeout: 5_000});
+  const refresh = modal.getByRole('button', {name: 'Refresh'});
+  await expect(refresh).toBeVisible();
+  const close = modal.getByRole('button', {name: '×'});
+  await close.click();
+  await expect(modal).not.toBeVisible();
 });

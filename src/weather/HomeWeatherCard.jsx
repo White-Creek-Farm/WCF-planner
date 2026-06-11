@@ -129,20 +129,23 @@ export default function HomeWeatherCard() {
     'div',
     null,
     // ── Collapsed card ──
+    // Approved home treatment: a real <button> carrying the design's
+    // `card weather-card lift` classes (homeRedesign.css owns the surface,
+    // border, radius, shadow, and hover lift; native button semantics give
+    // keyboard activation). flexWrap stays inline so the rain summary and
+    // freeze badge can wrap on narrow screens; width/text props neutralize
+    // button UA defaults inside the flex card.
     React.createElement(
-      'div',
+      'button',
       {
+        type: 'button',
         onClick: () => setExpanded(true),
         'data-weather-card': 'collapsed',
+        className: 'card weather-card lift',
         style: {
-          background: 'white',
-          border: '1px solid #e5e7eb',
-          borderRadius: 12,
-          padding: '12px 18px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
+          width: '100%',
+          textAlign: 'left',
+          color: 'inherit',
           flexWrap: 'wrap',
         },
       },
@@ -179,6 +182,21 @@ export default function HomeWeatherCard() {
           },
           freezeWarning,
         ),
+      // Hover-revealed chevron (design `.go` affordance inside `.lift`).
+      React.createElement(
+        'svg',
+        {
+          className: 'go',
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          stroke: 'currentColor',
+          strokeWidth: 2.2,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          'aria-hidden': true,
+        },
+        React.createElement('path', {d: 'M9 6l6 6-6 6'}),
+      ),
     ),
 
     // ── Expanded modal ──

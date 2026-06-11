@@ -1,6 +1,7 @@
 // Phase 2 Round 3 extraction (verbatim).
 import React from 'react';
 import UsersModal from '../auth/UsersModal.jsx';
+import {openableProps} from '../shared/openable.js';
 import {toISO} from '../lib/dateUtils.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
@@ -305,7 +306,7 @@ const SheepHomeView = ({
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10}}>
               {/* Processing-batches shortcut tile — discoverable nav alongside flock tiles. */}
               <div
-                onClick={() => setView('sheepbatches')}
+                {...openableProps(() => setView('sheepbatches'))}
                 style={{
                   background: 'white',
                   border: '1px solid #5eead4',
@@ -342,7 +343,7 @@ const SheepHomeView = ({
                 return (
                   <div
                     key={f}
-                    onClick={() => setView('sheepflocks')}
+                    {...openableProps(() => setView('sheepflocks'))}
                     style={{
                       background: 'white',
                       border: '1px solid #e5e7eb',

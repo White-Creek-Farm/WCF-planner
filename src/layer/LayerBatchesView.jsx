@@ -13,6 +13,7 @@
 // via RecordCollaborationSection.
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -923,9 +924,9 @@ const LayerBatchesHub = ({
                 <div
                   key={row.id}
                   data-layer-batch-tile={row.id}
-                  onClick={() =>
-                    navigate('/layer/batches/' + row.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name')))
-                  }
+                  {...openableProps(() =>
+                    navigate('/layer/batches/' + row.id, recordSeqNavOptions(labeledSeqItems(batchSeqRows, 'name'))),
+                  )}
                   className="hoverable-tile"
                   style={{
                     display: 'grid',

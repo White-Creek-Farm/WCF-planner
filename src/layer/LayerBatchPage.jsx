@@ -1,5 +1,6 @@
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -865,12 +866,12 @@ export default function LayerBatchPage({
                 <div
                   key={h.id}
                   data-layer-housing-tile={h.id}
-                  onClick={() =>
+                  {...openableProps(() =>
                     navigate(
                       '/layer/housings/' + h.id,
                       recordSeqNavOptions(labeledSeqItems(batchHousings, 'housing_name')),
-                    )
-                  }
+                    ),
+                  )}
                   className="hoverable-tile"
                   style={{
                     background: 'white',

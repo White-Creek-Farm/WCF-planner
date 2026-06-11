@@ -102,7 +102,10 @@ describe('ActivityLogView', () => {
   it('marks non-routable rows inert (no pointer cursor, no onClick)', () => {
     expect(viewSrc).toContain('data-activity-log-routable');
     expect(viewSrc).toMatch(/routable \? 'pointer' : 'default'/);
-    expect(viewSrc).toMatch(/routable \? \(\) => handleRowClick\(r\) : undefined/);
+    // Routable rows spread the shared openable click+keyboard props (hover
+    // affordance lane); non-routable rows get none of them.
+    expect(viewSrc).toMatch(/routable \? openableProps\(\(\) => handleRowClick\(r\)\) : \{\}/);
+    expect(viewSrc).toMatch(/routable \? 'hoverable-tile' : undefined/);
   });
 
   it('shows empty/loading/error states', () => {

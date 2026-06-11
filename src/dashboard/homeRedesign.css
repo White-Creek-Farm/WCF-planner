@@ -398,6 +398,13 @@
 .home .litem.is-link {
   cursor: pointer;
 }
+/* Keyboard parity for openable list rows: same row-wash as hover plus a
+   visible brand ring. Paint-only (outline/background) — no layout shift. */
+.home .litem.is-link:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+  background: var(--row-hover);
+}
 .home .litem-body {
   flex: 1;
   min-width: 0;

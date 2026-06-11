@@ -367,9 +367,12 @@ describe('BroilerHomeView — active dashboard tiles open the batch record page'
     expect(homeSrc).toContain("import {useNavigate} from 'react-router-dom'");
     expect(homeSrc).toContain('openBroilerBatch');
     expect(homeSrc).toContain("navigate('/broiler/batches/' + encodeURIComponent(b.name))");
-    expect(homeSrc).toContain('onClick={() => openBroilerBatch(b)}');
+    // Tile activation routes through the shared openable click+keyboard props
+    // (hover-affordance rollout lane), still via openBroilerBatch.
+    expect(homeSrc).toContain('{...openableProps(() => openBroilerBatch(b))}');
     // The active-batch tile must no longer fall back to the hub list view.
     expect(homeSrc).not.toContain("onClick={() => setView('list')}");
+    expect(homeSrc).not.toContain("openableProps(() => setView('list'))");
   });
 });
 

@@ -149,12 +149,44 @@ describe('Global openable affordance - source ownership', () => {
 });
 
 // ============================================================================
-// Representative keyboard ownership: these surfaces were made focusable +
-// Enter/Space-actionable in the affordance lane and must not drift back to
-// mouse-only. (Remaining hoverable-tile call sites are documented follow-up.)
+// Keyboard ownership (source-wide rollout lane): every file that renders a
+// .hoverable-tile / .hoverable-row openable must wire keyboard activation —
+// either the shared helper (src/shared/openable.js openableProps) or the
+// locked inline pattern (role="button" + tabIndex={0} + onKeyDown Enter/Space).
+// Mouse-only openables must not come back.
 // ============================================================================
 
-describe('Global openable affordance - representative keyboard surfaces', () => {
+describe('Global openable affordance - keyboard ownership', () => {
+  it('src/shared/openable.js keeps the contract (button role, tabIndex 0, Enter/Space, self-target guard)', () => {
+    const src = read('src/shared/openable.js');
+    expect(src).toContain("role: 'button'");
+    expect(src).toContain('tabIndex: 0');
+    expect(src).toContain('onKeyDown');
+    expect(src).toMatch(/e\.key === 'Enter' \|\| e\.key === ' '/);
+    expect(src).toContain('e.preventDefault()');
+    // Enter/Space on a nested control must not also open the parent row/tile.
+    expect(src).toContain('e.target !== e.currentTarget');
+  });
+
+  it('every hoverable-tile/row file wires openableProps or the inline keyboard pattern', () => {
+    const files = walkJsx(path.join(ROOT, 'src'));
+    const offenders = [];
+    for (const file of files) {
+      const src = fs.readFileSync(file, 'utf8');
+      // Both JSX (className="...hoverable-x") and createElement
+      // (className: 'hoverable-x') call-site forms count as usage.
+      if (!/hoverable-(tile|row)/.test(src)) continue;
+      const usesHelper = /openableProps\(/.test(src);
+      const inlinePattern =
+        /role(: '|=")button/.test(src) &&
+        /tabIndex(: 0|=\{0\})/.test(src) &&
+        /onKeyDown/.test(src) &&
+        (/e\.key === 'Enter' \|\| e\.key === ' '/.test(src) || /e\.key !== 'Enter' && e\.key !== ' '/.test(src));
+      if (!usesHelper && !inlinePattern) offenders.push(path.relative(ROOT, file));
+    }
+    expect(offenders, `mouse-only hoverable openables in: ${offenders.join(', ')}`).toEqual([]);
+  });
+
   for (const rel of ['src/shared/WeighInSessionListTile.jsx', 'src/equipment/EquipmentFleetView.jsx']) {
     it(`${rel} keeps button semantics + Enter/Space activation`, () => {
       const src = read(rel);
@@ -164,4 +196,43 @@ describe('Global openable affordance - representative keyboard surfaces', () => 
       expect(src).toMatch(/e\.key === 'Enter' \|\| e\.key === ' '/);
     });
   }
+});
+
+// ============================================================================
+// Home affordance slices (approved home design owns its own classes):
+//   - HomeWeatherCard collapsed card carries the approved `card weather-card
+//     lift` treatment as a real <button> (native keyboard semantics).
+//   - homeRedesign.css gives openable .litem.is-link rows a :focus-visible
+//     ring so the keyboard affordance matches hover (paint-only).
+// ============================================================================
+
+describe('Global openable affordance - home design slices', () => {
+  it('HomeWeatherCard collapsed card is a button with the card weather-card lift treatment', () => {
+    const src = read('src/weather/HomeWeatherCard.jsx');
+    const anchor = src.indexOf("'data-weather-card': 'collapsed'");
+    expect(anchor).toBeGreaterThan(-1);
+    // The createElement type immediately before the collapsed-card props must
+    // be 'button' (native keyboard), not a mouse-only div.
+    const head = src.slice(0, anchor);
+    const lastCreate = [...head.matchAll(/createElement\(\s*'([a-z]+)'/g)].pop();
+    expect(lastCreate && lastCreate[1]).toBe('button');
+    const propsBlock = src.slice(anchor, src.indexOf('},', anchor));
+    expect(src).toContain("className: 'card weather-card lift'");
+    expect(propsBlock.length).toBeGreaterThan(0);
+  });
+
+  it('homeRedesign.css keeps the paint-only .litem.is-link focus ring', () => {
+    const css = read('src/dashboard/homeRedesign.css');
+    const idx = css.indexOf('.home .litem.is-link:focus-visible');
+    expect(idx).toBeGreaterThan(-1);
+    const body = css.slice(css.indexOf('{', idx) + 1, css.indexOf('}', idx));
+    for (const decl of body.split(';')) {
+      const prop = decl.slice(0, decl.indexOf(':')).trim();
+      if (!prop) continue;
+      expect(
+        ['outline', 'outline-offset', 'background', 'background-color', 'box-shadow'].includes(prop),
+        `.litem.is-link:focus-visible sets non-paint property "${prop}"`,
+      ).toBe(true);
+    }
+  });
 });

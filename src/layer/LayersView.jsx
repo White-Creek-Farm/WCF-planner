@@ -1,5 +1,6 @@
 // Phase 2 Round 3 extraction (verbatim).
 import React from 'react';
+import {openableProps} from '../shared/openable.js';
 import {S} from '../lib/styles.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -163,7 +164,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
       : null;
     return (
       <div
-        onClick={() => openEdit(g)}
+        {...openableProps(() => openEdit(g))}
         style={{
           background: 'white',
           border: '1px solid #e5e7eb',

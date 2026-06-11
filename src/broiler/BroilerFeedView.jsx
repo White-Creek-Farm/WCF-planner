@@ -44,6 +44,7 @@
 // ============================================================================
 import React, {useState} from 'react';
 import {fmt, todayISO} from '../lib/dateUtils.js';
+import {openableProps} from '../shared/openable.js';
 import {S} from '../lib/styles.js';
 import {
   calcBatchFeedForMonth,
@@ -1398,9 +1399,10 @@ export default function BroilerFeedView({
                 React.createElement(
                   'div',
                   {
-                    onClick: function () {
+                    ...openableProps(function () {
                       togBr('proc');
-                    },
+                    }),
+                    className: 'hoverable-tile',
                     style: {
                       padding: '8px 16px',
                       fontSize: 12,
@@ -1427,9 +1429,10 @@ export default function BroilerFeedView({
                 React.createElement(
                   'div',
                   {
-                    onClick: function () {
+                    ...openableProps(function () {
                       togBr('planned');
-                    },
+                    }),
+                    className: 'hoverable-tile',
                     style: {
                       padding: '8px 16px',
                       fontSize: 12,
@@ -1458,6 +1461,7 @@ export default function BroilerFeedView({
         {/* Per-batch breakdown - Layer COLLAPSIBLE */}
         <div style={{...S.card}}>
           <div
+            className="hoverable-tile"
             style={{
               padding: '12px 16px',
               borderBottom: '1px solid #e5e7eb',
@@ -1466,13 +1470,13 @@ export default function BroilerFeedView({
               alignItems: 'center',
               cursor: 'pointer',
             }}
-            onClick={() =>
+            {...openableProps(() =>
               setCollapsedBatches((s) => {
                 const n = new Set(s);
                 n.has('layers') ? n.delete('layers') : n.add('layers');
                 return n;
-              })
-            }
+              }),
+            )}
           >
             <div style={{fontWeight: 600, fontSize: 14, color: '#78350f'}}>{'🐓 Layer Feed Estimate Per Batch'}</div>
             <span style={{fontSize: 12, color: '#9ca3af'}}>

@@ -1,6 +1,7 @@
 // Phase 2 Round 5 extraction (verbatim).
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
 import {wcfSendEmail} from '../lib/email.js';
 import {uploadDailyPhoto, MAX_PHOTOS_PER_REPORT} from '../lib/dailyPhotos.js';
@@ -1496,10 +1497,11 @@ const WebformHub = ({
             Select a report type to fill out
           </div>
           <div
-            onClick={function () {
+            {...openableProps(function () {
               window.location.hash = '#addfeed';
               window.location.reload();
-            }}
+            })}
+            className="hoverable-tile"
             style={{
               background: '#fef3c7',
               borderRadius: 12,
@@ -1525,10 +1527,11 @@ const WebformHub = ({
           </div>
           {!hideWeighIns && (
             <div
-              onClick={function () {
+              {...openableProps(function () {
                 window.location.hash = '#weighins';
                 window.location.reload();
-              }}
+              })}
+              className="hoverable-tile"
               style={{
                 background: '#eff6ff',
                 borderRadius: 12,
@@ -1557,7 +1560,8 @@ const WebformHub = ({
           )}
           <div
             data-tile="tasks"
-            onClick={() => navigate('/dailys/tasks')}
+            {...openableProps(() => navigate('/dailys/tasks'))}
+            className="hoverable-tile"
             style={{
               background: '#f0fdfa',
               borderRadius: 12,
@@ -1591,7 +1595,8 @@ const WebformHub = ({
           ].map((f) => (
             <div
               key={f.id}
-              onClick={() => setActiveForm(f.id)}
+              {...openableProps(() => setActiveForm(f.id))}
+              className="hoverable-tile"
               style={{
                 background: 'white',
                 borderRadius: 12,

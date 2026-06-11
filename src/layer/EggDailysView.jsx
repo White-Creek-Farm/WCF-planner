@@ -1,6 +1,7 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
@@ -742,7 +743,9 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                 <div
                   key={d.id}
                   data-daily-row={d.id}
-                  onClick={() => navigate('/layer/eggs/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, null)))}
+                  {...openableProps(() =>
+                    navigate('/layer/eggs/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, null))),
+                  )}
                   style={{
                     background: 'white',
                     borderRadius: 8,

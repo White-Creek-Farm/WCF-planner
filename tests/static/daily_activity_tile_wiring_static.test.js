@@ -74,7 +74,9 @@ describe('Daily views — navigate to record page', () => {
 
   for (const v of views) {
     it(`${v.name} navigates to ${v.path}<id>`, () => {
-      expect(v.src).toContain("navigate('" + v.path);
+      // Whitespace-tolerant: Prettier may wrap the navigate(...) call across
+      // lines (e.g. inside the shared openableProps spread).
+      expect(v.src).toMatch(new RegExp("navigate\\(\\s*'" + v.path.replace(/\//g, '\\/')));
     });
   }
 });

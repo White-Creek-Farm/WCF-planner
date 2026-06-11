@@ -1,6 +1,7 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
@@ -886,9 +887,9 @@ const LayerDailysHub = ({
                     )}
                     <div
                       data-daily-row={d.id}
-                      onClick={() =>
-                        navigate('/layer/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
-                      }
+                      {...openableProps(() =>
+                        navigate('/layer/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label'))),
+                      )}
                       style={{
                         background: d.source === 'add_feed_webform' ? '#fffbeb' : shadeBg,
                         borderRadius: 8,

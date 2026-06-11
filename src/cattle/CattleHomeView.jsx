@@ -1,5 +1,6 @@
 // Phase 2 Round 3 extraction (verbatim).
 import React from 'react';
+import {openableProps} from '../shared/openable.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import CattleBulkImport from './CattleBulkImport.jsx';
 import SheepBulkImport from '../sheep/SheepBulkImport.jsx';
@@ -492,7 +493,7 @@ const CattleHomeView = ({
         {!loadError && forecastTile && (
           <div
             data-cattle-home-forecast-tile
-            onClick={() => setView('cattleforecast')}
+            {...openableProps(() => setView('cattleforecast'))}
             style={{
               background: 'white',
               border: '1px solid #fca5a5',
@@ -558,7 +559,7 @@ const CattleHomeView = ({
                 return (
                   <div
                     key={h}
-                    onClick={() => setView('cattleherds')}
+                    {...openableProps(() => setView('cattleherds'))}
                     style={{
                       background: 'white',
                       border: '1px solid #e5e7eb',
@@ -631,7 +632,7 @@ const CattleHomeView = ({
                 return (
                   <div
                     key={h}
-                    onClick={() => setView('cattleherds')}
+                    {...openableProps(() => setView('cattleherds'))}
                     style={{
                       background: 'white',
                       border: '1px solid #e5e7eb',

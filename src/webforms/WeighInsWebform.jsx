@@ -19,6 +19,7 @@
 //   - 23505 from this RPC remains a stuck/schema bug, never success.
 import React from 'react';
 import {deriveBroilerColumnLabels} from '../lib/broilerBatchMeta.js';
+import {openableProps} from '../shared/openable.js';
 import {fmt, centralISOFor, todayCentralISO} from '../lib/dateUtils.js';
 import {formatAgeRange, formatFeedPerPig, formatGroupAdg, formatAvgWeight} from '../lib/pigForecast.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
@@ -1484,10 +1485,11 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
           ].map((s) => (
             <div
               key={s.key}
-              onClick={() => {
+              {...openableProps(() => {
                 setSpecies(s.key);
                 setStage('select');
-              }}
+              })}
+              className="hoverable-tile"
               style={{
                 background: s.bg,
                 borderRadius: 12,
@@ -1584,7 +1586,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
               {drafts.map((d) => (
                 <div
                   key={d.id}
-                  onClick={() => resumeSession(d)}
+                  {...openableProps(() => resumeSession(d))}
                   style={{
                     background: '#f9fafb',
                     border: '1px solid #e5e7eb',

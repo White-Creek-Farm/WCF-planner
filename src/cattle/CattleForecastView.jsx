@@ -9,6 +9,7 @@
 // is broad-authenticated; the database itself doesn't filter writes by role.
 import React from 'react';
 import UsersModal from '../auth/UsersModal.jsx';
+import {openableProps} from '../shared/openable.js';
 import CowDetail from './CowDetail.jsx';
 import {loadCattleWeighInsCached, invalidateCattleWeighInsCache} from '../lib/cattleCache.js';
 import {
@@ -1145,10 +1146,11 @@ function MonthBucketTile({
       data-month-bucket={bucket.monthKey}
     >
       <div
-        onClick={() => {
+        {...openableProps(() => {
           setExpanded((v) => !v);
           setMonthFilter(isFiltered ? null : bucket.monthKey);
-        }}
+        })}
+        className="hoverable-tile"
         style={{
           padding: '12px 18px',
           background: isFiltered ? '#fef2f2' : '#fafafa',
@@ -1973,7 +1975,8 @@ function IncludeHeifersModal({
                   }}
                 >
                   <div
-                    onClick={() => setExpandedId(isExpanded ? null : h.id)}
+                    {...openableProps(() => setExpandedId(isExpanded ? null : h.id))}
+                    className="hoverable-tile"
                     style={{
                       padding: '8px 12px',
                       display: 'grid',

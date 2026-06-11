@@ -1,5 +1,6 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {
@@ -2258,7 +2259,8 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       }}
                     >
                       <div
-                        onClick={() => setExpandedMortality(isOpen ? null : g.id)}
+                        {...openableProps(() => setExpandedMortality(isOpen ? null : g.id))}
+                        className="hoverable-tile"
                         style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}
                       >
                         <span style={{color: '#9ca3af'}}>{isOpen ? '▼' : '▶'}</span>

@@ -8,6 +8,7 @@
 // ============================================================================
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
@@ -377,7 +378,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                 ({b, inBrooder, daysToProc, daysActive, feedSoFar, mortSoFar, mortPct, phaseLabel, B2}) => (
                   <div
                     key={b.id}
-                    onClick={() => openBroilerBatch(b)}
+                    {...openableProps(() => openBroilerBatch(b))}
                     style={{
                       background: 'white',
                       border: '1px solid #e5e7eb',

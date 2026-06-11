@@ -44,6 +44,7 @@ import {
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
@@ -1213,7 +1214,7 @@ const CattleHerdsHub = ({
     return (
       <div id={'cow-' + c.id} data-cow-row-tag={c.tag || ''} style={{borderBottom: '1px solid #f3f4f6'}}>
         <div
-          onClick={() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(navList))}
+          {...openableProps(() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(navList)))}
           style={{
             padding: showHerd ? '10px 16px 10px 0' : '10px 18px 10px 0',
             display: 'grid',
@@ -1782,7 +1783,8 @@ const CattleHerdsHub = ({
                       style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
                     >
                       <div
-                        onClick={() => setExpandedHerds({...expandedHerds, [h]: !herdOpen})}
+                        {...openableProps(() => setExpandedHerds({...expandedHerds, [h]: !herdOpen}))}
+                        className="hoverable-tile"
                         data-herd-tile={h}
                         data-herd-open={herdOpen ? '1' : '0'}
                         style={{

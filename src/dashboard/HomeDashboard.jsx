@@ -27,6 +27,7 @@ import {
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS, PLANNER_ICON_KEYS} from '../lib/plannerIcons.js';
 import UsersModal from '../auth/UsersModal.jsx';
+import {openableProps} from '../shared/openable.js';
 import HomeWeatherCard from '../weather/HomeWeatherCard.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
@@ -804,7 +805,9 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                     className="litem eq is-link"
                     data-attention-kind={a.kind}
                     data-equipment-slug={a.slug}
-                    onClick={() => navigate(a.kind === 'fillup_streak' ? '/equipment/' + a.slug : '/fleet/' + a.slug)}
+                    {...openableProps(() =>
+                      navigate(a.kind === 'fillup_streak' ? '/equipment/' + a.slug : '/fleet/' + a.slug),
+                    )}
                   >
                     <span className={'eq-led ' + led} />
                     <div className="litem-body">
@@ -940,11 +943,13 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                 <li
                   key={i}
                   className={'litem fd' + (e.reminder ? ' is-link' : '')}
-                  onClick={() => {
-                    if (e.type === 'wt-4wk' || e.type === 'wt-6wk') {
-                      setView('list');
-                    }
-                  }}
+                  {...(e.reminder
+                    ? openableProps(() => {
+                        if (e.type === 'wt-4wk' || e.type === 'wt-6wk') {
+                          setView('list');
+                        }
+                      })
+                    : {})}
                 >
                   <span className="coin coin-sm">
                     <PlannerIcon iconKey={e.iconKey} size={18} />
@@ -1045,10 +1050,10 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                   <div
                                     key={i}
                                     data-daily-report-tile={r.id}
-                                    onClick={() => {
+                                    {...openableProps(() => {
                                       const path = pathForDailyReport(r);
                                       if (path) navigate(path);
-                                    }}
+                                    })}
                                     style={{
                                       background: shadeBg,
                                       borderRadius: 7,

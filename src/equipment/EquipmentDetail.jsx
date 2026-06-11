@@ -7,6 +7,7 @@
 //   6. Warranty expiration flag when < 60 days out
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {openableProps} from '../shared/openable.js';
 import {
   EQUIPMENT_COLOR,
   WARRANTY_WINDOW_DAYS,
@@ -694,7 +695,7 @@ export default function EquipmentDetail({
               return (
                 <div key={f.id} style={{borderTop: '1px solid #f3f4f6'}}>
                   <div
-                    onClick={() => setExpandedFueling(isExp ? null : f.id)}
+                    {...openableProps(() => setExpandedFueling(isExp ? null : f.id))}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: eq.takes_def

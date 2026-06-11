@@ -7,6 +7,7 @@
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 import {fmt, fmtS, todayISO, addDays, toISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {
@@ -1010,7 +1011,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                 return (
                   <div
                     key={c.id}
-                    onClick={openEdit}
+                    {...openableProps(openEdit)}
                     className="hoverable-tile"
                     style={{
                       background: 'white',

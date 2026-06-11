@@ -13,6 +13,7 @@
 
 import React from 'react';
 import {sb} from '../lib/supabase.js';
+import {openableProps} from '../shared/openable.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
@@ -161,7 +162,8 @@ export default function EquipmentWebformsAdmin() {
                   return (
                     <div
                       key={e.id}
-                      onClick={() => setSelectedId(e.id)}
+                      {...openableProps(() => setSelectedId(e.id))}
+                      className="hoverable-tile"
                       style={{
                         padding: '7px 12px',
                         border: '1px solid ' + (on ? cat.color : '#e5e7eb'),
@@ -217,7 +219,8 @@ export default function EquipmentWebformsAdmin() {
                 return (
                   <div
                     key={e.id}
-                    onClick={() => setSelectedId(e.id)}
+                    {...openableProps(() => setSelectedId(e.id))}
+                    className="hoverable-tile"
                     style={{
                       padding: '7px 12px',
                       border: '1px solid ' + (on ? '#6b7280' : '#e5e7eb'),
@@ -1410,7 +1413,8 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                 style={{border: '1px solid #e5e7eb', borderRadius: 6, background: isExpanded ? '#f9fafb' : 'white'}}
               >
                 <div
-                  onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                  {...openableProps(() => setExpandedIdx(isExpanded ? null : i))}
+                  className="hoverable-tile"
                   style={{
                     padding: '8px 12px',
                     display: 'grid',
@@ -1779,7 +1783,8 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
               style={{border: '1px solid #e5e7eb', borderRadius: 6, background: isExpanded ? '#f9fafb' : 'white'}}
             >
               <div
-                onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                {...openableProps(() => setExpandedIdx(isExpanded ? null : i))}
+                className="hoverable-tile"
                 style={{
                   padding: '8px 12px',
                   display: 'grid',
