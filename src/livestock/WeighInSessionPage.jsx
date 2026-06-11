@@ -992,10 +992,20 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
         return;
       }
       const existingOldTags = Array.isArray(cow.old_tags) ? cow.old_tags : [];
-      const priorTagAlreadyRecorded = existingOldTags.some((oldTag) => String(oldTag && oldTag.tag) === priorTag);
-      const updatedOldTags = priorTagAlreadyRecorded
-        ? existingOldTags
-        : existingOldTags.concat([{tag: priorTag, changed_at: new Date().toISOString(), source: 'import'}]);
+      const priorTagIndex = existingOldTags.findIndex((oldTag) => String(oldTag && oldTag.tag) === priorTag);
+      let updatedOldTags = existingOldTags;
+      if (priorTagIndex >= 0) {
+        const currentOldTag = existingOldTags[priorTagIndex] || {};
+        if (currentOldTag.source !== 'weigh_in') {
+          updatedOldTags = existingOldTags.map((oldTag, index) =>
+            index === priorTagIndex ? {...oldTag, tag: priorTag, source: 'weigh_in'} : oldTag,
+          );
+        }
+      } else {
+        updatedOldTags = existingOldTags.concat([
+          {tag: priorTag, changed_at: new Date().toISOString(), source: 'weigh_in'},
+        ]);
+      }
       const swapTable = session.species === 'sheep' ? 'sheep' : 'cattle';
       const cowNeedsUpdate = cow.tag !== tag || updatedOldTags !== existingOldTags;
       if (cowNeedsUpdate) {

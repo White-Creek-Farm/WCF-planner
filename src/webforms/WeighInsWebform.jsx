@@ -741,18 +741,23 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
       setCattleList((prev) => prev.concat([cowRec]));
     }
     // For retag: swap the known cow's tag on the spot + stamp old_tags with the
-    // prior value. Weigh-in lands with new_tag_flag=false (already resolved).
+    // prior WCF tag. This is a weigh-in tag history event, not a purchase tag.
     if (mode === 'retag' && retagCow) {
-      // Tag known at entry → "Purchase tag" (source='import'). Matches the
-      // common case of bulk-retagging a newly-purchased group whose prior
-      // tag was the selling-farm number.
       const existingOldTags = Array.isArray(retagCow.old_tags) ? retagCow.old_tags : [];
-      const priorTagAlreadyRecorded = existingOldTags.some(
-        (oldTag) => String(oldTag && oldTag.tag) === priorTag.trim(),
-      );
-      const updatedOldTags = priorTagAlreadyRecorded
-        ? existingOldTags
-        : existingOldTags.concat([{tag: priorTag.trim(), changed_at: new Date().toISOString(), source: 'import'}]);
+      const priorTagIndex = existingOldTags.findIndex((oldTag) => String(oldTag && oldTag.tag) === priorTag.trim());
+      let updatedOldTags = existingOldTags;
+      if (priorTagIndex >= 0) {
+        const currentOldTag = existingOldTags[priorTagIndex] || {};
+        if (currentOldTag.source !== 'weigh_in') {
+          updatedOldTags = existingOldTags.map((oldTag, index) =>
+            index === priorTagIndex ? {...oldTag, tag: priorTag.trim(), source: 'weigh_in'} : oldTag,
+          );
+        }
+      } else {
+        updatedOldTags = existingOldTags.concat([
+          {tag: priorTag.trim(), changed_at: new Date().toISOString(), source: 'weigh_in'},
+        ]);
+      }
       const cowNeedsUpdate = retagCow.tag !== tag.trim() || updatedOldTags !== existingOldTags;
       if (cowNeedsUpdate) {
         const cowUpd = await sb

@@ -98,6 +98,15 @@ describe('WeighInsWebform.jsx static lock', () => {
     expect(source).toContain('cowNeedsUpdate');
   });
 
+  it('records resolved swap-tag prior tags as weigh-in history tags', () => {
+    const start = source.indexOf("if (mode === 'retag' && retagCow)");
+    const end = source.indexOf('const rec = {', start);
+    const retagBlock = source.slice(start, end);
+    expect(retagBlock).toContain("source: 'weigh_in'");
+    expect(retagBlock).not.toContain("source: 'import'");
+    expect(retagBlock).toContain('priorTagIndex');
+  });
+
   it('shades blacklisted cattle in the public weigh-in dropdowns', () => {
     expect(source).toContain('breeding_blacklist');
     expect(source).toContain('blacklistOptionS');

@@ -361,6 +361,14 @@ describe('WeighInSessionPage — cattle entry operations', () => {
     expect(pageSrc).toContain('reconcile_intent: null');
     expect(pageSrc).toContain('existingAtNewTag && existingAtNewTag.id !== cow.id');
   });
+  it('records resolved swap-tag prior tags as weigh-in history tags', () => {
+    const start = pageSrc.indexOf('const existingOldTags = Array.isArray(cow.old_tags)');
+    const end = pageSrc.indexOf('const swapTable =', start);
+    const swapBlock = pageSrc.slice(start, end);
+    expect(swapBlock).toContain("source: 'weigh_in'");
+    expect(swapBlock).not.toContain("source: 'import'");
+    expect(swapBlock).toContain('priorTagIndex');
+  });
   it('shades blacklisted cattle in add/reconcile dropdowns', () => {
     expect(pageSrc).toContain('BLACKLIST_OPTION_STYLE');
     expect(pageSrc).toContain('data-breeding-blacklist-option');
