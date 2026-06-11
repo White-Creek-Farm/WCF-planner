@@ -219,6 +219,10 @@ test('UI: calf herd tile shows dam tag after trigger links it', async ({page, su
 // Locks the correction contract: when the trigger (or any prior write) has
 // populated cattle.dam_tag, CowDetail still renders an editable input for
 // dam_tag. The View link is navigation only, not the sole authoring surface.
+// Contract update (2026-06-11 triage): clicking a herd-list cow row navigates
+// to the /cattle/herds/<id> record page (CattleAnimalPage composes CowDetail);
+// the old inline-expand-inside-#cow-<id> flow was retired with the record-page
+// lanes, so lineage assertions now run against the record page.
 test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async ({page, supabaseAdmin, resetDb}) => {
   await resetDb();
   await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
@@ -236,14 +240,21 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async
 
   await page.locator('[data-herd-tile="mommas"]').click();
 
-  const calfTile = page.locator(`#cow-${CALF_BLANK.id}`).first();
-  await expect(calfTile).toBeVisible({timeout: 10_000});
-  // Click the cow row to expand the inline CowDetail.
-  await calfTile.locator('.hoverable-tile').first().click();
+  const calfRow = page.locator(`#cow-${CALF_BLANK.id}`).first();
+  await expect(calfRow).toBeVisible({timeout: 10_000});
+  // Clicking the cow row opens the cattle animal record page.
+  await calfRow.locator('.hoverable-tile').first().click();
+  await expect(page).toHaveURL(new RegExp('/cattle/herds/' + CALF_BLANK.id + '$'), {timeout: 10_000});
 
-  const lineage = calfTile.locator('[data-lineage-section="1"]');
+  const record = page.locator('[data-cattle-animal-page="1"]');
+  await expect(record).toBeVisible({timeout: 10_000});
+  const lineage = record.locator('[data-lineage-section="1"]');
   await expect(lineage).toBeVisible({timeout: 10_000});
-  await expect(lineage.getByDisplayValue(DAM.tag)).toBeVisible();
+  // Dam input is the first text input in the lineage grid (sire is second).
+  // (The retired inline-flow spec used getByDisplayValue, which is not a
+  // Playwright Locator API — that line never ran because the old expansion
+  // assert failed first.)
+  await expect(lineage.locator('input[type="text"]').first()).toHaveValue(DAM.tag);
   await expect(lineage.getByRole('button', {name: `View #${DAM.tag}`})).toBeVisible();
   // Dam and sire inputs remain editable even when dam_tag is populated.
   await expect(lineage.locator('input[type="text"]')).toHaveCount(2);
@@ -262,11 +273,14 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is blank', asy
 
   await page.locator('[data-herd-tile="mommas"]').click();
 
-  const calfTile = page.locator(`#cow-${CALF_BLANK.id}`).first();
-  await expect(calfTile).toBeVisible({timeout: 10_000});
-  await calfTile.locator('.hoverable-tile').first().click();
+  const calfRow = page.locator(`#cow-${CALF_BLANK.id}`).first();
+  await expect(calfRow).toBeVisible({timeout: 10_000});
+  await calfRow.locator('.hoverable-tile').first().click();
+  await expect(page).toHaveURL(new RegExp('/cattle/herds/' + CALF_BLANK.id + '$'), {timeout: 10_000});
 
-  const lineage = calfTile.locator('[data-lineage-section="1"]');
+  const record = page.locator('[data-cattle-animal-page="1"]');
+  await expect(record).toBeVisible({timeout: 10_000});
+  const lineage = record.locator('[data-lineage-section="1"]');
   await expect(lineage).toBeVisible({timeout: 10_000});
   // Both dam and sire inputs render in the blank state.
   await expect(lineage.locator('input[type="text"]')).toHaveCount(2);
@@ -298,20 +312,24 @@ test('UI: calving record list and form omit born/died entirely', async ({page, s
 
   await page.locator('[data-herd-tile="mommas"]').click();
 
-  // Calving list lives on the dam's CowDetail.
-  const damTile = page.locator(`#cow-${DAM.id}`).first();
-  await expect(damTile).toBeVisible({timeout: 10_000});
-  await damTile.locator('.hoverable-tile').first().click();
+  // Calving list lives on the dam's record page (CowDetail composed there).
+  const damRow = page.locator(`#cow-${DAM.id}`).first();
+  await expect(damRow).toBeVisible({timeout: 10_000});
+  await damRow.locator('.hoverable-tile').first().click();
+  await expect(page).toHaveURL(new RegExp('/cattle/herds/' + DAM.id + '$'), {timeout: 10_000});
+
+  const record = page.locator('[data-cattle-animal-page="1"]');
+  await expect(record).toBeVisible({timeout: 10_000});
 
   // Calf link still renders; count phrase is gone even with non-zero values.
-  await expect(damTile.getByRole('button', {name: `calf #${CALF_BLANK.tag}`})).toBeVisible({timeout: 10_000});
-  await expect(damTile).not.toContainText('2 born, 1 died');
-  await expect(damTile).not.toContainText('born,');
+  await expect(record.getByRole('button', {name: `calf #${CALF_BLANK.tag}`})).toBeVisible({timeout: 10_000});
+  await expect(record).not.toContainText('2 born, 1 died');
+  await expect(record).not.toContainText('born,');
 
   // + Add Calving form should not render Total born / Deaths inputs.
-  await damTile.getByRole('button', {name: '+ Add Calving'}).click();
-  await expect(damTile.getByText('Total born', {exact: true})).toHaveCount(0);
-  await expect(damTile.getByText('Deaths', {exact: true})).toHaveCount(0);
+  await record.getByRole('button', {name: '+ Add Calving'}).click();
+  await expect(record.getByText('Total born', {exact: true})).toHaveCount(0);
+  await expect(record.getByText('Deaths', {exact: true})).toHaveCount(0);
 });
 
 // --------------------------------------------------------------------------
@@ -331,16 +349,20 @@ test('UI: + Add Calving submit writes no auto-comment to the dam timeline', asyn
 
   await page.locator('[data-herd-tile="mommas"]').click();
 
-  const damTile = page.locator(`#cow-${DAM.id}`).first();
-  await expect(damTile).toBeVisible({timeout: 10_000});
-  await damTile.locator('.hoverable-tile').first().click();
+  const damRow = page.locator(`#cow-${DAM.id}`).first();
+  await expect(damRow).toBeVisible({timeout: 10_000});
+  await damRow.locator('.hoverable-tile').first().click();
+  await expect(page).toHaveURL(new RegExp('/cattle/herds/' + DAM.id + '$'), {timeout: 10_000});
+
+  const record = page.locator('[data-cattle-animal-page="1"]');
+  await expect(record).toBeVisible({timeout: 10_000});
 
   // Open + submit the form. calving_date defaults to today; no other fields required.
-  await damTile.getByRole('button', {name: '+ Add Calving'}).click();
-  await damTile.getByRole('button', {name: 'Save Calving'}).click();
+  await record.getByRole('button', {name: '+ Add Calving'}).click();
+  await record.getByRole('button', {name: 'Save Calving'}).click();
 
   // Form closes on successful save.
-  await expect(damTile.getByRole('button', {name: 'Save Calving'})).toHaveCount(0, {timeout: 10_000});
+  await expect(record.getByRole('button', {name: 'Save Calving'})).toHaveCount(0, {timeout: 10_000});
 
   // The calving record was written, the auto-comment was not.
   const {data: records} = await supabaseAdmin

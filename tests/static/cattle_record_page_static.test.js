@@ -395,4 +395,13 @@ describe('CattleAnimalPage - cold-boot readiness', () => {
   it('keeps the resolved record body marker used by Playwright helpers', () => {
     expect(animalPage).toContain('data-cattle-animal-page="1"');
   });
+
+  it('composes CowDetail with the lineage-section marker (calf/dam spec contract)', () => {
+    // tests/cattle_calf_dam_link.spec.js asserts lineage on the record page:
+    // herd-list rows navigate here (no inline CowDetail expansion remains).
+    expect(animalPage).toContain("import CowDetail from './CowDetail.jsx'");
+    expect(animalPage).toContain('<CowDetail');
+    const cowDetail = fs.readFileSync(path.join(ROOT, 'src/cattle/CowDetail.jsx'), 'utf8');
+    expect(cowDetail).toContain('data-lineage-section="1"');
+  });
 });
