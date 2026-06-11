@@ -339,6 +339,191 @@
   background: var(--brand);
 }
 
+/* ---------- Animals on Farm history page ---------- */
+.home .animal-history-col {
+  max-width: 1080px;
+}
+.home .animal-history-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
+.home .animal-history-range,
+.home .animal-history-loading,
+.home .animal-history-row-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.home .animal-history-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 2px 2px 4px;
+}
+.home .animal-history-title h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.home .animal-history-title p {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.home .animal-history-latest {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 120px;
+}
+.home .animal-history-latest span {
+  color: var(--brand);
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.home .animal-history-latest strong {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.home .animal-history-error {
+  border: 1px solid oklch(0.88 0.06 26);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.home .animal-history-chart-card,
+.home .animal-history-table-card {
+  padding: 18px 22px 20px;
+}
+.home .animal-history-chart-scroll {
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.home .animal-history-chart {
+  display: block;
+  width: 100%;
+  min-width: 720px;
+  height: auto;
+}
+.home .animal-history-grid {
+  stroke: var(--divider);
+  stroke-width: 1;
+}
+.home .animal-history-grid.x {
+  opacity: 0.6;
+}
+.home .animal-history-axis-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.home .animal-history-line {
+  opacity: 0.92;
+}
+.home .animal-history-line.is-total {
+  opacity: 1;
+}
+.home .animal-history-point {
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+.home .animal-history-empty {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+.home .animal-history-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+}
+.home .animal-history-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.home .animal-history-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+}
+.home .animal-history-table-wrap {
+  overflow-x: auto;
+}
+.home .animal-history-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.home .animal-history-table th,
+.home .animal-history-table td {
+  padding: 12px 10px;
+  border-top: 1px solid var(--divider);
+  text-align: right;
+  font-size: 13px;
+}
+.home .animal-history-table th {
+  color: var(--label);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.home .animal-history-table th:first-child,
+.home .animal-history-table td:first-child {
+  text-align: left;
+  min-width: 142px;
+}
+.home .animal-history-table td {
+  color: var(--text);
+  font-weight: 650;
+}
+.home .animal-history-table td:first-child strong {
+  display: block;
+  color: var(--text);
+  font-weight: 750;
+}
+.home .animal-history-table td:first-child span {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.home .animal-history-total-cell {
+  color: var(--brand) !important;
+  font-weight: 800 !important;
+}
+
 /* ---------- slim status note (caught-up banners) ---------- */
 .home .note {
   display: flex;
@@ -732,5 +917,24 @@
   }
   .home .home-col {
     padding: 16px 14px 56px;
+  }
+  .home .animal-history-topline,
+  .home .animal-history-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .home .animal-history-title {
+    gap: 12px;
+  }
+  .home .animal-history-title h1 {
+    font-size: 28px;
+  }
+  .home .animal-history-latest {
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .home .animal-history-chart-card,
+  .home .animal-history-table-card {
+    padding: 16px 14px 18px;
   }
 }

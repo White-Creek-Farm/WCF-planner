@@ -220,6 +220,7 @@ import LayerBatchesView from './layer/LayerBatchesView.jsx';
 // extraction; reads every data context, takes canAccessProgram +
 // VIEW_TO_PROGRAM as props (they still live in App).
 import HomeDashboard from './dashboard/HomeDashboard.jsx';
+import AnimalHistoryPage from './dashboard/AnimalHistoryPage.jsx';
 import LightHomePortal from './dashboard/LightHomePortal.jsx';
 import MySubmissions from './dashboard/MySubmissions.jsx';
 
@@ -1643,6 +1644,7 @@ function App() {
   // Guard: unknown views fall back to home (must be unconditional)
   const VALID_VIEWS = [
     'home',
+    'animalHistory',
     'broilerHome',
     'pigsHome',
     'layersHome',
@@ -3458,6 +3460,7 @@ function App() {
     if (isLight) return React.createElement(LightHomePortal, {Header});
     return React.createElement(HomeDashboard, {Header, loadUsers, canAccessProgram, VIEW_TO_PROGRAM});
   }
+  if (view === 'animalHistory') return React.createElement(AnimalHistoryPage, {Header});
 
   // ── MY SUBMISSIONS (Light: own equipment fuelings + fuel supplies) ──
   if (view === 'mySubmissions') return React.createElement(MySubmissions, {Header});
