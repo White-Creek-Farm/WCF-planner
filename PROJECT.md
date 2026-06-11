@@ -7,16 +7,16 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-10.
-Current pushed checkpoint: `origin/main` commit `b562ac5` (all source pushed; no
-docs-vs-code split). On 2026-06-10, after the `d7fc2c9` operational-list/token
-checkpoint, four code-only lanes shipped live: global openable hover affordance
-(`1881593`), visible comment farm-time timestamps (`e80e161`), Pig Batch Metrics
-Grid Cleanup with estimate labeling (`2e960cb`, merged `b0e89eb`), and Broiler
-weigh-in-sourced read-only Week 4/6 weights (`0bb7689`, merged `b562ac5`).
-Netlify auto-deploys from GitHub `main`; `b562ac5` was live-verified on
-2026-06-10 by 200 response, asset-hash rotation to `assets/main-DIBi75mC.js`,
-and served hover/focus CSS.
+Last updated: 2026-06-11.
+Current pushed checkpoint: `origin/main` commit `841f99e` (docs wrap only).
+Current pushed source checkpoint: `b562ac5`. On 2026-06-10, after the `d7fc2c9`
+operational-list/token checkpoint, four code-only lanes shipped live: global
+openable hover affordance (`1881593`), visible comment farm-time timestamps
+(`e80e161`), Pig Batch Metrics Grid Cleanup with estimate labeling (`2e960cb`,
+merged `b0e89eb`), and Broiler weigh-in-sourced read-only Week 4/6 weights
+(`0bb7689`, merged `b562ac5`). Netlify auto-deploys from GitHub `main`;
+`b562ac5` was live-verified on 2026-06-10 by 200 response, asset-hash rotation
+to `assets/main-DIBi75mC.js`, and served hover/focus CSS.
 Migration series live through 109 (`109` PROD-applied 2026-06-10).
 Production URL: https://wcfplanner.com.
 
@@ -67,8 +67,10 @@ Rules for editing this file:
 - Contract sections describe current architecture, standards, and guard rails.
   If a contract is aspirational rather than true, move the work to Build Queue
   and state the current guard/inventory honestly.
-- Current State and Latest Shipped Checkpoint summarize what is live now.
-  Detailed lane narrative belongs in git history or the archive, not here.
+- Current State summarizes what is true now, including active local worktree risk
+  when it matters. Latest Shipped Checkpoint summarizes work merged to
+  `origin/main`. Detailed lane narrative belongs in git history or the archive,
+  not here.
 - Inventory counts, migration state, test names, and owner lists must match the
   source/static guards at the time of edit. Prefer pointing to the guard as the
   source of truth instead of duplicating fragile counts here.
@@ -162,25 +164,36 @@ plus a guard update in the same change.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Current `origin/main`: `b562ac5` (pushed and live 2026-06-10; no docs-vs-code
-  split). On top of the `d7fc2c9` operational-list/token checkpoint, 2026-06-10
-  shipped four code-only lanes: global openable hover affordance (`1881593`),
-  visible comment posted timestamps (`e80e161`), Pig Batch Metrics Grid Cleanup
-  with estimate labeling (`2e960cb`, merged via `b0e89eb`), and Broiler
-  weigh-in-sourced read-only week weights (`0bb7689`, merged via `b562ac5`). See
-  Latest Shipped Checkpoint for per-lane detail.
+- Current `origin/main`: `841f99e` (docs-only wrap, pushed 2026-06-10).
+  Current pushed source checkpoint remains `b562ac5` (pushed and live
+  2026-06-10). On top of the `d7fc2c9` operational-list/token checkpoint,
+  2026-06-10 shipped four code-only lanes: global openable hover affordance
+  (`1881593`), visible comment posted timestamps (`e80e161`), Pig Batch Metrics
+  Grid Cleanup with estimate labeling (`2e960cb`, merged via `b0e89eb`), and
+  Broiler weigh-in-sourced read-only week weights (`0bb7689`, merged via
+  `b562ac5`). See Latest Shipped Checkpoint for per-lane detail.
 - Live verification: `https://wcfplanner.com/` returned 200 after the `b562ac5`
   push; the served asset hash rotated from `assets/main-CkhY001g.js` to
   `assets/main-DIBi75mC.js`, and the served HTML contains the new hover/focus CSS
   contract. No Netlify commit status was needed for this verification.
-- Integrated-`main` validation before the `b562ac5` push: `npm run lint` 0
+- Integrated source validation before the `b562ac5` push: `npm run lint` 0
   errors, `npm test` 208 files / 5508 passed, `npm run build` green, plus focused
   Pig Batch sequence-nav and Broiler batch-record-edit Playwright specs green on
   the merged tree.
-- Local main dirty state: only untracked local artifacts remain: the homepage
-  design reference folder (`WCF Planner Redesign/`) and throwaway screenshot
-  folders (`cp4-shots/`, `hover-shots/`, `lanee-shots/`). None are production
-  source; all are intentionally excluded from commits.
+- Local integrated state as of this update (2026-06-11, unpushed): primary
+  `C:\Users\Ronni\WCF-planner` is on `main` at `a2788ae` with three source lanes
+  committed and merged locally, pending Ronnie's push gate:
+  - `0efff11` source-wide openable hover affordance rollout (shared
+    `src/shared/openable.js` openableProps keyboard helper, HomeWeatherCard
+    `card weather-card lift` adoption, source-wide keyboard-ownership guard,
+    `.prettierignore` gains `WCF Planner Redesign/`).
+  - `8226ae6` (merged `920f8c2`) Codex Lane E/F closure: daily + equipment
+    record pages delegate load-error chrome to `RecordPageLoadError`.
+  - `27337d7` (merged `a2788ae`) Codex Lane I slice: batch/session record
+    titles `fontSize` 24 -> 22 plus the retired-JSX-fontSize guard.
+  Untracked local artifacts only (`WCF Planner Redesign/` and screenshot
+  folders, including `rollout-shots/` and `lane-i-shots/` before/after sets);
+  `git status --short` is the source of truth.
 - Migration `109` (`drop_daily_photos_anon_insert`) applied to TEST (`exec_sql`)
   then PROD (`psql --single-transaction`, `ON_ERROR_STOP=1`) and verified
   2026-06-10: precheck found all three daily-photos storage policies present; the
@@ -201,17 +214,21 @@ plus a guard update in the same change.
   (zero PROD trace). `106` auth-gated, `107` admin-gated, `108` authenticated
   (mirrors each surface's existing access).
 - Parallel worktrees: primary `C:\Users\Ronni\WCF-planner` is on `main` at
-  `b562ac5`; `C:\Users\Ronni\WCF-planner-light-audit` remains detached at
-  `ab39eb2`; the merged Codex lane worktrees
-  `C:\Users\Ronni\WCF-planner-codex-pig-metrics` (`2e960cb`) and
-  `C:\Users\Ronni\WCF-planner-codex-broiler-weighins-readonly` (`0bb7689`) still
+  `a2788ae`; `C:\Users\Ronni\WCF-planner-light-audit` remains detached at
+  `ab39eb2`; merged Codex lane worktrees
+  `C:\Users\Ronni\WCF-planner-codex-pig-metrics` (`2e960cb`),
+  `C:\Users\Ronni\WCF-planner-codex-broiler-weighins-readonly` (`0bb7689`),
+  `C:\Users\Ronni\WCF-planner-codex-lane-ef-closure` (`8226ae6`), and
+  `C:\Users\Ronni\WCF-planner-codex-lane-i-token-cleanup` (`27337d7`) still
   exist and are prunable after Ronnie confirms. Do not reuse merged Codex
   worktrees; start any new parallel lane from current `main` in a fresh scoped
   worktree/branch.
-- Open code gates: none for `origin/main` `b562ac5`. No PROD migration, Storage,
-  Vault, or Edge Function deploy gate is open. The four lanes shipped after
-  `d7fc2c9` contain no migrations, schema, RLS, or storage changes; there is no
-  database work to apply.
+- Open gates: no PROD migration, Storage, Vault, or Edge Function deploy gate is
+  open. `origin/main` is at `841f99e`; local `main` is ahead at `a2788ae` with
+  the three integrated 2026-06-11 source lanes (openable rollout, Lane E/F
+  load-error closure, Lane I title-size slice) awaiting Ronnie's push approval.
+  None of the three contain migrations, schema, RLS, or storage changes; there
+  is no database work to apply for them.
 - PROD-applied numbered migration series is live through `109`. Migration `082`
   is unused; migration `083` is shelved. Operational note: the daily duplicate
   cleanup `085` was applied before unique-index migration `084`.
@@ -279,6 +296,9 @@ Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
 work:
 
+- Docs-only project wrap, pushed `origin/main` `841f99e` (2026-06-10). No source,
+  migration, schema, RLS, Storage, Vault, Edge Function, or production-behavior
+  change. The current pushed source checkpoint remains `b562ac5`.
 - Four code-only UI/data-display lanes, pushed `origin/main` `b562ac5`
   (2026-06-10). No migrations, schema changes, RLS changes, Storage, Vault, or
   Edge Function work. Netlify PROD was verified by 200 response, asset rotation
@@ -601,19 +621,21 @@ work:
 
 ### Current Local Gates
 
-No PROD migration, storage, deploy, Vault, commit, push, or merge gate is open as
-of `origin/main` `b562ac5`.
+No PROD migration, storage, deploy, Vault, or Edge Function gate is open as of
+`origin/main` `841f99e`.
 
-- Main CC worktree `C:\Users\Ronni\WCF-planner` is on `main` at `origin/main`
-  `b562ac5`. The only untracked local artifacts are the homepage design reference
-  folder (`WCF Planner Redesign/`) and throwaway screenshot folders
-  (`cp4-shots/`, `hover-shots/`, `lanee-shots/`).
+- Main CC worktree `C:\Users\Ronni\WCF-planner` is on `main` at `a2788ae` with
+  the three integrated 2026-06-11 source lanes committed locally and awaiting
+  Ronnie's push approval. The only working-tree changes are this docs
+  reconciliation plus untracked local artifact folders.
 - Existing parallel worktrees: `C:\Users\Ronni\WCF-planner-light-audit` remains
   detached at `ab39eb2`; the merged Codex lane worktrees
-  `C:\Users\Ronni\WCF-planner-codex-pig-metrics` and
-  `C:\Users\Ronni\WCF-planner-codex-broiler-weighins-readonly` still exist and
-  are prunable after Ronnie confirms. Create a fresh scoped branch from current
-  `main` in a new worktree for the next parallel build lane.
+  `C:\Users\Ronni\WCF-planner-codex-pig-metrics`,
+  `C:\Users\Ronni\WCF-planner-codex-broiler-weighins-readonly`,
+  `C:\Users\Ronni\WCF-planner-codex-lane-ef-closure`, and
+  `C:\Users\Ronni\WCF-planner-codex-lane-i-token-cleanup` still exist and are
+  prunable after Ronnie confirms. Create a fresh scoped branch from current
+  `main` in a new worktree for any additional parallel build lane.
 
 If a new session sees additional dirty state, inspect it before planning; do not
 assume it is disposable. Create new scoped worktrees/branches only for active
@@ -636,16 +658,15 @@ Days/delta chips, fixed record-page prev/next nav + broiler batch on the shared
 nav, broiler auto-processing on processing date, equipment caught-up home
 notices, and Light home alerts with shared `homeAlerts.js` builders.
 Shipped 2026-06-06 (removed from queue): the Sprint 1 Lane 0 locked-submitter
-item plus the full team-member roster teardown — `TasksWebform` submitter
-locked to the signed-in user (migration `097`), all `team_roster` /
-`team_availability` code + storage removed (migration `098`), and the
-`daily_photos_auth_insert` storage policy added so authenticated photo uploads
-work (migration `099`). Low-priority roster-teardown
-follow-ups: delete or repurpose the skipped `broiler_weigh_in_schooners`
-T_negative app_store-isolation test (now moot under the authed admin shell;
-source guarantee stays locked by `tests/static/weighinswebform_no_app_store`),
-and drop the now-redundant `daily_photos_anon_insert` policy once no anonymous
-upload path remains.
+item plus the full team-member roster teardown - `TasksWebform` submitter locked
+to the signed-in user (migration `097`), all `team_roster` / `team_availability`
+code + storage removed (migration `098`), and the `daily_photos_auth_insert`
+storage policy added so authenticated photo uploads work (migration `099`).
+Low-priority roster-teardown follow-up: delete or repurpose the skipped
+`broiler_weigh_in_schooners` T_negative app_store-isolation test if it is still
+moot under the authed admin shell. Source isolation stays locked by
+`tests/static/weighinswebform_no_app_store`. The old `daily_photos_anon_insert`
+policy follow-up is complete via migration `109`.
 Shipped 2026-06-08 (removed/trimmed from queue): Lane 0 InlineNotice correctness
 (all four flat-prop call sites + `info` kind + forecast Issues suppression — the
 final Lane 0 items); Lane A processing-batch lifecycle RPCs (migration `100`);
@@ -654,8 +675,9 @@ parity on the recovery/list/MySubmissions surfaces), C (DeleteModal/ConfirmModal
 canonical dialog semantics), D (EquipmentDetail autosave flush + re-queue), E
 (EquipmentDetail shared record chrome), F-narrow (Sheep Flocks saved views on
 `app_saved_views` surface_key `sheep.flocks`), G (combined Recently Deleted
-Records recovery surface), and K-narrow (cattle-herd CSV export). The larger
-Lanes A/D/E/F/K remain open for their unshipped scope (see the lane list below).
+Records recovery surface), and K-narrow (cattle-herd CSV export). Later shipped
+blocks below close or trim the larger A/D/E/F/K scopes; the lane status list
+below is authoritative for current queue state.
 Additional 2026-06-08 shipped queue now on `origin/main` `d71f3de`: Lane H
 EquipmentFueling offline queue + stuck recovery plus terminal-copy parity; Lane
 E Pig batch `RecordPageBody` CP1 plus Sheep daily CP2 shared-control parity;
@@ -664,7 +686,8 @@ Lane D save-model guard slice; Lane F saved-view/filter/sort parity, weigh-in
 empty-state parity, and shared weigh-in tile primitives; Lane J modal focus/
 central-date policy plus image alt-text policy; and Lane K CSV/print expansion
 through the listed daily, weigh-in, fuel-log, inventory surfaces plus shared
-weigh-in column builders. No local-only build checkpoint remains in the queue.
+weigh-in column builders. That 2026-06-08 checkpoint left no local-only build
+work.
 Additional 2026-06-09 Lane A work (PROD-applied + verified, not source-only):
 weigh-in entry/session deletes (`101`) and EquipmentDetail fueling/maintenance
 deletes (`102`) route through transactional audited RPCs; `103` hardens the
@@ -715,6 +738,30 @@ Shipped later 2026-06-10 (removed from queue, pushed `origin/main` `b562ac5`):
 Validation before push: lint 0 errors, `npm test` 208 files / 5508 passed, build
 green, focused Pig Batch sequence-nav and Broiler record-edit Playwright specs
 green. No migrations/schema/RLS/storage/PROD DB work.
+Integrated locally 2026-06-11 (merged to local `main` `a2788ae`, unpushed —
+push gate pending):
+- Source-wide openable hover affordance rollout (`0efff11`): every openable
+  card/tile/row/expander carries `.hoverable-tile`/`.hoverable-row` plus
+  keyboard activation via the shared `src/shared/openable.js` openableProps
+  helper; HomeWeatherCard collapsed card adopts the approved
+  `card weather-card lift` treatment as a real button; home `.litem.is-link`
+  rows gain keyboard activation and a paint-only focus ring; timeline chart
+  bars intentionally keep their bespoke tooltip/outline hover. Keyboard
+  ownership is now a source-wide rule in
+  `openable_hover_affordance_static.test.js`; Playwright covers home weather,
+  fleet tile, and broiler-row keyboard activation. UI before/after approved by
+  Ronnie (rollout-shots/).
+- Codex Lane E/F closure (`8226ae6`, merged `920f8c2`): the six daily record
+  pages and equipment fueling/checklist entry pages delegate fail-closed
+  load-error chrome to `RecordPageLoadError` (now accepting retryButtonProps);
+  load-error markers and the daily retry hook are preserved and guarded.
+- Codex Lane I slice (`27337d7`, merged `a2788ae`): batch/session record
+  titles move `RecordTitle` fontSize 24 -> 22 (canonical compact size) on six
+  pages; `record_page_token_closure_static` now also catches retired JSX
+  fontSize props. Before/after captured in lane-i-shots/.
+Integrated-tree validation after the merges: `npm run format:check` green,
+`npm run lint` 0 errors, `npm test` 208 files / 5523 passed, `npm run build`
+green, `git diff --check` clean. No migration/schema/RLS/storage/PROD DB work.
 Shipped 2026-06-09 (this session, code checkpoint `ab39eb2`, followed by docs
 wrap `b5f433d`; visual preview waived by Ronnie for this push):
 - Lane 15 Tasks creation/public config: Public Tasks assignee checkbox grid;
@@ -740,7 +787,7 @@ wrap `b5f433d`; visual preview waived by Ronnie for this push):
   wired into Activity Log, Equipment Fleet, and the cattle/sheep/broiler/layer/
   pig batch hubs (CSV via `csvExport.js`, print via `printExport.js`, visible
   filtered rows, hub-matching metric derivations).
-- Lane A remaining: audited cascade-delete SECDEF RPCs `delete_layer_batch`
+- Lane A final audit/RPC closure: audited cascade-delete SECDEF RPCs `delete_layer_batch`
   (`106`), `delete_fuel_bill` (`107`), `delete_feed_input` (`108`); best-effort
   `pig.batch`/`broiler.batch`/`layer.batch`/`layer.housing`/`sheep.animal`
   Activity emissions for the app_store/retire flows that previously left no
@@ -772,67 +819,63 @@ Locked queue direction from Ronnie (2026-06-09):
 - Move destructive flows to SECDEF RPCs only when they are audit-critical,
   multi-table, lifecycle/cascade, or cleanup-sensitive. Do not wrap tiny
   owner-scoped preference/config deletes just for uniformity.
-- Pig batch should move to full record-page chrome parity when scoped, while
-  preserving its heavier workflow.
+- Pig batch owns full record-page chrome parity; preserve its heavier workflow.
 - Saved views, richer search, sort, and filters are for high-repeat operational
   lists only, not every small admin/config list.
-- AI-assisted filtering/sorting stays later-roadmap work until deterministic
-  list parity is done; if built, it suggests filters/sorts with preview/apply.
+- AI-assisted filtering/sorting stays later-roadmap work; if built, it suggests
+  filters/sorts with preview/apply.
 - CSV/print expansion is for operational/reporting surfaces only.
 - Visual-token cleanup should be strict and source-wide, with screenshots for
   visible UI changes.
-- Homepage/program KPIs should use a uniform frame with domain-specific metrics
-  inside that frame.
+- Program dashboards stay program-specific unless Ronnie reopens the dropped Lane
+  J KPI-frame decision.
 
-Next-session priority lanes after the 2026-06-10 wrap:
+Current open queue after the 2026-06-11 reconciliation:
 
-1. Source-wide home-like openable hover affordance rollout. Class: `ENH`/`DEFECT`.
-   Size: medium/large. Scope: every app surface where a card, tile, row, or
-   button visibly opens a modal, record page, or section. The shipped
-   `1881593` lane created the shared `.hoverable-tile` / `.hoverable-row` CSS
-   contract and wired representative surfaces only; it did not complete the
-   product request. Use the approved home-page affordances as the source of
-   truth:
-   - Program nav tiles (`Broilers`, `Layers`, `Pigs`, `Cattle`, `Sheep`,
-     `Equipment`) use the `.tile:hover` model.
-   - Lifted clickable cards (`Processing`, `Admin`, `Weather`,
-     `Animals on Farm`, `Production`) use the `.lift:hover` model. Current
-     production `HomeWeatherCard` is clickable and has `cursor: pointer` but
-     has drifted from the approved redesign because the collapsed weather card
-     does not carry the `card weather lift` treatment; include it in the lane.
-   - Home list rows (`Missed Daily Reports`, `Equipment Attention`,
-     `Next 30 Days`) use the `.litem:hover` row wash model.
-   - Small command buttons (`Clear`, `Clear all`, `Back to Home`, Weather modal
-     controls such as `Refresh`, `Load Radar`, `Play`, `Hide`, and close) use
-     button-style hover, not full card lift.
-   - Admin daily-report record tiles use `.hoverable-tile`.
-   Audit source-wide for clickable div/card/table-row/list-row surfaces that
-   open record pages, modals, or section destinations; apply the right shared
-   affordance, add `role="button"` / `tabIndex={0}` / Enter+Space handling where
-   a non-button element is the whole action, and keep non-openable rows visually
-   plain. Guard target: expand `openable_hover_affordance_static.test.js` beyond
-   representative surfaces, add focused Playwright screenshots/smokes for home
-   Weather + a representative record page list + modal-opening tile/row, and run
-   format, lint, relevant static tests, build. Migration/Storage/PROD gate:
-   none.
+1. Source-wide home-like openable hover affordance rollout. SHIPPED locally
+   2026-06-11 (`0efff11`, merged on local `main`, push pending). The full
+   product request is complete: every openable card/tile/row/expander carries
+   the shared affordance plus keyboard activation (openableProps helper);
+   HomeWeatherCard adopted the approved `card weather-card lift` treatment;
+   home `.litem.is-link` rows are keyboard-openable with a focus ring; the
+   static guard enforces keyboard ownership source-wide. Intentional skips
+   (documented in the lane report): broiler/pig timeline chart bars keep their
+   bespoke tooltip/outline hover because the contract wash would erase bar
+   color identity, and both targets stay keyboard-reachable via their list
+   surfaces. Reopen only for a newly found mouse-only openable (the guard
+   should catch hoverable-class drift automatically).
 
 2. Triage pre-existing cattle calf/dam lineage Playwright failures. Class:
    `DEFECT`. Size: small/medium. Scope: Cattle animal record lineage rendering
    and the associated Playwright spec only unless the investigation proves a
-   wider cattle data contract issue. Current known symptom on clean `main` before
+   wider cattle data contract issue. Historical symptom on clean `main` before
    the hover/pig/broiler/comments lanes: `tests/cattle_calf_dam_link.spec.js`
-   has 4 UI failures because `[data-lineage-section]` never renders inside
-   `#cow-<id>`. First step is to reproduce on current `origin/main` `b562ac5`,
-   confirm whether this is product regression or stale test expectation, then
-   either restore the lineage section or update the spec/guard to the actual
+   had 4 UI failures because `[data-lineage-section]` never rendered inside
+   `#cow-<id>`. Current source includes the lineage section in
+   `src/cattle/CowDetail.jsx`, so first reproduce the Playwright spec in a
+   test-equipped clean worktree at current `origin/main` before building. If it
+   still fails, decide whether the runtime regression is product code or stale
+   test expectation; then restore behavior or update the spec/guard to the
    intended cattle record contract. Migration/Storage/PROD gate: none expected;
    stop for Ronnie before any data mutation or schema/RPC change.
+
+3. Residual source-wide visual-token cleanup (Lane I). Class: `ENH`. Size:
+   medium/large only once scoped. The shared-token slices and record/shared/auth
+   closure are shipped, and the batch/session record-title compact-size slice
+   (`RecordTitle` fontSize 24 -> 22 on six pages, plus the retired-JSX-fontSize
+   guard) merged to local `main` 2026-06-11 (`27337d7`/`a2788ae`, push pending).
+   Source still contains legacy typography/radius/color values outside the
+   guarded shared primitives and documented exceptions. Start only from a named
+   inventory/surface group, preserve approved exceptions such as public webform
+   styling and `.home.theme-crisp`, add or expand token guards, and capture
+   targeted screenshots for visible UI changes. Migration/Storage/PROD gate:
+   none expected.
 
 Sprint assignment (executed 2026-06-08): the CC Sprints 1 + 2 (Lane 0
 correctness, Lane A audit/RPC atomicity) and Codex Sprints 3 + 4 (Lanes B/C +
 D/E, plus the F/G/K slices) shipped in the seven-lane integration above. Those
-prompts are retired. The remaining open scope is captured in the lane list
-below.
+prompts are retired. The lane list below is a status reference; active build
+work is only the Current open queue above unless Ronnie reopens a lane.
 
 1. Lane 0 - Immediate correctness bugs. SHIPPED 2026-06-08.
    All four broken `InlineNotice` prop-shape call sites fixed, the `info` notice
@@ -840,24 +883,20 @@ below.
    and the `TasksWebform` submitter locked (mig `097`, 2026-06-06). Guard:
    `tests/static/inline_notice_contract_static.test.js`.
 2. Lane A - Audit, Activity, RPC atomicity, and tombstone/deleted-record design.
-   REMAINING SCOPE SHIPPED 2026-06-09 (cascade-delete RPCs `106`-`108` for the
-   layer-batch/fuel-bill/feed-input roots + best-effort app_store/retire Activity
-   emissions; full destructive-flow audit done — see the Shipped block above).
-   Class: `DEFECT`/`DECISION`. Size: large.
+   SHIPPED/CLOSED 2026-06-09. Class: `DEFECT`/`DECISION`. Size: large.
    Shipped 2026-06-08: processing-batch unschedule/delete moved to audited SECDEF
    RPCs (migration `100`); the cattle.breeding Activity stream is now mounted.
    Shipped 2026-06-09 (PROD-applied + verified): weigh-in entry/session deletes
    and EquipmentDetail fueling/maintenance deletes moved to audited transactional
    RPCs (`101`/`102`) with `FOR UPDATE` hardening (`103`); the privileged fueling
    RPC was renamed to `admin_delete_equipment_fueling` to remove a migration-`091`
-   name collision (`104`). Remaining: inventory
-   the other pig/broiler/layer/cattle/sheep destructive or multi-table flows and
-   move only audit-critical, lifecycle/cascade, or cleanup-sensitive flows to
-   SECDEF RPCs where needed; ensure mounted Activity streams receive meaningful
-   events. Deleted root records use global Activity only; do not build a
-   tombstone/deleted-record page model unless Ronnie reopens that decision.
-   Guard target: extend mutation semantics, hard-delete owner, delete/recovery,
-   and Activity static guards.
+   name collision (`104`). Remaining destructive-flow audit work shipped later
+   the same day via cascade-delete RPCs `106`-`108` for layer batch, fuel bill,
+   and feed input, plus best-effort app_store/retire Activity emissions. Deleted
+   root records use global Activity only; do not build a tombstone/deleted-record
+   page model unless Ronnie reopens that decision. Reopen Lane A only for a named
+   audit-critical, lifecycle/cascade, or cleanup-sensitive destructive flow found
+   outside the guarded inventory.
 3. Lane B - Fail-closed loading parity. SHIPPED 2026-06-08 (core).
    `RecentlyDeletedDailyReports`, `CattleHerdsView`, `SheepFlocksView`, and
    `MySubmissions` now clear stale state on load failure, show `InlineNotice` +
@@ -876,25 +915,25 @@ below.
    weigh-in/equipment edit-in-place surfaces autosave. Reopen only for a named
    surface that violates the contract or for a Ronnie-approved change to the
    save/indicator model.
-6. Lane E - Record-page shell and chrome parity. PARTIAL.
-   Shipped 2026-06-08: `EquipmentDetail` adopted `RecordPageBody`/`RecordTitle`
-   and exposes `data-equipment-record-loaded`; `PigBatchPage` adopted the shared
-   `RecordPageBody` loaded wrapper with `data-pig-batch-record-loaded` using the
-   approved left-aligned cap. CP2 (`6e31e7f`): `SheepDailyPage` removed its local
-   `inputStyle` primitive and adopted the shared `recordControl` (via the `inp`
-   alias the other daily pages use) for its fields and feed/mineral row controls,
-   aligning its structure with the other daily record pages; `btnSmall`
-   Add/Remove-row buttons stay intentionally distinct. Sheep parity slice in
-   `daily_record_pages_shared_controls_static.test.js`.
-   Remaining: move Pig batch toward the full standalone
-   `RecordPageFrame`/`RecordTitle` model while preserving its heavier workflow,
-   standardize record widths and loaded/error hooks, and expand
-   `recordPageControls` adoption to the remaining record pages. Optional
-   follow-up: align the weigh-in feed/mineral Add/Remove row-button microstyle
-   (Sheep chip vs Cattle text-link) if full parity is wanted.
-   Guard target: record-page shell/chrome static guards and focused Playwright.
-7. Lane F - List, hub, filter, sort, saved-view, and empty-state parity. PARTIAL.
-   Class: `ENH`. Size: large.
+6. Lane E - Record-page shell and chrome parity. SHIPPED/CLOSED; the final
+   closure merged to local `main` 2026-06-11 (`920f8c2`), push pending.
+   Shipped slices: `EquipmentDetail` adopted `RecordPageBody`/`RecordTitle` and
+   exposes `data-equipment-record-loaded`; daily record pages route canonical
+   action buttons through `recordPageControls`; non-daily record pages use shared
+   action tokens; `RecordPageLoadError` is the shared load-error primitive; and
+   `PigBatchPage` now owns full `RecordPageFrame`/`RecordPageBody`/
+   `RecordTitle` chrome while preserving its heavier workflow. The 2026-06-11
+   local closure moves the six daily record pages plus equipment fueling/checklist
+   entry pages onto `RecordPageLoadError`, preserving retry hooks and loaded/error
+   data markers. Guard coverage: `record_page_shell_static.test.js`,
+   `record_page_cp7_pig_batch_shared_controls_static.test.js`,
+   `record_page_load_error_static.test.js`,
+   `daily_cold_boot_readiness_static.test.js`, and
+   `record_page_token_closure_static.test.js`. The weigh-in feed/mineral
+   Add/Remove row-button microstyle is intentionally not active Lane E work;
+   reopen only if Ronnie wants that optional visual polish.
+7. Lane F - List, hub, filter, sort, saved-view, and empty-state parity.
+   NAMED HIGH-REPEAT SCOPE SHIPPED. Class: `ENH`. Size: large.
    Shipped 2026-06-08: `SheepFlocksView` uses the full helper-backed filter/sort
    model in `src/lib/sheepFlockFilters.js` plus saved views on
    `surface_key = 'sheep.flocks'`; saved views and filtered CSV exports expanded
@@ -907,19 +946,19 @@ below.
    and the `src/lib/weighInSessionExports.js` column builders de-duplicate the
    cattle/sheep/livestock session tiles and CSV/print columns.
    Shipped 2026-06-10 (`21a4532`): right-sized search/filter/sort + saved views +
-   filtered CSV/print on the six high-repeat hubs — Pig/Cattle/Broiler/Layer/Sheep
+   filtered CSV/print on the six high-repeat hubs - Pig/Cattle/Broiler/Layer/Sheep
    Batches + Equipment Fleet. Per-hub pure filter libs
    (`src/lib/{pig,cattle,broiler,layer,sheep}BatchFilters.js`,
    `equipmentFleetFilters.js`); new `app_saved_views` surface_keys (no migration);
-   Layer + Sheep Batches converted cards→unified grid. Per-hub filter static
+   Layer + Sheep Batches converted cards to unified grid. Per-hub filter static
    guards added.
-   Remaining: extract any remaining drifting row/tile primitives beyond weigh-ins,
-   add search/sort/saved views only to any further high-repeat operational lists,
-   standardize filtered/empty states where gaps are found, and defer real AI
-   filter/sort work until deterministic list parity is done. Any later AI
-   filter/sort must suggest changes with explicit preview/apply behavior.
-   Guard target: per-surface filter/sort tests, saved-view tests, and static
-   shared-row/empty-state guards.
+   No concrete Lane F build remains open. Reopen only for a named high-repeat
+   operational list with a proven search/filter/sort/saved-view or empty-state
+   gap, or for a specific drifting row/tile primitive that causes real product
+   inconsistency. AI filter/sort remains later-roadmap work and must suggest
+   changes with explicit preview/apply behavior. Guard target for any reopened
+   scope: per-surface filter/sort tests, saved-view tests, and static shared-row/
+   empty-state guards.
 8. Lane G - Restore/recovery surface. SHIPPED 2026-06-08.
    `RecentlyDeletedDailyReports` is now a combined Recently Deleted Records
    surface that restores daily reports plus deleted cattle/sheep animals
@@ -933,8 +972,8 @@ below.
    migration was needed because migration `047` already supports idempotent
    replay. The later build-queue merge standardized locked submitter copy to
    "Team member" and guards terminal queued/stuck/saved copy.
-   Remaining: consolidate legacy webform paths only if a concrete duplicate flow
-   causes product friction; documented aliases must remain valid.
+   Future reopen condition: consolidate legacy webform paths only if a concrete
+   duplicate flow causes product friction; documented aliases must remain valid.
    Guard target: offline/webform static guards and focused offline Playwright.
 10. Lane I - Visual tokens, terminology, formatting, and design primitives.
     PARTIAL. Class: `ENH`. Size: large.
@@ -956,10 +995,10 @@ below.
     weigh-in / send-to-processor / equipment modals adopt shared
     `recordSaveButton` / `recordSecondaryButton`; guards `modal_action_tokens_static`,
     `task_modal_tokens_static`).
-    Remaining: any residual source-wide typography/radius/color drift outside the
-    shipped shared primitives and documented exceptions; visible UI changes need
-    targeted screenshots. Any future homepage visual changes should preserve the
-    approved `.home.theme-crisp` composition unless Ronnie reopens the design.
+    Open queue item: residual source-wide typography/radius/color drift outside
+    the shipped shared primitives and documented exceptions; visible UI changes
+    need targeted screenshots. Any future homepage visual changes should preserve
+    the approved `.home.theme-crisp` composition unless Ronnie reopens the design.
     Guard target: typography, radius, button-control, z-index, shared-ui/token
     static guards, plus targeted visual Playwright/screenshots where needed.
 11. Lane J - Cross-cutting product and accessibility policy. SHIPPED (core)
@@ -974,10 +1013,9 @@ below.
     policy shipped (`04fd932`): `src/lib/imageAlt.js` (`imageAltText`) drives
     every user-media `<img>` owner with contextual fallbacks and marks decorative
     images `aria-hidden`, locked by `image_alt_text_policy_static.test.js`.
-    Remaining: none — the only open item (home-dashboard KPI uniform frame) was
+    Open work: none - the only open item (home-dashboard KPI uniform frame) was
     dropped above. Reopen only for a new Ronnie-approved cross-cutting product or
-    accessibility policy decision. (The general "program KPIs use a uniform frame"
-    principle stays in Locked queue direction as forward guidance, not open work.)
+    accessibility policy decision.
     Guard target: route/nav/date/a11y static guards plus focused Playwright once
     more decisions are made.
 12. Lane K - Export/print parity. OPERATIONAL-HUB SCOPE SHIPPED 2026-06-09
@@ -1000,11 +1038,11 @@ below.
     their hard-coded subsets, and the Cattle Batch export count restored to
     attached-detail-rows only (parity with sheep). All via the existing shared
     `csvExport`/`printExport` + `operationalExportColumns` owners.
-    Remaining: extend the shared CSV/print model only to remaining operational
-    or reporting surfaces where export supports work, billing, feed, records, or
-    audit. Keep permissions bounded to RLS-visible rows, use shared column specs
-    where useful, and consider a fuller shared print stylesheet/screenshot gate
-    if print use becomes more central.
+    Future reopen condition: extend the shared CSV/print model only to a named
+    operational or reporting surface where export supports work, billing, feed,
+    records, or audit. Keep permissions bounded to RLS-visible rows, use shared
+    column specs where useful, and consider a fuller shared print stylesheet/
+    screenshot gate if print use becomes more central.
     Guard target: column-spec/export tests and print stylesheet/screenshot checks
     (`csvExport.js` owns CSV download; `printExport.js` owns row-print output).
 
