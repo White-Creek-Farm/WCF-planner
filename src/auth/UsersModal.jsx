@@ -10,12 +10,12 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   const [addEmail, setAddEmail] = React.useState('');
   const [addName, setAddName] = React.useState('');
   const [addRole, setAddRole] = React.useState('farm_team');
-  // No password field. The admin-only edge function creates the auth account
-  // with a throwaway password, then sends a password-set link to the user.
   const [umMsg, setUmMsg] = React.useState('');
   const [umErr, setUmErr] = React.useState('');
   const [umLoading, setUmLoading] = React.useState(false);
   const [editingUser, setEditingUser] = React.useState(null);
+  const [addPassword, setAddPassword] = React.useState('');
+  const [addPasswordConfirm, setAddPasswordConfirm] = React.useState('');
 
   const ROLES = [
     {v: 'farm_team', l: 'Farm Team'},
@@ -33,12 +33,30 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
       setUmErr('Email required.');
       return;
     }
+    const wantsManualPassword = addPassword.length > 0 || addPasswordConfirm.length > 0;
+    if (wantsManualPassword) {
+      if (addPassword.length < 6) {
+        setUmErr('Password must be at least 6 characters.');
+        return;
+      }
+      const bytes = new TextEncoder().encode(addPassword).length;
+      if (bytes > 72) {
+        setUmErr('Password is too long. Use 72 bytes or fewer.');
+        return;
+      }
+      if (addPassword !== addPasswordConfirm) {
+        setUmErr('Passwords do not match.');
+        return;
+      }
+    }
     setUmLoading(true);
     setUmErr('');
     setUmMsg('');
     try {
+      const payload = {email: addEmail.trim(), name: addName.trim(), role: addRole};
+      if (wantsManualPassword) payload.initialPassword = addPassword;
       const {data: fnData, error} = await sb.functions.invoke('rapid-processor', {
-        body: {type: 'user_create', data: {email: addEmail.trim(), name: addName.trim(), role: addRole}},
+        body: {type: 'user_create', data: payload},
       });
       if (error) throw error;
       // The auth account succeeded if we reached this branch. Welcome
@@ -46,7 +64,13 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
       // welcomeEmailDelivered:false the account IS usable, but we must
       // not show a green "Invite sent" \u2014 surface the Resend error and
       // tell the admin to use Send Password Reset on the user row.
-      if (fnData && fnData.welcomeEmailDelivered === false) {
+      if (fnData && fnData.manualPasswordSet) {
+        setUmMsg(
+          '\u2705 User created for ' +
+            addEmail.trim() +
+            '. No email was sent. Give them the password you set through a trusted channel.',
+        );
+      } else if (fnData && fnData.welcomeEmailDelivered === false) {
         const reason = fnData.emailError || 'unknown error';
         setUmErr(
           'Account created for ' +
@@ -63,6 +87,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
       setAddEmail('');
       setAddName('');
       setAddRole('farm_team');
+      setAddPassword('');
+      setAddPasswordConfirm('');
       loadUsers();
       setUmTab('users');
     } catch (e) {
@@ -634,7 +660,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   marginBottom: 14,
                 }}
               >
-                The new user will receive a password reset email to set their own password.
+                Set a password now to skip email delivery, or leave the password fields blank to send a password reset email.
               </div>
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
                 <div style={{gridColumn: '1/-1'}}>
@@ -707,6 +733,44 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     ))}
                   </div>
                 </div>
+                <div>
+                  <label style={{fontSize: 12, color: '#4b5563', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                    Set password
+                  </label>
+                  <input
+                    type="password"
+                    value={addPassword}
+                    onChange={(e) => setAddPassword(e.target.value)}
+                    placeholder="Optional"
+                    autoComplete="new-password"
+                    style={{
+                      fontSize: 13,
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: 6,
+                      width: '100%',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{fontSize: 12, color: '#4b5563', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                    Confirm password
+                  </label>
+                  <input
+                    type="password"
+                    value={addPasswordConfirm}
+                    onChange={(e) => setAddPasswordConfirm(e.target.value)}
+                    placeholder="Optional"
+                    autoComplete="new-password"
+                    style={{
+                      fontSize: 13,
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: 6,
+                      width: '100%',
+                    }}
+                  />
+                </div>
               </div>
               <button
                 onClick={createUser}
@@ -725,7 +789,11 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   fontFamily: 'inherit',
                 }}
               >
-                {umLoading ? 'Creating user…' : 'Create User & Send Email'}
+                {umLoading
+                  ? 'Creating user…'
+                  : addPassword || addPasswordConfirm
+                    ? 'Create User with Password'
+                    : 'Create User & Send Email'}
               </button>
             </div>
           )}

@@ -508,11 +508,14 @@ serve(async (req) => {
       // Config preflight — fail fast with a clear message if a secret
       // didn't load. Only the NAMES of missing vars are returned; values
       // are never logged or echoed.
+      const manualPassword = typeof data?.initialPassword === 'string' ? data.initialPassword : '';
+      const useManualPassword = manualPassword.length > 0;
+
       const missingEnv: string[] = [];
       if (!SUPABASE_URL) missingEnv.push('SUPABASE_URL');
       if (!SUPABASE_ANON_KEY) missingEnv.push('SUPABASE_ANON_KEY');
       if (!SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
-      if (!RESEND_API_KEY) missingEnv.push('RESEND_API_KEY');
+      if (!useManualPassword && !RESEND_API_KEY) missingEnv.push('RESEND_API_KEY');
       if (missingEnv.length > 0) {
         return new Response(JSON.stringify({error: `config: missing env ${missingEnv.join(', ')}`, step: 'config'}), {
           status: 500,
@@ -528,6 +531,15 @@ serve(async (req) => {
           status: 400,
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
+      }
+      if (useManualPassword) {
+        const manualPasswordBytes = new TextEncoder().encode(manualPassword).length;
+        if (manualPassword.length < 6 || manualPasswordBytes > 72) {
+          return new Response(
+            JSON.stringify({error: 'initial password must be 6-72 bytes', step: 'input'}),
+            {status: 400, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+          );
+        }
       }
 
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -547,7 +559,7 @@ serve(async (req) => {
       try {
         const r = await admin.auth.admin.createUser({
           email,
-          password: tempPw,
+          password: useManualPassword ? manualPassword : tempPw,
           email_confirm: true,
           user_metadata: {full_name: name},
         });
@@ -579,6 +591,17 @@ serve(async (req) => {
             hint: 'Auth account exists but profile row failed; do NOT retry Add User. Ask CC to repair the profiles row OR remove the orphan auth user.',
           }),
           {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+
+      if (useManualPassword) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            user: {id: createdUserId, email},
+            manualPasswordSet: true,
+          }),
+          {headers: {...corsHeaders, 'Content-Type': 'application/json'}},
         );
       }
 

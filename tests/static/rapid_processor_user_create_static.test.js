@@ -19,6 +19,7 @@ import {describe, it, expect} from 'vitest';
 //      `partial` so admins know not to retry blindly.
 //   6. UsersModal renders a WARNING (not a green success) when
 //      welcomeEmailDelivered === false.
+//   7. Admins may set an initial password and bypass email delivery entirely.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -129,6 +130,16 @@ describe('rapid-processor user_create — per-step error labeling', () => {
     expect(userCreateBlock).toMatch(/email required[\s\S]{0,80}step:\s*'input'/);
   });
 
+  it('manual password path validates length and bypasses Resend/recovery email', () => {
+    expect(userCreateBlock).toMatch(/initialPassword/);
+    expect(userCreateBlock).toMatch(/useManualPassword/);
+    expect(userCreateBlock).toMatch(/manualPasswordBytes/);
+    expect(userCreateBlock).toMatch(/initial password must be 6-72 bytes/);
+    expect(userCreateBlock).toMatch(/password:\s*useManualPassword\s*\?\s*manualPassword\s*:\s*tempPw/);
+    expect(userCreateBlock).toMatch(/manualPasswordSet:\s*true/);
+    expect(userCreateBlock).toMatch(/if\s*\(\s*useManualPassword\s*\)[\s\S]*?return new Response/);
+  });
+
   // ────────────────────────────────────────────────────────────────────
   // Regression lock: GoTrue's bcrypt has a hard 72-byte input limit and
   // PANICS rather than truncates when exceeded. The original
@@ -178,6 +189,15 @@ describe('UsersModal.createUser — honors welcomeEmailDelivered:false', () => {
     // Source escapes the check-mark as ✅ per the project's JSX
     // escape convention; match the escape, not the literal glyph.
     expect(modalSrc).toMatch(/\\u2705 Invite sent to[\s\S]*?set their password/);
+  });
+
+  it('supports creating a user with an admin-set password and no email send', () => {
+    expect(modalSrc).toMatch(/addPassword/);
+    expect(modalSrc).toMatch(/addPasswordConfirm/);
+    expect(modalSrc).toMatch(/payload\.initialPassword\s*=\s*addPassword/);
+    expect(modalSrc).toMatch(/manualPasswordSet/);
+    expect(modalSrc).toMatch(/No email was sent/);
+    expect(modalSrc).toMatch(/Create User with Password/);
   });
 
   it('error path continues to use unwrapEdgeFunctionError', () => {

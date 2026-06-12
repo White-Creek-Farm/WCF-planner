@@ -37,7 +37,7 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
         right: 0,
         bottom: 0,
         background: 'rgba(0,0,0,.55)',
-        zIndex: 9000,
+        zIndex: 11000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
