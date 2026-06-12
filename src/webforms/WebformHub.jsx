@@ -34,6 +34,7 @@ const WebformHub = ({
   webformsConfig,
   sessionSubmitter,
   hideWeighIns = false,
+  hideCattleLog = false,
 }) => {
   const {useState, useEffect} = React;
   // Lane 1 CP1: on the authenticated path the submitter is the signed-in user,
@@ -1556,6 +1557,37 @@ const WebformHub = ({
                 </div>
               </div>
               <div style={{color: '#1e40af', fontSize: 18}}>{'\u203a'}</div>
+            </div>
+          )}
+          {!hideCattleLog && (
+            <div
+              data-tile="cattle-log"
+              {...openableProps(() => navigate('/cattle/log'))}
+              className="hoverable-tile"
+              style={{
+                background: '#ecfdf5',
+                borderRadius: 12,
+                padding: '16px 18px',
+                marginBottom: 16,
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,.08)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                border: '1px solid #a7f3d0',
+              }}
+            >
+              <PlannerIcon iconKey={ANIMAL_ICON_KEYS.cattle} size={32} />
+              <div style={{flex: 1}}>
+                <div style={{fontSize: 16, fontWeight: 700, color: '#065f46'}}>Cattle Log</div>
+                <div style={{fontSize: 12, color: '#065f46', opacity: 0.8}}>
+                  Free-flowing notes and issues for the cattle program
+                </div>
+                <div style={{fontSize: 11, color: '#065f46', opacity: 0.6, marginTop: 2}}>
+                  {'Use #tag to link a cow \u00b7 @name to notify'}
+                </div>
+              </div>
+              <div style={{color: '#065f46', fontSize: 18}}>{'\u203a'}</div>
             </div>
           )}
           <div

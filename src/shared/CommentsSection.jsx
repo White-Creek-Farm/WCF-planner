@@ -1,4 +1,6 @@
 import React from 'react';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import {Link} from 'react-router-dom';
 import {
   listComments,
   countComments,
@@ -424,6 +426,10 @@ export default function CommentsSection({sb, authState, entityType, entityId, en
           const isDeleted = !!c.deleted_at;
           const isAuthor = c.author_profile_id === callerProfileId;
           const isEditing = editingId === c.id;
+          // Cattle Log mirrors ('clog-' ids, migration 112) are system-managed
+          // copies of /cattle/log entries: read-only here (the RPCs also
+          // reject edit/delete server-side) with visible provenance.
+          const isCattleLogMirror = typeof c.id === 'string' && c.id.startsWith('clog-');
 
           if (isDeleted && !isAdmin) {
             return (
@@ -474,12 +480,38 @@ export default function CommentsSection({sb, authState, entityType, entityId, en
               <div style={COMMENT_HEAD}>
                 <span style={AUTHOR}>{c.redacted ? '(redacted)' : c.author_display_name || 'Unknown user'}</span>
                 <span data-comment-posted-at="1">· {fmtPostedAt(c.created_at)}</span>
-                {c.edited_at && (
-                  <button type="button" onClick={() => toggleEditHistory(c.id)} style={LINK_BTN}>
-                    edited
-                  </button>
+                {isCattleLogMirror && (
+                  // Client-side navigation (CommentsSection only mounts
+                  // inside the router) — a raw <a href> would full-reload.
+                  <Link
+                    data-comment-cattle-log-origin="1"
+                    to="/cattle/log"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: '#065f46',
+                      background: '#ecfdf5',
+                      border: '1px solid #a7f3d0',
+                      borderRadius: 999,
+                      padding: '1px 8px',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    From Cattle Log
+                  </Link>
                 )}
-                {!isDeleted && isAuthor && !isEditing && (
+                {c.edited_at &&
+                  (isCattleLogMirror ? (
+                    // Mirrors carry edited_at from resync, but their edit-
+                    // history rows live on the ORIGINAL entry id — a toggle
+                    // here would open nothing, so render plain text.
+                    <span style={{fontSize: 11, color: '#6b7280'}}>edited</span>
+                  ) : (
+                    <button type="button" onClick={() => toggleEditHistory(c.id)} style={LINK_BTN}>
+                      edited
+                    </button>
+                  ))}
+                {!isDeleted && isAuthor && !isEditing && !isCattleLogMirror && (
                   <>
                     <button type="button" onClick={() => startEdit(c)} style={{...ACTION_BTN, color: '#2563eb'}}>
                       Edit
@@ -489,7 +521,7 @@ export default function CommentsSection({sb, authState, entityType, entityId, en
                     </button>
                   </>
                 )}
-                {!isDeleted && isAdmin && !isAuthor && (
+                {!isDeleted && isAdmin && !isAuthor && !isCattleLogMirror && (
                   <button
                     type="button"
                     onClick={() => onDelete(c.id)}

@@ -188,6 +188,7 @@ import CattleHerdsView from './cattle/CattleHerdsView.jsx';
 import CattleBreedingView from './cattle/CattleBreedingView.jsx';
 import CattleBatchesView from './cattle/CattleBatchesView.jsx';
 import CattleForecastView from './cattle/CattleForecastView.jsx';
+import CattleLogPage from './cattle/CattleLogPage.jsx';
 
 // Phase 2 Round 4: admin panels.
 import FeedCostsPanel from './admin/FeedCostsPanel.jsx';
@@ -1679,6 +1680,7 @@ function App() {
     'cattlebreeding',
     'cattleforecast',
     'cattlebatches',
+    'cattlelog',
     'broilerweighins',
     'pigweighins',
     'sheepHome',
@@ -1728,6 +1730,7 @@ function App() {
     cattlebreeding: 'cattle',
     cattleforecast: 'cattle',
     cattlebatches: 'cattle',
+    cattlelog: 'cattle',
     sheepHome: 'sheep',
     sheepflocks: 'sheep',
     sheepbatches: 'sheep',
@@ -1778,6 +1781,11 @@ function App() {
         'pigdailys', // /pig/dailys(+/<id>)
         'cattledailys', // /cattle/dailys(+/<id>)
         'sheepdailys', // /sheep/dailys(+/<id>)
+        // Cattle Log: field log every authenticated role (incl. Light) can
+        // view and add to. Same program-bounce carve-out as cattledailys —
+        // VIEW_TO_PROGRAM maps cattlelog -> cattle but Light reaches it via
+        // this allowlist (the full cattle module stays out of reach).
+        'cattlelog', // /cattle/log
         'mySubmissions', // Light's own equipment fuelings + fuel supplies
         // NOTE: weighins is deliberately excluded — Light users do not submit
         // weigh-ins (typed /weighins fails closed to the portal, and the
@@ -1794,9 +1802,16 @@ function App() {
   // Carve-out: a Light user's allowlisted daily list/record views map to a
   // program (e.g. broilerdailys -> broiler) but canAccessProgram is false for
   // Light, so exempt views on the Light allowlist from the program bounce.
+  // Carve-out (same style): Cattle Log is role-gated, not program-gated —
+  // the server RPCs check role only, so a farm_team/management user whose
+  // program_access excludes cattle still gets /cattle/log (the hub tile
+  // shows for them too). equipment_tech/inactive stay bounced: the server
+  // rejects them anyway, so the UI fails closed.
+  const isCattleLogRole = !!role && !['light', 'equipment_tech', 'inactive'].includes(role);
   useEffect(() => {
     const prog = VIEW_TO_PROGRAM[view];
-    if (prog && !canAccessProgram(prog) && !(isLight && canLightAccessView(view))) setView('home');
+    const cattleLogExempt = view === 'cattlelog' && isCattleLogRole;
+    if (prog && !canAccessProgram(prog) && !(isLight && canLightAccessView(view)) && !cattleLogExempt) setView('home');
   }, [view, authState]);
 
   // Light containment: snap any non-allowed view back to the portal. Pairs
@@ -3451,6 +3466,9 @@ function App() {
       webformsConfig,
       sessionSubmitter,
       hideWeighIns: isLight,
+      // Cattle Log excludes equipment_tech (server rejects the role);
+      // hide the tile for them the same way Weigh-Ins hides for Light.
+      hideCattleLog: role === 'equipment_tech',
     });
   if (view === 'fuelingHub') return React.createElement(FuelingHub, {sb, sessionSubmitter});
   if (view === 'fuelSupply') return React.createElement(FuelSupplyWebform, {sb, sessionSubmitter});
@@ -3595,6 +3613,16 @@ function App() {
       allUsers,
       setAllUsers,
       loadUsers,
+    });
+  // Cattle Log — singleton field log at /cattle/log. Reachable by every
+  // authenticated role except equipment_tech/inactive; Light reaches it via
+  // the LIGHT_ALLOWED_VIEWS carve-out (same pattern as cattledailys).
+  if (view === 'cattlelog')
+    return React.createElement(CattleLogPage, {
+      sb,
+      fmt,
+      Header,
+      authState,
     });
   if (view === 'weighinsessions') return React.createElement(WeighInSessionPage, {sb, fmt, Header, authState});
   if (view === 'cattleweighins')

@@ -112,6 +112,15 @@ describe('canonical anchors (paths printed on field materials per §7)', () => {
     expect(VIEW_TO_PATH.tasksWebform).toBe('/dailys/tasks');
     expect(PATH_TO_VIEW['/dailys/tasks']).toBe('tasksWebform');
   });
+
+  it('cattle log mounts at /cattle/log (singleton page, no sub-paths)', () => {
+    expect(VIEW_TO_PATH.cattlelog).toBe('/cattle/log');
+    expect(PATH_TO_VIEW['/cattle/log']).toBe('cattlelog');
+    // /cattle/log owns no sub-paths — it must not collide with the cattle
+    // sub-path branches in main.jsx (/cattle/herds/, /cattle/batches/,
+    // /cattle/dailys/ are the only prefix-routed cattle paths).
+    expect(PATH_TO_VIEW['/cattle/log/']).toBeUndefined();
+  });
 });
 
 describe('fleet single-entry record routes (owned by EquipmentHome, not VIEW_TO_PATH)', () => {

@@ -7,6 +7,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const EXPECTED_IMAGE_INPUT_OWNERS = new Map([
+  // CattleLogPage has TWO image-capable file inputs (composer + edit row),
+  // but only ONE is counted here because of a STRIPPER ARTIFACT: the '/*'
+  // inside the composer's accept="image/*,..." value opens a false block
+  // comment that swallows the surrounding JSX through the next '*/', hiding
+  // that input — and any capture= attribute near it — from this scan
+  // entirely. This file's REAL capture= lock is the raw-text assertion in
+  // tests/static/cattle_log_static.test.js (CattleLogPage contains no
+  // 'capture=' anywhere).
+  ['src/cattle/CattleLogPage.jsx', 1],
   ['src/equipment/EquipmentMaintenanceModal.jsx', 1],
   ['src/shared/CommentsSection.jsx', 2],
   ['src/tasks/CompleteTaskModal.jsx', 1],
@@ -65,7 +74,7 @@ describe('Image file inputs avoid forced camera capture', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(imageInputCount).toBe(8);
+    expect(imageInputCount).toBe(9);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

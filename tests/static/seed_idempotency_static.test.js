@@ -477,6 +477,20 @@ const CP9_RAW_INSERT_SPEC_ALLOWLIST = [
   // delete_cattle_calving_record RPC spec; idempotent under the worker race.
   'tests/cattle_calving_delete.spec.js',
   'tests/cattle_heifer_promote.spec.js',
+  // Audited: bulk inert cattle-log rows (205-row pagination seed with FIXED
+  // literal ids 'cl-page-0000'… + a Simon-authored search target) inserted
+  // service-role behind delete-first hygiene (every cattle_log spec
+  // hard-deletes ALL comments rows up front, links/issue rows cascade), so
+  // an upsert would hide the duplicate-id failure the contract wants to
+  // surface.
+  'tests/cattle_log_basic.spec.js',
+  // Audited: inert filler comments (FIXED literal ids 'cl-mntfill-00'…)
+  // forcing a real scroll for the deep-link assertion; same delete-first
+  // hygiene as above.
+  'tests/cattle_log_mention_deeplink.spec.js',
+  // Audited: screenshot-state seed rows with run-scoped mintEntryId() ids
+  // (Date.now + random) behind the same delete-first comments wipe.
+  'tests/cattle_log_screenshots.spec.js',
   'tests/generate_task_instances_rpc.spec.js',
   // Audited: seeds a one-time task (fixed ids, delete-first) for the
   // task_completed cross-user notification spec; idempotent under the race.

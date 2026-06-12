@@ -12,6 +12,10 @@ const EXPECTED_UPLOAD_OWNERS = new Map([
   ['src/admin/LivestockFeedInputsPanel.jsx', 1],
   ['src/broiler/BatchForm.jsx', 2],
   ['src/equipment/EquipmentMaintenanceModal.jsx', 1],
+  // Cattle Log offline replay: deterministic comment-photos upload
+  // ('cattle.log/cattle-log/<entryId>/<index>-<name>', upsert:false,
+  // duplicate-as-success) for queued attachment blobs.
+  ['src/lib/cattleLogOffline.js', 1],
   ['src/lib/commentAttachments.js', 1],
   ['src/lib/dailyPhotos.js', 2],
   ['src/lib/tasksAdminApi.js', 1],
@@ -62,7 +66,7 @@ describe('Storage upload owner boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(uploadCount).toBe(16);
+    expect(uploadCount).toBe(17);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

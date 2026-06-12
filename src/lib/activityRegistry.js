@@ -18,6 +18,7 @@ export const ENTITY_TYPES = {
   CATTLE_PROCESSING: 'cattle.processing',
   CATTLE_FORECAST: 'cattle.forecast',
   CATTLE_BREEDING: 'cattle.breeding',
+  CATTLE_LOG: 'cattle.log',
   SHEEP_PROCESSING: 'sheep.processing',
   POULTRY_DAILY: 'poultry.daily',
   LAYER_DAILY: 'layer.daily',
@@ -86,6 +87,14 @@ export const ACTIVITY_REGISTRY = {
   [ENTITY_TYPES.CATTLE_BREEDING]: {
     displayLabel: () => 'Cattle Breeding',
     route: () => '/cattle/breeding',
+    program: 'cattle',
+  },
+  // Cattle Log: singleton field-log entity (entity_id 'cattle-log', migration
+  // 112). Entries are comments; comment_mention notifications deep-link to
+  // /cattle/log#comment-<id>. No per-entry record pages.
+  [ENTITY_TYPES.CATTLE_LOG]: {
+    displayLabel: () => 'Cattle Log',
+    route: () => '/cattle/log',
     program: 'cattle',
   },
   [ENTITY_TYPES.SHEEP_PROCESSING]: {

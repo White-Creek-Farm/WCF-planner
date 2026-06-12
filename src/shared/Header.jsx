@@ -388,6 +388,10 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
 
   const poultryViews = ['broilerHome', 'timeline', 'list', 'feed', 'broilerdailys', 'broilerweighins'];
   const pigViews = ['pigsHome', 'breeding', 'farrowing', 'sows', 'pigbatches', 'pigs', 'pigdailys', 'pigweighins'];
+  // Light users may reach light-allowed cattle views (cattledailys, cattlelog)
+  // but must never see the cattle module's full tab strip; inCattle is gated
+  // on !isLight so neither the subnav tabs nor the CATTLE brand pill render.
+  const isLight = authState?.role === 'light';
   const cattleViews = [
     'cattleHome',
     'cattleherds',
@@ -396,12 +400,13 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
     'cattlebreeding',
     'cattleforecast',
     'cattlebatches',
+    'cattlelog',
   ];
   const sheepViews = ['sheepHome', 'sheepflocks', 'sheepdailys', 'sheepweighins', 'sheepbatches'];
   const inPoultry = poultryViews.includes(view) || showForm;
   const inPigs = pigViews.includes(view) || showBreedForm || showFarrowForm;
   const inLayers = ['layersHome', 'layerbatches', 'layerdailys', 'eggdailys'].includes(view);
-  const inCattle = cattleViews.includes(view);
+  const inCattle = cattleViews.includes(view) && !isLight;
   const inSheep = sheepViews.includes(view);
   const inEquipment = view === 'equipmentHome';
   // inSubnav drives the light sub-nav strip. Brand pills use the individual
@@ -462,7 +467,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   // Lane 1 CP1: Light users are contained to the field portal. Their menu shows
   // only Home, Dailys, Equipment, and Sign Out (Tasks stays on the header icon).
   // Activity is hidden; the Admin section is already isAdmin-gated below.
-  const isLight = authState?.role === 'light';
+  // (isLight itself is declared above the view arrays so inCattle can use it.)
   const realRoleLabel = ROLE_PREVIEW_LABELS[realAuthState?.role] || realAuthState?.role || 'Unknown';
   const previewRoleLabel = ROLE_PREVIEW_LABELS[rolePreview] || rolePreview;
 
@@ -1083,6 +1088,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                 ['cattleforecast', 'Forecast'],
                 ['cattlebatches', 'Batches'],
                 ['cattledailys', 'Dailys'],
+                ['cattlelog', 'Log'],
               ].map(([v, l]) => (
                 <button
                   key={v}

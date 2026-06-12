@@ -61,6 +61,7 @@ export const VIEW_TO_PATH = {
   cattleforecast: '/cattle/forecast',
   cattlebatches: '/cattle/batches',
   cattledailys: '/cattle/dailys',
+  cattlelog: '/cattle/log',
 
   // Sheep
   sheepHome: '/sheep',

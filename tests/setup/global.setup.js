@@ -29,7 +29,12 @@ setup('authenticate as admin', async ({page}) => {
     );
   }
 
-  await page.goto('/');
+  // Cold-start tolerance: reuseExistingServer is false (Codex-mandated), so
+  // every run boots a fresh vite server whose FIRST transform of the large
+  // module graph can exceed the default 20s navigation timeout on a busy
+  // machine. 90s only lengthens the failure deadline; a healthy boot is
+  // unaffected.
+  await page.goto('/', {timeout: 90_000});
 
   // Backend sentinel (Codex-mandated): assert the loaded app is actually
   // pointed at the test Supabase project before attempting login. If a

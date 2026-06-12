@@ -73,7 +73,14 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/sheep/SheepDailyPage.jsx',
     'src/tasks/TaskInstancePage.jsx',
   ],
-  DeleteModal: ['src/admin/NutritionTargetsPanel.jsx', 'src/main.jsx', 'src/webforms/WeighInsWebform.jsx'],
+  DeleteModal: [
+    'src/admin/NutritionTargetsPanel.jsx',
+    // Cattle Log: management/admin delete of a log entry confirms through the
+    // shared DeleteModal before calling delete_cattle_log_entry.
+    'src/cattle/CattleLogPage.jsx',
+    'src/main.jsx',
+    'src/webforms/WeighInsWebform.jsx',
+  ],
   ConfirmModal: ['src/main.jsx'],
 };
 

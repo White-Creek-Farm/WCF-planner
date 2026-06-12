@@ -417,3 +417,146 @@ async function mutate(csid, fn) {
   await tx.done;
   return entry;
 }
+
+// ============================================================================
+// Cattle Log (form_kind 'cattle_log') — create-only offline queue extensions
+// ============================================================================
+// Reuses the two existing stores (store names + DB_VERSION are pinned by the
+// IndexedDB boundary static guard, so no new store). Submission rows live in
+// `submissions` under form_kind 'cattle_log' with three extra fields the
+// generic flow doesn't carry:
+//   - uploadedPaths: storage paths confirmed uploaded to comment-photos.
+//     Persisted after EACH successful attachment upload so a replay never
+//     re-sends finished bytes (partial-replay resume).
+//   - errorClass: 'transient' | 'ambiguous_tag' | 'mention_invalid' |
+//     'validation' (classifyCattleLogError vocabulary).
+//   - errorMessage: human-readable detail for the needs-attention UI.
+// Attachment bytes live in `photo_blobs`, keyed by the deterministic
+// comment-photos path 'cattle.log/cattle-log/<entryId>/<index>-<name>'.
+//
+// Status flow for cattle_log differs from the retry-budget forms:
+//   queued          → ready for the next replay pass. Transient failures
+//                     return here with NO retry cap — submit_cattle_log_entry
+//                     is replay-idempotent via p_id, so retrying forever is
+//                     safe and matches the create-only offline contract.
+//   syncing         → in flight (recoverStaleSyncing applies as usual).
+//   needs_attention → deterministic failure (ambiguous_tag / mention_invalid
+//                     / validation). Operator must Retry or Discard. This is
+//                     the cattle_log parallel of 'failed' for other forms —
+//                     listQueued() skips it, so replay never picks it up
+//                     until setCattleLogOutcome flips it back to 'queued'.
+// Synced rows are deleted (markSynced cascade), same as every other form.
+
+export const CATTLE_LOG_FORM_KIND = 'cattle_log';
+
+const CATTLE_LOG_OUTCOME_STATUSES = ['queued', 'needs_attention'];
+
+/**
+ * Atomic enqueue for a cattle log entry: submission row + attachment blobs
+ * in a SINGLE readwrite transaction over both stores (either both land or
+ * neither). `record` is null for this form_kind — replay rebuilds the RPC
+ * args from `payload` (the payload IS the deterministic call shape).
+ *
+ * @param {object} args
+ * @param {string} args.csid — the cattle log entry id ('cl-…'); doubles as
+ *   the idempotency key (submit_cattle_log_entry p_id).
+ * @param {object} args.payload — {id, body, mentions, isIssue, calfNotes,
+ *   attachments: [{key, name, mime, size, is_image, captured_at}]}. NO
+ *   File/Blob references (submissions-store contract).
+ * @param {Array<{key: string, photo_key: string, blob: Blob, mime: string,
+ *   size_bytes: number, name: string, captured_at: string}>} [args.attachments]
+ *   — blob rows; `key` is the full deterministic comment-photos path.
+ */
+export async function enqueueCattleLogSubmission({csid, payload, attachments = []}) {
+  if (!csid || !payload) {
+    throw new Error('offlineQueue.enqueueCattleLogSubmission: csid + payload required');
+  }
+  // Pre-validate before opening the transaction (same rationale as
+  // enqueueSubmissionWithPhotos: IDB auto-commit semantics make mid-loop
+  // throws unreliable for atomicity; only open the tx on verified input).
+  const blobRows = Array.isArray(attachments) ? attachments : [];
+  for (const a of blobRows) {
+    if (!a || !a.key || !a.photo_key || !a.blob) {
+      throw new Error('offlineQueue.enqueueCattleLogSubmission: key/photo_key/blob required on every attachment');
+    }
+  }
+  const db = await getDb();
+  const now = Date.now();
+  const entry = {
+    csid,
+    form_kind: CATTLE_LOG_FORM_KIND,
+    payload,
+    record: null,
+    status: 'queued',
+    retry_count: 0,
+    last_error: null,
+    errorClass: null,
+    errorMessage: null,
+    uploadedPaths: [],
+    created_at: now,
+    last_attempt_at: null,
+  };
+  const tx = db.transaction([STORE_SUBMISSIONS, STORE_PHOTO_BLOBS], 'readwrite');
+  await tx.objectStore(STORE_SUBMISSIONS).put(entry);
+  if (blobRows.length > 0) {
+    const photoStore = tx.objectStore(STORE_PHOTO_BLOBS);
+    for (const a of blobRows) {
+      await photoStore.put({
+        key: a.key,
+        csid,
+        form_kind: CATTLE_LOG_FORM_KIND,
+        photo_key: a.photo_key,
+        blob: a.blob,
+        mime: a.mime ?? 'application/octet-stream',
+        size_bytes: a.size_bytes ?? 0,
+        name: a.name ?? null,
+        captured_at: a.captured_at ?? new Date().toISOString(),
+      });
+    }
+  }
+  await tx.done;
+  return entry;
+}
+
+/**
+ * Persist one confirmed upload path onto the entry. Called after EACH
+ * successful (or duplicate-as-success) storage upload during replay so an
+ * interruption between uploads resumes exactly where it left off.
+ * Idempotent: appending an already-recorded path is a no-op.
+ */
+export async function appendCattleLogUploadedPath(csid, path) {
+  if (!path) {
+    throw new Error('offlineQueue.appendCattleLogUploadedPath: path required');
+  }
+  return await mutate(csid, (entry) => {
+    const list = Array.isArray(entry.uploadedPaths) ? entry.uploadedPaths : [];
+    if (!list.includes(path)) list.push(path);
+    entry.uploadedPaths = list;
+  });
+}
+
+/**
+ * Record a replay outcome (or an operator retry) on a cattle log entry.
+ *   - failure: setCattleLogOutcome(csid, {status, errorClass, errorMessage})
+ *     where status is 'queued' (transient — retried automatically) or
+ *     'needs_attention' (deterministic — waits for operator Retry/Discard).
+ *   - operator retry: setCattleLogOutcome(csid, {status: 'queued'}) clears
+ *     errorClass/errorMessage so the row re-enters the replay pass with
+ *     fresh telemetry. uploadedPaths is intentionally NOT cleared — retry
+ *     must skip uploads that already landed.
+ * Success has no outcome call: markSynced deletes the row + blob cascade.
+ */
+export async function setCattleLogOutcome(csid, {status, errorClass = null, errorMessage = null}) {
+  if (!CATTLE_LOG_OUTCOME_STATUSES.includes(status)) {
+    throw new Error(`offlineQueue.setCattleLogOutcome: invalid status '${status}'`);
+  }
+  return await mutate(csid, (entry) => {
+    entry.status = status;
+    entry.errorClass = errorClass;
+    entry.errorMessage = errorMessage;
+    // Mirror into the generic telemetry field so any form-agnostic tooling
+    // (stale-row inspection, debugging) sees the same message.
+    entry.last_error = errorMessage;
+    if (errorClass != null) entry.last_attempt_at = Date.now();
+  });
+}

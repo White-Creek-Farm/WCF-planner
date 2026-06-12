@@ -60,6 +60,19 @@ describe('Light role - fail-closed route containment (main.jsx)', () => {
     }
   });
 
+  it('allows the Cattle Log view for light (field-log carve-out, program still denied)', () => {
+    const allowIdx = main.indexOf('LIGHT_ALLOWED_VIEWS');
+    expect(allowIdx, 'LIGHT_ALLOWED_VIEWS defined').toBeGreaterThan(-1);
+    // Wider window than the surface check above: the cattlelog entry sits
+    // below the CP2 daily-report carve-outs in the allowlist.
+    const slice = main.slice(allowIdx, allowIdx + 2400);
+    expect(slice, 'allowlist contains cattlelog').toContain("'cattlelog'");
+    // View-level carve-out only: cattlelog still maps to the cattle program,
+    // which canAccessProgram denies to light — the allowlist is the sole way
+    // a light user reaches /cattle/log (same pattern as cattledailys).
+    expect(main).toMatch(/cattlelog: 'cattle'/);
+  });
+
   it('hides the Weigh-Ins tile on the /dailys hub for Light', () => {
     expect(main).toMatch(/hideWeighIns:\s*isLight/);
     const hub = read('src/webforms/WebformHub.jsx');
@@ -144,6 +157,15 @@ describe('Light role - header + portal containment', () => {
   it('Header defines isLight and hides Activity from light', () => {
     expect(header).toMatch(/const isLight = authState\?\.role === 'light'/);
     expect(header).toMatch(/\{!isLight && \([\s\S]*?data-header-menu-item="activity"/);
+  });
+
+  it('Header hides the cattle subnav (full cattle tab set) from light', () => {
+    // The Cattle Log view ('cattlelog') is light-reachable, but light users
+    // must NOT get the cattle module's subnav tab strip (Dashboard/Herds/
+    // Breeding/...). Lock the exact implemented gate (polarity included):
+    // inCattle is the cattle-view membership AND NOT light.
+    expect(header, 'cattlelog registered as a cattle view').toContain("'cattlelog'");
+    expect(header).toMatch(/const inCattle = cattleViews\.includes\(view\) && !isLight/);
   });
 
   it('Light portal exposes the allowed field shortcuts', () => {

@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const EXPECTED_IMG_OWNERS = [
+  'src/cattle/CattleLogPage.jsx',
   'src/components/CattleIcon.jsx',
   'src/components/PlannerIcon.jsx',
   'src/equipment/EquipmentChecklistEntryPage.jsx',
@@ -21,6 +22,7 @@ const EXPECTED_IMG_OWNERS = [
 ];
 
 const USER_MEDIA_OWNERS = [
+  'src/cattle/CattleLogPage.jsx',
   'src/equipment/EquipmentChecklistEntryPage.jsx',
   'src/equipment/EquipmentDetail.jsx',
   'src/equipment/EquipmentFuelingEntryPage.jsx',
