@@ -128,7 +128,7 @@ export default function LightHomePortal({Header}) {
 
   const tiles = [
     {
-      label: 'Daily Reports',
+      label: 'Enter Daily Reports',
       desc: 'Broiler, layer, pig, cattle, sheep, eggs',
       view: 'webformhub',
       iconKey: PLANNER_ICON_KEYS.checkmark,
@@ -152,8 +152,8 @@ export default function LightHomePortal({Header}) {
       iconKey: ACTION_ICON_KEYS.tasks,
     },
     {
-      label: 'My Submissions',
-      desc: 'Your equipment fuelings and fuel supplies',
+      label: 'View Past Reports',
+      desc: 'Daily report logs and equipment',
       view: 'mySubmissions',
       iconKey: ACTION_ICON_KEYS.fueling,
     },
@@ -165,12 +165,12 @@ export default function LightHomePortal({Header}) {
 
   return (
     <div data-light-portal="1" className="home theme-crisp">
-      <Header />
+      {React.createElement(Header)}
       <main className="home-col" style={{maxWidth: 760}}>
         <section className="card" data-light-home-intro="1" style={{padding: '18px 20px'}}>
           <div style={{fontSize: 20, fontWeight: 780, color: 'var(--text)'}}>Field Portal</div>
           <div style={{fontSize: 13, color: 'var(--text-muted)', marginTop: 3}}>
-            {name ? `Signed in as ${name}` : 'Signed in'} - choose a form to fill out
+            {name ? `Signed in as ${name}` : 'Signed in'} - choose what you need
           </div>
         </section>
 

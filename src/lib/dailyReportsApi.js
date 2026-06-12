@@ -11,8 +11,18 @@ const TABLE_TO_ENTITY = {
   sheep_dailys: 'sheep.daily',
 };
 
+export const LIGHT_DAILY_REPORT_EDIT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
 function resolveEntityType(tableOrEntityType) {
   return TABLE_TO_ENTITY[tableOrEntityType] || tableOrEntityType;
+}
+
+export function isWithinLightDailyReportEditWindow(record, nowMs = Date.now()) {
+  const submittedAt = record?.submitted_at;
+  if (!submittedAt) return false;
+  const submittedMs = new Date(submittedAt).getTime();
+  if (!Number.isFinite(submittedMs)) return false;
+  return nowMs - submittedMs <= LIGHT_DAILY_REPORT_EDIT_WINDOW_MS;
 }
 
 export async function softDeleteDailyReport(sb, tableOrEntityType, id, entityLabel) {
@@ -32,16 +42,16 @@ export async function softDeleteDailyReport(sb, tableOrEntityType, id, entityLab
 const PRIVILEGED_EDIT_ROLES = ['admin', 'management', 'farm_team', 'equipment_tech'];
 
 // Server-mirrored ownership gate for showing edit/delete affordances. The DB
-// RPCs are the real enforcement (mig 091); this only decides whether to render
-// the controls so a Light user never sees an action the server would reject.
-// `record.owner_profile_id` must be present in the row the page loaded.
+// RPCs are the real enforcement (mig 091 + later window migrations); this only
+// decides whether to render controls the server would accept. For Light users,
+// `owner_profile_id` and `submitted_at` must be present in the loaded row.
 export function canEditOwnRecord(authState, record) {
   const role = authState?.role;
   if (!role || role === 'inactive') return false;
   if (PRIVILEGED_EDIT_ROLES.includes(role)) return true;
   if (role === 'light') {
     const uid = authState?.user?.id;
-    return !!uid && !!record && record.owner_profile_id === uid;
+    return !!uid && !!record && record.owner_profile_id === uid && isWithinLightDailyReportEditWindow(record);
   }
   return false;
 }
