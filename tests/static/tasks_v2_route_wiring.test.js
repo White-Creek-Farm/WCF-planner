@@ -44,6 +44,7 @@ const tasksCenterMutationsApi = fs.readFileSync(path.join(ROOT, 'src/lib/tasksCe
 const newTaskModal = fs.readFileSync(path.join(ROOT, 'src/tasks/NewTaskModal.jsx'), 'utf8');
 const completeTaskModal = fs.readFileSync(path.join(ROOT, 'src/tasks/CompleteTaskModal.jsx'), 'utf8');
 const taskPhotoLightbox = fs.readFileSync(path.join(ROOT, 'src/tasks/TaskPhotoLightbox.jsx'), 'utf8');
+const taskPhotoThumbnailButton = fs.readFileSync(path.join(ROOT, 'src/tasks/TaskPhotoThumbnailButton.jsx'), 'utf8');
 const editDueDateModal = fs.readFileSync(path.join(ROOT, 'src/tasks/EditDueDateModal.jsx'), 'utf8');
 const assignTaskModal = fs.readFileSync(path.join(ROOT, 'src/tasks/AssignTaskModal.jsx'), 'utf8');
 const deleteTaskModal = fs.readFileSync(path.join(ROOT, 'src/tasks/DeleteTaskModal.jsx'), 'utf8');
@@ -184,26 +185,21 @@ describe('Tasks v2 T2 — read-only contract on T2 components and helper', () =>
     expect(myTasksTab).not.toMatch(/\.getDate\(\)/);
   });
 
-  // Codex T2 round-2 fix #3: photo indicator is icon-only in
-  // collapsed rows (Ronnie's lock — only icon unless expanded).
-  // The Activity-Phase-1 polish replaced the paperclip with a photo
-  // icon and switched the aria-label/title to a concrete photo count
-  // ("1 photo" / "2 photos"). The "no extra visible word" rule still
-  // applies — only the glyph, with the count carried in metadata.
-  it('MyTasksTab photo indicator is icon-only with title/aria-label, no visible "Photo" text', () => {
-    expect(myTasksTab).toMatch(/data-task-has-photo="1"/);
-    expect(myTasksTab).toMatch(/data-task-photo-count=\{count\}/);
-    // Label is now a template string for "{count} photos" / "1 photo".
-    expect(myTasksTab).toMatch(/const label = count === 1 \? '1 photo' : `\$\{count\} photos`/);
-    expect(myTasksTab).toMatch(/aria-label=\{label\}/);
-    expect(myTasksTab).toMatch(/title=\{label\}/);
-    // Negative locks: no inline "Photo" word, and no paperclip glyph
-    // in live render code (the doc comment up top mentions the
-    // historical paperclip — strip comments before the negative scan
-    // so the lock doesn't trip on its own context).
+  // Task photo affordance: show a real private-bucket thumbnail in the row,
+  // keep the same click-to-lightbox behavior and count metadata.
+  it('MyTasksTab photo affordance renders a thumbnail button with title/aria-label', () => {
+    expect(myTasksTab).toContain('TaskPhotoThumbnailButton');
+    expect(taskPhotoThumbnailButton).toMatch(/data-task-has-photo="1"/);
+    expect(taskPhotoThumbnailButton).toMatch(/data-task-photo-open="1"/);
+    expect(taskPhotoThumbnailButton).toMatch(/data-task-photo-thumbnail="1"/);
+    expect(taskPhotoThumbnailButton).toMatch(/data-task-photo-count=\{count\}/);
+    expect(taskPhotoThumbnailButton).toMatch(/const label = count === 1 \? '1 photo' : `\$\{count\} photos`/);
+    expect(taskPhotoThumbnailButton).toMatch(/aria-label=\{label\}/);
+    expect(taskPhotoThumbnailButton).toMatch(/title=\{label\}/);
+    expect(taskPhotoThumbnailButton).toMatch(/<img src=\{url\}/);
     const code = myTasksTab.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
-    expect(code).not.toMatch(/🖼\s+Photo/);
     expect(code).not.toContain('📎');
+    expect(code).not.toContain('🖼');
   });
 });
 
@@ -1323,24 +1319,28 @@ describe('Tasks v2 — tab cold-boot readiness markers', () => {
 });
 
 // ============================================================================
-// Photo icon size — MyTasksTab + CompletedTab.
+// Photo thumbnails � MyTasksTab + CompletedTab.
 // ----------------------------------------------------------------------------
-// The paperclip 📎 button on each task row was 12px (basically invisible).
-// Spec bumps it to >= 36px so it's a real tap/click target. Lock the size
-// at exactly 36 in PHOTO_LINK_BTN so a future restyle can't silently shrink
-// it.
+// Task rows show actual private-bucket thumbnails instead of emoji/file icons.
+// Keep the tap target large enough and make sure both tabs use the shared
+// signed-URL thumbnail button.
 // ============================================================================
 
-describe('Tasks v2 — photo icon size on My Tasks and Completed', () => {
-  it('MyTasksTab PHOTO_LINK_BTN sets fontSize: 36', () => {
-    const block = myTasksTab.match(/const\s+PHOTO_LINK_BTN\s*=\s*\{[\s\S]*?\};/);
-    expect(block, 'MyTasksTab PHOTO_LINK_BTN block must be present').not.toBeNull();
-    expect(block[0]).toMatch(/fontSize:\s*36\b/);
+describe('Tasks v2 � photo thumbnails on My Tasks and Completed', () => {
+  it('MyTasksTab and CompletedTab render the shared thumbnail component', () => {
+    expect(myTasksTab).toContain('TaskPhotoThumbnailButton');
+    expect(completedTab).toContain('TaskPhotoThumbnailButton');
+    expect(myTasksTab).not.toContain('PHOTO_LINK_BTN');
+    expect(completedTab).not.toContain('PHOTO_LINK_BTN');
   });
 
-  it('CompletedTab PHOTO_LINK_BTN sets fontSize: 36', () => {
-    const block = completedTab.match(/const\s+PHOTO_LINK_BTN\s*=\s*\{[\s\S]*?\};/);
-    expect(block, 'CompletedTab PHOTO_LINK_BTN block must be present').not.toBeNull();
-    expect(block[0]).toMatch(/fontSize:\s*36\b/);
+  it('TaskPhotoThumbnailButton has a real thumbnail image and usable tap target', () => {
+    const buttonBlock = taskPhotoThumbnailButton.match(/const\s+BUTTON\s*=\s*\{[\s\S]*?\};/);
+    expect(buttonBlock, 'TaskPhotoThumbnailButton BUTTON block must be present').not.toBeNull();
+    expect(buttonBlock[0]).toMatch(/width:\s*48\b/);
+    expect(buttonBlock[0]).toMatch(/height:\s*38\b/);
+    expect(taskPhotoThumbnailButton).toMatch(/getCenterRequestPhotoSignedUrl/);
+    expect(taskPhotoThumbnailButton).toMatch(/getCenterCompletionPhotoSignedUrl/);
+    expect(taskPhotoThumbnailButton).toMatch(/<img src=\{url\}/);
   });
 });

@@ -1786,7 +1786,7 @@ function App() {
         // VIEW_TO_PROGRAM maps cattlelog -> cattle but Light reaches it via
         // this allowlist (the full cattle module stays out of reach).
         'cattlelog', // /cattle/log
-        'mySubmissions', // Light's own equipment fuelings + fuel supplies
+        'mySubmissions', // Legacy route repurposed as View Past Reports
         // NOTE: weighins is deliberately excluded — Light users do not submit
         // weigh-ins (typed /weighins fails closed to the portal, and the
         // Weigh-Ins tile on the /dailys hub is hidden for Light).
@@ -3480,7 +3480,7 @@ function App() {
   }
   if (view === 'animalHistory') return React.createElement(AnimalHistoryPage, {Header});
 
-  // ── MY SUBMISSIONS (Light: own equipment fuelings + fuel supplies) ──
+  // ── VIEW PAST REPORTS (legacy /my-submissions route) ──
   if (view === 'mySubmissions') return React.createElement(MySubmissions, {Header});
 
   // ── FORM ──

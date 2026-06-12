@@ -20,7 +20,7 @@
 //                      tasks expands so the filter shows its work.
 //
 // Row-level controls (T6-T9):
-//   - Photo affordance (🖼) opens TaskPhotoLightbox; visible when the
+//   - Photo thumbnail opens TaskPhotoLightbox; visible when the
 //     row carries request_photo_path or completion_photo_path. The
 //     button's aria-label / title carries the explicit photo count
 //     ("1 photo" / "2 photos") for accessibility.
@@ -55,6 +55,8 @@ import {todayCentralISO} from '../lib/dateUtils.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import CompleteTaskModal from './CompleteTaskModal.jsx';
 import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
+// eslint-disable-next-line no-unused-vars -- referenced via JSX <TaskPhotoThumbnailButton .../> below
+import TaskPhotoThumbnailButton from './TaskPhotoThumbnailButton.jsx';
 import EditDueDateModal from './EditDueDateModal.jsx';
 import AssignTaskModal from './AssignTaskModal.jsx';
 import DeleteTaskModal from './DeleteTaskModal.jsx';
@@ -162,19 +164,6 @@ const ROW_DANGER_BTN = {
   fontWeight: 600,
   fontFamily: 'inherit',
 };
-const PHOTO_LINK_BTN = {
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  cursor: 'pointer',
-  // 36px icon per Codex amendment — original 12px was too small to
-  // notice. Icon-only; visible "Photo" text stays out per the existing
-  // T2 lock.
-  fontSize: 36,
-  lineHeight: 1,
-  color: '#6b7280',
-  fontFamily: 'inherit',
-};
 const LOAD_RETRY_BTN = {
   padding: '6px 12px',
   borderRadius: 8,
@@ -249,6 +238,7 @@ function bucketByDueState(rows, todayStr) {
 
 // eslint-disable-next-line no-unused-vars -- referenced via JSX <TaskRow .../> below
 function TaskRow({
+  sb,
   ti,
   todayStr,
   canComplete,
@@ -328,35 +318,9 @@ function TaskRow({
         </div>
       )}
       <div style={{display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}>
-        {(photo.hasRequest || photo.hasCompletion) &&
-          (() => {
-            // Photo polish (Codex pre-polish review): the only attachment
-            // kind today is a photo (request_photo_path + completion_
-            // photo_path). The icon used to be a paperclip 📎 which reads
-            // as a generic file — switch to the framed-picture 🖼 emoji
-            // so operators see at a glance that the attachment is an
-            // image. Thumbnail rendering needs a signed URL per row
-            // (private bucket), which we deliberately skip here — the
-            // list view should never make N storage calls just to render
-            // chips. If/when a non-photo attachment kind ships, branch
-            // back to 📎 for that case only.
-            const count = (photo.hasRequest ? 1 : 0) + (photo.hasCompletion ? 1 : 0);
-            const label = count === 1 ? '1 photo' : `${count} photos`;
-            return (
-              <button
-                type="button"
-                data-task-has-photo="1"
-                data-task-photo-open="1"
-                data-task-photo-count={count}
-                onClick={() => onOpenPhotos && onOpenPhotos(ti)}
-                title={label}
-                aria-label={label}
-                style={PHOTO_LINK_BTN}
-              >
-                🖼
-              </button>
-            );
-          })()}
+        {(photo.hasRequest || photo.hasCompletion) && (
+          <TaskPhotoThumbnailButton sb={sb} task={ti} onClick={() => onOpenPhotos && onOpenPhotos(ti)} />
+        )}
         {canComplete && (
           <button
             type="button"
@@ -581,6 +545,7 @@ export default function MyTasksTab({sb, authState}) {
         {rows.map((ti) => (
           <TaskRow
             key={ti.id}
+            sb={sb}
             ti={ti}
             todayStr={todayStr}
             canComplete={canCompleteRow(ti)}
@@ -711,6 +676,7 @@ export default function MyTasksTab({sb, authState}) {
                         {g.tasks.map((ti) => (
                           <TaskRow
                             key={ti.id}
+                            sb={sb}
                             ti={ti}
                             todayStr={todayStr}
                             canComplete={canCompleteRow(ti)}

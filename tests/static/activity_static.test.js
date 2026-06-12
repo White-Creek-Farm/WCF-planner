@@ -30,6 +30,7 @@ const regSrc = fs.readFileSync(path.join(ROOT, 'src/lib/activityRegistry.js'), '
 const taSrc = fs.readFileSync(path.join(ROOT, 'src/shared/MentionTextarea.jsx'), 'utf8');
 const completeTaskModalSrc = fs.readFileSync(path.join(ROOT, 'src/tasks/CompleteTaskModal.jsx'), 'utf8');
 const myTasksTabSrc = fs.readFileSync(path.join(ROOT, 'src/tasks/MyTasksTab.jsx'), 'utf8');
+const taskPhotoThumbnailSrc = fs.readFileSync(path.join(ROOT, 'src/tasks/TaskPhotoThumbnailButton.jsx'), 'utf8');
 
 describe('mig 058 — activity_events table + RLS lockdown', () => {
   it('creates activity_events with the expected columns and constraints', () => {
@@ -383,19 +384,17 @@ describe('Task Center wire-up', () => {
     expect(myTasksTabSrc).not.toContain('setActivityTarget');
   });
 
-  it('TaskRow photo indicator uses the picture icon + photo count label (paperclip retired)', () => {
-    // Polish lock: the only attachment kind on task rows today is a
-    // photo. Paperclip 📎 reads as a generic file; switched to 🖼 with a
-    // photo count label so operators see at a glance what they're
-    // opening. Paperclip stays available for non-photo attachment kinds
-    // when those ship.
-    expect(myTasksTabSrc).toMatch(/data-task-has-photo="1"/);
-    expect(myTasksTabSrc).toMatch(/data-task-photo-count=\{count\}/);
-    expect(myTasksTabSrc).toMatch(/🖼/);
-    // Negative: no paperclip in the live render path. (The doc-comment
-    // mentions both intentionally — we strip comments before scanning.)
+  it('TaskRow photo affordance uses a real thumbnail + photo count label', () => {
+    expect(myTasksTabSrc).toContain('TaskPhotoThumbnailButton');
+    expect(taskPhotoThumbnailSrc).toMatch(/data-task-has-photo="1"/);
+    expect(taskPhotoThumbnailSrc).toMatch(/data-task-photo-thumbnail="1"/);
+    expect(taskPhotoThumbnailSrc).toMatch(/data-task-photo-count=\{count\}/);
+    expect(taskPhotoThumbnailSrc).toMatch(/getCenterRequestPhotoSignedUrl/);
+    expect(taskPhotoThumbnailSrc).toMatch(/getCenterCompletionPhotoSignedUrl/);
+    expect(taskPhotoThumbnailSrc).toMatch(/<img src=\{url\}/);
     const code = myTasksTabSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
     expect(code).not.toContain('📎');
+    expect(code).not.toContain('🖼');
   });
 });
 

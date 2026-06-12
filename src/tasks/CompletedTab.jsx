@@ -31,6 +31,8 @@ import {TASK_CHANGE_EVENT} from '../lib/tasksCenterMutationsApi.js';
 import {fmt, fmtCentralDateTime, todayCentralISO, centralISOFor} from '../lib/dateUtils.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
+// eslint-disable-next-line no-unused-vars -- referenced via JSX <TaskPhotoThumbnailButton .../> below
+import TaskPhotoThumbnailButton from './TaskPhotoThumbnailButton.jsx';
 
 const CARD = {
   background: 'white',
@@ -170,16 +172,6 @@ function bucketByCompletedAt(rows, todayStr) {
   return {today, lastWeek, older};
 }
 
-const PHOTO_LINK_BTN = {
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  cursor: 'pointer',
-  fontSize: 36,
-  lineHeight: 1,
-  color: '#6b7280',
-  fontFamily: 'inherit',
-};
 const LOAD_RETRY_BTN = {
   padding: '6px 12px',
   borderRadius: 8,
@@ -194,7 +186,7 @@ const LOAD_RETRY_BTN = {
 };
 
 // eslint-disable-next-line no-unused-vars -- referenced via JSX <CompletedRow .../> below
-function CompletedRow({ti, profilesById, onOpenPhotos, onNavigate}) {
+function CompletedRow({sb, ti, profilesById, onOpenPhotos, onNavigate}) {
   const photo = photoPresenceFor(ti);
   const attribution = attributionFor(ti);
   const assigneeName = nameFor(ti.assignee_profile_id, profilesById);
@@ -281,24 +273,14 @@ function CompletedRow({ti, profilesById, onOpenPhotos, onNavigate}) {
       )}
       {(photo.hasRequest || photo.hasCompletion) && (
         <div style={{display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 6}}>
-          <button
-            type="button"
-            data-task-has-photo="1"
-            data-task-photo-open="1"
-            onClick={() => onOpenPhotos && onOpenPhotos(ti)}
-            title="Task has at least one photo"
-            aria-label="Task has at least one photo"
-            style={PHOTO_LINK_BTN}
-          >
-            📎
-          </button>
+          <TaskPhotoThumbnailButton sb={sb} task={ti} onClick={() => onOpenPhotos && onOpenPhotos(ti)} />
         </div>
       )}
     </div>
   );
 }
 
-export default function CompletedTab({sb, authState}) {
+export default function CompletedTab({sb}) {
   const navigate = useNavigate();
   const [rows, setRows] = React.useState([]);
   const [profiles, setProfiles] = React.useState({});
@@ -368,6 +350,7 @@ export default function CompletedTab({sb, authState}) {
         {bucketRows.map((ti) => (
           <CompletedRow
             key={ti.id}
+            sb={sb}
             ti={ti}
             profilesById={profiles}
             onOpenPhotos={setPhotoTaskTarget}
