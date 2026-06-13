@@ -8,30 +8,33 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-13.
-Current source checkpoint for this wrap: `a8d117d` (final `PROJECT.md` wrap
-commit sits on top; use git log for the exact docs hash after push).
-Current pushed source checkpoint before the wrap commit: `a8d117d`. Since the
-`bb8fdad` integration,
-`main` has shipped Animals on Farm display polish (`c61fab0`), cattle weigh-in
-swap/blacklist dropdown repairs (`9159ca5`), retag weight-history preservation
-(`1c2ba9a`), cattle calf-row heifer promotion (`c3a5815`, migration `110`),
-public weigh-in recent-entry layout polish (`1ac176b`, `a434cf9`, `9ef74c7`),
-weigh-in note mirroring and cattle cues (`534e50a`, migration `111`), public
-weigh-in entry edit parity (`85dcdeb`), new-cow/reconcile label refinement
-(`37668fd`), admin-created password setting (`cdcc39d`), Public Tasks assignee
-polish (`693dd4a`), Light portal daily-report review hub (`a56e57e`, migration
-`113`), task photo cap parity (`d8951d4`, migration `114`), Cattle Log field
-journal (`3c74b5d`, migration `112`), and task-row photo thumbnails
-(`8394162`), the shared Task Center To Do List (`d63c5c3`, migration `115`), and
-animal record-page hotfixes (`a8d117d`). Netlify auto-deploys from GitHub
-`main`; the current `main` front-end was live-verified on 2026-06-13 by a 200
-response, served asset `assets/main-BhBCmnki.js`, and served-JS probes
-confirming the To Do List UI (`To Do List`, `tasks-mode-todo`, `/tasks/todo`,
-`todo_items`). Ronnie screenshot-verified the Cattle Log build and To Do
-screenshot packet before the relevant gates. Migrations `112` (2026-06-12) and
-`113`/`114`/`115` (2026-06-13) are PROD-applied, and the To Do weekly-digest
-Edge functions (`tasks-summary` v6, `rapid-processor` v25) were deployed and
-verified to PROD on 2026-06-13.
+Current source checkpoint for this wrap: `1acd43d` (`Hotfix home text color
+hierarchy`). This `PROJECT.md` wrap is the only tracked handoff change unless
+Ronnie asks for a commit/push.
+Current pushed source checkpoint before this wrap: `1acd43d`. Since the
+`bb8fdad` integration, `main` has shipped Animals on Farm display polish
+(`c61fab0`), cattle weigh-in swap/blacklist dropdown repairs (`9159ca5`), retag
+weight-history preservation (`1c2ba9a`), cattle calf-row heifer promotion
+(`c3a5815`, migration `110`), public weigh-in recent-entry layout polish
+(`1ac176b`, `a434cf9`, `9ef74c7`), weigh-in note mirroring and cattle cues
+(`534e50a`, migration `111`), public weigh-in entry edit parity (`85dcdeb`),
+new-cow/reconcile label refinement (`37668fd`), admin-created password setting
+(`cdcc39d`), Public Tasks assignee polish (`693dd4a`), Light portal daily-report
+review hub (`a56e57e`, migration `113`), task photo cap parity (`d8951d4`,
+migration `114`), Cattle Log field journal (`3c74b5d`, migration `112`),
+task-row photo thumbnails (`8394162`), the shared Task Center To Do List
+(`d63c5c3`, migration `115`), animal record-page hotfixes (`a8d117d`), daily-hub
+token closure (`5539348`), the PWA offline app-shell cache (`4f85c44`, merged
+`ab2bd68`), Cattle Log unmatched-calves reminder (`052af25`, merged `b2b1e73`),
+and the Home text-color hierarchy hotfix (`1acd43d`). Netlify auto-deploys from
+GitHub `main`; CC later state-synced `1acd43d` on `origin/main` with local
+`main` at 0/0 and confirmed the hotfix files match the accepted text-color rule.
+Capture served-PROD asset evidence next session only if a gate needs it. Ronnie
+screenshot-verified the Cattle Log build and To Do screenshot packet before the
+relevant gates. Migrations `112` (2026-06-12) and `113`/`114`/`115`
+(2026-06-13) are PROD-applied, and the To Do weekly-digest Edge functions
+(`tasks-summary` v6, `rapid-processor` v25) were deployed and verified to PROD on
+2026-06-13.
 Production URL: https://wcfplanner.com.
 
 ---
@@ -127,6 +130,7 @@ Rules (normative):
 | 3 Confirm/Delete stacking | Ratified; enforcement active for shared modal tier | `design_token_contract_static.test.js`, `shared_ui_extraction_contract_static.test.js` |
 | 4 Button height/padding | Ratified; shared-token enforcement active | `design_token_contract_static.test.js` |
 | 5 Save model (Submit vs autosave) | Ratified; current model guarded | `save_model_contract_static.test.js` |
+| 6 Ordinary text color hierarchy | Ratified; Home source-of-truth hotfix shipped, pilot guards queued | `1acd43d`, Home aesthetic parity pilot |
 
 1. Font sizes use a clean px scale. Canonical set: `10, 11, 12, 13, 14, 15, 16, 18,
    20, 22, 26`. Lift `9 -> 10`, fold `17 -> 18`, `24 -> 22`, `28 -> 26`.
@@ -156,6 +160,22 @@ Rules (normative):
    - Guard: `save_model_contract_static.test.js` plus touched Playwright when a
      surface behavior changes.
 
+6. Ordinary text color hierarchy uses two colors unless a semantic/status block
+   intentionally owns its own palette:
+   - Main readable text is pure black (`#000000`): section titles, headings,
+     primary labels, buttons, card titles, row primary names, and primary animal
+     or production numbers.
+   - Supporting text is muted gray: helper copy, subtext, metadata, secondary
+     labels, and descriptive animal/category labels.
+   - Approved accents may remain colored when the color carries summary or
+     semantic meaning, such as the Home Total value or rain/freeze callouts.
+   - Do not change pastel/status/warning/error/success/info backgrounds as part
+     of a text-color pass unless the build is explicitly scoped to redesign that
+     block.
+   - Guard: Home shipped the source-of-truth implementation in `1acd43d`; scoped
+     pilot guards are queued with the Home aesthetic parity pilot before any
+     source-wide enforcement.
+
 ### Locked functional invariants
 
 These load-bearing behaviors are Global Decisions, defined in full in the
@@ -178,32 +198,36 @@ plus a guard update in the same change.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Current source checkpoint for this wrap: `a8d117d`; final `PROJECT.md` wrap
-  commit sits on top. Since the `bb8fdad` integration, `main` shipped Animals on
-  Farm display polish, the public cattle weigh-in fixes and layout polish, retag
+- Current source checkpoint for this wrap: `1acd43d`; this `PROJECT.md` wrap is
+  the only tracked handoff change unless Ronnie asks for a commit/push. Since
+  the `bb8fdad` integration, `main` shipped Animals on Farm display polish, the
+  public cattle weigh-in fixes and layout polish, retag
   weight-history preservation, calf-row heifer promotion, weigh-in note
   mirroring, full public entry edit parity, new-cow/reconcile label refinement,
   admin-created password setting, Public Tasks assignee polish, the Light portal
   daily-report review hub, task photo cap parity, the Cattle Log field journal,
-  task-row photo thumbnails, the Task Center To Do List, and the animal
-  record-page transfer/blacklist hotfixes. See Latest Shipped Checkpoint for
-  per-lane detail.
-- Live verification: `https://wcfplanner.com/` returned 200 on 2026-06-13
-  serving `assets/main-BhBCmnki.js`; the served JS contains the To Do List UI
-  markers (`To Do List`, `tasks-mode-todo`, `/tasks/todo`, `todo_items`),
-  confirming the To Do front-end shipped via Netlify auto-deploy from `main`
-  (`a8d117d`).
+  task-row photo thumbnails, the Task Center To Do List, animal record-page
+  transfer/blacklist hotfixes, daily-hub token closure, PWA offline app-shell
+  cache, Cattle Log unmatched-calves reminder, and the Home text-color hierarchy
+  hotfix. See Latest Shipped Checkpoint and Build Queue for per-lane detail.
+- Latest live verification: CC reported all three parallel lanes live on
+  2026-06-13 before the Home text hotfix: daily-hub token closure asset rotated,
+  `/sw.js` live for the PWA offline app-shell cache, and Cattle Log unmatched
+  calves present in the rotated bundle. Codex then pushed `1acd43d` to `main`;
+  `npm run build` was green locally. CC later state-synced `1acd43d` on
+  `origin/main` with local `main` 0/0 and confirmed the hotfix files match the
+  accepted text-color rule. Capture served-PROD Home asset evidence only if the
+  next gate needs it.
 - Integrated source validation before the `37668fd` push: `npm run format:check`
   green, `npm run lint` 0 errors, `npm test` 212 files / 5567 passed,
   `npm run build` green, and `git diff --check` clean. Later hotfix lanes used
   focused tests/lint/build; see Latest Shipped Checkpoint for scope.
 - Local primary state as of this update (2026-06-13): primary
-  `C:\Users\Ronni\WCF-planner` is on `main` at source checkpoint `a8d117d`; at
-  wrap time, only this `PROJECT.md` update plus cleanup bookkeeping remained
-  tracked before push. The old untracked screenshot/proof folders, generated
-  artifacts, draft backup, design-reference folder, and local Podio equipment
-  dump were pruned after Ronnie approval. `git status --short` is the source of
-  truth.
+  `C:\Users\Ronni\WCF-planner` is on `main` at source checkpoint `1acd43d`; only
+  this `PROJECT.md` update is tracked. Two pre-existing untracked local artifacts
+  remain and are intentionally not part of this handoff unless Ronnie asks:
+  `daily-hub-shots/` and `tests/daily_hub_token_shots.spec.js`. `git status
+  --short` is the source of truth.
 - Migrations `113` (`light_daily_report_edit_window`), `114`
   (`task_photo_total_limit`), and `115` (`todo_items`) are PROD-applied +
   verified 2026-06-13 (CC, `psql --single-transaction` / `ON_ERROR_STOP=1`;
@@ -328,7 +352,33 @@ Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
 work:
 
-- 2026-06-13 source checkpoint `a8d117d` plus this final docs wrap. Ronnie
+- 2026-06-13 source checkpoint `1acd43d` plus this `PROJECT.md` wrap. Landed
+  since `a8d117d`:
+  - Daily-hub token closure (`5539348`): removed retired radius `7`/`8` and ad
+    hoc action paddings from the seven daily/reporting hub list surfaces, adding
+    the scoped static guard. Ronnie approved the before/after desktop + mobile
+    screenshot set; screenshot utility/artifacts were kept local, not committed.
+  - PWA offline app-shell cache (`4f85c44`, merged `ab2bd68`): service worker
+    caches same-origin app shells/assets, leaves Supabase/API/RPC/mutations and
+    offline queue traffic alone, and supports offline cold-open after one online
+    warm-up for `/dailys` and `/equipment`. `/sw.js` was reported live.
+  - Cattle Log unmatched-calves reminder (`052af25`, merged `b2b1e73`): Cattle
+    Log now shows unmatched calves above the issue log, reusing the herd-filter
+    predicate with the 9-month age window and the fixed `dam_tag` select. The
+    reminder is derived from already-loaded cattle rows and writes no issue
+    records.
+  - Home text-color hierarchy hotfix (`1acd43d`): `--text` and `--label` in
+    `.home.theme-crisp` are pure black, Home subtext remains muted gray, Total
+    remains brand-colored, Missed Daily Reports title is black, the Last 5 Days
+    admin report section preserves its previous colors, and normal Home weather
+    card text uses black/gray while semantic rain/freeze callouts stay colored.
+  Validation recorded: daily-hub focused statics/lint/build from CC; PWA static
+  + Playwright offline cache + offline queue canary + build; Cattle Log
+  vitest/static/Playwright; Home hotfix Prettier check, `git diff --check`, and
+  `npm run build` green. CC reported the first three lanes live; Codex pushed the
+  Home hotfix to `main`.
+
+- 2026-06-13 source checkpoint `a8d117d` plus final docs wrap. Ronnie
   reported CC committed the To Do build and applied PROD before this wrap.
   Landed since `b78199a`:
   - Shared Task Center To Do List (`d63c5c3`, migration `115`, PROD-applied
@@ -782,22 +832,27 @@ work:
 ### Current Local Gates
 
 No PROD migration, Storage, Vault, or Edge Function gate is open. Migrations
-`113`/`114`/`115` are PROD-applied, the To Do front-end is live via Netlify
-auto-deploy, and the To Do weekly-digest Edge functions (`tasks-summary` v6,
-`rapid-processor` v25) were deployed + verified to PROD on 2026-06-13.
+`113`/`114`/`115` are PROD-applied, the To Do weekly-digest Edge functions
+(`tasks-summary` v6, `rapid-processor` v25) were deployed + verified to PROD on
+2026-06-13, and CC reported the daily-hub token, PWA cache, and Cattle Log
+unmatched-calves lanes live. CC state-synced the Home text-color hotfix
+(`1acd43d`) on `origin/main` with local `main` 0/0; if a future gate needs served
+PROD proof, verify the served asset next session.
 
 - At wrap time, main worktree `C:\Users\Ronni\WCF-planner` was on `main` at
-  source checkpoint `a8d117d`, with only this `PROJECT.md` wrap and cleanup
-  bookkeeping tracked before the final push. Approved local cleanup removed the
-  old screenshot/proof folders, generated artifacts, draft backup,
-  design-reference folder, local Podio equipment dump, and stale merged
-  Codex/light-audit worktrees.
+  source checkpoint `1acd43d`, with only this `PROJECT.md` wrap tracked. The only
+  known untracked local artifacts were `daily-hub-shots/` and
+  `tests/daily_hub_token_shots.spec.js`, intentionally left uncommitted unless
+  Ronnie asks.
 - PROD-applied recent migrations: `112_cattle_log`,
   `113_light_daily_report_edit_window`, `114_task_photo_total_limit`, and
   `115_todo_items`.
-- Existing parallel worktrees: none after the 2026-06-13 approved cleanup.
-  Create a fresh scoped branch from current `main` in a new worktree for any
-  additional parallel build lane.
+- Existing parallel worktrees at this wrap are stale shipped-lane worktrees:
+  `C:\Users\Ronni\WCF-planner-codex-cattle-log-unmatched` (`052af25`,
+  `codex/cattle-log-unmatched-calves`) and
+  `C:\Users\Ronni\WCF-planner-codex-pwa-cache` (`4f85c44`,
+  `codex/pwa-offline-cache`). Do not build from them unless Ronnie explicitly
+  reopens that lane; create any new scoped branch/worktree from current `main`.
 
 If a new session sees additional dirty state, inspect it before planning; do not
 assume it is disposable. Create new scoped worktrees/branches only for active
@@ -1017,37 +1072,199 @@ Locked queue direction from Ronnie (2026-06-09):
 - Program dashboards stay program-specific unless Ronnie reopens the dropped Lane
   J KPI-frame decision.
 
-Current open queue after the 2026-06-13 `a8d117d` source checkpoint:
+Current open queue after the 2026-06-13 `1acd43d` source checkpoint:
 
-1. Residual source-wide visual-token cleanup (Lane I). Class: `ENH`. Size:
+1. Home aesthetic parity pilot. Class: `DECISION`/`ENH`. Size: medium/large.
+   Status: CC/Codex consensus reached on the investigation and pilot shape;
+   Ronnie redirected to this wrap before answering Q1. Do not build until Codex
+   asks Ronnie the question queue below one at a time, then packages the final
+   CC build prompt. Product goal: bring the rest of the app into parity with the
+   Home page aesthetic - clean near-white canvas, white navigable cards/buttons,
+   restrained pastel only for subtle reminders/callouts, crisp hover/focus
+   affordance, and a two-color text hierarchy for ordinary text.
+
+   Investigation basis:
+   - CC audited all roughly 67 surfaces plus shared chrome/governance and
+     adversarially reviewed the result; Codex independently investigated and the
+     two audits converged.
+   - Home is a documented scoped design island under `.home.theme-crisp`, with
+     OKLCH palette, Home-only radii (`18`/`12`/`9`), fractional type
+     (`15.5`/`11.5`), weights above the shared scale (`550`-`800`), and live
+     drift from the older written spec. Freeze parity from the live CSS, not
+     stale prose.
+   - The app is mostly inline-styled rather than class-based (audit estimate:
+     about 145 files and about 7,400 `style` blocks), so full Home parity is a
+     design-system re-platforming, not a one-shot restyle.
+
+   Consensus build direction:
+   - Pilot first, not a global `.hoverable-tile` mutation. Build scoped Home-like
+     primitives and route-level changes, screenshot them, then decide whether to
+     expand globally. Gotcha for any later global change: `.hoverable-tile` /
+     `.hoverable-row` are defined byte-identical in `index.html`, `dailys.html`,
+     and `equipment.html` and guard-asserted identical, so a future global hover
+     change must edit all three HTML files plus the guard atomically.
+   - Pilot routes only: `/dailys` selector page (`WebformHub` selector cards,
+     not Add Feed/Weigh-ins/Tasks/forms), `/equipment` public FuelingHub picker
+     only (not `/equipment/<slug>`, `/equipment/supply`, `/fleet`, `/fleet/fuel-log`,
+     or admin), and `/cattle/herds` herd list/filter page only (not cow details,
+     modals, bulk import, or subpages).
+   - The green authenticated Header/nav stays as-is in this phase.
+   - Use new crisp primitives at the existing canonical app token scale:
+     card/surface radius `14` instead of Home's scoped `18`, integer font sizes,
+     and weights `400`-`700`. This is the reconcile-down path and should not
+     require a Constitution amendment. Home itself remains the approved scoped
+     design-reference exception.
+   - Freeze the live Home near-white canvas as a named token based on
+     `oklch(0.991 0.002 225)`. Do not scatter-copy that literal across routes.
+   - Add `prefers-reduced-motion` handling to any new lift/chevron primitive.
+   - Desktop cards/tiles should lift with a soft shadow, stronger border, and
+     chevron reveal on hover/focus. Rows/tables should use a wash-only state, not
+     lift. Mobile/touch should keep chevrons visible because hover does not fire
+     and field users are often mobile-first.
+   - Convert broad pastel navigable fills on the three pilot routes to white
+     surfaces with small accents where approved (dot, left rail, chip, or icon).
+     Preserve true semantic warning/error/success/info/status callouts.
+   - Active filters/tabs should move toward white/outline/brand-color treatment
+     unless they are true warnings.
+   - `/cattle/herds` has divergent herd-color maps (`CattleHerdsView`,
+     `CattleForecastView`, `CattleHomeView`, plus cow-detail imports). If the
+     pilot converts herd color into small accents, reconcile the herd color owner
+     in the same scoped change. FLOCK/PIG_GROUP/BREED/category maps are later
+     phases unless touched by the pilot.
+
+   Ratified text-color hierarchy from the Home hotfix:
+   - Ordinary main text is pure black (`#000000`): titles, headings, primary
+     labels, buttons, card titles, row primary names, and primary production or
+     animal-count numbers.
+   - Supporting text is muted gray: helper copy, metadata, secondary labels,
+     animal-type labels like the Home Animals-on-Farm "Cattle" label, and
+     Missed Daily Reports subtext.
+   - Intentional summary accents remain allowed, such as the Home Total value.
+   - Semantic colors stay semantic inside pastel/status/warning/error/success/
+     info/weather/overdue blocks unless that block is explicitly redesigned.
+   - The text-color pass is typography-only; it must not silently change
+     backgrounds.
+   - Home implementation already shipped in `1acd43d`: `--text`/`--label` pure
+     black, subtext muted gray, Total brand-colored, Missed Daily Reports title
+     black, Last 5 Days admin report colors unchanged, and weather semantic
+     rain/freeze colors preserved.
+
+   Guard and proof target:
+   - Add scoped static guards for pilot text hierarchy and broad-pastel
+     navigable-card usage outside the pilot allowlist. Expand later only after
+     screenshots and Ronnie approval.
+   - Capture before/after screenshots for desktop and mobile, including hover or
+     focus states where the chevron is revealed. Public/mobile field use matters;
+     do not rely only on desktop screenshots.
+   Frozen Home parity token reference (Phase 0). CC produced this read-only
+   reference from the live `src/dashboard/homeRedesign.css` at `1acd43d` (freeze
+   from live CSS, not stale prose). The pilot primitive builds against these exact
+   values; APP radius/type stay canonical (reconcile-down):
+   - Neutrals/surfaces (use the Home color values directly): canvas (page bg)
+     `oklch(0.991 0.002 225)` promoted to ONE named token; surface `#ffffff`;
+     surface-2 `oklch(0.975 0.003 225)`; border `oklch(0.915 0.005 230)` 1px;
+     border-strong `oklch(0.85 0.007 230)`; divider `oklch(0.938 0.004 230)`;
+     row-hover wash `oklch(0.979 0.003 230)`.
+   - Elevation: shadow-card (rest) `0 1px 2px rgba(20,30,40,0.045)`; shadow-hover
+     (lift) `0 7px 20px rgba(20,30,40,0.1)`.
+   - Text (locked, post-hotfix): main/title/label/button-label/row-name/primary-
+     number `#000000`; subtext/help/metadata/counts muted gray
+     `oklch(0.52 0.012 250)`; faint (sparing) `oklch(0.69 0.01 250)`; brand accent
+     (totals/links/chevron/focus, NOT primary CTA) `oklch(0.5 0.095 162)`; admin
+     Last-5-Days exception kept at `--admin-daily-text oklch(0.24 0.015 250)` /
+     `--admin-daily-label oklch(0.58 0.015 250)`.
+   - Radius (Home -> APP canonical; no `18`/`12`/`9` in app code): cards/tiles/
+     panels `18 -> 14`; notes/banners `12 -> 10`; controls/inputs/buttons `9 -> 6`;
+     pills `999`.
+   - Typography (Home -> APP canonical): fractional sizes (`15.5`/`12.5`/`11.5`)
+     -> integer set `{10,11,12,13,14,15,16,18,20,22,26}`; weights `550`-`800` ->
+     `{400,500,600,700}` (e.g. tile-label `15.5/680 -> 15-16/700`, section-label
+     `11.5/700 -> 11-12/700`, stat `28/750 -> 26/700`).
+   - Hover/affordance: cards/tiles rest = surface+border+shadow-card, hover =
+     `translateY(-2px)` + shadow-hover + border-strong (0.16s); dense rows = no
+     lift, row-hover wash (0.14s) + `:focus-visible` 2px brand outline offset -2px
+     (paint-only); chevron rest = hidden (`opacity 0`, `translateX(-4px)`, faint),
+     hover/focus = `opacity 1`, `transform none`, brand (0.16s); mobile/touch =
+     always visible; add `prefers-reduced-motion`.
+   - Pastel: `*-soft` tokens (danger/warn/ok/info, ~0.95 lightness) back chips/
+     badges/notes/status ONLY, never card/page fills; inks `warn-ink`/`ok-ink`;
+     program/species use full `--c-*` dots; semantic identity (herd/flock/group/
+     breed/category) -> small accent (dot/left-rail/chip), not full-row fill.
+
+   Pilot-critical question queue for next session, ask Ronnie one at a time:
+   1. Should the pilot use existing canonical app tokens instead of exact Home
+      values? Recommended answer: yes - radius `14` not `18`, integer type, and
+      weights `400`-`700`, so no Constitution amendment is needed.
+   2. Should the near-white Home canvas be promoted as a named token based on
+      `oklch(0.991 0.002 225)`? Recommended answer: yes - one token, no
+      literal copy-paste.
+   3. Should reduced-motion support be baked into the new lift/chevron primitive
+      now? Recommended answer: yes.
+   4. Confirm pilot scope as the three named routes only. Recommended answer:
+      yes.
+   5. Confirm `/equipment` scope as the public FuelingHub picker only, excluding
+      `/equipment/<slug>`, `/equipment/supply`, `/fleet`, `/fleet/fuel-log`, and
+      admin. Recommended answer: yes.
+   6. Confirm `/dailys` scope as the WebformHub selector page only, excluding
+      Add Feed, Weigh-Ins, Tasks, and entry forms. Recommended answer: yes.
+   7. Confirm `/cattle/herds` scope as the herd list/filter page only, excluding
+      cow detail, modals, bulk import, and subpages. Recommended answer: yes.
+   8. Should the green authenticated Header/nav stay as-is for phase one?
+      Recommended answer: yes.
+   9. On desktop, should chevrons be hidden at rest and revealed on hover plus
+      keyboard focus? Recommended answer: yes.
+   10. For mobile/touch, should chevrons stay visible while desktop reveals them
+       on hover/focus? Recommended answer: yes - field users need the affordance
+       without hover.
+   11. Should rows/tables use only a wash state while cards/tiles get lift and
+      shadow? Recommended answer: yes - keeps dense operational lists stable.
+   12. On `/equipment`, should category-colored equipment cards become white
+       cards with small category accents? Recommended answer: yes, unless Ronnie
+       wants a specific equipment category to remain a semantic warning.
+   13. On `/dailys`, should the report selector cards become white with small
+       icons/accent chips while preserving true reminder/status callouts?
+      Recommended answer: yes.
+   14. On `/cattle/herds`, should herd group color move from broad pastel fills
+       to small accents and reconciled color ownership? Recommended answer: yes
+       for the pilot page only.
+   15. Should active filters/tabs become white/outlined/brand treatment except
+       true warning filters like unmatched calves? Recommended answer: yes.
+   16. Should the text hierarchy rule be applied to pilot routes at the same time
+       as the pastel/hover pass? Recommended answer: yes, but only for ordinary
+       main/subtext, leaving semantic/status colors intact.
+   17. Should CC include the scoped guards and desktop/mobile hover/focus
+       screenshots in the first pilot build? Recommended answer: yes.
+
+   Parked post-pilot decision backlog, not required before the pilot build:
+   - App-wide amend-up vs reconcile-down if the pilot preview makes canonical
+     `14`/integer/`400`-`700` values feel insufficient.
+   - Direct value migration vs a CSS-variable token layer for the wider rollout.
+   - One canonical modal scrim token.
+   - Global input/focus retokenization and brand-vs-green focus treatment.
+   - Canonical button color policy, including whether to collapse rogue
+     per-program hues, `ConfirmModal` `#1d4ed8`, and `InlineNotice` info-blue.
+   - Decorative/index-cycling/zebra fills; keep zebra only for dense data tables
+     if approved.
+   - Chart/graph/data-viz palette scope.
+   - Print/PDF/CSV export visual palette scope.
+   - Canonical responsive breakpoint set.
+   - Auth/login/set-password/boot/loading green splash screens, decided together
+     with the Header as green brand chrome vs whitened entry surfaces.
+   - Legacy token debt such as `ErrorBoundary` radius `12` / `#f1f3f2`, stat-card
+     helper styles, ComingSoon, and empty/error/crash states.
+   - Whether to add broader color + scrim assertions to
+     `design_token_contract_static`.
+
+2. Residual source-wide visual-token cleanup (Lane I). Class: `ENH`. Size:
    medium/large only once scoped. The shared-token slices, record/shared/auth
-   closure, modal/action closure, and batch/session record-title compact-size
-   slice are shipped. Source still contains legacy typography/radius/color values
-   outside the guarded shared primitives and documented exceptions. Start only
-   from a named inventory/surface group, preserve approved exceptions such as
-   public webform styling and `.home.theme-crisp`, add or expand token guards,
-   and capture targeted screenshots for visible UI changes. Migration/Storage/
-   PROD gate: none expected.
-
-2. True offline app-shell cache / PWA cold-open support. Class: `ENH`. Size:
-   medium/large. Current state: install manifests and IndexedDB submission
-   queues are shipped, including daily reports, fueling, tasks, weigh-ins, add
-   feed, fuel supply, and the Cattle Log create/photo queue. Missing piece:
-   there is no service worker or Cache API owner, so an operator cannot rely on
-   cold-opening the app with no signal. Scope: add a service-worker/PWA caching
-   strategy for the app shell and built assets, covering the root app plus the
-   `/dailys` and `/equipment` install entry points without breaking the existing
-   hub-specific manifests or queued-submission storage. Success criteria: after a
-   successful online load/install, the Daily Reports and Equipment/Fueling icons
-   can reopen their hubs while offline; queued submissions still replay through
-   the existing IndexedDB queue and stay tied to the same browser/icon storage;
-   update behavior is clear and does not strand users on stale critical assets.
-   App Setup copy should distinguish "offline queued submissions" from "full
-   offline app cache" once this ships. Guard target: static service-worker
-   registration/cache ownership tests, PWA manifest tests, focused Playwright
-   offline reload/cold-open checks for `/dailys` and `/equipment`, and existing
-   offline queue tests. Migration/Storage/PROD DB gate: none expected; push to
-   `main` deploys runtime service-worker behavior via Netlify.
+   closure, modal/action closure, batch/session record-title compact-size slice,
+   daily-hub token closure, and Home text-color hierarchy hotfix are shipped.
+   Source still contains legacy typography/radius/color values outside the
+   guarded shared primitives and documented exceptions. Start only from a named
+   inventory/surface group, preserve approved exceptions such as public webform
+   styling and `.home.theme-crisp`, add or expand token guards, and capture
+   targeted screenshots for visible UI changes. Migration/Storage/PROD gate:
+   none expected.
 
 Sprint assignment (executed 2026-06-08): the CC Sprints 1 + 2 (Lane 0
 correctness, Lane A audit/RPC atomicity) and Codex Sprints 3 + 4 (Lanes B/C +
@@ -1381,7 +1598,11 @@ unless Ronnie changes the contract:
 - The homepage redesign is intentionally scoped under `.home.theme-crisp` in
   `src/dashboard/homeRedesign.css` and may keep approved design-reference
   micro-type/weight values while Lane I source-wide token cleanup remains
-  incremental. Future homepage visual changes must preserve the approved
+  incremental. Its `1acd43d` text hierarchy (`--text`/`--label` pure black,
+  supporting copy muted gray, semantic accents preserved) is the approved
+  source-of-truth for the broader parity pilot, but the Home-specific layout and
+  non-canonical micro-values must not be moved globally without a Ronnie-approved
+  design amendment. Future homepage visual changes must preserve the approved
   composition unless Ronnie reopens the design.
 - `getReadableText()` in `src/lib/styles.js` returns `#0f172a`/`white` as
   auto-contrast for arbitrary colored backgrounds. These two values are
@@ -1703,8 +1924,9 @@ Append-only upload expectations:
   `detail` full for single-text consumers and gives HomeDashboard `metaLabel` +
   `pill` for the CP3 badge layout.
 - `src/dashboard/homeRedesign.css`: scoped homepage redesign styles under
-  `.home.theme-crisp`; do not move these into global CSS without a Lane I design
-  amendment.
+  `.home.theme-crisp`; it is the live source for the Home aesthetic parity pilot
+  and the `1acd43d` text hierarchy hotfix, but do not move its scoped values into
+  global CSS without a Lane I design amendment.
 - `src/lib/savedViewsApi.js`: `app_saved_views` CRUD + `buildViewState`.
   Original consumer was Cattle Herds; shipped consumers now reuse it across
   multiple list/report surfaces with distinct `surface_key` values.
@@ -1767,6 +1989,21 @@ Append-only upload expectations:
 - Canonical shared-component font-weight scale: `400, 500, 600, 700`. Existing
   legacy/scoped drift is Lane I cleanup work and should not expand without a
   documented exception.
+
+### Color hierarchy
+
+- Ordinary main text uses pure black (`#000000`): primary section/card/row
+  titles, labels, buttons, and primary animal or production numbers.
+- Supporting text uses the muted gray text token: helper copy, subtext,
+  metadata, secondary labels, and non-primary category labels.
+- Intentional accent/semantic text remains allowed where color carries meaning:
+  summary totals, warning/error/success/info states, weather rain/freeze cues,
+  overdue labels, and text inside approved semantic pastel blocks.
+- A text-color cleanup must be typography-only unless the build explicitly says
+  it is redesigning the affected block's background.
+- The Home page is the source-of-truth implementation for this hierarchy as of
+  `1acd43d`; broader application follows through the Home aesthetic parity pilot
+  and later Lane I guarded slices.
 
 ### Spacing and controls
 
