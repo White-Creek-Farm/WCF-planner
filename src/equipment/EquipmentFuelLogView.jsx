@@ -483,7 +483,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
           }}
           style={{
             padding: '7px 14px',
-            borderRadius: 7,
+            borderRadius: 6,
             border: '1px solid #d1d5db',
             background: 'white',
             color: '#374151',
@@ -500,7 +500,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
           onClick={handleExportCsv}
           style={{
             padding: '7px 14px',
-            borderRadius: 7,
+            borderRadius: 6,
             border: '1px solid #d1d5db',
             background: 'white',
             color: '#374151',
@@ -518,7 +518,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
           onClick={handlePrintRows}
           style={{
             padding: '7px 14px',
-            borderRadius: 7,
+            borderRadius: 6,
             border: '1px solid #d1d5db',
             background: 'white',
             color: '#374151',
@@ -585,7 +585,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
             gridTemplateColumns: '90px 1fr 90px 70px 60px 80px 110px 1fr',
             columnGap: 14,
             background: '#f9fafb',
-            padding: '8px 14px',
+            padding: '10px 14px',
             fontSize: 10,
             fontWeight: 700,
             color: '#6b7280',

@@ -510,8 +510,8 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                 setShowAddModal(true);
               }}
               style={{
-                padding: '8px 16px',
-                borderRadius: 8,
+                padding: '10px 16px',
+                borderRadius: 6,
                 border: 'none',
                 background: '#991b1b',
                 color: 'white',
@@ -808,7 +808,7 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
             style={{
               marginBottom: 12,
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 6,
               border: '1px solid #d1d5db',
               background: 'white',
               color: '#374151',
@@ -869,14 +869,14 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                       )}
                       style={{
                         background: d.source === 'add_feed_webform' ? '#fffbeb' : shadeBg,
-                        borderRadius: 8,
+                        borderRadius: 10,
                         cursor: 'pointer',
                         border: notable
                           ? '1.5px solid #fca5a5'
                           : d.source === 'add_feed_webform'
                             ? '1px solid #fde68a'
                             : '1px solid #e5e7eb',
-                        padding: '8px 14px',
+                        padding: '10px 14px',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 4,
@@ -1429,7 +1429,7 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
               <DailyPhotoThumbnails photos={form?.photos} />
             </div>
             <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
-              <button onClick={saveEdit} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
+              <button onClick={saveEdit} style={{...S.btnPrimary, width: 'auto'}}>
                 Save
               </button>
               {editId &&
