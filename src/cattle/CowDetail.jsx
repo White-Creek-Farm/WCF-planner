@@ -21,7 +21,6 @@ const CowDetail = ({
   HERD_LABELS,
   HERD_COLORS,
   onEdit,
-  onTransfer,
   onDelete,
   onComment,
   onEditComment,
@@ -89,7 +88,6 @@ const CowDetail = ({
     background: 'white',
   };
   const [commentText, setCommentText] = React.useState('');
-  const [showTransfer, setShowTransfer] = React.useState(false);
   const [showCalvingForm, setShowCalvingForm] = React.useState(false);
   const [editingCommentId, setEditingCommentId] = React.useState(null);
   const [editingCommentText, setEditingCommentText] = React.useState('');
@@ -1470,64 +1468,6 @@ const CowDetail = ({
           paddingTop: 10,
         }}
       >
-        {!showTransfer && (
-          <button
-            onClick={() => setShowTransfer(true)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#1d4ed8',
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            Transfer
-          </button>
-        )}
-        {showTransfer && (
-          <select
-            onChange={(e) => {
-              if (e.target.value) {
-                onTransfer(e.target.value);
-                setShowTransfer(false);
-              }
-            }}
-            style={{
-              fontSize: 12,
-              padding: '5px 8px',
-              border: '1px solid #d1d5db',
-              borderRadius: 6,
-              fontFamily: 'inherit',
-            }}
-          >
-            <option value="">Select target herd...</option>
-            {HERDS.filter((h) => h !== cow.herd).map((h) => (
-              <option key={h} value={h}>
-                Move to {HERD_LABELS[h]}
-              </option>
-            ))}
-          </select>
-        )}
-        {showTransfer && (
-          <button
-            onClick={() => setShowTransfer(false)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#6b7280',
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            Cancel
-          </button>
-        )}
         {onDelete && (
           <button
             onClick={onDelete}

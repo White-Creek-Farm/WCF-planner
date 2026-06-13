@@ -63,6 +63,51 @@ describe('SheepFlocksView - saved views', () => {
   });
 });
 
+describe('SheepDetail - flock status selector replaces duplicate transfer control', () => {
+  it('keeps flock changes on the inline status selector', () => {
+    expect(sheepDetail).toContain("patchOnChange('flock')");
+    expect(sheepDetail).toContain('defaultValue={sheep.flock ||');
+  });
+
+  it('does not render the old separate transfer button or target picker', () => {
+    expect(sheepDetail).not.toContain('setShowTransfer');
+    expect(sheepDetail).not.toContain('Select target flock');
+    expect(sheepDetail).not.toMatch(/>\s*Transfer\s*</);
+  });
+});
+
+describe('SheepDetail - breeding blacklist UI matches cattle', () => {
+  it('uses a shaded row for the blacklist control', () => {
+    expect(sheepDetail).toContain('data-breeding-blacklist-row');
+  });
+
+  it('keeps the label on one line with whiteSpace nowrap', () => {
+    expect(sheepDetail).toMatch(/breeding.blacklist[\s\S]*?whiteSpace:\s*'nowrap'/);
+  });
+
+  it('does not include helper text under the control', () => {
+    expect(sheepDetail).not.toContain('Use the comments timeline to record why.');
+  });
+
+  it('makes the blacklist control a compact label with left-aligned contents', () => {
+    expect(sheepDetail).toMatch(/<label[\s\S]*?data-breeding-blacklist-row="1"/);
+    expect(sheepDetail).toMatch(/data-breeding-blacklist-row[\s\S]*?display:\s*'inline-flex'/);
+    expect(sheepDetail).toMatch(/data-breeding-blacklist-row[\s\S]*?justifyContent:\s*'flex-start'/);
+    expect(sheepDetail).toMatch(/data-breeding-blacklist-row[\s\S]*?maxWidth:\s*'100%'/);
+  });
+
+  it('overrides the global input width on the blacklist checkbox', () => {
+    expect(sheepDetail).toMatch(/type="checkbox"[\s\S]*?width:\s*14/);
+    expect(sheepDetail).toMatch(/type="checkbox"[\s\S]*?height:\s*14/);
+    expect(sheepDetail).toMatch(/type="checkbox"[\s\S]*?flex:\s*'0 0 14px'/);
+  });
+
+  it('uses the cattle red treatment for the flagged callout', () => {
+    expect(sheepDetail).toContain("background: '#991b1b'");
+    expect(sheepDetail).toContain("color: '#7f1d1d'");
+  });
+});
+
 describe('SheepFlocksView - filter/sort parity with cattle herds', () => {
   it('uses the pure sheep filter module for list derivation', () => {
     expect(flocksView).toContain("from '../lib/sheepFlockFilters.js'");

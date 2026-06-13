@@ -55,6 +55,19 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
   });
 });
 
+describe('CowDetail - herd status selector replaces duplicate transfer control', () => {
+  it('keeps herd changes on the inline status selector', () => {
+    expect(cowDetail).toContain("patchOnChange('herd')");
+    expect(cowDetail).toContain('defaultValue={cow.herd ||');
+  });
+
+  it('does not render the old separate transfer button or target picker', () => {
+    expect(cowDetail).not.toContain('setShowTransfer');
+    expect(cowDetail).not.toContain('Select target herd');
+    expect(cowDetail).not.toMatch(/>\s*Transfer\s*</);
+  });
+});
+
 describe('CattleHerdsView — visible herd row columns', () => {
   it('renders origin via the shared CowListRow used by both flat and grouped lists', () => {
     // Flat and grouped rows now go through one shared CowListRow so they can't

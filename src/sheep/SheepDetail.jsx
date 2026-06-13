@@ -25,7 +25,6 @@ const SheepDetail = ({
   FLOCK_LABELS,
   FLOCK_COLORS,
   onEdit,
-  onTransfer,
   onDelete,
   onComment,
   onEditComment,
@@ -93,7 +92,6 @@ const SheepDetail = ({
     background: 'white',
   };
   const [commentText, setCommentText] = React.useState('');
-  const [showTransfer, setShowTransfer] = React.useState(false);
   const [showLambForm, setShowLambForm] = React.useState(false);
   const [editingCommentId, setEditingCommentId] = React.useState(null);
   const [editingCommentText, setEditingCommentText] = React.useState('');
@@ -519,30 +517,49 @@ const SheepDetail = ({
 
       {/* Breeding blacklist (hidden for wethers — they can't breed) */}
       {sheep.sex !== 'wether' && (
-        <div style={{marginTop: 10, paddingTop: 8, borderTop: '1px solid #f3f4f6'}}>
-          <label
+        <label
+          data-breeding-blacklist-row="1"
+          style={{
+            marginTop: 10,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            gap: 8,
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            padding: '6px 12px',
+            background: sheep.breeding_blacklist ? '#991b1b' : '#fee2e2',
+            color: sheep.breeding_blacklist ? 'white' : '#7f1d1d',
+            border: '1px solid ' + (sheep.breeding_blacklist ? '#991b1b' : '#fecaca'),
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 700,
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={!!sheep.breeding_blacklist}
+            onChange={patchOnChange('breeding_blacklist')}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
+              margin: 0,
+              padding: 0,
+              width: 14,
+              height: 14,
+              minWidth: 14,
+              flex: '0 0 14px',
+              boxSizing: 'border-box',
+              accentColor: '#7f1d1d',
               cursor: 'pointer',
-              fontSize: 13,
-              color: '#7f1d1d',
-              fontWeight: 600,
             }}
-          >
-            <input
-              type="checkbox"
-              checked={!!sheep.breeding_blacklist}
-              onChange={patchOnChange('breeding_blacklist')}
-              style={{margin: 0, flexShrink: 0}}
-            />
-            <span>Breeding blacklist</span>
-          </label>
-          <div style={{fontSize: 11, color: '#9ca3af', marginLeft: 26, marginTop: 4}}>
-            Use the comments timeline to record why.
-          </div>
-        </div>
+          />
+          <span style={{minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block'}}>
+            Breeding blacklist
+          </span>
+        </label>
       )}
 
       {/* Weight history — table/chart toggle + per-row ADG + lifetime footer */}
@@ -1339,13 +1356,13 @@ const SheepDetail = ({
                   fontWeight: 700,
                   padding: '1px 6px',
                   borderRadius: 4,
-                  background: '#0f766e',
+                  background: '#991b1b',
                   color: 'white',
                 }}
               >
                 BREEDING BLACKLIST
               </span>
-              <span style={{color: '#0f5248', fontWeight: 600}}>{'Flagged — do not breed.'}</span>
+              <span style={{color: '#7f1d1d', fontWeight: 600}}>{'Flagged — do not breed.'}</span>
             </div>
           )}
         </div>
@@ -1362,66 +1379,6 @@ const SheepDetail = ({
           paddingTop: 10,
         }}
       >
-        {!showTransfer && (
-          <button
-            onClick={() => setShowTransfer(true)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#1d4ed8',
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            Transfer
-          </button>
-        )}
-        {showTransfer && (
-          <select
-            onChange={(e) => {
-              if (e.target.value) {
-                onTransfer(e.target.value);
-                setShowTransfer(false);
-              }
-            }}
-            style={{
-              fontSize: 12,
-              padding: '5px 8px',
-              border: '1px solid #d1d5db',
-              borderRadius: 6,
-              fontFamily: 'inherit',
-            }}
-          >
-            <option value="">Select target flock...</option>
-            {(FLOCKS || [])
-              .filter((f) => f !== sheep.flock)
-              .map((f) => (
-                <option key={f} value={f}>
-                  Move to {FLOCK_LABELS[f]}
-                </option>
-              ))}
-          </select>
-        )}
-        {showTransfer && (
-          <button
-            onClick={() => setShowTransfer(false)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid #d1d5db',
-              background: 'white',
-              color: '#6b7280',
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            Cancel
-          </button>
-        )}
         {onDelete && (
           <button
             onClick={onDelete}
