@@ -7,10 +7,10 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-12.
-Current source checkpoint for this wrap: `8394162` (final `PROJECT.md` wrap
+Last updated: 2026-06-13.
+Current source checkpoint for this wrap: `a8d117d` (final `PROJECT.md` wrap
 commit sits on top; use git log for the exact docs hash after push).
-Current pushed source checkpoint before the wrap commit: `8394162`. Since the
+Current pushed source checkpoint before the wrap commit: `a8d117d`. Since the
 `bb8fdad` integration,
 `main` has shipped Animals on Farm display polish (`c61fab0`), cattle weigh-in
 swap/blacklist dropdown repairs (`9159ca5`), retag weight-history preservation
@@ -22,12 +22,14 @@ weigh-in entry edit parity (`85dcdeb`), new-cow/reconcile label refinement
 polish (`693dd4a`), Light portal daily-report review hub (`a56e57e`, migration
 `113`), task photo cap parity (`d8951d4`, migration `114`), Cattle Log field
 journal (`3c74b5d`, migration `112`), and task-row photo thumbnails
-(`8394162`). Netlify auto-deploys from GitHub `main`; `d8951d4` front-end was
-verified on 2026-06-12 by 200 response, served asset `assets/main-R7Kx-3KI.js`,
-and served-JS probes for `Enter Daily Reports`, `View Past Reports`, and task
-photo cap text. Ronnie screenshot-verified the Cattle Log build before this
-wrap. PROD-applied migrations include `112` (PROD-applied 2026-06-12); pushed
-source still contains pending migrations `113` and `114`.
+(`8394162`), the shared Task Center To Do List (`d63c5c3`, migration `115`), and
+animal record-page hotfixes (`a8d117d`). Netlify auto-deploys from GitHub
+`main`; `d8951d4` front-end was verified on 2026-06-12 by 200 response, served
+asset `assets/main-R7Kx-3KI.js`, and served-JS probes for `Enter Daily Reports`,
+`View Past Reports`, and task photo cap text. Ronnie screenshot-verified the
+Cattle Log build and To Do screenshot packet before the relevant gates. Recent
+PROD-applied migrations include `112` (2026-06-12) and `113`/`114`/`115`
+(2026-06-13, per Ronnie/CC gate report).
 Production URL: https://wcfplanner.com.
 
 ---
@@ -174,15 +176,16 @@ plus a guard update in the same change.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Current source checkpoint for this wrap: `8394162`; final `PROJECT.md` wrap
+- Current source checkpoint for this wrap: `a8d117d`; final `PROJECT.md` wrap
   commit sits on top. Since the `bb8fdad` integration, `main` shipped Animals on
   Farm display polish, the public cattle weigh-in fixes and layout polish, retag
   weight-history preservation, calf-row heifer promotion, weigh-in note
   mirroring, full public entry edit parity, new-cow/reconcile label refinement,
   admin-created password setting, Public Tasks assignee polish, the Light portal
   daily-report review hub, task photo cap parity, the Cattle Log field journal,
-  and task-row photo thumbnails. See Latest Shipped Checkpoint for per-lane
-  detail.
+  task-row photo thumbnails, the Task Center To Do List, and the animal
+  record-page transfer/blacklist hotfixes. See Latest Shipped Checkpoint for
+  per-lane detail.
 - Live verification: `https://wcfplanner.com/` returned 200 on 2026-06-12 and is
   serving `assets/main-R7Kx-3KI.js`; the served JS contains `Enter Daily
   Reports`, `View Past Reports`, and task photo cap text.
@@ -190,11 +193,18 @@ plus a guard update in the same change.
   green, `npm run lint` 0 errors, `npm test` 212 files / 5567 passed,
   `npm run build` green, and `git diff --check` clean. Later hotfix lanes used
   focused tests/lint/build; see Latest Shipped Checkpoint for scope.
-- Local primary state as of this update (2026-06-12): primary
-  `C:\Users\Ronni\WCF-planner` is on `main` at source checkpoint `8394162`, with
-  only this `PROJECT.md` wrap pending before push. Current untracked local
+- Local primary state as of this update (2026-06-13): primary
+  `C:\Users\Ronni\WCF-planner` is on `main` at source checkpoint `a8d117d`; at
+  wrap time, only this `PROJECT.md` update remained tracked before push. Current untracked local
   artifacts include `WCF Planner Redesign/`, screenshot folders, and draft/backup
   folders; `git status --short` is the source of truth.
+- Migrations `113` (`light_daily_report_edit_window`), `114`
+  (`task_photo_total_limit`), and `115` (`todo_items`) are PROD-applied as of
+  2026-06-13 per Ronnie/CC gate report. `115` adds the shared To Do repository,
+  To Do photo tables/RPCs, To Do comment/mention role guards, notification
+  types, Activity access branch, and task-summary audit field. The To Do Edge
+  function changes (`tasks-summary`, `rapid-processor`) were part of the same
+  production gate report.
 - Migration `112` (`cattle_log`) applied to PROD 2026-06-12 after Ronnie
   screenshot-verified the Cattle Log build: singleton `cattle.log` comment-backed
   field journal, issue sidecar, tag links/mirrors, unknown-calf detail capture
@@ -231,7 +241,7 @@ plus a guard update in the same change.
   (zero PROD trace). `106` auth-gated, `107` admin-gated, `108` authenticated
   (mirrors each surface's existing access).
 - Parallel worktrees: primary `C:\Users\Ronni\WCF-planner` is on `main` at source
-  checkpoint `8394162`; `C:\Users\Ronni\WCF-planner-light-audit` remains detached at
+  checkpoint `a8d117d`; `C:\Users\Ronni\WCF-planner-light-audit` remains detached at
   `ab39eb2`; merged Codex lane worktrees
   `C:\Users\Ronni\WCF-planner-codex-pig-metrics` (`2e960cb`),
   `C:\Users\Ronni\WCF-planner-codex-broiler-weighins-readonly` (`0bb7689`),
@@ -240,11 +250,11 @@ plus a guard update in the same change.
   `C:\Users\Ronni\WCF-planner-codex-animal-history` (`6d1ffd5`) still exist and
   are prunable after Ronnie confirms. Do not reuse merged Codex worktrees; start
   any new parallel lane from current `main` in a fresh scoped worktree/branch.
-- Open gates: PROD migration gates remain open for pushed source migrations
-  `113` (Light daily-report 3-day own-record edit/delete window) and `114` (task
-  photo 5-total DB backstop). They are not recorded here as PROD-applied. No
-  Storage, Vault, or Edge Function deploy gate is open.
-- PROD-applied numbered migrations include `112`. Migration `082` is unused;
+- Open gates: none recorded after the 2026-06-13 PROD apply/deploy report for
+  `113`/`114`/`115` and the To Do digest Edge-function changes. Push to `main`
+  remains the normal Netlify runtime gate for local commits.
+- PROD-applied numbered migrations include `112`, `113`, `114`, and `115`.
+  Migration `082` is unused;
   migration `083` is shelved. Operational note: the daily duplicate cleanup
   `085` was applied before unique-index migration `084`.
 - Migration `100` (`processing_batch_lifecycle_rpcs`) was applied to TEST
@@ -311,6 +321,30 @@ Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
 Migrations below and in git history; this list keeps the most recent shipped
 work:
 
+- 2026-06-13 source checkpoint `a8d117d` plus this final docs wrap. Ronnie
+  reported CC committed the To Do build and applied PROD before this wrap.
+  Landed since `b78199a`:
+  - Shared Task Center To Do List (`d63c5c3`, migration `115`, PROD-applied
+    2026-06-13 per Ronnie/CC): meaty Task Center / To Do List toggle at
+    `/tasks` and `/tasks/todo`, communal open-work list with General,
+    Chicken & Pigs, and Cattle & Sheep sections, manager/admin reorder/move/
+    approve/reject/convert/remove controls, Light/Farm Team/Manager/Admin
+    participation, equipment-tech exclusion, origination/completion photos in
+    the private task-photos bucket, To Do record pages with participant-scoped
+    @mentions, To Do Activity/notifications, conversion to assigned tasks, and
+    weekly digest To Do sections for eligible recipients. `tasks-summary` and
+    `rapid-processor` carry the digest changes and were included in the PROD
+    gate report.
+  - Animal record-page hotfixes (`a8d117d`): removed the duplicate Transfer
+    buttons from cattle herd and sheep flock record pages because the inline
+    Herd/Flock status selectors already move the animal, and aligned the sheep
+    breeding blacklist control/callout with the cattle red compact treatment.
+  Validation recorded in this session: To Do static guards, focused To Do
+  record-page Playwright, tasks-summary/rapid-processor static guards, and the
+  cattle/sheep record-page static guards all passed. To Do screenshot packet
+  exists locally in `todo-shots/`; screenshot folders are local artifacts unless
+  Ronnie explicitly asks to commit them.
+
 - 2026-06-12 session-close source checkpoint `8394162` plus final docs wrap.
   Ronnie screenshot-verified the Cattle Log UI before wrap; CC committed the
   build as `3c74b5d` and applied migration `112` to PROD. Codex then landed the
@@ -342,12 +376,12 @@ work:
     portal now separates Enter Daily Reports from View Past Reports and exposes
     daily-report logs/equipment review links instead of the old My Submissions
     focus. Migration `113` is the server-side 3-day own-record edit/delete
-    window and is pending PROD apply as of this wrap.
+    window and is PROD-applied as of 2026-06-13 per Ronnie/CC.
   - Task photo cap parity (`d8951d4`, migration `114`): task creation/completion
     photos are capped at 5 total per task in the client and protected by a
-    pending DB trigger migration. Focused validation for this lane: task photo
-    unit/static tests, task route/photo static guards, targeted eslint, and
-    `npm run build`.
+    DB trigger migration, PROD-applied as of 2026-06-13 per Ronnie/CC. Focused
+    validation for this lane: task photo unit/static tests, task route/photo
+    static guards, targeted eslint, and `npm run build`.
 
 - 2026-06-12 weigh-in source checkpoint, pushed `origin/main` `37668fd`
   (live-verified 2026-06-12). Netlify PROD was verified by 200 response,
@@ -740,17 +774,17 @@ work:
 
 ### Current Local Gates
 
-PROD migration gates are open for pushed source migrations `113` and `114` as of
-source checkpoint `8394162`; no Storage, Vault, or Edge Function gate is open.
+No PROD migration, Storage, Vault, or Edge Function gate is recorded as open
+after Ronnie reported CC committed the To Do build and applied PROD on
+2026-06-13.
 
-- Main worktree `C:\Users\Ronni\WCF-planner` is on `main` at source checkpoint
-  `8394162`; this `PROJECT.md` wrap is the only tracked local change expected
-  before the final push. Local untracked screenshot/draft/backup folders may
-  remain and should not be committed unless Ronnie explicitly asks.
-- Pushed-but-not-recorded-PROD migrations: `113_light_daily_report_edit_window`
-  and `114_task_photo_total_limit`. Apply and verify them before claiming the
-  server-side Light 3-day daily-edit window or DB task-photo total trigger is
-  live. Migration `112_cattle_log` is PROD-applied.
+- At wrap time, main worktree `C:\Users\Ronni\WCF-planner` was on `main` at
+  source checkpoint `a8d117d`, with only this `PROJECT.md` wrap tracked before
+  the final push. Local untracked screenshot/draft/backup folders may remain and
+  should not be committed unless Ronnie explicitly asks.
+- PROD-applied recent migrations: `112_cattle_log`,
+  `113_light_daily_report_edit_window`, `114_task_photo_total_limit`, and
+  `115_todo_items`.
 - Existing parallel worktrees: `C:\Users\Ronni\WCF-planner-light-audit` remains
   detached at `ab39eb2`; the merged Codex lane worktrees
   `C:\Users\Ronni\WCF-planner-codex-pig-metrics`,
@@ -979,7 +1013,7 @@ Locked queue direction from Ronnie (2026-06-09):
 - Program dashboards stay program-specific unless Ronnie reopens the dropped Lane
   J KPI-frame decision.
 
-Current open queue after the 2026-06-12 `8394162` source checkpoint:
+Current open queue after the 2026-06-13 `a8d117d` source checkpoint:
 
 1. Residual source-wide visual-token cleanup (Lane I). Class: `ENH`. Size:
    medium/large only once scoped. The shared-token slices, record/shared/auth
@@ -990,6 +1024,26 @@ Current open queue after the 2026-06-12 `8394162` source checkpoint:
    public webform styling and `.home.theme-crisp`, add or expand token guards,
    and capture targeted screenshots for visible UI changes. Migration/Storage/
    PROD gate: none expected.
+
+2. True offline app-shell cache / PWA cold-open support. Class: `ENH`. Size:
+   medium/large. Current state: install manifests and IndexedDB submission
+   queues are shipped, including daily reports, fueling, tasks, weigh-ins, add
+   feed, fuel supply, and the Cattle Log create/photo queue. Missing piece:
+   there is no service worker or Cache API owner, so an operator cannot rely on
+   cold-opening the app with no signal. Scope: add a service-worker/PWA caching
+   strategy for the app shell and built assets, covering the root app plus the
+   `/dailys` and `/equipment` install entry points without breaking the existing
+   hub-specific manifests or queued-submission storage. Success criteria: after a
+   successful online load/install, the Daily Reports and Equipment/Fueling icons
+   can reopen their hubs while offline; queued submissions still replay through
+   the existing IndexedDB queue and stay tied to the same browser/icon storage;
+   update behavior is clear and does not strand users on stale critical assets.
+   App Setup copy should distinguish "offline queued submissions" from "full
+   offline app cache" once this ships. Guard target: static service-worker
+   registration/cache ownership tests, PWA manifest tests, focused Playwright
+   offline reload/cold-open checks for `/dailys` and `/equipment`, and existing
+   offline queue tests. Migration/Storage/PROD DB gate: none expected; push to
+   `main` deploys runtime service-worker behavior via Netlify.
 
 Sprint assignment (executed 2026-06-08): the CC Sprints 1 + 2 (Lane 0
 correctness, Lane A audit/RPC atomicity) and Codex Sprints 3 + 4 (Lanes B/C +
@@ -1557,18 +1611,20 @@ Current PROD architecture includes these load-bearing migrations:
   the singleton `cattle.log` comment-backed field journal, issue state, tag
   links/mirrors, unknown-calf detail capture/resolution, and locked Activity
   access branch. Applied TEST by CC and PROD-applied 2026-06-12.
+- `113` `light_daily_report_edit_window`: adds the server-side Light-user
+  3-day own-record daily edit/delete window. Applied TEST by CC and PROD-applied
+  2026-06-13 per Ronnie/CC.
+- `114` `task_photo_total_limit`: adds the `task_instance_photos` 5-total
+  trigger backstop for creation + completion photos. Applied TEST by CC and
+  PROD-applied 2026-06-13 per Ronnie/CC.
+- `115` `todo_items`: adds the Task Center To Do List tables, deny-all RLS,
+  SECDEF RPC surface, To Do photo records, participant-only To Do mention
+  picker/guards, To Do notification types, Activity access branch, and
+  `task_summary_runs.total_todo_items`. Applied TEST by CC and PROD-applied
+  2026-06-13 per Ronnie/CC.
 
 Special migration notes:
 
-- `112` is PROD-applied even though pushed source also contains higher-numbered
-  pending migrations `113` and `114`; apply status is not purely numeric during
-  this wrap.
-- `113` `light_daily_report_edit_window` is in pushed source (`a56e57e`) but is
-  not recorded here as PROD-applied. It adds the server-side Light-user
-  3-day own-record daily edit/delete window.
-- `114` `task_photo_total_limit` is in pushed source (`d8951d4`) but is not
-  recorded here as PROD-applied. It adds the `task_instance_photos` 5-total
-  trigger backstop.
 - `082` is intentionally unused.
 - `083` public webform submitter identity is shelved and must not be applied
   unless Ronnie reverses the auth-only webform direction.
@@ -2028,10 +2084,19 @@ Workflow/worktable entities:
 - `task_instance_photos` is canonical. Legacy single-photo columns are display
   fallback only.
 - Task photos are capped at 5 total per task across creation and completion.
-  The client uses `MAX_TASK_PHOTOS_PER_TASK`; migration `114` is the DB backstop
-  and is pending PROD apply as of this wrap.
+  The client uses `MAX_TASK_PHOTOS_PER_TASK`; migration `114` is the PROD-applied
+  DB backstop.
 - My Tasks and Completed rows render signed private-bucket thumbnails through
   `TaskPhotoThumbnailButton`; the click target still opens `TaskPhotoLightbox`.
+- To Do List lives inside Task Center at `/tasks/todo` and `/tasks/todo/<id>`.
+  Participants are `light`, `farm_team`, `management`, and `admin`; `equipment_tech`
+  and inactive users are excluded from the toggle, list, record pages, To Do
+  @mentions, and To Do digest section. General, Chicken & Pigs, and Cattle &
+  Sheep sections are fixed; list position is priority. Any participant may add
+  an item or submit completion; management/admin approve, reject, reorder, move,
+  remove, or convert a To Do into an assigned task. To Do photos use the existing
+  private `task-photos` bucket under `todo/<id>/`, capped at five origination and
+  five completion photos by the `115` RPC/table contract.
 - Task assignee dropdowns use `loadTaskAssignableProfilesById` and fail closed
   on `webform_config` read errors.
 - Header task badge soft-fails and must not break Header rendering.
