@@ -14,6 +14,8 @@ const EXPECTED_SIGNED_URL_OWNERS = new Map([
   ['src/lib/commentAttachments.js', 1],
   ['src/lib/tasksCenterMutationsApi.js', 2],
   ['src/lib/tasksUserApi.js', 2],
+  // To Do photos (mig 115): private task-photos bucket, todo/<id>/ prefix.
+  ['src/lib/todoApi.js', 1],
   ['src/shared/DailyPhotoThumbnails.jsx', 2],
 ]);
 
@@ -73,7 +75,7 @@ describe('Private storage buckets use signed URLs only', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(signedUrlCount).toBe(8);
+    expect(signedUrlCount).toBe(9);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

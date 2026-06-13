@@ -21,6 +21,9 @@ const EXPECTED_UPLOAD_OWNERS = new Map([
   ['src/lib/tasksAdminApi.js', 1],
   ['src/lib/tasksCenterMutationsApi.js', 1],
   ['src/lib/tasksUserApi.js', 1],
+  // To Do photos (mig 115): append-only upload into the private task-photos
+  // bucket under todo/<todoId>/ (upsert:false, duplicate-as-success).
+  ['src/lib/todoApi.js', 1],
   ['src/lib/useOfflineRpcSubmit.js', 1],
   ['src/lib/useOfflineSubmit.js', 1],
   ['src/webforms/EquipmentFuelingWebform.jsx', 1],
@@ -66,7 +69,7 @@ describe('Storage upload owner boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(uploadCount).toBe(17);
+    expect(uploadCount).toBe(18);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

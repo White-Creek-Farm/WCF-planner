@@ -147,6 +147,7 @@ interface AuditRow {
   recipients_skipped: number;
   total_open_instances: number;
   total_completed_instances: number;
+  total_todo_items: number;
   per_recipient_failures: Array<{assignee_profile_id: string; email: string | null; error: string}>;
   error_message: string | null;
 }
@@ -374,6 +375,114 @@ async function fetchCompletedGrouped(
   return {byRecipient, totalCompleted};
 }
 
+// ─── To Do List digest (mig 115) ─────────────────────────────────────────
+// The shared To Do List rides the weekly digest as one communal section —
+// the SAME open/pending item list goes to every To Do-eligible recipient
+// (role light/farm_team/management/admin; equipment_tech excluded). To Do
+// eligibility can ADD recipients who have no open or completed tasks.
+
+const TODO_DIGEST_ROLES = ['light', 'farm_team', 'management', 'admin'];
+
+const TODO_SECTION_LABELS: Record<string, string> = {
+  general: 'General',
+  chicken_pigs: 'Chicken & Pigs',
+  cattle_sheep: 'Cattle & Sheep',
+};
+
+interface TodoDigestItem {
+  id: string;
+  title: string;
+  section_label: string;
+  status: string;
+  due_date: string | null;
+  days_listed: number;
+  created_by_name: string;
+}
+
+// Product section order (mirrors TODO_SECTIONS in src/lib/todoApi.js) — a
+// plain ORDER BY section would come back alphabetical, the REVERSE of what
+// every recipient sees in the app.
+const TODO_SECTION_ORDINAL: Record<string, number> = {general: 0, chicken_pigs: 1, cattle_sheep: 2};
+
+async function fetchTodoDigestItems(
+  svc: ReturnType<typeof createClient>,
+): Promise<{todos: TodoDigestItem[]; totalTodos: number}> {
+  const {data, error} = await svc
+    .from('todo_items')
+    .select(
+      'id, title, section, status, due_date, created_at, sort_order, creator:profiles!todo_items_created_by_fkey(full_name)',
+    )
+    .in('status', ['open', 'pending_approval']);
+  if (error) throw new Error(`select todo_items: ${error.message}`);
+  const now = Date.now();
+  const rows = (data || []) as Array<{
+    id: string;
+    title: string;
+    section: string;
+    status: string;
+    due_date: string | null;
+    created_at: string;
+    sort_order: number;
+    creator: {full_name: string | null} | null;
+  }>;
+  rows.sort(
+    (a, b) =>
+      (TODO_SECTION_ORDINAL[a.section] ?? 99) - (TODO_SECTION_ORDINAL[b.section] ?? 99) ||
+      (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  const todos: TodoDigestItem[] = rows.map((r) => {
+    const createdMs = Date.parse(r.created_at);
+    const daysListed = Number.isFinite(createdMs) && now > createdMs ? Math.floor((now - createdMs) / 86400000) : 0;
+    return {
+      id: r.id,
+      title: r.title,
+      section_label: TODO_SECTION_LABELS[r.section] || r.section,
+      status: r.status,
+      due_date: r.due_date,
+      days_listed: daysListed,
+      created_by_name: (r.creator?.full_name || '').trim() || 'Unknown',
+    };
+  });
+  return {todos, totalTodos: todos.length};
+}
+
+// Every To Do-eligible profile is a digest recipient while To Do items
+// exist, even with zero open/completed tasks. Inactive/no-email skips still
+// apply in the send loop.
+async function fetchTodoEligibleProfiles(
+  svc: ReturnType<typeof createClient>,
+): Promise<Array<{id: string; email: string | null; full_name: string; role: string}>> {
+  const {data, error} = await svc.from('profiles').select('id, email, full_name, role').in('role', TODO_DIGEST_ROLES);
+  if (error) throw new Error(`select profiles (todo digest): ${error.message}`);
+  return (data || []).map((p: {id: string; email: string | null; full_name: string | null; role: string | null}) => ({
+    id: p.id,
+    email: p.email ? String(p.email).trim() || null : null,
+    full_name: p.full_name || '',
+    role: p.role || '',
+  }));
+}
+
+// ─── Public Tasks assignee availability (digest-wide redaction) ──────────
+// webform_config.tasks_public_assignee_availability {hiddenProfileIds:[...]}
+// — users hidden/unchecked there must NOT receive the weekly task/To Do
+// summary AT ALL, even when an open-task / completed / To Do bucket would
+// otherwise include them. Applied to the recipient set BEFORE the send loop
+// so hidden profiles never reach per-recipient accounting. A read failure
+// THROWS: failing open would re-expose hidden recipients, so the run aborts
+// with an audited error and zero sends (mirrors the client-side fail-closed
+// posture in loadTaskAssignableProfilesById).
+async function fetchHiddenProfileIds(svc: ReturnType<typeof createClient>): Promise<Set<string>> {
+  const {data, error} = await svc
+    .from('webform_config')
+    .select('data')
+    .eq('key', 'tasks_public_assignee_availability')
+    .maybeSingle();
+  if (error) throw new Error(`select webform_config (assignee availability): ${error.message}`);
+  const raw = data?.data as {hiddenProfileIds?: unknown} | null | undefined;
+  const list = raw && Array.isArray(raw.hiddenProfileIds) ? raw.hiddenProfileIds : [];
+  return new Set(list.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0));
+}
+
 // ─── Main handler ────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -429,6 +538,7 @@ serve(async (req: Request) => {
       recipients_skipped: 0,
       total_open_instances: 0,
       total_completed_instances: 0,
+      total_todo_items: 0,
       per_recipient_failures: [],
       error_message: 'probe-only invocation',
     };
@@ -440,6 +550,7 @@ serve(async (req: Request) => {
   let recipients_skipped = 0;
   let total_open_instances = 0;
   let total_completed_instances = 0;
+  let total_todo_items = 0;
   const per_recipient_failures: AuditRow['per_recipient_failures'] = [];
   let errMsg: string | null = null;
 
@@ -477,6 +588,36 @@ serve(async (req: Request) => {
       }
       bucket.completed = c.items;
     }
+
+    // To Do List section (mig 115): while open/pending items exist, every
+    // To Do-eligible profile joins the recipient set — they may have zero
+    // open and zero completed tasks. The same communal item list goes to
+    // every eligible recipient; ineligible roles (equipment_tech) keep
+    // their task sections but never get the To Do section.
+    const {todos, totalTodos} = await fetchTodoDigestItems(svc);
+    total_todo_items = totalTodos;
+    if (todos.length > 0) {
+      const eligible = await fetchTodoEligibleProfiles(svc);
+      for (const p of eligible) {
+        if (!byId.has(p.id)) {
+          byId.set(p.id, {
+            assignee_profile_id: p.id,
+            email: p.email,
+            full_name: p.full_name,
+            role: p.role,
+            tasks: [],
+            completed: [],
+          });
+        }
+      }
+    }
+
+    // Digest-wide availability redaction: hidden/unchecked profiles are
+    // dropped from the recipient set entirely (task buckets included) and
+    // never appear in per-recipient accounting.
+    const hiddenIds = await fetchHiddenProfileIds(svc);
+    for (const id of hiddenIds) byId.delete(id);
+
     const buckets = Array.from(byId.values());
 
     // Per-recipient accounting (Codex C4 re-review BLOCKER 3, extended for
@@ -508,9 +649,11 @@ serve(async (req: Request) => {
         });
         continue;
       }
-      // Send path. Carries both the open assigned tasks and the completed-
-      // assigned tasks for this recipient; rapid-processor renders whichever
-      // sections are non-empty and skips the send only if both are empty.
+      // Send path. Carries the open assigned tasks, the completed-assigned
+      // tasks, and (for To Do-eligible roles only) the communal To Do list;
+      // rapid-processor renders whichever sections are non-empty and skips
+      // the send only when ALL are empty.
+      const bucketTodos = TODO_DIGEST_ROLES.includes(bucket.role) ? todos : [];
       const payload: Record<string, unknown> = {
         type: 'tasks_weekly_summary',
         data: {
@@ -520,6 +663,8 @@ serve(async (req: Request) => {
           count: bucket.tasks.length,
           completed: bucket.completed,
           completed_count: bucket.completed.length,
+          todos: bucketTodos,
+          todos_count: bucketTodos.length,
         },
       };
       if (testTo) payload.test_to = testTo;
@@ -557,6 +702,7 @@ serve(async (req: Request) => {
     recipients_skipped,
     total_open_instances,
     total_completed_instances,
+    total_todo_items,
     per_recipient_failures,
     error_message: errMsg,
   };
@@ -571,6 +717,7 @@ serve(async (req: Request) => {
         recipients_skipped,
         total_open_instances,
         total_completed_instances,
+        total_todo_items,
         per_recipient_failures,
       },
       500,
@@ -582,6 +729,7 @@ serve(async (req: Request) => {
     recipients_skipped,
     total_open_instances,
     total_completed_instances,
+    total_todo_items,
     per_recipient_failures,
   });
 });

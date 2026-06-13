@@ -8,6 +8,7 @@
 
 export const ENTITY_TYPES = {
   TASK_INSTANCE: 'task.instance',
+  TODO_ITEM: 'todo.item',
   BROILER_BATCH: 'broiler.batch',
   LAYER_BATCH: 'layer.batch',
   LAYER_HOUSING: 'layer.housing',
@@ -33,6 +34,11 @@ export const ACTIVITY_REGISTRY = {
   [ENTITY_TYPES.TASK_INSTANCE]: {
     displayLabel: (id, ctx) => (ctx && ctx.title ? ctx.title : id),
     route: (id) => `/tasks/${encodeURIComponent(id)}`,
+    program: null,
+  },
+  [ENTITY_TYPES.TODO_ITEM]: {
+    displayLabel: (id, ctx) => (ctx && ctx.title ? ctx.title : 'To Do'),
+    route: (id) => `/tasks/todo/${encodeURIComponent(id)}`,
     program: null,
   },
   [ENTITY_TYPES.BROILER_BATCH]: {
@@ -144,6 +150,32 @@ export function getActivityEntityMeta(entityType) {
 }
 
 export function resolveNotificationRoute(notification, eventEntityType, eventEntityId) {
+  // To Do creator notifications (mig 115). Approve/reject route to the item's
+  // record page via the activity-event entity columns the server attached;
+  // todo_converted prefers the created Task when task_instance_id is set.
+  if (
+    notification &&
+    (notification.type === 'todo_completion_approved' ||
+      notification.type === 'todo_completion_rejected' ||
+      notification.type === 'todo_converted')
+  ) {
+    if (notification.type === 'todo_converted' && notification.task_instance_id) {
+      return `/tasks/${encodeURIComponent(notification.task_instance_id)}`;
+    }
+    const et = notification.activity_entity_type || eventEntityType;
+    const eid = notification.activity_entity_id || eventEntityId;
+    if (et && eid) {
+      const meta = getActivityEntityMeta(et);
+      if (meta && typeof meta.route === 'function') {
+        try {
+          return meta.route(eid);
+        } catch (_e) {
+          /* fall through */
+        }
+      }
+    }
+    return '/tasks/todo';
+  }
   if (notification && notification.type === 'comment_mention') {
     const et = notification.activity_entity_type;
     const eid = notification.activity_entity_id;

@@ -183,7 +183,18 @@ function renderCommentBody(body, mentions, mentionedProfileNames) {
   return result;
 }
 
-export default function CommentsSection({sb, authState, entityType, entityId, entityLabel}) {
+export default function CommentsSection({
+  sb,
+  authState,
+  entityType,
+  entityId,
+  entityLabel,
+  // Optional mention-picker source override. Defaults to the generic
+  // list_comment_mentionable_profiles loader; surfaces with a narrower
+  // mention audience (e.g. To Do, which excludes equipment_tech) pass their
+  // own loader. Same shape: (sb) => Promise<{id, full_name}[]>.
+  loadMentionable = loadMentionableProfiles,
+}) {
   const callerProfileId = authState && authState.user ? authState.user.id : null;
   const callerRole = authState?.role;
   const isAdmin = callerRole === 'admin';
@@ -206,10 +217,10 @@ export default function CommentsSection({sb, authState, entityType, entityId, en
 
   const mentionLoader = React.useCallback(
     async (s) => {
-      const profiles = await loadMentionableProfiles(s);
+      const profiles = await loadMentionable(s);
       return profiles.filter((p) => p.id !== callerProfileId);
     },
-    [callerProfileId],
+    [callerProfileId, loadMentionable],
   );
 
   const refresh = React.useCallback(async () => {

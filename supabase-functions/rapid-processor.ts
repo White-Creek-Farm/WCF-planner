@@ -407,6 +407,57 @@ function tasksWeeklyCompletedHtml(completed: Array<Record<string, any>>): string
   `;
 }
 
+// Shared To Do List section (mig 115). One communal section listing every
+// open/pending To Do item — the same list goes to every To Do-eligible
+// recipient (tasks-summary applies the role filter upstream). Every
+// user-controlled value (title, section label, creator name) is escaped.
+//
+// `todos` shape per row: {
+//   id, title, section_label, status ('open'|'pending_approval'),
+//   due_date?, days_listed, created_by_name
+// }.
+function tasksWeeklyTodoHtml(todos: Array<Record<string, any>>): string {
+  const rows = todos
+    .map((t) => {
+      const title = escapeHtml(t.title || '(untitled)');
+      const section = escapeHtml(t.section_label || 'General');
+      const pendingBadge =
+        t.status === 'pending_approval'
+          ? `<span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-family:Arial,sans-serif;font-size:11px;font-weight:600;">Awaiting approval</span>`
+          : '';
+      const days = Number.isFinite(Number(t.days_listed)) ? Number(t.days_listed) : 0;
+      const listed = days <= 0 ? 'listed today' : days === 1 ? 'listed 1 day ago' : `listed ${days} days ago`;
+      const ctxParts: string[] = [];
+      if (t.created_by_name) ctxParts.push(`Added by ${escapeHtml(String(t.created_by_name))}`);
+      ctxParts.push(escapeHtml(listed));
+      if (t.due_date) ctxParts.push(`due ${escapeHtml(String(t.due_date))}`);
+      const ctx = `<div style="color:#888;font-size:12px;font-family:Arial,sans-serif;margin-top:4px;">${ctxParts.join(' · ')}</div>`;
+      return `
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid #efeae0;font-family:Arial,sans-serif;font-size:13px;color:#566542;font-weight:700;white-space:nowrap;vertical-align:top;">${section}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #efeae0;font-family:Georgia,serif;font-size:14px;color:#232323;vertical-align:top;">
+            ${title}${pendingBadge}
+            ${ctx}
+          </td>
+        </tr>`;
+    })
+    .join('');
+  return `
+    <p style="font-family:Georgia,serif;font-size:15px;color:#232323;margin:24px 0 16px 0;line-height:1.6;">
+      ${todos.length} item${todos.length === 1 ? '' : 's'} on the shared To Do List — anyone can pick one up.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8e4dc;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+      <thead>
+        <tr style="background:#f8f6f0;">
+          <th align="left" style="padding:8px 12px;font-family:Arial,sans-serif;font-size:11px;color:#566542;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e8e4dc;">Section</th>
+          <th align="left" style="padding:8px 12px;font-family:Arial,sans-serif;font-size:11px;color:#566542;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e8e4dc;">To Do</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // MAIN HANDLER
 // ═══════════════════════════════════════════════════════════════════
@@ -535,10 +586,10 @@ serve(async (req) => {
       if (useManualPassword) {
         const manualPasswordBytes = new TextEncoder().encode(manualPassword).length;
         if (manualPassword.length < 6 || manualPasswordBytes > 72) {
-          return new Response(
-            JSON.stringify({error: 'initial password must be 6-72 bytes', step: 'input'}),
-            {status: 400, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
-          );
+          return new Response(JSON.stringify({error: 'initial password must be 6-72 bytes', step: 'input'}), {
+            status: 400,
+            headers: {...corsHeaders, 'Content-Type': 'application/json'},
+          });
         }
       }
 
@@ -810,32 +861,36 @@ serve(async (req) => {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       }
-      const {email, full_name, tasks, count, completed, completed_count} = data || {};
+      const {email, full_name, tasks, count, completed, completed_count, todos, todos_count} = data || {};
       if (!email) throw new Error('email required');
       const openTasks = Array.isArray(tasks) ? tasks : [];
       const completedTasks = Array.isArray(completed) ? completed : [];
-      // Skip the send only when BOTH sections are empty (mig 093). A
-      // recipient with only completed-assigned tasks (zero open) still
-      // gets an email.
-      if (openTasks.length === 0 && completedTasks.length === 0) {
+      const todoItems = Array.isArray(todos) ? todos : [];
+      // Skip the send only when EVERY section is empty (mig 093 + mig 115).
+      // A recipient with only completed-assigned tasks, or only the shared
+      // To Do List, still gets an email.
+      if (openTasks.length === 0 && completedTasks.length === 0 && todoItems.length === 0) {
         return new Response(JSON.stringify({ok: true, skipped: true, reason: 'no tasks'}), {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       }
       const taskCount = typeof count === 'number' ? count : openTasks.length;
       const completedCount = typeof completed_count === 'number' ? completed_count : completedTasks.length;
+      const todoCount = typeof todos_count === 'number' ? todos_count : todoItems.length;
       // Subject reflects whichever sections are present.
       const subjectParts: string[] = [];
       if (taskCount > 0) subjectParts.push(`${taskCount} open task${taskCount === 1 ? '' : 's'}`);
       if (completedCount > 0) subjectParts.push(`${completedCount} completed this week`);
+      if (todoCount > 0) subjectParts.push(`${todoCount} on the to do list`);
       const subjectBase = `WCF Planner - ${subjectParts.join(', ')}`;
-      // Render whichever sections have content; both renderers escape all
+      // Render whichever sections have content; all renderers escape all
       // user-controlled strings.
       const bodyHtml =
         (openTasks.length > 0 ? tasksWeeklyHtml(openTasks) : '') +
-        (completedTasks.length > 0 ? tasksWeeklyCompletedHtml(completedTasks) : '');
+        (completedTasks.length > 0 ? tasksWeeklyCompletedHtml(completedTasks) : '') +
+        (todoItems.length > 0 ? tasksWeeklyTodoHtml(todoItems) : '');
       const html = brandedEmail({
-        title: taskCount > 0 ? 'Open Tasks' : 'Completed This Week',
+        title: taskCount > 0 ? 'Open Tasks' : completedCount > 0 ? 'Completed This Week' : 'Shared To Do List',
         // brandedEmail interpolates subtitle directly into HTML; escape
         // here (Codex C4 re-review BLOCKER 2). full_name is profile data
         // but admins can self-edit so it's still untrusted.

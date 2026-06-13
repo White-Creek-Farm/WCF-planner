@@ -35,8 +35,11 @@ import CompletedTab from './CompletedTab.jsx';
 import SystemTasksTab from './SystemTasksTab.jsx';
 import NewTaskModal from './NewTaskModal.jsx';
 import TaskInstancePage from './TaskInstancePage.jsx';
+import TodoListTab from './TodoListTab.jsx';
+import TodoItemPage from './TodoItemPage.jsx';
 import {loadEligibleProfilesById, loadTaskAssignableProfilesById} from '../lib/tasksCenterApi.js';
 import {fireTaskChangeEvent} from '../lib/tasksCenterMutationsApi.js';
+import {isTodoParticipant, readTasksCenterMode, writeTasksCenterMode} from '../lib/todoApi.js';
 
 const PAGE_BG = {
   minHeight: '100vh',
@@ -74,9 +77,96 @@ const TABS = [
   {key: 'system', label: 'System', adminOnly: true},
 ];
 
-function TaskCenterView({Header, sb, authState}) {
+// The deliberately MEATY Task Center | To Do List segmented toggle — a
+// substantial control, not a tab sliver. Hidden entirely for roles outside
+// the To Do set (equipment_tech keeps the plain Task Center).
+const MODE_TOGGLE_WRAP = {
+  display: 'flex',
+  background: 'white',
+  border: '1px solid #d1d5db',
+  borderRadius: 14,
+  padding: 4,
+  gap: 4,
+  marginBottom: 16,
+};
+const MODE_BTN_BASE = {
+  flex: 1,
+  padding: '13px 0',
+  borderRadius: 10,
+  border: 'none',
+  background: 'transparent',
+  color: '#374151',
+  cursor: 'pointer',
+  fontSize: 15,
+  fontWeight: 700,
+  fontFamily: 'inherit',
+  letterSpacing: 0,
+};
+const MODE_BTN_ACTIVE = {
+  ...MODE_BTN_BASE,
+  background: '#085041',
+  color: 'white',
+};
+
+function TasksModeToggle({mode, onChange}) {
+  return (
+    <div style={MODE_TOGGLE_WRAP} role="group" aria-label="Task Center or To Do List" data-tasks-mode-toggle="1">
+      <button
+        type="button"
+        data-tasks-mode-center="1"
+        aria-pressed={mode === 'center'}
+        style={mode === 'center' ? MODE_BTN_ACTIVE : MODE_BTN_BASE}
+        onClick={() => onChange('center')}
+      >
+        Task Center
+      </button>
+      <button
+        type="button"
+        data-tasks-mode-todo="1"
+        aria-pressed={mode === 'todo'}
+        style={mode === 'todo' ? MODE_BTN_ACTIVE : MODE_BTN_BASE}
+        onClick={() => onChange('todo')}
+      >
+        To Do List
+      </button>
+    </div>
+  );
+}
+
+function TaskCenterView({Header, sb, authState, forceMode}) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState('mine');
   const [newTaskOpen, setNewTaskOpen] = React.useState(false);
+  // To Do access mirrors the server role set; equipment_tech (and anything
+  // else outside it) never sees the toggle and always lands in center mode.
+  const todoAllowed = isTodoParticipant(authState && authState.role);
+  const [mode, setMode] = React.useState(() => {
+    if (!todoAllowed) return 'center';
+    if (forceMode === 'todo') return 'todo';
+    return readTasksCenterMode();
+  });
+
+  React.useEffect(() => {
+    if (!todoAllowed && mode !== 'center') setMode('center');
+  }, [todoAllowed, mode]);
+
+  // A nonparticipant (equipment_tech) who lands on /tasks/todo would otherwise
+  // see the Task Center under a To Do URL. Normalize the URL back to /tasks so
+  // the address bar never claims a surface the role cannot use.
+  React.useEffect(() => {
+    if (forceMode === 'todo' && !todoAllowed) {
+      navigate('/tasks', {replace: true});
+    }
+  }, [forceMode, todoAllowed, navigate]);
+
+  function changeMode(next) {
+    if (next === mode) return;
+    setMode(next);
+    writeTasksCenterMode(next);
+    // Keep the URL honest so /tasks/todo deep links and the back button
+    // behave; the localStorage preference picks the default at plain /tasks.
+    navigate(next === 'todo' ? '/tasks/todo' : '/tasks', {replace: true});
+  }
   // Two profile maps. profilesById is the unfiltered display map (every
   // eligible profile, used for read-only name resolution on existing
   // tasks/templates/rules including ones already assigned to a profile
@@ -126,10 +216,23 @@ function TaskCenterView({Header, sb, authState}) {
   else if (activeTab === 'system' && isAdmin) body = React.createElement(SystemTasksTab, {sb, authState});
   else body = React.createElement(MyTasksTab, {sb, authState});
 
+  if (mode === 'todo' && todoAllowed) {
+    return (
+      <div style={PAGE_BG} data-view="task-center">
+        {Header ? <Header /> : null}
+        <div style={{maxWidth: 880, margin: '0 auto', padding: '16px 18px'}}>
+          <TasksModeToggle mode={mode} onChange={changeMode} />
+          <TodoListTab sb={sb} authState={authState} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={PAGE_BG} data-view="task-center">
       {Header ? <Header /> : null}
       <div style={{maxWidth: 880, margin: '0 auto', padding: '16px 18px'}}>
+        {todoAllowed ? <TasksModeToggle mode={mode} onChange={changeMode} /> : null}
         <div
           style={{
             marginBottom: 12,
@@ -226,6 +329,19 @@ export default function TasksRouter({Header, sb, authState}) {
 
   if (legacyTaskId) return null;
 
+  // /tasks/todo and /tasks/todo/<id> dispatch BEFORE the task-detail branch —
+  // otherwise 'todo' or 'todo/<id>' would be misread as a task instance id.
+  // The two TaskCenterView branches carry distinct keys so an in-app
+  // navigation between /tasks and /tasks/todo REMOUNTS the view and re-runs
+  // the mode initializer — without the key, React preserves the instance and
+  // forceMode would be ignored after first mount (mode/URL desync).
+  if (location.pathname === '/tasks/todo' || location.pathname === '/tasks/todo/') {
+    return React.createElement(TaskCenterView, {key: 'todo', Header, sb, authState, forceMode: 'todo'});
+  }
+  if (location.pathname.startsWith('/tasks/todo/')) {
+    return React.createElement(TodoItemPage, {sb, authState, Header});
+  }
+
   const taskDetailId = location.pathname.startsWith('/tasks/')
     ? location.pathname.slice('/tasks/'.length) || null
     : null;
@@ -233,5 +349,5 @@ export default function TasksRouter({Header, sb, authState}) {
   if (taskDetailId) {
     return React.createElement(TaskInstancePage, {sb, authState, Header});
   }
-  return React.createElement(TaskCenterView, {Header, sb, authState});
+  return React.createElement(TaskCenterView, {key: 'center', Header, sb, authState});
 }

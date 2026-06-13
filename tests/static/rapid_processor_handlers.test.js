@@ -229,9 +229,9 @@ describe('rapid-processor.ts — tasks_weekly_summary handler shape (C4)', () =>
     expect(branchSlice).toMatch(/skipped:\s*true/);
   });
 
-  it('reads completed + completed_count from data alongside tasks/count (mig 093)', () => {
+  it('reads completed/completed_count and todos/todos_count from data alongside tasks/count (mig 093 + 115)', () => {
     expect(branchSlice).toMatch(
-      /const\s*\{\s*email,\s*full_name,\s*tasks,\s*count,\s*completed,\s*completed_count\s*\}\s*=\s*data/,
+      /const\s*\{\s*email,\s*full_name,\s*tasks,\s*count,\s*completed,\s*completed_count,\s*todos,\s*todos_count\s*\}\s*=\s*data/,
     );
   });
 

@@ -29,6 +29,8 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/sheep/SheepBatchPage.jsx',
     'src/sheep/SheepDailyPage.jsx',
     'src/tasks/TaskInstancePage.jsx',
+    // To Do item record page (mig 115).
+    'src/tasks/TodoItemPage.jsx',
   ],
   RecordCollaborationSection: [
     'src/broiler/BroilerBatchPage.jsx',
@@ -52,6 +54,8 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/sheep/SheepBatchPage.jsx',
     'src/sheep/SheepDailyPage.jsx',
     'src/tasks/TaskInstancePage.jsx',
+    // To Do item record page (mig 115): comments + audit on todo.item.
+    'src/tasks/TodoItemPage.jsx',
   ],
   RecordSequenceNav: [
     'src/broiler/BroilerBatchPage.jsx',
@@ -79,6 +83,10 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     // shared DeleteModal before calling delete_cattle_log_entry.
     'src/cattle/CattleLogPage.jsx',
     'src/main.jsx',
+    // To Do List (mig 115): management/admin Remove confirms through the
+    // shared DeleteModal before calling remove_todo_item.
+    'src/tasks/TodoItemPage.jsx',
+    'src/tasks/TodoListTab.jsx',
     'src/webforms/WeighInsWebform.jsx',
   ],
   ConfirmModal: ['src/main.jsx'],

@@ -8,6 +8,10 @@ const ROOT = path.resolve(__dirname, '..', '..');
 
 const EXPECTED_LOCAL_STORAGE_OWNERS = new Map([
   ['src/contexts/PigContext.jsx', 5],
+  // To Do List view prefs (mig 115 lane): Task Center vs To Do mode and the
+  // section filter persist ACROSS visits per the approved product decision,
+  // so these live in localStorage (not the sessionStorage view-state hook).
+  ['src/lib/todoApi.js', 4],
   ['src/main.jsx', 4],
 ]);
 
@@ -17,7 +21,9 @@ const ALLOWED_LITERAL_KEYS = new Set([
   'ppp-farrowing-v1',
   'ppp-feeders-v1',
   'ppp-pigs-v1',
+  'wcf-tasks-center-mode',
   'wcf-test-role-override',
+  'wcf-todo-section-filter',
 ]);
 
 function stripComments(src) {
@@ -64,7 +70,7 @@ describe('localStorage boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(total).toBe(9);
+    expect(total).toBe(13);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
@@ -86,7 +92,7 @@ describe('localStorage boundary', () => {
       }
     }
 
-    expect(keys).toHaveLength(6);
+    expect(keys).toHaveLength(10);
     expect(offenders).toEqual([]);
     expect(secretLike).toEqual([]);
   });

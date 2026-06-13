@@ -56,6 +56,8 @@ const EXPECTED_READY_MARKERS = new Map([
   ['src/tasks/RecurringTab.jsx', ['data-tasks-recurring-loaded']],
   ['src/tasks/SystemTasksTab.jsx', ['data-tasks-system-loaded']],
   ['src/tasks/TaskInstancePage.jsx', ['data-task-instance-record-loaded']],
+  ['src/tasks/TodoItemPage.jsx', ['data-todo-record-loaded']],
+  ['src/tasks/TodoListTab.jsx', ['data-todo-list-loaded']],
 ]);
 
 const EXPECTED_LOAD_ERROR_SURFACES = new Map([
@@ -102,6 +104,8 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/tasks/RecurringTab.jsx', {retry: true, inlineNotice: false}],
   ['src/tasks/SystemTasksTab.jsx', {retry: true, inlineNotice: false}],
   ['src/tasks/TaskInstancePage.jsx', {retry: true, inlineNotice: true}],
+  ['src/tasks/TodoItemPage.jsx', {retry: true, inlineNotice: true}],
+  ['src/tasks/TodoListTab.jsx', {retry: true, inlineNotice: true}],
 ]);
 
 function stripComments(src) {

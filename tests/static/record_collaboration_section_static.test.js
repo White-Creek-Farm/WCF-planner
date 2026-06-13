@@ -12,10 +12,24 @@ describe('RecordCollaborationSection — shared component contract', () => {
   it('exports a default function', () => {
     expect(componentSrc).toMatch(/export default function RecordCollaborationSection/);
   });
-  it('accepts shared record identity props plus spacing and activity-only mode', () => {
-    expect(componentSrc).toMatch(
-      /RecordCollaborationSection\(\{\s*sb,\s*authState,\s*entityType,\s*entityId,\s*entityLabel,\s*spacing\s*=\s*16,\s*showComments\s*=\s*true,\s*activityLimit\s*=\s*50,\s*activityEventFilter\s*=\s*null,?\s*\}/,
+  it('accepts shared record identity props plus spacing, activity-only mode, and an optional mention loader', () => {
+    // Destructure block (props may carry interleaved comments); assert every
+    // expected param with its default appears within it.
+    const block = componentSrc.slice(
+      componentSrc.indexOf('RecordCollaborationSection({'),
+      componentSrc.indexOf('}) {'),
     );
+    for (const prop of ['sb', 'authState', 'entityType', 'entityId', 'entityLabel']) {
+      expect(block, prop).toMatch(new RegExp(`\\b${prop}\\b`));
+    }
+    expect(block).toMatch(/spacing\s*=\s*16/);
+    expect(block).toMatch(/showComments\s*=\s*true/);
+    expect(block).toMatch(/activityLimit\s*=\s*50/);
+    expect(block).toMatch(/activityEventFilter\s*=\s*null/);
+    expect(block).toMatch(/loadMentionable\s*=\s*undefined/);
+  });
+  it('threads the optional mention loader through to CommentsSection', () => {
+    expect(componentSrc).toMatch(/<CommentsSection[\s\S]*?loadMentionable=\{loadMentionable\}/);
   });
   it('composes CommentsSection and RecordActivityLog', () => {
     expect(componentSrc).toContain("import CommentsSection from './CommentsSection.jsx'");

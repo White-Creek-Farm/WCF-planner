@@ -73,7 +73,9 @@ describe('task-photos append-only storage contract', () => {
       }
     }
 
-    expect(uploadCount).toBe(1);
+    // Two direct task-photos uploads: the v2 shared uploader path above and
+    // the To Do photo uploader (mig 115, todo/<id>/ prefix in todoApi.js).
+    expect(uploadCount).toBe(2);
     expect(offenders).toEqual([]);
   });
 });

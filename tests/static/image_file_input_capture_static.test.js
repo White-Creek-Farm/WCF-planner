@@ -20,6 +20,8 @@ const EXPECTED_IMAGE_INPUT_OWNERS = new Map([
   ['src/shared/CommentsSection.jsx', 2],
   ['src/tasks/CompleteTaskModal.jsx', 1],
   ['src/tasks/NewTaskModal.jsx', 1],
+  ['src/tasks/NewTodoModal.jsx', 1],
+  ['src/tasks/TodoCompleteModal.jsx', 1],
   ['src/webforms/DailyPhotoCapture.jsx', 1],
   ['src/webforms/EquipmentFuelingWebform.jsx', 1],
   ['src/webforms/TasksWebform.jsx', 1],
@@ -74,7 +76,7 @@ describe('Image file inputs avoid forced camera capture', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(imageInputCount).toBe(9);
+    expect(imageInputCount).toBe(11);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

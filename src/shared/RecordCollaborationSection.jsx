@@ -14,6 +14,9 @@ export default function RecordCollaborationSection({
   showComments = true,
   activityLimit = 50,
   activityEventFilter = null,
+  // Optional mention-picker source override threaded to CommentsSection.
+  // undefined leaves CommentsSection on its generic default loader.
+  loadMentionable = undefined,
 }) {
   return (
     <>
@@ -25,6 +28,7 @@ export default function RecordCollaborationSection({
             entityType={entityType}
             entityId={entityId}
             entityLabel={entityLabel}
+            loadMentionable={loadMentionable}
           />
         </div>
       )}
