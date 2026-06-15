@@ -8,78 +8,35 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-15.
-Current source checkpoint: `19c2326` (`Hotfix home border contrast`, pushed to
-`origin/main`, local `main` 0/0). This `PROJECT.md` edit records that hotfix into
-the frozen Home parity token reference and is the only tracked handoff change
-unless Ronnie asks for a commit/push.
-Current pushed source checkpoint before this wrap: `1acd43d`. Since the
-`bb8fdad` integration, `main` has shipped Animals on Farm display polish
-(`c61fab0`), cattle weigh-in swap/blacklist dropdown repairs (`9159ca5`), retag
-weight-history preservation (`1c2ba9a`), cattle calf-row heifer promotion
-(`c3a5815`, migration `110`), public weigh-in recent-entry layout polish
-(`1ac176b`, `a434cf9`, `9ef74c7`), weigh-in note mirroring and cattle cues
-(`534e50a`, migration `111`), public weigh-in entry edit parity (`85dcdeb`),
-new-cow/reconcile label refinement (`37668fd`), admin-created password setting
-(`cdcc39d`), Public Tasks assignee polish (`693dd4a`), Light portal daily-report
-review hub (`a56e57e`, migration `113`), task photo cap parity (`d8951d4`,
-migration `114`), Cattle Log field journal (`3c74b5d`, migration `112`),
-task-row photo thumbnails (`8394162`), the shared Task Center To Do List
-(`d63c5c3`, migration `115`), animal record-page hotfixes (`a8d117d`), daily-hub
-token closure (`5539348`), the PWA offline app-shell cache (`4f85c44`, merged
-`ab2bd68`), Cattle Log unmatched-calves reminder (`052af25`, merged `b2b1e73`),
-the Home text-color hierarchy hotfix (`1acd43d`), and the Home border-contrast
-hotfix (`19c2326`, 2026-06-15) that darkened Home card/button/section borders via
-a scoped `.home-dashboard` `--border`/`--border-strong` override. Netlify
-auto-deploys from GitHub `main`; CC later state-synced `1acd43d` on `origin/main`
-with local `main` at 0/0 and confirmed the hotfix files match the accepted
-text-color rule.
-Capture served-PROD asset evidence next session only if a gate needs it. Ronnie
-screenshot-verified the Cattle Log build and To Do screenshot packet before the
-relevant gates. Migrations `112` (2026-06-12) and `113`/`114`/`115`
-(2026-06-13) are PROD-applied, and the To Do weekly-digest Edge functions
-(`tasks-summary` v6, `rapid-processor` v25) were deployed and verified to PROD on
-2026-06-13.
+Current shipped runtime checkpoint: `408b72c`
+(`fix(home): remove stale layer count import`), pushed to `origin/main`.
+This `PROJECT.md` wrap update is the only local change until Ronnie approves a
+docs commit/push.
 Production URL: https://wcfplanner.com.
+Latest verified live bundle: `assets/main-CnEvgOxN.js` /
+`assets/main-DXq0bJQC.css`.
 
 ---
 
 ## Start Here
 
-1. Read [HO.md](HO.md) for workflow and gates.
+1. Read [HO.md](HO.md) for workflow, roles, gates, relay format, and
+   parallel-worktree rules.
 2. Read this file's Current State, Build Queue, and the relevant contracts.
-3. Run `git status --short` and inspect recent `git log` before planning or
-   editing.
-4. Inspect the files in scope before changing anything.
+3. Run `git status --short`, `git worktree list`, and inspect recent `git log`
+   before planning or editing.
+4. Inspect the source/test/migration files in scope before changing anything.
 
 Default session model: Codex plans/reviews, CC builds/validates, Ronnie approves
-commit/push/PROD gates. Codex may build or edit only when Ronnie assigns it.
-
-This file should answer "what is true now?" at the start of a session. Use git
-history and tests for detailed lane history.
+commit/push/PROD gates. Ronnie may explicitly assign Codex build work; otherwise
+CC is the primary builder.
 
 ---
 
 ## Project Map Governance
 
 This file is a docs-as-code project map, not a session log, scratchpad, or
-append-only changelog. It uses project-specific rules first, with these external
-references as guard rails:
-
-- Diataxis documentation structure: separate reference, explanation, how-to, and
-  tutorial content. `PROJECT.md` is durable reference plus brief explanation;
-  procedural workflow belongs in `HO.md`, and detailed history belongs in git or
-  `archive/SESSION_LOG.md`. Reference: https://diataxis.fr/.
-- RFC 2119 / RFC 8174 requirement language: capitalized `MUST`, `MUST NOT`,
-  `SHOULD`, `SHOULD NOT`, and `MAY` carry normative force. Use them only for
-  rules future agents must preserve. References:
-  https://datatracker.ietf.org/doc/rfc2119/ and
-  https://datatracker.ietf.org/doc/rfc8174/.
-- Google developer documentation style: project-specific style comes first, then
-  a general developer-doc style guide for clarity and consistency. Reference:
-  https://developers.google.com/style/.
-- Google documentation best practices: keep docs minimal and accurate, update
-  docs with code, delete dead documentation, and avoid duplication. Reference:
-  https://google.github.io/styleguide/docguide/best_practices.html.
+append-only changelog.
 
 Rules for editing this file:
 
@@ -90,1497 +47,206 @@ Rules for editing this file:
   and state the current guard/inventory honestly.
 - Current State summarizes what is true now, including active local worktree risk
   when it matters. Latest Shipped Checkpoint summarizes work merged to
-  `origin/main`. Detailed lane narrative belongs in git history or the archive,
-  not here.
+  `origin/main`.
 - Inventory counts, migration state, test names, and owner lists must match the
   source/static guards at the time of edit. Prefer pointing to the guard as the
-  source of truth instead of duplicating fragile counts here.
+  source of truth instead of duplicating fragile counts.
 - Every Build Queue item should state class (`DEFECT`, `DECISION`, `ENH`),
   scope, success criteria, validation/guard target, and any migration/PROD gate
   once it is promoted into an active lane.
-- Remove or reconcile stale text instead of appending corrections nearby. The
-  file should read as one coherent project map written intentionally.
+- Remove or reconcile stale text instead of appending corrections nearby.
 - Normal build/hotfix lanes must not edit this file unless Ronnie explicitly
   requests docs, wrap, or a named `PROJECT.md` change.
 
-- Design/function invariants that govern cross-surface behavior now live in
-  `## Global Decisions (Constitution)` and `## Design System`.
-
-## Global Decisions (Constitution)
-
-The following decisions are locked and govern future builds. New code and surface
-changes MUST conform unless this section is amended.
-
-Rules (normative):
-- Global Decisions are loaded from this section and enforced with lane guard
-  targets.
-- No surface may silently diverge from a locked decision. New exceptions MUST be
-  added to `## Intentional Non-Uniformities` with justification.
-- Changing any locked decision requires a Ronnie-approved amendment in this file
-  and the relevant guard target in the same change.
-- This lock covers the decisions and functional invariants in this section plus
-  the entire `## Design System` section. The rest of `PROJECT.md` (Current State,
-  Build Queue, inventories, contract narrative) updates normally under
-  `## Project Map Governance`.
-- The entire `## Design System` section is a Global Decision: its tokens, palette,
-  elevation, z-index ladder, canonical components, and iconography policy MUST NOT
-  change except by amendment.
-- Agents MAY propose amendments with rationale and evidence; Ronnie ratifies.
-
-| Decision | Status | Evidence |
-| --- | --- | --- |
-| 1 Font scale | Ratified; shared-token enforcement active, source-wide cleanup ongoing | `design_token_contract_static.test.js`, `record_page_shell_static.test.js` |
-| 2 Button corners | Ratified; shared-token enforcement active | `design_token_contract_static.test.js` |
-| 3 Confirm/Delete stacking | Ratified; enforcement active for shared modal tier | `design_token_contract_static.test.js`, `shared_ui_extraction_contract_static.test.js` |
-| 4 Button height/padding | Ratified; shared-token enforcement active | `design_token_contract_static.test.js` |
-| 5 Save model (Submit vs autosave) | Ratified; current model guarded | `save_model_contract_static.test.js` |
-| 6 Ordinary text color hierarchy | Ratified; Home source-of-truth hotfix shipped, pilot guards queued | `1acd43d`, Home aesthetic parity pilot |
-
-1. Font sizes use a clean px scale. Canonical set: `10, 11, 12, 13, 14, 15, 16, 18,
-   20, 22, 26`. Lift `9 -> 10`, fold `17 -> 18`, `24 -> 22`, `28 -> 26`.
-   Display whitelist remains `32/34/36/48/56` for hero-only usage. Fractional
-   font values (`12.5`, `10.5`) are forbidden.
-   - Guard: `design_token_contract_static.test.js` and
-     `record_page_shell_static.test.js` cover the shipped shared-token slice.
-     Source-wide cleanup remains Lane I follow-up work.
-
-2. Button corners use canonical `6px` radius. The values `7` and `8` are retired.
-   Canonical radius set is `{4, 6, 10, 14, 999, '50%'}`.
-   - Guard: `design_token_contract_static.test.js` covers the shipped shared
-     radius/token slice.
-
-3. Confirm/Delete dialogs remain top-tier destructive overlay priority at
-   toast (`9000`) so confirm stacks are never visually hidden.
-   - Guard: `design_token_contract_static.test.js` plus the shared modal
-     extraction guard.
-
-4. Button vertical pad defaults to `10px`; the standard button pad is `10px 16px`.
-   - Guard: `design_token_contract_static.test.js`.
-
-5. Save model is contractually split by surface:
-   - Submit-style surfaces (daily reports, webforms, modals) use explicit Save/
-     Submit controls.
-   - Edit-in-place surfaces (record pages, weigh-in entry) use autosave.
-   - Guard: `save_model_contract_static.test.js` plus touched Playwright when a
-     surface behavior changes.
-
-6. Ordinary text color hierarchy uses two colors unless a semantic/status block
-   intentionally owns its own palette:
-   - Main readable text is pure black (`#000000`): section titles, headings,
-     primary labels, buttons, card titles, row primary names, and primary animal
-     or production numbers.
-   - Supporting text is muted gray: helper copy, subtext, metadata, secondary
-     labels, and descriptive animal/category labels.
-   - Approved accents may remain colored when the color carries summary or
-     semantic meaning, such as the Home Total value or rain/freeze callouts.
-   - Do not change pastel/status/warning/error/success/info backgrounds as part
-     of a text-color pass unless the build is explicitly scoped to redesign that
-     block.
-   - Guard: Home shipped the source-of-truth implementation in `1acd43d`; scoped
-     pilot guards are queued with the Home aesthetic parity pilot before any
-     source-wide enforcement.
-
-### Locked functional invariants
-
-These load-bearing behaviors are Global Decisions, defined in full in the
-referenced contract sections. This table designates them amendment-locked: new or
-changed code MUST conform, and changing one requires a Ronnie-approved amendment
-plus a guard update in the same change.
-
-| Invariant | Contract section | Guard |
-| --- | --- | --- |
-| Single Supabase client owner; no unapproved browser secrets | Cross-App Rules | `supabase_client_owner_static.test.js`, `browser_secret_boundary_static.test.js` |
-| Permissions enforced by RLS/RPC, never UI alone | Authentication And Roles | `light_user_portal_static.test.js` |
-| Route aliases only in `src/lib/routes.js` | Route Ownership | `url_alias_redirects.spec.js` |
-| Fail-closed loading order (record + list) | Cold-Boot And Fail-Closed Loading | `load_retry_robustness_inventory_static.test.js` |
-| Audit-critical mutations via SECDEF RPC; no client writes to activity, comments, or notifications | Entity Mutations And Audit Atomicity; Activity, Comments, Mentions, Notifications | `mutation_semantics_inventory_static.test.js` |
-| Daily edits/deletes via ownership RPCs; soft-delete protected roots | Daily Reports; Delete, Restore, And Recovery | `cp2_daily_writes_via_rpc_static.test.js` |
-| One canonical component per UI role | Shared UI And Record Chrome; Design System | `shared_ui_extraction_contract_static.test.js` |
+Design/function invariants that govern cross-surface behavior live in
+`## Global Decisions (Constitution)` and `## Design System`.
 
 ---
 
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Current source checkpoint: `19c2326` (`Hotfix home border contrast`), pushed to
-  `origin/main` with local `main` 0/0; this `PROJECT.md` edit is the only tracked
-  handoff change unless Ronnie asks for a commit/push. Since
-  the `bb8fdad` integration, `main` shipped Animals on Farm display polish, the
-  public cattle weigh-in fixes and layout polish, retag
-  weight-history preservation, calf-row heifer promotion, weigh-in note
-  mirroring, full public entry edit parity, new-cow/reconcile label refinement,
-  admin-created password setting, Public Tasks assignee polish, the Light portal
-  daily-report review hub, task photo cap parity, the Cattle Log field journal,
-  task-row photo thumbnails, the Task Center To Do List, animal record-page
-  transfer/blacklist hotfixes, daily-hub token closure, PWA offline app-shell
-  cache, Cattle Log unmatched-calves reminder, the Home text-color hierarchy
-  hotfix, and the Home border-contrast hotfix (`19c2326`: darker scoped
-  `.home-dashboard` `--border`/`--border-strong`, the new parity basis for global
-  border contrast). See Latest Shipped Checkpoint and Build Queue for per-lane
-  detail.
-- Latest live verification: CC reported all three parallel lanes live on
-  2026-06-13 before the Home text hotfix: daily-hub token closure asset rotated,
-  `/sw.js` live for the PWA offline app-shell cache, and Cattle Log unmatched
-  calves present in the rotated bundle. Codex then pushed `1acd43d` to `main`;
-  `npm run build` was green locally. CC later state-synced `1acd43d` on
-  `origin/main` with local `main` 0/0 and confirmed the hotfix files match the
-  accepted text-color rule. Capture served-PROD Home asset evidence only if the
-  next gate needs it.
-- Integrated source validation before the `37668fd` push: `npm run format:check`
-  green, `npm run lint` 0 errors, `npm test` 212 files / 5567 passed,
-  `npm run build` green, and `git diff --check` clean. Later hotfix lanes used
-  focused tests/lint/build; see Latest Shipped Checkpoint for scope.
-- Local primary state as of this update (2026-06-13): primary
-  `C:\Users\Ronni\WCF-planner` is on `main` at source checkpoint `1acd43d`; only
-  this `PROJECT.md` update is tracked. Two pre-existing untracked local artifacts
-  remain and are intentionally not part of this handoff unless Ronnie asks:
-  `daily-hub-shots/` and `tests/daily_hub_token_shots.spec.js`. `git status
-  --short` is the source of truth.
-- Migrations `113` (`light_daily_report_edit_window`), `114`
-  (`task_photo_total_limit`), and `115` (`todo_items`) are PROD-applied +
-  verified 2026-06-13 (CC, `psql --single-transaction` / `ON_ERROR_STOP=1`;
-  post-apply checks green; anon REST probe on `list_todo_items` returned 401).
-  `115` adds the shared To Do repository, To Do photo tables/RPCs, To Do
-  comment/mention role guards, notification types, Activity access branch, and
-  task-summary audit field. The To Do weekly-digest Edge functions
-  (`tasks-summary` v6, `rapid-processor` v25) were deployed to PROD and verified
-  on 2026-06-13 (CC, `supabase functions deploy --project-ref` for PROD;
-  `tasks-summary` default verify_jwt, `rapid-processor` `--no-verify-jwt`).
-  Deployed-source greps confirm the To Do digest code in both, and a probe-mode
-  `invoke_tasks_summary(true)` returned HTTP 200, so the cron path is intact and
-  the digest's To Do section is live for the next Sunday 8am Central run.
-- Migration `112` (`cattle_log`) applied to PROD 2026-06-12 after Ronnie
-  screenshot-verified the Cattle Log build: singleton `cattle.log` comment-backed
-  field journal, issue sidecar, tag links/mirrors, unknown-calf detail capture
-  and resolver, @mention notification/deeplink support, role-aware issue toggle,
-  Light/webform entry point, and offline create/photo queue support.
-- Migration `111` (`weigh_in_note_record_comments`) applied to TEST and PROD
-  2026-06-11: weigh-in entry/session notes now mirror into canonical
-  record-page `comments` for cattle, sheep, pig, and broiler targets using
-  deterministic `wi-note-*` / `wis-note-*` ids. Edits update the same comment and
-  deletes remove it, so notes made during weigh-ins appear on the corresponding
-  animal or batch record without relying on hidden legacy comment timelines.
-- Migration `110` (`cattle_calf_row_heifer_promote`) applied to TEST and PROD
-  2026-06-11: a cattle-row trigger now promotes an active dam from `heifer` to
-  `cow` when a calf row is inserted or updated with that dam's current tag or a
-  non-import old tag. The migration also backfilled existing active heifers with
-  calf-row evidence and writes a calving-source audit comment.
-- Migration `109` (`drop_daily_photos_anon_insert`) applied to TEST (`exec_sql`)
-  then PROD (`psql --single-transaction`, `ON_ERROR_STOP=1`) and verified
-  2026-06-10: precheck found all three daily-photos storage policies present; the
-  apply dropped only the dead anon-insert policy (the daily-report forms are
-  login-required — uploads run authenticated under `daily_photos_auth_insert`
-  (`099`), signed-URL reads under `daily_photos_auth_select` (`031`)); postcheck
-  confirms `daily_photos_anon_insert` absent and both auth policies present. Zero
-  runtime code impact; an authenticated daily-photo upload round-trip passed on
-  TEST with the anon policy dropped.
-- Migrations `105`-`108` applied to PROD and verified 2026-06-09: `105`
-  `create_recurring_task_template` (non-admin recurring-task creation via the New
-  Task modal); `106` `delete_layer_batch`, `107` `delete_fuel_bill`, `108`
-  `delete_feed_input` (audited transactional cascade-delete RPCs for the layer
-  batch+housings, fuel bill+lines, and feed input+tests roots). Each is SECURITY
-  DEFINER with `search_path = public`, `authenticated` EXECUTE / anon revoked
-  (REST probe 401), verified by a behavioral round-trip (seed -> RPC -> root +
-  children gone + one `record.deleted` audit) inside a rolled-back transaction
-  (zero PROD trace). `106` auth-gated, `107` admin-gated, `108` authenticated
-  (mirrors each surface's existing access).
-- Parallel worktrees: the old merged Codex/light-audit worktrees were pruned
-  after Ronnie approval on 2026-06-13. Do not reuse merged Codex worktrees; start
-  any new parallel lane from current `main` in a fresh scoped worktree/branch.
-- Open gates: none. Migrations `113`/`114`/`115` are PROD-applied, the To Do
-  front-end is live, and the To Do weekly-digest Edge functions (`tasks-summary`
-  v6, `rapid-processor` v25) were deployed + verified to PROD on 2026-06-13. No
-  PROD migration, Storage, Vault, or Edge Function gate is open. Push to `main`
-  remains the normal Netlify runtime gate for local commits.
-- PROD-applied numbered migrations include `112`, `113`, `114`, and `115`.
-  Migration `082` is unused;
-  migration `083` is shelved. Operational note: the daily duplicate cleanup
-  `085` was applied before unique-index migration `084`.
-- Migration `100` (`processing_batch_lifecycle_rpcs`) was applied to TEST
-  (`exec_sql`) then PROD (`psql --single-transaction`, `ON_ERROR_STOP=1`) and
-  verified on 2026-06-08: `unschedule_cattle_processing_batch` and
-  `delete_sheep_processing_batch` exist as SECURITY DEFINER with
-  `search_path = public`; `authenticated` has EXECUTE, anon is revoked (REST
-  probe → 401); a cattle + sheep behavioral round-trip (seed → RPC → row gone +
-  `record.deleted` audit) ran clean inside a rolled-back transaction (zero PROD
-  trace); PostgREST cache reload confirmed by the anon REST 401 (registered, not
-  404).
-- Migrations `101`-`104` (Lane A audited-delete RPCs) were applied to TEST
-  (`exec_sql`) then PROD (`psql --single-transaction`, `ON_ERROR_STOP=1`) and
-  verified on 2026-06-09. `101` adds `delete_weigh_in_entry` /
-  `delete_weigh_in_session`; `102` adds the privileged fueling delete (later
-  renamed) plus `delete_equipment_maintenance_event`; `103` hardens the weigh-in
-  RPCs with target-row `FOR UPDATE` (idempotent under concurrency — no
-  double-audit, no false ok on a second 0-row delete); `104` renames the
-  privileged fueling RPC to `admin_delete_equipment_fueling` and drops the
-  colliding `delete_equipment_fueling(text,text,text)` overload while preserving
-  migration `091`'s owner-scoped `delete_equipment_fueling(text)`. Each is
-  SECURITY DEFINER with `search_path = public`, `authenticated` EXECUTE, anon
-  revoked (REST probe → 401); behavioral round-trips (seed → RPC → row gone +
-  `record.deleted` audit, plus second-delete idempotency) ran clean inside
-  rolled-back transactions (zero PROD trace). Fueling delete is role-gated
-  (admin/management/farm_team/equipment_tech, mirroring migration `092`);
-  weigh-in and maintenance-event deletes remain authenticated-only.
-- Migrations `097`–`099` were applied to TEST (`exec_sql`) then PROD
-  (`psql --single-transaction`, `ON_ERROR_STOP=1`) and verified on 2026-06-06:
-  `097` locks the public Tasks `submit_task_instance` to authenticated callers
-  and drops the roster-membership check; `098` deletes the retired
-  `webform_config` roster keys (`team_roster`, `team_members`,
-  `team_availability`, `per_form_team_members`, `weighins_team_members`) and
-  drops the dead `equipment.team_members` column; `099` adds the missing
-  `daily_photos_auth_insert` storage policy so authenticated daily-report photo
-  uploads no longer 403.
-- Migration `096` (`processing_attach_activity_rpcs`) was applied to TEST with
-  `exec_sql`, then PROD with `psql --single-transaction` and `ON_ERROR_STOP=1`,
-  and verified on 2026-06-06: cattle/sheep attach RPCs exist, authenticated has
-  EXECUTE, anon is revoked, and PostgREST cache reload was verified by anon REST
-  permission denial.
-- Migration `095` (`app_saved_views`, generic per-surface saved views) was
-  applied to TEST then PROD and verified on 2026-06-05: table + RLS
-  (public-or-owner SELECT, owner-only INSERT/UPDATE/DELETE), the owner-stamp
-  (`auth.uid()`) and updated_at/owner-freeze triggers, and grants to
-  `authenticated`.
-- TEST/PROD migrations `074` through `081` plus `084`/`085`/`086` were applied
-  and verified during the 2026-06-03 hardening sequence.
-- Light-user portal migrations `087`–`092` (CP1+CP2 ownership) were applied to
-  PROD atomically (single transaction) and verified on 2026-06-04: `light` role
-  in the profiles constraint, `owner_profile_id` on all 9 report tables, the
-  server-trusted INSERT stamp + UPDATE owner-freeze triggers, the ownership RPCs,
-  and the `092` red-switch (direct UPDATE/DELETE revoked on the 6 daily tables;
-  privileged-only RLS on `equipment_fuelings`/`fuel_supplies`).
-- Local note for new agents: edit `PROJECT.md` only during explicit docs or wrap
-  work. Normal build lanes should leave docs alone.
+- Source: `main`/`origin/main` at `408b72c` for runtime code; this docs wrap is
+  the only local tracked change until committed.
+- Extra worktrees: pruned on 2026-06-15. Only
+  `C:\Users\Ronni\WCF-planner` remains.
+- Open gates: none. No commit, push, PROD migration, Storage, Vault, or Edge
+  Function gate is open at this wrap point.
+- PROD-applied recent migrations include `112` through `116`, `125`, and `126`.
+  `116` (Pasture Map CP1), `125` (Production legacy events), and `126`
+  (breeding-pig Activity entity) were applied to PROD on 2026-06-15 and
+  smoke-verified. PostgREST schema cache was reloaded after each.
+- Production legacy import: `Processing Events - ALL.xlsx` parsed 69 rows,
+  skipped 0, and upserted 69 rows into `production_legacy_events` on PROD by
+  stable `source_key`.
+- Pasture Map PROD state: schema/RPCs are present, but no land areas were seeded
+  into PROD. OnX KML files should be imported through `/pasture-map` and reviewed
+  in-app.
+- Latest local validation from `main`: `npm run build` green; focused Vitest
+  wrap suite green (8 files, 106 tests) covering Pasture Map, Production,
+  Animals on Farm, breeding-pigs parity, and feed-order month rules.
+- Latest live verification: `wcfplanner.com/index.html` served
+  `assets/main-CnEvgOxN.js` and `assets/main-DXq0bJQC.css`.
+- `npm install` was run in the main worktree after Pasture Map dependencies
+  landed. It reported existing npm audit findings (11 vulnerabilities: 1 low,
+  3 moderate, 6 high, 1 critical). No audit-fix lane has been scoped.
 
 ### Latest Shipped Checkpoint
 
-The following work is merged to `main` and PROD-ready or PROD-applied where
-listed:
+The following work is merged to `main`, pushed, and live unless otherwise noted:
 
-Earlier load-bearing migrations (`057`–`079`) are summarized under Supabase
-Migrations below and in git history; this list keeps the most recent shipped
-work:
+- Site-wide Home aesthetic parity rollout:
+  - Foundation/global token layer and shared openable hover primitives.
+  - Admin, activity, webforms, equipment, Task Center, To Do, cattle, sheep, pig,
+    broiler, layer, and livestock parity slices.
+  - Program identity colors remain small accents; broad pastel fills were
+    reduced where scoped. Green Header chrome remains.
+  - Guard repairs closed stale assumptions around z-index, task photo ownership,
+    My Submissions, webforms, record-page shell, and openable hover.
+- Feed-order month hotfix:
+  - Pig and broiler feed boards use the same calendar-pinned order-month rule.
+  - "Order for `<month>`" stays on the next calendar month until the calendar
+    advances; saving an order no longer rolls the board to the following month.
+  - Source owner: `src/lib/feedOrderBasis.js` (`calendarOrderYM`).
+- Breeding pigs parity:
+  - Breeding pigs are table-based by group, not modal/card Record-button tiles.
+  - Table rows open `/pig/sows/<id>` with hover affordance.
+  - Breeding-pig record pages mount Comments + Activity via `pig.breeder`.
+  - Migration `126` adds `pig.breeder` to the Activity read/write resolver and
+    is PROD-applied.
+- Animals on Farm snapshot hotfix:
+  - Home uses the shared current animal snapshot logic and no longer carries the
+    stale layer-count import.
+  - Animals on Farm page remains the monthly history/detail view.
+- Production page:
+  - Home Production card opens `/production`.
+  - No combined total exists anywhere; totals are per program only.
+  - Year-over-year values are per program/year.
+  - Processing Events, Egg Events, and Legacy/Audit Review are collapsed
+    sections.
+  - Production data auto-updates from Planner sources plus the legacy
+    spreadsheet backfill; planner rows win over matching/conflicting legacy rows.
+  - Light users are excluded from `/production`.
+  - Migration `125` and the 69-row legacy import are PROD-applied.
+- Pasture Map CP1:
+  - Home shows a Pasture Map button beside Weather above Processing/Admin.
+  - `/pasture-map` renders the CP1 map/import surface.
+  - Client parses OnX KML with `@tmcw/togeojson`; Polygons import as reviewable
+    areas; LineStrings import as outline candidates and are never auto-closed.
+  - Read access starts at `farm_team`; management/admin can import/classify/
+    close/delete. Light users are excluded.
+  - Map rendering uses Leaflet with USGS/NAIP imagery. Geometry is provider-
+    neutral GeoJSON/PostGIS; Google is not the geometry source.
+  - Migration `116` is PROD-applied. No daily-report, move-ledger, occupancy, or
+    rest-day wiring exists yet.
 
-- 2026-06-13 source checkpoint `1acd43d` plus this `PROJECT.md` wrap. Landed
-  since `a8d117d`:
-  - Daily-hub token closure (`5539348`): removed retired radius `7`/`8` and ad
-    hoc action paddings from the seven daily/reporting hub list surfaces, adding
-    the scoped static guard. Ronnie approved the before/after desktop + mobile
-    screenshot set; screenshot utility/artifacts were kept local, not committed.
-  - PWA offline app-shell cache (`4f85c44`, merged `ab2bd68`): service worker
-    caches same-origin app shells/assets, leaves Supabase/API/RPC/mutations and
-    offline queue traffic alone, and supports offline cold-open after one online
-    warm-up for `/dailys` and `/equipment`. `/sw.js` was reported live.
-  - Cattle Log unmatched-calves reminder (`052af25`, merged `b2b1e73`): Cattle
-    Log now shows unmatched calves above the issue log, reusing the herd-filter
-    predicate with the 9-month age window and the fixed `dam_tag` select. The
-    reminder is derived from already-loaded cattle rows and writes no issue
-    records.
-  - Home text-color hierarchy hotfix (`1acd43d`): `--text` and `--label` in
-    `.home.theme-crisp` are pure black, Home subtext remains muted gray, Total
-    remains brand-colored, Missed Daily Reports title is black, the Last 5 Days
-    admin report section preserves its previous colors, and normal Home weather
-    card text uses black/gray while semantic rain/freeze callouts stay colored.
-  Validation recorded: daily-hub focused statics/lint/build from CC; PWA static
-  + Playwright offline cache + offline queue canary + build; Cattle Log
-  vitest/static/Playwright; Home hotfix Prettier check, `git diff --check`, and
-  `npm run build` green. CC reported the first three lanes live; Codex pushed the
-  Home hotfix to `main`.
+---
 
-- 2026-06-13 source checkpoint `a8d117d` plus final docs wrap. Ronnie
-  reported CC committed the To Do build and applied PROD before this wrap.
-  Landed since `b78199a`:
-  - Shared Task Center To Do List (`d63c5c3`, migration `115`, PROD-applied
-    2026-06-13 per Ronnie/CC): meaty Task Center / To Do List toggle at
-    `/tasks` and `/tasks/todo`, communal open-work list with General,
-    Chicken & Pigs, and Cattle & Sheep sections, manager/admin reorder/move/
-    approve/reject/convert/remove controls, Light/Farm Team/Manager/Admin
-    participation, equipment-tech exclusion, origination/completion photos in
-    the private task-photos bucket, To Do record pages with participant-scoped
-    @mentions, To Do Activity/notifications, conversion to assigned tasks, and
-    weekly digest To Do sections for eligible recipients. `tasks-summary` (v6)
-    and `rapid-processor` (v25) carry the digest changes and were deployed +
-    verified to PROD on 2026-06-13.
-  - Animal record-page hotfixes (`a8d117d`): removed the duplicate Transfer
-    buttons from cattle herd and sheep flock record pages because the inline
-    Herd/Flock status selectors already move the animal, and aligned the sheep
-    breeding blacklist control/callout with the cattle red compact treatment.
-  Validation recorded in this session: To Do static guards, focused To Do
-  record-page Playwright, tasks-summary/rapid-processor static guards, and the
-  cattle/sheep record-page static guards all passed. To Do screenshot packets
-  were generated for review; local screenshot/proof folders were pruned after
-  Ronnie approval and are intentionally not committed.
-
-- 2026-06-12 session-close source checkpoint `8394162` plus final docs wrap.
-  Ronnie screenshot-verified the Cattle Log UI before wrap; CC committed the
-  build as `3c74b5d` and applied migration `112` to PROD. Codex then landed the
-  Task Center thumbnail hotfix as `8394162`. Landed since `d8951d4`:
-  - Cattle Log field journal (`3c74b5d`, migration `112`, PROD-applied
-    2026-06-12): new `/cattle/log` page and Light/webform tile entry point,
-    comment-backed singleton log, default Issues filter, manager/admin instant
-    issue toggle, keyword search, @mention notifications/deeplinks, #tag
-    matching to active cattle/current tags then non-import prior tags, mirrored
-    cow-record display, calf-detail capture for unknown tags, automatic resolver
-    when the cow is later created, role-aware How-to-use, and offline create
-    queue with photo attachments.
-  - Task row photo thumbnails (`8394162`): My Tasks and Completed rows render
-    signed private-bucket thumbnails instead of the old icon button while
-    preserving the click-through `TaskPhotoLightbox`.
-  Validation on the Codex thumbnail hotfix: targeted eslint, task/activity/photo
-  static tests, and `npm run build` green. CC's Cattle Log commit records its
-  own focused guard/test coverage and Ronnie screenshot review.
-
-- 2026-06-12 hotfix/source checkpoint, pushed `origin/main` `d8951d4`
-  (front-end live-served 2026-06-12). Netlify served `assets/main-R7Kx-3KI.js`
-  with live JS probes for the Light daily-report review hub and task photo cap
-  text. Landed since `37668fd`:
-  - Admin user management hotfix (`cdcc39d`): admins can create a user and set a
-    password directly, avoiding email deliverability blockers.
-  - Public Tasks assignee polish (`693dd4a`): the assignee-availability table was
-    restyled into an aligned, readable admin surface.
-  - Light portal report-review hub (`a56e57e`, migration `113`): the Light home
-    portal now separates Enter Daily Reports from View Past Reports and exposes
-    daily-report logs/equipment review links instead of the old My Submissions
-    focus. Migration `113` is the server-side 3-day own-record edit/delete
-    window and is PROD-applied as of 2026-06-13 per Ronnie/CC.
-  - Task photo cap parity (`d8951d4`, migration `114`): task creation/completion
-    photos are capped at 5 total per task in the client and protected by a
-    DB trigger migration, PROD-applied as of 2026-06-13 per Ronnie/CC. Focused
-    validation for this lane: task photo unit/static tests, task route/photo
-    static guards, targeted eslint, and `npm run build`.
-
-- 2026-06-12 weigh-in source checkpoint, pushed `origin/main` `37668fd`
-  (live-verified 2026-06-12). Netlify PROD was verified by 200 response,
-  `assets/main-CLOx_JA7.js`, and served-JS probes for `/animals-on-farm`, public
-  weigh-in entry edit, and the reconcile dropdown prompt. Integrated validation
-  before the latest push: `npm run format:check` green, `npm run lint` 0 errors,
-  `npm test` 212 files / 5567 passed, `npm run build` green,
-  `git diff --check` clean. Landed since `bb8fdad`:
-  - Animals on Farm display polish (`c61fab0`): table and line graph start at
-    Oct 2024, month labels avoid local-time rollback, the confusing table
-    sublabel was removed, and the page guards were refreshed.
-  - Cattle public weigh-in repair and cues (`9159ca5`): Swap Tag saves without
-    violating the reconcile-intent check, cattle dropdown options include sex,
-    blacklisted cattle shade red in the picker, and blacklisted/recent-entry cues
-    are guarded.
-  - Retag weight-history preservation (`1c2ba9a`): current and prior tag history
-    lookup keeps weight history visible after a cow is retagged.
-  - Calf-row dam automation (`c3a5815`, migration `110`): calf-row dam links now
-    promote heifers to cows with a calving-source audit comment, including an
-    idempotent backfill for existing rows.
-  - Public weigh-in recent-entry layout polish (`1ac176b`, `a434cf9`,
-    `9ef74c7`): cattle/sheep recent entries align on a fixed grid, the row
-    scrollbars were removed, and the session layout width was adjusted so edit
-    actions fit.
-  - Weigh-in notes and cattle cues (`534e50a`, migration `111`): weigh-in notes
-    now mirror into canonical record-page comments for cattle, sheep, pig, and
-    broiler records; public cattle dropdown/recent-entry blacklist cues remain
-    visible.
-  - Public entry edit parity (`85dcdeb`): cattle/sheep recent-entry edits can
-    change tag, missing-tag mode, weight, and note with duplicate/unknown-tag
-    safeguards.
-  - New-cow/reconcile label refinement (`37668fd`): `+ New Cow` no longer asks
-    for a prior tag, and the reconcile dropdown uses the prior-weight-aware
-    animal label (`tag`, sex, age, prior weight, plus breed).
-
-- 2026-06-11 source + docs integration, pushed `origin/main` `bb8fdad`
-  (live-verified 2026-06-11). No migrations, schema changes, RLS changes,
-  Storage, Vault, or Edge Function work. Netlify PROD was verified by 200
-  response, asset rotation from `assets/main-DIBi75mC.js` to
-  `assets/main-BTJCETCA.js`, and served-JS probes for `/animals-on-farm` plus
-  the hoverable-tile affordance contract. Integrated validation before push:
-  `npm run format:check` green, `npm run lint` 0 errors, `npm test` 211 files /
-  5540 passed, `npm run build` green, `git diff --check` clean. Landed:
-  - Source-wide openable hover affordance rollout (`0efff11`): every openable
-    card/tile/row/expander carries `.hoverable-tile` / `.hoverable-row` plus
-    keyboard activation through shared `src/shared/openable.js` where needed;
-    HomeWeatherCard adopted the approved `card weather-card lift` treatment;
-    timeline chart bars intentionally keep their bespoke tooltip/outline hover.
-  - Codex Lane E/F load-error chrome closure (`8226ae6`, merged `920f8c2`): six
-    daily record pages plus equipment fueling/checklist entry pages delegate
-    fail-closed load-error chrome to `RecordPageLoadError`, preserving retry
-    hooks and loaded/error markers.
-  - Codex Lane I record-title compact-size slice (`27337d7`, merged
-    `a2788ae`): six batch/session record pages move `RecordTitle` fontSize 24 to
-    the canonical compact size 22; the static token guard now catches retired JSX
-    fontSize props.
-  - Cattle calf/dam lineage stale-spec triage (`9d17855`): the Playwright spec
-    now exercises the intended herd-list row click -> `/cattle/herds/<id>` record
-    page contract, where `CattleAnimalPage` composes `CowDetail` and
-    `[data-lineage-section]`; product source was not changed.
-  - Animals on Farm monthly history page (`6d1ffd5`, merged `bb8fdad`):
-    homepage Animals on Farm opens `/animals-on-farm`, a newest-first monthly
-    table plus multi-series line graph for Broilers, Layer Hens, Pigs, Cattle,
-    Sheep, and Total, built from shared `animalHistory.js` snapshot logic and
-    guarded by unit/static readiness coverage.
-  - Docs reconciliation (`0d25ec2`) refreshed the project map through the
-    integrated local lanes before the final lineage and Animals on Farm commits.
-- Earlier docs-only project wrap, pushed `origin/main` `841f99e` (2026-06-10).
-  No source, migration, schema, RLS, Storage, Vault, Edge Function, or
-  production-behavior change.
-- Four code-only UI/data-display lanes, pushed `origin/main` `b562ac5`
-  (2026-06-10). No migrations, schema changes, RLS changes, Storage, Vault, or
-  Edge Function work. Netlify PROD was verified by 200 response, asset rotation
-  to `assets/main-DIBi75mC.js`, and served hover/focus CSS:
-  - Global openable hover affordance (`1881593`): the active HTML entries own the
-    shared `.hoverable-tile` / `.hoverable-row` CSS contract. Tile/card openables
-    use `.hoverable-tile`; table rows use `.hoverable-row`; hover/focus styles
-    are paint-only and keyboard-visible.
-  - Comments farm-time timestamps (`e80e161`): every rendered comment shows a
-    visible absolute posted stamp using canonical Central farm time; fresh
-    comments may append a short relative suffix. Deleted-comment and edit-history
-    stamps use the same absolute format.
-  - Pig Batch Metrics Grid Cleanup (`2e960cb`, merged `b0e89eb`): Pig Batches
-    hub rows now use the locked 14-column inspection grid, whole-row open
-    affordance, active newest-first/default status sort, processed current head
-    forced to `0`, CSV/print parity with the row model, and UI-only `~` estimate
-    marking plus provenance note for proportional sex-split current/feed values.
-  - Broiler weigh-in-sourced read-only week weights (`0bb7689`, merged
-    `b562ac5`): Broiler batch record Week 4 and Week 6 weight values render as
-    read-only display fields sourced from completed weigh-ins; direct
-    `BatchForm` edits to `week4Lbs` / `week6Lbs` are guard-locked out.
-- Operational-list parity + modal token closure, pushed `origin/main` `d7fc2c9`
-  (2026-06-10). Code/tests only; no migration/storage/Vault/deploy. Two
-  integrated lanes, disjoint files, conflict-free:
-  - Six-hub operational-list parity (`21a4532`, merged `6b650aa`): right-sized
-    search/filter/sort + saved views + filtered CSV/print on Pig Batches
-    (`pig.batches`), Cattle Batches (`cattle.batches`), Broiler Batches
-    (`broiler.batches`), Layer Batches (`layer.batches`), Sheep Batches
-    (`sheep.batches`), and Equipment Fleet (`equipment.fleet`). Layer + Sheep
-    Batches converted cards→unified inspection grid. Per-hub pure filter libs
-    (`src/lib/{pig,cattle,broiler,layer,sheep}BatchFilters.js`,
-    `equipmentFleetFilters.js`) own the predicate + single-rule comparator;
-    saved views use the existing `app_saved_views` table + `savedViewsApi` with
-    new `surface_key` strings (no migration). Broiler + Layer exports refactored
-    from hard-coded subsets to the filtered+sorted set; Cattle Batch export count
-    restored to attached-detail-rows only (Lane K parity with sheep); Equipment
-    Fleet fuel-type filter uses the canonical `gasoline` value; Equipment Fuel
-    Log gained a Retry on saved-views load failure. Validation: lint 0 errors,
-    `npm test` 206 files / 5485 passed, build green, per-hub sequence-nav
-    Playwright all pass.
-  - Scoped modal/action token closure, Lane E/I (`49a94f9`, merged `d7fc2c9`):
-    `taskModalStyles` extended to own the recurring/system task modal + lightbox
-    tokens; the admin/cattle/sheep/pig/equipment action modals spread the shared
-    `recordSaveButton`/`recordSecondaryButton` tokens (existing colors preserved
-    via background overrides); cattle send-modal panels move retired radius `8`→
-    `6`. Guards: `modal_action_tokens_static`, `task_modal_tokens_static`.
-- Power-failure-recovery lanes, pushed `origin/main` `a3e6220` (2026-06-10).
-  - Record/shared/auth token closure + Pig Batches unified grid (`b192a2a`,
-    merged `434c6b3`): canonical font/radius conformance across 23
-    record/shared/auth surfaces (guard `record_page_token_closure_static`); the
-    Pig Batches hub redesigned from Active|Processed swimlanes into one unified
-    vertical inspection grid (`PigBatchHubTile` card→row, shared
-    `PIG_BATCH_GRID_COLUMNS`, active-first/processed-bottom sort).
-  - Daily-photo anon-policy drop (migration `109`) + roster-teardown cleanup
-    (`44be516`, merged `a3e6220`): drops the dead `daily_photos_anon_insert`
-    storage policy (PROD-applied + verified 2026-06-10 — see Current State);
-    removes the obsolete broiler `T_negative` runtime app_store-isolation test
-    (source isolation still locked by `weighinswebform_no_app_store`);
-    comment-only updates to the daily-photo upload helpers.
-- Lane A audited-delete RPCs + Codex five-lane shared primitives, pushed source
-  checkpoint `5dde0fe` (2026-06-09). PROD migrations `101`-`104` applied +
-  verified (detail under Current State). Integrated validation before the final
-  push: lint 0 errors, `npm test` 191 files / 5168 passed, build green; live
-  post-push asset-hash rotation to `assets/main-DY8s-Ips.js`. Landed:
-  - Lane A CP2 (`a417d87`, mig `101`): `delete_weigh_in_entry` /
-    `delete_weigh_in_session` SECDEF RPCs — weigh-in entry/session deletes plus
-    comment cleanup and `record.deleted` audit in one transaction.
-  - Lane A CP3 (`428ec2e`, mig `102`/`103`): role-gated fueling delete +
-    `delete_equipment_maintenance_event` SECDEF RPCs for the EquipmentDetail
-    child-log deletes; `103` adds `FOR UPDATE` idempotency to the weigh-in RPCs.
-  - Lane A CP3 follow-up (`5dde0fe`, mig `104`): privileged fueling RPC renamed to
-    `admin_delete_equipment_fueling`, dropping the `delete_equipment_fueling`
-    name collision with migration `091`'s owner-scoped delete.
-  - Codex five-lane (`0e3c9e1`, merged `fcb340b`): `RecordPageLoadError` (Lane E
-    CP4, seven record pages), `OperationalListEmptyState` (Lane F CP3, six daily
-    hubs), `taskModalStyles` (Lane I CP5, five task modals), `dailyReportExports`
-    (Lane K CP2, six daily hubs), and non-daily record action buttons on shared
-    tokens (Lane E CP3). UI preview (desktop + mobile) captured + approved.
-- Record-page + weigh-in shared-primitive lanes, pushed source checkpoint
-  `d71f3de` (2026-06-08). Code/tests only; no PROD migration, Storage, Vault, or
-  Edge Function work. Integrated validation before push: lint 0 errors,
-  `npm test` 186 files / 5108 passed, build green. Live post-push probe:
-  `https://wcfplanner.com/` HTTP 200 serving `assets/main-C5KiCik5.js`, matching
-  the local merged build. Landed:
-  - Lane I CP4 (`859696a`): the six daily record pages route Retry/Revert/Save/
-    Delete through shared canonical action buttons in
-    `src/shared/recordPageControls.jsx` (`recordSaveButton` /
-    `recordSecondaryButton` / `recordDeleteButton`; radius 6, 10px16px pad,
-    fontSize 13). Retired 7/8 radii and bespoke action padding removed; Sheep
-    Save normalized blue→brand green. Add/Remove-row buttons left out of scope.
-    Guard slice in `daily_record_pages_shared_controls_static.test.js`.
-  - Lane J + Lane F CP2 (`04fd932`, merged `09d8c09`): image alt-text policy —
-    `src/lib/imageAlt.js` (`imageAltText`) drives every user-media `<img>` owner
-    with contextual fallbacks and decorative `aria-hidden`; guard
-    `image_alt_text_policy_static.test.js`. Weigh-in list empty states now
-    distinguish true-empty from filtered/search-no-results across cattle/sheep/
-    livestock, preserving load-failure suppression.
-  - Lane E CP2 (`6e31e7f`): `SheepDailyPage` drops its local `inputStyle`
-    primitive and adopts the shared `recordControl` (via the `inp` alias the
-    other daily pages use); feed/mineral row controls derive from it. Behavior,
-    options, validation, and RPC paths unchanged; `btnSmall` row buttons kept.
-    Sheep parity slice added to the shared-controls guard.
-  - Lane F/K (`3e18623`, merged `d71f3de`): shared
-    `src/shared/WeighInSessionListTile.jsx` (tile chrome + status badge with
-    beforeStatus/afterCount/children slots, embedded variant) and
-    `src/lib/weighInSessionExports.js` column builders
-    (`buildRuminantWeighInSessionColumns`, `buildLivestockWeighInSessionColumns`,
-    `averageEntryWeight`). Cattle/sheep/livestock views render through the tile
-    and still export the filtered set; the weigh-in static guard now watches
-    shared tile/helper ownership instead of duplicated view literals.
-
-- Homepage redesign CP3 + outstanding build queue merge, pushed source
-  checkpoint `99e933a` (2026-06-08, commits `93b42fd`, `d716d31`, merge
-  `99e933a`). Code/assets/tests only; no new PROD migrations, Storage, Vault, or
-  Edge Function work. Landed:
-  - Homepage CP3 (`93b42fd`): `HomeDashboard` now uses the scoped
-    `src/dashboard/homeRedesign.css` `.home.theme-crisp` treatment, the approved
-    label-only program tiles, Processing/Admin utility row, live weather card,
-    real Animals-on-Farm counts, blank-but-present Production card, in-app
-    coming-soon destinations for not-built top-level areas, and transparent
-    planner PNG icon assets. `buildEquipmentAttention` keeps full shared
-    `detail` text for non-HomeDashboard consumers, while HomeDashboard uses
-    `metaLabel` + `pill` for the redesigned badge layout.
-  - Lane H terminal copy (`d716d31`): locked submitter/default webform copy is
-    standardized to "Team member" and covered by
-    `webform_terminal_copy_static.test.js`.
-  - Lane I shared token slice (`d716d31`): shared button/radius/title tokens were
-    tightened (`styles.js`, shared primitives, `RecordTitle` default) and locked
-    by `design_token_contract_static.test.js`.
-  - Lane D save-model guard (`d716d31`): `save_model_contract_static.test.js`
-    locks explicit Save/Submit on daily surfaces and autosave on
-    weigh-in/equipment edit surfaces.
-  - Lane F parity (`775aa56` + `d716d31`): saved views and filtered CSV expanded
-    across daily/weigh-in/fuel-log surfaces; Sheep Flocks gained full
-    filter/sort helper parity via `src/lib/sheepFlockFilters.js`; Layer/Egg
-    daily lists gained saved views and visible team filters.
-  - Lane J policy/a11y (`d716d31`): `DeleteModal`/`ConfirmModal` use
-    `useModalFocusTrap`, and central-date defaults are guarded across admin and
-    webform entry points.
-  - Lane K export/print parity (`d716d31`): `src/lib/printExport.js` owns row
-    print HTML/window behavior; print/CSV coverage expanded across cattle/sheep
-    inventory, daily lists, equipment fuel log, and livestock/cattle/sheep
-    weigh-ins.
-  Constituent validation was reported green before commit/merge: homepage CP3
-  had lint/build/full tests and focused homepage/light Playwright; the Codex
-  build queue had `npm test` 183 files / 5062 passed, build, lint, diff, and
-  Prettier checks clean. No post-push live probe is recorded here.
-
-- Post-seven-lane runtime queue, pushed source checkpoint `6620d5d`
-  (2026-06-08, commits `053bafa` through `6620d5d`). Code-only, no new PROD
-  migrations/storage/Vault actions. Landed:
-  - Lane H (`053bafa`): `EquipmentFuelingWebform` submits through
-    `useOfflineRpcSubmit('equipment_fueling')`, queues transient/offline RPC
-    failures to IndexedDB, auto-replays, and exposes `StuckSubmissionsModal`
-    recovery. Migration `047` already provided idempotent replay semantics.
-  - Lane E CP1 (`797ca55`): `PigBatchPage` adopts the shared
-    `RecordPageBody` loaded wrapper with `data-pig-batch-record-loaded`, using
-    the approved left-aligned cap while leaving PigBatchesView ownership intact.
-  - Lane K expansions (`efe24f9`, `2e06edd`, `6620d5d`): shared CSV export
-    expanded beyond Cattle Herds to Sheep Flocks, Sheep Weigh-In Sessions,
-    Equipment Fuel Log, and Cattle Weigh-In Sessions. Exports use
-    `src/lib/csvExport.js` and the active filtered result set, not raw rows.
-    `bf223c9` merged the Codex sheep CSV worktree.
-  Validation before push was green (full tests/build reported clean; standard
-  lint warnings only). No post-push live probe is recorded here.
-
-- Seven-lane integration, migration `100`, PROD (2026-06-08, integrated `main`
-  `91546a7`; CC + Codex parallel lanes). Built on parallel branches, CC-verified,
-  merged in order Lane 0 → Lane A → Codex, then pushed and PROD-deployed
-  (bundle-hash verified). Lanes:
-  - Lane 0 (`2436b75`): InlineNotice correctness — the four flat-prop call sites
-    (`CattleAnimalPage`, `SheepAnimalPage`, `MySubmissions` mutation + load
-    notices) now use the canonical `notice={...}` / `onDismiss` shape (they were
-    rendering nothing); added the benign `info` kind (blue) so
-    `SheepDailyPage`'s "No changes to save." stops rendering as a red error; the
-    legacy `CowDetail` Issues panel is suppressed inside cattle forecast
-    (`hideComments`). Guard: `tests/static/inline_notice_contract_static.test.js`.
-  - Lane A (`8f4bb65`): processing-batch lifecycle RPCs (migration `100`).
-    `CattleBatchPage.handleUnschedule` and `SheepBatchPage.handleDeleteBatch` now
-    route through the audited SECDEF RPCs `unschedule_cattle_processing_batch` /
-    `delete_sheep_processing_batch` instead of direct client deletes — atomic
-    straggler-clear + delete + `record.deleted` audit in one transaction. Wrapper
-    `src/lib/processingBatchDeleteApi.js`.
-  - Lane A (`0455540`): `CattleBreedingView` mounts the audit-only
-    `cattle.breeding` workflow Activity stream (`RecordCollaborationSection`,
-    entity_id `cattle-breeding`, `showComments=false`), reusing the existing
-    stream populated by the mig `094` cycle RPCs. Code-only.
-  - Codex Lanes B/C/D/E/F/G/K (`12cbb07`): Lane B fail-closed loading parity
-    (`RecentlyDeletedDailyReports`, `CattleHerdsView`, `SheepFlocksView`,
-    `MySubmissions` clear stale rows on load failure, show `InlineNotice` +
-    Retry, gate content behind non-error loaded state); Lane C
-    `DeleteModal`/`ConfirmModal` canonical dialog semantics (role/aria-modal/
-    aria-labelledby, Escape, disabled overlay-dismiss); Lane D `EquipmentDetail`
-    pending-autosave flush on blur/pagehide/visibilitychange/unmount, with CC's
-    polish to re-queue a pending edit on save failure instead of dropping it;
-    Lane E `EquipmentDetail` adopts `RecordPageBody`/`RecordTitle` +
-    `data-equipment-record-loaded`; Lane F `SheepFlocksView` saved views via the
-    existing `app_saved_views` API (`surface_key = 'sheep.flocks'`), degrading to
-    an inline notice on load error; Lane G `RecentlyDeletedDailyReports` is a
-    combined Recently Deleted Records surface (daily + cattle + sheep animals),
-    fail-closed, dispatching the correct restore RPC by record kind; Lane K
-    cattle-herd CSV export via the new `src/lib/csvExport.js` (escaping,
-    formula/DDE-injection guard, Central-date filename, sole browser-download
-    owner) — `CattleHerdsView` exports the filtered/sorted `sortedFlat` rows.
-  - Merge note: the `MySubmissions.jsx` overlap (Lane 0 InlineNotice fix vs
-    Codex's fail-closed rewrite) was resolved by keeping the Codex superset —
-    both the Lane 0 `notice={...}` shape and the fail-closed hooks are preserved.
-- Team-member roster teardown, migrations `097`–`099`, PROD (2026-06-06,
-  commits `029b55c` + `33d10af` + `a507d90`). Every public webform submitter is
-  locked to the signed-in user (no roster dropdown); the `team_roster` /
-  `team_members` / `team_availability` machinery was removed front-to-back —
-  `src/lib/teamMembers.js` + `teamAvailability.js` deleted (the unrelated
-  `sortByDailysOrder` webforms-list ordering extracted to
-  `src/lib/dailysOrder.js`), the `WebformsAdminView` roster editor replaced by a
-  Public-Tasks-assignee-only tile, and all roster reads/writes + `wcf_team`
-  localStorage gone. `098` drops the `webform_config` roster keys + the
-  `equipment.team_members` column; `099` adds `daily_photos_auth_insert` (the
-  login-required photo webforms were 403'ing authenticated uploads). The
-  offline/photo Playwright specs were converted from anonymous to authenticated
-  (submitter is the profile full_name, e.g. `Test Admin`). Build + vitest green
-  (174 files / 4771 tests); deploy verified.
-- Processing-attach RPC lane + daily edit-page locks, migration `096`, PROD
-  (2026-06-06, merge `ad47fee`). Authenticated cattle/sheep
-  Send-to-Processor attach flows now use transactional SECDEF RPCs for batch
-  detail, animal state, transfer audit rows, weigh-in stamps, and Activity.
-  Public/shared modal callers keep the legacy helper fallback. The six daily
-  edit pages now lock the Team Member field to the signed-in user using the
-  shared locked-field control.
-- Five-lane ship, code-only except migration `095`, PROD (2026-06-05, merge
-  `97da649`). Landed together and deploy-verified:
-  - Cattle herd filters / row parity / saved views (migration `095`). Removed the
-    local plain-English/Parse smart filter; organized always-visible filter
-    groups (Core, Calving/Breeding, Lineage/Other — no Exceptions group);
-    `Unmatched Calves` is a checkbox off to the right of Lineage/Other;
-    non-calving is a single "No calf since" date control; flat + grouped rows
-    share one `CowListRow` (calf count + last-calved parity); saved views via
-    `app_saved_views` + `src/lib/savedViewsApi.js` (private/public, owner-only
-    edit/delete, RLS-scoped).
-  - Cattle/sheep/pig weigh-in entry debounce autosave + Days-since and signed
-    +/- weight-delta chips. Per-row Save/Revert removed; edits autosave (700ms),
-    on blur, and are flushed before completing a session. Pig autosaves only
-    weight/note and keeps sent-to-trip / transferred rows locked.
-  - Fixed record-page prev/next navigation: `RecordSequenceNav` pins Prev to the
-    left screen edge and Next to the right (vertically centered, broiler
-    side-nav placement), as sleek flat pills with neighbor titles + a small
-    bottom-center "i of n" pill; stays available while scrolling. Broiler batch
-    joined the shared nav and its custom `BatchForm` side-nav was removed.
-    (Placement settled via the `22799f1` hotfix after a bottom-center version
-    read as hidden.)
-  - Broiler auto-processing: active batches auto-advance to `processed` on/after
-    `processingDate` (inclusive) via `shouldAutoProcessBroilerBatch`, persisted in
-    `loadAllData`.
-  - Equipment caught-up home notices (maintenance + materials) and shared home
-    alert builders in `src/dashboard/homeAlerts.js`; the Light home now shows
-    read-only Missed Daily Reports, Equipment Attention, and Next 30 Days
-    (equipment attention routes to `/equipment/<slug>`, never `/fleet`).
-- Audited RPC follow-ups, migration `094`, PROD (2026-06-04, commit
-  `235647c`). Cattle breeding cycle save/delete and sheep lambing record delete
-  now route through authenticated SECDEF RPCs with `search_path = public`,
-  PostgREST grants/reload, and transactional Activity writes. Client code no
-  longer performs direct writes for those flows.
-- Task weekly email correction, migration `093`, PROD (2026-06-04, commit
-  `c0b3fed`). `tasks-summary-weekly` now runs Sunday 8am America/Chicago with
-  dual UTC cron entries and helper-side DST gating. The weekly window starts at
-  the previous Sunday 8am Central. Completed-assigned coverage comes from
-  `task_completed` notifications owed to task creators/assignors; recipients
-  are open assignees union completed-assigned recipients, assigned-only
-  recipients still receive email, and both-empty recipients are skipped.
-
-- Authenticated Light-user portal, CP1+CP2, migrations `087`–`092`, PROD
-  (2026-06-04, commit `4b69510` + merge `7de1758`). CP1: real authenticated
-  `light` role; the former public report/form URLs (daily, Add Feed, equipment
-  fueling, fuel supply, weigh-in) are now login-required with preserved
-  URLs/aliases and return-to-URL after login; submitter is locked to the
-  signed-in user; Light users are contained to a portal (daily list/record
-  views, Add Feed, equipment fueling checklist, Tasks, My Submissions) and
-  everything else fails closed. CP2: Light reads ALL reports but edits/deletes
-  only its OWN, server-enforced — `owner_profile_id` stamped from `auth.uid()`
-  by a BEFORE INSERT trigger (never client-supplied; NULL = legacy/unowned =
-  read-only for Light), all daily edits/deletes routed through SECURITY DEFINER
-  ownership RPCs with positive per-table column allowlists and server-side
-  `field.updated` Activity diffs, and the `092` red-switch revoking direct
-  PostgREST UPDATE/DELETE so enforcement is server-side, not UI-only.
-- Feed second-tile current-month pin, code-only, PROD. The second feed summary
-  tile (pig + broiler) stays on the current calendar month estimate via
-  `estTileYM` and no longer rolls forward when a feed order advances the order
-  workflow `activeYM`.
-- Pig planned-trip weight forecast audit + weigh-in/batch-tile refinements,
-  code-only, PROD.
-- Cattle herd missing-dam / exception filters, code-only, PROD. `CattleHerdsView`
-  exception filters backed by `src/lib/cattleHerdFilters.js`. (Superseded by the
-  2026-06-05 herd-filters rewrite + saved views, migration `095` — see Latest
-  Shipped Checkpoint and the Cattle And Sheep contract for the current shape.)
-- Broiler on-farm count reconciliation, code-only, PROD. On-farm count derives
-  from `src/lib/broiler.js` with a dedicated static guard.
-- Legacy Activity composer RPC retirement, migration `080`, PROD. Historical
-  composer/count functions remain in SQL but client execute is revoked for anon
-  and authenticated roles.
-- Processing detach Activity RPCs, migration `081`, PROD. Authenticated cattle
-  and sheep processing-batch pages now detach through audited SECDEF RPCs that
-  revert animals, clear weigh-in links, and log Activity in one transaction.
-- Daily duplicate cleanup and unique indexes, migrations `085` then `084`,
-  PROD. Historical duplicate active daily rows were soft-deleted, duplicate
-  preflight now passes, and partial unique indexes enforce daily identity for
-  poultry, pig, layer, cattle, and sheep daily reports.
-- Daily duplicate app handling and equipment maintenance idempotency, migration
-  `086`, PROD. Daily report duplicate constraint failures now show friendly
-  messages across app edit/create surfaces, offline replay treats superseded
-  duplicate dailys as non-stuck, and equipment maintenance events have
-  `client_submission_id` idempotency protection against accidental double
-  submits without blocking legitimate same-day service entries.
-- Cattle forecast Activity log UI, commit `957f577` plus follow-up correction.
-  `/cattle/forecast` renders Activity-only logs inside each expanded month
-  bucket. Month bucket logs read the `cattle.forecast` stream and filter by
-  `payload.month_key` so each month shows only its own Activity.
-- Static hardening and inventory guards. The current tree locks source-wide
-  table/bucket/env/local storage/API boundaries plus mutation/delete/load/UI
-  inventories. Treat the matching static guards as the source of truth for
-  current inventory counts.
-
-### Current Local Gates
-
-No PROD migration, Storage, Vault, or Edge Function gate is open. Migrations
-`113`/`114`/`115` are PROD-applied, the To Do weekly-digest Edge functions
-(`tasks-summary` v6, `rapid-processor` v25) were deployed + verified to PROD on
-2026-06-13, and CC reported the daily-hub token, PWA cache, and Cattle Log
-unmatched-calves lanes live. CC state-synced the Home text-color hotfix
-(`1acd43d`) on `origin/main` with local `main` 0/0; if a future gate needs served
-PROD proof, verify the served asset next session.
-
-- At wrap time, main worktree `C:\Users\Ronni\WCF-planner` was on `main` at
-  source checkpoint `1acd43d`, with only this `PROJECT.md` wrap tracked. The only
-  known untracked local artifacts were `daily-hub-shots/` and
-  `tests/daily_hub_token_shots.spec.js`, intentionally left uncommitted unless
-  Ronnie asks.
-- PROD-applied recent migrations: `112_cattle_log`,
-  `113_light_daily_report_edit_window`, `114_task_photo_total_limit`, and
-  `115_todo_items`.
-- Existing parallel worktrees at this wrap are stale shipped-lane worktrees:
-  `C:\Users\Ronni\WCF-planner-codex-cattle-log-unmatched` (`052af25`,
-  `codex/cattle-log-unmatched-calves`) and
-  `C:\Users\Ronni\WCF-planner-codex-pwa-cache` (`4f85c44`,
-  `codex/pwa-offline-cache`). Do not build from them unless Ronnie explicitly
-  reopens that lane; create any new scoped branch/worktree from current `main`.
-
-If a new session sees additional dirty state, inspect it before planning; do not
-assume it is disposable. Create new scoped worktrees/branches only for active
-lanes, and prune them after merge once Ronnie confirms. Per-lane worktrees need
-their own `node_modules` (`npm ci`) and gitignored `.env.test*` to run
-tests/Playwright. See [HO.md](HO.md) Parallel Codex Worktree.
-
-### Build Queue
+## Build Queue
 
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
-This is the canonical home for outstanding build/design work; do not scatter
-hidden to-do notes through later contract sections.
-Shipped 2026-06-04 (removed from queue): authenticated Light-user portal CP1+CP2,
-pig planned-trip weight audit, cattle missing-dam herd filters, feed second-tile
-current-month pin, broiler on-farm count reconciliation, and task weekly email
-correction.
-Shipped 2026-06-05 (removed from queue): cattle herd filters / row parity /
-saved views (migration `095`), cattle/sheep/pig weigh-in debounce autosave +
-Days/delta chips, fixed record-page prev/next nav + broiler batch on the shared
-nav, broiler auto-processing on processing date, equipment caught-up home
-notices, and Light home alerts with shared `homeAlerts.js` builders.
-Shipped 2026-06-06 (removed from queue): the Sprint 1 Lane 0 locked-submitter
-item plus the full team-member roster teardown - `TasksWebform` submitter locked
-to the signed-in user (migration `097`), all `team_roster` / `team_availability`
-code + storage removed (migration `098`), and the `daily_photos_auth_insert`
-storage policy added so authenticated photo uploads work (migration `099`).
-Roster-teardown follow-ups are closed: the obsolete
-`broiler_weigh_in_schooners` T_negative runtime app_store-isolation test was
-removed after `/weighins` became login-required, source isolation stays locked
-by `tests/static/weighinswebform_no_app_store`, and the old
-`daily_photos_anon_insert` policy follow-up is complete via migration `109`.
-Shipped 2026-06-08 (removed/trimmed from queue): Lane 0 InlineNotice correctness
-(all four flat-prop call sites + `info` kind + forecast Issues suppression — the
-final Lane 0 items); Lane A processing-batch lifecycle RPCs (migration `100`);
-Lane A cattle.breeding Activity mount; and Codex Lanes B (fail-closed loading
-parity on the recovery/list/MySubmissions surfaces), C (DeleteModal/ConfirmModal
-canonical dialog semantics), D (EquipmentDetail autosave flush + re-queue), E
-(EquipmentDetail shared record chrome), F-narrow (Sheep Flocks saved views on
-`app_saved_views` surface_key `sheep.flocks`), G (combined Recently Deleted
-Records recovery surface), and K-narrow (cattle-herd CSV export). Later shipped
-blocks below close or trim the larger A/D/E/F/K scopes; the lane status list
-below is authoritative for current queue state.
-Additional 2026-06-08 shipped queue now on `origin/main` `d71f3de`: Lane H
-EquipmentFueling offline queue + stuck recovery plus terminal-copy parity; Lane
-E Pig batch `RecordPageBody` CP1 plus Sheep daily CP2 shared-control parity;
-Lane I homepage redesign CP1-CP3 plus shared token/action-button guard slices;
-Lane D save-model guard slice; Lane F saved-view/filter/sort parity, weigh-in
-empty-state parity, and shared weigh-in tile primitives; Lane J modal focus/
-central-date policy plus image alt-text policy; and Lane K CSV/print expansion
-through the listed daily, weigh-in, fuel-log, inventory surfaces plus shared
-weigh-in column builders. That 2026-06-08 checkpoint left no local-only build
-work.
-Additional 2026-06-09 Lane A work (PROD-applied + verified, not source-only):
-weigh-in entry/session deletes (`101`) and EquipmentDetail fueling/maintenance
-deletes (`102`) route through transactional audited RPCs; `103` hardens the
-weigh-in delete RPCs with target-row `FOR UPDATE`; and `104` renames the
-privileged fueling RPC to `admin_delete_equipment_fueling`, dropping a name
-collision with the migration-`091` owner-scoped delete. Current State carries the
-live PROD apply/verification detail.
-Also shipped 2026-06-09 (Codex five-lane, `0e3c9e1` merged via `fcb340b`):
-shared record/list/modal primitives — non-daily record-page action buttons on
-shared record tokens (Lane E CP3); `src/lib/dailyReportExports.js` daily-hub
-CSV/print column builders consumed by the six daily hubs (Lane K CP2);
-`src/tasks/taskModalStyles.js` task-modal token extraction across the five task
-modals (Lane I CP5); shared `src/shared/RecordPageLoadError.jsx` adopted by seven
-non-daily record pages (Lane E CP4); and shared
-`src/shared/OperationalListEmptyState.jsx` adopted by six daily list hubs with
-row rendering gated behind successful load + nonempty filtered rows (Lane F CP3).
-UI preview (desktop + mobile) was captured and approved before merge.
-Shipped 2026-06-10 (this session, pushed `origin/main` `d7fc2c9`):
-- Power-failure recovery: source-wide record/shared/auth visual-token closure +
-  the Pig Batches swimlanes→unified-inspection-grid redesign (`b192a2a`); the
-  daily-photo dead anon-policy drop (migration `109`, PROD-applied) + roster
-  cleanup (`44be516`).
-- Lane F + Lane K six-hub operational-list parity: right-sized search/filter/sort
-  + saved views (new `app_saved_views` surface_keys `pig.batches` / `cattle.batches`
-  / `broiler.batches` / `layer.batches` / `sheep.batches` / `equipment.fleet`, no
-  migration) + filtered CSV/print, via per-hub pure filter libs; Layer + Sheep
-  Batches converted cards→unified grid; Equipment Fuel Log saved-views Retry
-  (`21a4532`).
-- Lane E/I scoped modal/action token closure across the task + weigh-in +
-  send-to-processor + equipment modals (`49a94f9`).
-Detail in Latest Shipped Checkpoint above; six-hub visual screenshots waived by
-Ronnie.
-Shipped later 2026-06-10 (removed from queue, pushed `origin/main` `b562ac5`):
-- Global openable hover affordance: shared `.hoverable-tile` / `.hoverable-row`
-  CSS contract across active HTML entries, with div/card vs `tr` ownership,
-  paint-only hover/focus, and visible keyboard focus.
-- Pig Batch Metrics Grid Cleanup: the Pig Batches hub now uses the locked
-  14-column inspection grid, whole-row open affordance, active newest-first sort,
-  processed current head `0`, row-model CSV/print parity, and UI-only `~`
-  estimate labeling/provenance for proportional sex-split current/feed values.
-- Broiler weigh-in-sourced read-only week weights: Broiler batch record Week 4
-  and Week 6 weight values are read-only display values pulled from completed
-  weigh-ins; direct `BatchForm` edits to `week4Lbs` / `week6Lbs` are forbidden by
-  static guard.
-- Comment timestamps: every rendered comment shows a visible absolute Central
-  farm-time posted stamp, with fresh relative suffix where applicable; deleted
-  and edit-history timestamps use the same farm-time format.
-Validation before push: lint 0 errors, `npm test` 208 files / 5508 passed, build
-green, focused Pig Batch sequence-nav and Broiler record-edit Playwright specs
-green. No migrations/schema/RLS/storage/PROD DB work.
-Shipped 2026-06-11 (removed from queue, pushed `origin/main` `bb8fdad`):
-- Source-wide openable hover affordance rollout (`0efff11`): every openable
-  card/tile/row/expander carries `.hoverable-tile`/`.hoverable-row` plus
-  keyboard activation via shared `src/shared/openable.js` where needed.
-  HomeWeatherCard collapsed card adopted the approved `card weather-card lift`
-  treatment; timeline chart bars intentionally keep their bespoke tooltip/
-  outline hover.
-- Codex Lane E/F closure (`8226ae6`, merged `920f8c2`): the six daily record
-  pages and equipment fueling/checklist entry pages delegate fail-closed
-  load-error chrome to `RecordPageLoadError`; retry hooks and loaded/error
-  markers are preserved and guarded.
-- Codex Lane I slice (`27337d7`, merged `a2788ae`): batch/session record titles
-  move `RecordTitle` fontSize 24 -> 22 (canonical compact size) on six pages;
-  `record_page_token_closure_static` now catches retired JSX fontSize props.
-- Cattle calf/dam lineage triage (`9d17855`): the pre-existing Playwright
-  failures were stale inline-expansion expectations; the spec now follows the
-  herd-list row click to the cattle animal record page and asserts lineage there.
-  Product source was unchanged.
-- Animals on Farm monthly history page (`6d1ffd5`, merged `bb8fdad`): homepage
-  Animals on Farm opens `/animals-on-farm`, with newest-first monthly table,
-  multi-series line graph, species totals, fail-closed loading, and static/unit
-  guards.
-Validation before push: `npm run format:check` green, `npm run lint` 0 errors,
-`npm test` 211 files / 5540 passed, `npm run build` green, `git diff --check`
-clean. Netlify live verification passed; no migration/schema/RLS/storage/PROD DB
-work.
-Shipped 2026-06-12 (removed from queue, pushed `origin/main` `37668fd`):
-- Animals on Farm display polish: table and line graph now start at Oct 2024,
-  month labeling avoids local-time rollback, and the table month sublabel was
-  removed.
-- Public cattle weigh-in fixes: Swap Tag saves cleanly under the
-  reconcile-intent constraint; current/prior tag history keeps retagged cow
-  weight history visible; blacklisted cattle stay red in the dropdown and recent
-  entries; cattle option labels include sex.
-- Calf-row dam automation: migration `110` promotes a heifer to cow when a calf
-  row is linked to her as dam, with a calving-source audit comment and existing
-  row backfill.
-- Public weigh-in recent-entry layout polish: fixed-grid row alignment, removed
-  row scrollbars, widened active session layout.
-- Weigh-in note mirroring: migration `111` mirrors cattle/sheep/pig/broiler
-  entry/session notes into canonical record-page comments.
-- Public weigh-in entry edit parity: recent-entry edits can change tag,
-  missing-tag mode, weight, and note with duplicate/unknown-tag safeguards.
-- New Cow / reconcile refinement: `+ New Cow` no longer asks for prior tag, and
-  the reconcile dropdown shows the prior-weight-aware animal label.
-Validation before latest push: `npm run format:check` green, `npm run lint` 0
-errors, `npm test` 212 files / 5567 passed, `npm run build` green,
-`git diff --check` clean. Netlify live verification passed; migrations `110` and
-`111` are already PROD-applied; no storage/Vault/Edge Function work.
-Shipped 2026-06-09 (this session, code checkpoint `ab39eb2`, followed by docs
-wrap `b5f433d`; visual preview waived by Ronnie for this push):
-- Lane 15 Tasks creation/public config: Public Tasks assignee checkbox grid;
-  New Task modal One-time/Recurring toggle, recurring available to all
-  authenticated roles except Light via the new `create_recurring_task_template`
-  SECDEF RPC (migration `105`).
-- Lane 16 Broiler dashboard/batches: trend = latest 9 processed; Hatchery column
-  after Breed in Batch Comparison; active dashboard tiles open the batch record
-  page.
-- Lane 17 Equipment attention + record pages: grouped per-equipment attention
-  notices with typed items; standalone read-only `/fleet/fueling/<id>` and
-  `/fleet/checklist/<id>` record pages on the `equipment.item` entity.
-- Lane 18 Cattle weigh-in record-page entry parity: dense tag-ascending table,
-  herd-scoped diminishing picker + reconcile panel, completion blocked on
-  unresolved `new_tag_flag`.
-- Lanes 13/14/E/F (Codex pig batch): RecordSequenceNav UX (desktop icon-only
-  edge chevrons + in-flow mobile row), pig breeding-pig record pages at
-  `/pig/sows/<id>`, PigBatchPage record chrome, pig hub/list parity; plus
-  source-derived processing-trip metrics (the shared `processingTripPigCount`
-  resolver: actual weights come from stamped weigh-in source rows, with a stored
-  fallback for legacy trips).
-- Lane K export/print: shared `src/lib/operationalExportColumns.js` column owner
-  wired into Activity Log, Equipment Fleet, and the cattle/sheep/broiler/layer/
-  pig batch hubs (CSV via `csvExport.js`, print via `printExport.js`, visible
-  filtered rows, hub-matching metric derivations).
-- Lane A final audit/RPC closure: audited cascade-delete SECDEF RPCs `delete_layer_batch`
-  (`106`), `delete_fuel_bill` (`107`), `delete_feed_input` (`108`); best-effort
-  `pig.batch`/`broiler.batch`/`layer.batch`/`layer.housing`/`sheep.animal`
-  Activity emissions for the app_store/retire flows that previously left no
-  trace. Layer retire (status) is the audited normal flock-end path; hard-delete
-  is the rare cleanup. Inventory: of ~90 destructive/multi-table flows, 74
-  no-action, the rest covered here.
-- Light role audit: Light portal design parity (reuses the approved
-  `.home.theme-crisp` white-panel classes; Equipment Attention no longer colored;
-  `/equipment` containment intact) and an admin-only, in-memory, non-persisting
-  role-preview tool (`AuthContext` real vs effective state + Header select/banner)
-  for smoke-testing what each auth level sees. My Submissions confirmed correct
-  as-is (own fueling/fuel-supply records; dailies edited via the allowlisted
-  daily pages).
-- Lane J home KPI uniform frame: DROPPED. Per Ronnie, program dashboards stay
-  program-specific; the only home-dashboard target was dead code, so the lane was
-  reverted, not shipped.
+This is the canonical home for outstanding build/design work.
 
-Detailed parity evidence lives in
-`C:\Users\Ronni\cc-research\parity-audit-2026-06-05-CC.md`; line-level findings
-stay there, not in this durable map.
+1. Pasture Map CP2: Draw/Edit/Snap/Measure
+   - Class: `ENH`.
+   - Scope: build the manager/admin drawing and geometry-editing workflow inside
+     `/pasture-map`.
+   - Must include: draw new polygons, edit existing polygons, snap/measure HUD,
+     validate self-intersections, preserve append-only geometry versions, update
+     geodesic acreage, and keep manual acreage override distinct from computed
+     acreage.
+   - Out of scope: move ledger, occupancy, rest coloring, stocking density,
+     planned moves, offline imagery cache.
+   - Validation target: `pastureKml` unit coverage, static route/RLS guards,
+     focused Playwright for draw/edit/close on desktop and mobile.
+   - Gate: code push only unless SQL changes beyond migration `116` are needed.
 
-Class legend: `DEFECT` = build without a product decision once scoped;
-`DECISION` = Ronnie must choose product/UX/policy before build; `ENH` =
-enhancement/polish lane.
+2. Pasture Map CP3: Move Ledger, Current Occupancy, Rest Coloring
+   - Class: `ENH`.
+   - Scope: append-only move ledger decoupling species/groups from land areas by
+     dated move events.
+   - Must include: current animal-group location display on the map, occupied
+     color, under-60-day-rest color, baseline/no-history neutral state, ad-hoc
+     sheep/breeder-pig spatial overlap reset, warnings-not-blocks for early
+     re-entry and feeder-pig exclusivity.
+   - Product rules already decided: no fake last-grazed date; once an animal
+     touches any part of a paddock/rest unit, rest resets for that unit; cattle
+     one paddock per herd; sheep/breeder pigs may use overlapping ad-hoc areas;
+     chickens excluded except laying-hen history/location may be considered
+     later.
+   - Gate: new SQL/RPC migration expected; TEST apply inside lane, PROD apply
+     requires Ronnie approval.
 
-Locked queue direction from Ronnie (2026-06-09):
-- Physically deleted root records keep durable history in global Activity only;
-  do not build tombstone/deleted-record pages unless reopened.
-- Move destructive flows to SECDEF RPCs only when they are audit-critical,
-  multi-table, lifecycle/cascade, or cleanup-sensitive. Do not wrap tiny
-  owner-scoped preference/config deletes just for uniformity.
-- Pig batch owns full record-page chrome parity; preserve its heavier workflow.
-- Saved views, richer search, sort, and filters are for high-repeat operational
-  lists only, not every small admin/config list.
-- AI-assisted filtering/sorting stays later-roadmap work; if built, it suggests
-  filters/sorts with preview/apply.
-- CSV/print expansion is for operational/reporting surfaces only.
-- Visual-token cleanup should be strict and source-wide, with screenshots for
-  visible UI changes.
-- Program dashboards stay program-specific unless Ronnie reopens the dropped Lane
-  J KPI-frame decision.
+3. Pasture Map CP4: Planned Moves, History Reports, Stocking Density
+   - Class: `ENH`.
+   - Scope: planning and reporting on top of the move ledger.
+   - Must include: planned moves, same-day second-move time prompts only when
+     needed, paddock/group history, rest reports, stocking density, animal-days
+     per acre counters.
+   - Out of scope for v1: stocking rate/AUM convention and utilization percent
+     unless Ronnie reopens that decision.
+   - Gate: likely SQL/RPC and reporting guards.
 
-Current open queue after the 2026-06-13 `1acd43d` source checkpoint:
+4. Pasture Map CP5: Offline Field Use
+   - Class: `ENH`/`DECISION`.
+   - Required v1 baseline: offline vector outlines, GPS dot, move logging/queue,
+     and field-created paddocks when signal is gone or spotty.
+   - Scoped last/may-slip: offline imagery cache. NAIP-only if built; Esri World
+     Imagery must not be cached offline unless terms explicitly allow it.
+   - Gate: explicit Ronnie confirmation required before treating offline imagery
+     as mandatory.
 
-1. Home aesthetic parity pilot. Class: `DECISION`/`ENH`. Size: medium/large.
-   Status: CC/Codex consensus reached on the investigation and pilot shape;
-   Ronnie redirected to this wrap before answering Q1. Do not build until Codex
-   asks Ronnie the question queue below one at a time, then packages the final
-   CC build prompt. Product goal: bring the rest of the app into parity with the
-   Home page aesthetic - clean near-white canvas, white navigable cards/buttons,
-   restrained pastel only for subtle reminders/callouts, crisp hover/focus
-   affordance, and a two-color text hierarchy for ordinary text.
+5. Parity Residuals
+   - Class: `ENH`.
+   - Known small follow-ups from the parity rollout:
+     HomeDashboard admin Last-5-Days inline block, cattle herd-color owner
+     reconciliation, and SheepDailysView flock row-badge residual.
+   - Scope each separately; do not reopen a full site-wide parity pass without a
+     new audit.
+   - Gate: code-only unless a touched surface needs a guard update.
 
-   Investigation basis:
-   - CC audited all roughly 67 surfaces plus shared chrome/governance and
-     adversarially reviewed the result; Codex independently investigated and the
-     two audits converged.
-   - Home is a documented scoped design island under `.home.theme-crisp`, with
-     OKLCH palette, Home-only radii (`18`/`12`/`9`), fractional type
-     (`15.5`/`11.5`), weights above the shared scale (`550`-`800`), and live
-     drift from the older written spec. Freeze parity from the live CSS, not
-     stale prose.
-   - The app is mostly inline-styled rather than class-based (audit estimate:
-     about 145 files and about 7,400 `style` blocks), so full Home parity is a
-     design-system re-platforming, not a one-shot restyle.
+6. Dependency Audit Lane
+   - Class: `DEFECT`/`ENH`.
+   - Scope: review `npm audit` findings after the 2026-06-15 dependency install.
+   - Success criteria: identify direct vs transitive vulnerabilities, decide
+     safe upgrades, avoid breaking Vite/React/Supabase/Playwright toolchain.
+   - Gate: code/dependency lockfile push; no PROD DB work expected.
 
-   Consensus build direction:
-   - Pilot first, not a global `.hoverable-tile` mutation. Build scoped Home-like
-     primitives and route-level changes, screenshot them, then decide whether to
-     expand globally. Gotcha for any later global change: `.hoverable-tile` /
-     `.hoverable-row` are defined byte-identical in `index.html`, `dailys.html`,
-     and `equipment.html` and guard-asserted identical, so a future global hover
-     change must edit all three HTML files plus the guard atomically.
-   - Pilot routes only: `/dailys` selector page (`WebformHub` selector cards,
-     not Add Feed/Weigh-ins/Tasks/forms), `/equipment` public FuelingHub picker
-     only (not `/equipment/<slug>`, `/equipment/supply`, `/fleet`, `/fleet/fuel-log`,
-     or admin), and `/cattle/herds` herd list/filter page only (not cow details,
-     modals, bulk import, or subpages).
-   - The green authenticated Header/nav stays as-is in this phase.
-   - Use new crisp primitives at the existing canonical app token scale:
-     card/surface radius `14` instead of Home's scoped `18`, integer font sizes,
-     and weights `400`-`700`. This is the reconcile-down path and should not
-     require a Constitution amendment. Home itself remains the approved scoped
-     design-reference exception.
-   - Freeze the live Home near-white canvas as a named token based on
-     `oklch(0.991 0.002 225)`. Do not scatter-copy that literal across routes.
-   - Add `prefers-reduced-motion` handling to any new lift/chevron primitive.
-   - Desktop cards/tiles should lift with a soft shadow, stronger border, and
-     chevron reveal on hover/focus. Rows/tables should use a wash-only state, not
-     lift. Mobile/touch should keep chevrons visible because hover does not fire
-     and field users are often mobile-first.
-   - Convert broad pastel navigable fills on the three pilot routes to white
-     surfaces with small accents where approved (dot, left rail, chip, or icon).
-     Preserve true semantic warning/error/success/info/status callouts.
-   - Active filters/tabs should move toward white/outline/brand-color treatment
-     unless they are true warnings.
-   - `/cattle/herds` has divergent herd-color maps (`CattleHerdsView`,
-     `CattleForecastView`, `CattleHomeView`, plus cow-detail imports). If the
-     pilot converts herd color into small accents, reconcile the herd color owner
-     in the same scoped change. FLOCK/PIG_GROUP/BREED/category maps are later
-     phases unless touched by the pilot.
+---
 
-   Ratified text-color hierarchy from the Home hotfix:
-   - Ordinary main text is pure black (`#000000`): titles, headings, primary
-     labels, buttons, card titles, row primary names, and primary production or
-     animal-count numbers.
-   - Supporting text is muted gray: helper copy, metadata, secondary labels,
-     animal-type labels like the Home Animals-on-Farm "Cattle" label, and
-     Missed Daily Reports subtext.
-   - Intentional summary accents remain allowed, such as the Home Total value.
-   - Semantic colors stay semantic inside pastel/status/warning/error/success/
-     info/weather/overdue blocks unless that block is explicitly redesigned.
-   - The text-color pass is typography-only; it must not silently change
-     backgrounds.
-   - Home implementation already shipped in `1acd43d`: `--text`/`--label` pure
-     black, subtext muted gray, Total brand-colored, Missed Daily Reports title
-     black, Last 5 Days admin report colors unchanged, and weather semantic
-     rain/freeze colors preserved.
+## Global Decisions (Constitution)
 
-   Guard and proof target:
-   - Add scoped static guards for pilot text hierarchy and broad-pastel
-     navigable-card usage outside the pilot allowlist. Expand later only after
-     screenshots and Ronnie approval.
-   - Capture before/after screenshots for desktop and mobile, including hover or
-     focus states where the chevron is revealed. Public/mobile field use matters;
-     do not rely only on desktop screenshots.
-   Frozen Home parity token reference (Phase 0). CC produced this read-only
-   reference from the live `src/dashboard/homeRedesign.css` at `19c2326` (freeze
-   from live CSS, not stale prose; refreshed after the `19c2326` border-contrast
-   hotfix darkened the Home border tokens). The pilot primitive builds against
-   these exact values; APP radius/type stay canonical (reconcile-down):
-   - Neutrals/surfaces (use the Home color values directly): canvas (page bg)
-     `oklch(0.991 0.002 225)` promoted to ONE named token; surface `#ffffff`;
-     surface-2 `oklch(0.975 0.003 225)`; border `oklch(0.84 0.008 230)` 1px;
-     border-strong `oklch(0.72 0.011 230)`; divider `oklch(0.938 0.004 230)`;
-     row-hover wash `oklch(0.979 0.003 230)`. Border tokens are the darker
-     post-hotfix values (`19c2326`, 2026-06-15): Home now applies them via a
-     scoped `.home.theme-crisp.home-dashboard` override of `--border`/
-     `--border-strong` (base `.theme-crisp` still carries the older lighter
-     `0.915`/`0.85` values), and hardcoded inline `#e5e7eb`/`#e2e8f0` card,
-     button, and Last-5-Days borders were converted to `var(--border)` so they
-     inherit the darker token. Global parity bases card/button/section border
-     contrast on these darker values, NOT the lighter base-token values.
-   - Elevation: shadow-card (rest) `0 1px 2px rgba(20,30,40,0.045)`; shadow-hover
-     (lift) `0 7px 20px rgba(20,30,40,0.1)`.
-   - Text (locked, post-hotfix): main/title/label/button-label/row-name/primary-
-     number `#000000`; subtext/help/metadata/counts muted gray
-     `oklch(0.52 0.012 250)`; faint (sparing) `oklch(0.69 0.01 250)`; brand accent
-     (totals/links/chevron/focus, NOT primary CTA) `oklch(0.5 0.095 162)`; admin
-     Last-5-Days exception kept at `--admin-daily-text oklch(0.24 0.015 250)` /
-     `--admin-daily-label oklch(0.58 0.015 250)`.
-   - Radius (Home -> APP canonical; no `18`/`12`/`9` in app code): cards/tiles/
-     panels `18 -> 14`; notes/banners `12 -> 10`; controls/inputs/buttons `9 -> 6`;
-     pills `999`.
-   - Typography (Home -> APP canonical): fractional sizes (`15.5`/`12.5`/`11.5`)
-     -> integer set `{10,11,12,13,14,15,16,18,20,22,26}`; weights `550`-`800` ->
-     `{400,500,600,700}` (e.g. tile-label `15.5/680 -> 15-16/700`, section-label
-     `11.5/700 -> 11-12/700`, stat `28/750 -> 26/700`).
-   - Hover/affordance: cards/tiles rest = surface+border+shadow-card, hover =
-     `translateY(-2px)` + shadow-hover + border-strong (0.16s); dense rows = no
-     lift, row-hover wash (0.14s) + `:focus-visible` 2px brand outline offset -2px
-     (paint-only); chevron rest = hidden (`opacity 0`, `translateX(-4px)`, faint),
-     hover/focus = `opacity 1`, `transform none`, brand (0.16s); mobile/touch =
-     always visible; add `prefers-reduced-motion`.
-   - Pastel: `*-soft` tokens (danger/warn/ok/info, ~0.95 lightness) back chips/
-     badges/notes/status ONLY, never card/page fills; inks `warn-ink`/`ok-ink`;
-     program/species use full `--c-*` dots; semantic identity (herd/flock/group/
-     breed/category) -> small accent (dot/left-rail/chip), not full-row fill.
+The following decisions are locked and govern future builds. New code and
+surface changes MUST conform unless this section is amended.
 
-   Pilot-critical question queue for next session, ask Ronnie one at a time:
-   1. Should the pilot use existing canonical app tokens instead of exact Home
-      values? Recommended answer: yes - radius `14` not `18`, integer type, and
-      weights `400`-`700`, so no Constitution amendment is needed.
-   2. Should the near-white Home canvas be promoted as a named token based on
-      `oklch(0.991 0.002 225)`? Recommended answer: yes - one token, no
-      literal copy-paste.
-   3. Should reduced-motion support be baked into the new lift/chevron primitive
-      now? Recommended answer: yes.
-   4. Confirm pilot scope as the three named routes only. Recommended answer:
-      yes.
-   5. Confirm `/equipment` scope as the public FuelingHub picker only, excluding
-      `/equipment/<slug>`, `/equipment/supply`, `/fleet`, `/fleet/fuel-log`, and
-      admin. Recommended answer: yes.
-   6. Confirm `/dailys` scope as the WebformHub selector page only, excluding
-      Add Feed, Weigh-Ins, Tasks, and entry forms. Recommended answer: yes.
-   7. Confirm `/cattle/herds` scope as the herd list/filter page only, excluding
-      cow detail, modals, bulk import, and subpages. Recommended answer: yes.
-   8. Should the green authenticated Header/nav stay as-is for phase one?
-      Recommended answer: yes.
-   9. On desktop, should chevrons be hidden at rest and revealed on hover plus
-      keyboard focus? Recommended answer: yes.
-   10. For mobile/touch, should chevrons stay visible while desktop reveals them
-       on hover/focus? Recommended answer: yes - field users need the affordance
-       without hover.
-   11. Should rows/tables use only a wash state while cards/tiles get lift and
-      shadow? Recommended answer: yes - keeps dense operational lists stable.
-   12. On `/equipment`, should category-colored equipment cards become white
-       cards with small category accents? Recommended answer: yes, unless Ronnie
-       wants a specific equipment category to remain a semantic warning.
-   13. On `/dailys`, should the report selector cards become white with small
-       icons/accent chips while preserving true reminder/status callouts?
-      Recommended answer: yes.
-   14. On `/cattle/herds`, should herd group color move from broad pastel fills
-       to small accents and reconciled color ownership? Recommended answer: yes
-       for the pilot page only.
-   15. Should active filters/tabs become white/outlined/brand treatment except
-       true warning filters like unmatched calves? Recommended answer: yes.
-   16. Should the text hierarchy rule be applied to pilot routes at the same time
-       as the pastel/hover pass? Recommended answer: yes, but only for ordinary
-       main/subtext, leaving semantic/status colors intact.
-   17. Should CC include the scoped guards and desktop/mobile hover/focus
-       screenshots in the first pilot build? Recommended answer: yes.
+Rules:
 
-   Parked post-pilot decision backlog, not required before the pilot build:
-   - App-wide amend-up vs reconcile-down if the pilot preview makes canonical
-     `14`/integer/`400`-`700` values feel insufficient.
-   - Direct value migration vs a CSS-variable token layer for the wider rollout.
-   - One canonical modal scrim token.
-   - Global input/focus retokenization and brand-vs-green focus treatment.
-   - Canonical button color policy, including whether to collapse rogue
-     per-program hues, `ConfirmModal` `#1d4ed8`, and `InlineNotice` info-blue.
-   - Decorative/index-cycling/zebra fills; keep zebra only for dense data tables
-     if approved.
-   - Chart/graph/data-viz palette scope.
-   - Print/PDF/CSV export visual palette scope.
-   - Canonical responsive breakpoint set.
-   - Auth/login/set-password/boot/loading green splash screens, decided together
-     with the Header as green brand chrome vs whitened entry surfaces.
-   - Legacy token debt such as `ErrorBoundary` radius `12` / `#f1f3f2`, stat-card
-     helper styles, ComingSoon, and empty/error/crash states.
-   - Whether to add broader color + scrim assertions to
-     `design_token_contract_static`.
+- No surface may silently diverge from a locked decision. New exceptions MUST be
+  added to `## Intentional Non-Uniformities` with justification.
+- Changing any locked decision requires a Ronnie-approved amendment in this file
+  and the relevant guard update in the same change.
+- The entire `## Design System` section is part of the Constitution.
 
-2. Residual source-wide visual-token cleanup (Lane I). Class: `ENH`. Size:
-   medium/large only once scoped. The shared-token slices, record/shared/auth
-   closure, modal/action closure, batch/session record-title compact-size slice,
-   daily-hub token closure, and Home text-color hierarchy hotfix are shipped.
-   Source still contains legacy typography/radius/color values outside the
-   guarded shared primitives and documented exceptions. Start only from a named
-   inventory/surface group, preserve approved exceptions such as public webform
-   styling and `.home.theme-crisp`, add or expand token guards, and capture
-   targeted screenshots for visible UI changes. Migration/Storage/PROD gate:
-   none expected.
+| Decision | Status | Evidence |
+| --- | --- | --- |
+| Font scale | Ratified; shared-token enforcement active, residual legacy drift only by scoped lane | `design_token_contract_static.test.js`, `record_page_shell_static.test.js` |
+| Button corners | Ratified; `7`/`8` retired | `design_token_contract_static.test.js` |
+| Confirm/Delete stacking | Ratified; top destructive overlay tier | `design_token_contract_static.test.js`, `shared_ui_extraction_contract_static.test.js` |
+| Button height/padding | Ratified; standard button pad `10px 16px` | `design_token_contract_static.test.js` |
+| Save model | Ratified; submit-style vs autosave split | `save_model_contract_static.test.js` |
+| Ordinary text hierarchy | Ratified; Home and parity rollout shipped | `homeRedesign.css`, parity commits through `669fefc` |
 
-Sprint assignment (executed 2026-06-08): the CC Sprints 1 + 2 (Lane 0
-correctness, Lane A audit/RPC atomicity) and Codex Sprints 3 + 4 (Lanes B/C +
-D/E, plus the F/G/K slices) shipped in the seven-lane integration above. Those
-prompts are retired. The lane list below is a status reference; active build
-work is only the Current open queue above unless Ronnie reopens a lane.
+Locked functional invariants:
 
-1. Lane 0 - Immediate correctness bugs. SHIPPED 2026-06-08.
-   All four broken `InlineNotice` prop-shape call sites fixed, the `info` notice
-   kind added, the legacy `CowDetail` Issues panel suppressed in cattle forecast,
-   and the `TasksWebform` submitter locked (mig `097`, 2026-06-06). Guard:
-   `tests/static/inline_notice_contract_static.test.js`.
-2. Lane A - Audit, Activity, RPC atomicity, and tombstone/deleted-record design.
-   SHIPPED/CLOSED 2026-06-09. Class: `DEFECT`/`DECISION`. Size: large.
-   Shipped 2026-06-08: processing-batch unschedule/delete moved to audited SECDEF
-   RPCs (migration `100`); the cattle.breeding Activity stream is now mounted.
-   Shipped 2026-06-09 (PROD-applied + verified): weigh-in entry/session deletes
-   and EquipmentDetail fueling/maintenance deletes moved to audited transactional
-   RPCs (`101`/`102`) with `FOR UPDATE` hardening (`103`); the privileged fueling
-   RPC was renamed to `admin_delete_equipment_fueling` to remove a migration-`091`
-   name collision (`104`). Remaining destructive-flow audit work shipped later
-   the same day via cascade-delete RPCs `106`-`108` for layer batch, fuel bill,
-   and feed input, plus best-effort app_store/retire Activity emissions. Deleted
-   root records use global Activity only; do not build a tombstone/deleted-record
-   page model unless Ronnie reopens that decision. Reopen Lane A only for a named
-   audit-critical, lifecycle/cascade, or cleanup-sensitive destructive flow found
-   outside the guarded inventory.
-3. Lane B - Fail-closed loading parity. SHIPPED 2026-06-08 (core).
-   `RecentlyDeletedDailyReports`, `CattleHerdsView`, `SheepFlocksView`, and
-   `MySubmissions` now clear stale state on load failure, show `InlineNotice` +
-   user-gated Retry, and gate content behind non-error loaded markers, locked by
-   `load_retry_robustness_inventory_static.test.js`. Reopen only if a specific
-   record/hub/section-home surface is found still failing open.
-4. Lane C - Notice and delete-modal primitive parity. SHIPPED 2026-06-08.
-   `DeleteModal`/`ConfirmModal` carry canonical dialog semantics (role,
-   aria-modal/labelledby, Escape, disabled overlay-dismiss) under the expanded
-   `shared_ui_extraction_contract_static.test.js`.
-5. Lane D - Save/editing model policy. GUARDED CORE SHIPPED 2026-06-08.
-   The EquipmentDetail flush-on-blur/before-navigation autosave loss is fixed
-   (pending edits flush on blur/pagehide/visibilitychange/unmount and re-queue
-   on save failure). `save_model_contract_static.test.js` now locks the current
-   contract: daily/report submit-style surfaces use explicit Save/Submit, while
-   weigh-in/equipment edit-in-place surfaces autosave. Reopen only for a named
-   surface that violates the contract or for a Ronnie-approved change to the
-   save/indicator model.
-6. Lane E - Record-page shell and chrome parity. SHIPPED/CLOSED; the final
-   closure shipped 2026-06-11 (`8226ae6`, merged `920f8c2`, pushed via
-   `bb8fdad`).
-   Shipped slices: `EquipmentDetail` adopted `RecordPageBody`/`RecordTitle` and
-   exposes `data-equipment-record-loaded`; daily record pages route canonical
-   action buttons through `recordPageControls`; non-daily record pages use shared
-   action tokens; `RecordPageLoadError` is the shared load-error primitive; and
-   `PigBatchPage` now owns full `RecordPageFrame`/`RecordPageBody`/
-   `RecordTitle` chrome while preserving its heavier workflow. The 2026-06-11
-   closure moves the six daily record pages plus equipment fueling/checklist
-   entry pages onto `RecordPageLoadError`, preserving retry hooks and loaded/error
-   data markers. Guard coverage: `record_page_shell_static.test.js`,
-   `record_page_cp7_pig_batch_shared_controls_static.test.js`,
-   `record_page_load_error_static.test.js`,
-   `daily_cold_boot_readiness_static.test.js`, and
-   `record_page_token_closure_static.test.js`. The weigh-in feed/mineral
-   Add/Remove row-button microstyle is intentionally not active Lane E work;
-   reopen only if Ronnie wants that optional visual polish.
-7. Lane F - List, hub, filter, sort, saved-view, and empty-state parity.
-   NAMED HIGH-REPEAT SCOPE SHIPPED. Class: `ENH`. Size: large.
-   Shipped 2026-06-08: `SheepFlocksView` uses the full helper-backed filter/sort
-   model in `src/lib/sheepFlockFilters.js` plus saved views on
-   `surface_key = 'sheep.flocks'`; saved views and filtered CSV exports expanded
-   across cattle/sheep/livestock weigh-ins, Pig Daily Reports, daily hubs,
-   Equipment Fuel Log, Layer Dailys, and Egg Dailys. Saved-view load failures
-   degrade locally without blocking parent lists. CP2 (`04fd932`): cattle/sheep/
-   livestock weigh-in list empty states now distinguish true-empty from
-   filtered/search-no-results, preserving load-failure suppression. Shared
-   weigh-in list primitives (`3e18623`): `src/shared/WeighInSessionListTile.jsx`
-   and the `src/lib/weighInSessionExports.js` column builders de-duplicate the
-   cattle/sheep/livestock session tiles and CSV/print columns.
-   Shipped 2026-06-10 (`21a4532`): right-sized search/filter/sort + saved views +
-   filtered CSV/print on the six high-repeat hubs - Pig/Cattle/Broiler/Layer/Sheep
-   Batches + Equipment Fleet. Per-hub pure filter libs
-   (`src/lib/{pig,cattle,broiler,layer,sheep}BatchFilters.js`,
-   `equipmentFleetFilters.js`); new `app_saved_views` surface_keys (no migration);
-   Layer + Sheep Batches converted cards to unified grid. Per-hub filter static
-   guards added.
-   No concrete Lane F build remains open. Reopen only for a named high-repeat
-   operational list with a proven search/filter/sort/saved-view or empty-state
-   gap, or for a specific drifting row/tile primitive that causes real product
-   inconsistency. AI filter/sort remains later-roadmap work and must suggest
-   changes with explicit preview/apply behavior. Guard target for any reopened
-   scope: per-surface filter/sort tests, saved-view tests, and static shared-row/
-   empty-state guards.
-8. Lane G - Restore/recovery surface. SHIPPED 2026-06-08.
-   `RecentlyDeletedDailyReports` is now a combined Recently Deleted Records
-   surface that restores daily reports plus deleted cattle/sheep animals
-   (`restoreCattleAnimal`/`restoreSheepAnimal`), fail-closed, dispatching the
-   correct restore RPC by record kind.
-9. Lane H - Webform/offline parity. CORE SHIPPED 2026-06-08.
-   Class: `ENH` for any future consolidation. Size: medium.
-   Shipped 2026-06-08: `EquipmentFuelingWebform` now submits through
-   `useOfflineRpcSubmit('equipment_fueling')`, queues transient/offline RPC
-   failures, auto-replays, and exposes stuck-submission recovery; no new
-   migration was needed because migration `047` already supports idempotent
-   replay. The later build-queue merge standardized locked submitter copy to
-   "Team member" and guards terminal queued/stuck/saved copy.
-   Future reopen condition: consolidate legacy webform paths only if a concrete
-   duplicate flow causes product friction; documented aliases must remain valid.
-   Guard target: offline/webform static guards and focused offline Playwright.
-10. Lane I - Visual tokens, terminology, formatting, and design primitives.
-    PARTIAL. Class: `ENH`. Size: large.
-    Shipped 2026-06-08: homepage redesign CP1-CP3 is on `main` (self-hosted
-    Hanken font, redesigned green header, transparent planner icons, scoped
-    `homeRedesign.css`, and full `HomeDashboard` integration). Shared token
-    slice also shipped: button padding/radius updates, `RecordTitle` default
-    `26`, shared primitive radius tightening, and
-    `design_token_contract_static.test.js`. CP4 (`859696a`): the six daily record
-    pages route Retry/Revert/Save/Delete through shared canonical action buttons
-    (`recordSaveButton`/`recordSecondaryButton`/`recordDeleteButton` in
-    `recordPageControls.jsx`; radius 6, 10px16px pad, fontSize 13), removing the
-    retired 7/8 radii and bespoke action padding and normalizing Sheep Save from
-    blue to brand green (`daily_record_pages_shared_controls_static.test.js`
-    action-button slice).
-    Shipped 2026-06-10: source-wide record/shared/auth visual-token closure
-    (`b192a2a`, guard `record_page_token_closure_static`) across 23 surfaces, plus
-    the scoped modal/action token closure (`49a94f9`, Lane E/I — the task /
-    weigh-in / send-to-processor / equipment modals adopt shared
-    `recordSaveButton` / `recordSecondaryButton`; guards `modal_action_tokens_static`,
-    `task_modal_tokens_static`).
-    Shipped 2026-06-11: batch/session record titles use the canonical compact
-    `RecordTitle` fontSize 22 on six pages, and
-    `record_page_token_closure_static` catches retired JSX fontSize props.
-    Open queue item: residual source-wide typography/radius/color drift outside
-    the shipped shared primitives and documented exceptions; visible UI changes
-    need targeted screenshots. Any future homepage visual changes should preserve
-    the approved `.home.theme-crisp` composition unless Ronnie reopens the design.
-    Guard target: typography, radius, button-control, z-index, shared-ui/token
-    static guards, plus targeted visual Playwright/screenshots where needed.
-11. Lane J - Cross-cutting product and accessibility policy. SHIPPED (core)
-    2026-06-08; the one open item (home-dashboard KPI uniform frame) was DROPPED
-    2026-06-09 — program dashboards stay program-specific (the only home target
-    was dead code), so no Lane J work remains open.
-    Class: `DECISION`. Size: medium.
-    Shipped 2026-06-08: shared Delete/Confirm modals have focus-trap behavior via
-    `useModalFocusTrap.js`; central-date defaults are guarded across admin
-    modals, webforms, WebformHub, and Layer/Egg daily list defaults; route/nav
-    policy guards were added in `lane_j_policy_static.test.js`. Image alt-text
-    policy shipped (`04fd932`): `src/lib/imageAlt.js` (`imageAltText`) drives
-    every user-media `<img>` owner with contextual fallbacks and marks decorative
-    images `aria-hidden`, locked by `image_alt_text_policy_static.test.js`.
-    Open work: none - the only open item (home-dashboard KPI uniform frame) was
-    dropped above. Reopen only for a new Ronnie-approved cross-cutting product or
-    accessibility policy decision.
-    Guard target: route/nav/date/a11y static guards plus focused Playwright once
-    more decisions are made.
-12. Lane K - Export/print parity. OPERATIONAL-HUB SCOPE SHIPPED 2026-06-09
-    (shared `operationalExportColumns.js` owner across the 7 list/fleet/log
-    surfaces — see the Shipped block above). Class: `DECISION`/`ENH`.
-    Shipped 2026-06-08: cattle-herd CSV export — `src/lib/csvExport.js` is the
-    single rows-to-CSV / Blob / object-URL / filename / revoke owner (with a
-    formula/DDE-injection guard and farm-Central filename dates), and
-    `CattleHerdsView` exports the active filtered/sorted `sortedFlat` rows.
-    The pushed runtime queue further extends CSV to Sheep Flocks, Sheep Weigh-In
-    Sessions, Equipment Fuel Log, and Cattle Weigh-In Sessions. The build-queue
-    merge added `src/lib/printExport.js` plus print/CSV expansion across
-    livestock/cattle/sheep weigh-ins, cattle/sheep inventory, Broiler/Pig/
-    Cattle/Sheep dailys, Layer/Egg dailys, and Equipment Fuel Log. Shared
-    weigh-in column builders (`3e18623`): `src/lib/weighInSessionExports.js` owns
-    the ruminant + livestock weigh-in session CSV/print column specs, consumed by
-    the cattle/sheep/livestock views (still exporting the filtered set).
-    Shipped 2026-06-10 (`21a4532`): the six operational hubs now export the
-    VISIBLE filtered+sorted rows — Broiler + Layer Batch exports refactored off
-    their hard-coded subsets, and the Cattle Batch export count restored to
-    attached-detail-rows only (parity with sheep). All via the existing shared
-    `csvExport`/`printExport` + `operationalExportColumns` owners.
-    Future reopen condition: extend the shared CSV/print model only to a named
-    operational or reporting surface where export supports work, billing, feed,
-    records, or audit. Keep permissions bounded to RLS-visible rows, use shared
-    column specs where useful, and consider a fuller shared print stylesheet/
-    screenshot gate if print use becomes more central.
-    Guard target: column-spec/export tests and print stylesheet/screenshot checks
-    (`csvExport.js` owns CSV download; `printExport.js` owns row-print output).
-
-13. Record Nav UX Fix. SHIPPED 2026-06-09 (see Shipped block above). Class: `DEFECT`. Size: medium.
-    Problem: fixed text Prev/Next pills on record pages can overlap record data,
-    especially dense pages such as pig batches and weigh-in sessions. Direction:
-    desktop record sequence navigation should become simple fixed-edge chevrons
-    with accessible labels/tooltips for the target record; mobile should not use
-    side-fixed controls and should instead show a compact static top row below
-    the Back link/title area. Equipment record pages keep sequence navigation
-    and should follow the same global model.
-    Guard target: `RecordSequenceNav` tests, per-record sequence Playwright, and
-    desktop/mobile screenshots for at least one dense record page.
-14. Pig Operations Parity. SHIPPED 2026-06-09 (see Shipped block above). Class: `DEFECT`/`ENH`. Size: large.
-    Scope:
-    - Pig processing-trip actual weights must come from linked weigh-in data,
-      be read-only on the trip, and require a weigh-in source before completing
-      or recording the processing trip.
-    - Pig Batches tab should keep its existing page/tiles but present all batch
-      statuses in a column-style comparison layout with the important stats and
-      metrics visible for at-a-glance comparison.
-    - Breeding pig tiles stay as-is; add breeding-pig record pages whose first
-      version shows the exact same data currently shown in the pop-out modal.
-    - Fix `/pig/breeding` jumping to the top during normal scrolling.
-    Guard target: pig batch/trip static guards, focused pig Playwright for trip
-    weight source and breeding scroll stability, and record-page chrome guards
-    for breeding pig records.
-15. Tasks Creation And Public Config UX. SHIPPED 2026-06-09 (migration `105`). Class: `DEFECT`/`ENH`. Size: medium.
-    Scope:
-    - Public Tasks assignee checkbox names should render as a simple aligned
-      checkbox grid with readable rows/columns and clean spacing; no role
-      grouping or searchable picker in the first pass.
-    - Task Center `New Task` should support a One-time / Recurring toggle in the
-      existing modal. Recurring creation is available to all authenticated roles
-      except Light users.
-    Guard target: task static guards, public Tasks config screenshot/static
-    checks, and focused Tasks Playwright for recurring creation visibility by
-    role where practical.
-16. Broiler Dashboard And Batches UX. SHIPPED 2026-06-09. Class: `DEFECT`/`ENH`. Size: medium.
-    Scope:
-    - Broiler dashboard "LBS PRODUCED TREND - LAST 9 BATCHES" should select the
-      latest nine processed batches. Tables/lists show newest first; charts show
-      oldest left to newest right.
-    - Broiler Batches tab Batch Comparison should include Hatchery as a visible
-      column/metric immediately after Breed. Batch Comparison remains a
-      processed-batch comparison surface.
-    - Active batch tiles on the Broiler Dashboard should open the corresponding
-      broiler batch record page.
-    Guard target: broiler dashboard/batch static guards plus focused Playwright
-    for dashboard tile navigation and trend ordering.
-17. Equipment Attention And Fueling Checklist Record Pages. SHIPPED 2026-06-09.
-    Class: `DEFECT`/`ENH`. Size: medium/large.
-    Scope:
-    - Combine duplicate equipment attention notices for the same equipment into
-      one notice with multiple due items inside. The notice must distinguish
-      checklist/material/service items clearly (for example, a 50-hour checklist
-      due item should not look like a duplicate service alert).
-    - Add full audit record pages for fueling/checklist entries using record
-      chrome and the existing checklist data plus Comments and Activity.
-    Guard target: home/equipment attention static guards, equipment record-page
-    guards, Activity/comment guards, and focused equipment Playwright.
-18. Cattle Weigh-In Record Page Entry Parity. SHIPPED 2026-06-09. Class: `DEFECT`/`ENH`. Size: medium.
-    Shipped behavior: the authenticated cattle weigh-in record page
-    (`WeighInSessionPage`) uses dense tag-ascending entry rows, herd-scoped
-    diminishing pools for normal entries and replacement reconciliation, and
-    completion blocking while unresolved `new_tag_flag` entries remain.
-    Reconciliation updates the cow current tag, appends the prior tag into
-    `old_tags`, clears `weigh_ins.new_tag_flag`, stitches legacy cattle comments,
-    and logs Activity. Later public-form follow-ups through `37668fd` kept the
-    same operational contract visible on the login-gated form: prior-weight-aware
-    reconcile labels, retag weight-history preservation, no prior-tag field for
-    `+ New Cow`, and full recent-entry edit parity.
-    Guard target: `tests/static/weighin_session_record_page_static.test.js`,
-    `tests/static/weighinswebform_no_app_store.test.js`, and focused weigh-in
-    Playwright when the end-to-end flow is changed.
-
-### Light-User Portal Contract
-
-Locked product direction (do not re-litigate without Ronnie): authenticated-only
-submission is the durable path. The migration `083` public-webform identity
-approach stays shelved; do NOT build roster-id -> profile-id mapping.
-
-Shipped contract:
-- `light` is a real authenticated role managed through the normal user-management
-  authority path.
-- Former public report/form URLs stay valid but now require login; logged-out
-  access redirects through login and returns to the requested URL.
-- Submitter/team-member identity is the signed-in user and is displayed locked.
-  Client-provided profile IDs are never authority.
-- Light users land on a contained portal with only allowed surfaces: webform hub,
-  daily report forms, six daily list/record views, Add Feed, equipment
-  fueling/checklist, fuel supply, Tasks, legacy pig daily form, and My
-  Submissions / View Past Reports, plus the Cattle Log webform tile.
-- Weigh-ins are intentionally not a Light surface.
-- Light can read all daily report records in the allowed daily surfaces,
-  including legacy rows, but can edit/delete only rows where
-  `owner_profile_id = auth.uid()`. Legacy NULL-owner rows are read-only for
-  Light.
-- `owner_profile_id` is server-stamped by migration `089` on insert across the 9
-  report tables. Offline replay stamps the authenticated user performing the
-  replay; stored client profile IDs are ignored.
-- Daily edit/delete writes route through `update_daily_report` and
-  `soft_delete_daily_report`; direct client UPDATE/DELETE on daily tables is
-  revoked by migration `092`.
-- Equipment fueling and fuel supply own-record edits/deletes for Light happen in
-  My Submissions through ownership RPCs. Privileged fleet/admin surfaces remain
-  available to privileged roles under RLS/RPC controls.
-- Light home separates daily entry from review: `Enter Daily Reports` opens the
-  form-entry path, while `View Past Reports` exposes daily-report logs and the
-  Equipment tab review links. Fuel Log/Add Feed are not separate Light review
-  targets because Add Feed is captured through daily reports.
-- The Light home portal (`LightHomePortal.jsx`) shows read-only alert cards above
-  the shortcut grid — Missed Daily Reports and Equipment Attention — plus a
-  Next-30 events list below (only when there are events). These reuse the shared
-  `src/dashboard/homeAlerts.js` builders. RLS, not UI, is the boundary: a real
-  `light` user must be able to read `app_store`/equipment/`equipment_fuelings`
-  for these cards, proven behaviorally by `tests/light_home_alerts.spec.js`
-  (real Light auth user, not the client-only role override).
-
-Guard rails: `light_user_portal_static.test.js`,
-`daily_edit_surface_static.test.js`, `daily_soft_delete_static.test.js`, and
-`cp2_daily_writes_via_rpc_static.test.js` lock the route/nav/access and
-ownership-write contracts.
+| Invariant | Contract section | Guard |
+| --- | --- | --- |
+| Single Supabase client owner; no unapproved browser secrets | Cross-App Rules | `supabase_client_owner_static.test.js`, `browser_secret_boundary_static.test.js` |
+| Permissions enforced by RLS/RPC, never UI alone | Authentication And Roles | `light_user_portal_static.test.js` and per-surface guards |
+| Route aliases only in `src/lib/routes.js` | Route Ownership | `url_alias_redirects.spec.js` |
+| Fail-closed loading order | Cold-Boot And Fail-Closed Loading | `load_retry_robustness_inventory_static.test.js` |
+| Audit-critical mutations through SECDEF RPCs | Entity Mutations And Audit Atomicity | `mutation_semantics_inventory_static.test.js` |
+| Daily edits/deletes through ownership RPCs | Daily Reports | `cp2_daily_writes_via_rpc_static.test.js` |
+| One canonical component per UI role | Shared UI And Record Chrome | `shared_ui_extraction_contract_static.test.js` |
 
 ---
 
@@ -1589,40 +255,26 @@ ownership-write contracts.
 These differences are current product/architecture decisions, not parity defects
 unless Ronnie changes the contract:
 
-- Light users are intentionally excluded from `/weighins`; they stay contained
-  to the allowed report/form, Tasks, and My Submissions surfaces.
-- Migration `083` public webform submitter identity stays shelved. Do not build
-  roster-id -> profile-id mapping; authenticated submitter identity is the
-  durable path.
-- `/webform-pigs` remains a valid legacy standalone pig daily form route/alias
-  while legacy compatibility is required. Consolidation must preserve aliases.
-- `egg_dailys` is intentionally not covered by the daily unique-index backstop
-  and has no daily photo column/surface. Egg duplicate prevention is warning /
-  pre-submit only unless a later schema lane changes it.
+- Light users are intentionally excluded from `/weighins`, `/production`, and
+  `/pasture-map`.
+- Light users may access Cattle Log through the webform/field-journal path.
+- Migration `083` public webform submitter identity stays shelved. Authenticated
+  submitter identity is the durable path.
+- `/webform-pigs` remains a valid legacy standalone pig daily form route/alias.
+- `egg_dailys` has warning/pre-submit duplicate prevention only; it is not
+  covered by the daily unique-index backstop.
 - Add Feed quick-log rows are not full daily reports, and missed-report checks
   exclude `source='add_feed_webform'`.
 - Broiler, layer, and pig daily pages use Group copy rather than Batch copy.
 - Pig planned-trip forecast weights are render-only. Latest weigh-ins do not
   change planned-trip forecast weights automatically.
-- Program dashboards may show program-specific KPIs. Lane J can define a shared
-  dashboard frame/baseline, but it must not force identical metrics where the
-  programs genuinely differ.
-- The public `#webform-container` styling (gradient submit, brand-tinted shadow,
-  larger font, scoped input padding) is an intentionally self-contained design
-  system, separate from the React app tokens in `## Design System`. It is not
-  token drift and is excluded from the app token migration.
-- The homepage redesign is intentionally scoped under `.home.theme-crisp` in
-  `src/dashboard/homeRedesign.css` and may keep approved design-reference
-  micro-type/weight values while Lane I source-wide token cleanup remains
-  incremental. Its `1acd43d` text hierarchy (`--text`/`--label` pure black,
-  supporting copy muted gray, semantic accents preserved) is the approved
-  source-of-truth for the broader parity pilot, but the Home-specific layout and
-  non-canonical micro-values must not be moved globally without a Ronnie-approved
-  design amendment. Future homepage visual changes must preserve the approved
-  composition unless Ronnie reopens the design.
-- `getReadableText()` in `src/lib/styles.js` returns `#0f172a`/`white` as
-  auto-contrast for arbitrary colored backgrounds. These two values are
-  infrastructure, not palette drift, and are exempt from the color migration.
+- Program dashboards may show program-specific KPIs.
+- The public `#webform-container` CSS island is intentionally separate from the
+  React app tokens.
+- The homepage redesign remains scoped under `.home.theme-crisp`; do not move
+  Home-specific non-canonical micro-values globally without an amendment.
+- `getReadableText()` in `src/lib/styles.js` returns infrastructure contrast
+  colors for arbitrary colored backgrounds; this is not palette drift.
 
 ---
 
@@ -1630,48 +282,48 @@ unless Ronnie changes the contract:
 
 ### Authenticated App
 
-- Home dashboard: redesigned `.home.theme-crisp` landing surface with label-only
-  program tiles, Processing/Admin utility row, live weather, Animals-on-Farm
-  counts, Production placeholder card, missed-daily/equipment/material alerts,
-  Next 30 Days, and admin Last-5-Days.
-- `/animals-on-farm`: opened from the Home Animals on Farm card; shows newest-
-  first monthly species counts and a multi-series line graph for Broilers, Layer
-  Hens, Pigs, Cattle, Sheep, and Total. The history range starts at Oct 2024 and
-  the table omits the old month sublabel.
+- Home dashboard: `.home.theme-crisp` landing surface with label-only program
+  tiles, Pasture Map + Weather field row, Processing/Admin utility row, Animals
+  on Farm, Production, missed-daily/equipment/material alerts, Next 30 Days, and
+  admin Last-5-Days.
+- `/animals-on-farm`: newest-first monthly species counts and multi-series line
+  graph for Broilers, Layer Hens, Pigs, Cattle, Sheep, and Total. History range
+  starts Oct 2024.
+- `/production`: per-program production totals, per-program YoY, processing
+  events, egg events, and legacy/audit review. No combined total ever.
+- `/pasture-map`: CP1 field map/import surface for OnX KML, land-area review,
+  classification, outline close, acreage display, GPS locate, and NAIP imagery.
 - Broiler: home, timeline, batches, feed, dailys, weigh-ins.
-- Pig: home, breeding, farrowing, sows, batches, feed, dailys, weigh-ins.
+- Pig: home, breeding, farrowing, breeding pigs, batches, feed, dailys,
+  weigh-ins.
 - Layer: home, groups, batches, dailys, eggs.
 - Cattle: home, herds, breeding, forecast, processing batches, dailys,
-  weigh-ins.
-- Cattle Log: `/cattle/log` is the free-flowing field journal for cattle program
-  observations, also reachable to Light users through the webforms tile.
+  weigh-ins, Cattle Log.
 - Sheep: home, flocks, processing batches, dailys, weigh-ins.
-- Equipment/Fleet: `/fleet` with fleet list, fuel log, and equipment detail.
-- Task Center: `/tasks`, with a meaty Task Center | To Do List toggle. The To Do
-  List is the shared communal open-work repository at `/tasks/todo` with per-item
-  record pages at `/tasks/todo/<id>` (participants: light/farm_team/management/
-  admin; `equipment_tech` excluded).
-- Light portal: contained home for `role=light`, allowed webform/daily shortcuts,
-  Tasks, and My Submissions.
+- Equipment/Fleet: `/fleet` with fleet list, fuel log, and equipment detail;
+  `/equipment` remains the login-gated fueling/checklist hub.
+- Task Center: `/tasks`, with To Do List at `/tasks/todo` and record pages at
+  `/tasks/todo/<id>`.
+- Light portal: contained home for `role=light`, allowed webform/daily
+  shortcuts, Tasks, My Submissions/View Past Reports, equipment public hub, fuel
+  supply, Add Feed, legacy pig daily, and Cattle Log. No Production, Pasture Map,
+  or Weigh-ins.
 - Global Activity: `/activity`.
 - Admin/config: `/admin`.
 - Admin runtime observability: `/admin/client-errors`.
 
 ### Login-Gated Form URLs
 
-- Former public report/form URLs are now authenticated. Existing paths and
-  aliases stay valid, redirect logged-out users to login, and return to the
-  requested URL after auth.
+- Former public report/form URLs are authenticated. Existing paths and aliases
+  stay valid, redirect logged-out users to login, and return to the requested URL
+  after auth.
 - `/dailys` and `/dailys/tasks`.
 - `/addfeed`.
 - `/weighins`.
 - `/equipment` and `/equipment/<slug>`.
 - `/fuel-supply`.
-- `/webform-pigs` legacy standalone pig daily form.
-- Legacy aliases redirect through `src/lib/routes.js`. Do not add alias logic
-  outside that owner.
-- Light users are allowed through the contained report/form surfaces but are not
-  allowed into `/weighins`.
+- `/webform-pigs`.
+- Legacy aliases redirect through `src/lib/routes.js`.
 
 ### Operational Record Pages
 
@@ -1681,204 +333,99 @@ fail-closed loading.
 
 Live Activity entity types and routes:
 
-| Entity type         | Route                              |
-| ------------------- | ---------------------------------- |
-| `task.instance`     | `/tasks/<id>`                      |
-| `todo.item`         | `/tasks/todo/<id>`                 |
-| `cattle.animal`     | `/cattle/herds/<id>`               |
-| `sheep.animal`      | `/sheep/flocks/<id>`               |
-| `cattle.processing` | `/cattle/batches/<id>`             |
-| `sheep.processing`  | `/sheep/batches/<id>`              |
-| `broiler.batch`     | `/broiler/batches/<encoded name>`  |
-| `pig.batch`         | `/pig/batches/<group id>`          |
-| `layer.batch`       | `/layer/batches/<id>`              |
-| `layer.housing`     | `/layer/housings/<id>`             |
-| `equipment.item`    | `/fleet/<id>`                      |
-| `poultry.daily`     | `/broiler/dailys/<id>`             |
-| `layer.daily`       | `/layer/dailys/<id>`               |
-| `egg.daily`         | `/layer/eggs/<id>`                 |
-| `pig.daily`         | `/pig/dailys/<id>`                 |
-| `cattle.daily`      | `/cattle/dailys/<id>`              |
-| `sheep.daily`       | `/sheep/dailys/<id>`               |
-| `weighin.session`   | `/weigh-in-sessions/<id>`          |
-| `cattle.forecast`   | `/cattle/forecast`                 |
-| `cattle.breeding`   | `/cattle/breeding`                 |
-| `cattle.log`        | `/cattle/log`                      |
+| Entity type | Route |
+| --- | --- |
+| `task.instance` | `/tasks/<id>` |
+| `todo.item` | `/tasks/todo/<id>` |
+| `cattle.animal` | `/cattle/herds/<id>` |
+| `sheep.animal` | `/sheep/flocks/<id>` |
+| `cattle.processing` | `/cattle/batches/<id>` |
+| `sheep.processing` | `/sheep/batches/<id>` |
+| `broiler.batch` | `/broiler/batches/<encoded name>` |
+| `pig.batch` | `/pig/batches/<group id>` |
+| `pig.breeder` | `/pig/sows/<id>` |
+| `layer.batch` | `/layer/batches/<id>` |
+| `layer.housing` | `/layer/housings/<id>` |
+| `equipment.item` | `/fleet/<id>` |
+| `poultry.daily` | `/broiler/dailys/<id>` |
+| `layer.daily` | `/layer/dailys/<id>` |
+| `egg.daily` | `/layer/eggs/<id>` |
+| `pig.daily` | `/pig/dailys/<id>` |
+| `cattle.daily` | `/cattle/dailys/<id>` |
+| `sheep.daily` | `/sheep/dailys/<id>` |
+| `weighin.session` | `/weigh-in-sessions/<id>` |
+| `cattle.forecast` | `/cattle/forecast` |
+| `cattle.breeding` | `/cattle/breeding` |
+| `cattle.log` | `/cattle/log` |
 
 No operational record workspace should reintroduce legacy `ActivityPanel` or
 `ActivityModal`. Comments are discussion; Activity is audit/history.
-
-Record-page prev/next sequence navigation is owned by the shared
-`RecordSequenceNav` (Prev pinned to the left screen edge, Next to the right,
-vertically centered — broiler side-nav placement). Broiler batch pages use the
-shared component; the old bespoke `BatchForm` side-nav was removed. Nav renders
-only when route state carries a valid sequence; direct links/notifications get
-no nav.
 
 ---
 
 ## Backend And Data State
 
+### Stack
+
+- React 18 / Vite SPA.
+- Supabase JS client from `src/lib/supabase.js` only.
+- React Router DOM.
+- `idb` for IndexedDB/offline queue.
+- Leaflet for Pasture Map CP1 map rendering.
+- Vitest for unit/static tests.
+- Playwright for e2e.
+- ESLint + Prettier.
+- Netlify production deploy from `main`.
+
 ### Supabase Migrations
 
-Current PROD architecture includes these load-bearing migrations:
+Current PROD architecture includes all applied migrations through `116`, plus
+`125` and `126`. Recent load-bearing migrations:
 
-- `057` notifications.
-- `058` `activity_events` and `activity_mentions` foundation.
-- `060` Activity mention contract.
-- `062` Activity entity expansion.
-- `063` notification activity resolution.
-- `064` Activity Phase 2 entities.
-- `065` Global Activity Log.
-- `066` Activity change events.
-- `067` daily soft-delete.
-- `068` `client_error_events` and `record_client_error`.
-- `069` `cattle.animal` soft-delete/restore.
-- `070` daily delete for active roles.
-- `071` Comments foundation.
-- `072` weigh-in session Activity entity.
-- `073` `comment-photos` Storage RLS.
-- `074` `sheep.animal` soft-delete/restore.
-- `075` animal transfer Activity RPCs.
-- `076` `cattle.forecast` Activity entity.
-- `077` `list_client_errors` admin read RPC.
-- `078` `cattle.breeding` Activity entity.
-- `079` `delete_cattle_calving_record` RPC.
-- `080` legacy Activity composer RPC retirement.
-- `081` authenticated processing-detach Activity RPCs.
-- `084` daily report partial unique indexes.
-- `085` daily duplicate cleanup.
-- `086` equipment maintenance event idempotency.
-- `087` `profiles.role` adds `light` to the CHECK constraint.
-- `088` `owner_profile_id` columns + partial indexes on the 6 daily tables,
-  `daily_submissions`, `equipment_fuelings`, `fuel_supplies`.
-- `089` `stamp_owner_profile_id` BEFORE INSERT trigger (`trg_stamp_owner`)
-  stamping `owner_profile_id := auth.uid()` on all 9 tables; never client-set.
-- `090` `fuel_supplies` authenticated INSERT policy (CP1 login-gating fix).
-- `091` ownership RPCs: `update_daily_report` (positive per-table column
-  allowlist + server-side `field.updated` diff), `soft_delete_daily_report`
-  ownership branch, `update_equipment_fueling`, `delete_equipment_fueling`,
-  `update_fuel_supply`, and `delete_fuel_supply`.
-  Light may mutate only rows where `owner_profile_id = auth.uid()`.
-- `092` ownership enforce (red-switch): REVOKE direct UPDATE/DELETE on the 6
-  daily tables, `trg_freeze_owner` BEFORE UPDATE trigger, privileged-only RLS on
-  `equipment_fuelings`/`fuel_supplies`.
-- `093` task weekly email correction: Sunday 8am America/Chicago digest with
-  dual UTC cron entries, helper-side DST gating, previous-Sunday-08:00-Central
-  windowing, and completed-assigned task coverage.
-- `094` audited RPC follow-ups: cattle breeding cycle upsert/delete and sheep
-  lambing delete through authenticated SECDEF RPCs with transactional Activity
-  writes.
-- `095` `app_saved_views`: generic per-surface saved views
-  (`id, surface_key, name, visibility, view_state jsonb, owner_profile_id,
-  created_at, updated_at`). Server-trusted ownership — BEFORE INSERT trigger
-  stamps `owner_profile_id := auth.uid()`; BEFORE UPDATE freezes owner +
-  refreshes `updated_at`. RLS: public-or-owner SELECT, owner-only
-  INSERT/UPDATE/DELETE; grants to `authenticated` only. First consumer is the
-  cattle herds list (`surface_key = 'cattle.herds'`) via
-  `src/lib/savedViewsApi.js`. Direct client CRUD is acceptable here because
-  RLS scopes every operation (saved views are user preferences, not
-  audit-critical entity writes). Applied TEST + PROD 2026-06-05.
-- `096` processing attach Activity RPCs: authenticated cattle/sheep
-  Send-to-Processor attach flows now use SECDEF RPCs that update processing
-  batch detail, animal processed state, transfer audit rows, weigh-in stamps,
-  and Activity atomically. Authenticated has EXECUTE; anon/PUBLIC are revoked.
-  Applied TEST + PROD 2026-06-06.
-- `097` public Tasks submitter lock: `submit_task_instance` now requires an
-  authenticated caller, drops the `team_roster`/`team_availability` membership
-  check, keeps assignee validation + idempotency, and revokes anon EXECUTE.
-  Applied TEST + PROD 2026-06-06.
-- `098` team-roster teardown: deletes the retired `webform_config` keys
-  (`team_roster`, `team_members`, `team_availability`, `per_form_team_members`,
-  `weighins_team_members`) and drops the dead `equipment.team_members` column
-  (zero src references, no dependent views/policies/functions). Applied TEST +
-  PROD 2026-06-06.
-- `099` `daily_photos_auth_insert`: adds the missing `FOR INSERT TO
-  authenticated` storage policy on the `daily-photos` bucket (mig `031` granted
-  anon INSERT only), so authenticated daily-report photo uploads no longer 403
-  now that the photo webforms are login-required. Applied TEST + PROD
-  2026-06-06.
-- `100` `processing_batch_lifecycle_rpcs`: audited SECDEF RPCs
-  `unschedule_cattle_processing_batch` and `delete_sheep_processing_batch` that
-  replace the last direct client hard-deletes of processing-batch roots. Each
-  defensively unlinks straggler `processing_batch_id` rows, writes a
-  `record.deleted` Activity event, and deletes the batch in one transaction
-  (cattle unschedule is server-refused unless status `scheduled`). admin/management
-  gate in-function, `SET search_path = public`, REVOKE PUBLIC/anon + GRANT
-  authenticated, `NOTIFY pgrst`. The record.deleted event lives on the
-  cattle.processing / sheep.processing entity and persists in the GLOBAL Activity
-  log after the row is gone (per-entity read is existence-gated; full tombstone
-  redesign stays out of scope). Client wrapper `src/lib/processingBatchDeleteApi.js`.
-  Applied TEST + PROD 2026-06-08.
-- `101`-`104` audited-delete RPCs (Lane A CP2/CP3): `101`
-  `delete_weigh_in_entry`/`delete_weigh_in_session`; `102` privileged fueling
-  delete + `delete_equipment_maintenance_event`; `103` weigh-in delete
-  `FOR UPDATE` idempotency; `104` renames the privileged fueling RPC to
-  `admin_delete_equipment_fueling` (drops the migration-`091` name collision).
-  Applied TEST + PROD 2026-06-09.
-- `105` `create_recurring_task_template(p_template jsonb)`: SECDEF RPC for the
-  Task Center New Task recurring path — role-gated (rejects light/inactive,
-  allows all other authenticated roles), server-stamps `created_by_profile_id`
-  from `auth.uid()`, idempotent by client id; lets non-admin roles create a
-  recurring `task_templates` row without hitting the admin-only direct-write RLS.
-  Wrapper `createRecurringTaskTemplateV2`. Applied TEST + PROD 2026-06-09.
-- `106` `delete_layer_batch(p_batch_id text)`: one-txn delete of child
-  `layer_housings` + the `layer_batches` root + one `layer.batch record.deleted`
-  Activity; `layer_dailys`/`egg_dailys` left as history (retire stays the normal
-  flock-end op). Auth-gated. Wrapper `layerBatchDeleteApi`. Applied TEST + PROD
-  2026-06-09.
-- `107` `delete_fuel_bill(p_bill_id text)`: `is_admin()`-gated, `FOR UPDATE`;
-  deletes the `fuel_bills` root (`fuel_bill_lines` via FK cascade) + one
-  `equipment.item record.deleted` Activity; client removes the bill PDF
-  best-effort after the RPC. Wrapper `fuelBillDeleteApi`. Applied TEST + PROD
-  2026-06-09.
-- `108` `delete_feed_input(p_input_id text)`: authenticated-gated, `FOR UPDATE`;
-  deletes the `cattle_feed_inputs` root (`cattle_feed_tests` via FK cascade) +
-  one `cattle.forecast record.deleted` Activity; client bulk-removes the feed
-  PDFs best-effort after the RPC. Wrapper `feedInputDeleteApi`. Applied TEST +
-  PROD 2026-06-09. (`105`-`108` all SECDEF, `search_path public`, REVOKE
-  anon / GRANT authenticated, `NOTIFY pgrst`; ids are TEXT slugs so the params
-  are `text`, not `uuid`.)
-- `109` `drop_daily_photos_anon_insert`: drops the dead anon INSERT policy from
-  the `daily-photos` bucket while preserving authenticated insert/select
-  policies. Applied TEST + PROD 2026-06-10.
-- `110` `cattle_calf_row_heifer_promote`: adds the
-  `cattle_promote_heifer_from_calf_row` trigger/function so calf-row `dam_tag`
-  links promote active heifer dams to cows and write a calving-source audit
-  comment. Matching resolves current tag first, then non-import old tags; the
-  migration backfills existing active heifers with calf-row evidence. Applied
-  TEST + PROD 2026-06-11.
-- `111` `weigh_in_note_record_comments`: server-side triggers mirror weigh-in
-  entry/session notes into canonical `comments` rows for cattle, sheep, pig, and
-  broiler record pages with deterministic `wi-note-*` / `wis-note-*` ids. Edits
-  update the same comment and deletes remove it. Applied TEST + PROD
-  2026-06-11.
-- `112` `cattle_log`: creates the cattle log sidecar tables/RPCs/triggers for
-  the singleton `cattle.log` comment-backed field journal, issue state, tag
-  links/mirrors, unknown-calf detail capture/resolution, and locked Activity
-  access branch. Applied TEST by CC and PROD-applied 2026-06-12.
-- `113` `light_daily_report_edit_window`: adds the server-side Light-user
-  3-day own-record daily edit/delete window. Applied TEST by CC and PROD-applied
-  2026-06-13 per Ronnie/CC.
-- `114` `task_photo_total_limit`: adds the `task_instance_photos` 5-total
-  trigger backstop for creation + completion photos. Applied TEST by CC and
-  PROD-applied 2026-06-13 per Ronnie/CC.
-- `115` `todo_items`: adds the Task Center To Do List tables, deny-all RLS,
-  SECDEF RPC surface, To Do photo records, participant-only To Do mention
-  picker/guards, To Do notification types, Activity access branch, and
-  `task_summary_runs.total_todo_items`. Applied TEST by CC and PROD-applied
-  2026-06-13 per Ronnie/CC.
+- `100` processing batch lifecycle RPCs.
+- `101`-`104` audited delete RPCs and hardening.
+- `105` recurring task template creation RPC.
+- `106` delete layer batch RPC.
+- `107` delete fuel bill RPC.
+- `108` delete feed input RPC.
+- `109` drop dead daily-photo anon insert policy.
+- `110` cattle calf-row heifer promotion.
+- `111` weigh-in note -> canonical comment mirror.
+- `112` cattle log sidecar tables/RPCs/triggers.
+- `113` Light daily report 3-day own-record edit/delete window.
+- `114` task photo 5-total DB backstop.
+- `115` Task Center To Do List schema/RPCs/photos/mentions/digest fields.
+- `116` Pasture Map CP1:
+  - `pasture_import_batches`, self-referencing `land_areas`, and append-only
+    `land_area_geometry_versions`.
+  - PostGIS in `extensions` schema; geometry stored as 4326; acreage via
+    `ST_Area(geom::geography)`.
+  - Deny-all RLS; access only through SECURITY DEFINER RPCs.
+  - `list_land_areas` read gate: `farm_team`, `management`, `admin`.
+  - Import/classify/close/delete gates: `management`, `admin`.
+  - OnX UUID becomes `source_external_id`; re-import updates, not duplicates.
+  - Polygons import as `unclassified`/`pending_review`; LineStrings import as
+    `outline_candidate`; no auto-close; invalid polygons are flagged, not fixed.
+  - No fabricated last-grazed date; `baseline_no_history` is distinct.
+- `125` Production legacy events:
+  - `production_legacy_events` table with deny-all RLS.
+  - `list_production_legacy_events(date,date)` SECURITY DEFINER read RPC.
+  - Read gate: `farm_team`, `management`, `admin`; Light excluded.
+  - Spreadsheet importer upserts by stable `source_key`; 69 rows imported to
+    PROD on 2026-06-15.
+- `126` Breeding-pig Activity entity:
+  - Adds `pig.breeder` to `_activity_can_read` / `_activity_can_write`.
+  - Existence check is `app_store` key `ppp-breeders-v1`, object id match.
+  - Program access gate is `pig`.
 
 Special migration notes:
 
 - `082` is intentionally unused.
-- `083` public webform submitter identity is shelved and must not be applied
-  unless Ronnie reverses the auth-only webform direction.
+- `083` public webform submitter identity is shelved.
 - `085` was applied before `084` in PROD so duplicate active daily identities
-  were cleaned up before the unique indexes were created.
+  were cleaned up before unique indexes.
 - `061_daily_report_soft_delete_restore.sql` is superseded by `067`.
-- New or changed SECDEF RPC return shapes need
-  `NOTIFY pgrst, 'reload schema'`.
+- New or changed SECDEF RPC return shapes need `NOTIFY pgrst, 'reload schema'`.
 - PROD `exec_sql` is forbidden. Apply PROD SQL with `psql` and
   `ON_ERROR_STOP=1` per [HO.md](HO.md).
 
@@ -1903,26 +450,20 @@ Append-only upload expectations:
 - Private buckets use signed URLs; public buckets use public URLs.
 - No code should mutate `storage.objects` directly.
 
----
-
-## Architecture Map
-
-### Stack
-
-- React 18 / Vite SPA.
-- Supabase JS client from `src/lib/supabase.js` only.
-- React Router DOM.
-- `idb` for IndexedDB/offline queue.
-- Playwright for e2e.
-- Vitest for unit/static tests.
-- ESLint + Prettier.
-- Netlify production deploy from `main`.
-
 ### Important Files
 
 - `src/main.jsx`: app shell, view routing, auth-gated view rendering, global
   modals.
 - `src/lib/routes.js`: canonical route map and aliases.
+- `src/dashboard/HomeDashboard.jsx` and `src/dashboard/homeRedesign.css`: Home
+  dashboard and scoped Home styling.
+- `src/dashboard/ProductionPage.jsx`, `src/lib/production.js`, and
+  `src/lib/productionApi.js`: Production page, reconciliation, and data loading.
+- `scripts/import_production_legacy_events_from_xlsx.cjs`: spreadsheet backfill
+  importer for `production_legacy_events`.
+- `src/pasture/PastureMapView.jsx`, `src/pasture/PastureMapCanvas.jsx`,
+  `src/lib/pastureKml.js`, and `src/lib/pastureMapApi.js`: Pasture Map CP1.
+- `src/pig/SowsView.jsx`: breeding-pig grouped tables and record pages.
 - `src/lib/activityRegistry.js`: client entity registry, labels, and routes.
 - `src/lib/activityApi.js` and `src/lib/globalActivityApi.js`: Activity RPC
   clients.
@@ -1931,46 +472,16 @@ Append-only upload expectations:
 - `src/shared/RecordPageShell.jsx`: shared record-page chrome.
 - `src/shared/RecordCollaborationSection.jsx`: Comments + Activity composition.
 - `src/shared/RecordActivityLog.jsx`: audit-only record Activity view.
-- `src/shared/RecordSequenceNav.jsx`: fixed prev/next record navigation pinned to
-  the left/right screen edges (broiler side-nav placement).
+- `src/shared/RecordSequenceNav.jsx`: fixed prev/next record navigation.
 - `src/dashboard/homeAlerts.js`: single source of truth for home/Light alert
-  builders (`buildNext30Events`, `buildMissedDailyReports`,
-  `buildEquipmentAttention`, `foldEquipmentFuelings`), shared by
-  `HomeDashboard` and `LightHomePortal`. Equipment attention keeps shared
-  `detail` full for single-text consumers and gives HomeDashboard `metaLabel` +
-  `pill` for the CP3 badge layout.
-- `src/dashboard/homeRedesign.css`: scoped homepage redesign styles under
-  `.home.theme-crisp`; it is the live source for the Home aesthetic parity pilot
-  and the `1acd43d` text hierarchy hotfix, but do not move its scoped values into
-  global CSS without a Lane I design amendment.
-- `src/lib/savedViewsApi.js`: `app_saved_views` CRUD + `buildViewState`.
-  Original consumer was Cattle Herds; shipped consumers now reuse it across
-  multiple list/report surfaces with distinct `surface_key` values.
-- `src/lib/cattleHerdFilters.js`: pure cattle herd filter/sort predicates
-  (vitest-locked).
-- `src/lib/sheepFlockFilters.js`: pure Sheep Flocks filter/sort predicates and
-  dimension helpers (vitest-locked).
-- `src/lib/processingBatchDeleteApi.js`: client wrappers for the audited
-  processing-batch lifecycle RPCs (`unschedule_cattle_processing_batch`,
-  `delete_sheep_processing_batch`; migration `100`).
-- `src/lib/csvExport.js`: the single CSV rows-to-CSV / Blob / object-URL /
-  filename / revoke owner, with a spreadsheet formula/DDE-injection guard and
-  farm-Central filename dates. All CSV lanes should export the active filtered
-  result set unless a Ronnie-approved exception is documented.
-- `src/lib/printExport.js`: shared rows-to-print HTML/window owner for record
-  and list print exports.
-- `src/lib/todoApi.js`: To Do List client owner — the migration `115` SECDEF RPC
-  wrappers, To Do photo upload to `task-photos/todo/<id>/`, the participant-only
-  mention loader, the convert-to-task photo carry, and the
-  `wcf-tasks-center-mode` / `wcf-todo-section-filter` localStorage prefs. To Do
-  UI lives in `src/tasks/Todo*.jsx` plus the `TaskCenterView` toggle/router.
-- `src/shared/InlineNotice.jsx`: non-blocking notices (`error`/`warning`/
-  `success`/`info` kinds).
-- `src/shared/DeleteModal.jsx` and `src/shared/ConfirmModal.jsx`: app modal
-  primitives.
-- `src/shared/useModalFocusTrap.js`: shared modal focus-trap/Escape behavior for
-  modal primitives.
-- `src/lib/entityMutations.js`: shared best-effort mutation + Activity helper.
+  builders.
+- `src/lib/feedPlanner.js` and `src/lib/feedOrderBasis.js`: feed order math and
+  shared calendar-pinned order-month logic.
+- `src/lib/savedViewsApi.js`: generic saved views on `app_saved_views`.
+- `src/lib/csvExport.js` and `src/lib/printExport.js`: CSV and print owners.
+- `src/lib/todoApi.js`: To Do List client owner.
+- `src/shared/DeleteModal.jsx`, `src/shared/ConfirmModal.jsx`, and
+  `src/shared/useModalFocusTrap.js`: modal primitives.
 - `src/lib/clientErrorReporting.js` and `src/admin/ClientErrorsView.jsx`:
   runtime error capture and admin review.
 
@@ -1985,12 +496,14 @@ Append-only upload expectations:
 ### Authentication And Roles
 
 - Ronnie remains final gate owner.
-- App roles include admin, management, farm_team, equipment_tech, light, and
-  inactive.
+- App roles include `admin`, `management`, `farm_team`, `equipment_tech`,
+  `light`, and `inactive`.
 - Runtime permission decisions must be enforced by RLS/RPCs, not just hidden UI.
 - Report/form submission is login-required. The session user is the submitter;
   `owner_profile_id` is stamped server-side and client-supplied profile IDs are
   not trusted.
+- Light allowlist excludes `/production`, `/pasture-map`, `/weighins`, program
+  dashboards, `/fleet`, `/activity`, `/admin`, and client-error review.
 
 ---
 
@@ -1998,34 +511,28 @@ Append-only upload expectations:
 
 ### Typography
 
-- Canonical font family: self-hosted `Hanken Grotesk` from `index.html` and
-  inheritance from `fontFamily: 'inherit'` on component styles.
+- Canonical font family: self-hosted `Hanken Grotesk`.
 - Canonical font-size set: `10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 26`.
 - Allowed display sizes: `32, 34, 36, 48, 56`.
-- Canonical shared-component font-weight scale: `400, 500, 600, 700`. Existing
-  legacy/scoped drift is Lane I cleanup work and should not expand without a
-  documented exception.
+- Canonical shared-component font-weight scale: `400, 500, 600, 700`.
 
-### Color hierarchy
+### Color Hierarchy
 
 - Ordinary main text uses pure black (`#000000`): primary section/card/row
   titles, labels, buttons, and primary animal or production numbers.
-- Supporting text uses the muted gray text token: helper copy, subtext,
-  metadata, secondary labels, and non-primary category labels.
+- Supporting text uses muted gray: helper copy, subtext, metadata, secondary
+  labels, and non-primary category labels.
 - Intentional accent/semantic text remains allowed where color carries meaning:
-  summary totals, warning/error/success/info states, weather rain/freeze cues,
-  overdue labels, and text inside approved semantic pastel blocks.
+  warning/error/success/info states, weather rain/freeze cues, overdue labels,
+  and text inside approved semantic pastel blocks.
 - A text-color cleanup must be typography-only unless the build explicitly says
   it is redesigning the affected block's background.
-- The Home page is the source-of-truth implementation for this hierarchy as of
-  `1acd43d`; broader application follows through the Home aesthetic parity pilot
-  and later Lane I guarded slices.
 
-### Spacing and controls
+### Spacing And Controls
 
 - Standard button pad is `10px 16px`.
 - Standard button vertical pad is `10px`.
-- Inputs/selects/textareas use radius `6`, border `1px #d1d5db`, pad `8px 11px`
+- Inputs/selects/textareas use radius `6`, border `1px #d1d5db`, pad `8px 11px`,
   and brand focus treatment.
 
 ### Radius
@@ -2033,22 +540,24 @@ Append-only upload expectations:
 - Canonical radius tokens are `4`, `6`, `10`, `14`, `999`, and `'50%'`.
 - The values `7` and `8` are retired.
 
-### Stacking and elevation
+### Stacking And Elevation
 
 - Dialog layer order keeps Confirm/Delete at toast `9000`; other overlays and
   modals remain below that tier in the shared z-index ladder.
 
-### Save model
+### Save Model
 
 - Explicit Save/Submit by surface class is mandatory for submit-style flows.
-  Autosave is mandatory for edit-in-place flows. Lane D owns migration and any
-  residual exceptions.
+- Autosave is mandatory for edit-in-place flows.
 
-### Canonical components
+### Canonical Components
 
 - Use canonical role owners before introducing equivalent alternatives.
 - Canonical owners include `RecordPageShell`, `RecordSequenceNav`,
-  `recordPageControls`, and modal primitives.
+  `recordPageControls`, `DeleteModal`, `ConfirmModal`, `InlineNotice`, and
+  record collaboration primitives.
+
+---
 
 ## Load-Bearing Contracts
 
@@ -2076,41 +585,23 @@ Data surfaces must fail closed on load errors:
   is valid.
 - Header badge counts soft-fail; Header panel content fails closed.
 
-Load/retry readiness is inventoried by
-`load_retry_robustness_inventory_static.test.js`; changed surfaces must update
-the guard deliberately.
-
 ### Activity, Comments, Mentions, Notifications
 
 - Activity is audit/system history. Comments are user discussion.
 - Runtime Activity access goes through SECDEF RPCs: `list_activity_events`,
   `list_global_activity`, `record_activity_event`, and domain-specific SECDEF
   RPCs that insert `activity_events`.
-- No direct client `.from('activity_events')` or
-  `.from('activity_mentions')`.
-- No direct client `.from('comments')` or `.from('comment_edits')`.
-- Legacy Activity composer/count RPCs (`post_activity_comment`,
-  `edit_activity_event`, `delete_activity_event`, `count_activity_for_entity`)
-  remain defined in historical SQL with no runtime callers, and migration `080`
-  revoked client execute for anon and authenticated. Do not use them.
+- No direct client `.from('activity_events')`, `.from('activity_mentions')`,
+  `.from('comments')`, or `.from('comment_edits')`.
+- Legacy Activity composer/count RPCs remain retired; do not use them.
 - `RecordActivityLog` filters `comment.posted` and shows audit only.
-- `CommentsSection` owns user discussion, attachments, edit history, soft
-  delete, and mentions.
-- Weigh-in notes mirror into canonical record-page `comments` via migration
-  `111`: cattle/sheep entry notes land on animal records, pig/broiler entry or
-  session notes land on batch records, edits update the deterministic note
-  comment, and deletes remove it.
-- `CommentsSection` renders a visible posted timestamp for every comment via
-  `data-comment-posted-at="1"` and the canonical Central farm-time formatter;
-  fresh comments may append a short relative suffix. Deleted-comment and
-  edit-history stamps use the same absolute farm-time format. Comment timestamps
-  must not be hover-only.
-- Mention bodies stay human-readable `@Name`. UUIDs do not appear in body text.
+- `CommentsSection` owns discussion, attachments, edit history, soft delete, and
+  mentions.
+- Mention bodies stay human-readable `@Name`; UUIDs do not appear in body text.
 - Mention notifications route to the operational record page and target comment.
 - Valid notification types: `task_completed`, `mention`, `comment_mention`.
-- Notification writes happen inside SECDEF paths. Client code must not insert or
+- Notification writes happen inside SECDEF paths; client code must not insert or
   delete notifications.
-- `task_completed` notifications skip null creator and self-completion.
 
 ### Activity Entity Additions
 
@@ -2126,36 +617,87 @@ A new Activity entity requires all of this:
 
 Workflow/worktable entities:
 
-- `cattle.forecast` uses entity_id `cattle-forecast`; Forecast month bucket
-  logs filter that stream by `payload.month_key`.
+- `cattle.forecast` uses entity_id `cattle-forecast`; Forecast month bucket logs
+  filter by `payload.month_key`.
 - `cattle.breeding` uses entity_id `cattle-breeding`.
-- These are table/workflow audit streams. Their `_activity_can_read` branches
-  are program-gated rather than row-existence gated.
+- These are table/workflow audit streams and are program-gated rather than
+  row-existence gated.
 
 ### Entity Mutations And Audit Atomicity
 
 - `runMutation` is for routine client-side mutations with best-effort Activity.
 - `runMutation` must not know table names or business rules.
-- `runMutation` is not transactional. If Activity fails after a successful data
-  write, the data is already committed.
+- `runMutation` is not transactional.
 - Audit-critical delete/restore/transfer/status flows should move to SECDEF RPCs
   that mutate data and insert Activity in one transaction.
 - Mutation inventory counts live in
-  `mutation_semantics_inventory_static.test.js`. New mutation sites must update
-  that guard deliberately.
+  `mutation_semantics_inventory_static.test.js`.
 
 ### Delete, Restore, And Recovery
 
 - Hard-delete owner inventory lives in `hard_delete_owner_static.test.js`.
-  Legitimate new hard-delete owners must update that guard deliberately.
-- Soft-delete protected roots must not have direct client deletes: cattle, sheep,
-  `cattle_dailys`, `sheep_dailys`, `poultry_dailys`, `layer_dailys`,
+- Soft-delete protected roots must not have direct client deletes: cattle,
+  sheep, `cattle_dailys`, `sheep_dailys`, `poultry_dailys`, `layer_dailys`,
   `egg_dailys`, `pig_dailys`.
 - Daily reports soft-delete through `soft_delete_daily_report` and restore
   through `restore_daily_report`.
 - Cattle/sheep animals soft-delete/restore through their animal RPCs.
-- Calving sub-row delete goes through `delete_cattle_calving_record` and logs
-  `record.deleted` on the dam's `cattle.animal`.
+- Calving sub-row delete goes through `delete_cattle_calving_record`.
+
+### Production
+
+- Production means processed animals and eggs, not current inventory.
+- There is no combined production total. Home and `/production` display per-
+  program totals only.
+- Production sources:
+  - Broilers from `app_store.ppp-v4` processed/auto-processed batches.
+  - Pigs from `app_store.ppp-feeders-v1.processingTrips`.
+  - Cattle from `cattle_processing_batches.actual_process_date`.
+  - Sheep from `sheep_processing_batches.actual_process_date`.
+  - Eggs from `egg_dailys` counts, displayed as dozens.
+  - Legacy backfill from `production_legacy_events`.
+- Reconciliation: Planner wins. Exact or loose matches from legacy are held out
+  as counted=false audit rows; same identity with different count is conflict and
+  held out until reviewed; legacy-only rows count.
+- YoY is per program/year, not across programs.
+- Light users are excluded by route allowlist and RPC role gate.
+
+### Pasture Map
+
+- Pasture Map v1 architecture is provider-neutral: GeoJSON/PostGIS owns
+  geometry; Leaflet renders the client map; OnX KML is an import source; Google
+  is not the geometry source.
+- `land_areas` is the single self-referencing land model. It can represent
+  pasture > paddock and feeder-pig area > section > paddock.
+- Geometry history is append-only in `land_area_geometry_versions`; editing a
+  boundary writes a new version instead of mutating history.
+- Species is decoupled from land. `designation` is only a hint; animal-group
+  occupancy belongs to dated move events in a future checkpoint.
+- Imported/drawn land starts `baseline_no_history=true`; no fake last-grazed
+  date is seeded.
+- LineStrings are outline candidates and require human close/validation. Never
+  auto-close an OnX LineString.
+- Computed acreage is geodesic; note/manual acreage is cross-check/override, not
+  geometry truth.
+- CP1 access: `farm_team`, `management`, `admin` can read; only `management` and
+  `admin` can import/classify/close/delete; `light`, `equipment_tech`, and
+  inactive are excluded.
+- CP1 does not include move ledger, occupancy, rest-day coloring, planned moves,
+  daily-report wiring, stocking density, or offline imagery cache.
+
+### Daily Reports
+
+- Daily reports have dedicated record pages for poultry, layer, egg, pig, cattle,
+  and sheep.
+- All six open directly editable; no edit-mode toggle.
+- Daily duplicate prevention is DB-backed for poultry/pig/layer/cattle/sheep by
+  partial unique indexes (`084`) after cleanup (`085`); egg duplicate prevention
+  is warning/pre-submit only.
+- Add Feed quick-log rows are not full daily reports.
+- Missed-report checks exclude `source='add_feed_webform'`.
+- Daily edits route through `updateDailyReport` / `update_daily_report`.
+- Daily deletes route through `soft_delete_daily_report`.
+- Light can edit/delete only own rows inside the server-side window.
 
 ### Cattle And Sheep
 
@@ -2163,107 +705,14 @@ Workflow/worktable entities:
 - Active cattle herds: `mommas`, `backgrounders`, `finishers`, `bulls`.
 - Active sheep flocks: `rams`, `ewes`, `feeders`.
 - Outcome states are `processed`, `deceased`, `sold`.
-- Cattle soft-delete/restore: `soft_delete_cattle_animal`,
-  `restore_cattle_animal`.
-- Sheep soft-delete/restore: `soft_delete_sheep_animal`,
-  `restore_sheep_animal`.
 - Heifer-to-cow promotion fires from both calving records and calf-row dam links.
-  Migration `110` covers the calf-row path: when a calf row's `dam_tag` points
-  to an active heifer by current tag or non-import old tag, the dam becomes
-  `cow` and gets a calving-source audit comment.
-- Animal restores reject active tag conflicts.
-- Normal reads filter `deleted_at IS NULL`.
-- Admin can inspect deleted rows where RLS/RPC supports it.
-- No cattle/sheep table DELETE policy should exist for client hard-delete.
 - Manual transfer goes through `transfer_cattle_animal` /
-  `transfer_sheep_animal`: row update + transfer row + `status.changed`
-  Activity in one transaction.
-- Processing-batch helpers may need to resolve deleted animals by ID in admin
-  context; do not add `deleted_at` filters there without redesign.
-- Processing-batch unschedule/delete go through the audited SECDEF RPCs
-  `unschedule_cattle_processing_batch` / `delete_sheep_processing_batch`
-  (migration `100`, wrapper `src/lib/processingBatchDeleteApi.js`): atomic
-  straggler-unlink + delete + `record.deleted` Activity. Do not reintroduce
-  direct client `.delete()` on `cattle_processing_batches` /
-  `sheep_processing_batches`. The per-sheep flock-revert detach loop still runs
-  client-side first via the migration `081` detach RPCs.
-- `CattleBreedingView` mounts the audit-only `cattle.breeding` workflow Activity
-  stream (`RecordCollaborationSection`, entity_id `cattle-breeding`,
-  `showComments=false`), populated by the migration `094` cycle RPCs.
-- Public cattle weigh-ins keep operational tag context visible: dropdown labels
-  include sex, blacklist state stays red in dropdown and weighed lists, retagged
-  animals retain prior weight-history lookup, `+ New Cow` does not ask for prior
-  tag, and replacement-tag reconcile options use the same prior-weight-aware
-  animal label as the main picker.
+  `transfer_sheep_animal`.
+- Processing-batch unschedule/delete go through audited SECDEF RPCs
+  `unschedule_cattle_processing_batch` / `delete_sheep_processing_batch`.
 - Cattle Log (`/cattle/log`) is a comment-backed program field journal on the
-  singleton `cattle.log` entity. It defaults to the Issues filter, supports
-  keyword search, @mentions, photo attachments, offline create replay, and
-  role-aware issue clearing. `#tag` mentions mirror entries onto matched active
-  cow records; unknown tags collect required calf details and resolve when the
-  cow record is later created. Mirrored cow-record entries are read-through
-  references back to the Cattle Log, not independently editable record comments.
-- Sheep Flocks saved views use `src/lib/savedViewsApi.js` over `app_saved_views`
-  with `surface_key = 'sheep.flocks'`, capturing search/filter/sort state; load
-  failures degrade to an inline notice and never block the flock hub. Sheep
-  Flocks filter/sort logic lives in `src/lib/sheepFlockFilters.js`.
-- Additional saved-view consumers now shipped on `main` include daily/report and
-  weigh-in/fuel-log surfaces using distinct `surface_key` values such as
-  `layer.dailys` and `layer.eggs`; failures must degrade locally without
-  converting the parent list into a load failure.
-- Cattle Herds filters/sorts live in `src/lib/cattleHerdFilters.js` (pure,
-  vitest-locked); UI is `CattleHerdsView`. Filters render in three
-  always-visible groups (Core, Calving/Breeding, Lineage/Other) — no "More
-  filters" toggle, no Exceptions group, and no plain-English/Parse smart
-  assistant. See Build Queue for the real AI filter/sort investigation.
-- Non-calving is a single "No calf since [date]" control: mature cow/heifer
-  (30+ months) whose last calving is missing OR before the date. Backward
-  compatibility — `filters.nonCalvingCows === true` still means the
-  9-months-ago default in the predicate, but the checkbox is no longer exposed.
-  A `nonCalving` sort key ranks candidates first/last.
-- `Unmatched Calves` is a checkbox-style filter pushed to the right of
-  Lineage/Other: any sex, no matched dam, born in the last 4 months or missing
-  DOB (`filters.unmatchedCalves === true`). Exception predicates compose as OR
-  and still compose with herd/normal filters/search. Last-calved lookup is by
-  current tag, not old tags (accepted edge).
-- Flat and grouped rows render through one shared `CowListRow`, so calf count +
-  last-calved metadata cannot drift between the two views (shown for females).
-- Saved views: `src/lib/savedViewsApi.js` over `app_saved_views`
-  (`surface_key = 'cattle.herds'`). Any authenticated user saves private or
-  public views capturing `{filters, sortRules, viewMode}`; public-or-owner
-  visibility, owner-only update/delete, RLS-enforced. Load failures degrade to a
-  disabled picker + inline notice (the list still works).
-
-### Daily Reports
-
-- Daily reports have dedicated record pages for poultry, layer, egg, pig, cattle,
-  and sheep.
-- All six open directly editable; no edit-mode toggle.
-- Daily duplicate prevention (identity = date + batch_label for poultry/pig/
-  layer, date + herd for cattle, date + flock for sheep; Add Feed rows excluded):
-  - DB-enforced for those five tables by partial unique indexes (`084`); the
-    one-time historical duplicate cleanup (`085`) ran first in PROD.
-  - The client pre-submit guard (`src/lib/dailyDuplicateCheck.js`) still runs;
-    the indexes are the backstop for edit-to-collide, races, and offline replay.
-  - A constraint violation surfaces a friendly "report already exists" message
-    across edit/create surfaces, and offline replay discards superseded
-    duplicate dailys instead of sticking (`086` lane).
-  - `egg_dailys` is intentionally NOT indexed — warning/pre-submit guard only.
-- Add Feed quick-log rows are not full daily reports.
-- Missed-report checks exclude `source='add_feed_webform'`.
-- Daily edits route through `updateDailyReport` / `update_daily_report` so
-  server-side allowlists, casts, ownership checks, and Activity diffs own the
-  write. Do not reintroduce direct daily-table `.update()` calls.
-- Daily deletes route through `soft_delete_daily_report`. Do not reintroduce
-  direct client deletes for daily roots.
-- `canEditOwnRecord(authState, record)` and
-  `canDeleteDailyReport(authState, record)` mirror server rules: privileged
-  roles can mutate allowed daily rows, Light can mutate only its own
-  `owner_profile_id = auth.uid()` rows, inactive cannot mutate, and legacy
-  NULL-owner rows are Light read-only.
-- Admin Recently Deleted supports daily restore.
-- Broiler/layer/pig daily pages use Group copy, not Batch copy.
-- Layer daily group and `batch_id` resolution must go through
-  `src/layer/layerDailyGroups.js`.
+  singleton `cattle.log` entity. It supports keyword search, @mentions, photo
+  attachments, offline create replay, issue filters, and #tag mirrors.
 
 ### Pig
 
@@ -2281,36 +730,14 @@ Workflow/worktable entities:
 - Planned-trip row shape stays `{id, date, sex, subBatchId, plannedCount,
   order}`.
 - Planned-trip locks live only in `ppp-pig-planned-trip-locks-v1`.
-- `processingTrips[].subAttributions` stores `{subId, subBatchName, sex, count}`.
-- Send-to-Trip may reconcile locked planned trip count but cannot change locked
-  date.
 - Planned-trip forecast weights are render-only and based on DOB/farrowing age
-  at trip date times Global ADG. Latest weigh-ins do not change planned-trip
-  forecast weights.
-- Farrowing-age distribution uses the parent farrowing window and is scaled to
-  sub-batches. Planned trips slice oldest-to-youngest; already shipped pigs are
-  offset from the oldest side. Missing farrowing data falls back to the
-  estimated-cycle band and is marked estimated; 1-pig projections show the full
-  band.
-- Processing trips show Forecast vs Actual with delta, display-only, so Ronnie
-  can compare shipped results against the Global ADG model without auto-changing
-  ADG.
-- Weigh-in entry tiles show previous weigh-in/date and rank-matched per-pig ADG
-  when a prior session exists. Blank notes are hidden behind `+ Note`; existing
-  notes still show.
-- Pig weigh-in entry autosaves; the tile shows a days-since-last-weigh-in delta
-  alongside the previous session so the gap between weigh-ins is visible at a
-  glance.
-- Pig Batches hub rows use the locked 14-column inspection grid: `Batch`,
-  `Status`, `Started Head`, `Current Head`, `Total Feed`, `Feed / Pig`,
-  `Gilts Started`, `Gilts Current`, `Gilts Total Feed`, `Gilts Feed / Pig`,
-  `Boars Started`, `Boars Current`, `Boars Total Feed`, and `Boars Feed / Pig`.
-  The whole row opens the batch record, active batches default newest-first,
-  processed batches sort below active batches with `Current Head` forced to `0`,
-  and CSV/print use the same row metric model. Sex-split current/feed values
-  derived proportionally from started-head split render in the UI with a `~`
-  marker and provenance note; CSV/print values remain plain numbers unless a
-  later column-model decision changes that.
+  at trip date times Global ADG.
+- Pig Batches hub rows use the locked 14-column inspection grid and open the
+  batch record page.
+- Breeding pigs (`/pig/sows`) are grouped table sections. The row is the record
+  navigation target. Do not reintroduce the old PigTile/Record-button/modal-only
+  workflow.
+- Breeding-pig record pages use `pig.breeder` and mount Comments + Activity.
 
 ### Broiler, Layers, And Feed Planning
 
@@ -2318,9 +745,7 @@ Workflow/worktable entities:
 - Login-gated `/weighins` cannot read or mutate `app_store.ppp-v4` directly.
 - Week 4/6 completion uses `stamp_broiler_batch_avg` RPC.
 - Broiler batch record Week 4 and Week 6 weight fields are read-only display
-  values sourced from completed weigh-ins. `BatchForm` must not provide editable
-  `week4Lbs` / `week6Lbs` inputs or direct `upd('week4Lbs')` /
-  `upd('week6Lbs')` write paths; not-yet-stamped values display "Not recorded".
+  values sourced from completed weigh-ins.
 - Layer `current_count` is the physical anchor; projected count subtracts
   mortalities since anchor.
 - Feed math lives in `src/lib/feedPlanner.js` and `src/lib/feedOrderBasis.js`.
@@ -2328,20 +753,14 @@ Workflow/worktable entities:
   present; otherwise they fall back to previous-month estimate.
 - Poultry feed-order math is per feed type: starter, grower, layerfeed.
 - "Count includes `<month>` order" prevents double-counting the delivery.
-- The "Order for `<active>`" tile labels its basis.
+- The feed-order board is calendar-pinned. Pig and broiler both show the next
+  calendar month order card until the calendar advances; saving the order does
+  not advance the visible board to the following month.
 - The second feed summary tile for pig and broiler stays pinned to the current
-  calendar month estimate via `estTileYM`; feed-order entry may advance the
-  workflow `activeYM` without rolling this estimate tile forward.
-- Broiler on-farm counts are centralized in `computeBroilerOnFarmCounts` in
-  `src/lib/broiler.js`. "Birds on Farm" means projected live birds after
-  mortality; "Birds Started" is shown separately. Home and Broiler Home use the
-  same helper.
-- Broiler batch status auto-advances in `loadAllData` (`src/main.jsx`):
-  `shouldAutoActivateBroilerBatch` promotes planned -> active on/after the hatch
-  date, then `shouldAutoProcessBroilerBatch` (both in `src/lib/broiler.js`)
-  promotes active -> processed on/after the processing date (inclusive of
-  today). Auto-process runs after auto-activation within the same `ppp-v4`
-  migration map and persists before the webform mirror sync reads the store.
+  calendar month estimate via `estTileYM`.
+- Broiler on-farm counts are centralized in `computeBroilerOnFarmCounts`.
+- Broiler batch status auto-advances in `loadAllData`: planned -> active on/after
+  hatch date, active -> processed on/after processing date.
 
 ### Tasks
 
@@ -2350,32 +769,11 @@ Workflow/worktable entities:
 - Frontend must not call `generate_system_task_instance`.
 - `task_instance_photos` is canonical. Legacy single-photo columns are display
   fallback only.
-- Task photos are capped at 5 total per task across creation and completion.
-  The client uses `MAX_TASK_PHOTOS_PER_TASK`; migration `114` is the PROD-applied
-  DB backstop.
-- My Tasks and Completed rows render signed private-bucket thumbnails through
-  `TaskPhotoThumbnailButton`; the click target still opens `TaskPhotoLightbox`.
+- Task photos are capped at 5 total per task across creation and completion;
+  migration `114` is the DB backstop.
 - To Do List lives inside Task Center at `/tasks/todo` and `/tasks/todo/<id>`.
-  Participants are `light`, `farm_team`, `management`, and `admin`; `equipment_tech`
-  and inactive users are excluded from the toggle, list, record pages, To Do
-  @mentions, and To Do digest section. General, Chicken & Pigs, and Cattle &
-  Sheep sections are fixed; list position is priority. Any participant may add
-  an item or submit completion; management/admin approve, reject, reorder, move,
-  remove, or convert a To Do into an assigned task. To Do photos use the existing
-  private `task-photos` bucket under `todo/<id>/`, capped at five photos TOTAL
-  across origination and completion by the `115` trigger
-  (`_enforce_todo_item_photos_max_5_total`) and the shared client
-  `MAX_TASK_PHOTOS_PER_TASK` constant.
-- Task assignee dropdowns use `loadTaskAssignableProfilesById` and fail closed
-  on `webform_config` read errors.
-- Header task badge soft-fails and must not break Header rendering.
-- The `task_completed` notification contract is covered by Playwright.
-- Weekly task email (`tasks-summary-weekly`, migration `093`) runs Sunday 8am
-  America/Chicago via dual UTC cron entries with helper-side DST gating; the
-  weekly window starts at the previous Sunday 8am Central. Recipients are open
-  assignees unioned with completed-assigned recipients (completed-task notices
-  owed to creators/assignors via `task_completed` notifications); assigned-only
-  recipients still get email, both-empty recipients are skipped.
+- To Do participants are `light`, `farm_team`, `management`, and `admin`;
+  `equipment_tech` and inactive are excluded.
 
 ### Equipment
 
@@ -2383,22 +781,10 @@ Workflow/worktable entities:
 - Login-gated equipment checklist/fueling lives under `/equipment`.
 - Equipment fueling submissions use `submit_equipment_fueling` RPC.
 - Light My Submissions edits/deletes its own equipment fuelings and fuel
-  supplies through ownership RPCs. Privileged `/fleet` and admin fuel-log
-  surfaces retain their privileged paths under RLS/RPC controls.
+  supplies through ownership RPCs.
 - Fuel-log edit/delete paths recompute current readings from remaining fuel logs.
 - Equipment checklist/material edits must not reload, lose focus, or reorder list
   items on click/edit.
-- Rolling material clears are bucketed by due service cycle.
-- `equipment_maintenance_events` has `client_submission_id` idempotency (`086`):
-  a double-tap "Add Event" collapses to a no-op. This is idempotency, not
-  date-uniqueness — multiple legitimate same-day service events are still
-  allowed. Fuelings and `fuel_supplies` already had `client_submission_id`
-  idempotency (`030`).
-- Home equipment tiles show caught-up notices when all equipment maintenance and
-  all equipment materials are current, mirroring the "no missing daily reports"
-  state (`showEquipmentMaintenanceCaughtUp` / `showEquipmentMaterialsCaughtUp`
-  in `HomeDashboard`, fed by `buildEquipmentAttention` in
-  `src/dashboard/homeAlerts.js`).
 - Admin client error review is at `/admin/client-errors` and reads through
   `list_client_errors` only.
 
@@ -2407,18 +793,12 @@ Workflow/worktable entities:
 - Login-gated webforms must not read `app_store` directly or use browser
   secrets.
 - Former public forms now use Supabase auth state intentionally for login and
-  locked submitter identity. The signed-in session user is the submitter;
-  client-supplied profile IDs are never trusted.
-- Light is allowed only on contained report/form surfaces; weigh-ins remain
-  outside the Light allowlist.
+  locked submitter identity.
+- Light is allowed only on contained report/form surfaces; weigh-ins, Production,
+  and Pasture Map remain outside the Light allowlist.
 - Offline queue IndexedDB ownership is centralized in `src/lib/offlineQueue.js`.
 - Offline RPC replay goes through `useOfflineRpcSubmit` where needed.
-- `EquipmentFuelingWebform` uses `useOfflineRpcSubmit('equipment_fueling')`;
-  transient/offline RPC failures queue and replay, with stuck-submission recovery
-  via `StuckSubmissionsModal`. Offline photo blob capture is not part of that
-  shipped lane; queued payloads carry already-uploaded photo URLs.
-- Ownership stamping is server-side on replay: the replaying authenticated user
-  becomes `owner_profile_id`.
+- Ownership stamping is server-side on replay.
 - Shared TEST DB Playwright specs that reset/seed the DB must run one file at a
   time.
 
@@ -2442,43 +822,25 @@ Workflow/worktable entities:
 
 ### Shared UI And Record Chrome
 
-- Design tokens and visual contract details are in `## Design System`.
-
 - Global openable affordance is shared through `.hoverable-tile` for card/div
-  openables and `.hoverable-row` for table-row openables. The CSS block lives
-  byte-identically in the active HTML entries, provides pointer, hover,
-  `:focus-visible`, and active states, and must stay paint-only/no-layout-shift.
-  Do not put `.hoverable-tile` on `<tr>` or `.hoverable-row` on non-`tr`
-  elements; `openable_hover_affordance_static.test.js` locks the contract.
+  openables and `.hoverable-row` for table-row openables.
+- Do not put `.hoverable-tile` on `<tr>` or `.hoverable-row` on non-`tr`
+  elements.
 - `RecordPageShell` owns record-page frame/loading/not-found/body/title chrome.
 - `RecordCollaborationSection` is the only component that composes
   `CommentsSection` and `RecordActivityLog`.
 - `RecordActivityLog` is audit-only and filters `comment.posted`.
-- `RecordSequenceNav` is the shared sequence-navigation primitive: fixed flat
-  pills pinned to the left (Prev) and right (Next) screen edges, vertically
-  centered, with a small bottom-center "i of n" pill. Hooks
-  (`data-record-seq-nav/-prev/-next/-position/-fixed`) are locked by the
-  `*_sequence_nav.spec.js` suites. Note the fixed-position gotchas: the
-  container must carry no CSS transform (a transformed ancestor re-anchors
-  `position:fixed` children to itself), and the position pill stays in-flow so
-  the container has a real, visible box.
-- `app_saved_views` saved views are a generic per-surface primitive
-  (`savedViewsApi.js`, `surface_key`). New consumers reuse the same table/API
-  with a distinct `surface_key`, and failures should degrade locally without
-  converting the parent list into a load failure.
-- `DeleteModal` and `ConfirmModal` are app-level modal primitives. New
-  destructive/confirmation flows should use them unless a documented exception
-  is added to `shared_ui_extraction_contract_static.test.js`; shared modal
-  focus behavior lives in `useModalFocusTrap.js`.
+- `RecordSequenceNav` is the shared sequence-navigation primitive.
+- `app_saved_views` saved views are a generic per-surface primitive.
+- `DeleteModal` and `ConfirmModal` are app-level modal primitives.
 - CSV export ownership lives in `csvExport.js`; row-print export ownership lives
-  in `printExport.js`. New exports should use active filtered/sorted rows unless
-  a Ronnie-approved exception is documented.
+  in `printExport.js`.
 - Record page controls live in `src/shared/recordPageControls.jsx`.
 
 ### Source Boundary Guards
 
-Static guards now lock these boundaries. If a legitimate new owner is added,
-update the guard in the same lane and explain why:
+Static guards lock these boundaries. If a legitimate new owner is added, update
+the guard in the same lane and explain why:
 
 - Supabase client owner.
 - Browser secret/env usage.
@@ -2521,37 +883,35 @@ npm run test:e2e
 
 Focused starting points:
 
-| Area                     | Tests                                                                                                                                                           |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Routes                   | `src/lib/routes.test.js`, `tests/url_alias_redirects.spec.js`                                                                                                    |
-| Activity and global log  | `tests/static/activity_static.test.js`, `tests/static/activity_change_logging_static.test.js`, `tests/static/global_activity_log_static.test.js`, `tests/activity_navigation.spec.js` |
-| Comments and mentions    | `tests/static/comments_foundation_static.test.js`, `tests/static/mention_deep_links_static.test.js`                                                             |
-| Notifications            | `tests/static/notifications_static.test.js`, `tests/notifications_task_completed.spec.js`                                                                        |
-| Tasks                    | `tests/static/tasks_*.test.js`, `src/lib/tasksCenterApi.test.js`, `src/lib/tasksAdminApi.test.js`, `tests/tasks_v2_*.spec.js`                                  |
-| Record pages             | `tests/static/record_page_*.test.js`, per-entity static tests, `tests/*_sequence_nav.spec.js`, `tests/record_sequence_nav_fixed.spec.js`, `tests/static/record_sequence_nav_cp3_static.test.js`, `tests/static/save_model_contract_static.test.js` |
-| Openable affordance      | `tests/static/openable_hover_affordance_static.test.js`                                                                                                         |
-| Home / dashboard alerts  | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js`, `tests/light_home_alerts.spec.js`, `tests/home_dashboard_equipment.spec.js` |
-| Readiness                | `tests/static/load_retry_robustness_inventory_static.test.js`, `tests/static/*readiness*`                                                                       |
-| Mutation/delete/recovery | `tests/static/mutation_semantics_inventory_static.test.js`, `tests/static/delete_recovery_classification_static.test.js`, `tests/static/hard_delete_owner_static.test.js` |
-| Cattle                   | `tests/static/cattle_*.test.js`, `tests/cattle_*.spec.js`, `src/lib/cattleHerdFilters.test.js`, `tests/static/app_saved_views_migration_static.test.js`         |
-| Sheep                    | `tests/static/sheep_*.test.js`, `tests/sheep_*.spec.js`, `src/lib/sheepFlockFilters.test.js`                                                                     |
-| Daily reports            | `tests/static/daily_*.test.js`, `tests/static/daily_hub_saved_views_csv_static.test.js`, `tests/static/cp2_daily_writes_via_rpc_static.test.js`, `tests/daily_*.spec.js` |
-| Feed planning            | `src/lib/feedPlanner.test.js`, `src/lib/feedOrderBasis.test.js`, `tests/static/feed_order_board_static.test.js`                                                 |
-| Pig                      | `src/lib/pig*.test.js`, `src/lib/pigBatchGridMetrics.test.js`, `tests/static/pig_batches_planned_trips_static.test.js`, `tests/pig_*.spec.js`                  |
-| Broiler/layer            | `src/lib/broiler.test.js`, `tests/static/broiler_hatch_activation_static.test.js`, `tests/static/broiler_batch_record_page_static.test.js`, `src/layer/*.test.js`, `tests/broiler_*.spec.js`, `tests/layer_*.spec.js` |
-| Equipment                | `src/lib/equipment.test.js`, `tests/static/equipment_*.test.js`, `tests/equipment_*.spec.js`                                                                    |
-| Export / print           | `src/lib/csvExport.test.js`, `src/lib/printExport.test.js`, `tests/static/weighin_session_record_page_static.test.js`                                          |
-| Login/offline webforms   | `tests/static/light_user_portal_static.test.js`, `tests/offline_*.spec.js`, `tests/daily_report_photos.spec.js`             |
-| Storage/media guards     | `tests/static/*storage*.test.js`, `tests/static/*photo*.test.js`, `tests/static/image_file_input_capture_static.test.js`                                       |
-| Runtime observability    | `tests/static/error_resilience_static.test.js`, `tests/static/client_error_boundary_static.test.js`, `tests/static/client_errors_review_static.test.js`          |
+| Area | Tests |
+| --- | --- |
+| Routes | `src/lib/routes.test.js`, `tests/url_alias_redirects.spec.js` |
+| Activity and global log | `tests/static/activity_static.test.js`, `tests/static/activity_change_logging_static.test.js`, `tests/static/global_activity_log_static.test.js`, `tests/activity_navigation.spec.js` |
+| Comments and mentions | `tests/static/comments_foundation_static.test.js`, `tests/static/mention_deep_links_static.test.js` |
+| Notifications | `tests/static/notifications_static.test.js`, `tests/notifications_task_completed.spec.js` |
+| Tasks | `tests/static/tasks_*.test.js`, `src/lib/tasksCenterApi.test.js`, `src/lib/tasksAdminApi.test.js`, `tests/tasks_v2_*.spec.js` |
+| Record pages | `tests/static/record_page_*.test.js`, per-entity static tests, `tests/*_sequence_nav.spec.js` |
+| Home / dashboard alerts | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js` |
+| Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
+| Pasture Map | `src/lib/pastureKml.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_import.spec.js`, `playwright.pasture.config.js` |
+| Breeding pigs | `tests/static/breeding_pigs_parity_static.test.js` |
+| Feed planning | `src/lib/feedPlanner.test.js`, `src/lib/feedOrderBasis.test.js`, `tests/static/feed_order_board_static.test.js` |
+| Pig | `src/lib/pig*.test.js`, `src/lib/pigBatchGridMetrics.test.js`, `tests/static/pig_batches_planned_trips_static.test.js`, `tests/pig_*.spec.js` |
+| Broiler/layer | `src/lib/broiler.test.js`, `tests/static/broiler_hatch_activation_static.test.js`, `tests/static/broiler_batch_record_page_static.test.js`, `src/layer/*.test.js`, `tests/broiler_*.spec.js`, `tests/layer_*.spec.js` |
+| Cattle | `tests/static/cattle_*.test.js`, `tests/cattle_*.spec.js`, `src/lib/cattleHerdFilters.test.js` |
+| Sheep | `tests/static/sheep_*.test.js`, `tests/sheep_*.spec.js`, `src/lib/sheepFlockFilters.test.js` |
+| Daily reports | `tests/static/daily_*.test.js`, `tests/static/cp2_daily_writes_via_rpc_static.test.js`, `tests/daily_*.spec.js` |
+| Equipment | `src/lib/equipment.test.js`, `tests/static/equipment_*.test.js`, `tests/equipment_*.spec.js` |
+| Export / print | `src/lib/csvExport.test.js`, `src/lib/printExport.test.js` |
+| Login/offline webforms | `tests/static/light_user_portal_static.test.js`, `tests/offline_*.spec.js`, `tests/daily_report_photos.spec.js` |
+| Storage/media guards | `tests/static/*storage*.test.js`, `tests/static/*photo*.test.js`, `tests/static/image_file_input_capture_static.test.js` |
+| Runtime observability | `tests/static/error_resilience_static.test.js`, `tests/static/client_error_boundary_static.test.js`, `tests/static/client_errors_review_static.test.js` |
 
 Playwright notes:
 
 - Specs that reset the shared TEST DB must run one file at a time.
 - Local dev-server cold-start can hang if stray node/vite processes remain in
   old worktrees. Clear stale processes before diagnosing product flake.
-- The forecast Activity Playwright spec shipped but historically hit local
-  cold-start setup timeouts; static and direct TEST checks covered the contract.
 
 ---
 
@@ -2561,7 +921,7 @@ Before a new lane:
 
 1. Read [HO.md](HO.md).
 2. Read Current State, Build Queue, and the relevant contracts here.
-3. Run `git status --short` and inspect recent `git log`.
+3. Run `git status --short`, `git worktree list`, and inspect recent `git log`.
 4. Identify dirty-tree risk, active worktrees, open gates, and migration state.
 5. Inspect files in scope before planning.
 6. If touching a boundary guard, update the guard in the same lane.
@@ -2577,7 +937,7 @@ Before a new lane:
 - Older narrative history: `archive/SESSION_LOG.md`.
 - Research, screenshots, audits, and video evaluations:
   `C:\Users\Ronni\cc-research\`.
-- Parity audit evidence for the 2026-06-05 Build Queue:
+- Parity audit evidence:
   `C:\Users\Ronni\cc-research\parity-audit-2026-06-05-CC.md`.
 - Detailed build history lives in git log and tests. Keep this file as the
   compact project map, not a running transcript.
