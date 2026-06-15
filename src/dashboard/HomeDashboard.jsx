@@ -39,7 +39,6 @@ import {useCattleHome} from '../contexts/CattleHomeContext.jsx';
 import {useSheepHome} from '../contexts/SheepHomeContext.jsx';
 import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
-import {computeHousingDisplayCount} from '../lib/layerHousing.js';
 import {loadProductionSources} from '../lib/productionApi.js';
 import {buildProductionModel, homeProductionStats} from '../lib/production.js';
 
