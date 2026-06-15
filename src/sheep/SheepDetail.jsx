@@ -84,7 +84,7 @@ const SheepDetail = ({
   const editInp = {
     fontSize: 12,
     padding: '5px 8px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 5,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
@@ -108,7 +108,7 @@ const SheepDetail = ({
   const sectionTitle = {
     fontSize: 11,
     fontWeight: 700,
-    color: '#4b5563',
+    color: 'var(--ink-muted)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
@@ -135,7 +135,7 @@ const SheepDetail = ({
   const findByTag = (t) => (t && Array.isArray(sheepList) ? sheepList.find((x) => x.tag === t) : null);
   const accentColor = (FLOCK_COLORS && FLOCK_COLORS[sheep.flock] && FLOCK_COLORS[sheep.flock].tx) || '#0f766e';
   const linkStyle = {
-    color: '#1d4ed8',
+    color: 'var(--brand)',
     cursor: 'pointer',
     textDecoration: 'underline',
     background: 'none',
@@ -194,7 +194,7 @@ const SheepDetail = ({
           >
             {'← Back' + (backToTag ? ' to #' + backToTag : '')}
           </button>
-          <span style={{fontSize: 11, color: '#6b7280'}}>{'— you navigated here from another sheep'}</span>
+          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{'— you navigated here from another sheep'}</span>
         </div>
       )}
       {/* Header: editable tag + labeled flock/sex/breed selects + close X */}
@@ -205,7 +205,7 @@ const SheepDetail = ({
           gap: 10,
           marginBottom: 10,
           paddingBottom: 8,
-          borderBottom: '1px solid #f3f4f6',
+          borderBottom: '1px solid var(--divider)',
           flexWrap: 'wrap',
         }}
       >
@@ -223,7 +223,7 @@ const SheepDetail = ({
           <div
             style={{
               fontSize: 10,
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontWeight: 600,
               marginBottom: 2,
               textTransform: 'uppercase',
@@ -244,7 +244,7 @@ const SheepDetail = ({
           <div
             style={{
               fontSize: 10,
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontWeight: 600,
               marginBottom: 2,
               textTransform: 'uppercase',
@@ -265,7 +265,7 @@ const SheepDetail = ({
           <div
             style={{
               fontSize: 10,
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontWeight: 600,
               marginBottom: 2,
               textTransform: 'uppercase',
@@ -297,9 +297,9 @@ const SheepDetail = ({
             style={{
               marginLeft: 'auto',
               background: 'none',
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               borderRadius: 6,
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               cursor: 'pointer',
               fontSize: 18,
               lineHeight: 1,
@@ -319,14 +319,14 @@ const SheepDetail = ({
           <div
             style={{
               fontSize: 12,
-              color: '#374151',
+              color: 'var(--ink)',
               display: 'grid',
               gridTemplateColumns: '120px 1fr',
               gap: '4px 8px',
               alignItems: 'center',
             }}
           >
-            <span style={{color: '#9ca3af'}}>Origin:</span>
+            <span style={{color: 'var(--ink-faint)'}}>Origin:</span>
             <select defaultValue={sheep.origin || ''} onChange={patchOnChange('origin')} style={editInp}>
               <option value="">{'— select —'}</option>
               {(originOpts || []).map((o) => (
@@ -338,32 +338,32 @@ const SheepDetail = ({
                 <option value={sheep.origin}>{sheep.origin}</option>
               )}
             </select>
-            <span style={{color: '#9ca3af'}}>Birth:</span>
+            <span style={{color: 'var(--ink-faint)'}}>Birth:</span>
             <input
               type="date"
               defaultValue={sheep.birth_date || ''}
               onBlur={patchOnBlur('birth_date', 'text')}
               style={editInp}
             />
-            <span style={{color: '#9ca3af'}}>Age:</span>
+            <span style={{color: 'var(--ink-faint)'}}>Age:</span>
             <span
               style={{
                 fontSize: 12,
                 padding: '5px 8px',
-                color: '#6b7280',
+                color: 'var(--ink-muted)',
                 fontFamily: 'inherit',
               }}
             >
               {ageLabel || '—'}
             </span>
-            <span style={{color: '#9ca3af'}}>Purchased:</span>
+            <span style={{color: 'var(--ink-faint)'}}>Purchased:</span>
             <input
               type="date"
               defaultValue={sheep.purchase_date || ''}
               onBlur={patchOnBlur('purchase_date', 'text')}
               style={editInp}
             />
-            <span style={{color: '#9ca3af'}}>Purchase $:</span>
+            <span style={{color: 'var(--ink-faint)'}}>Purchase $:</span>
             <input
               type="number"
               min="0"
@@ -374,7 +374,7 @@ const SheepDetail = ({
             />
             {sheep.sex === 'ewe' && (
               <>
-                <span style={{color: '#9ca3af'}}>Breeding:</span>
+                <span style={{color: 'var(--ink-faint)'}}>Breeding:</span>
                 <select
                   defaultValue={sheep.breeding_status || ''}
                   onChange={patchOnChange('breeding_status')}
@@ -395,14 +395,14 @@ const SheepDetail = ({
           <div
             style={{
               fontSize: 12,
-              color: '#374151',
+              color: 'var(--ink)',
               display: 'grid',
               gridTemplateColumns: '120px 1fr',
               gap: '4px 8px',
               alignItems: 'center',
             }}
           >
-            <span style={{color: '#9ca3af'}}>Dam tag #:</span>
+            <span style={{color: 'var(--ink-faint)'}}>Dam tag #:</span>
             <input
               type="text"
               defaultValue={sheep.dam_tag || ''}
@@ -411,13 +411,13 @@ const SheepDetail = ({
             />
             {sheep.dam_tag && findByTag(sheep.dam_tag) && (
               <>
-                <span style={{color: '#9ca3af'}}>{}</span>
-                <span style={{fontSize: 11, color: '#6b7280'}}>
+                <span style={{color: 'var(--ink-faint)'}}>{}</span>
+                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                   <TagLink tag={sheep.dam_tag} prefix="View " /> {'(' + (findByTag(sheep.dam_tag).breed || '?') + ')'}
                 </span>
               </>
             )}
-            <span style={{color: '#9ca3af'}}>Sire tag #:</span>
+            <span style={{color: 'var(--ink-faint)'}}>Sire tag #:</span>
             <input
               type="text"
               defaultValue={sheep.sire_tag || ''}
@@ -426,8 +426,8 @@ const SheepDetail = ({
             />
             {sheep.sire_tag && findByTag(sheep.sire_tag) && (
               <>
-                <span style={{color: '#9ca3af'}}>{}</span>
-                <span style={{fontSize: 11, color: '#6b7280'}}>
+                <span style={{color: 'var(--ink-faint)'}}>{}</span>
+                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                   <TagLink tag={sheep.sire_tag} prefix="View " /> {'(' + (findByTag(sheep.sire_tag).breed || '?') + ')'}
                 </span>
               </>
@@ -437,7 +437,7 @@ const SheepDetail = ({
       </div>
 
       {/* Prior Tags editor */}
-      <div style={{marginTop: 12, paddingTop: 10, borderTop: '1px solid #f3f4f6'}}>
+      <div style={{marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--divider)'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}>
           <div style={sectionTitle}>Prior Tags</div>
           <button
@@ -445,7 +445,7 @@ const SheepDetail = ({
             onClick={addOldTag}
             style={{
               fontSize: 11,
-              color: '#1d4ed8',
+              color: 'var(--brand)',
               background: 'none',
               border: '1px dashed #bfdbfe',
               borderRadius: 5,
@@ -458,7 +458,7 @@ const SheepDetail = ({
           </button>
         </div>
         {(sheep.old_tags || []).length === 0 && (
-          <div style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>No prior tags recorded.</div>
+          <div style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic'}}>No prior tags recorded.</div>
         )}
         {(sheep.old_tags || []).map((t, ti) => (
           <div
@@ -621,7 +621,14 @@ const SheepDetail = ({
             <div style={{marginTop: 12}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}>
                 <div style={{...sectionTitle, marginBottom: 0}}>Weight History ({rows.length})</div>
-                <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+                <div
+                  style={{
+                    display: 'flex',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    border: '1px solid var(--border-strong)',
+                  }}
+                >
                   {[
                     {k: 'table', l: 'Table'},
                     {k: 'chart', l: 'Chart'},
@@ -632,13 +639,13 @@ const SheepDetail = ({
                       style={{
                         padding: '3px 10px',
                         border: 'none',
-                        borderRight: oi < 1 ? '1px solid #d1d5db' : 'none',
+                        borderRight: oi < 1 ? '1px solid var(--border-strong)' : 'none',
                         fontFamily: 'inherit',
                         fontSize: 10,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        background: weightView === o.k ? '#0f766e' : 'white',
-                        color: weightView === o.k ? 'white' : '#6b7280',
+                        background: 'white',
+                        color: weightView === o.k ? '#0f766e' : 'var(--ink-muted)',
                       }}
                     >
                       {o.l}
@@ -651,7 +658,7 @@ const SheepDetail = ({
                 <div
                   style={{
                     background: 'white',
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid var(--border)',
                     borderRadius: 6,
                     overflow: 'hidden',
                     maxWidth: 640,
@@ -662,14 +669,14 @@ const SheepDetail = ({
                       display: 'grid',
                       gridTemplateColumns: '120px 80px 80px 80px 90px',
                       gap: 0,
-                      background: '#f9fafb',
+                      background: 'var(--surface-2)',
                       padding: '6px 12px',
                       fontSize: 10,
                       fontWeight: 700,
-                      color: '#6b7280',
+                      color: 'var(--ink-muted)',
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
-                      borderBottom: '1px solid #e5e7eb',
+                      borderBottom: '1px solid var(--border)',
                     }}
                   >
                     <div>Date</div>
@@ -687,15 +694,17 @@ const SheepDetail = ({
                         gap: 0,
                         padding: '6px 12px',
                         fontSize: 12,
-                        borderBottom: i < desc.length - 1 ? '1px solid #f3f4f6' : 'none',
+                        borderBottom: i < desc.length - 1 ? '1px solid var(--divider)' : 'none',
                         fontVariantNumeric: 'tabular-nums',
                       }}
                     >
-                      <div style={{color: '#111827'}}>{fmt(r.date)}</div>
-                      <div style={{textAlign: 'right', fontWeight: 700, color: '#111827'}}>
+                      <div style={{color: 'var(--ink)'}}>{fmt(r.date)}</div>
+                      <div style={{textAlign: 'right', fontWeight: 700, color: 'var(--ink)'}}>
                         {r.wt.toLocaleString()} lb
                       </div>
-                      <div style={{textAlign: 'right', color: '#6b7280'}}>{r.dDays != null ? r.dDays : '—'}</div>
+                      <div style={{textAlign: 'right', color: 'var(--ink-muted)'}}>
+                        {r.dDays != null ? r.dDays : '—'}
+                      </div>
                       <div
                         style={{
                           textAlign: 'right',
@@ -716,8 +725,8 @@ const SheepDetail = ({
                         padding: '8px 12px',
                         fontSize: 11,
                         background: '#f3f4f6',
-                        borderTop: '2px solid #d1d5db',
-                        color: '#374151',
+                        borderTop: '2px solid var(--border-strong)',
+                        color: 'var(--ink)',
                         display: 'flex',
                         gap: 10,
                         flexWrap: 'wrap',
@@ -730,7 +739,7 @@ const SheepDetail = ({
                           textTransform: 'uppercase',
                           letterSpacing: 0.5,
                           fontSize: 10,
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Lifetime
@@ -751,7 +760,14 @@ const SheepDetail = ({
               )}
 
               {weightView === 'chart' && (
-                <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 6, padding: '10px 12px'}}>
+                <div
+                  style={{
+                    background: 'white',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '10px 12px',
+                  }}
+                >
                   <svg
                     viewBox={'0 0 ' + W + ' ' + H}
                     preserveAspectRatio="none"
@@ -881,9 +897,9 @@ const SheepDetail = ({
                       style={{
                         marginTop: 6,
                         paddingTop: 8,
-                        borderTop: '1px solid #f3f4f6',
+                        borderTop: '1px solid var(--divider)',
                         fontSize: 11,
-                        color: '#374151',
+                        color: 'var(--ink)',
                         textAlign: 'center',
                       }}
                     >
@@ -1035,9 +1051,9 @@ const SheepDetail = ({
                   style={{
                     padding: '6px 12px',
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#6b7280',
+                    color: 'var(--ink-muted)',
                     fontSize: 12,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
@@ -1054,14 +1070,18 @@ const SheepDetail = ({
             );
             if (combined.length === 0) {
               if (showLambForm) return null;
-              return <div style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>No lambing records yet.</div>;
+              return (
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic'}}>
+                  No lambing records yet.
+                </div>
+              );
             }
             return combined.map((r) => (
               <div
                 key={r.id}
                 style={{
                   background: 'white',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '6px 10px',
                   marginBottom: 4,
@@ -1072,10 +1092,10 @@ const SheepDetail = ({
                   alignItems: 'center',
                 }}
               >
-                <strong style={{color: '#111827'}}>{r.lambing_date ? fmt(r.lambing_date) : 'date unknown'}</strong>
+                <strong style={{color: 'var(--ink)'}}>{r.lambing_date ? fmt(r.lambing_date) : 'date unknown'}</strong>
                 <span>{(r.total_born || 0) + ' born, ' + (r.deaths || 0) + ' died'}</span>
                 {r.complications_flag && <span style={{color: '#b91c1c', fontWeight: 600}}>{'⚠ complications'}</span>}
-                {r.notes && <span style={{color: '#6b7280', fontStyle: 'italic'}}>{r.notes}</span>}
+                {r.notes && <span style={{color: 'var(--ink-muted)', fontStyle: 'italic'}}>{r.notes}</span>}
                 {onDeleteLambing && (
                   <button
                     type="button"
@@ -1102,7 +1122,7 @@ const SheepDetail = ({
               <div
                 style={{
                   fontSize: 10,
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                   fontWeight: 600,
@@ -1151,7 +1171,7 @@ const SheepDetail = ({
                 flex: 1,
                 fontSize: 12,
                 padding: '6px 10px',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 borderRadius: 6,
                 fontFamily: 'inherit',
               }}
@@ -1186,7 +1206,7 @@ const SheepDetail = ({
                     key={c.id}
                     style={{
                       background: 'white',
-                      border: '1px solid #e5e7eb',
+                      border: '1px solid var(--border)',
                       borderRadius: 6,
                       padding: '6px 10px',
                       marginBottom: 4,
@@ -1224,8 +1244,10 @@ const SheepDetail = ({
                       >
                         {c.source}
                       </span>
-                      <span style={{color: '#9ca3af'}}>{fmt((c.created_at || '').slice(0, 10))}</span>
-                      {c.team_member && <span style={{color: '#9ca3af', fontWeight: 600}}>{'· ' + c.team_member}</span>}
+                      <span style={{color: 'var(--ink-faint)'}}>{fmt((c.created_at || '').slice(0, 10))}</span>
+                      {c.team_member && (
+                        <span style={{color: 'var(--ink-faint)', fontWeight: 600}}>{'· ' + c.team_member}</span>
+                      )}
                       {!isEditing && onEditComment && (
                         <button
                           type="button"
@@ -1236,7 +1258,7 @@ const SheepDetail = ({
                           style={{
                             marginLeft: 'auto',
                             fontSize: 10,
-                            color: '#1d4ed8',
+                            color: 'var(--brand)',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -1275,7 +1297,7 @@ const SheepDetail = ({
                             width: '100%',
                             fontSize: 11,
                             padding: '4px 8px',
-                            border: '1px solid #d1d5db',
+                            border: '1px solid var(--border-strong)',
                             borderRadius: 5,
                             fontFamily: 'inherit',
                             boxSizing: 'border-box',
@@ -1314,9 +1336,9 @@ const SheepDetail = ({
                             style={{
                               padding: '3px 10px',
                               borderRadius: 5,
-                              border: '1px solid #d1d5db',
+                              border: '1px solid var(--border-strong)',
                               background: 'white',
-                              color: '#6b7280',
+                              color: 'var(--ink-muted)',
                               fontSize: 10,
                               cursor: 'pointer',
                               fontFamily: 'inherit',
@@ -1327,14 +1349,14 @@ const SheepDetail = ({
                         </div>
                       </div>
                     ) : (
-                      <div style={{color: '#374151'}}>{c.comment}</div>
+                      <div style={{color: 'var(--ink)'}}>{c.comment}</div>
                     )}
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>No comments yet.</div>
+            <div style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic'}}>No comments yet.</div>
           )}
           {sheep.breeding_blacklist && (
             <div
@@ -1375,7 +1397,7 @@ const SheepDetail = ({
           display: 'flex',
           gap: 6,
           flexWrap: 'wrap',
-          borderTop: '1px solid #e5e7eb',
+          borderTop: '1px solid var(--border)',
           paddingTop: 10,
         }}
       >

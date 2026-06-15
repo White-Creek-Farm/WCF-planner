@@ -190,7 +190,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                 <div
                   style={{
                     padding: '14px 20px',
-                    borderBottom: '1px solid #e5e7eb',
+                    borderBottom: '1px solid var(--border)',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
@@ -209,7 +209,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       border: 'none',
                       fontSize: 22,
                       cursor: 'pointer',
-                      color: '#9ca3af',
+                      color: 'var(--ink-faint)',
                       lineHeight: 1,
                     }}
                   >
@@ -255,7 +255,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       style={recordTextarea}
                     />
                   </div>
-                  <div style={{fontSize: 11, color: '#6b7280'}}>
+                  <div style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                     {'Stamped: ' +
                       todayISO() +
                       ' · ' +
@@ -265,7 +265,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                 <div
                   style={{
                     padding: '12px 20px',
-                    borderTop: '1px solid #e5e7eb',
+                    borderTop: '1px solid var(--border)',
                     display: 'flex',
                     gap: 8,
                     justifyContent: 'flex-end',
@@ -545,13 +545,18 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
             >
               {/* Batch header */}
               {(() => {
-                const headerBg = C ? C.boar : '#f9f9f9';
-                const ht = getReadableText(headerBg);
+                // CP6 T2: de-pastel the broad C.boar fill to white; keep the
+                // group identity as a small accent — identity-hue header text +
+                // a 3px borderLeft rail in the same hue. Neutral (no-cycle)
+                // batches keep the off-white surface with readable text.
+                const headerBg = 'white';
+                const ht = C ? C.boar : getReadableText('#f9f9f9');
                 return (
                   <div
                     style={{
                       padding: '12px 16px',
                       background: headerBg,
+                      borderLeft: C ? `3px solid ${C.boar}` : undefined,
                       display: 'flex',
                       flexWrap: 'wrap',
                       gap: '6px 16px',
@@ -591,8 +596,8 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             fontSize: 11,
                             padding: '3px 10px',
                             borderRadius: 5,
-                            border: '1px solid #d1d5db',
-                            color: '#6b7280',
+                            border: '1px solid var(--border-strong)',
+                            color: 'var(--ink-muted)',
                             background: 'white',
                             cursor: 'pointer',
                             fontFamily: 'inherit',
@@ -656,7 +661,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         }}
                         style={{
                           fontSize: 11,
-                          color: '#1d4ed8',
+                          color: 'var(--brand)',
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
@@ -676,7 +681,13 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                   : batchDailys.length > 0;
                 return trips.length > 0 || totalFeed > 0 || anyDailys;
               })() && (
-                <div style={{padding: '10px 16px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb'}}>
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    background: 'var(--surface-2)',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
                   <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 8}}>
                     {[
                       {
@@ -750,7 +761,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       {
                         label: 'Pigs processed',
                         val: pigsProcessed,
-                        color: '#111827',
+                        color: 'var(--ink)',
                       },
                       {
                         label: 'Total live wt',
@@ -764,7 +775,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         style={{
                           textAlign: 'center',
                           background: 'white',
-                          border: '1px solid #e5e7eb',
+                          border: '1px solid var(--border)',
                           borderRadius: 6,
                           padding: '6px 10px',
                         }}
@@ -772,7 +783,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         <div
                           style={{
                             fontSize: 10,
-                            color: '#9ca3af',
+                            color: 'var(--ink-faint)',
                             textTransform: 'uppercase',
                             letterSpacing: 0.4,
                             marginBottom: 2,
@@ -781,7 +792,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           {s.label}
                         </div>
                         <div style={{fontSize: 15, fontWeight: 700, color: s.color}}>{s.val === 0 ? '—' : s.val}</div>
-                        {s.hint && <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>{s.hint}</div>}
+                        {s.hint && <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 1}}>{s.hint}</div>}
                       </div>
                     ))}
                   </div>
@@ -790,7 +801,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       ? subFeedTotals.reduce((s, sf) => s + sf.dailys.length, 0)
                       : batchDailys.length;
                     return allDailysCount > 0 ? (
-                      <div style={{marginTop: 8, fontSize: 11, color: '#6b7280'}}>
+                      <div style={{marginTop: 8, fontSize: 11, color: 'var(--ink-muted)'}}>
                         <span>
                           📋 {allDailysCount} daily report{allDailysCount !== 1 ? 's' : ''}
                         </span>
@@ -815,7 +826,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                   <div
                     style={{
                       padding: '10px 16px',
-                      borderBottom: '1px solid #e5e7eb',
+                      borderBottom: '1px solid var(--border)',
                       background: '#f5f3ff',
                       fontSize: 12,
                       color: '#5b21b6',
@@ -842,9 +853,9 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
               })()}
 
               {/* Sub-batches panel */}
-              <div style={{padding: '10px 16px', borderBottom: '1px solid #e5e7eb'}}>
+              <div style={{padding: '10px 16px', borderBottom: '1px solid var(--border)'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}>
-                  <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563'}}>
+                  <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)'}}>
                     Sub-batches {subBatches.length > 0 ? `(${subBatches.length})` : ''}
                   </div>
                   <div style={{display: 'flex', gap: 6}}>
@@ -853,7 +864,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         onClick={() => closeSubForm(g.id)}
                         style={{
                           fontSize: 11,
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
@@ -918,7 +929,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       <div
                         style={{
                           padding: '14px 20px',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -926,7 +937,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       >
                         <div style={{fontSize: 15, fontWeight: 600, color: '#085041'}}>
                           {editSubId ? 'Edit Sub-batch' : 'New Sub-batch'}{' '}
-                          <span style={{fontWeight: 400, color: '#9ca3af', fontSize: 11, marginLeft: 6}}>
+                          <span style={{fontWeight: 400, color: 'var(--ink-faint)', fontSize: 11, marginLeft: 6}}>
                             Auto-saves as you type
                           </span>
                         </div>
@@ -937,7 +948,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             border: 'none',
                             fontSize: 22,
                             cursor: 'pointer',
-                            color: '#9ca3af',
+                            color: 'var(--ink-faint)',
                             lineHeight: 1,
                           }}
                         >
@@ -957,7 +968,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                               placeholder="e.g. P-26-01 A (GILTS)"
                               style={recordControl}
                             />
-                            <div style={{fontSize: 10, color: '#9ca3af', marginTop: 2}}>
+                            <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 2}}>
                               Must match the label used on daily reports
                             </div>
                           </div>
@@ -1009,18 +1020,20 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                               style={{
                                 gridColumn: '1/-1',
                                 padding: '10px 12px',
-                                background: '#f9fafb',
-                                border: '1px solid #e5e7eb',
+                                background: 'var(--surface-2)',
+                                border: '1px solid var(--border)',
                                 borderRadius: 6,
                               }}
                             >
-                              <div style={{fontSize: 11, color: '#9ca3af', marginBottom: 4}}>
+                              <div style={{fontSize: 11, color: 'var(--ink-faint)', marginBottom: 4}}>
                                 Sex + count are locked. Edit the parent batch to redistribute.
                               </div>
-                              <div style={{display: 'flex', gap: 14, fontSize: 13, color: '#111827', fontWeight: 600}}>
+                              <div
+                                style={{display: 'flex', gap: 14, fontSize: 13, color: 'var(--ink)', fontWeight: 600}}
+                              >
                                 {(parseInt(subForm.giltCount) || 0) > 0 && <span>Gilts: {subForm.giltCount}</span>}
                                 {(parseInt(subForm.boarCount) || 0) > 0 && <span>Boars: {subForm.boarCount}</span>}
-                                <span style={{color: '#6b7280'}}>
+                                <span style={{color: 'var(--ink-muted)'}}>
                                   Original count:{' '}
                                   {(parseInt(subForm.giltCount) || 0) + (parseInt(subForm.boarCount) || 0)}
                                 </span>
@@ -1039,7 +1052,9 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         </div>
                       </div>
                       {editSubId && (
-                        <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+                        <div
+                          style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}
+                        >
                           <button onClick={() => deleteSubBatch(g.id, editSubId)} style={S.btnDanger}>
                             Delete
                           </button>
@@ -1050,7 +1065,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                 )}
 
                 {subBatches.length === 0 && showSubForm !== g.id && (
-                  <div style={{fontSize: 11, color: '#9ca3af', padding: '2px 0 6px'}}>
+                  <div style={{fontSize: 11, color: 'var(--ink-faint)', padding: '2px 0 6px'}}>
                     No sub-batches yet — daily reports start once you add a sub-batch. Add sub-batches to split A/B
                     groups.
                   </div>
@@ -1120,16 +1135,16 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           gap: '6px 12px',
                           padding: '8px 10px',
                           borderRadius: 6,
-                          border: '1px solid #e5e7eb',
+                          border: '1px solid var(--border)',
                           marginBottom: 6,
-                          background: sb.status === 'processed' ? '#f9fafb' : 'white',
+                          background: sb.status === 'processed' ? 'var(--surface-2)' : 'white',
                           opacity: sb.status === 'processed' ? 0.7 : 1,
                         }}
                       >
-                        <strong style={{fontSize: 12, color: '#111827'}}>{sb.name}</strong>
+                        <strong style={{fontSize: 12, color: 'var(--ink)'}}>{sb.name}</strong>
                         <span style={S.badge(sbSc.bg, sbSc.tx)}>{sb.status}</span>
                         {sft.started > 0 && (
-                          <span style={{fontSize: 11, color: '#374151'}}>
+                          <span style={{fontSize: 11, color: 'var(--ink)'}}>
                             Started: <strong>{sft.started}</strong>
                           </span>
                         )}
@@ -1151,7 +1166,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         })()}
                         {sft.transferFeedCredit > 0 && (
                           <span
-                            style={{fontSize: 10, color: '#6b7280'}}
+                            style={{fontSize: 10, color: 'var(--ink-muted)'}}
                             title={`raw ${Math.round(sft.rawFeed).toLocaleString()} − ${Math.round(sft.transferFeedCredit).toLocaleString()} credited to ${sft.transferCount} transferred`}
                           >
                             (−{Math.round(sft.transferFeedCredit).toLocaleString()} → breeding)
@@ -1160,7 +1175,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         <span
                           style={{
                             fontSize: 11,
-                            color: '#111827',
+                            color: 'var(--ink)',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 4,
@@ -1185,7 +1200,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           </span>
                         )}
                         {sft.dailys.length > 0 && (
-                          <span style={{fontSize: 11, color: '#6b7280'}}>📋 {sft.dailys.length} reports</span>
+                          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>📋 {sft.dailys.length} reports</span>
                         )}
 
                         <div style={{marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center'}}>
@@ -1196,8 +1211,8 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                 fontSize: 11,
                                 padding: '2px 8px',
                                 borderRadius: 5,
-                                border: '1px solid #d1d5db',
-                                color: '#6b7280',
+                                border: '1px solid var(--border-strong)',
+                                color: 'var(--ink-muted)',
                                 background: 'white',
                                 cursor: 'pointer',
                                 fontFamily: 'inherit',
@@ -1238,7 +1253,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             }}
                             style={{
                               fontSize: 11,
-                              color: '#1d4ed8',
+                              color: 'var(--brand)',
                               background: 'none',
                               border: 'none',
                               cursor: 'pointer',
@@ -1259,14 +1274,14 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             margin: '0 0 8px 0',
                             padding: '6px 10px',
                             borderRadius: 6,
-                            border: '1px dashed #d1d5db',
+                            border: '1px dashed var(--border-strong)',
                             background: '#fafafa',
                           }}
                         >
                           <div
                             style={{
                               fontSize: 10,
-                              color: '#6b7280',
+                              color: 'var(--ink-muted)',
                               textTransform: 'uppercase',
                               fontWeight: 600,
                               marginBottom: 6,
@@ -1280,12 +1295,12 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             </div>
                           )}
                           {!isMixedSex && !g.cycleId && (
-                            <div style={{fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>
+                            <div style={{fontSize: 11, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
                               Link a breeding cycle to see planned trips.
                             </div>
                           )}
                           {!isMixedSex && g.cycleId && effectiveAdgLbsPerDay == null && (
-                            <div style={{fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>
+                            <div style={{fontSize: 11, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
                               Set Global ADG above to see planned trips.
                             </div>
                           )}
@@ -1293,7 +1308,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             g.cycleId &&
                             effectiveAdgLbsPerDay != null &&
                             plannedProjected.length === 0 && (
-                              <div style={{fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>
+                              <div style={{fontSize: 11, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
                                 Projection unavailable — cycle age range not yet usable.
                               </div>
                             )}
@@ -1313,7 +1328,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     flexWrap: 'wrap',
                                     alignItems: 'center',
                                     background: 'white',
-                                    border: '1px solid #d1d5db',
+                                    border: '1px solid var(--border-strong)',
                                     borderRadius: 6,
                                     padding: '6px 8px',
                                     fontSize: 11,
@@ -1327,7 +1342,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     style={{
                                       fontSize: 11,
                                       padding: '2px 4px',
-                                      border: '1px solid #d1d5db',
+                                      border: '1px solid var(--border-strong)',
                                       borderRadius: 5,
                                       fontFamily: 'inherit',
                                       width: 132,
@@ -1347,13 +1362,13 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     style={{
                                       fontSize: 11,
                                       padding: '2px 4px',
-                                      border: '1px solid #d1d5db',
+                                      border: '1px solid var(--border-strong)',
                                       borderRadius: 5,
                                       fontFamily: 'inherit',
                                       width: 70,
                                     }}
                                   />
-                                  <span style={{color: '#6b7280'}}>{addingTripFor.sex}</span>
+                                  <span style={{color: 'var(--ink-muted)'}}>{addingTripFor.sex}</span>
                                   <button
                                     data-planned-trip-add-save={sb.id}
                                     onClick={() => {
@@ -1396,9 +1411,9 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                       fontSize: 10,
                                       padding: '3px 10px',
                                       borderRadius: 5,
-                                      border: '1px solid #d1d5db',
+                                      border: '1px solid var(--border-strong)',
                                       background: 'white',
-                                      color: '#6b7280',
+                                      color: 'var(--ink-muted)',
                                       cursor: 'pointer',
                                       fontFamily: 'inherit',
                                     }}
@@ -1539,8 +1554,8 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     data-planned-trip-sex={t.sex}
                                     data-planned-trip-locked={tripLocked ? 'true' : 'false'}
                                     style={{
-                                      background: tripLocked ? '#f9fafb' : 'white',
-                                      border: tripLocked ? '1px solid #cbd5f5' : '1px solid #e5e7eb',
+                                      background: tripLocked ? 'var(--surface-2)' : 'white',
+                                      border: tripLocked ? '1px solid #cbd5f5' : '1px solid var(--border)',
                                       borderRadius: 6,
                                       padding: '6px 10px',
                                       fontSize: 11,
@@ -1558,7 +1573,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                         flexWrap: 'wrap',
                                       }}
                                     >
-                                      <span style={{fontWeight: 700, color: '#111827'}}>{fmt(t.date)}</span>
+                                      <span style={{fontWeight: 700, color: 'var(--ink)'}}>{fmt(t.date)}</span>
                                       {tripLocked && (
                                         <span
                                           data-planned-trip-locked-by={t.id}
@@ -1683,7 +1698,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                           style={{
                                             fontSize: 11,
                                             padding: '2px 4px',
-                                            border: '1px solid #d1d5db',
+                                            border: '1px solid var(--border-strong)',
                                             borderRadius: 5,
                                             fontFamily: 'inherit',
                                             width: 132,
@@ -1695,8 +1710,8 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                         {t.plannedCount === 1 ? '' : 's'}
                                       </span>
                                     </div>
-                                    <div style={{color: '#374151'}}>{projRange}</div>
-                                    {projAvg && <div style={{color: '#6b7280'}}>{projAvg}</div>}
+                                    <div style={{color: 'var(--ink)'}}>{projRange}</div>
+                                    {projAvg && <div style={{color: 'var(--ink-muted)'}}>{projAvg}</div>}
                                     <div style={{display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2}}>
                                       {t.ready && (
                                         <span
@@ -1763,7 +1778,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                               fontSize: 10,
                                               padding: '2px 6px',
                                               borderRadius: 5,
-                                              border: '1px solid #d1d5db',
+                                              border: '1px solid var(--border-strong)',
                                               background: 'white',
                                               color: (parseInt(t.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
                                               cursor: (parseInt(t.plannedCount) || 0) > 0 ? 'pointer' : 'not-allowed',
@@ -1783,7 +1798,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                               fontSize: 10,
                                               padding: '2px 6px',
                                               borderRadius: 5,
-                                              border: '1px solid #d1d5db',
+                                              border: '1px solid var(--border-strong)',
                                               background: 'white',
                                               color: (parseInt(t.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
                                               cursor: (parseInt(t.plannedCount) || 0) > 0 ? 'pointer' : 'not-allowed',
@@ -1852,9 +1867,9 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                               fontSize: 10,
                                               padding: '2px 8px',
                                               borderRadius: 5,
-                                              border: '1px solid #d1d5db',
+                                              border: '1px solid var(--border-strong)',
                                               background: 'white',
-                                              color: '#4b5563',
+                                              color: 'var(--ink-muted)',
                                               cursor: 'pointer',
                                               fontFamily: 'inherit',
                                             }}
@@ -1915,10 +1930,10 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
               {/* Processing trips */}
               <div style={{padding: '10px 16px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}>
-                  <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563'}}>
+                  <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)'}}>
                     Processing trips {trips.length > 0 ? `(${trips.length})` : ''}
                   </div>
-                  <span style={{fontSize: 10, color: '#9ca3af', fontStyle: 'italic'}}>
+                  <span style={{fontSize: 10, color: 'var(--ink-faint)', fontStyle: 'italic'}}>
                     Trips originate from weigh-ins via Send-to-Trip
                   </span>
                 </div>
@@ -1954,7 +1969,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       <div
                         style={{
                           padding: '14px 20px',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -1962,7 +1977,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       >
                         <div style={{fontSize: 15, fontWeight: 600, color: '#085041'}}>
                           {editTripId ? 'Edit Processing Trip' : 'New Processing Trip'}{' '}
-                          <span style={{fontWeight: 400, color: '#9ca3af', fontSize: 11, marginLeft: 6}}>
+                          <span style={{fontWeight: 400, color: 'var(--ink-faint)', fontSize: 11, marginLeft: 6}}>
                             Auto-saves as you type
                           </span>
                         </div>
@@ -1973,7 +1988,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             border: 'none',
                             fontSize: 22,
                             cursor: 'pointer',
-                            color: '#9ca3af',
+                            color: 'var(--ink-faint)',
                             lineHeight: 1,
                           }}
                         >
@@ -2100,7 +2115,9 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         </div>
                       </div>
                       {editTripId && (
-                        <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+                        <div
+                          style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}
+                        >
                           <button
                             onClick={() => {
                               deleteTrip(g.id, editTripId);
@@ -2119,7 +2136,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
 
                 {/* Trip list */}
                 {trips.length === 0 && !showTripForm && (
-                  <div style={{color: '#9ca3af', fontSize: 11, padding: '4px 0 8px'}}>
+                  <div style={{color: 'var(--ink-faint)', fontSize: 11, padding: '4px 0 8px'}}>
                     No processing trips yet — they’ll appear here once you Send-to-Trip from /pig/weighins
                   </div>
                 )}
@@ -2143,7 +2160,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                     <div
                       key={t.id}
                       style={{
-                        borderTop: '1px solid #e5e7eb',
+                        borderTop: '1px solid var(--border)',
                         padding: '8px 0',
                         display: 'flex',
                         flexWrap: 'wrap',
@@ -2151,7 +2168,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         alignItems: 'flex-start',
                       }}
                     >
-                      <div style={{fontWeight: 600, minWidth: 90, color: '#111827'}}>{fmt(t.date)}</div>
+                      <div style={{fontWeight: 600, minWidth: 90, color: 'var(--ink)'}}>{fmt(t.date)}</div>
                       <span>
                         {pigCount > 0 ? pigCount : 'No linked'} pigs
                         {source.count === 0 && pigCount > 0 ? ' (stored)' : ''}
@@ -2162,7 +2179,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         </span>
                       )}
                       {tripForecast && (
-                        <span data-pig-trip-forecast-compare={t.id} style={{color: '#6b7280'}}>
+                        <span data-pig-trip-forecast-compare={t.id} style={{color: 'var(--ink-muted)'}}>
                           Forecast: {Math.round(tripForecast.min)}-{Math.round(tripForecast.max)} lbs
                           {tripForecast.hasActual ? '' : ' (est.)'}
                           {tripForecastAvg != null ? ` (avg ${Math.round(tripForecastAvg)} lbs)` : ''}
@@ -2178,7 +2195,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         <span style={{color: '#085041'}}>Hang: {parseFloat(t.hangingWeight)} lbs</span>
                       )}
                       {yld !== null && <span style={{color: '#16a34a', fontWeight: 600}}>Yield: {yld}%</span>}
-                      {t.notes && <span style={{color: '#9ca3af', fontStyle: 'italic'}}>{t.notes}</span>}
+                      {t.notes && <span style={{color: 'var(--ink-faint)', fontStyle: 'italic'}}>{t.notes}</span>}
                       <div style={{marginLeft: 'auto', display: 'flex', gap: 8}}>
                         <button
                           onClick={() => {
@@ -2194,7 +2211,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           }}
                           style={{
                             fontSize: 11,
-                            color: '#1d4ed8',
+                            color: 'var(--brand)',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -2216,7 +2233,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         </button>
                       </div>
                       {wts.length > 0 && (
-                        <div style={{width: '100%', fontSize: 10, color: '#9ca3af', marginTop: 1}}>
+                        <div style={{width: '100%', fontSize: 10, color: 'var(--ink-faint)', marginTop: 1}}>
                           Weights: {wts.join(', ')}
                         </div>
                       )}
@@ -2254,7 +2271,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       style={{
                         padding: '6px 16px',
                         background: '#fef2f2',
-                        borderTop: '1px solid #f3f4f6',
+                        borderTop: '1px solid var(--divider)',
                         fontSize: 11,
                       }}
                     >
@@ -2263,11 +2280,11 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         className="hoverable-tile"
                         style={{display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}
                       >
-                        <span style={{color: '#9ca3af'}}>{isOpen ? '▼' : '▶'}</span>
+                        <span style={{color: 'var(--ink-faint)'}}>{isOpen ? '▼' : '▶'}</span>
                         <span style={{color: '#b91c1c', fontWeight: 600}}>
                           {'💀 ' + total + ' ' + (total === 1 ? 'mortality' : 'mortalities') + ' on record'}
                         </span>
-                        <span style={{color: '#9ca3af'}}>
+                        <span style={{color: 'var(--ink-faint)'}}>
                           {'(' + morts.length + ' ' + (morts.length === 1 ? 'entry' : 'entries') + ')'}
                         </span>
                       </div>
@@ -2287,15 +2304,19 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                 flexWrap: 'wrap',
                               }}
                             >
-                              <span style={{color: '#374151', minWidth: 90, fontWeight: 600}}>{fmt(m.date)}</span>
+                              <span style={{color: 'var(--ink)', minWidth: 90, fontWeight: 600}}>{fmt(m.date)}</span>
                               <span style={{color: '#b91c1c', fontWeight: 700, minWidth: 32}}>{m.count}</span>
-                              <span style={{color: '#6b7280', minWidth: 120}}>{m.sub_batch_name || 'Whole batch'}</span>
+                              <span style={{color: 'var(--ink-muted)', minWidth: 120}}>
+                                {m.sub_batch_name || 'Whole batch'}
+                              </span>
                               {m.comment && (
-                                <span style={{color: '#374151', fontStyle: 'italic', flex: 1, minWidth: 120}}>
+                                <span style={{color: 'var(--ink)', fontStyle: 'italic', flex: 1, minWidth: 120}}>
                                   {m.comment}
                                 </span>
                               )}
-                              <span style={{color: '#9ca3af', fontSize: 10, marginLeft: 'auto'}}>{m.team_member}</span>
+                              <span style={{color: 'var(--ink-faint)', fontSize: 10, marginLeft: 'auto'}}>
+                                {m.team_member}
+                              </span>
                               <button
                                 onClick={() => deleteMortality(g.id, m.id)}
                                 title="Delete"
@@ -2326,9 +2347,9 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                   style={{
                     padding: '6px 16px',
                     background: '#ecfdf5',
-                    borderTop: '1px solid #e5e7eb',
+                    borderTop: '1px solid var(--border)',
                     fontSize: 11,
-                    color: '#9ca3af',
+                    color: 'var(--ink-faint)',
                   }}
                 >
                   {cycleLabel(cycle, cycleSeqMap)} · Farrowing: {fmtS(tl.farrowingStart)} → {fmtS(tl.farrowingEnd)} ·{' '}

@@ -432,11 +432,11 @@ const PigDailysHub = ({
   }
 
   const totalFeed = filtered.reduce((s, r) => s + (parseFloat(r.feed_lbs) || 0), 0);
-  const voltColor = (v) => (v == null ? '#9ca3af' : v < 3 ? '#b91c1c' : v < 5 ? '#92400e' : '#065f46');
+  const voltColor = (v) => (v == null ? 'var(--ink-faint)' : v < 3 ? '#b91c1c' : v < 5 ? '#92400e' : '#065f46');
   const fi = {
     padding: '6px 10px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
     background: 'white',
@@ -449,9 +449,9 @@ const PigDailysHub = ({
   const savedViewGhostBtnS = {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -464,13 +464,13 @@ const PigDailysHub = ({
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
     <div
-      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      style={{minHeight: '100vh', background: 'var(--bg-page)'}}
       data-pig-dailys-loaded={loading || loadError ? 'false' : 'true'}
     >
       <Header />
@@ -486,8 +486,10 @@ const PigDailysHub = ({
           }}
         >
           <div>
-            <div style={{fontSize: 15, fontWeight: 700, color: '#111827'}}>Daily Reports</div>
-            <div style={{fontSize: 12, color: '#6b7280', marginTop: 2}}>{records.length.toLocaleString()} total</div>
+            <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)'}}>Daily Reports</div>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>
+              {records.length.toLocaleString()} total
+            </div>
           </div>
           <div style={{display: 'flex', gap: 8}}>
             <button
@@ -528,7 +530,7 @@ const PigDailysHub = ({
               data-pig-dailys-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -538,7 +540,7 @@ const PigDailysHub = ({
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-pig-dailys-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -682,7 +684,7 @@ const PigDailysHub = ({
         {exportNotice && <div style={{marginBottom: 14, color: '#b91c1c', fontSize: 12}}>{exportNotice}</div>}
         <div style={{display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center'}}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{...fi, width: 130}} />
-          <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
+          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>to</span>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{...fi, width: 130}} />
           <select value={fBatch} onChange={(e) => setFBatch(e.target.value)} style={fi}>
             <option value="">All groups</option>
@@ -709,7 +711,7 @@ const PigDailysHub = ({
                 setFTo('');
                 setSrcFilter('all');
               }}
-              style={{...fi, color: '#6b7280', cursor: 'pointer'}}
+              style={{...fi, color: 'var(--ink-muted)', cursor: 'pointer'}}
             >
               Clear
             </button>
@@ -719,7 +721,7 @@ const PigDailysHub = ({
               display: 'flex',
               borderRadius: 6,
               overflow: 'hidden',
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               marginLeft: 'auto',
             }}
           >
@@ -737,13 +739,13 @@ const PigDailysHub = ({
                   style={{
                     padding: '5px 10px',
                     border: 'none',
-                    borderRight: oi < 2 ? '1px solid #d1d5db' : 'none',
+                    borderRight: oi < 2 ? '1px solid var(--border-strong)' : 'none',
                     fontFamily: 'inherit',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: srcFilter === o.k ? '#92400e' : 'white',
-                    color: srcFilter === o.k ? 'white' : '#6b7280',
+                    background: 'white',
+                    color: srcFilter === o.k ? '#92400e' : 'var(--ink-muted)',
                   }}
                 >
                   {o.l}
@@ -758,7 +760,7 @@ const PigDailysHub = ({
             disabled={loading || !!loadError}
             style={{
               ...fi,
-              color: loading || loadError ? '#9ca3af' : '#374151',
+              color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
               fontWeight: 600,
               cursor: loading || loadError ? 'not-allowed' : 'pointer',
             }}
@@ -772,7 +774,7 @@ const PigDailysHub = ({
             disabled={loading || !!loadError}
             style={{
               ...fi,
-              color: loading || loadError ? '#9ca3af' : '#374151',
+              color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
               fontWeight: 600,
               cursor: loading || loadError ? 'not-allowed' : 'pointer',
             }}
@@ -790,9 +792,9 @@ const PigDailysHub = ({
               marginBottom: 12,
               padding: '7px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -803,7 +805,7 @@ const PigDailysHub = ({
           </button>
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
-        {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
+        {loading && <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)'}}>Loading...</div>}
         <OperationalListEmptyState
           loading={loading}
           loadError={loadError}
@@ -824,7 +826,7 @@ const PigDailysHub = ({
                 const prevDate = i > 0 ? filtered[i - 1].date : null;
                 const showDivider = prevDate && prevDate !== d.date;
                 const dateIdx = dates.indexOf(d.date);
-                const shadeBg = dateIdx % 2 === 0 ? 'white' : '#f8fafc';
+                const shadeBg = dateIdx % 2 === 0 ? 'white' : 'var(--surface-2)';
                 return (
                   <React.Fragment key={d.id}>
                     {showDivider && (
@@ -843,7 +845,7 @@ const PigDailysHub = ({
                           ? '1.5px solid #fca5a5'
                           : d.source === 'add_feed_webform'
                             ? '1px solid #fde68a'
-                            : '1px solid #e5e7eb',
+                            : '1px solid var(--border)',
                         padding: '10px 14px',
                         display: 'flex',
                         flexDirection: 'column',
@@ -860,12 +862,12 @@ const PigDailysHub = ({
                           gap: 12,
                         }}
                       >
-                        <span style={{fontSize: 12, color: '#6b7280'}}>{fmt(d.date)}</span>
+                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
                         <span style={{display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
                           <span
                             style={{
                               fontWeight: 700,
-                              color: '#111827',
+                              color: 'var(--ink)',
                               fontSize: 13,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -911,7 +913,7 @@ const PigDailysHub = ({
                         </span>
                         <span
                           style={{
-                            color: hasFeed ? '#92400e' : '#9ca3af',
+                            color: hasFeed ? '#92400e' : 'var(--ink-faint)',
                             fontWeight: hasFeed ? 600 : 400,
                             fontSize: 12,
                             whiteSpace: 'nowrap',
@@ -926,7 +928,7 @@ const PigDailysHub = ({
                         </span>
                         <span
                           style={{
-                            color: hasVolt ? voltColor(parseFloat(d.fence_voltage)) : '#9ca3af',
+                            color: hasVolt ? voltColor(parseFloat(d.fence_voltage)) : 'var(--ink-faint)',
                             fontWeight: hasVolt ? 600 : 400,
                             fontSize: 12,
                             whiteSpace: 'nowrap',
@@ -1035,7 +1037,7 @@ const PigDailysHub = ({
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1056,7 +1058,7 @@ const PigDailysHub = ({
                   setNotice(null);
                   setShowForm(false);
                 }}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 ×
               </button>
@@ -1150,7 +1152,14 @@ const PigDailysHub = ({
                 ].map(([k, l]) => (
                   <div key={k}>
                     <label style={S.label}>{l}</label>
-                    <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        border: '1px solid var(--border-strong)',
+                      }}
+                    >
                       {[
                         {v: true, lbl: 'Yes'},
                         {v: false, lbl: 'No'},
@@ -1166,8 +1175,8 @@ const PigDailysHub = ({
                             fontFamily: 'inherit',
                             fontSize: 12,
                             cursor: 'pointer',
-                            background: form[k] === v ? (v ? '#085041' : '#374151') : '#f9fafb',
-                            color: form[k] === v ? 'white' : '#6b7280',
+                            background: form[k] === v ? (v ? '#085041' : '#374151') : 'var(--surface-2)',
+                            color: form[k] === v ? 'white' : 'var(--ink-muted)',
                           }}
                         >
                           {lbl}
@@ -1189,7 +1198,7 @@ const PigDailysHub = ({
               )}
               <DailyPhotoThumbnails photos={form?.photos} />
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button onClick={save} style={{...S.btnPrimary, width: 'auto'}}>
                 Save
               </button>

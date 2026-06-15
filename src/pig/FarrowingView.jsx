@@ -606,7 +606,7 @@ export default function FarrowingView({
                     React.createElement('label', {style: S.label}, 'Sire (from cycle)'),
                     React.createElement(
                       'div',
-                      {style: {...readOnlyField, color: resolvedSire ? '#085041' : '#9ca3af'}},
+                      {style: {...readOnlyField, color: resolvedSire ? '#085041' : 'var(--ink-faint)'}},
                       resolvedSire || 'Select sow and farrowing date',
                     ),
                   ),
@@ -835,7 +835,8 @@ export default function FarrowingView({
               <div
                 style={{
                   padding: '10px 16px',
-                  background: C.boar,
+                  background: 'white',
+                  borderBottom: `1px solid ${C.boar}`,
                   display: 'flex',
                   flexWrap: 'wrap',
                   gap: '6px 16px',
@@ -843,7 +844,10 @@ export default function FarrowingView({
                 }}
               >
                 {(() => {
-                  const ht = getReadableText(C.boar);
+                  // CP6 T2: de-pastel the broad C.boar header fill to white; demote the
+                  // group identity to a text accent (C.boar) + a thin border. The card's
+                  // borderLeft C.farrowing rail (above) remains the primary identity accent.
+                  const ht = C ? C.boar : getReadableText(C.boar);
                   return (
                     <>
                       <strong style={{fontSize: 13, color: ht}}>{cycleLabel(c, cycleSeqMap)}</strong>

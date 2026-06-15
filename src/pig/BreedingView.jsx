@@ -198,12 +198,18 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
           }}
         >
           <div
-            style={{background: 'white', borderRadius: 12, width: '100%', maxWidth: 560, border: '1px solid #e5e7eb'}}
+            style={{
+              background: 'white',
+              borderRadius: 12,
+              width: '100%',
+              maxWidth: 560,
+              border: '1px solid var(--border)',
+            }}
           >
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -211,7 +217,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
             >
               <div style={{fontSize: 15, fontWeight: 600}}>
                 {editBreedId ? 'Edit Breeding Cycle' : 'Add Breeding Cycle'}{' '}
-                <span style={{fontWeight: 400, color: '#9ca3af', fontSize: 11, marginLeft: 6}}>
+                <span style={{fontWeight: 400, color: 'var(--ink-faint)', fontSize: 11, marginLeft: 6}}>
                   Auto-saves as you type
                 </span>
               </div>
@@ -281,11 +287,11 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                     <div
                       style={{
                         background: '#f3f4f6',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-strong)',
                         borderRadius: 8,
                         padding: '8px 12px',
                         fontSize: 12,
-                        color: '#374151',
+                        color: 'var(--ink)',
                       }}
                     >
                       Cycle locked — started on {fmtS(breedForm.exposureStart)} more than 2 weeks ago. Sow-boar
@@ -375,13 +381,13 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                       gap: 4,
                       minHeight: 30,
                       padding: '6px 8px',
-                      background: '#f9fafb',
-                      border: '1px solid #e5e7eb',
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border)',
                       borderRadius: 6,
                     }}
                   >
                     {list.length === 0 && (
-                      <span style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic', padding: '2px 0'}}>
+                      <span style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic', padding: '2px 0'}}>
                         No sows assigned
                       </span>
                     )}
@@ -393,12 +399,12 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                           alignItems: 'center',
                           gap: 4,
                           background: 'white',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--border-strong)',
                           borderRadius: 12,
                           padding: '2px 4px 2px 10px',
                           fontSize: 12,
                           fontWeight: 600,
-                          color: '#111827',
+                          color: 'var(--ink)',
                         }}
                       >
                         #{t}
@@ -409,7 +415,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                             style={{
                               background: 'none',
                               border: 'none',
-                              color: '#9ca3af',
+                              color: 'var(--ink-faint)',
                               cursor: 'pointer',
                               fontSize: 14,
                               lineHeight: 1,
@@ -448,7 +454,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                     <div>
                       <label style={S.label}>
                         {breedForm.boar1Name || boarNames.boar1} sow tags{' '}
-                        <span style={{fontWeight: 400, color: '#9ca3af'}}>({b1List.length})</span>
+                        <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>({b1List.length})</span>
                       </label>
                       {chipRow(b1List, 'boar1Tags')}
                       {addDropdown('boar1Tags')}
@@ -456,7 +462,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                     <div>
                       <label style={S.label}>
                         {breedForm.boar2Name || boarNames.boar2} sow tags{' '}
-                        <span style={{fontWeight: 400, color: '#9ca3af'}}>({b2List.length})</span>
+                        <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>({b2List.length})</span>
                       </label>
                       {chipRow(b2List, 'boar2Tags')}
                       {addDropdown('boar2Tags')}
@@ -556,7 +562,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                 <textarea value={breedForm.notes} onChange={(e) => updBreed('notes', e.target.value)} rows={2} />
               </div>
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               {editBreedId && (
                 <button
                   onClick={() => {
@@ -580,9 +586,9 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                   marginLeft: 'auto',
                   padding: '7px 16px',
                   borderRadius: 7,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   fontWeight: 600,
                   fontSize: 12,
                   cursor: 'pointer',
@@ -629,7 +635,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
           >
             Today
           </button>
-          <span style={{fontSize: 11, color: '#9ca3af'}}>
+          <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>
             {fmtS(breedTlStart)} — {fmtS(toISO(btlE))}
           </span>
           <button
@@ -724,7 +730,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
             })()}
           <div style={{width: `${210 + BREED_WEEKS * 40}px`}}>
             {/* Week headers */}
-            <div style={{display: 'flex', borderBottom: '1px solid #e5e7eb'}}>
+            <div style={{display: 'flex', borderBottom: '1px solid var(--border)'}}>
               <div
                 style={{
                   width: 210,
@@ -732,9 +738,9 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                   padding: '6px 10px',
                   fontSize: 10,
                   fontWeight: 600,
-                  color: '#9ca3af',
-                  borderRight: '1px solid #e5e7eb',
-                  background: '#ecfdf5',
+                  color: 'var(--ink-faint)',
+                  borderRight: '1px solid var(--border)',
+                  background: 'var(--surface-2)',
                   position: 'sticky',
                   left: 0,
                   zIndex: 10,
@@ -799,8 +805,8 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                       fontSize: 10,
                       fontWeight: isGroupStart ? 700 : 400,
                       color: isGroupStart ? '#333' : '#666',
-                      borderRight: '1px solid #e5e7eb',
-                      background: '#ecfdf5',
+                      borderRight: '1px solid var(--border)',
+                      background: 'var(--surface-2)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -969,10 +975,10 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                 style={{width: 10, height: 10, borderRadius: 2, background: PIG_GROUP_COLORS[g].boarGrow}}
                 title="Boars grow-out"
               />
-              <span style={{fontSize: 11, color: '#4b5563'}}>Group {g}</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Group {g}</span>
             </div>
           ))}
-          <span style={{fontSize: 11, color: '#9ca3af'}}>
+          <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>
             Light = Gilts grow-out · Dark = Boars grow-out · Click bar to edit · Green line = today
           </span>
         </div>
@@ -980,7 +986,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
         {/* Cycle cards below chart */}
         {breedingCycles.length > 0 && (
           <div style={{marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: 8}}>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563'}}>Breeding cycles</div>
+            <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)'}}>Breeding cycles</div>
             {breedingCycles
               .slice()
               .sort((a, b) => (b.exposureStart || '').localeCompare(a.exposureStart || ''))
@@ -1015,7 +1021,8 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                     className="hoverable-tile"
                     style={{
                       background: 'white',
-                      border: `1px solid ${C.farrowing}`,
+                      border: '1px solid var(--border)',
+                      borderLeft: `3px solid ${C.farrowing}`,
                       borderRadius: 10,
                       padding: '10px 14px',
                       fontSize: 12,
@@ -1032,17 +1039,17 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                       }}
                     >
                       <strong>{cycleLabel(c, cycleSeqMap)}</strong>
-                      <span style={{color: '#4b5563'}}>{c.sowCount || '?'} sows total</span>
-                      <span style={{color: '#4b5563'}}>
+                      <span style={{color: 'var(--ink-muted)'}}>{c.sowCount || '?'} sows total</span>
+                      <span style={{color: 'var(--ink-muted)'}}>
                         Sows in with Boars: {fmt(tl.boarStart)} {'\u2192'} {fmt(tl.boarEnd)}
                       </span>
-                      <span style={{color: '#4b5563'}}>
+                      <span style={{color: 'var(--ink-muted)'}}>
                         Exposed Paddock: {fmt(tl.paddockStart)} {'\u2192'} {fmt(tl.paddockEnd)}
                       </span>
-                      <span style={{color: '#4b5563'}}>
+                      <span style={{color: 'var(--ink-muted)'}}>
                         Farrowing: {fmt(tl.farrowingStart)} {'\u2192'} {fmt(tl.farrowingEnd)}
                       </span>
-                      <span style={{color: '#4b5563'}}>Grow-out ends: {fmt(tl.growEnd)}</span>
+                      <span style={{color: 'var(--ink-muted)'}}>Grow-out ends: {fmt(tl.growEnd)}</span>
                       <span
                         style={S.badge(
                           calcCycleStatus(c) === 'completed'
@@ -1061,18 +1068,18 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                         display: 'grid',
                         gridTemplateColumns: '1fr 1fr',
                         gap: '4px 20px',
-                        borderTop: '1px solid #e5e7eb',
+                        borderTop: '1px solid var(--border)',
                         paddingTop: 6,
                       }}
                     >
                       <div style={{fontSize: 11}}>
-                        <span style={{color: '#9ca3af'}}>
+                        <span style={{color: 'var(--ink-faint)'}}>
                           {c.boar1Name || boarNames.boar1} ({c.boar1Count || '?'} sows):{' '}
                         </span>
                         <span style={{fontWeight: 500}}>{c.boar1Tags || '—'}</span>
                       </div>
                       <div style={{fontSize: 11}}>
-                        <span style={{color: '#9ca3af'}}>
+                        <span style={{color: 'var(--ink-faint)'}}>
                           {c.boar2Name || boarNames.boar2} ({c.boar2Count || '?'} sows):{' '}
                         </span>
                         <span style={{fontWeight: 500}}>{c.boar2Tags || '—'}</span>
@@ -1084,7 +1091,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
           </div>
         )}
         {breedingCycles.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
+          <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)', fontSize: 13}}>
             No breeding cycles yet — click "+ Add Cycle" to get started
           </div>
         )}

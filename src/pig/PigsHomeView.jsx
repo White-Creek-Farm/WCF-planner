@@ -215,12 +215,20 @@ export default function PigsHomeView({Header, loadUsers}) {
   const recentPigDailys = [...pigDailys].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   const StatTile = ({label, val, sub, color = '#1e40af'}) => (
-    <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-      <div style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4}}>
+    <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--ink-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+          marginBottom: 4,
+        }}
+      >
         {label}
       </div>
       <div style={{fontSize: 24, fontWeight: 700, color, lineHeight: 1}}>{val}</div>
-      {sub && <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>{sub}</div>}
+      {sub && <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>{sub}</div>}
     </div>
   );
   const NavBtn = ({label, v}) => (
@@ -229,11 +237,11 @@ export default function PigsHomeView({Header, loadUsers}) {
       style={{
         padding: '8px 16px',
         borderRadius: 8,
-        border: '1px solid #d1d5db',
+        border: '1px solid var(--border-strong)',
         background: 'white',
         fontSize: 12,
         fontWeight: 600,
-        color: '#374151',
+        color: 'var(--ink)',
         cursor: 'pointer',
         fontFamily: 'inherit',
       }}
@@ -253,14 +261,14 @@ export default function PigsHomeView({Header, loadUsers}) {
           }}
         />
       </div>
-      <span style={{fontSize: 10, color: '#374151', fontWeight: 600, minWidth: 36, textAlign: 'right'}}>
+      <span style={{fontSize: 10, color: 'var(--ink)', fontWeight: 600, minWidth: 36, textAlign: 'right'}}>
         {Math.round(val * 10) / 10}
       </span>
     </div>
   );
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {showUsers && (
         <UsersModal
           sb={sb}
@@ -316,20 +324,22 @@ export default function PigsHomeView({Header, loadUsers}) {
                   : survivalRate >= 65
                     ? '#92400e'
                     : '#b91c1c'
-                : '#374151'
+                : 'var(--ink)'
             }
             sub={totalFarrowed + ' records'}
           />
           <StatTile
             label={'Processed ' + currentYear}
             val={totalProcessed > 0 ? totalProcessed.toLocaleString() : '\u2014'}
-            color="#374151"
+            color="var(--ink)"
             sub={avgYield != null ? 'Avg yield: ' + avgYield + '%' : null}
           />
         </div>
         {pigsOnFarm > 0 && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               PIGS ON FARM BREAKDOWN
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: 8}}>
@@ -348,7 +358,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                     key={name}
                     style={{
                       background: 'white',
-                      border: '1px solid #e5e7eb',
+                      border: '1px solid var(--border)',
                       borderRadius: 10,
                       padding: '10px 14px',
                       textAlign: 'center',
@@ -357,7 +367,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                     <div
                       style={{
                         fontSize: 10,
-                        color: '#6b7280',
+                        color: 'var(--ink-muted)',
                         textTransform: 'uppercase',
                         letterSpacing: 0.4,
                         marginBottom: 3,
@@ -478,7 +488,7 @@ export default function PigsHomeView({Header, loadUsers}) {
             null,
             React.createElement(
               'div',
-              {style: {fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}},
+              {style: {fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}},
               'BREEDING GROUP STATUS',
             ),
             React.createElement(
@@ -491,15 +501,29 @@ export default function PigsHomeView({Header, loadUsers}) {
                   'div',
                   {
                     key: gs.group,
-                    style: {background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'},
+                    style: {
+                      background: 'white',
+                      border: '1px solid var(--border)',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                    },
                   },
                   React.createElement(
                     'div',
-                    {style: {background: bgColor, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8}},
+                    {
+                      style: {
+                        background: 'white',
+                        borderLeft: '3px solid ' + bgColor,
+                        padding: '8px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      },
+                    },
                     React.createElement(PlannerIcon, {iconKey: ANIMAL_ICON_KEYS.pig, size: 16}),
                     React.createElement(
                       'span',
-                      {style: {fontSize: 13, fontWeight: 700, color: textColor}},
+                      {style: {fontSize: 13, fontWeight: 700, color: bgColor}},
                       'Group ' + gs.group,
                     ),
                   ),
@@ -527,14 +551,14 @@ export default function PigsHomeView({Header, loadUsers}) {
                     gs.nextStep &&
                       React.createElement(
                         'div',
-                        {style: {fontSize: 12, color: '#374151', marginBottom: 2}},
-                        React.createElement('span', {style: {color: '#9ca3af'}}, 'Next: '),
+                        {style: {fontSize: 12, color: 'var(--ink)', marginBottom: 2}},
+                        React.createElement('span', {style: {color: 'var(--ink-faint)'}}, 'Next: '),
                         React.createElement('span', {style: {fontWeight: 600}}, gs.nextStep),
                       ),
                     gs.nextDate &&
                       React.createElement(
                         'div',
-                        {style: {fontSize: 11, color: '#6b7280'}},
+                        {style: {fontSize: 11, color: 'var(--ink-muted)'}},
                         fmt(gs.nextDate),
                         gs.daysToNext != null &&
                           gs.daysToNext > 0 &&
@@ -560,7 +584,9 @@ export default function PigsHomeView({Header, loadUsers}) {
         {/* Active feeder batches */}
         {feederBatchStats.length > 0 && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               ACTIVE FEEDER BATCHES
             </div>
             <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
@@ -592,7 +618,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                       {...openableProps(() => setView('pigbatches'))}
                       style={{
                         background: 'white',
-                        border: '1px solid #e5e7eb',
+                        border: '1px solid var(--border)',
                         borderRadius: 14,
                         overflow: 'hidden',
                         cursor: 'pointer',
@@ -601,8 +627,9 @@ export default function PigsHomeView({Header, loadUsers}) {
                     >
                       <div
                         style={{
-                          background: fbc.bg,
-                          borderBottom: '1px solid ' + fbc.bd,
+                          background: 'white',
+                          borderLeft: '3px solid ' + fbc.tx,
+                          borderBottom: '1px solid var(--border)',
                           padding: '10px 18px',
                           display: 'flex',
                           alignItems: 'center',
@@ -673,15 +700,15 @@ export default function PigsHomeView({Header, loadUsers}) {
                               key={t.l}
                               style={{
                                 padding: '8px 10px',
-                                background: '#f9fafb',
-                                border: '1px solid #f3f4f6',
+                                background: 'var(--surface-2)',
+                                border: '1px solid var(--divider)',
                                 borderRadius: 8,
                               }}
                             >
                               <div
                                 style={{
                                   fontSize: 9,
-                                  color: '#9ca3af',
+                                  color: 'var(--ink-faint)',
                                   textTransform: 'uppercase',
                                   letterSpacing: 0.4,
                                   marginBottom: 2,
@@ -689,7 +716,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                               >
                                 {t.l}
                               </div>
-                              <div style={{fontSize: 14, fontWeight: 700, color: t.c || '#111827'}}>{t.v}</div>
+                              <div style={{fontSize: 14, fontWeight: 700, color: t.c || 'var(--ink)'}}>{t.v}</div>
                             </div>
                           ))}
                         </div>
@@ -707,13 +734,28 @@ export default function PigsHomeView({Header, loadUsers}) {
           <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14}}>
             {recentCycleSurvival.length >= 2 && (
               <div>
-                <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--ink-muted)',
+                    marginBottom: 8,
+                    letterSpacing: 0.3,
+                  }}
+                >
                   FARROWING SURVIVAL
                 </div>
-                <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
+                <div
+                  style={{
+                    background: 'white',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                  }}
+                >
                   {recentCycleSurvival.map((c, i) => (
                     <div key={i}>
-                      <div style={{fontSize: 10, color: '#6b7280', marginBottom: 1}}>
+                      <div style={{fontSize: 10, color: 'var(--ink-muted)', marginBottom: 1}}>
                         {c.label} {'\u2014'} {c.born} born, {c.dead} died
                       </div>
                       {trendBar(
@@ -728,13 +770,28 @@ export default function PigsHomeView({Header, loadUsers}) {
             )}
             {yieldTrend.length >= 2 && (
               <div>
-                <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--ink-muted)',
+                    marginBottom: 8,
+                    letterSpacing: 0.3,
+                  }}
+                >
                   CARCASS YIELD TREND
                 </div>
-                <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
+                <div
+                  style={{
+                    background: 'white',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                  }}
+                >
                   {yieldTrend.map((t, i) => (
                     <div key={i}>
-                      <div style={{fontSize: 10, color: '#6b7280', marginBottom: 1}}>
+                      <div style={{fontSize: 10, color: 'var(--ink-muted)', marginBottom: 1}}>
                         {t.batch} {'\u00b7'} {fmt(t.date)}
                       </div>
                       {trendBar(t.yield, 100, '#1e40af')}

@@ -194,18 +194,32 @@ const SheepHomeView = ({
   const prev = computeWindow(prevFromISO, prevToISO);
 
   const StatTile = ({label, val, sub, color = '#0f766e'}) => (
-    <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-      <div style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4}}>
+    <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--ink-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+          marginBottom: 4,
+        }}
+      >
         {label}
       </div>
       <div style={{fontSize: 24, fontWeight: 700, color, lineHeight: 1}}>{val}</div>
-      {sub && <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>{sub}</div>}
+      {sub && <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>{sub}</div>}
     </div>
   );
 
   const PeriodToggle = () => (
     <div
-      style={{display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #d1d5db', width: 'fit-content'}}
+      style={{
+        display: 'flex',
+        borderRadius: 8,
+        overflow: 'hidden',
+        border: '1px solid var(--border-strong)',
+        width: 'fit-content',
+      }}
     >
       {[
         {v: 30, l: '30 Days'},
@@ -222,8 +236,8 @@ const SheepHomeView = ({
             fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer',
-            background: period === v ? '#0f766e' : 'white',
-            color: period === v ? 'white' : '#6b7280',
+            background: 'white',
+            color: period === v ? '#0f766e' : 'var(--ink-muted)',
           }}
         >
           {l}
@@ -234,7 +248,7 @@ const SheepHomeView = ({
 
   return (
     <div
-      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      style={{minHeight: '100vh', background: 'var(--bg-page)'}}
       data-sheep-home-loaded={loading || loadError ? 'false' : 'true'}
     >
       {showUsers && (
@@ -292,15 +306,17 @@ const SheepHomeView = ({
             <StatTile
               label="Mortality 30d"
               val={totalMort30.toString()}
-              color={totalMort30 > 0 ? '#b91c1c' : '#374151'}
+              color={totalMort30 > 0 ? '#b91c1c' : 'var(--ink)'}
             />
-            <StatTile label="Reports 30d" val={totalReports30.toString()} color="#374151" />
+            <StatTile label="Reports 30d" val={totalReports30.toString()} color="var(--ink)" />
           </div>
         )}
 
         {!loadError && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               FLOCK BREAKDOWN
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10}}>
@@ -319,20 +335,20 @@ const SheepHomeView = ({
               >
                 <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
                   <span style={{fontSize: 14, fontWeight: 700, color: '#0f766e'}}>Processing Batches</span>
-                  <span style={{fontSize: 11, color: '#6b7280'}}>
+                  <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                     {batchCounts.total} {batchCounts.total === 1 ? 'batch' : 'batches'}
                   </span>
                 </div>
-                <div style={{fontSize: 12, color: '#374151'}}>
+                <div style={{fontSize: 12, color: 'var(--ink)'}}>
                   {batchCounts.planned > 0 ? (
                     <span>
                       <strong>{batchCounts.planned}</strong> planned
                     </span>
                   ) : (
-                    <span style={{color: '#9ca3af'}}>No planned batches</span>
+                    <span style={{color: 'var(--ink-faint)'}}>No planned batches</span>
                   )}
                 </div>
-                <div style={{fontSize: 11, color: '#9ca3af', marginTop: 4}}>
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 4}}>
                   Sheep enter via the Send-to-Processor flag on a sheep weigh-in.
                 </div>
               </div>
@@ -346,7 +362,7 @@ const SheepHomeView = ({
                     {...openableProps(() => setView('sheepflocks'))}
                     style={{
                       background: 'white',
-                      border: '1px solid #e5e7eb',
+                      border: '1px solid var(--border)',
                       borderRadius: 12,
                       padding: '14px 16px',
                       cursor: 'pointer',
@@ -354,12 +370,21 @@ const SheepHomeView = ({
                     className="hoverable-tile"
                   >
                     <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
-                      <span style={{fontSize: 14, fontWeight: 700, color: FLOCK_COLORS[f]}}>{FLOCK_LABELS[f]}</span>
-                      <span style={{fontSize: 11, color: '#6b7280'}}>
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: FLOCK_COLORS[f],
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{FLOCK_LABELS[f]}</span>
+                      <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                         {flockSheep.length} {flockSheep.length === 1 ? 'sheep' : 'sheep'}
                       </span>
                     </div>
-                    <div style={{fontSize: 12, color: '#374151'}}>
+                    <div style={{fontSize: 12, color: 'var(--ink)'}}>
                       Live wt: <strong>{lw > 0 ? Math.round(lw).toLocaleString() + ' lbs' : '\u2014'}</strong>
                     </div>
                     {est > 0 && (
@@ -377,16 +402,16 @@ const SheepHomeView = ({
         {!loading && !loadError && (
           <div>
             <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10}}>
-              <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', letterSpacing: 0.3}}>
+              <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', letterSpacing: 0.3}}>
                 FARM-WIDE DAILYS {'\u2014'} ROLLING WINDOW
               </div>
               <PeriodToggle />
             </div>
-            <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 14, overflow: 'hidden'}}>
+            <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden'}}>
               <div
                 style={{
-                  background: '#f0fdfa',
-                  borderBottom: '1px solid #5eead4',
+                  background: 'white',
+                  borderBottom: '1px solid var(--divider)',
                   borderLeft: '4px solid #0f766e',
                   padding: '12px 20px',
                   display: 'flex',
@@ -408,7 +433,7 @@ const SheepHomeView = ({
                   <PlannerIcon iconKey={ANIMAL_ICON_KEYS.sheep} size={20} />
                   <span>All Flocks</span>
                 </span>
-                <span style={{fontSize: 11, color: '#6b7280'}}>
+                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                   {cur.reportDays} of {cur.days} days reported
                 </span>
               </div>
@@ -446,8 +471,8 @@ const SheepHomeView = ({
                       key={it.l}
                       style={{
                         padding: '8px 10px',
-                        background: '#f9fafb',
-                        border: '1px solid #f3f4f6',
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--divider)',
                         borderRadius: 8,
                         minWidth: 0,
                         overflow: 'hidden',
@@ -456,7 +481,7 @@ const SheepHomeView = ({
                       <div
                         style={{
                           fontSize: 9,
-                          color: '#9ca3af',
+                          color: 'var(--ink-faint)',
                           textTransform: 'uppercase',
                           letterSpacing: 0.4,
                           marginBottom: 2,
@@ -468,7 +493,7 @@ const SheepHomeView = ({
                         style={{
                           fontSize: 13,
                           fontWeight: 700,
-                          color: it.warn ? '#b91c1c' : it.color || '#111827',
+                          color: it.warn ? '#b91c1c' : it.color || 'var(--ink)',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -486,17 +511,19 @@ const SheepHomeView = ({
         )}
 
         {loading && (
-          <div style={{textAlign: 'center', padding: '2rem', color: '#9ca3af', fontSize: 13}}>Loading{'\u2026'}</div>
+          <div style={{textAlign: 'center', padding: '2rem', color: 'var(--ink-faint)', fontSize: 13}}>
+            Loading{'\u2026'}
+          </div>
         )}
         {!loading && !loadError && totalSheep === 0 && (
           <div
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '24px',
               textAlign: 'center',
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontSize: 13,
             }}
           >

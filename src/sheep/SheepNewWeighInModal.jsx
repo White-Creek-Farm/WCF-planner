@@ -50,13 +50,13 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
     fontFamily: 'inherit',
     fontSize: 13,
     padding: '8px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     width: '100%',
     boxSizing: 'border-box',
     background: 'white',
   };
-  const lblS = {display: 'block', fontSize: 12, color: '#374151', marginBottom: 4, fontWeight: 600};
+  const lblS = {display: 'block', fontSize: 12, color: 'var(--ink)', marginBottom: 4, fontWeight: 600};
   return (
     <div
       style={{
@@ -84,7 +84,7 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
           style={{
             fontSize: 15,
             fontWeight: 700,
-            color: '#111827',
+            color: 'var(--ink)',
             marginBottom: 14,
             display: 'flex',
             alignItems: 'center',

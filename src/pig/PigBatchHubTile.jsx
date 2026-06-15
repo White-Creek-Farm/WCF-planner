@@ -44,7 +44,7 @@ const ESTIMATED_HINT = 'Estimated from started-head split';
 function MetricCell({value, kind = 'head', tone = 'default', estimated = false}) {
   const display = kind === 'feed' ? formatFeed(value) : formatHead(value);
   const empty = display === EMPTY_CELL;
-  const color = empty ? '#9ca3af' : tone === 'feed' ? '#78350f' : '#374151';
+  const color = empty ? 'var(--ink-faint)' : tone === 'feed' ? '#78350f' : 'var(--ink)';
   // '~' marks proportional started-head estimates (source records carried no
   // sex attribution); exact single-sex values render unmarked.
   const marked = estimated && !empty;
@@ -94,7 +94,7 @@ export default function PigBatchHubTile({group, metrics, statusColor, onOpen}) {
         gap: 10,
         alignItems: 'center',
         padding: '10px 14px',
-        borderBottom: '1px solid #f3f4f6',
+        borderBottom: '1px solid var(--divider)',
         cursor: 'pointer',
         background: group.status === 'processed' ? '#fafafa' : 'white',
       }}
@@ -103,7 +103,7 @@ export default function PigBatchHubTile({group, metrics, statusColor, onOpen}) {
         style={{
           fontWeight: 700,
           fontSize: 13,
-          color: '#111827',
+          color: 'var(--ink)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',

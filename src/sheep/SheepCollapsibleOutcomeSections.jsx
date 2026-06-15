@@ -26,7 +26,7 @@ const SheepCollapsibleOutcomeSections = ({
             key={f}
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 10,
               marginBottom: 8,
               overflow: 'hidden',
@@ -37,7 +37,8 @@ const SheepCollapsibleOutcomeSections = ({
               className="hoverable-tile"
               style={{
                 padding: '10px 16px',
-                background: fc.bg,
+                background: 'white',
+                borderLeft: '3px solid ' + fc.tx,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -68,13 +69,13 @@ const SheepCollapsibleOutcomeSections = ({
             {isExpanded && (
               <div>
                 {rows.slice(0, 50).map((s) => (
-                  <div key={s.id} id={'sheep-' + s.id} style={{borderTop: '1px solid #f3f4f6'}}>
+                  <div key={s.id} id={'sheep-' + s.id} style={{borderTop: '1px solid var(--divider)'}}>
                     <div
                       {...(onSheepClick ? openableProps(() => onSheepClick(s)) : {})}
                       style={{
                         padding: '8px 16px',
                         fontSize: 12,
-                        color: '#4b5563',
+                        color: 'var(--ink-muted)',
                         display: 'flex',
                         gap: 10,
                         flexWrap: 'wrap',
@@ -83,8 +84,8 @@ const SheepCollapsibleOutcomeSections = ({
                       }}
                       className={onSheepClick ? 'hoverable-tile' : ''}
                     >
-                      {onSheepClick && <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>}
-                      <span style={{fontWeight: 600, color: '#111827', minWidth: 60}}>
+                      {onSheepClick && <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'▶'}</span>}
+                      <span style={{fontWeight: 600, color: 'var(--ink)', minWidth: 60}}>
                         {s.tag ? '#' + s.tag : '(no tag)'}
                       </span>
                       <span>{s.sex || '—'}</span>
@@ -95,7 +96,7 @@ const SheepCollapsibleOutcomeSections = ({
                   </div>
                 ))}
                 {rows.length > 50 && (
-                  <div style={{padding: '8px 16px', fontSize: 11, color: '#9ca3af'}}>
+                  <div style={{padding: '8px 16px', fontSize: 11, color: 'var(--ink-faint)'}}>
                     {rows.length - 50} more — click "View all" above to filter to this section.
                   </div>
                 )}

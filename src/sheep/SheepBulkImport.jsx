@@ -340,9 +340,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
   const btnSecondary = {
     padding: '9px 18px',
     borderRadius: 8,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontWeight: 600,
     fontSize: 13,
     cursor: 'pointer',
@@ -380,7 +380,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
         <div
           style={{
             padding: '14px 20px',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -391,7 +391,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
           </h2>
           <button
             onClick={onClose}
-            style={{background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6b7280'}}
+            style={{background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--ink-muted)'}}
             aria-label="Close"
           >
             {'\u00d7'}
@@ -416,11 +416,11 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
 
           {stage === 'start' && (
             <div>
-              <p style={{fontSize: 13, color: '#4b5563', marginTop: 0}}>
+              <p style={{fontSize: 13, color: 'var(--ink-muted)', marginTop: 0}}>
                 Upload an xlsx with one row per sheep. Use the WCF template (download below). The Instructions sheet
                 documents every column.
               </p>
-              <ol style={{fontSize: 13, color: '#4b5563', paddingLeft: 20, lineHeight: 1.7}}>
+              <ol style={{fontSize: 13, color: 'var(--ink-muted)', paddingLeft: 20, lineHeight: 1.7}}>
                 <li>Download the template (or use a pre-seeded one).</li>
                 <li>Fill one row per sheep. Required: tag, sex, flock.</li>
                 <li>Upload it back. You'll see a per-row preview before anything is written.</li>
@@ -439,7 +439,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   />
                 </label>
               </div>
-              <div style={{fontSize: 11, color: '#9ca3af', marginTop: 14, lineHeight: 1.5}}>
+              <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 14, lineHeight: 1.5}}>
                 Tip: this importer auto-creates new breeds and origins on commit, so you can type a new selling-farm
                 name without setting it up first.
               </div>
@@ -487,17 +487,17 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   </span>
                 )}
               </div>
-              <div style={{maxHeight: '55vh', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8}}>
+              <div style={{maxHeight: '55vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
-                  <thead style={{position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1}}>
+                  <thead style={{position: 'sticky', top: 0, background: 'var(--surface-2)', zIndex: 1}}>
                     <tr>
                       <th
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Row
@@ -506,9 +506,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Status
@@ -517,9 +517,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Tag
@@ -528,9 +528,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Sex
@@ -539,9 +539,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Flock
@@ -550,9 +550,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Breed
@@ -561,9 +561,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Origin
@@ -572,9 +572,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Extras
@@ -583,9 +583,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         style={{
                           padding: '8px 10px',
                           textAlign: 'left',
-                          borderBottom: '1px solid #e5e7eb',
+                          borderBottom: '1px solid var(--border)',
                           fontWeight: 600,
-                          color: '#4b5563',
+                          color: 'var(--ink-muted)',
                         }}
                       >
                         Issues
@@ -611,8 +611,10 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                         extras.push('\u201c' + (c.length > 60 ? c.slice(0, 60) + '\u2026' : c) + '\u201d');
                       }
                       return (
-                        <tr key={i} style={{background: bg, borderBottom: '1px solid #f3f4f6'}}>
-                          <td style={{padding: '6px 10px', color: '#9ca3af', fontVariantNumeric: 'tabular-nums'}}>
+                        <tr key={i} style={{background: bg, borderBottom: '1px solid var(--divider)'}}>
+                          <td
+                            style={{padding: '6px 10px', color: 'var(--ink-faint)', fontVariantNumeric: 'tabular-nums'}}
+                          >
                             {r.rowIdx}
                           </td>
                           <td style={{padding: '6px 10px'}}>
@@ -629,7 +631,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                           <td style={{padding: '6px 10px'}}>{r.parsed.flock || '\u2014'}</td>
                           <td style={{padding: '6px 10px'}}>{r.parsed.breed || '\u2014'}</td>
                           <td style={{padding: '6px 10px'}}>{r.parsed.origin || '\u2014'}</td>
-                          <td style={{padding: '6px 10px', color: '#6b7280'}}>
+                          <td style={{padding: '6px 10px', color: 'var(--ink-muted)'}}>
                             {extras.length ? extras.join(' \u00b7 ') : '\u2014'}
                           </td>
                           <td style={{padding: '6px 10px', color: hasErr ? '#991b1b' : '#92400e', fontSize: 11}}>
@@ -662,14 +664,14 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
 
           {stage === 'committing' && (
             <div style={{textAlign: 'center', padding: '2rem 0'}}>
-              <div style={{fontSize: 14, color: '#4b5563', marginBottom: 14}}>
+              <div style={{fontSize: 14, color: 'var(--ink-muted)', marginBottom: 14}}>
                 Importing {progress.done} of {progress.total}
                 {'\u2026'}
               </div>
               <div
                 style={{
                   height: 8,
-                  background: '#f3f4f6',
+                  background: 'var(--divider)',
                   borderRadius: 4,
                   overflow: 'hidden',
                   maxWidth: 400,
@@ -733,13 +735,13 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                 style={{
                   maxHeight: '40vh',
                   overflowY: 'auto',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: '10px 14px',
                 }}
               >
                 {results.log.map((l, i) => (
-                  <div key={i} style={{fontSize: 12, padding: '3px 0', color: l.ok ? '#374151' : '#991b1b'}}>
+                  <div key={i} style={{fontSize: 12, padding: '3px 0', color: l.ok ? 'var(--ink)' : '#991b1b'}}>
                     {l.ok ? '\u2713' : '\u2717'} #{l.tag}
                     {l.msg ? ' \u2014 ' + l.msg : ''}
                   </div>
@@ -760,7 +762,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
           )}
 
           {busy && stage !== 'committing' && (
-            <div style={{textAlign: 'center', padding: 14, color: '#6b7280', fontSize: 13}}>Working{'\u2026'}</div>
+            <div style={{textAlign: 'center', padding: 14, color: 'var(--ink-muted)', fontSize: 13}}>
+              Working{'\u2026'}
+            </div>
           )}
         </div>
       </div>

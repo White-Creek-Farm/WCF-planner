@@ -254,7 +254,7 @@ export default function SowsView({
               style={{
                 padding: '4px 10px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
                 cursor: 'pointer',
                 fontSize: 12,
@@ -311,11 +311,11 @@ export default function SowsView({
               style={{
                 padding: '4px 10px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
                 cursor: 'pointer',
                 fontSize: 12,
-                color: '#4b5563',
+                color: 'var(--ink-muted)',
               }}
             >
               ✕
@@ -413,7 +413,7 @@ export default function SowsView({
       <div
         style={{
           background: 'white',
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--border)',
           borderRadius: 12,
           overflow: 'hidden',
           boxShadow: '0 1px 4px rgba(0,0,0,.06)',
@@ -440,11 +440,16 @@ export default function SowsView({
             setShowBreederForm(true);
           })}
           className="hoverable-tile"
-          style={{padding: '12px 16px', background: 'white', borderBottom: '1px solid #e5e7eb', cursor: 'pointer'}}
+          style={{
+            padding: '12px 16px',
+            background: 'white',
+            borderBottom: '1px solid var(--border)',
+            cursor: 'pointer',
+          }}
         >
-          <div style={{fontSize: 16, fontWeight: 700, color: '#111827'}}>
+          <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>
             <span>
-              #{pig.tag} <span style={{fontSize: 12, fontWeight: 400, color: '#6b7280'}}>{pig.sex}</span>
+              #{pig.tag} <span style={{fontSize: 12, fontWeight: 400, color: 'var(--ink-muted)'}}>{pig.sex}</span>
             </span>
             <button
               type="button"
@@ -457,7 +462,7 @@ export default function SowsView({
                 float: 'right',
                 padding: '3px 8px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: '#085041',
                 cursor: 'pointer',
@@ -469,7 +474,7 @@ export default function SowsView({
               Record
             </button>
           </div>
-          <div style={{fontSize: 11, color: '#9ca3af', marginTop: 2}}>
+          <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 2}}>
             {pig.breed || '\u2014'} {'\u00b7'} {pigAge(pig.birthDate)}
             {(pig.status === 'Deceased' || pig.status === 'Processed' || pig.status === 'Sold') && (
               <span
@@ -492,25 +497,25 @@ export default function SowsView({
         <div style={{padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8}}>
           {latestWeight && (
             <div>
-              <div style={{fontSize: 10, color: '#9ca3af'}}>Last Weight</div>
-              <div style={{fontSize: 15, fontWeight: 600, color: '#111827'}}>{latestWeight} lbs</div>
+              <div style={{fontSize: 10, color: 'var(--ink-faint)'}}>Last Weight</div>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--ink)'}}>{latestWeight} lbs</div>
             </div>
           )}
           {isSow && (
             <div>
-              <div style={{fontSize: 10, color: '#9ca3af'}}>Litters</div>
-              <div style={{fontSize: 15, fontWeight: 600, color: '#111827'}}>{stats.litters}</div>
+              <div style={{fontSize: 10, color: 'var(--ink-faint)'}}>Litters</div>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--ink)'}}>{stats.litters}</div>
             </div>
           )}
           {isSow && (
             <div>
-              <div style={{fontSize: 10, color: '#9ca3af'}}>Alive Total</div>
+              <div style={{fontSize: 10, color: 'var(--ink-faint)'}}>Alive Total</div>
               <div style={{fontSize: 15, fontWeight: 600, color: '#065f46'}}>{stats.alive}</div>
             </div>
           )}
         </div>
         {/* Weight entry + history (breeding-pig only — Ronnie's spec) */}
-        <div style={{padding: '8px 16px', borderTop: '1px solid #f3f4f6'}}>
+        <div style={{padding: '8px 16px', borderTop: '1px solid var(--divider)'}}>
           <div style={{display: 'flex', gap: 6, alignItems: 'center'}}>
             <input
               type="number"
@@ -526,7 +531,7 @@ export default function SowsView({
                 flex: 1,
                 fontSize: 13,
                 padding: '6px 10px',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 borderRadius: 6,
                 fontFamily: 'inherit',
                 boxSizing: 'border-box',
@@ -552,7 +557,14 @@ export default function SowsView({
           </div>
           {weighins.length > 0 && (
             <div
-              style={{marginTop: 6, fontSize: 11, color: '#6b7280', display: 'flex', flexWrap: 'wrap', gap: '2px 10px'}}
+              style={{
+                marginTop: 6,
+                fontSize: 11,
+                color: 'var(--ink-muted)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '2px 10px',
+              }}
             >
               {weighins
                 .slice()
@@ -560,22 +572,22 @@ export default function SowsView({
                 .slice(0, 6)
                 .map((w, wi) => (
                   <span key={wi}>
-                    <strong style={{color: '#111827'}}>{w.weight} lb</strong>{' '}
-                    <span style={{color: '#9ca3af'}}>{fmtS(w.date)}</span>
+                    <strong style={{color: 'var(--ink)'}}>{w.weight} lb</strong>{' '}
+                    <span style={{color: 'var(--ink-faint)'}}>{fmtS(w.date)}</span>
                   </span>
                 ))}
-              {weighins.length > 6 && <span style={{color: '#9ca3af'}}>+{weighins.length - 6} more</span>}
+              {weighins.length > 6 && <span style={{color: 'var(--ink-faint)'}}>+{weighins.length - 6} more</span>}
             </div>
           )}
         </div>
         {/* Farrowing history */}
         {isSow && history.length > 0 && (
-          <div style={{borderTop: '1px solid #f3f4f6', padding: '8px 16px 10px'}}>
+          <div style={{borderTop: '1px solid var(--divider)', padding: '8px 16px 10px'}}>
             <div
               style={{
                 fontSize: 10,
                 fontWeight: 600,
-                color: '#6b7280',
+                color: 'var(--ink-muted)',
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
                 marginBottom: 6,
@@ -620,10 +632,11 @@ export default function SowsView({
                     ),
                     React.createElement(
                       'span',
-                      {style: {color: '#6b7280'}},
+                      {style: {color: 'var(--ink-muted)'}},
                       cycleLabel(h.cycle, cycleSeqMap) + ' \u00b7 ' + fmt(h.cycle.exposureStart),
                     ),
-                    h.sire && React.createElement('span', {style: {color: '#9ca3af'}}, '\u00b7 Sire: ' + h.sire),
+                    h.sire &&
+                      React.createElement('span', {style: {color: 'var(--ink-faint)'}}, '\u00b7 Sire: ' + h.sire),
                   );
                 }
                 var born = parseInt(h.rec.totalBorn) || 0;
@@ -645,14 +658,15 @@ export default function SowsView({
                   },
                   React.createElement(
                     'span',
-                    {style: {color: '#374151', fontWeight: 600, minWidth: 90}},
+                    {style: {color: 'var(--ink)', fontWeight: 600, minWidth: 90}},
                     fmt(h.rec.farrowingDate),
                   ),
                   React.createElement('span', {style: {color: '#065f46', fontWeight: 600}}, alive + ' alive'),
-                  React.createElement('span', {style: {color: '#9ca3af'}}, born + ' born'),
+                  React.createElement('span', {style: {color: 'var(--ink-faint)'}}, born + ' born'),
                   dead > 0 && React.createElement('span', {style: {color: '#b91c1c'}}, dead + ' died'),
-                  h.cycle && React.createElement('span', {style: {color: '#9ca3af'}}, cycleLabel(h.cycle, cycleSeqMap)),
-                  h.sire && React.createElement('span', {style: {color: '#9ca3af'}}, '\u00b7 ' + h.sire),
+                  h.cycle &&
+                    React.createElement('span', {style: {color: 'var(--ink-faint)'}}, cycleLabel(h.cycle, cycleSeqMap)),
+                  h.sire && React.createElement('span', {style: {color: 'var(--ink-faint)'}}, '\u00b7 ' + h.sire),
                 );
               })}
           </div>
@@ -681,7 +695,9 @@ export default function SowsView({
             );
           })()}
         {pig.notes && (
-          <div style={{padding: '0 16px 10px', fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>{pig.notes}</div>
+          <div style={{padding: '0 16px 10px', fontSize: 11, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
+            {pig.notes}
+          </div>
         )}
       </div>
     );
@@ -693,9 +709,9 @@ export default function SowsView({
     const history = isSow ? sowFarrowHistory(pig.tag) : [];
     const weighins = Array.isArray(pig.weighins) ? pig.weighins : [];
     const latestWeight = latestBreederWeight(pig);
-    const fieldStyle = {background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px'};
-    const labelStyle = {fontSize: 11, color: '#6b7280', marginBottom: 3};
-    const valueStyle = {fontSize: 14, color: '#111827', fontWeight: 600};
+    const fieldStyle = {background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px'};
+    const labelStyle = {fontSize: 11, color: 'var(--ink-muted)', marginBottom: 3};
+    const valueStyle = {fontSize: 14, color: 'var(--ink)', fontWeight: 600};
     const value = (v) => (v == null || v === '' ? '\u2014' : v);
 
     return (
@@ -703,7 +719,7 @@ export default function SowsView({
         <div
           style={{
             background: 'white',
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--border)',
             borderRadius: 8,
             padding: 14,
             display: 'grid',
@@ -770,16 +786,16 @@ export default function SowsView({
         </div>
 
         {weighins.length > 0 && (
-          <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: 14}}>
-            <div style={{fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8}}>Weight History</div>
+          <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 14}}>
+            <div style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}>Weight History</div>
             <div data-breeding-pig-weight-history={pig.id} style={{display: 'flex', flexWrap: 'wrap', gap: '6px 12px'}}>
               {weighins
                 .slice()
                 .reverse()
                 .map((w, wi) => (
-                  <span key={wi} style={{fontSize: 12, color: '#6b7280'}}>
-                    <strong style={{color: '#111827'}}>{w.weight} lb</strong>{' '}
-                    <span style={{color: '#9ca3af'}}>{fmtS(w.date)}</span>
+                  <span key={wi} style={{fontSize: 12, color: 'var(--ink-muted)'}}>
+                    <strong style={{color: 'var(--ink)'}}>{w.weight} lb</strong>{' '}
+                    <span style={{color: 'var(--ink-faint)'}}>{fmtS(w.date)}</span>
                   </span>
                 ))}
             </div>
@@ -787,8 +803,8 @@ export default function SowsView({
         )}
 
         {isSow && history.length > 0 && (
-          <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: 14}}>
-            <div style={{fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8}}>Farrowing History</div>
+          <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 14}}>
+            <div style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}>Farrowing History</div>
             <div data-breeding-pig-farrowing-history={pig.id} style={{display: 'flex', flexDirection: 'column'}}>
               {history
                 .filter(function (h2) {
@@ -805,7 +821,7 @@ export default function SowsView({
                           alignItems: 'center',
                           gap: 8,
                           padding: '7px 0',
-                          borderBottom: hi < history.length - 1 ? '1px solid #f3f4f6' : 'none',
+                          borderBottom: hi < history.length - 1 ? '1px solid var(--divider)' : 'none',
                           fontSize: 12,
                         }}
                       >
@@ -821,10 +837,10 @@ export default function SowsView({
                         >
                           MISSED
                         </span>
-                        <span style={{color: '#6b7280'}}>
+                        <span style={{color: 'var(--ink-muted)'}}>
                           {cycleLabel(h.cycle, cycleSeqMap) + ' - ' + fmt(h.cycle.exposureStart)}
                         </span>
-                        {h.sire && <span style={{color: '#9ca3af'}}>{'Sire: ' + h.sire}</span>}
+                        {h.sire && <span style={{color: 'var(--ink-faint)'}}>{'Sire: ' + h.sire}</span>}
                       </div>
                     );
                   }
@@ -839,17 +855,19 @@ export default function SowsView({
                         alignItems: 'center',
                         gap: 8,
                         padding: '7px 0',
-                        borderBottom: hi < history.length - 1 ? '1px solid #f3f4f6' : 'none',
+                        borderBottom: hi < history.length - 1 ? '1px solid var(--divider)' : 'none',
                         fontSize: 12,
                         flexWrap: 'wrap',
                       }}
                     >
-                      <span style={{color: '#374151', fontWeight: 700, minWidth: 90}}>{fmt(h.rec.farrowingDate)}</span>
+                      <span style={{color: 'var(--ink)', fontWeight: 700, minWidth: 90}}>
+                        {fmt(h.rec.farrowingDate)}
+                      </span>
                       <span style={{color: '#065f46', fontWeight: 700}}>{alive + ' alive'}</span>
-                      <span style={{color: '#9ca3af'}}>{born + ' born'}</span>
+                      <span style={{color: 'var(--ink-faint)'}}>{born + ' born'}</span>
                       {dead > 0 && <span style={{color: '#b91c1c'}}>{dead + ' died'}</span>}
-                      {h.cycle && <span style={{color: '#9ca3af'}}>{cycleLabel(h.cycle, cycleSeqMap)}</span>}
-                      {h.sire && <span style={{color: '#9ca3af'}}>{h.sire}</span>}
+                      {h.cycle && <span style={{color: 'var(--ink-faint)'}}>{cycleLabel(h.cycle, cycleSeqMap)}</span>}
+                      {h.sire && <span style={{color: 'var(--ink-faint)'}}>{h.sire}</span>}
                     </div>
                   );
                 })}
@@ -886,14 +904,14 @@ export default function SowsView({
             data-breeding-pig-notes={pig.id}
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 8,
               padding: 14,
               fontSize: 13,
-              color: '#4b5563',
+              color: 'var(--ink-muted)',
             }}
           >
-            <div style={{fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 6}}>Notes</div>
+            <div style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 6}}>Notes</div>
             {pig.notes}
           </div>
         )}
@@ -915,7 +933,7 @@ export default function SowsView({
 
   if (recordMode && recordPig) {
     return (
-      <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+      <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
         <Header />
         <RecordPageBody maxWidth={960} data-breeding-pig-record-loaded="true">
           <RecordBackLink label="Back to Breeding Pigs" onBack={goToBreedingPigs} />
@@ -936,7 +954,7 @@ export default function SowsView({
           <div
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               overflow: 'hidden',
               boxShadow: '0 1px 4px rgba(0,0,0,.06)',
@@ -945,7 +963,7 @@ export default function SowsView({
             <div
               style={{
                 padding: '12px 16px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -998,7 +1016,7 @@ export default function SowsView({
                   </div>
                   <div style={{flex: 1}}>
                     <span style={{fontWeight: 600}}>Sow #{p.tag}</span>
-                    <span style={{fontSize: 11, color: '#9ca3af', marginLeft: 8}}>
+                    <span style={{fontSize: 11, color: 'var(--ink-faint)', marginLeft: 8}}>
                       {p.litters} litter{p.litters !== 1 ? 's' : ' '} {'\u00b7'} {p.born} born
                     </span>
                   </div>
@@ -1032,7 +1050,7 @@ export default function SowsView({
             {
               style: {
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 12,
                 overflow: 'hidden',
                 boxShadow: '0 1px 4px rgba(0,0,0,.06)',
@@ -1040,7 +1058,7 @@ export default function SowsView({
             },
             React.createElement(
               'div',
-              {style: {padding: '12px 16px', borderBottom: '1px solid #e5e7eb', background: '#f8fafb'}},
+              {style: {padding: '12px 16px', borderBottom: '1px solid var(--border)', background: '#f8fafb'}},
               React.createElement(
                 'div',
                 {style: {fontWeight: 600, fontSize: 14}},
@@ -1089,7 +1107,7 @@ export default function SowsView({
                     React.createElement('span', {style: {fontWeight: 600}}, b.name),
                     React.createElement(
                       'span',
-                      {style: {fontSize: 11, color: '#9ca3af', marginLeft: 8}},
+                      {style: {fontSize: 11, color: 'var(--ink-faint)', marginLeft: 8}},
                       b.litters +
                         ' litter' +
                         (b.litters !== 1 ? 's' : '') +
@@ -1131,9 +1149,9 @@ export default function SowsView({
                 style={{
                   padding: '7px 12px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#4b5563',
+                  color: 'var(--ink-muted)',
                   cursor: 'pointer',
                   fontSize: 12,
                   fontWeight: 600,
@@ -1153,9 +1171,9 @@ export default function SowsView({
               style={{
                 padding: '7px 12px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: breedingPigSeqRows.length === 0 ? '#9ca3af' : '#085041',
+                color: breedingPigSeqRows.length === 0 ? 'var(--ink-faint)' : '#085041',
                 cursor: breedingPigSeqRows.length === 0 ? 'not-allowed' : 'pointer',
                 fontSize: 12,
                 fontWeight: 600,
@@ -1172,9 +1190,9 @@ export default function SowsView({
               style={{
                 padding: '7px 12px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: breedingPigSeqRows.length === 0 ? '#9ca3af' : '#085041',
+                color: breedingPigSeqRows.length === 0 ? 'var(--ink-faint)' : '#085041',
                 cursor: breedingPigSeqRows.length === 0 ? 'not-allowed' : 'pointer',
                 fontSize: 12,
                 fontWeight: 600,
@@ -1257,7 +1275,7 @@ export default function SowsView({
               <div
                 style={{
                   padding: '14px 20px',
-                  borderBottom: '1px solid #e5e7eb',
+                  borderBottom: '1px solid var(--border)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -1281,7 +1299,7 @@ export default function SowsView({
                     border: 'none',
                     fontSize: 22,
                     cursor: 'pointer',
-                    color: '#9ca3af',
+                    color: 'var(--ink-faint)',
                     lineHeight: 1,
                     padding: '0 4px',
                   }}
@@ -1451,7 +1469,7 @@ export default function SowsView({
                   <div
                     key={grp}
                     style={{
-                      border: '1px solid #e5e7eb',
+                      border: '1px solid var(--border)',
                       borderRadius: 12,
                       overflow: 'hidden',
                       boxShadow: '0 1px 3px rgba(0,0,0,.05)',
@@ -1460,16 +1478,18 @@ export default function SowsView({
                     <div
                       style={{
                         padding: '10px 16px',
-                        background: C ? C.farrowing : '#f3f4f6',
+                        background: 'white',
+                        borderBottom: '1px solid var(--border)',
+                        borderLeft: C ? `3px solid ${C.farrowing}` : '3px solid var(--border-strong)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 10,
                       }}
                     >
-                      <span style={{fontWeight: 700, fontSize: 13, color: C ? 'white' : '#374151'}}>
+                      <span style={{fontWeight: 700, fontSize: 13, color: C ? C.farrowing : 'var(--ink)'}}>
                         {grp !== 'none' ? `Group ${grp}` : 'No Group'}
                       </span>
-                      <span style={{fontSize: 12, color: C ? 'rgba(255,255,255,.75)' : '#9ca3af'}}>
+                      <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                         {pigs.length} sow{pigs.length !== 1 ? 's' : ''}
                       </span>
                     </div>
@@ -1497,15 +1517,25 @@ export default function SowsView({
         {activeBoars.length > 0 && (
           <div
             style={{
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               overflow: 'hidden',
               boxShadow: '0 1px 3px rgba(0,0,0,.05)',
             }}
           >
-            <div style={{padding: '10px 16px', background: '#1e40af', display: 'flex', alignItems: 'center', gap: 10}}>
-              <span style={{fontWeight: 700, fontSize: 13, color: 'white'}}>Boars</span>
-              <span style={{fontSize: 12, color: 'rgba(255,255,255,.75)'}}>
+            <div
+              style={{
+                padding: '10px 16px',
+                background: 'white',
+                borderBottom: '1px solid var(--border)',
+                borderLeft: '3px solid #1e40af',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <span style={{fontWeight: 700, fontSize: 13, color: '#1e40af'}}>Boars</span>
+              <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                 {activeBoars.length} boar{activeBoars.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -1532,7 +1562,7 @@ export default function SowsView({
               onClick={() => setShowArchived((s) => !s)}
               style={{
                 fontSize: 12,
-                color: '#9ca3af',
+                color: 'var(--ink-faint)',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
@@ -1603,7 +1633,7 @@ export default function SowsView({
             <div
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 12,
                 overflow: 'hidden',
                 boxShadow: '0 1px 4px rgba(0,0,0,.06)',
@@ -1612,7 +1642,7 @@ export default function SowsView({
               <div
                 style={{
                   padding: '12px 16px',
-                  borderBottom: '1px solid #e5e7eb',
+                  borderBottom: '1px solid var(--border)',
                   background: '#f8fafb',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -1625,9 +1655,9 @@ export default function SowsView({
                 {/* SOWS */}
                 <div>
                   <div style={{fontSize: 13, fontWeight: 700, color: '#085041', marginBottom: 8}}>SOWS</div>
-                  <div style={{fontSize: 11, color: '#6b7280', marginBottom: 10}}>
-                    Total: <strong style={{color: '#111827'}}>{Math.round(sowTotal).toLocaleString()} lbs</strong> from{' '}
-                    {sowDailys.length} reports
+                  <div style={{fontSize: 11, color: 'var(--ink-muted)', marginBottom: 10}}>
+                    Total: <strong style={{color: 'var(--ink)'}}>{Math.round(sowTotal).toLocaleString()} lbs</strong>{' '}
+                    from {sowDailys.length} reports
                   </div>
                   {sowMonths.slice(0, 12).map(([ym, lbs]) => (
                     <div
@@ -1640,17 +1670,17 @@ export default function SowsView({
                         fontSize: 12,
                       }}
                     >
-                      <span style={{color: '#6b7280'}}>{fmtMonth(ym)}</span>
+                      <span style={{color: 'var(--ink-muted)'}}>{fmtMonth(ym)}</span>
                       <span style={{fontWeight: 600, color: '#085041'}}>{Math.round(lbs).toLocaleString()} lbs</span>
                     </div>
                   ))}
                 </div>
                 {/* BOARS */}
                 <div>
-                  <div style={{fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8}}>BOARS</div>
-                  <div style={{fontSize: 11, color: '#6b7280', marginBottom: 10}}>
-                    Total: <strong style={{color: '#111827'}}>{Math.round(boarTotal).toLocaleString()} lbs</strong> from{' '}
-                    {boarDailys.length} reports
+                  <div style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}>BOARS</div>
+                  <div style={{fontSize: 11, color: 'var(--ink-muted)', marginBottom: 10}}>
+                    Total: <strong style={{color: 'var(--ink)'}}>{Math.round(boarTotal).toLocaleString()} lbs</strong>{' '}
+                    from {boarDailys.length} reports
                   </div>
                   {boarMonths.slice(0, 12).map(([ym, lbs]) => (
                     <div
@@ -1663,8 +1693,8 @@ export default function SowsView({
                         fontSize: 12,
                       }}
                     >
-                      <span style={{color: '#6b7280'}}>{fmtMonth(ym)}</span>
-                      <span style={{fontWeight: 600, color: '#374151'}}>{Math.round(lbs).toLocaleString()} lbs</span>
+                      <span style={{color: 'var(--ink-muted)'}}>{fmtMonth(ym)}</span>
+                      <span style={{fontWeight: 600, color: 'var(--ink)'}}>{Math.round(lbs).toLocaleString()} lbs</span>
                     </div>
                   ))}
                 </div>

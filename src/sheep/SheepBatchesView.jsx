@@ -394,19 +394,19 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
   const inpS = {
     fontSize: 13,
     padding: '7px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
   };
-  const lbl = {fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500};
+  const lbl = {fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500};
   const savedViewGhostBtnS = {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -419,13 +419,13 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
     <div
-      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      style={{minHeight: '100vh', background: 'var(--bg-page)'}}
       data-sheep-batches-loaded={loading || loadError ? 'false' : 'true'}
     >
       {showUsers && (
@@ -449,7 +449,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             style={{
               padding: '7px 14px',
               borderRadius: 7,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#0f766e',
               fontSize: 12,
@@ -467,9 +467,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
           style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}
           data-sheep-batches-root
         >
-          <div style={{fontSize: 16, fontWeight: 700, color: '#111827'}}>
+          <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>
             Processing Batches{' '}
-            <span style={{fontSize: 13, fontWeight: 400, color: '#6b7280'}} data-sheep-batches-count>
+            <span style={{fontSize: 13, fontWeight: 400, color: 'var(--ink-muted)'}} data-sheep-batches-count>
               {sortedBatches.length} of {batches.length} · {planned.length} planned · {completed.length} complete
             </span>
           </div>
@@ -481,9 +481,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
               style={{
                 padding: '7px 12px',
                 borderRadius: 7,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#374151',
+                color: 'var(--ink)',
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -499,9 +499,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
               style={{
                 padding: '7px 12px',
                 borderRadius: 7,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#374151',
+                color: 'var(--ink)',
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -540,7 +540,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
               data-sheep-batches-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -550,7 +550,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-batches-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -692,7 +692,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
               data-sheep-batches-toolbar
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 10,
@@ -727,9 +727,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                         style={{
                           padding: '6px 12px',
                           borderRadius: 7,
-                          border: '1px solid ' + (on ? '#0f766e' : '#d1d5db'),
-                          background: on ? '#0f766e' : 'white',
-                          color: on ? 'white' : '#374151',
+                          border: '1px solid ' + (on ? '#0f766e' : 'var(--border-strong)'),
+                          background: 'white',
+                          color: on ? '#0f766e' : 'var(--ink-muted)',
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
@@ -753,7 +753,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                     onChange={(e) => setRangeBound('plannedDateRange', 'after', e.target.value)}
                     style={{...inpS, width: 'auto'}}
                   />
-                  <span style={{fontSize: 12, color: '#9ca3af'}}>to</span>
+                  <span style={{fontSize: 12, color: 'var(--ink-faint)'}}>to</span>
                   <input
                     type="date"
                     data-sheep-batches-planned-before
@@ -785,7 +785,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                     }
                     style={{...inpS, width: 70}}
                   />
-                  <span style={{fontSize: 12, color: '#9ca3af'}}>to</span>
+                  <span style={{fontSize: 12, color: 'var(--ink-faint)'}}>to</span>
                   <input
                     type="number"
                     min="0"
@@ -830,9 +830,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                     style={{
                       padding: '7px 12px',
                       borderRadius: 7,
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-strong)',
                       background: 'white',
-                      color: '#374151',
+                      color: 'var(--ink)',
                       fontSize: 13,
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -851,9 +851,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                   style={{
                     padding: '7px 12px',
                     borderRadius: 7,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#6b7280',
+                    color: 'var(--ink-muted)',
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -867,18 +867,18 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
           </>
         )}
 
-        {loading && <div style={{textAlign: 'center', padding: '2rem', color: '#9ca3af'}}>Loading{'…'}</div>}
+        {loading && <div style={{textAlign: 'center', padding: '2rem', color: 'var(--ink-faint)'}}>Loading{'…'}</div>}
 
         {!loading && !loadError && batches.length === 0 && (
           <div
             data-sheep-batches-empty
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '2rem',
               textAlign: 'center',
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontSize: 13,
             }}
           >
@@ -892,11 +892,11 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             data-sheep-batches-no-match
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '2rem',
               textAlign: 'center',
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontSize: 13,
             }}
           >
@@ -909,7 +909,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             data-sheep-batches-grid
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               overflow: 'hidden',
             }}
@@ -921,11 +921,11 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 gap: 10,
                 alignItems: 'center',
                 padding: '8px 14px',
-                borderBottom: '1px solid #e5e7eb',
-                background: '#f9fafb',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--surface-2)',
                 fontSize: 10,
                 fontWeight: 700,
-                color: '#6b7280',
+                color: 'var(--ink-muted)',
                 letterSpacing: 0.4,
                 textTransform: 'uppercase',
               }}
@@ -984,7 +984,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -994,7 +994,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
               <button
                 type="button"
                 onClick={closeForm}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 {'×'}
               </button>
@@ -1038,18 +1038,18 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 style={{
                   marginTop: 12,
                   padding: '10px 12px',
-                  background: '#f9fafb',
-                  border: '1px solid #e5e7eb',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   fontSize: 11,
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                 }}
               >
                 Sheep enter this batch only via the Send-to-Processor flag on a sheep weigh-in entry. Create the empty
                 batch shell here; sheep attach themselves once they're flagged at the chute.
               </div>
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button
                 type="button"
                 onClick={saveNewBatch}
@@ -1075,9 +1075,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 style={{
                   padding: '8px 16px',
                   borderRadius: 7,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   fontSize: 13,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -1116,7 +1116,7 @@ function BatchRow({batch, fmt, onOpen}) {
         gap: 10,
         alignItems: 'center',
         padding: '10px 14px',
-        borderBottom: '1px solid #f3f4f6',
+        borderBottom: '1px solid var(--divider)',
         cursor: 'pointer',
         background: isComplete ? '#fafafa' : 'white',
       }}
@@ -1126,7 +1126,7 @@ function BatchRow({batch, fmt, onOpen}) {
         style={{
           fontWeight: 700,
           fontSize: 13,
-          color: '#111827',
+          color: 'var(--ink)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -1153,12 +1153,12 @@ function BatchRow({batch, fmt, onOpen}) {
       </span>
 
       {/* Sheep count */}
-      <span style={{fontSize: 12, color: '#374151', fontVariantNumeric: 'tabular-nums'}}>
+      <span style={{fontSize: 12, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums'}}>
         {rows.length > 0 ? <strong>{rows.length}</strong> : '—'}
       </span>
 
       {/* Planned / processed dates */}
-      <span style={{fontSize: 11, color: '#6b7280', display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+      <span style={{fontSize: 11, color: 'var(--ink-muted)', display: 'flex', gap: 8, flexWrap: 'wrap'}}>
         {batch.planned_process_date ? <span>planned {fmt(batch.planned_process_date)}</span> : <span>—</span>}
         {batch.actual_process_date && (
           <span style={{color: '#065f46'}}>processed {fmt(batch.actual_process_date)}</span>
@@ -1166,7 +1166,9 @@ function BatchRow({batch, fmt, onOpen}) {
       </span>
 
       {/* Yield */}
-      <span style={{fontSize: 12, color: yieldPct ? '#065f46' : '#9ca3af', fontVariantNumeric: 'tabular-nums'}}>
+      <span
+        style={{fontSize: 12, color: yieldPct ? '#065f46' : 'var(--ink-faint)', fontVariantNumeric: 'tabular-nums'}}
+      >
         {yieldPct ? <strong>{yieldPct + '%'}</strong> : '—'}
       </span>
 

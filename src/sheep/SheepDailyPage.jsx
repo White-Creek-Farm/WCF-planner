@@ -103,9 +103,9 @@ const feedRowControl = {...recordControl, maxWidth: '100%'};
 const btnSmall = {
   padding: '4px 10px',
   borderRadius: 6,
-  border: '1px solid #d1d5db',
-  background: '#f9fafb',
-  color: '#374151',
+  border: '1px solid var(--border-strong)',
+  background: 'var(--surface-2)',
+  color: 'var(--ink)',
   fontWeight: 500,
   fontSize: 12,
   cursor: 'pointer',
@@ -405,7 +405,7 @@ export default function SheepDailyPage({sb, authState, Header}) {
             </select>
           </div>
 
-          <div style={{padding: '6px 0', borderBottom: '1px solid #f3f4f6'}}>
+          <div style={{padding: '6px 0', borderBottom: '1px solid var(--divider)'}}>
             <div style={{...fieldLabel, marginBottom: 4}}>Feeds</div>
             {form.feeds.map((row, idx) => (
               <div key={idx} style={{display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4}}>
@@ -444,7 +444,7 @@ export default function SheepDailyPage({sb, authState, Header}) {
             </button>
           </div>
 
-          <div style={{padding: '6px 0', borderBottom: '1px solid #f3f4f6'}}>
+          <div style={{padding: '6px 0', borderBottom: '1px solid var(--divider)'}}>
             <div style={{...fieldLabel, marginBottom: 4}}>Minerals</div>
             {form.minerals.map((row, idx) => (
               <div key={idx} style={{display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4}}>
@@ -496,7 +496,7 @@ export default function SheepDailyPage({sb, authState, Header}) {
                     min="0"
                     step="any"
                   />
-                  <span style={{fontSize: 12, color: '#6b7280'}}>kV</span>
+                  <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>kV</span>
                 </div>
               </div>
               <div className={fieldRowClass}>

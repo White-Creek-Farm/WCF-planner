@@ -455,7 +455,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
   const fi = {
     padding: '6px 10px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
     background: 'white',
@@ -468,9 +468,9 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
   const savedViewGhostBtnS = {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -483,7 +483,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
@@ -514,7 +514,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
 
   return (
     <div
-      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      style={{minHeight: '100vh', background: 'var(--bg-page)'}}
       data-sheep-dailys-loaded={loading || loadError ? 'false' : 'true'}
     >
       <Header />
@@ -530,8 +530,10 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
           }}
         >
           <div>
-            <div style={{fontSize: 15, fontWeight: 700, color: '#111827'}}>Daily Reports</div>
-            <div style={{fontSize: 12, color: '#6b7280', marginTop: 2}}>{records.length.toLocaleString()} total</div>
+            <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)'}}>Daily Reports</div>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>
+              {records.length.toLocaleString()} total
+            </div>
           </div>
           <div style={{display: 'flex', gap: 8}}>
             <button
@@ -573,7 +575,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               data-sheep-dailys-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -583,7 +585,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-dailys-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -728,7 +730,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
 
         <div style={{display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center'}}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{...fi, width: 130}} />
-          <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
+          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>to</span>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{...fi, width: 130}} />
           <select value={fFlock} onChange={(e) => setFFlock(e.target.value)} style={fi}>
             <option value="">All flocks</option>
@@ -755,7 +757,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                 setFTo('');
                 setSrcFilter('all');
               }}
-              style={{...fi, color: '#6b7280', cursor: 'pointer'}}
+              style={{...fi, color: 'var(--ink-muted)', cursor: 'pointer'}}
             >
               Clear
             </button>
@@ -765,7 +767,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               display: 'flex',
               borderRadius: 6,
               overflow: 'hidden',
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               marginLeft: 'auto',
             }}
           >
@@ -780,13 +782,13 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                 style={{
                   padding: '5px 10px',
                   border: 'none',
-                  borderRight: oi < 2 ? '1px solid #d1d5db' : 'none',
+                  borderRight: oi < 2 ? '1px solid var(--border-strong)' : 'none',
                   fontFamily: 'inherit',
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  background: srcFilter === o.k ? '#0f766e' : 'white',
-                  color: srcFilter === o.k ? 'white' : '#6b7280',
+                  background: 'white',
+                  color: srcFilter === o.k ? '#0f766e' : 'var(--ink-muted)',
                 }}
               >
                 {o.l}
@@ -800,7 +802,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
             disabled={loading || !!loadError}
             style={{
               ...fi,
-              color: loading || loadError ? '#9ca3af' : '#374151',
+              color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
               fontWeight: 600,
               cursor: loading || loadError ? 'not-allowed' : 'pointer',
             }}
@@ -814,7 +816,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
             disabled={loading || !!loadError}
             style={{
               ...fi,
-              color: loading || loadError ? '#9ca3af' : '#374151',
+              color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
               fontWeight: 600,
               cursor: loading || loadError ? 'not-allowed' : 'pointer',
             }}
@@ -833,9 +835,9 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               marginBottom: 12,
               padding: '7px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -846,7 +848,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
           </button>
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
-        {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'…'}</div>}
+        {loading && <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)'}}>Loading{'…'}</div>}
         <OperationalListEmptyState
           loading={loading}
           loadError={loadError}
@@ -865,7 +867,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                 const prevDate = i > 0 ? filtered[i - 1].date : null;
                 const showDivider = prevDate && prevDate !== d.date;
                 const dateIdx = dates.indexOf(d.date);
-                const shadeBg = dateIdx % 2 === 0 ? 'white' : '#f8fafc';
+                const shadeBg = dateIdx % 2 === 0 ? 'white' : 'var(--surface-2)';
                 const fc = FLOCK_COLORS[d.flock] || FLOCK_COLORS.ewes;
                 const feedSummary =
                   Array.isArray(d.feeds) && d.feeds.length > 0
@@ -901,7 +903,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                           ? '1.5px solid #fca5a5'
                           : d.source === 'add_feed_webform'
                             ? '1px solid #fde68a'
-                            : '1px solid #e5e7eb',
+                            : '1px solid var(--border)',
                         padding: '10px 14px',
                         display: 'flex',
                         flexDirection: 'column',
@@ -918,7 +920,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                           gap: 12,
                         }}
                       >
-                        <span style={{fontSize: 12, color: '#6b7280'}}>{fmt(d.date)}</span>
+                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
                         <span style={{display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
                           <span
                             style={{
@@ -1049,7 +1051,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
           </div>
         )}
         {hasMore && (
-          <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: '#9ca3af'}}>
+          <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: 'var(--ink-faint)'}}>
             Loading more records{'…'}
           </div>
         )}
@@ -1092,7 +1094,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1108,7 +1110,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                   setEditId(null);
                   setForm(null);
                 }}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 {'×'}
               </button>
@@ -1152,9 +1154,11 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               </div>
 
               {/* Feeds — multi-row picker, mirrors CattleDailysView */}
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}>
-                  <span style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5}}>FEEDS</span>
+                  <span style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-muted)', letterSpacing: 0.5}}>
+                    FEEDS
+                  </span>
                   <button
                     type="button"
                     onClick={() => setForm({...form, feeds: [...(form.feeds || []), {feedId: '', qty: ''}]})}
@@ -1239,10 +1243,10 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                         onClick={() => setForm({...form, feeds: form.feeds.filter((_, i) => i !== ri)})}
                         style={{
                           padding: '4px 8px',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--border-strong)',
                           borderRadius: 5,
                           background: 'white',
-                          color: '#9ca3af',
+                          color: 'var(--ink-faint)',
                           cursor: 'pointer',
                         }}
                       >
@@ -1254,9 +1258,11 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               </div>
 
               {/* Minerals — dropdown + lbs + optional pct_eaten per entry */}
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}>
-                  <span style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5}}>MINERALS</span>
+                  <span style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-muted)', letterSpacing: 0.5}}>
+                    MINERALS
+                  </span>
                   <button
                     type="button"
                     onClick={() => setForm({...form, minerals: [...(form.minerals || []), {feedId: '', lbs: ''}]})}
@@ -1331,10 +1337,10 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                         onClick={() => setForm({...form, minerals: form.minerals.filter((_, i) => i !== ri)})}
                         style={{
                           padding: '4px 8px',
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--border-strong)',
                           borderRadius: 5,
                           background: 'white',
-                          color: '#9ca3af',
+                          color: 'var(--ink-faint)',
                           cursor: 'pointer',
                         }}
                       >
@@ -1376,8 +1382,8 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                             fontFamily: 'inherit',
                             fontSize: 12,
                             cursor: 'pointer',
-                            background: form.waterersWorking === v ? (v ? '#0f766e' : '#374151') : '#f9fafb',
-                            color: form.waterersWorking === v ? 'white' : '#6b7280',
+                            background: 'white',
+                            color: form.waterersWorking === v ? (v ? '#0f766e' : '#374151') : 'var(--ink-muted)',
                           }}
                         >
                           {l}
@@ -1409,7 +1415,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               )}
               <DailyPhotoThumbnails photos={form?.photos} />
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button onClick={saveEdit} style={{...S.btnPrimary, width: 'auto'}}>
                 Save
               </button>

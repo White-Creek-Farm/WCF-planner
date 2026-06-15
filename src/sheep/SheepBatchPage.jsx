@@ -371,11 +371,11 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
           >
             {batch.status}
           </span>
-          <span style={{fontSize: 12, color: '#6b7280'}}>
+          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
             {rows.length} {rows.length === 1 ? 'sheep' : 'sheep'}
           </span>
           {batch.planned_process_date && (
-            <span style={{fontSize: 12, color: '#6b7280'}}>planned {fmt(batch.planned_process_date)}</span>
+            <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>planned {fmt(batch.planned_process_date)}</span>
           )}
           {batch.actual_process_date && (
             <span style={{fontSize: 12, color: '#065f46'}}>processed {fmt(batch.actual_process_date)}</span>
@@ -473,7 +473,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
         <div
           style={{
             background: 'white',
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '14px 18px',
             marginBottom: 12,
@@ -485,13 +485,17 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
               gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
               gap: 8,
               fontSize: 11,
-              color: '#4b5563',
+              color: 'var(--ink-muted)',
               marginBottom: 10,
             }}
           >
             <Stat label="Live wt total" value={totalLive > 0 ? Math.round(totalLive).toLocaleString() + ' lb' : '—'} />
             <Stat label="Hanging wt" value={totalHang > 0 ? Math.round(totalHang).toLocaleString() + ' lb' : '—'} />
-            <Stat label="Yield" value={yieldPct ? yieldPct + '%' : '—'} color={yieldPct ? '#065f46' : '#9ca3af'} />
+            <Stat
+              label="Yield"
+              value={yieldPct ? yieldPct + '%' : '—'}
+              color={yieldPct ? '#065f46' : 'var(--ink-faint)'}
+            />
             <Stat label="Cost" value={batch.processing_cost ? '$' + batch.processing_cost.toLocaleString() : '—'} />
           </div>
 
@@ -506,33 +510,33 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                 const weightStyle = {
                   fontSize: 13,
                   padding: '6px 8px',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 5,
                   fontFamily: 'inherit',
                   width: '100%',
                   minWidth: 70,
                   boxSizing: 'border-box',
-                  background: weightDisabled ? '#f9fafb' : 'white',
-                  color: '#111827',
+                  background: weightDisabled ? 'var(--surface-2)' : 'white',
+                  color: 'var(--ink)',
                   opacity: 1,
-                  WebkitTextFillColor: '#111827',
+                  WebkitTextFillColor: 'var(--ink)',
                 };
                 return (
                   <div
                     key={r.sheep_id}
                     data-batch-sheep-row={r.sheep_id}
                     style={{
-                      border: '1px solid #f3f4f6',
+                      border: '1px solid var(--divider)',
                       borderRadius: 6,
                       padding: '8px 10px',
                       fontSize: 12,
                     }}
                   >
                     <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4}}>
-                      <span style={{fontWeight: 700, color: '#111827', minWidth: 50}}>
+                      <span style={{fontWeight: 700, color: 'var(--ink)', minWidth: 50}}>
                         {'#' + (r.tag || s?.tag || '?')}
                       </span>
-                      <span style={{fontSize: 11, color: '#6b7280'}}>{s?.breed || '—'}</span>
+                      <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{s?.breed || '—'}</span>
                       {y && <span style={{fontSize: 11, fontWeight: 600, color: '#065f46'}}>{y + '% yield'}</span>}
                       <span style={{flex: 1}} />
                       {canEdit && !isComplete && (
@@ -558,7 +562,9 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                     </div>
                     <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                       <label style={{flex: '1 1 120px', minWidth: 0}}>
-                        <div style={{fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2}}>
+                        <div
+                          style={{fontSize: 10, color: 'var(--ink-muted)', textTransform: 'uppercase', marginBottom: 2}}
+                        >
                           Live wt (lb)
                         </div>
                         <input
@@ -582,7 +588,9 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                         />
                       </label>
                       <label style={{flex: '1 1 120px', minWidth: 0}}>
-                        <div style={{fontSize: 10, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2}}>
+                        <div
+                          style={{fontSize: 10, color: 'var(--ink-muted)', textTransform: 'uppercase', marginBottom: 2}}
+                        >
                           Hanging wt (lb)
                         </div>
                         <input
@@ -611,14 +619,14 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
               })}
             </div>
           ) : (
-            <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic'}}>
+            <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic'}}>
               No sheep attached yet. Sheep enter this batch only via the Send-to-Processor flag on a sheep weigh-in
               entry.
             </div>
           )}
 
           {rows.length > 0 && !isComplete && (
-            <div style={{fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginTop: 6}}>
+            <div style={{fontSize: 11, color: 'var(--ink-muted)', fontStyle: 'italic', marginTop: 6}}>
               Sheep enter this batch only via the Send-to-Processor flag on a sheep weigh-in entry.
             </div>
           )}
@@ -660,10 +668,10 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
   );
 }
 
-function Stat({label, value, color = '#111827'}) {
+function Stat({label, value, color = 'var(--ink)'}) {
   return (
     <div>
-      <div style={{color: '#9ca3af', fontSize: 10, textTransform: 'uppercase'}}>{label}</div>
+      <div style={{color: 'var(--ink-faint)', fontSize: 10, textTransform: 'uppercase'}}>{label}</div>
       <div style={{fontWeight: 600, color}}>{value}</div>
     </div>
   );

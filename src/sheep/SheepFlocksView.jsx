@@ -127,16 +127,16 @@ const chipBaseS = {
   borderRadius: 999,
   fontSize: 12,
   fontFamily: 'inherit',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-strong)',
   background: 'white',
-  color: '#374151',
+  color: 'var(--ink-muted)',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
 };
 const chipActiveS = {
   ...chipBaseS,
   border: '1px solid #0f766e',
-  background: '#f0fdfa',
+  background: 'white',
   color: '#0f766e',
   fontWeight: 600,
 };
@@ -559,13 +559,13 @@ const SheepFlocksHub = ({
   const inpS = {
     fontSize: 13,
     padding: '7px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
   };
-  const lbl = {fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500};
+  const lbl = {fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500};
 
   function setFilter(key, value) {
     setFilters((prev) => {
@@ -748,7 +748,7 @@ const SheepFlocksHub = ({
         data-sheep-filter-group={group.key}
         style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}
       >
-        <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600, marginRight: 4, minWidth: 108}}>
+        <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600, marginRight: 4, minWidth: 108}}>
           {group.label}
         </span>
         {group.keys.map((key) => renderFilterChip(key))}
@@ -760,8 +760,10 @@ const SheepFlocksHub = ({
     const available = SHEEP_SORT_KEYS.filter((key) => !used.has(key));
     return (
       <div style={{display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
-        <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600, marginRight: 4}}>Sort:</span>
-        {sortRules.length === 0 && <span style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic'}}>(none)</span>}
+        <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600, marginRight: 4}}>Sort:</span>
+        {sortRules.length === 0 && (
+          <span style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic'}}>(none)</span>
+        )}
         {sortRules.map((rule, i) => (
           <span
             key={rule.key}
@@ -771,9 +773,9 @@ const SheepFlocksHub = ({
               ...chipActiveS,
               cursor: 'default',
               gap: 4,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontWeight: 500,
             }}
           >
@@ -785,8 +787,8 @@ const SheepFlocksHub = ({
               title="Toggle direction"
               style={{
                 fontSize: 11,
-                background: '#f9fafb',
-                border: '1px solid #d1d5db',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border-strong)',
                 borderRadius: 4,
                 padding: '0 6px',
                 cursor: 'pointer',
@@ -803,7 +805,7 @@ const SheepFlocksHub = ({
               style={{
                 background: 'none',
                 border: 'none',
-                color: i === 0 ? '#d1d5db' : '#6b7280',
+                color: i === 0 ? 'var(--ink-faint)' : 'var(--ink-muted)',
                 cursor: i === 0 ? 'not-allowed' : 'pointer',
                 fontSize: 12,
                 padding: '0 2px',
@@ -819,7 +821,7 @@ const SheepFlocksHub = ({
               style={{
                 background: 'none',
                 border: 'none',
-                color: i === sortRules.length - 1 ? '#d1d5db' : '#6b7280',
+                color: i === sortRules.length - 1 ? 'var(--ink-faint)' : 'var(--ink-muted)',
                 cursor: i === sortRules.length - 1 ? 'not-allowed' : 'pointer',
                 fontSize: 12,
                 padding: '0 2px',
@@ -913,9 +915,9 @@ const SheepFlocksHub = ({
   const savedViewGhostBtnS = {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -928,12 +930,12 @@ const SheepFlocksHub = ({
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {showUsers && (
         <UsersModal
           sb={sb}
@@ -960,7 +962,7 @@ const SheepFlocksHub = ({
               style={{
                 padding: '7px 14px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: '#085041',
                 fontSize: 12,
@@ -980,7 +982,7 @@ const SheepFlocksHub = ({
               data-sheep-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -990,7 +992,7 @@ const SheepFlocksHub = ({
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -1128,7 +1130,7 @@ const SheepFlocksHub = ({
             <div
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '12px 16px',
                 marginBottom: 14,
@@ -1179,13 +1181,13 @@ const SheepFlocksHub = ({
                     alignItems: 'center',
                     gap: 6,
                     fontSize: 12,
-                    color: '#374151',
-                    border: '1px solid #d1d5db',
+                    color: 'var(--ink)',
+                    border: '1px solid var(--border-strong)',
                     borderRadius: 6,
                     padding: '4px 8px',
                   }}
                 >
-                  <span style={{color: '#6b7280', marginRight: 4}}>View</span>
+                  <span style={{color: 'var(--ink-muted)', marginRight: 4}}>View</span>
                   <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
                     <input
                       type="radio"
@@ -1215,9 +1217,9 @@ const SheepFlocksHub = ({
                   style={{
                     padding: '7px 14px',
                     borderRadius: 7,
-                    border: '1px solid #d1d5db',
-                    background: loading || loadError ? '#f9fafb' : 'white',
-                    color: loading || loadError ? '#9ca3af' : '#374151',
+                    border: '1px solid var(--border-strong)',
+                    background: loading || loadError ? 'var(--surface-2)' : 'white',
+                    color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
                     fontWeight: 600,
                     fontSize: 12,
                     cursor: loading || loadError ? 'not-allowed' : 'pointer',
@@ -1235,9 +1237,9 @@ const SheepFlocksHub = ({
                   style={{
                     padding: '7px 14px',
                     borderRadius: 7,
-                    border: '1px solid #d1d5db',
-                    background: loading || loadError ? '#f9fafb' : 'white',
-                    color: loading || loadError ? '#9ca3af' : '#374151',
+                    border: '1px solid var(--border-strong)',
+                    background: loading || loadError ? 'var(--surface-2)' : 'white',
+                    color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
                     fontWeight: 600,
                     fontSize: 12,
                     cursor: loading || loadError ? 'not-allowed' : 'pointer',
@@ -1292,9 +1294,9 @@ const SheepFlocksHub = ({
                       style={{
                         padding: '5px 10px',
                         borderRadius: 6,
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-strong)',
                         background: 'white',
-                        color: '#6b7280',
+                        color: 'var(--ink-muted)',
                         fontSize: 12,
                         cursor: 'pointer',
                         fontFamily: 'inherit',
@@ -1306,7 +1308,7 @@ const SheepFlocksHub = ({
                 )}
               </div>
               {sortBar()}
-              <div style={{fontSize: 12, color: '#6b7280'}}>
+              <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                 Showing {sorted.length} of {sheep.length} sheep
                 {filterCount > 0 && ' - ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
                 {sortRules.length > 0 && ' - ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
@@ -1324,16 +1326,18 @@ const SheepFlocksHub = ({
               />
             )}
 
-            {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading{'…'}</div>}
+            {loading && (
+              <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)'}}>Loading{'…'}</div>
+            )}
             {!loading && sheep.length === 0 && (
               <div
                 style={{
                   background: 'white',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 12,
                   padding: '2rem',
                   textAlign: 'center',
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   fontSize: 13,
                 }}
               >
@@ -1343,21 +1347,23 @@ const SheepFlocksHub = ({
 
             {/* FLAT MODE — search or non-active filter */}
             {!loading && isFlatMode && sheep.length > 0 && (
-              <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}>
+              <div
+                style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'}}
+              >
                 <div
                   style={{
                     padding: '10px 16px',
-                    borderBottom: '1px solid #e5e7eb',
-                    background: '#f9fafb',
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--surface-2)',
                     fontSize: 12,
                     fontWeight: 600,
-                    color: '#4b5563',
+                    color: 'var(--ink-muted)',
                   }}
                 >
                   {sorted.length} sheep match
                 </div>
                 {sorted.length === 0 && (
-                  <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+                  <div style={{padding: '2rem', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
                     No sheep match the current filter.
                   </div>
                 )}
@@ -1368,7 +1374,7 @@ const SheepFlocksHub = ({
                     <div
                       key={s.id}
                       id={'sheep-' + s.id}
-                      style={{borderBottom: i < sorted.length - 1 ? '1px solid #f3f4f6' : 'none'}}
+                      style={{borderBottom: i < sorted.length - 1 ? '1px solid var(--divider)' : 'none'}}
                     >
                       <div
                         {...openableProps(() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted)))}
@@ -1386,7 +1392,7 @@ const SheepFlocksHub = ({
                         <span
                           style={{
                             fontSize: 11,
-                            color: '#9ca3af',
+                            color: 'var(--ink-faint)',
                             fontVariantNumeric: 'tabular-nums',
                             alignSelf: 'stretch',
                             display: 'flex',
@@ -1396,18 +1402,18 @@ const SheepFlocksHub = ({
                             paddingLeft: 8,
                             marginTop: -10,
                             marginBottom: -10,
-                            borderRight: '1px solid #d1d5db',
+                            borderRight: '1px solid var(--border-strong)',
                             fontWeight: 600,
                           }}
                         >
                           {i + 1}
                         </span>
-                        <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
+                        <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'▶'}</span>
                         <span
                           style={{
                             fontWeight: 700,
                             fontSize: 13,
-                            color: '#111827',
+                            color: 'var(--ink)',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 4,
@@ -1420,7 +1426,7 @@ const SheepFlocksHub = ({
                             fontSize: 11,
                             padding: '2px 8px',
                             borderRadius: 4,
-                            background: fc.bg,
+                            background: 'white',
                             color: fc.tx,
                             border: '1px solid ' + fc.bd,
                             fontWeight: 600,
@@ -1432,11 +1438,11 @@ const SheepFlocksHub = ({
                         >
                           {FLOCK_LABELS[s.flock]}
                         </span>
-                        <span style={{fontSize: 11, color: '#6b7280'}}>{s.sex || '—'}</span>
+                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{s.sex || '—'}</span>
                         <span
                           style={{
                             fontSize: 11,
-                            color: '#6b7280',
+                            color: 'var(--ink-muted)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -1444,12 +1450,16 @@ const SheepFlocksHub = ({
                         >
                           {s.breed || '—'}
                         </span>
-                        <span style={{fontSize: 11, color: '#6b7280'}}>{age(s.birth_date) || '—'}</span>
-                        <span style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}>
+                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{age(s.birth_date) || '—'}</span>
+                        <span
+                          style={{fontSize: 11, color: lw ? '#065f46' : 'var(--ink-faint)', fontWeight: lw ? 600 : 400}}
+                        >
                           {lw ? lw.toLocaleString() + ' lb' : 'no weigh-in'}
                         </span>
                         <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-                          {s.dam_tag && <span style={{fontSize: 11, color: '#9ca3af'}}>{'dam #' + s.dam_tag}</span>}
+                          {s.dam_tag && (
+                            <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'dam #' + s.dam_tag}</span>
+                          )}
                           {s.maternal_issue_flag && (
                             <span
                               style={{
@@ -1496,14 +1506,20 @@ const SheepFlocksHub = ({
                   return (
                     <div
                       key={f}
-                      style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}
+                      style={{
+                        background: 'white',
+                        border: '1px solid var(--border)',
+                        borderRadius: 12,
+                        overflow: 'hidden',
+                      }}
                     >
                       <div
                         {...openableProps(() => setExpandedFlocks({...expandedFlocks, [f]: !open}))}
                         className="hoverable-tile"
                         style={{
                           padding: '12px 18px',
-                          background: fc.bg,
+                          background: 'white',
+                          borderLeft: '3px solid ' + fc.bd,
                           borderBottom: open ? '1px solid ' + fc.bd : 'none',
                           display: 'flex',
                           alignItems: 'center',
@@ -1530,7 +1546,9 @@ const SheepFlocksHub = ({
                         </span>
                       </div>
                       {open && flockSheep.length === 0 && (
-                        <div style={{padding: '1rem 18px', color: '#9ca3af', fontSize: 12, fontStyle: 'italic'}}>
+                        <div
+                          style={{padding: '1rem 18px', color: 'var(--ink-faint)', fontSize: 12, fontStyle: 'italic'}}
+                        >
                           {filterCount > 0 ? 'No sheep match the current filters.' : 'No sheep in this flock yet.'}
                         </div>
                       )}
@@ -1540,7 +1558,7 @@ const SheepFlocksHub = ({
                           const ll = lastLambing(s.tag);
                           const lc = lambCount(s.tag);
                           return (
-                            <div key={s.id} id={'sheep-' + s.id} style={{borderBottom: '1px solid #f3f4f6'}}>
+                            <div key={s.id} id={'sheep-' + s.id} style={{borderBottom: '1px solid var(--divider)'}}>
                               <div
                                 {...openableProps(() =>
                                   navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep)),
@@ -1559,7 +1577,7 @@ const SheepFlocksHub = ({
                                 <span
                                   style={{
                                     fontSize: 11,
-                                    color: '#9ca3af',
+                                    color: 'var(--ink-faint)',
                                     fontVariantNumeric: 'tabular-nums',
                                     alignSelf: 'stretch',
                                     display: 'flex',
@@ -1569,18 +1587,18 @@ const SheepFlocksHub = ({
                                     paddingLeft: 8,
                                     marginTop: -10,
                                     marginBottom: -10,
-                                    borderRight: '1px solid #d1d5db',
+                                    borderRight: '1px solid var(--border-strong)',
                                     fontWeight: 600,
                                   }}
                                 >
                                   {idx + 1}
                                 </span>
-                                <span style={{fontSize: 11, color: '#9ca3af'}}>{'▶'}</span>
+                                <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'▶'}</span>
                                 <span
                                   style={{
                                     fontWeight: 700,
                                     fontSize: 13,
-                                    color: '#111827',
+                                    color: 'var(--ink)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 4,
@@ -1588,11 +1606,11 @@ const SheepFlocksHub = ({
                                 >
                                   {s.tag ? '#' + s.tag : '(no tag)'}
                                 </span>
-                                <span style={{fontSize: 11, color: '#6b7280'}}>{s.sex || '—'}</span>
+                                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{s.sex || '—'}</span>
                                 <span
                                   style={{
                                     fontSize: 11,
-                                    color: '#6b7280',
+                                    color: 'var(--ink-muted)',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
@@ -1600,9 +1618,15 @@ const SheepFlocksHub = ({
                                 >
                                   {s.breed || '—'}
                                 </span>
-                                <span style={{fontSize: 11, color: '#6b7280'}}>{age(s.birth_date) || '—'}</span>
+                                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
+                                  {age(s.birth_date) || '—'}
+                                </span>
                                 <span
-                                  style={{fontSize: 11, color: lw ? '#065f46' : '#9ca3af', fontWeight: lw ? 600 : 400}}
+                                  style={{
+                                    fontSize: 11,
+                                    color: lw ? '#065f46' : 'var(--ink-faint)',
+                                    fontWeight: lw ? 600 : 400,
+                                  }}
                                 >
                                   {lw ? lw.toLocaleString() + ' lb' : '—'}
                                 </span>
@@ -1613,7 +1637,7 @@ const SheepFlocksHub = ({
                                     </span>
                                   )}
                                   {f === 'ewes' && ll && (
-                                    <span style={{fontSize: 11, color: '#9ca3af'}}>
+                                    <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>
                                       {'last lambed ' + fmt(ll.lambing_date)}
                                     </span>
                                   )}
@@ -1706,7 +1730,7 @@ const SheepFlocksHub = ({
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1719,7 +1743,7 @@ const SheepFlocksHub = ({
                   setShowAddForm(false);
                   setForm(null);
                 }}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 {'×'}
               </button>
@@ -1884,7 +1908,7 @@ const SheepFlocksHub = ({
             <div
               style={{
                 padding: '12px 20px',
-                borderTop: '1px solid #e5e7eb',
+                borderTop: '1px solid var(--border)',
                 display: 'flex',
                 gap: 8,
                 justifyContent: 'flex-end',
@@ -1898,9 +1922,9 @@ const SheepFlocksHub = ({
                 style={{
                   padding: '8px 16px',
                   borderRadius: 7,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   fontSize: 13,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -1954,16 +1978,16 @@ function SheepFilterPopover({
     width: 280,
     padding: 12,
     borderRadius: 8,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
     boxShadow: '0 10px 28px rgba(0,0,0,.14)',
   };
-  const labelS = {display: 'block', fontSize: 11, color: '#6b7280', fontWeight: 600, marginBottom: 4};
+  const labelS = {display: 'block', fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600, marginBottom: 4};
   const rowS = {display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8};
   const inputS = {
     fontSize: 12,
     padding: '6px 8px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     fontFamily: 'inherit',
     width: '100%',
@@ -1973,15 +1997,15 @@ function SheepFilterPopover({
   const btnS = {
     padding: '5px 10px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
   };
-  const checkboxS = {display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', marginBottom: 6};
+  const checkboxS = {display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink)', marginBottom: 6};
 
   function setNumberRange(key, field, raw) {
     const current = filters[key] && typeof filters[key] === 'object' ? filters[key] : {};
@@ -2127,12 +2151,12 @@ function SheepFilterPopover({
   } else if (filterKey === 'weightRange') {
     body = renderRange('weightRange', 'Min lb', 'Max lb', 'number');
   } else {
-    body = <div style={{fontSize: 12, color: '#6b7280'}}>No control for this filter.</div>;
+    body = <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>No control for this filter.</div>;
   }
 
   return (
     <div style={boxS} data-sheep-filter-popover={filterKey}>
-      <div style={{fontSize: 12, color: '#111827', fontWeight: 700, marginBottom: 8}}>
+      <div style={{fontSize: 12, color: 'var(--ink)', fontWeight: 700, marginBottom: 8}}>
         {SHEEP_FILTER_GROUPS.flatMap((group) => group.keys).includes(filterKey) ? filterKey : 'Filter'}
       </div>
       {body}

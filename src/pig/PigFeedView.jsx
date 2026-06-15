@@ -472,13 +472,13 @@ export default function PigFeedView({
 
   const tileShellS = {
     background: 'white',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '14px 16px',
   };
   const tileLabelS = {
     fontSize: 11,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
@@ -512,7 +512,9 @@ export default function PigFeedView({
             >
               {feedOnHand != null ? feedOnHand.toLocaleString() + ' lbs' : '—'}
             </div>
-            {inv && <div style={{fontSize: 11, color: '#9ca3af', marginTop: 6}}>{'Count: ' + fmt(inv.date)}</div>}
+            {inv && (
+              <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 6}}>{'Count: ' + fmt(inv.date)}</div>
+            )}
             {inv && physCountAdjustment != null && physCountAdjustment !== 0 && (
               <div style={{fontSize: 10, color: physCountAdjustment > 0 ? '#065f46' : '#b91c1c', marginTop: 2}}>
                 {'Adj ' + (physCountAdjustment > 0 ? '+' : '') + physCountAdjustment.toLocaleString() + ' vs system'}
@@ -564,10 +566,10 @@ export default function PigFeedView({
           {/* Need Thru [next] */}
           <div style={tileShellS}>
             <div style={tileLabelS}>{'Need Thru ' + nextLabel}</div>
-            <div style={{fontSize: 28, fontWeight: 700, color: '#111827', lineHeight: 1}}>
+            <div style={{fontSize: 28, fontWeight: 700, color: 'var(--ink)', lineHeight: 1}}>
               {needThruNext.toLocaleString() + ' lbs'}
             </div>
-            <div style={{fontSize: 11, color: '#9ca3af', marginTop: 6}}>
+            <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 6}}>
               {(activeMd ? activeMd.projTotal.toLocaleString() : '0') +
                 ' (' +
                 activeLabel +
@@ -581,13 +583,15 @@ export default function PigFeedView({
         </div>
 
         {/* Physical count input */}
-        <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '12px 20px'}}>
+        <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 20px'}}>
           <div style={{display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap'}}>
-            <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563', alignSelf: 'center'}}>
+            <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', alignSelf: 'center'}}>
               {inv ? 'Update Physical Count' : 'Enter Physical Count'}
             </div>
             <div>
-              <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3}}>Lbs on hand</label>
+              <label style={{fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3}}>
+                Lbs on hand
+              </label>
               <input
                 id="pig-feed-count-input"
                 type="number"
@@ -599,7 +603,7 @@ export default function PigFeedView({
                 style={{
                   fontSize: 13,
                   padding: '7px 10px',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 6,
                   width: 120,
                   fontFamily: 'inherit',
@@ -612,9 +616,9 @@ export default function PigFeedView({
                 alignItems: 'center',
                 gap: 8,
                 padding: '7px 12px',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 borderRadius: 6,
-                background: '#f9fafb',
+                background: 'var(--surface-2)',
                 fontSize: 12,
                 color: '#000',
                 cursor: 'pointer',
@@ -658,7 +662,9 @@ export default function PigFeedView({
             >
               Save Count
             </button>
-            {inv && <div style={{fontSize: 10, color: '#9ca3af', alignSelf: 'center'}}>Last: {fmt(inv.date)}</div>}
+            {inv && (
+              <div style={{fontSize: 10, color: 'var(--ink-faint)', alignSelf: 'center'}}>Last: {fmt(inv.date)}</div>
+            )}
           </div>
           {countNotice && (
             <div style={{marginTop: 10}}>
@@ -689,7 +695,7 @@ export default function PigFeedView({
                 ? '2px solid #085041'
                 : isMostRecentSavedCard
                   ? '2px solid #a7f3d0'
-                  : '1px solid #e5e7eb';
+                  : '1px solid var(--border)';
               const cardHeaderBg = isActive ? '#ecfdf5' : isMostRecentSavedCard ? '#f0fdf4' : 'white';
               return (
                 <div
@@ -711,7 +717,7 @@ export default function PigFeedView({
                       background: cardHeaderBg,
                     }}
                   >
-                    <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{ymLabel(ym)}</span>
+                    <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{ymLabel(ym)}</span>
                     {isActive && (
                       <span
                         style={{
@@ -762,7 +768,7 @@ export default function PigFeedView({
                       <div
                         style={{
                           fontSize: 10,
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                           textTransform: 'uppercase',
                           letterSpacing: 0.5,
                           marginBottom: 2,
@@ -774,19 +780,21 @@ export default function PigFeedView({
                         style={{
                           fontSize: 16,
                           fontWeight: 600,
-                          color: lg && lg.start >= 0 ? '#374151' : '#b91c1c',
+                          color: lg && lg.start >= 0 ? 'var(--ink)' : '#b91c1c',
                         }}
                       >
                         {lg ? lg.start.toLocaleString() : '—'}
                       </div>
                     </div>
-                    <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'−'}</div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: 'var(--ink-faint)', textAlign: 'center'}}>
+                      {'−'}
+                    </div>
                     {/* Consumed */}
                     <div>
                       <div
                         style={{
                           fontSize: 10,
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                           textTransform: 'uppercase',
                           letterSpacing: 0.5,
                           marginBottom: 2,
@@ -794,23 +802,27 @@ export default function PigFeedView({
                       >
                         Consumed
                       </div>
-                      <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
+                      <div style={{fontSize: 16, fontWeight: 600, color: 'var(--ink)'}}>
                         {lg ? lg.consumed.toLocaleString() : '—'}
                       </div>
                       {lg && md.isCurrent && lg.projCons > 0 && (
-                        <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>
+                        <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 1}}>
                           {lg.actualCons.toLocaleString() + ' actual + ' + lg.projCons.toLocaleString() + ' proj'}
                         </div>
                       )}
-                      {lg && md.isFuture && <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>projected</div>}
+                      {lg && md.isFuture && (
+                        <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 1}}>projected</div>
+                      )}
                     </div>
-                    <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'+'}</div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: 'var(--ink-faint)', textAlign: 'center'}}>
+                      {'+'}
+                    </div>
                     {/* Ordered */}
                     <div>
                       <div
                         style={{
                           fontSize: 10,
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                           textTransform: 'uppercase',
                           letterSpacing: 0.5,
                           marginBottom: 2,
@@ -840,7 +852,7 @@ export default function PigFeedView({
                                   width: '100%',
                                   fontSize: 14,
                                   padding: '4px 8px',
-                                  border: '1px solid #d1d5db',
+                                  border: '1px solid var(--border-strong)',
                                   borderRadius: 6,
                                   textAlign: 'right',
                                   fontFamily: 'inherit',
@@ -871,7 +883,7 @@ export default function PigFeedView({
                         })()
                       ) : (
                         <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                          <div style={{fontSize: 16, fontWeight: 600, color: '#111827'}}>
+                          <div style={{fontSize: 16, fontWeight: 600, color: 'var(--ink)'}}>
                             {isSaved ? Number(savedVal).toLocaleString() : '—'}
                           </div>
                           {isMostRecentSavedCard && (
@@ -881,9 +893,9 @@ export default function PigFeedView({
                                 fontSize: 11,
                                 padding: '3px 8px',
                                 borderRadius: 5,
-                                border: '1px solid #d1d5db',
+                                border: '1px solid var(--border-strong)',
                                 background: 'white',
-                                color: '#4b5563',
+                                color: 'var(--ink-muted)',
                                 cursor: 'pointer',
                                 fontFamily: 'inherit',
                               }}
@@ -893,15 +905,17 @@ export default function PigFeedView({
                           )}
                         </div>
                       )}
-                      <div style={{fontSize: 10, color: '#9ca3af', marginTop: 1}}>arrives end of mo.</div>
+                      <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 1}}>arrives end of mo.</div>
                     </div>
-                    <div style={{fontSize: 18, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'='}</div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: 'var(--ink-faint)', textAlign: 'center'}}>
+                      {'='}
+                    </div>
                     {/* End */}
                     <div>
                       <div
                         style={{
                           fontSize: 10,
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                           textTransform: 'uppercase',
                           letterSpacing: 0.5,
                           marginBottom: 2,
@@ -933,7 +947,15 @@ export default function PigFeedView({
                       else moVar = md.actual - md.projTotal;
                     }
                     return (
-                      <div style={{padding: '2px 16px 8px', display: 'flex', gap: 16, fontSize: 11, color: '#6b7280'}}>
+                      <div
+                        style={{
+                          padding: '2px 16px 8px',
+                          display: 'flex',
+                          gap: 16,
+                          fontSize: 11,
+                          color: 'var(--ink-muted)',
+                        }}
+                      >
                         <span>
                           {'Proj: ' + projDaily.toLocaleString() + '/day (' + md.projTotal.toLocaleString() + ' mo)'}
                         </span>
@@ -962,20 +984,43 @@ export default function PigFeedView({
                   })()}
 
                   {/* Per-group breakdown — always visible */}
-                  <div style={{borderTop: '1px solid #f3f4f6', padding: '8px 16px 10px'}}>
+                  <div style={{borderTop: '1px solid var(--divider)', padding: '8px 16px 10px'}}>
                     <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11}}>
                       <thead>
-                        <tr style={{borderBottom: '1px solid #e5e7eb'}}>
-                          <th style={{padding: '4px 10px', textAlign: 'left', fontWeight: 600, color: '#6b7280'}}>
+                        <tr style={{borderBottom: '1px solid var(--border)'}}>
+                          <th
+                            style={{padding: '4px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--ink-muted)'}}
+                          >
                             Group
                           </th>
-                          <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                          <th
+                            style={{
+                              padding: '4px 10px',
+                              textAlign: 'right',
+                              fontWeight: 600,
+                              color: 'var(--ink-muted)',
+                            }}
+                          >
                             Proj/day
                           </th>
-                          <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                          <th
+                            style={{
+                              padding: '4px 10px',
+                              textAlign: 'right',
+                              fontWeight: 600,
+                              color: 'var(--ink-muted)',
+                            }}
+                          >
                             Actual/day
                           </th>
-                          <th style={{padding: '4px 10px', textAlign: 'right', fontWeight: 600, color: '#6b7280'}}>
+                          <th
+                            style={{
+                              padding: '4px 10px',
+                              textAlign: 'right',
+                              fontWeight: 600,
+                              color: 'var(--ink-muted)',
+                            }}
+                          >
                             Variance/day
                           </th>
                         </tr>
@@ -1003,8 +1048,8 @@ export default function PigFeedView({
                             const gVar = md.isFuture ? null : gDaysElapsed > 0 ? actualDay - projDay : null;
                             return (
                               <tr key={gi} style={{borderBottom: '1px solid #f0f0f0'}}>
-                                <td style={{padding: '4px 10px', fontWeight: 500, color: '#374151'}}>{pg.label}</td>
-                                <td style={{padding: '4px 10px', textAlign: 'right', color: '#6b7280'}}>
+                                <td style={{padding: '4px 10px', fontWeight: 500, color: 'var(--ink)'}}>{pg.label}</td>
+                                <td style={{padding: '4px 10px', textAlign: 'right', color: 'var(--ink-muted)'}}>
                                   {projDay.toLocaleString()}
                                 </td>
                                 <td
@@ -1012,7 +1057,7 @@ export default function PigFeedView({
                                     padding: '4px 10px',
                                     textAlign: 'right',
                                     fontWeight: 600,
-                                    color: md.isFuture ? '#9ca3af' : '#111827',
+                                    color: md.isFuture ? 'var(--ink-faint)' : 'var(--ink)',
                                   }}
                                 >
                                   {md.isFuture ? '—' : actualDay.toLocaleString()}
@@ -1022,7 +1067,7 @@ export default function PigFeedView({
                                     padding: '4px 10px',
                                     textAlign: 'right',
                                     fontWeight: 600,
-                                    color: gVar == null ? '#9ca3af' : gVar > 0 ? '#b91c1c' : '#065f46',
+                                    color: gVar == null ? 'var(--ink-faint)' : gVar > 0 ? '#b91c1c' : '#065f46',
                                   }}
                                 >
                                   {gVar == null ? '—' : (gVar > 0 ? '+' : '') + gVar.toLocaleString()}
@@ -1049,10 +1094,10 @@ export default function PigFeedView({
                       alignSelf: 'flex-start',
                       padding: '6px 12px',
                       background: 'transparent',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-strong)',
                       borderRadius: 6,
                       fontSize: 12,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
                     }}
@@ -1067,9 +1112,11 @@ export default function PigFeedView({
         </div>
 
         {/* Feed rates reference */}
-        <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 20px'}}>
-          <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563', marginBottom: 8}}>Feed Rate Reference</div>
-          <div style={{display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12, color: '#6b7280'}}>
+        <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 20px'}}>
+          <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8}}>
+            Feed Rate Reference
+          </div>
+          <div style={{display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12, color: 'var(--ink-muted)'}}>
             <span>
               Sows (non-nursing): <strong>5 lbs/day</strong>
             </span>

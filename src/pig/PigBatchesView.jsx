@@ -913,8 +913,8 @@ export default function PigBatchesView({
           style={{
             padding: '10px 14px',
             margin: '8px 12px',
-            background: '#f9fafb',
-            border: '1px solid #e5e7eb',
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             display: 'flex',
             flexDirection: 'column',
@@ -922,11 +922,11 @@ export default function PigBatchesView({
           }}
         >
           <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-            <span style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600}}>
+            <span style={{fontSize: 11, color: 'var(--ink-muted)', textTransform: 'uppercase', fontWeight: 600}}>
               Global ADG
             </span>
             {!adgEditing && (
-              <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>
+              <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>
                 {effectiveAdgLbsPerDay != null
                   ? `${(Math.round(effectiveAdgLbsPerDay * 100) / 100).toFixed(2)} lb/day`
                   : '— Projection unavailable'}
@@ -958,9 +958,9 @@ export default function PigBatchesView({
                   fontSize: 11,
                   padding: '3px 10px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#1d4ed8',
+                  color: 'var(--brand)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                 }}
@@ -980,7 +980,7 @@ export default function PigBatchesView({
                   style={{
                     fontSize: 13,
                     padding: '4px 8px',
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     borderRadius: 6,
                     width: 110,
                     fontFamily: 'inherit',
@@ -1016,9 +1016,9 @@ export default function PigBatchesView({
                     fontSize: 11,
                     padding: '4px 10px',
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#6b7280',
+                    color: 'var(--ink-muted)',
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                   }}
@@ -1028,7 +1028,7 @@ export default function PigBatchesView({
               </>
             )}
           </div>
-          <div style={{fontSize: 10, color: '#6b7280'}}>
+          <div style={{fontSize: 10, color: 'var(--ink-muted)'}}>
             {systemAdgEstimate
               ? `System estimate: ${(Math.round(systemAdgEstimate.valueLbsPerDay * 100) / 100).toFixed(2)} lb/day from ${systemAdgEstimate.sampleCount} session${systemAdgEstimate.sampleCount === 1 ? '' : 's'}`
               : 'System estimate: — (need pig sessions with weights and known age)'}
@@ -1059,9 +1059,9 @@ export default function PigBatchesView({
                 style={{
                   padding: '7px 12px',
                   borderRadius: 8,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   cursor: 'pointer',
                   fontSize: 12,
                   fontFamily: 'inherit',
@@ -1077,9 +1077,9 @@ export default function PigBatchesView({
                 style={{
                   padding: '7px 12px',
                   borderRadius: 8,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   cursor: 'pointer',
                   fontSize: 12,
                   fontFamily: 'inherit',
@@ -1094,9 +1094,9 @@ export default function PigBatchesView({
                   style={{
                     padding: '7px 14px',
                     borderRadius: 8,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#6b7280',
+                    color: 'var(--ink-muted)',
                     cursor: 'pointer',
                     fontSize: 12,
                     fontFamily: 'inherit',
@@ -1179,7 +1179,7 @@ export default function PigBatchesView({
               <div
                 style={{
                   padding: '14px 20px',
-                  borderBottom: '1px solid #e5e7eb',
+                  borderBottom: '1px solid var(--border)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -1194,7 +1194,7 @@ export default function PigBatchesView({
                     {editFeederId ? 'Edit Pig Batch' : 'Add Pig Batch'}
                   </div>
                   {editFeederId && (
-                    <div style={{marginLeft: 8, fontSize: 11, color: '#9ca3af'}}>Auto-saves as you type</div>
+                    <div style={{marginLeft: 8, fontSize: 11, color: 'var(--ink-faint)'}}>Auto-saves as you type</div>
                   )}
                   {editFeederId &&
                     (() => {
@@ -1207,9 +1207,9 @@ export default function PigBatchesView({
                       const ns = (on) => ({
                         padding: '3px 10px',
                         borderRadius: 6,
-                        border: '1px solid #d1d5db',
-                        background: on ? 'white' : '#f9fafb',
-                        color: on ? '#374151' : '#d1d5db',
+                        border: '1px solid var(--border-strong)',
+                        background: on ? 'white' : 'var(--surface-2)',
+                        color: on ? 'var(--ink)' : '#d1d5db',
                         cursor: on ? 'pointer' : 'default',
                         fontSize: 11,
                         fontWeight: 600,
@@ -1246,7 +1246,7 @@ export default function PigBatchesView({
                           >
                             {'\u2039 ' + (prev ? prev.batchName : '\u2014')}
                           </button>
-                          <span style={{fontSize: 10, color: '#9ca3af'}}>
+                          <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>
                             {idx + 1}/{sorted.length}
                           </span>
                           <button
@@ -1289,7 +1289,7 @@ export default function PigBatchesView({
                     border: 'none',
                     fontSize: 22,
                     cursor: 'pointer',
-                    color: '#9ca3af',
+                    color: 'var(--ink-faint)',
                     lineHeight: 1,
                     padding: '0 4px',
                   }}
@@ -1401,17 +1401,19 @@ export default function PigBatchesView({
                     <div
                       style={{
                         padding: '8px 11px',
-                        background: '#f9fafb',
-                        border: '1px solid #e5e7eb',
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--border)',
                         borderRadius: 6,
                         fontSize: 13,
                         fontWeight: 600,
-                        color: '#374151',
+                        color: 'var(--ink)',
                       }}
                     >
                       {(parseInt(feederForm.giltCount) || 0) + (parseInt(feederForm.boarCount) || 0)}
                     </div>
-                    <div style={{fontSize: 11, color: '#9ca3af', marginTop: 2}}>Auto-calculated: gilts + boars</div>
+                    <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 2}}>
+                      Auto-calculated: gilts + boars
+                    </div>
                   </div>
                   {editFeederId &&
                     (() => {
@@ -1428,13 +1430,13 @@ export default function PigBatchesView({
                         <div
                           style={{
                             gridColumn: '1/-1',
-                            border: '1px solid #e5e7eb',
+                            border: '1px solid var(--border)',
                             borderRadius: 8,
                             padding: '10px 12px',
                             background: '#fafafa',
                           }}
                         >
-                          <div style={{fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6}}>
+                          <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 6}}>
                             Distribute across sub-batches
                           </div>
                           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
@@ -1452,7 +1454,7 @@ export default function PigBatchesView({
                                     alignItems: 'center',
                                   }}
                                 >
-                                  <span style={{fontSize: 12, color: '#111827', fontWeight: 600}}>{sb.name}</span>
+                                  <span style={{fontSize: 12, color: 'var(--ink)', fontWeight: 600}}>{sb.name}</span>
                                   <span
                                     style={{
                                       fontSize: 11,
@@ -1505,7 +1507,7 @@ export default function PigBatchesView({
                   <div style={{gridColumn: '1/-1'}}>
                     <label style={S.label}>
                       Feed credited to breeding transfers (lbs){' '}
-                      <span style={{fontWeight: 400, color: '#9ca3af', fontSize: 11}}>
+                      <span style={{fontWeight: 400, color: 'var(--ink-faint)', fontSize: 11}}>
                         {'(subtracted from total feed; set to 0 to clear)'}
                       </span>
                     </label>
@@ -1519,20 +1521,28 @@ export default function PigBatchesView({
                     />
                   </div>
                   <div style={{gridColumn: '1/-1'}}>
-                    <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 6}}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: 'var(--ink-muted)',
+                        letterSpacing: 0.5,
+                        marginBottom: 6,
+                      }}
+                    >
                       {'\ud83d\udcb0 FEED COST RATE'}{' '}
-                      <span style={{fontWeight: 400, color: '#9ca3af'}}>
+                      <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>
                         {'(locked \u2014 set in Admin \u203a Feed Costs)'}
                       </span>
                     </div>
                     <div
                       style={{
                         fontSize: 12,
-                        color: '#374151',
+                        color: 'var(--ink)',
                         padding: '8px 12px',
-                        background: '#f9fafb',
+                        background: 'var(--surface-2)',
                         borderRadius: 8,
-                        border: '1px solid #e5e7eb',
+                        border: '1px solid var(--border)',
                       }}
                     >
                       Pig feed:{' '}
@@ -1671,7 +1681,7 @@ export default function PigBatchesView({
               data-pig-batches-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 display: 'flex',
@@ -1680,7 +1690,7 @@ export default function PigBatchesView({
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-pig-batches-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -1694,9 +1704,9 @@ export default function PigBatchesView({
                     onChange={(e) => onSelectSavedView(e.target.value)}
                     style={{
                       borderRadius: 6,
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-strong)',
                       background: 'white',
-                      color: '#374151',
+                      color: 'var(--ink)',
                       fontSize: 12,
                       padding: '6px 10px',
                       minWidth: 200,
@@ -1733,9 +1743,9 @@ export default function PigBatchesView({
                         style={{
                           padding: '6px 12px',
                           borderRadius: 6,
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--border-strong)',
                           background: 'white',
-                          color: '#374151',
+                          color: 'var(--ink)',
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
@@ -1816,7 +1826,7 @@ export default function PigBatchesView({
                   }}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '6px 10px',
                     flex: 1,
@@ -1824,7 +1834,9 @@ export default function PigBatchesView({
                     fontFamily: 'inherit',
                   }}
                 />
-                <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#374151'}}>
+                <label
+                  style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ink)'}}
+                >
                   <input
                     type="radio"
                     name="savePigBatchesViewVisibility"
@@ -1834,7 +1846,9 @@ export default function PigBatchesView({
                   />
                   Private
                 </label>
-                <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#374151'}}>
+                <label
+                  style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ink)'}}
+                >
                   <input
                     type="radio"
                     name="savePigBatchesViewVisibility"
@@ -1870,9 +1884,9 @@ export default function PigBatchesView({
                   style={{
                     padding: '6px 12px',
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#374151',
+                    color: 'var(--ink)',
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1887,7 +1901,7 @@ export default function PigBatchesView({
             <div
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '12px 16px',
                 display: 'flex',
@@ -1904,7 +1918,7 @@ export default function PigBatchesView({
                 onChange={(e) => setFilter('textSearch', e.target.value)}
                 style={{
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   fontSize: 13,
                   padding: '6px 10px',
                   flex: 1,
@@ -1920,9 +1934,9 @@ export default function PigBatchesView({
                 }
                 style={{
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   fontSize: 12,
                   padding: '6px 10px',
                   fontFamily: 'inherit',
@@ -1942,9 +1956,9 @@ export default function PigBatchesView({
                 }}
                 style={{
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   fontSize: 12,
                   padding: '6px 10px',
                   fontFamily: 'inherit',
@@ -1954,7 +1968,9 @@ export default function PigBatchesView({
                 <option value="yes">Has sub-batches</option>
                 <option value="no">No sub-batches</option>
               </select>
-              <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280'}}>
+              <span
+                style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ink-muted)'}}
+              >
                 Started
                 <input
                   type="number"
@@ -1972,14 +1988,14 @@ export default function PigBatchesView({
                   }}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '6px 8px',
                     width: 70,
                     fontFamily: 'inherit',
                   }}
                 />
-                <span style={{color: '#9ca3af'}}>–</span>
+                <span style={{color: 'var(--ink-faint)'}}>–</span>
                 <input
                   type="number"
                   min="0"
@@ -1996,7 +2012,7 @@ export default function PigBatchesView({
                   }}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '6px 8px',
                     width: 70,
@@ -2004,7 +2020,9 @@ export default function PigBatchesView({
                   }}
                 />
               </span>
-              <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280'}}>
+              <span
+                style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ink-muted)'}}
+              >
                 Started date
                 <input
                   type="date"
@@ -2018,13 +2036,13 @@ export default function PigBatchesView({
                   }}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '5px 8px',
                     fontFamily: 'inherit',
                   }}
                 />
-                <span style={{color: '#9ca3af'}}>–</span>
+                <span style={{color: 'var(--ink-faint)'}}>–</span>
                 <input
                   type="date"
                   data-pig-batches-filter-start-before
@@ -2037,14 +2055,16 @@ export default function PigBatchesView({
                   }}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '5px 8px',
                     fontFamily: 'inherit',
                   }}
                 />
               </span>
-              <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280'}}>
+              <span
+                style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ink-muted)'}}
+              >
                 Sort
                 <select
                   data-pig-batches-sort-key
@@ -2052,9 +2072,9 @@ export default function PigBatchesView({
                   onChange={(e) => setSortRule({key: e.target.value, dir: sortRule.dir})}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#374151',
+                    color: 'var(--ink)',
                     fontSize: 12,
                     padding: '6px 10px',
                     fontFamily: 'inherit',
@@ -2073,9 +2093,9 @@ export default function PigBatchesView({
                   title={sortRule.dir === 'asc' ? 'Ascending' : 'Descending'}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#374151',
+                    color: 'var(--ink)',
                     fontSize: 12,
                     fontWeight: 600,
                     padding: '6px 10px',
@@ -2093,7 +2113,7 @@ export default function PigBatchesView({
                   onClick={clearAllFilters}
                   style={{
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: '#b91c1c',
                     fontSize: 12,
@@ -2107,7 +2127,7 @@ export default function PigBatchesView({
                 </button>
               )}
               <span style={{flex: 1}} />
-              <span data-pig-batches-count style={{fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap'}}>
+              <span data-pig-batches-count style={{fontSize: 12, color: 'var(--ink-muted)', whiteSpace: 'nowrap'}}>
                 {visiblePigBatches.length} of {pigBatchesAfterToggle.length}
               </span>
             </div>
@@ -2115,7 +2135,7 @@ export default function PigBatchesView({
         )}
 
         {!recordMode && (feederGroups || []).length === 0 && !showFeederForm && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
+          <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)', fontSize: 13}}>
             No pig batches yet — farm-born batches appear here once you record the cycle's first farrowing; use "+ Add
             Manual Batch" for manual/admin batches.
           </div>
@@ -2127,7 +2147,7 @@ export default function PigBatchesView({
         {!recordMode && pigBatchesAfterToggle.length > 0 && visiblePigBatches.length === 0 && (
           <div
             data-pig-batches-no-match
-            style={{textAlign: 'center', padding: '2.5rem', color: '#9ca3af', fontSize: 13}}
+            style={{textAlign: 'center', padding: '2.5rem', color: 'var(--ink-faint)', fontSize: 13}}
           >
             No pig batches match the current filters.
           </div>
@@ -2163,7 +2183,7 @@ export default function PigBatchesView({
             the columns stay aligned. Horizontal scroll on narrow screens keeps
             the table readable without collapsing the column alignment. */}
         {!recordMode && visiblePigBatches.length > 0 && (
-          <div style={{overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 10, background: 'white'}}>
+          <div style={{overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 10, background: 'white'}}>
             <div data-pig-batch-grid="1" style={{minWidth: 1390}}>
               <div
                 style={{
@@ -2172,8 +2192,8 @@ export default function PigBatchesView({
                   gap: 10,
                   alignItems: 'center',
                   padding: '8px 14px',
-                  borderBottom: '1px solid #e5e7eb',
-                  background: '#f9fafb',
+                  borderBottom: '1px solid var(--border)',
+                  background: 'var(--surface-2)',
                   position: 'sticky',
                   top: 0,
                   zIndex: 1,
@@ -2185,7 +2205,7 @@ export default function PigBatchesView({
                     style={{
                       fontSize: 11,
                       fontWeight: 700,
-                      color: '#6b7280',
+                      color: 'var(--ink-muted)',
                       textTransform: 'uppercase',
                       letterSpacing: 0.3,
                       textAlign: i >= 2 ? 'right' : 'left',
@@ -2203,7 +2223,7 @@ export default function PigBatchesView({
         {/* Data-provenance note — only when a visible row carries proportional
             sex-split estimates (source records without sex attribution). */}
         {!recordMode && visiblePigBatches.some((g) => (pigBatchMetricsById[g.id] || {}).hasEstimates) && (
-          <div data-pig-batch-estimate-note="1" style={{fontSize: 11, color: '#6b7280', margin: '6px 2px 0'}}>
+          <div data-pig-batch-estimate-note="1" style={{fontSize: 11, color: 'var(--ink-muted)', margin: '6px 2px 0'}}>
             Sex-split current/feed values marked ~ are estimated from started-head split when records lack sex
             attribution.
           </div>

@@ -128,12 +128,12 @@ export default function SheepSendToProcessorModal({
     }
   }
 
-  const lblS = {display: 'block', fontSize: 12, color: '#374151', marginBottom: 4, fontWeight: 600};
+  const lblS = {display: 'block', fontSize: 12, color: 'var(--ink)', marginBottom: 4, fontWeight: 600};
   const inpS = {
     fontFamily: 'inherit',
     fontSize: 13,
     padding: '8px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     width: '100%',
     boxSizing: 'border-box',
@@ -163,17 +163,17 @@ export default function SheepSendToProcessorModal({
           boxShadow: '0 12px 40px rgba(0,0,0,.25)',
         }}
       >
-        <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 6}}>
+        <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 6}}>
           {'🚩 Send ' + flaggedEntries.length + ' sheep to processor'}
         </div>
-        <div style={{fontSize: 11, color: '#6b7280', marginBottom: 14}}>
+        <div style={{fontSize: 11, color: 'var(--ink-muted)', marginBottom: 14}}>
           {'Total live weight: ' +
             Math.round(totalWeight).toLocaleString() +
             ' lb. These sheep will move to the Processed flock and attach to the batch. The batch stays ‘planned’ until you mark it complete from the Batches tab.'}
         </div>
 
         {loading && (
-          <div style={{padding: '20px 0', textAlign: 'center', color: '#9ca3af', fontSize: 12}}>
+          <div style={{padding: '20px 0', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12}}>
             Loading planned batches{'…'}
           </div>
         )}
