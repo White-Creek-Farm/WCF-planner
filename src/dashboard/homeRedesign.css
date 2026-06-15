@@ -519,6 +519,13 @@
   color: var(--text);
   font-weight: 750;
 }
+.home .animal-history-month-asof {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  margin-top: 3px;
+}
 .home .animal-history-total-cell {
   color: var(--brand) !important;
   font-weight: 800 !important;

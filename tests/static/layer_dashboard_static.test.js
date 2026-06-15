@@ -43,8 +43,11 @@ describe('Layer housing count — display helper consistency', () => {
     expect(housingSrc).toContain('export function computeHousingDisplayCount');
   });
 
-  it('HomeDashboard imports and uses computeHousingDisplayCount', () => {
-    expect(dashSrc).toContain('computeHousingDisplayCount');
+  it('HomeDashboard delegates Animals on Farm layer totals to the shared animal snapshot', () => {
+    expect(dashSrc).toContain('buildAnimalHistorySnapshot');
+    expect(dashSrc).toContain('animalSnapshot.layers');
+    expect(dashSrc).not.toContain('computeHousingDisplayCount');
+    expect(dashSrc).not.toContain('const totalHens =');
     expect(dashSrc).not.toMatch(/totalHens[\s\S]*?parseInt\(h\.current_count\)/);
   });
 

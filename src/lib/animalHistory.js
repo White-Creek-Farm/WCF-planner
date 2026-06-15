@@ -472,19 +472,27 @@ export function buildAnimalHistoryRows(data = {}, asOfDate = new Date()) {
   return monthsBetween(startMonth, endMonth)
     .map((month) => {
       const snapshotDate = snapshotDateForMonth(month, today);
-      const row = {
-        month,
-        snapshotDate,
-        broilers: broilersOnFarmAt(data.batches, data.broilerDailys, snapshotDate),
-        layers: layersOnFarmAt(data.layerBatches, data.layerHousings, data.layerDailys, snapshotDate),
-        pigs: pigsOnFarmAt(data.feederGroups, data.breeders, data.pigDailys, snapshotDate),
-        cattle: cattleOnFarmAt(data.cattle, data.cattleTransfers, snapshotDate),
-        sheep: sheepOnFarmAt(data.sheep, data.sheepTransfers, snapshotDate),
-      };
-      row.total = ANIMAL_HISTORY_SPECIES.reduce((sum, s) => sum + row[s.key], 0);
-      return row;
+      return buildAnimalHistorySnapshot(data, snapshotDate);
     })
     .reverse();
+}
+
+export function buildAnimalHistorySnapshot(data = {}, asOfDate = new Date()) {
+  const snapshotDate = isoDate(asOfDate) || new Date().toISOString().slice(0, 10);
+  const month = monthKey(snapshotDate);
+  const end = monthEnd(month);
+  const row = {
+    month,
+    snapshotDate,
+    isPartialMonth: !!end && snapshotDate < end,
+    broilers: broilersOnFarmAt(data.batches, data.broilerDailys, snapshotDate),
+    layers: layersOnFarmAt(data.layerBatches, data.layerHousings, data.layerDailys, snapshotDate),
+    pigs: pigsOnFarmAt(data.feederGroups, data.breeders, data.pigDailys, snapshotDate),
+    cattle: cattleOnFarmAt(data.cattle, data.cattleTransfers, snapshotDate),
+    sheep: sheepOnFarmAt(data.sheep, data.sheepTransfers, snapshotDate),
+  };
+  row.total = ANIMAL_HISTORY_SPECIES.reduce((sum, s) => sum + row[s.key], 0);
+  return row;
 }
 
 function formatUtcDate(value, options) {

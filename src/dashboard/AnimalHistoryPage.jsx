@@ -2,7 +2,7 @@ import React from 'react';
 import './homeRedesign.css';
 import {sb} from '../lib/supabase.js';
 import {ANIMAL_HISTORY_SPECIES, buildAnimalHistoryRows, formatAnimalHistoryMonth} from '../lib/animalHistory.js';
-import {todayISO} from '../lib/dateUtils.js';
+import {fmt, todayISO} from '../lib/dateUtils.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
@@ -232,7 +232,10 @@ export default function AnimalHistoryPage({Header}) {
         <section className="animal-history-title">
           <div>
             <h1>Animals on Farm</h1>
-            <p>Month-end head count</p>
+            <p>
+              Month-end head count
+              {latest?.isPartialMonth ? ` - current month as of ${fmt(latest.snapshotDate)}` : ''}
+            </p>
           </div>
           <div className="animal-history-latest" data-animal-history-latest-total>
             <span>{latest ? valueLabel(latest.total) : '-'}</span>
@@ -286,6 +289,9 @@ export default function AnimalHistoryPage({Header}) {
                   <tr key={row.month}>
                     <td>
                       <strong>{formatAnimalHistoryMonth(row.month)}</strong>
+                      {row.isPartialMonth && (
+                        <span className="animal-history-month-asof">As of {fmt(row.snapshotDate)}</span>
+                      )}
                     </td>
                     {ANIMAL_HISTORY_SPECIES.map((species) => (
                       <td key={species.key}>{valueLabel(row[species.key])}</td>

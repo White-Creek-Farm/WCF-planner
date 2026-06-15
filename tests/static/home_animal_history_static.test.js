@@ -41,7 +41,18 @@ describe('Home Animals on Farm history route', () => {
     expect(pageSrc).toContain('data-animal-history-retry="1"');
     expect(pageSrc).toContain('<InlineNotice notice={loadError} />');
     expect(pageSrc).toContain('CHART_SERIES');
-    expect(pageSrc).not.toContain('{row.snapshotDate}');
+    expect(pageSrc).toContain('row.isPartialMonth');
+    expect(pageSrc).toContain('fmt(row.snapshotDate)');
+    expect(pageSrc).toContain('current month as of');
+  });
+
+  it('Home Animals on Farm card uses the shared current animal snapshot', () => {
+    expect(homeSrc).toContain('buildAnimalHistorySnapshot');
+    expect(homeSrc).toContain('animalSnapshot.total');
+    expect(homeSrc).toContain('layerBatches');
+    expect(homeSrc).not.toContain('computeHousingDisplayCount');
+    expect(homeSrc).not.toContain('const totalHens =');
+    expect(homeSrc).not.toContain('cattleOnFarmCount.toLocaleString()');
   });
 
   it('animalHistory helper exports month-end species logic', () => {
@@ -53,6 +64,7 @@ describe('Home Animals on Farm history route', () => {
       'cattleOnFarmAt',
       'sheepOnFarmAt',
       'buildAnimalHistoryRows',
+      'buildAnimalHistorySnapshot',
     ]) {
       expect(helperSrc).toContain(`export ${name === 'ANIMAL_HISTORY_SPECIES' ? 'const' : 'function'} ${name}`);
     }

@@ -3,6 +3,7 @@ import {
   ANIMAL_HISTORY_START_MONTH,
   broilersOnFarmAt,
   buildAnimalHistoryRows,
+  buildAnimalHistorySnapshot,
   cattleOnFarmAt,
   formatAnimalHistoryMonth,
   layersOnFarmAt,
@@ -24,6 +25,8 @@ describe('animal history month-end counts', () => {
     expect(rows.map((r) => r.month)).toEqual(['2024-12', '2024-11', '2024-10']);
     expect(rows.find((r) => r.month === '2024-10').broilers).toBe(10);
     expect(rows.find((r) => r.month === '2024-11').broilers).toBe(0);
+    expect(rows.find((r) => r.month === '2024-12').isPartialMonth).toBe(true);
+    expect(rows.find((r) => r.month === '2024-11').isPartialMonth).toBe(false);
   });
 
   it('formats month and snapshot labels without local-time month rollback', () => {
@@ -68,6 +71,25 @@ describe('animal history month-end counts', () => {
     expect(layersOnFarmAt(batches, housings, dailys, '2026-01-31')).toBe(190);
     expect(layersOnFarmAt(batches, housings, dailys, '2026-02-28')).toBe(175);
     expect(layersOnFarmAt(batches, housings, dailys, '2026-03-31')).toBe(0);
+  });
+
+  it('builds the current snapshot with the same no-housing layer batch logic as the current history row', () => {
+    const data = {
+      layerBatches: [{id: 'lb-99', name: 'L-26-99', original_count: 99, arrival_date: '2026-06-01', status: 'active'}],
+      layerHousings: [],
+      layerDailys: [],
+    };
+
+    const snapshot = buildAnimalHistorySnapshot(data, '2026-06-15');
+    const [row] = buildAnimalHistoryRows(data, '2026-06-15');
+
+    expect(snapshot.month).toBe('2026-06');
+    expect(snapshot.snapshotDate).toBe('2026-06-15');
+    expect(snapshot.isPartialMonth).toBe(true);
+    expect(snapshot.layers).toBe(99);
+    expect(snapshot.total).toBe(99);
+    expect(row.layers).toBe(snapshot.layers);
+    expect(row.total).toBe(snapshot.total);
   });
 
   it('uses pig daily counts and subtracts later target events while breeders cover SOWS/BOARS fallback', () => {

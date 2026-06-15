@@ -3,7 +3,7 @@
 // ============================================================================
 // Thin Provider for the sheep summary state surfaced on the home dashboard.
 //
-//   sheepForHome : [{id, flock}] directory for missed-report flock-presence check
+//   sheepForHome : lightweight directory for missed-report checks and Home animal snapshot
 // ============================================================================
 import React, {createContext, useContext, useState} from 'react';
 

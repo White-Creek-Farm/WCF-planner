@@ -13,10 +13,11 @@ import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import './homeRedesign.css';
 import {sb} from '../lib/supabase.js';
-import {fmt, fmtS, toISO, addDays} from '../lib/dateUtils.js';
+import {fmt, fmtS, toISO, addDays, todayISO} from '../lib/dateUtils.js';
 import {calcPoultryStatus, computeBroilerOnFarmCounts} from '../lib/broiler.js';
 import {calcBreedingTimeline, buildCycleSeqMap, calcCycleStatus, activePigFeederDailyTargets} from '../lib/pig.js';
 import {buildMaterialChecklist} from '../lib/equipmentMaterials.js';
+import {buildAnimalHistorySnapshot} from '../lib/animalHistory.js';
 import {
   buildEquipmentAttention,
   buildMissedDailyReports,
@@ -38,7 +39,6 @@ import {useCattleHome} from '../contexts/CattleHomeContext.jsx';
 import {useSheepHome} from '../contexts/SheepHomeContext.jsx';
 import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
-import {computeHousingDisplayCount} from '../lib/layerHousing.js';
 
 // Daily-report kind → dedicated record-page route. Home "Last 5 Days" tiles
 // navigate straight to the record page instead of waking the legacy dailys-hub
@@ -146,10 +146,10 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {batches} = useBatches();
   const {breedingCycles, farrowingRecs, feederGroups, breeders} = usePig();
-  const {layerGroups, layerHousings, allLayerDailys} = useLayer();
+  const {layerGroups, layerBatches, layerHousings, allLayerDailys} = useLayer();
   const {broilerDailys, pigDailys, layerDailysRecent, eggDailysRecent, cattleDailysRecent, sheepDailysRecent} =
     useDailysRecent();
-  const {cattleForHome, cattleOnFarmCount} = useCattleHome();
+  const {cattleForHome} = useCattleHome();
   const {sheepForHome} = useSheepHome();
   const {missedCleared, setMissedCleared} = useFeedCosts();
   const {setView} = useUI();
@@ -250,6 +250,36 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
   const broilerOnFarm = broilerOnFarmCounts.onFarmBirds;
 
   const weekEvents = buildNext30Events({batches, breedingCycles, farrowingRecs, feederGroups});
+  const animalSnapshot = React.useMemo(
+    () =>
+      buildAnimalHistorySnapshot(
+        {
+          batches,
+          broilerDailys,
+          layerBatches,
+          layerHousings,
+          layerDailys: allLayerDailys,
+          feederGroups,
+          breeders,
+          pigDailys,
+          cattle: cattleForHome,
+          sheep: sheepForHome,
+        },
+        todayISO(),
+      ),
+    [
+      batches,
+      broilerDailys,
+      layerBatches,
+      layerHousings,
+      allLayerDailys,
+      feederGroups,
+      breeders,
+      pigDailys,
+      cattleForHome,
+      sheepForHome,
+    ],
+  );
 
   // Missed daily reports: checks last 7 days, persists until cleared
   async function clearMissedEntry(key) {
@@ -577,32 +607,6 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
 
         {/* ── Animals on Farm ── */}
         {(() => {
-          const totalHens = (layerHousings || [])
-            .filter((h) => h.status === 'active')
-            .reduce((s, h) => s + computeHousingDisplayCount(h, allLayerDailys), 0);
-          const activeFeederNamesHome = feederGroups
-            .filter((g) => g.status === 'active')
-            .flatMap((g) => {
-              const subs = (g.subBatches || []).filter((s) => s.status === 'active');
-              return subs.length > 0
-                ? subs.map((s) => (s.name || '').toLowerCase().trim())
-                : [(g.batchName || '').toLowerCase().trim()];
-            });
-          const pigCounts = {};
-          [...pigDailys]
-            .sort((a, b) => a.date.localeCompare(b.date))
-            .forEach((d) => {
-              if (d.pig_count > 0 && d.batch_label) {
-                const lbl = d.batch_label.toLowerCase().trim();
-                if (activeFeederNamesHome.includes(lbl) || lbl === 'sows' || lbl === 'boars')
-                  pigCounts[d.batch_label] = parseInt(d.pig_count);
-              }
-            });
-          const totalPigs = Object.values(pigCounts).reduce((s, v) => s + v, 0);
-          const sheepOnFarm = (sheepForHome || []).filter(
-            (s) => s.flock === 'rams' || s.flock === 'ewes' || s.flock === 'feeders',
-          ).length;
-          const totalAll = broilerOnFarm + totalHens + totalPigs + cattleOnFarmCount + sheepOnFarm;
           return (
             // Real on-farm counts (kept). The whole card opens the month-by-month
             // Animals on Farm history page. data-home-grid="animals" stays on the
@@ -614,42 +618,42 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
               </div>
               <div className="stat-row" data-home-grid="animals">
                 <div className="stat">
-                  <div className="stat-n">{broilerOnFarm.toLocaleString()}</div>
+                  <div className="stat-n">{animalSnapshot.broilers.toLocaleString()}</div>
                   <div className="stat-l">
                     <span className="sdot sdot-broiler" />
                     Broilers
                   </div>
                 </div>
                 <div className="stat">
-                  <div className="stat-n">{totalHens.toLocaleString()}</div>
+                  <div className="stat-n">{animalSnapshot.layers.toLocaleString()}</div>
                   <div className="stat-l">
                     <span className="sdot sdot-layer" />
                     Layer Hens
                   </div>
                 </div>
                 <div className="stat">
-                  <div className="stat-n">{totalPigs.toLocaleString()}</div>
+                  <div className="stat-n">{animalSnapshot.pigs.toLocaleString()}</div>
                   <div className="stat-l">
                     <span className="sdot sdot-pig" />
                     Pigs
                   </div>
                 </div>
                 <div className="stat">
-                  <div className="stat-n">{cattleOnFarmCount.toLocaleString()}</div>
+                  <div className="stat-n">{animalSnapshot.cattle.toLocaleString()}</div>
                   <div className="stat-l">
                     <span className="sdot sdot-cattle" />
                     Cattle
                   </div>
                 </div>
                 <div className="stat">
-                  <div className="stat-n">{sheepOnFarm.toLocaleString()}</div>
+                  <div className="stat-n">{animalSnapshot.sheep.toLocaleString()}</div>
                   <div className="stat-l">
                     <span className="sdot sdot-sheep" />
                     Sheep
                   </div>
                 </div>
                 <div className="stat stat-total">
-                  <div className="stat-n">{totalAll.toLocaleString()}</div>
+                  <div className="stat-n">{animalSnapshot.total.toLocaleString()}</div>
                   <div className="stat-l">
                     <span className="sdot sdot-total" />
                     Total

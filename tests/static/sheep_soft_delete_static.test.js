@@ -237,7 +237,9 @@ describe('Active-record filter audit — sheep read sites', () => {
   });
   it('main.jsx sheep-for-home lookup filters deleted_at', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
-    expect(src).toMatch(/from\('sheep'\)\s*\.select\('id,flock'\)\s*\.is\('deleted_at', null\)/);
+    expect(src).toMatch(
+      /from\('sheep'\)\s*\.select\('[^']*id[^']*flock[^']*deleted_at[^']*'\)\s*\.is\('deleted_at', null\)/,
+    );
   });
 });
 

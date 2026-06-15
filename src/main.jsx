@@ -1224,7 +1224,7 @@ function App() {
   } = useDailysRecent();
 
   // Phase 2.0.6 — small bundled contexts.
-  const {cattleForHome, setCattleForHome, cattleOnFarmCount, setCattleOnFarmCount} = useCattleHome();
+  const {cattleForHome, setCattleForHome, setCattleOnFarmCount} = useCattleHome();
   const {sheepForHome, setSheepForHome} = useSheepHome();
   const {wfGroups, setWfGroups, webformsConfig, setWebformsConfig} = useWebformsConfig();
   const {feedCosts, setFeedCosts, missedCleared, setMissedCleared} = useFeedCosts();
@@ -1519,15 +1519,15 @@ function App() {
       .then(({data}) => {
         if (data) setSheepDailysRecent(data);
       });
-    // Lightweight cattle + sheep directory (id + flock/herd only) for the missed-report active-flock check
+    // Lightweight cattle + sheep directory for missed-report checks and the Home animal snapshot.
     sb.from('cattle')
-      .select('id,herd')
+      .select('id,herd,purchase_date,birth_date,created_at,sale_date,death_date,deleted_at')
       .is('deleted_at', null)
       .then(({data}) => {
         if (data) setCattleForHome(data);
       });
     sb.from('sheep')
-      .select('id,flock')
+      .select('id,flock,purchase_date,birth_date,created_at,sale_date,death_date,deleted_at')
       .is('deleted_at', null)
       .then(({data}) => {
         if (data) setSheepForHome(data);

@@ -3,7 +3,7 @@
 // ============================================================================
 // Thin Provider for the cattle summary state surfaced on the home dashboard.
 //
-//   cattleForHome      : [{id, herd}] directory for missed-report herd-presence check
+//   cattleForHome      : lightweight directory for missed-report checks and Home animal snapshot
 //   cattleOnFarmCount  : number — count of cattle currently on farm
 // ============================================================================
 import React, {createContext, useContext, useState} from 'react';
