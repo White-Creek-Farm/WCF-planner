@@ -7,7 +7,7 @@
 import React from 'react';
 
 const WcfYN = ({val, onChange}) => (
-  <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+  <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-strong)'}}>
     {[
       {v: true, l: 'Yes'},
       {v: false, l: 'No'},
@@ -25,7 +25,7 @@ const WcfYN = ({val, onChange}) => (
           fontWeight: 500,
           cursor: 'pointer',
           background: val === v ? (v ? '#085041' : '#374151') : 'white',
-          color: val === v ? 'white' : '#6b7280',
+          color: val === v ? 'white' : 'var(--ink-muted)',
         }}
       >
         {l}

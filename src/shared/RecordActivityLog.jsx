@@ -73,13 +73,13 @@ export default function RecordActivityLog({sb, entityType, entityId, limit = 50,
           alignItems: 'center',
           gap: 6,
           background: 'white',
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--border)',
           borderRadius: 10,
           padding: '10px 14px',
           cursor: 'pointer',
           fontSize: 13,
           fontWeight: 600,
-          color: '#374151',
+          color: 'var(--ink)',
           fontFamily: 'inherit',
           width: '100%',
           textAlign: 'left',
@@ -93,16 +93,16 @@ export default function RecordActivityLog({sb, entityType, entityId, limit = 50,
           data-activity-audit-log="1"
           style={{
             background: 'white',
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--border)',
             borderTop: 'none',
             borderRadius: '0 0 10px 10px',
             padding: 14,
           }}
         >
-          {events.length === 0 && <div style={{fontSize: 13, color: '#6b7280'}}>No audit events yet.</div>}
+          {events.length === 0 && <div style={{fontSize: 13, color: 'var(--ink-muted)'}}>No audit events yet.</div>}
           {events.map((ev) => (
-            <div key={ev.id} style={{padding: '6px 0', borderBottom: '1px solid #f3f4f6', fontSize: 12}}>
-              <span style={{fontWeight: 700, color: '#111827', fontSize: 13}}>
+            <div key={ev.id} style={{padding: '6px 0', borderBottom: '1px solid var(--divider)', fontSize: 12}}>
+              <span style={{fontWeight: 700, color: 'var(--ink)', fontSize: 13}}>
                 {ev.actor_display_name || (ev.actor_profile_id ? 'Unknown user' : 'System')}
               </span>{' '}
               <span
@@ -119,7 +119,7 @@ export default function RecordActivityLog({sb, entityType, entityId, limit = 50,
                 {ev.event_type.replace('.', ' ')}
               </span>
               {' · '}
-              <span style={{color: '#6b7280'}}>
+              <span style={{color: 'var(--ink-muted)'}}>
                 {(() => {
                   try {
                     const d = new Date(ev.created_at);
@@ -133,7 +133,7 @@ export default function RecordActivityLog({sb, entityType, entityId, limit = 50,
                   }
                 })()}
               </span>
-              {ev.body && <div style={{color: '#374151', marginTop: 2}}>{ev.body}</div>}
+              {ev.body && <div style={{color: 'var(--ink)', marginTop: 2}}>{ev.body}</div>}
             </div>
           ))}
         </div>

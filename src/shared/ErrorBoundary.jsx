@@ -6,7 +6,7 @@ const WRAP = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#f1f3f2',
+  background: 'var(--bg-page)',
   fontFamily: 'inherit',
   padding: 24,
 };
@@ -17,7 +17,7 @@ const CARD = {
   maxWidth: 420,
   width: '100%',
   textAlign: 'center',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border)',
   boxShadow: '0 4px 12px rgba(0,0,0,.08)',
 };
 const BTN = {
@@ -55,11 +55,15 @@ export default class ErrorBoundary extends React.Component {
         <div style={WRAP}>
           <div style={CARD}>
             <div style={{fontSize: 26, marginBottom: 8}}>{'\u{1F404}'}</div>
-            <h1 style={{fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 8px'}}>Something went wrong</h1>
-            <p style={{fontSize: 14, color: '#6b7280', margin: '0 0 4px', lineHeight: 1.5}}>
+            <h1 style={{fontSize: 18, fontWeight: 700, color: 'var(--ink)', margin: '0 0 8px'}}>
+              Something went wrong
+            </h1>
+            <p style={{fontSize: 14, color: 'var(--ink-muted)', margin: '0 0 4px', lineHeight: 1.5}}>
               The app ran into an unexpected problem. Your data is safe.
             </p>
-            <p style={{fontSize: 13, color: '#9ca3af', margin: 0}}>If this keeps happening, let Ronnie know.</p>
+            <p style={{fontSize: 13, color: 'var(--ink-faint)', margin: 0}}>
+              If this keeps happening, let Ronnie know.
+            </p>
             <button type="button" onClick={() => window.location.reload()} style={BTN}>
               Reload
             </button>

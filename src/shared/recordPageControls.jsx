@@ -23,7 +23,7 @@ if (typeof document !== 'undefined' && !document.getElementById('wcf-record-cont
     '.' +
     FIELD_ROW_CLASS +
     '{display:grid;grid-template-columns:170px minmax(0,1fr);align-items:center;' +
-    'column-gap:16px;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;}' +
+    'column-gap:16px;padding:8px 0;border-bottom:1px solid var(--divider);font-size:14px;}' +
     '@media (max-width:640px){.' +
     FIELD_ROW_CLASS +
     '{grid-template-columns:1fr;align-items:start;row-gap:4px;}}';
@@ -39,25 +39,25 @@ export const recordFieldRow = {
   alignItems: 'center',
   columnGap: 16,
   padding: '8px 0',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid var(--divider)',
   fontSize: 14,
 };
 
 // White form card wrapping the editable fields.
 export const recordFormCard = {
   background: 'white',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border)',
   borderRadius: 10,
   padding: '16px 20px',
 };
 
-export const recordFieldLabel = {fontWeight: 600, color: '#4b5563', fontSize: 13};
+export const recordFieldLabel = {fontWeight: 600, color: 'var(--ink-muted)', fontSize: 13};
 
 // Predictable control width: fills the value column up to a sane cap.
 export const recordControl = {
   fontSize: 14,
   padding: '7px 10px',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-strong)',
   borderRadius: 6,
   fontFamily: 'inherit',
   width: '100%',
@@ -105,9 +105,9 @@ export const recordSaveButton = {
 // Neutral/ghost action: form Revert and the load-error Retry.
 export const recordSecondaryButton = {
   ...recordActionButtonBase,
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-strong)',
   background: 'white',
-  color: '#374151',
+  color: 'var(--ink)',
 };
 
 // Destructive: Delete report.
@@ -129,9 +129,9 @@ export const RECORD_FORM_MAXWIDTH = 960;
 
 const lockedTeamMemberBox = {
   ...recordControl,
-  background: '#f9fafb',
-  borderColor: '#e5e7eb',
-  color: '#374151',
+  background: 'var(--surface-2)',
+  borderColor: 'var(--border)',
+  color: 'var(--ink)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -149,7 +149,7 @@ export function LockedTeamMemberField({value, label = null, labelStyle, style, c
         style={style ? {...lockedTeamMemberBox, ...style} : lockedTeamMemberBox}
       >
         <span style={{fontWeight: 600}}>{display}</span>
-        {caption ? <span style={{fontSize: 11, color: '#9ca3af'}}>{caption}</span> : null}
+        {caption ? <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{caption}</span> : null}
       </div>
     </div>
   );

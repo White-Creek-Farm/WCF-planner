@@ -54,7 +54,9 @@ describe('RecordPageShell — owns the shared chrome markup', () => {
   });
   it('uses the full-height neutral app background', () => {
     expect(shell).toContain("minHeight: '100vh'");
-    expect(shell).toContain("background: '#f1f3f2'");
+    // Parity rollout (CP1): the record-page frame canvas now consumes the
+    // promoted near-white --bg-page token instead of the literal #f1f3f2.
+    expect(shell).toContain("background: 'var(--bg-page)'");
   });
   it('owns the data-record-title marker', () => {
     expect(shell).toContain('data-record-title="1"');

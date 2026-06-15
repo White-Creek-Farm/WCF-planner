@@ -52,12 +52,12 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
         }}
       >
         <div style={{fontSize: 20, marginBottom: 8}}>❓</div>
-        <div id="confirm-modal-title" style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8}}>
+        <div id="confirm-modal-title" style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}>
           Confirm action
         </div>
         <div
           id="confirm-modal-message"
-          style={{fontSize: 13, color: '#4b5563', marginBottom: 18, whiteSpace: 'pre-line'}}
+          style={{fontSize: 13, color: 'var(--ink-muted)', marginBottom: 18, whiteSpace: 'pre-line'}}
         >
           {msg}
         </div>
@@ -67,9 +67,9 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
             style={{
               padding: '10px 16px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 13,
               fontWeight: 500,
               cursor: 'pointer',

@@ -1,6 +1,6 @@
 const listTileStyle = {
   background: 'white',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border)',
   borderRadius: 10,
   padding: '10px 16px',
   cursor: 'pointer',
@@ -19,8 +19,8 @@ const embeddedTileStyle = {
   flexWrap: 'wrap',
 };
 
-const labelStyle = {fontSize: 13, fontWeight: 700, color: '#111827', minWidth: 120};
-const metaStyle = {fontSize: 11, color: '#6b7280'};
+const labelStyle = {fontSize: 13, fontWeight: 700, color: 'var(--ink)', minWidth: 120};
+const metaStyle = {fontSize: 11, color: 'var(--ink-muted)'};
 
 export function WeighInSessionStatusBadge({status}) {
   const isComplete = status === 'complete';
@@ -46,7 +46,7 @@ export default function WeighInSessionListTile({
   label,
   fmt,
   countLabel,
-  countColor = '#1e40af',
+  countColor = 'var(--brand)',
   onClick,
   beforeStatus = null,
   afterCount = null,

@@ -20,7 +20,7 @@ import MentionTextarea from './MentionTextarea.jsx';
 
 const SECTION = {
   background: 'white',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border)',
   borderRadius: 10,
   padding: 14,
   fontFamily: 'inherit',
@@ -28,7 +28,7 @@ const SECTION = {
 const HEADER = {
   fontSize: 14,
   fontWeight: 700,
-  color: '#111827',
+  color: 'var(--ink)',
   marginBottom: 10,
   display: 'flex',
   alignItems: 'center',
@@ -37,8 +37,8 @@ const HEADER = {
 const COUNT_BADGE = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#6b7280',
-  background: '#f3f4f6',
+  color: 'var(--ink-muted)',
+  background: 'var(--divider)',
   borderRadius: 999,
   padding: '1px 7px',
 };
@@ -61,24 +61,24 @@ const POST_BTN_DISABLED = {
 };
 const COMMENT_ROW = {
   padding: '10px 0',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid var(--divider)',
 };
 const COMMENT_HEAD = {
   display: 'flex',
   alignItems: 'baseline',
   gap: 6,
   fontSize: 12,
-  color: '#6b7280',
+  color: 'var(--ink-muted)',
   flexWrap: 'wrap',
 };
 const AUTHOR = {
   fontSize: 13,
   fontWeight: 700,
-  color: '#111827',
+  color: 'var(--ink)',
 };
 const BODY = {
   fontSize: 13,
-  color: '#111827',
+  color: 'var(--ink)',
   marginTop: 4,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
@@ -94,15 +94,15 @@ const MENTION_CHIP = {
 };
 const DELETED_PLACEHOLDER = {
   padding: '8px 0',
-  borderBottom: '1px solid #f3f4f6',
+  borderBottom: '1px solid var(--divider)',
   fontSize: 13,
-  color: '#9ca3af',
+  color: 'var(--ink-faint)',
   fontStyle: 'italic',
 };
 const LINK_BTN = {
   background: 'none',
   border: 'none',
-  color: '#6b7280',
+  color: 'var(--ink-muted)',
   cursor: 'pointer',
   fontSize: 11,
   fontFamily: 'inherit',
@@ -118,8 +118,8 @@ const ACTION_BTN = {
   padding: 0,
 };
 const EDIT_HISTORY = {
-  background: '#f9fafb',
-  border: '1px solid #e5e7eb',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   padding: 10,
   marginTop: 6,
@@ -170,7 +170,13 @@ function renderCommentBody(body, mentions, mentionedProfileNames) {
         if (URL_RE.test(parts[j])) {
           URL_RE.lastIndex = 0;
           result.push(
-            <a key={`${i}-${j}`} href={parts[j]} target="_blank" rel="noopener noreferrer" style={{color: '#2563eb'}}>
+            <a
+              key={`${i}-${j}`}
+              href={parts[j]}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{color: 'var(--brand)'}}
+            >
               {parts[j]}
             </a>,
           );
@@ -391,8 +397,8 @@ export default function CommentsSection({
           loadProfiles={mentionLoader}
         />
         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280'}}>
-            <label style={{cursor: 'pointer', color: '#2563eb', fontSize: 12}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-muted)'}}>
+            <label style={{cursor: 'pointer', color: 'var(--brand)', fontSize: 12}}>
               📎 Attach
               <input
                 ref={fileInputRef}
@@ -426,10 +432,10 @@ export default function CommentsSection({
 
       <div data-comments-list="1">
         {loading && comments.length === 0 && (
-          <div style={{fontSize: 12, color: '#6b7280', padding: '8px 0'}}>Loading…</div>
+          <div style={{fontSize: 12, color: 'var(--ink-muted)', padding: '8px 0'}}>Loading…</div>
         )}
         {!loading && comments.length === 0 && (
-          <div data-comments-empty="1" style={{fontSize: 13, color: '#6b7280', padding: '8px 0'}}>
+          <div data-comments-empty="1" style={{fontSize: 13, color: 'var(--ink-muted)', padding: '8px 0'}}>
             No comments yet.
           </div>
         )}
@@ -475,11 +481,11 @@ export default function CommentsSection({
                   {expanded ? 'hide' : 'view'}
                 </button>
                 {expanded && (
-                  <div style={{marginTop: 6, color: '#6b7280', fontStyle: 'normal'}}>
+                  <div style={{marginTop: 6, color: 'var(--ink-muted)', fontStyle: 'normal'}}>
                     <div style={{fontSize: 11, marginBottom: 2}}>
                       by {c.author_display_name || 'Unknown'} · deleted {fmtCentralDateTime(c.deleted_at)}
                     </div>
-                    <div style={{...BODY, color: '#6b7280'}}>{c.body}</div>
+                    <div style={{...BODY, color: 'var(--ink-muted)'}}>{c.body}</div>
                   </div>
                 )}
               </div>
@@ -516,7 +522,7 @@ export default function CommentsSection({
                     // Mirrors carry edited_at from resync, but their edit-
                     // history rows live on the ORIGINAL entry id — a toggle
                     // here would open nothing, so render plain text.
-                    <span style={{fontSize: 11, color: '#6b7280'}}>edited</span>
+                    <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>edited</span>
                   ) : (
                     <button type="button" onClick={() => toggleEditHistory(c.id)} style={LINK_BTN}>
                       edited
@@ -524,7 +530,7 @@ export default function CommentsSection({
                   ))}
                 {!isDeleted && isAuthor && !isEditing && !isCattleLogMirror && (
                   <>
-                    <button type="button" onClick={() => startEdit(c)} style={{...ACTION_BTN, color: '#2563eb'}}>
+                    <button type="button" onClick={() => startEdit(c)} style={{...ACTION_BTN, color: 'var(--brand)'}}>
                       Edit
                     </button>
                     <button type="button" onClick={() => onDelete(c.id)} style={{...ACTION_BTN, color: '#b91c1c'}}>
@@ -564,8 +570,8 @@ export default function CommentsSection({
                             gap: 4,
                             padding: '2px 8px',
                             borderRadius: 6,
-                            border: '1px solid #e5e7eb',
-                            background: '#f3f4f6',
+                            border: '1px solid var(--border)',
+                            background: 'var(--divider)',
                             fontSize: 11,
                           }}
                         >
@@ -600,11 +606,16 @@ export default function CommentsSection({
                     <button
                       type="button"
                       onClick={() => setEditingId(null)}
-                      style={{...POST_BTN, background: 'white', color: '#374151', borderColor: '#d1d5db'}}
+                      style={{
+                        ...POST_BTN,
+                        background: 'white',
+                        color: 'var(--ink)',
+                        borderColor: 'var(--border-strong)',
+                      }}
                     >
                       Cancel
                     </button>
-                    <label style={{cursor: 'pointer', color: '#2563eb', fontSize: 12, marginLeft: 'auto'}}>
+                    <label style={{cursor: 'pointer', color: 'var(--brand)', fontSize: 12, marginLeft: 'auto'}}>
                       📎 Add
                       <input
                         type="file"
@@ -617,7 +628,7 @@ export default function CommentsSection({
                       />
                     </label>
                     {editFiles.length > 0 && (
-                      <span style={{fontSize: 11, color: '#6b7280'}}>
+                      <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                         {editFiles.length} new file{editFiles.length > 1 ? 's' : ''}
                       </span>
                     )}
@@ -700,10 +711,10 @@ function CommentAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
           gap: 4,
           padding: '4px 8px',
           borderRadius: 6,
-          border: '1px solid #e5e7eb',
-          background: '#f3f4f6',
+          border: '1px solid var(--border)',
+          background: 'var(--divider)',
           fontSize: 11,
-          color: '#2563eb',
+          color: 'var(--brand)',
           textDecoration: 'none',
         }}
       >
@@ -724,8 +735,8 @@ function CommentAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
         height: 60,
         borderRadius: 6,
         overflow: 'hidden',
-        border: '1px solid #e5e7eb',
-        background: '#f3f4f6',
+        border: '1px solid var(--border)',
+        background: 'var(--divider)',
         flexShrink: 0,
       }}
     >
@@ -739,7 +750,7 @@ function CommentAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
         <span
           style={{
             fontSize: 10,
-            color: '#9ca3af',
+            color: 'var(--ink-faint)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

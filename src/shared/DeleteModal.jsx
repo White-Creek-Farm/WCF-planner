@@ -55,13 +55,13 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
         }}
       >
         <div style={{fontSize: 20, marginBottom: 8}}>⚠️</div>
-        <div id="delete-modal-title" style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8}}>
+        <div id="delete-modal-title" style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}>
           Are you sure?
         </div>
-        <div id="delete-modal-message" style={{fontSize: 13, color: '#4b5563', marginBottom: 16}}>
+        <div id="delete-modal-message" style={{fontSize: 13, color: 'var(--ink-muted)', marginBottom: 16}}>
           {msg}
         </div>
-        <div style={{fontSize: 12, color: '#6b7280', marginBottom: 6}}>
+        <div style={{fontSize: 12, color: 'var(--ink-muted)', marginBottom: 6}}>
           Type <strong>delete</strong> to confirm:
         </div>
         <input
@@ -79,7 +79,7 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
           style={{
             width: '100%',
             padding: '8px 12px',
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--border-strong)',
             borderRadius: 6,
             fontSize: 13,
             fontFamily: 'inherit',
@@ -94,9 +94,9 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
             style={{
               padding: '10px 16px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 13,
               fontWeight: 500,
               cursor: 'pointer',

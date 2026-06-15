@@ -60,7 +60,9 @@ export default function DailyPhotoThumbnails({photos}) {
 
   return (
     <div data-photo-thumbnails="1" style={{marginTop: 8}}>
-      <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', marginBottom: 6, textTransform: 'uppercase'}}>
+      <div
+        style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-muted)', marginBottom: 6, textTransform: 'uppercase'}}
+      >
         Photos ({list.length})
       </div>
       <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
@@ -78,11 +80,11 @@ export default function DailyPhotoThumbnails({photos}) {
               style={{
                 width: 80,
                 height: 80,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 borderRadius: 6,
                 overflow: 'hidden',
                 padding: 0,
-                background: '#f3f4f6',
+                background: 'var(--divider)',
                 cursor: 'pointer',
                 position: 'relative',
               }}
@@ -96,7 +98,7 @@ export default function DailyPhotoThumbnails({photos}) {
               ) : err ? (
                 <span style={{fontSize: 10, color: '#b91c1c'}}>?</span>
               ) : (
-                <span style={{fontSize: 10, color: '#9ca3af'}}>…</span>
+                <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>…</span>
               )}
             </button>
           );

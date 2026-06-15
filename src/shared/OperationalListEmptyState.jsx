@@ -1,7 +1,7 @@
 const EMPTY_STATE_STYLE = {
   textAlign: 'center',
   padding: '3rem',
-  color: '#9ca3af',
+  color: 'var(--ink-faint)',
   fontSize: 13,
 };
 

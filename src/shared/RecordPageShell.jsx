@@ -13,7 +13,7 @@
 const BACK_LINK_BASE = {
   background: 'none',
   border: 'none',
-  color: '#1d4ed8',
+  color: 'var(--brand)',
   cursor: 'pointer',
   fontSize: 14,
   fontFamily: 'inherit',
@@ -26,7 +26,7 @@ const BACK_LINK_BASE = {
 // onto the frame's root div.
 export function RecordPageFrame({Header, children, ...rest}) {
   return (
-    <div {...rest} style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div {...rest} style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {Header && <Header />}
       {children}
     </div>
@@ -37,7 +37,7 @@ export function RecordPageFrame({Header, children, ...rest}) {
 export function RecordPageLoading({Header, label = 'Loading…', ...rest}) {
   return (
     <RecordPageFrame Header={Header} {...rest}>
-      <div style={{padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 14}}>{label}</div>
+      <div style={{padding: 24, textAlign: 'center', color: 'var(--ink-muted)', fontSize: 14}}>{label}</div>
     </RecordPageFrame>
   );
 }
@@ -54,7 +54,7 @@ export function RecordPageNotFound({Header, backLabel, onBack, message, ...rest}
           {'← '}
           {backLabel}
         </button>
-        <div style={{marginTop: 16, color: '#6b7280', fontSize: 14}}>{message}</div>
+        <div style={{marginTop: 16, color: 'var(--ink-muted)', fontSize: 14}}>{message}</div>
       </div>
     </RecordPageFrame>
   );
@@ -90,7 +90,10 @@ export function RecordBackLink({label, onBack}) {
 // further tweak.
 export function RecordTitle({children, fontSize = 26, margin = '0 0 12px', style}) {
   return (
-    <h1 data-record-title="1" style={{fontSize, fontWeight: 700, color: '#111827', margin, lineHeight: 1.2, ...style}}>
+    <h1
+      data-record-title="1"
+      style={{fontSize, fontWeight: 700, color: 'var(--ink)', margin, lineHeight: 1.2, ...style}}
+    >
       {children}
     </h1>
   );
