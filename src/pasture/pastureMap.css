@@ -1,0 +1,280 @@
+/* Pasture Map CP1 styling. Self-contained; leans on app theme vars with
+   fallbacks so it renders even outside the home theme scope. */
+
+.pm-view {
+  min-height: 100vh;
+  background: var(--bg, #f6f7f5);
+}
+.pm-main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 16px 48px;
+}
+
+.pm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.pm-title {
+  font-size: 23px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--text, #0f172a);
+}
+.pm-sub {
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+  margin-top: 3px;
+}
+.pm-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pm-btn {
+  border: 1px solid var(--border, #d6dbd4);
+  background: #fff;
+  color: var(--text, #0f172a);
+  border-radius: 9px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pm-btn:hover {
+  background: #f3f5f2;
+}
+.pm-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.pm-btn-primary {
+  background: #085041;
+  border-color: #085041;
+  color: #fff;
+}
+.pm-btn-primary:hover {
+  background: #0a6151;
+}
+.pm-btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.pm-btn-danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.pm-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.pm-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+.pm-preview-body {
+  font-size: 13px;
+  color: #065f46;
+  flex: 1 1 320px;
+}
+.pm-preview-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pm-body {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+.pm-map-col {
+  flex: 1 1 60%;
+  min-width: 0;
+}
+.pm-list-col {
+  flex: 1 1 38%;
+  min-width: 0;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.pm-map-wrap {
+  position: relative;
+  height: 560px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border, #d6dbd4);
+}
+.pm-map {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+}
+.pm-locate-btn {
+  position: absolute;
+  z-index: 500;
+  right: 10px;
+  bottom: 10px;
+  background: #fff;
+  border: 1px solid var(--border, #d6dbd4);
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+.pm-gps-msg {
+  position: absolute;
+  z-index: 500;
+  left: 10px;
+  bottom: 10px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  max-width: 60%;
+}
+.pm-label {
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.pm-empty {
+  border: 1px dashed var(--border, #d6dbd4);
+  border-radius: 10px;
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: 13.5px;
+}
+.pm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid var(--border, #d6dbd4);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.pm-item-main {
+  min-width: 0;
+}
+.pm-item-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pm-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.pm-chip {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid var(--border, #e2e8f0);
+}
+.pm-chip-unclassified {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.pm-chip-pasture,
+.pm-chip-paddock {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.pm-chip-infrastructure,
+.pm-chip-scratch {
+  background: #f1f5f9;
+  color: #475569;
+}
+.pm-chip-outline_candidate {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+.pm-chip-review {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+.pm-chip-invalid {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.pm-acres {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text, #0f172a);
+}
+.pm-note-acres {
+  font-size: 11px;
+  color: #92400e;
+}
+.pm-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Mobile: Pasture Map stacks above the list. */
+@media (max-width: 760px) {
+  .pm-body {
+    flex-direction: column;
+  }
+  .pm-map-wrap {
+    height: 380px;
+  }
+  .pm-list-col {
+    max-height: none;
+  }
+}

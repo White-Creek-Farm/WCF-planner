@@ -213,6 +213,7 @@ import ClientErrorsView from './admin/ClientErrorsView.jsx';
 
 // Phase 2 Round 8: equipment placeholder.
 import EquipmentHome from './equipment/EquipmentHome.jsx';
+import PastureMapView from './pasture/PastureMapView.jsx';
 
 // Phase 2 Round 2 tail: LayerBatchesView (deferred from the original Round 2
 // push). Now imports once the housing + broiler primitives live in lib/.
@@ -1697,6 +1698,7 @@ function App() {
     'fuelSupply',
     'weighinsessions',
     'mySubmissions',
+    'pastureMap',
   ];
   useEffect(() => {
     if (view && !VALID_VIEWS.includes(view)) setView('home');
@@ -3748,6 +3750,15 @@ function App() {
       setAllUsers,
       loadUsers,
     });
+
+  // ── PASTURE MAP (CP1) ── auth-gated field surface; not program-scoped.
+  // farm_team+ can read; management/admin can import/classify/close/delete.
+  if (view === 'pastureMap')
+    return React.createElement(
+      UnauthorizedRedirect,
+      {authState, setView, requireAdmin: false, fallbackView: 'home'},
+      React.createElement(PastureMapView, {Header, authState}),
+    );
 
   // ── LIST VIEW ──
   if (view === 'list')

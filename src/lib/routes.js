@@ -83,6 +83,10 @@ export const VIEW_TO_PATH = {
   // preserved via ALIASES_EXACT (both redirect into the /fleet/* world).
   equipmentHome: '/fleet',
 
+  // Pasture Map (logged-in field surface). Land/paddock model + OnX-KML import
+  // + aerial map. Auth-gated, not program-scoped (cross-species field tool).
+  pastureMap: '/pasture-map',
+
   // Admin (logged-in only)
   webforms: '/admin',
   // Task Center (Tasks v2). Auth-gated, requireAdmin:false. Every
