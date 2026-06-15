@@ -234,7 +234,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
         <div
           style={{
             padding: '14px 20px',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -252,7 +252,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               border: 'none',
               fontSize: 22,
               cursor: 'pointer',
-              color: '#9ca3af',
+              color: 'var(--ink-faint)',
               lineHeight: 1,
               padding: '0 4px',
             }}
@@ -261,7 +261,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
           </button>
         </div>
 
-        <div style={{display: 'flex', borderBottom: '1px solid #e5e7eb', padding: '0 20px'}}>
+        <div style={{display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 20px'}}>
           {[
             ['users', '👥 Users'],
             ['add', '➕ Add User'],
@@ -328,8 +328,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               {/* Permissions reference */}
               <div
                 style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e5e7eb',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '10px 14px',
                   fontSize: 11,
@@ -339,31 +339,33 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                 <div style={{fontWeight: 600, marginBottom: 6, fontSize: 12}}>Permission levels</div>
                 <div style={{display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', lineHeight: 1.5}}>
                   <span style={{fontWeight: 700, color: '#085041'}}>🌾 Farm Team</span>
-                  <span style={{color: '#6b7280'}}>Edit & delete daily reports only</span>
+                  <span style={{color: 'var(--ink-muted)'}}>Edit & delete daily reports only</span>
                   <span style={{fontWeight: 700, color: '#1d4ed8'}}>🔑 Management</span>
-                  <span style={{color: '#6b7280'}}>Edit anything · delete daily reports only</span>
+                  <span style={{color: 'var(--ink-muted)'}}>Edit anything · delete daily reports only</span>
                   <span style={{fontWeight: 700, color: '#b91c1c'}}>👑 Admin</span>
-                  <span style={{color: '#6b7280'}}>Full access — edit & delete everything</span>
+                  <span style={{color: 'var(--ink-muted)'}}>Full access — edit & delete everything</span>
                   <span style={{fontWeight: 700, color: '#7c3aed'}}>📋 Light</span>
-                  <span style={{color: '#6b7280'}}>
+                  <span style={{color: 'var(--ink-muted)'}}>
                     Field portal only — daily/feed/equipment/weigh-in forms + Tasks
                   </span>
                 </div>
               </div>
 
               {allUsers.length === 0 && (
-                <div style={{textAlign: 'center', padding: '2rem', color: '#9ca3af', fontSize: 13}}>Loading users…</div>
+                <div style={{textAlign: 'center', padding: '2rem', color: 'var(--ink-faint)', fontSize: 13}}>
+                  Loading users…
+                </div>
               )}
 
               {allUsers.map((u) => (
                 <div
                   key={u.id}
                   style={{
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid var(--border)',
                     borderRadius: 10,
                     marginBottom: 8,
                     overflow: 'hidden',
-                    background: u.id === authState?.user?.id ? '#f0fdf4' : 'white',
+                    background: 'white',
                   }}
                 >
                   <div style={{padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12}}>
@@ -373,7 +375,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         width: 38,
                         height: 38,
                         borderRadius: '50%',
-                        background: roleBg[u.role] || '#f3f4f6',
+                        background: 'white',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -419,7 +421,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                             style={{
                               fontWeight: 700,
                               fontSize: 13,
-                              color: '#111827',
+                              color: 'var(--ink)',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
@@ -451,7 +453,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                             onClick={() => setEditingUser({id: u.id, full_name: u.full_name || ''})}
                             style={{
                               fontSize: 11,
-                              color: '#9ca3af',
+                              color: 'var(--ink-faint)',
                               background: 'none',
                               border: 'none',
                               cursor: 'pointer',
@@ -466,7 +468,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       <div
                         style={{
                           fontSize: 11,
-                          color: '#9ca3af',
+                          color: 'var(--ink-faint)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -484,7 +486,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         fontSize: 12,
                         padding: '5px 10px',
                         borderRadius: 6,
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-strong)',
                         color: roleColor[u.role] || '#374151',
                         fontWeight: 600,
                         flexShrink: 0,
@@ -503,11 +505,11 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     </select>
                   </div>
                   {u.id !== authState?.user?.id && u.role !== 'admin' && u.role !== 'light' && (
-                    <div style={{padding: '5px 14px', borderTop: '1px solid #f3f4f6', background: '#fafafa'}}>
+                    <div style={{padding: '5px 14px', borderTop: '1px solid var(--divider)', background: '#fafafa'}}>
                       <div
                         style={{
                           fontSize: 10,
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                           textTransform: 'uppercase',
                           letterSpacing: 0.5,
                           marginBottom: 4,
@@ -544,9 +546,9 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                                 fontSize: 11,
                                 padding: '4px 10px',
                                 borderRadius: 6,
-                                border: '1px solid ' + (has ? '#085041' : '#d1d5db'),
-                                background: has ? '#085041' : 'white',
-                                color: has ? 'white' : '#9ca3af',
+                                border: '1px solid ' + (has ? 'var(--brand)' : 'var(--border-strong)'),
+                                background: 'white',
+                                color: has ? 'var(--brand)' : 'var(--ink-muted)',
                                 fontFamily: 'inherit',
                                 fontWeight: 600,
                                 cursor: 'pointer',
@@ -557,7 +559,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                           );
                         })}
                       </div>
-                      <div style={{fontSize: 10, color: '#9ca3af', marginTop: 4}}>
+                      <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 4}}>
                         {!Array.isArray(u.program_access) || u.program_access.length === 0
                           ? 'All programs'
                           : u.program_access.length + ' of 6 programs'}
@@ -568,7 +570,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     <div
                       style={{
                         padding: '5px 14px',
-                        borderTop: '1px solid #f3f4f6',
+                        borderTop: '1px solid var(--divider)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -582,7 +584,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                           onClick={() => sendPasswordReset(u.email, u.full_name)}
                           style={{
                             fontSize: 11,
-                            color: '#1d4ed8',
+                            color: 'var(--brand)',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -665,7 +667,15 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               </div>
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
                 <div style={{gridColumn: '1/-1'}}>
-                  <label style={{fontSize: 12, color: '#4b5563', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--ink-muted)',
+                      display: 'block',
+                      marginBottom: 3,
+                      fontWeight: 500,
+                    }}
+                  >
                     Full name
                   </label>
                   <input
@@ -675,14 +685,22 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     style={{
                       fontSize: 13,
                       padding: '8px 12px',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-strong)',
                       borderRadius: 6,
                       width: '100%',
                     }}
                   />
                 </div>
                 <div style={{gridColumn: '1/-1'}}>
-                  <label style={{fontSize: 12, color: '#4b5563', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--ink-muted)',
+                      display: 'block',
+                      marginBottom: 3,
+                      fontWeight: 500,
+                    }}
+                  >
                     Email address *
                   </label>
                   <input
@@ -693,14 +711,22 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     style={{
                       fontSize: 13,
                       padding: '8px 12px',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-strong)',
                       borderRadius: 6,
                       width: '100%',
                     }}
                   />
                 </div>
                 <div style={{gridColumn: '1/-1'}}>
-                  <label style={{fontSize: 12, color: '#4b5563', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--ink-muted)',
+                      display: 'block',
+                      marginBottom: 3,
+                      fontWeight: 500,
+                    }}
+                  >
                     Role
                   </label>
                   <div
@@ -725,8 +751,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
-                          background: addRole === r.v ? '#085041' : '#f9fafb',
-                          color: addRole === r.v ? 'white' : '#4b5563',
+                          background: 'white',
+                          color: addRole === r.v ? 'var(--brand)' : 'var(--ink-muted)',
                         }}
                       >
                         {r.l}
@@ -735,7 +761,15 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   </div>
                 </div>
                 <div>
-                  <label style={{fontSize: 12, color: '#4b5563', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--ink-muted)',
+                      display: 'block',
+                      marginBottom: 3,
+                      fontWeight: 500,
+                    }}
+                  >
                     Set password
                   </label>
                   <input
@@ -747,14 +781,22 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     style={{
                       fontSize: 13,
                       padding: '8px 12px',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-strong)',
                       borderRadius: 6,
                       width: '100%',
                     }}
                   />
                 </div>
                 <div>
-                  <label style={{fontSize: 12, color: '#4b5563', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--ink-muted)',
+                      display: 'block',
+                      marginBottom: 3,
+                      fontWeight: 500,
+                    }}
+                  >
                     Confirm password
                   </label>
                   <input
@@ -766,7 +808,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     style={{
                       fontSize: 13,
                       padding: '8px 12px',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-strong)',
                       borderRadius: 6,
                       width: '100%',
                     }}

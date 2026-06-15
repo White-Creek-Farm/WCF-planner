@@ -80,7 +80,7 @@ export default function FuelReconcileView() {
       </div>
     );
   }
-  if (loading) return <div style={{padding: 20, fontSize: 13, color: '#6b7280'}}>Loading…</div>;
+  if (loading) return <div style={{padding: 20, fontSize: 13, color: 'var(--ink-muted)'}}>Loading…</div>;
 
   const billsById = Object.fromEntries(bills.map((b) => [b.id, b]));
   const months = new Map();
@@ -145,7 +145,7 @@ export default function FuelReconcileView() {
 
   const card = {
     background: 'white',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '14px 18px',
     marginBottom: 14,
@@ -153,15 +153,15 @@ export default function FuelReconcileView() {
   const th = {
     fontSize: 10,
     fontWeight: 700,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     padding: '6px 10px',
     textAlign: 'left',
-    background: '#f9fafb',
-    borderBottom: '1px solid #e5e7eb',
+    background: 'var(--surface-2)',
+    borderBottom: '1px solid var(--border)',
   };
-  const td = {fontSize: 12, padding: '8px 10px', borderBottom: '1px solid #f3f4f6', color: '#111827'};
+  const td = {fontSize: 12, padding: '8px 10px', borderBottom: '1px solid var(--divider)', color: 'var(--ink)'};
 
   function variancePct(purchasedGal, consumedGal) {
     if (purchasedGal === 0 && consumedGal === 0) return null;
@@ -206,7 +206,7 @@ export default function FuelReconcileView() {
 
       <div style={{...card, padding: 0, overflow: 'auto'}}>
         {sorted.length === 0 ? (
-          <div style={{padding: 30, textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+          <div style={{padding: 30, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
             No bills, equipment fuelings, or direct fuel logs yet.
           </div>
         ) : (
@@ -216,13 +216,13 @@ export default function FuelReconcileView() {
                 <th rowSpan={2} style={th}>
                   Month
                 </th>
-                <th colSpan={4} style={{...th, borderBottom: '1px solid #d1d5db', textAlign: 'center'}}>
+                <th colSpan={4} style={{...th, borderBottom: '1px solid var(--border-strong)', textAlign: 'center'}}>
                   Purchased (bills)
                 </th>
-                <th colSpan={3} style={{...th, borderBottom: '1px solid #d1d5db', textAlign: 'center'}}>
+                <th colSpan={3} style={{...th, borderBottom: '1px solid var(--border-strong)', textAlign: 'center'}}>
                   Consumed (equipment + direct)
                 </th>
-                <th colSpan={3} style={{...th, borderBottom: '1px solid #d1d5db', textAlign: 'center'}}>
+                <th colSpan={3} style={{...th, borderBottom: '1px solid var(--border-strong)', textAlign: 'center'}}>
                   Variance %
                 </th>
               </tr>
@@ -252,7 +252,7 @@ export default function FuelReconcileView() {
                   <tr key={k}>
                     <td style={{...td, fontWeight: 600}}>
                       {monthLabel(k)}{' '}
-                      <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10}}>
+                      <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10}}>
                         · {m.billCount} bill{m.billCount === 1 ? '' : 's'} / {usageLabel}
                       </span>
                     </td>

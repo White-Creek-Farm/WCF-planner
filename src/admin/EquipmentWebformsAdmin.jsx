@@ -24,7 +24,7 @@ import {countSummary, makeFieldChange} from '../lib/activityChangeDiff.js';
 const inpS = {
   fontSize: 12,
   padding: '6px 8px',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-strong)',
   borderRadius: 5,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
@@ -33,14 +33,14 @@ const inpS = {
 const sectionTitle = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#4b5563',
+  color: 'var(--ink-muted)',
   textTransform: 'uppercase',
   letterSpacing: 0.5,
   marginBottom: 8,
 };
 const subTitle = {
   fontSize: 10,
-  color: '#6b7280',
+  color: 'var(--ink-muted)',
   fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: 0.4,
@@ -48,7 +48,7 @@ const subTitle = {
 };
 const card = {
   background: 'white',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border)',
   borderRadius: 12,
   padding: '14px 20px',
   marginBottom: 14,
@@ -122,7 +122,7 @@ export default function EquipmentWebformsAdmin() {
       </div>
     );
   }
-  if (loading) return <div style={{padding: 20, fontSize: 13, color: '#6b7280'}}>Loading equipment…</div>;
+  if (loading) return <div style={{padding: 20, fontSize: 13, color: 'var(--ink-muted)'}}>Loading equipment…</div>;
 
   const soldList = equipment
     .filter((e) => e.status === 'sold')
@@ -135,7 +135,9 @@ export default function EquipmentWebformsAdmin() {
       <div style={card}>
         <div style={sectionTitle}>
           Equipment{' '}
-          <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>Click a piece to edit</span>
+          <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+            Click a piece to edit
+          </span>
         </div>
         {EQUIPMENT_CATEGORIES.map((cat) => {
           const inCat = equipment
@@ -166,8 +168,8 @@ export default function EquipmentWebformsAdmin() {
                       className="hoverable-tile"
                       style={{
                         padding: '7px 12px',
-                        border: '1px solid ' + (on ? cat.color : '#e5e7eb'),
-                        background: on ? cat.bg : 'white',
+                        border: '1px solid ' + (on ? cat.color : 'var(--border)'),
+                        background: 'white',
                         borderRadius: 6,
                         cursor: 'pointer',
                         display: 'flex',
@@ -176,7 +178,7 @@ export default function EquipmentWebformsAdmin() {
                         fontSize: 13,
                       }}
                     >
-                      <span style={{fontWeight: on ? 700 : 500, color: '#111827', flex: 1}}>{e.name}</span>
+                      <span style={{fontWeight: on ? 700 : 500, color: 'var(--ink)', flex: 1}}>{e.name}</span>
                       {e.status !== 'active' && (
                         <span
                           style={{
@@ -200,12 +202,12 @@ export default function EquipmentWebformsAdmin() {
           );
         })}
         {soldList.length > 0 && (
-          <div style={{marginTop: 18, paddingTop: 12, borderTop: '1px solid #e5e7eb'}}>
+          <div style={{marginTop: 18, paddingTop: 12, borderTop: '1px solid var(--border)'}}>
             <div
               style={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: '#6b7280',
+                color: 'var(--ink-muted)',
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
                 marginBottom: 5,
@@ -223,7 +225,7 @@ export default function EquipmentWebformsAdmin() {
                     className="hoverable-tile"
                     style={{
                       padding: '7px 12px',
-                      border: '1px solid ' + (on ? '#6b7280' : '#e5e7eb'),
+                      border: '1px solid ' + (on ? '#6b7280' : 'var(--border)'),
                       background: on ? '#f3f4f6' : 'white',
                       borderRadius: 6,
                       cursor: 'pointer',
@@ -231,7 +233,7 @@ export default function EquipmentWebformsAdmin() {
                       alignItems: 'center',
                       gap: 10,
                       fontSize: 13,
-                      color: '#6b7280',
+                      color: 'var(--ink-muted)',
                     }}
                   >
                     <span style={{fontWeight: on ? 700 : 500, flex: 1}}>{e.name}</span>
@@ -254,7 +256,7 @@ export default function EquipmentWebformsAdmin() {
             </div>
           </div>
         )}
-        <div style={{fontSize: 11, color: '#9ca3af', marginTop: 10}}>
+        <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 10}}>
           Changes auto-save on blur. Live on /equipment/&lt;slug&gt; immediately after save.
         </div>
       </div>
@@ -279,7 +281,7 @@ export default function EquipmentWebformsAdmin() {
         >
           <div
             style={{
-              background: '#f1f3f2',
+              background: 'var(--bg-page)',
               borderRadius: 14,
               width: '100%',
               maxWidth: 880,
@@ -293,7 +295,7 @@ export default function EquipmentWebformsAdmin() {
                 top: 0,
                 zIndex: 2,
                 background: 'white',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 padding: '14px 20px',
                 display: 'flex',
                 alignItems: 'center',
@@ -305,7 +307,7 @@ export default function EquipmentWebformsAdmin() {
                   style={{
                     fontSize: 10,
                     fontWeight: 700,
-                    color: '#6b7280',
+                    color: 'var(--ink-muted)',
                     textTransform: 'uppercase',
                     letterSpacing: 0.5,
                   }}
@@ -316,7 +318,7 @@ export default function EquipmentWebformsAdmin() {
                   style={{
                     fontSize: 16,
                     fontWeight: 700,
-                    color: '#111827',
+                    color: 'var(--ink)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -331,9 +333,9 @@ export default function EquipmentWebformsAdmin() {
                   fontSize: 14,
                   padding: '6px 14px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   fontWeight: 600,
@@ -441,7 +443,7 @@ function IdentityEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Identity{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Equipment name · serial · status
         </span>
       </div>
@@ -534,7 +536,7 @@ function SpecsEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Specs &amp; Fluids{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Part numbers, oils, capacities — auto-saves on blur
         </span>
       </div>
@@ -714,13 +716,13 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Manuals &amp; Videos{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Operator reference — shows on /equipment and /fleet
         </span>
       </div>
       <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       {manuals.length === 0 && (
-        <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic', marginBottom: 8}}>
+        <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 8}}>
           No manuals or videos added yet.
         </div>
       )}
@@ -736,7 +738,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
                 alignItems: 'center',
                 padding: '8px 10px',
                 background: '#fafafa',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 6,
               }}
             >
@@ -767,7 +769,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
                   href={m.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{fontSize: 10, color: '#1d4ed8', textDecoration: 'none', wordBreak: 'break-all'}}
+                  style={{fontSize: 10, color: 'var(--brand)', textDecoration: 'none', wordBreak: 'break-all'}}
                 >
                   {m.url}
                 </a>
@@ -918,13 +920,13 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Admin Documents{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Internal only — invoices, contracts, warranty paperwork. NOT shown on /equipment or /fleet.
         </span>
       </div>
       <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       {docs.length === 0 && (
-        <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic', marginBottom: 8}}>
+        <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 8}}>
           No admin documents uploaded yet.
         </div>
       )}
@@ -940,7 +942,7 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
                 alignItems: 'center',
                 padding: '8px 10px',
                 background: '#fafafa',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 6,
               }}
             >
@@ -971,7 +973,7 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
                   href={d.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{fontSize: 10, color: '#1d4ed8', textDecoration: 'none', wordBreak: 'break-all'}}
+                  style={{fontSize: 10, color: 'var(--brand)', textDecoration: 'none', wordBreak: 'break-all'}}
                 >
                   {d.url}
                 </a>
@@ -1057,7 +1059,7 @@ function WebformHelpTextEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Webform Help Text{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Shown to the team on /equipment/{equipment.slug}
         </span>
       </div>
@@ -1175,7 +1177,7 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Every-fillup Items{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Ticked by the team on every /equipment submission
         </span>
       </div>
@@ -1194,7 +1196,7 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
         />
       </div>
       {items.length === 0 && (
-        <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic', marginBottom: 8}}>
+        <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 8}}>
           No items configured yet.
         </div>
       )}
@@ -1240,7 +1242,7 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
           padding: '10px',
           background: '#fafafa',
           borderRadius: 6,
-          border: '1px dashed #d1d5db',
+          border: '1px dashed var(--border-strong)',
           alignItems: 'center',
         }}
       >
@@ -1392,13 +1394,13 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Service Intervals{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Click an interval to edit its tasks + help text
         </span>
       </div>
       <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       {intervals.length === 0 && (
-        <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic', marginBottom: 8}}>
+        <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 8}}>
           No intervals configured.
         </div>
       )}
@@ -1410,7 +1412,11 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
             return (
               <div
                 key={i}
-                style={{border: '1px solid #e5e7eb', borderRadius: 6, background: isExpanded ? '#f9fafb' : 'white'}}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  background: isExpanded ? 'var(--surface-2)' : 'white',
+                }}
               >
                 <div
                   {...openableProps(() => setExpandedIdx(isExpanded ? null : i))}
@@ -1424,11 +1430,11 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                     cursor: 'pointer',
                   }}
                 >
-                  <span style={{fontSize: 11, color: '#9ca3af'}}>{isExpanded ? '▼' : '▶'}</span>
-                  <span style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>
+                  <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{isExpanded ? '▼' : '▶'}</span>
+                  <span style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
                     {iv.hours_or_km.toLocaleString()} {iv.kind}
                   </span>
-                  <span style={{fontSize: 11, color: '#6b7280'}}>{tasks.length} tasks</span>
+                  <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{tasks.length} tasks</span>
                   <input
                     type="text"
                     defaultValue={iv.label || ''}
@@ -1460,7 +1466,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                   </button>
                 </div>
                 {isExpanded && (
-                  <div style={{borderTop: '1px solid #e5e7eb', padding: '10px 12px'}}>
+                  <div style={{borderTop: '1px solid var(--border)', padding: '10px 12px'}}>
                     <div style={subTitle}>Help text (torque specs, tire pressure, etc. — shown on the webform)</div>
                     <textarea
                       defaultValue={iv.help_text || ''}
@@ -1474,7 +1480,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                     />
                     <div style={subTitle}>Tasks at this interval</div>
                     {tasks.length === 0 && (
-                      <div style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic', marginBottom: 6}}>
+                      <div style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 6}}>
                         No sub-tasks yet. Add below.
                       </div>
                     )}
@@ -1543,7 +1549,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                             title="Drag to reorder"
                             style={{
                               fontSize: 14,
-                              color: '#9ca3af',
+                              color: 'var(--ink-faint)',
                               cursor: 'grab',
                               textAlign: 'center',
                               userSelect: 'none',
@@ -1589,7 +1595,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                         padding: '8px',
                         background: 'white',
                         borderRadius: 5,
-                        border: '1px dashed #d1d5db',
+                        border: '1px dashed var(--border-strong)',
                         alignItems: 'center',
                       }}
                     >
@@ -1634,7 +1640,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
           padding: '10px',
           background: '#fafafa',
           borderRadius: 6,
-          border: '1px dashed #d1d5db',
+          border: '1px dashed var(--border-strong)',
           alignItems: 'center',
         }}
       >
@@ -1768,7 +1774,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
     <div style={card}>
       <div style={sectionTitle}>
         Attachment Checklists{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           Shown as optional sections on the webform
         </span>
       </div>
@@ -1780,7 +1786,11 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
           return (
             <div
               key={i}
-              style={{border: '1px solid #e5e7eb', borderRadius: 6, background: isExpanded ? '#f9fafb' : 'white'}}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                background: isExpanded ? 'var(--surface-2)' : 'white',
+              }}
             >
               <div
                 {...openableProps(() => setExpandedIdx(isExpanded ? null : i))}
@@ -1794,15 +1804,15 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                   cursor: 'pointer',
                 }}
               >
-                <span style={{fontSize: 11, color: '#9ca3af'}}>{isExpanded ? '▼' : '▶'}</span>
-                <span style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>{a.name}</span>
-                <span style={{fontSize: 12, color: '#6b7280'}}>
+                <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{isExpanded ? '▼' : '▶'}</span>
+                <span style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>{a.name}</span>
+                <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                   {a.hours_or_km} {a.kind}
                 </span>
-                <span style={{fontSize: 11, color: '#6b7280'}}>{tasks.length} tasks</span>
+                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{tasks.length} tasks</span>
               </div>
               {isExpanded && (
-                <div style={{borderTop: '1px solid #e5e7eb', padding: '10px 12px'}}>
+                <div style={{borderTop: '1px solid var(--border)', padding: '10px 12px'}}>
                   <div style={subTitle}>Help text</div>
                   <textarea
                     defaultValue={a.help_text || ''}
@@ -1876,7 +1886,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                           title="Drag to reorder"
                           style={{
                             fontSize: 14,
-                            color: '#9ca3af',
+                            color: 'var(--ink-faint)',
                             cursor: 'grab',
                             textAlign: 'center',
                             userSelect: 'none',
@@ -1922,7 +1932,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                       padding: '8px',
                       background: 'white',
                       borderRadius: 5,
-                      border: '1px dashed #d1d5db',
+                      border: '1px dashed var(--border-strong)',
                       alignItems: 'center',
                     }}
                   >

@@ -68,11 +68,11 @@ export default function FuelBillsView() {
       </div>
     );
   }
-  if (loading) return <div style={{padding: 20, fontSize: 13, color: '#6b7280'}}>Loading bills…</div>;
+  if (loading) return <div style={{padding: 20, fontSize: 13, color: 'var(--ink-muted)'}}>Loading bills…</div>;
 
   const card = {
     background: 'white',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '14px 18px',
     marginBottom: 14,
@@ -80,21 +80,23 @@ export default function FuelBillsView() {
   const th = {
     fontSize: 10,
     fontWeight: 700,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     padding: '6px 10px',
     textAlign: 'left',
-    background: '#f9fafb',
-    borderBottom: '1px solid #e5e7eb',
+    background: 'var(--surface-2)',
+    borderBottom: '1px solid var(--border)',
   };
-  const td = {fontSize: 12, padding: '8px 10px', borderBottom: '1px solid #f3f4f6', color: '#111827'};
+  const td = {fontSize: 12, padding: '8px 10px', borderBottom: '1px solid var(--divider)', color: 'var(--ink)'};
 
   return (
     <div>
       <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8}}>
-        <div style={{fontSize: 13, fontWeight: 700, color: '#111827', textTransform: 'uppercase', letterSpacing: 0.4}}>
-          Fuel Bills <span style={{color: '#9ca3af', fontWeight: 500}}>({bills.length} on file)</span>
+        <div
+          style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', textTransform: 'uppercase', letterSpacing: 0.4}}
+        >
+          Fuel Bills <span style={{color: 'var(--ink-faint)', fontWeight: 500}}>({bills.length} on file)</span>
         </div>
         <button
           onClick={() => setUploadOpen(true)}
@@ -127,7 +129,7 @@ export default function FuelBillsView() {
 
       <div style={{...card, padding: 0, overflow: 'hidden'}}>
         {bills.length === 0 ? (
-          <div style={{padding: 24, textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+          <div style={{padding: 24, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
             No bills uploaded yet. Click "+ Upload bill" to parse one.
           </div>
         ) : (
@@ -158,18 +160,21 @@ export default function FuelBillsView() {
                     >
                       <td style={td}>{fmtDate(b.delivery_date)}</td>
                       <td style={{...td, fontWeight: 600}}>{b.invoice_number || '—'}</td>
-                      <td style={{...td, color: '#6b7280'}}>{b.supplier || '—'}</td>
+                      <td style={{...td, color: 'var(--ink-muted)'}}>{b.supplier || '—'}</td>
                       <td style={{...td, textAlign: 'right', color: '#1e40af', fontWeight: 600}}>
                         {Math.round(totalGal).toLocaleString()}
                       </td>
-                      <td style={{...td, textAlign: 'right', color: '#6b7280'}}>{money(b.subtotal)}</td>
+                      <td style={{...td, textAlign: 'right', color: 'var(--ink-muted)'}}>{money(b.subtotal)}</td>
                       <td style={{...td, textAlign: 'right', color: '#9a3412'}}>{money(b.tax_total)}</td>
                       <td style={{...td, textAlign: 'right', color: '#065f46', fontWeight: 700}}>{money(b.total)}</td>
                       <td style={td}>{b.pdf_path ? <PdfLink path={b.pdf_path} /> : '—'}</td>
                     </tr>
                     {open && (
                       <tr>
-                        <td colSpan={8} style={{padding: 0, background: '#fafafa', borderBottom: '1px solid #e5e7eb'}}>
+                        <td
+                          colSpan={8}
+                          style={{padding: 0, background: '#fafafa', borderBottom: '1px solid var(--border)'}}
+                        >
                           <BillDetail bill={b} lines={lines} onChanged={load} />
                         </td>
                       </tr>
@@ -209,7 +214,7 @@ function PdfLink({path}) {
         onClick={open}
         style={{
           fontSize: 11,
-          color: '#1d4ed8',
+          color: 'var(--brand)',
           background: 'none',
           border: 'none',
           textDecoration: 'underline',
@@ -267,11 +272,11 @@ function BillDetail({bill, lines, onChanged}) {
       },
     );
   }
-  const td = {fontSize: 11, padding: '5px 10px', color: '#111827'};
+  const td = {fontSize: 11, padding: '5px 10px', color: 'var(--ink)'};
   const th = {
     fontSize: 9,
     fontWeight: 700,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     padding: '5px 10px',
@@ -290,27 +295,27 @@ function BillDetail({bill, lines, onChanged}) {
         }}
       >
         <div>
-          <span style={{color: '#9ca3af'}}>Invoice date</span>
+          <span style={{color: 'var(--ink-faint)'}}>Invoice date</span>
           <div style={{fontWeight: 600}}>{fmtDate(bill.invoice_date)}</div>
         </div>
         <div>
-          <span style={{color: '#9ca3af'}}>Delivery</span>
+          <span style={{color: 'var(--ink-faint)'}}>Delivery</span>
           <div style={{fontWeight: 600}}>{fmtDate(bill.delivery_date)}</div>
         </div>
         <div>
-          <span style={{color: '#9ca3af'}}>BOL #</span>
+          <span style={{color: 'var(--ink-faint)'}}>BOL #</span>
           <div style={{fontWeight: 600}}>{bill.bol_number || '—'}</div>
         </div>
         <div>
-          <span style={{color: '#9ca3af'}}>Subtotal</span>
+          <span style={{color: 'var(--ink-faint)'}}>Subtotal</span>
           <div style={{fontWeight: 600}}>{money(bill.subtotal)}</div>
         </div>
         <div>
-          <span style={{color: '#9ca3af'}}>Tax</span>
+          <span style={{color: 'var(--ink-faint)'}}>Tax</span>
           <div style={{fontWeight: 600}}>{money(bill.tax_total)}</div>
         </div>
         <div>
-          <span style={{color: '#9ca3af'}}>Total</span>
+          <span style={{color: 'var(--ink-faint)'}}>Total</span>
           <div style={{fontWeight: 600, color: '#065f46'}}>{money(bill.total)}</div>
         </div>
       </div>
@@ -319,7 +324,7 @@ function BillDetail({bill, lines, onChanged}) {
           width: '100%',
           borderCollapse: 'collapse',
           background: 'white',
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--border)',
           borderRadius: 6,
           overflow: 'hidden',
         }}
@@ -522,7 +527,7 @@ function BillUploadModal({onClose, onSaved}) {
   const inp = {
     fontSize: 13,
     padding: '6px 9px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 5,
     fontFamily: 'inherit',
     width: '100%',
@@ -530,7 +535,7 @@ function BillUploadModal({onClose, onSaved}) {
   };
   const lbl = {
     fontSize: 10,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -569,7 +574,7 @@ function BillUploadModal({onClose, onSaved}) {
         <div
           style={{
             padding: '14px 20px',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             gap: 12,
@@ -577,11 +582,17 @@ function BillUploadModal({onClose, onSaved}) {
         >
           <div style={{flex: 1}}>
             <div
-              style={{fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5}}
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: 'var(--ink-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
             >
               Upload
             </div>
-            <div style={{fontSize: 16, fontWeight: 700, color: '#111827'}}>Fuel Bill (PDF)</div>
+            <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>Fuel Bill (PDF)</div>
           </div>
           <button
             onClick={onClose}
@@ -589,9 +600,9 @@ function BillUploadModal({onClose, onSaved}) {
               fontSize: 14,
               padding: '6px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               cursor: 'pointer',
               fontFamily: 'inherit',
               fontWeight: 600,
@@ -605,7 +616,7 @@ function BillUploadModal({onClose, onSaved}) {
           <div
             style={{
               padding: 14,
-              border: '1px dashed #d1d5db',
+              border: '1px dashed var(--border-strong)',
               borderRadius: 8,
               background: '#fafafa',
               marginBottom: 14,
@@ -617,7 +628,7 @@ function BillUploadModal({onClose, onSaved}) {
               onChange={(e) => pickAndParse(e.target.files && e.target.files[0])}
             />
             {file && (
-              <span style={{marginLeft: 10, fontSize: 12, color: '#6b7280'}}>
+              <span style={{marginLeft: 10, fontSize: 12, color: 'var(--ink-muted)'}}>
                 {file.name} · {Math.round(file.size / 1024)} KB
               </span>
             )}
@@ -651,7 +662,7 @@ function BillUploadModal({onClose, onSaved}) {
                 style={{
                   fontSize: 11,
                   fontWeight: 700,
-                  color: '#4b5563',
+                  color: 'var(--ink-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                   marginBottom: 8,
@@ -745,17 +756,17 @@ function BillUploadModal({onClose, onSaved}) {
                 style={{
                   fontSize: 11,
                   fontWeight: 700,
-                  color: '#4b5563',
+                  color: 'var(--ink-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                   marginBottom: 8,
                 }}
               >
-                Line items <span style={{color: '#9ca3af', fontWeight: 400}}>({parsed.lines.length})</span>
+                Line items <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>({parsed.lines.length})</span>
               </div>
               <div style={{overflowX: 'auto', marginBottom: 14}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', minWidth: 780}}>
-                  <thead style={{background: '#f9fafb'}}>
+                  <thead style={{background: 'var(--surface-2)'}}>
                     <tr>
                       <th style={{...td, textAlign: 'left'}}>Description</th>
                       <th style={{...td, textAlign: 'left'}}>Type</th>
@@ -770,7 +781,7 @@ function BillUploadModal({onClose, onSaved}) {
                   </thead>
                   <tbody>
                     {parsed.lines.map((l, i) => (
-                      <tr key={i} style={{borderTop: '1px solid #f3f4f6'}}>
+                      <tr key={i} style={{borderTop: '1px solid var(--divider)'}}>
                         <td style={td}>
                           <input
                             style={{...inp, fontSize: 11}}
@@ -835,9 +846,9 @@ function BillUploadModal({onClose, onSaved}) {
                   style={{
                     padding: '8px 16px',
                     borderRadius: 6,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#374151',
+                    color: 'var(--ink)',
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -868,7 +879,7 @@ function BillUploadModal({onClose, onSaved}) {
           )}
 
           {!parsed && !parsing && (
-            <div style={{padding: 30, textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+            <div style={{padding: 30, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
               Pick a Home Oil PDF to parse. Other suppliers may need manual edits after parsing.
             </div>
           )}

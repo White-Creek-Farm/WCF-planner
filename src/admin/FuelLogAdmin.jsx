@@ -81,7 +81,7 @@ export default function FuelLogAdmin() {
 
   const card = {
     background: 'white',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '14px 18px',
     marginBottom: 14,
@@ -89,15 +89,15 @@ export default function FuelLogAdmin() {
   const th = {
     fontSize: 10,
     fontWeight: 700,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     padding: '6px 10px',
     textAlign: 'left',
-    background: '#f9fafb',
-    borderBottom: '1px solid #e5e7eb',
+    background: 'var(--surface-2)',
+    borderBottom: '1px solid var(--border)',
   };
-  const td = {fontSize: 12, padding: '8px 10px', borderBottom: '1px solid #f3f4f6', color: '#111827'};
+  const td = {fontSize: 12, padding: '8px 10px', borderBottom: '1px solid var(--divider)', color: 'var(--ink)'};
 
   const tabBtn = (id, label) => {
     const on = mode === id;
@@ -108,9 +108,9 @@ export default function FuelLogAdmin() {
         style={{
           padding: '7px 14px',
           borderRadius: 6,
-          border: on ? '2px solid #085041' : '1px solid #d1d5db',
-          background: on ? '#085041' : 'white',
-          color: on ? 'white' : '#374151',
+          border: on ? '2px solid var(--brand)' : '1px solid var(--border-strong)',
+          background: 'white',
+          color: on ? 'var(--brand)' : 'var(--ink-muted)',
           fontSize: 12,
           fontWeight: on ? 700 : 500,
           cursor: 'pointer',
@@ -141,7 +141,7 @@ export default function FuelLogAdmin() {
             </div>
           )}
           {loading && !missingSchema && (
-            <div style={{padding: 20, fontSize: 13, color: '#6b7280'}}>Loading fuel supplies…</div>
+            <div style={{padding: 20, fontSize: 13, color: 'var(--ink-muted)'}}>Loading fuel supplies…</div>
           )}
           {!loading && !missingSchema && (
             <>
@@ -184,7 +184,7 @@ export default function FuelLogAdmin() {
                       href="/equipment/supply"
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{fontSize: 13, color: '#1d4ed8', fontFamily: 'monospace'}}
+                      style={{fontSize: 13, color: 'var(--brand)', fontFamily: 'monospace'}}
                     >
                       /equipment/supply
                     </a>
@@ -204,12 +204,13 @@ export default function FuelLogAdmin() {
                   style={{
                     fontSize: 13,
                     fontWeight: 700,
-                    color: '#111827',
+                    color: 'var(--ink)',
                     textTransform: 'uppercase',
                     letterSpacing: 0.4,
                   }}
                 >
-                  Fuel Supply Ledger <span style={{color: '#9ca3af', fontWeight: 500}}>({rows.length} entries)</span>
+                  Fuel Supply Ledger{' '}
+                  <span style={{color: 'var(--ink-faint)', fontWeight: 500}}>({rows.length} entries)</span>
                 </div>
                 <button
                   onClick={() => {
@@ -246,9 +247,11 @@ export default function FuelLogAdmin() {
               )}
 
               {/* Ledger table */}
-              <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}>
+              <div
+                style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'}}
+              >
                 {rows.length === 0 ? (
-                  <div style={{padding: 20, textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+                  <div style={{padding: 20, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
                     No fuel supplies logged yet.
                   </div>
                 ) : (
@@ -328,12 +331,14 @@ export default function FuelLogAdmin() {
                               </span>
                             </td>
                             <td style={td}>{r.team_member || '—'}</td>
-                            <td style={{...td, color: '#6b7280'}}>{r.supplier || '—'}</td>
-                            <td style={{...td, textAlign: 'right', color: '#6b7280'}}>{money(r.cost_per_gal)}</td>
+                            <td style={{...td, color: 'var(--ink-muted)'}}>{r.supplier || '—'}</td>
+                            <td style={{...td, textAlign: 'right', color: 'var(--ink-muted)'}}>
+                              {money(r.cost_per_gal)}
+                            </td>
                             <td style={{...td, textAlign: 'right', color: '#065f46', fontWeight: 600}}>
                               {money(r.total_cost)}
                             </td>
-                            <td style={{...td, color: '#9ca3af', fontSize: 11}}>edit ▸</td>
+                            <td style={{...td, color: 'var(--ink-faint)', fontSize: 11}}>edit ▸</td>
                           </tr>
                         );
                       })}
@@ -351,30 +356,30 @@ export default function FuelLogAdmin() {
 
 function TotalsCard({title, t}) {
   return (
-    <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 18px'}}>
+    <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px'}}>
       <div
         style={{
           fontSize: 11,
           fontWeight: 700,
-          color: '#6b7280',
+          color: 'var(--ink-muted)',
           textTransform: 'uppercase',
           letterSpacing: 0.4,
           marginBottom: 8,
         }}
       >
-        {title} <span style={{color: '#9ca3af', fontWeight: 500}}>({t.n} entries)</span>
+        {title} <span style={{color: 'var(--ink-faint)', fontWeight: 500}}>({t.n} entries)</span>
       </div>
       <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
         <div>
-          <div style={{fontSize: 10, color: '#9ca3af', textTransform: 'uppercase'}}>Total gallons</div>
-          <div style={{fontSize: 22, fontWeight: 700, color: '#111827'}}>{Math.round(t.all).toLocaleString()}</div>
+          <div style={{fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase'}}>Total gallons</div>
+          <div style={{fontSize: 22, fontWeight: 700, color: 'var(--ink)'}}>{Math.round(t.all).toLocaleString()}</div>
         </div>
         <div>
-          <div style={{fontSize: 10, color: '#9ca3af', textTransform: 'uppercase'}}>Spend</div>
+          <div style={{fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase'}}>Spend</div>
           <div style={{fontSize: 22, fontWeight: 700, color: '#065f46'}}>{money(t.cost)}</div>
         </div>
       </div>
-      <div style={{display: 'flex', gap: 8, marginTop: 10, fontSize: 11, color: '#6b7280', flexWrap: 'wrap'}}>
+      <div style={{display: 'flex', gap: 8, marginTop: 10, fontSize: 11, color: 'var(--ink-muted)', flexWrap: 'wrap'}}>
         <span>
           Diesel: <strong style={{color: '#1e40af'}}>{Math.round(t.diesel).toLocaleString()}</strong>
         </span>
@@ -446,7 +451,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
   const inp = {
     fontSize: 13,
     padding: '6px 9px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 5,
     fontFamily: 'inherit',
     width: '100%',
@@ -454,7 +459,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
   };
   const lbl = {
     fontSize: 10,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -466,7 +471,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
     <div
       style={{
         background: '#fafafa',
-        border: '1px solid #e5e7eb',
+        border: '1px solid var(--border)',
         borderRadius: 8,
         padding: '14px 18px',
         margin: isNew ? '0 0 14px' : 0,
@@ -598,9 +603,9 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
           style={{
             padding: '6px 16px',
             borderRadius: 5,
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--border-strong)',
             background: 'white',
-            color: '#374151',
+            color: 'var(--ink)',
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',

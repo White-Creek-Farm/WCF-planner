@@ -54,7 +54,7 @@ const NutritionTargetsPanel = ({sb}) => {
   const inpS = {
     fontSize: 13,
     padding: '5px 8px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 5,
     fontFamily: 'inherit',
     width: 80,
@@ -66,17 +66,17 @@ const NutritionTargetsPanel = ({sb}) => {
 
   return (
     <div style={{marginTop: 16}}>
-      <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '20px'}}>
+      <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: '20px'}}>
         <div style={{marginBottom: 4}}>
-          <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2}}>Nutrition Targets</div>
-          <div style={{fontSize: 12, color: '#6b7280'}}>
+          <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 2}}>Nutrition Targets</div>
+          <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>
             Per-herd daily intake targets used by the dashboard rolling-window comparison and the recommendation engine.
           </div>
         </div>
-        <div style={{height: 1, background: '#e5e7eb', margin: '14px 0'}} />
+        <div style={{height: 1, background: 'var(--border)', margin: '14px 0'}} />
 
         {loading && (
-          <div style={{textAlign: 'center', padding: '1rem', color: '#9ca3af', fontSize: 13}}>
+          <div style={{textAlign: 'center', padding: '1rem', color: 'var(--ink-faint)', fontSize: 13}}>
             Loading targets{'\u2026'}
           </div>
         )}
@@ -84,13 +84,13 @@ const NutritionTargetsPanel = ({sb}) => {
           <div style={{overflowX: 'auto'}}>
             <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 700}}>
               <thead>
-                <tr style={{background: '#f9fafb', borderBottom: '1px solid #e5e7eb'}}>
+                <tr style={{background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'}}>
                   <th
                     style={{
                       padding: '8px 10px',
                       textAlign: 'left',
                       fontWeight: 700,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -103,7 +103,7 @@ const NutritionTargetsPanel = ({sb}) => {
                       padding: '8px 10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -116,7 +116,7 @@ const NutritionTargetsPanel = ({sb}) => {
                       padding: '8px 10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -129,7 +129,7 @@ const NutritionTargetsPanel = ({sb}) => {
                       padding: '8px 10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -142,7 +142,7 @@ const NutritionTargetsPanel = ({sb}) => {
                       padding: '8px 10px',
                       textAlign: 'left',
                       fontWeight: 700,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -159,9 +159,9 @@ const NutritionTargetsPanel = ({sb}) => {
                   return (
                     <tr
                       key={h}
-                      style={{borderBottom: '1px solid #f3f4f6', background: i % 2 === 0 ? 'white' : '#fafafa'}}
+                      style={{borderBottom: '1px solid var(--divider)', background: i % 2 === 0 ? 'white' : '#fafafa'}}
                     >
-                      <td style={{padding: '8px 10px', fontWeight: 700, color: '#111827'}}>{HERD_LABELS[h]}</td>
+                      <td style={{padding: '8px 10px', fontWeight: 700, color: 'var(--ink)'}}>{HERD_LABELS[h]}</td>
                       <td style={{padding: '8px 10px', textAlign: 'right'}}>
                         <input
                           type="number"
@@ -209,7 +209,7 @@ const NutritionTargetsPanel = ({sb}) => {
                           padding: '8px 10px',
                           textAlign: 'center',
                           fontSize: 10,
-                          color: savingHerd === h ? '#065f46' : '#9ca3af',
+                          color: savingHerd === h ? '#065f46' : 'var(--ink-faint)',
                           fontWeight: 600,
                         }}
                       >

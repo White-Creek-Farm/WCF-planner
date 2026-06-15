@@ -24,7 +24,7 @@ import {openableProps} from '../shared/openable.js';
 const inpS = {
   fontSize: 12,
   padding: '6px 8px',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-strong)',
   borderRadius: 5,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
@@ -33,14 +33,14 @@ const inpS = {
 const sectionTitle = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#4b5563',
+  color: 'var(--ink-muted)',
   textTransform: 'uppercase',
   letterSpacing: 0.5,
   marginBottom: 8,
 };
 const subTitle = {
   fontSize: 10,
-  color: '#6b7280',
+  color: 'var(--ink-muted)',
   fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: 0.4,
@@ -48,7 +48,7 @@ const subTitle = {
 };
 const card = {
   background: 'white',
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--border)',
   borderRadius: 12,
   padding: '14px 20px',
   marginBottom: 14,
@@ -310,11 +310,11 @@ export default function EquipmentMaterialsEditor({equipment}) {
     <div style={card} data-equipment-materials-editor={equipment.id}>
       <div style={sectionTitle}>
         Materials{' '}
-        <span style={{color: '#9ca3af', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
+        <span style={{color: 'var(--ink-faint)', fontWeight: 400, fontSize: 10, marginLeft: 8}}>
           What parts/consumables this piece needs at each service
         </span>
       </div>
-      {loading && <div style={{fontSize: 12, color: '#9ca3af'}}>Loading…</div>}
+      {loading && <div style={{fontSize: 12, color: 'var(--ink-faint)'}}>Loading…</div>}
       {!loading && err && (
         <div
           style={{
@@ -331,7 +331,7 @@ export default function EquipmentMaterialsEditor({equipment}) {
         </div>
       )}
       {!loading && groups.length === 0 && (
-        <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic'}}>
+        <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic'}}>
           No service intervals or attachment checklists configured. Add intervals first.
         </div>
       )}
@@ -343,9 +343,9 @@ export default function EquipmentMaterialsEditor({equipment}) {
               <div
                 key={g.key}
                 style={{
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
-                  background: isExpanded ? '#f9fafb' : 'white',
+                  background: isExpanded ? 'var(--surface-2)' : 'white',
                 }}
                 data-materials-group={g.key}
               >
@@ -360,8 +360,8 @@ export default function EquipmentMaterialsEditor({equipment}) {
                     cursor: 'pointer',
                   }}
                 >
-                  <span style={{fontSize: 11, color: '#9ca3af', minWidth: 14}}>{isExpanded ? '▼' : '▶'}</span>
-                  <span style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>{g.label}</span>
+                  <span style={{fontSize: 11, color: 'var(--ink-faint)', minWidth: 14}}>{isExpanded ? '▼' : '▶'}</span>
+                  <span style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>{g.label}</span>
                   {g.orphan && (
                     <span
                       style={{
@@ -377,14 +377,14 @@ export default function EquipmentMaterialsEditor({equipment}) {
                       no matching service
                     </span>
                   )}
-                  <span style={{fontSize: 11, color: '#6b7280', marginLeft: 'auto'}}>
+                  <span style={{fontSize: 11, color: 'var(--ink-muted)', marginLeft: 'auto'}}>
                     {g.materials.length} {g.materials.length === 1 ? 'material' : 'materials'}
                   </span>
                 </div>
                 {isExpanded && (
-                  <div style={{borderTop: '1px solid #e5e7eb', padding: '10px 12px'}}>
+                  <div style={{borderTop: '1px solid var(--border)', padding: '10px 12px'}}>
                     {g.materials.length === 0 && (
-                      <div style={{fontSize: 11, color: '#9ca3af', fontStyle: 'italic', marginBottom: 6}}>
+                      <div style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 6}}>
                         No materials yet. Add below.
                       </div>
                     )}
@@ -539,9 +539,9 @@ function AddMaterialRow({group, busy, onAdd}) {
         style={{
           padding: '5px 12px',
           borderRadius: 5,
-          border: '1px solid #d1d5db',
+          border: '1px solid var(--border-strong)',
           background: !name.trim() ? '#f3f4f6' : 'white',
-          color: !name.trim() ? '#9ca3af' : '#085041',
+          color: !name.trim() ? 'var(--ink-faint)' : '#085041',
           fontSize: 12,
           fontWeight: 600,
           cursor: !name.trim() ? 'not-allowed' : 'pointer',

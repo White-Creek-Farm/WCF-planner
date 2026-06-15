@@ -671,28 +671,31 @@ const LivestockFeedInputsPanel = ({sb}) => {
   const inpS = {
     fontSize: 13,
     padding: '7px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
   };
-  const lbl = {fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500};
+  const lbl = {fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500};
 
   function renderFeedTable(rows, section) {
     return (
-      <div data-feed-inputs-table={section} style={{border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden'}}>
+      <div
+        data-feed-inputs-table={section}
+        style={{border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden'}}
+      >
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: FEED_GRID_COLUMNS,
             gap: 0,
-            background: '#f9fafb',
-            borderBottom: '1px solid #e5e7eb',
+            background: 'var(--surface-2)',
+            borderBottom: '1px solid var(--border)',
             padding: '6px 10px',
             fontSize: 10,
             fontWeight: 700,
-            color: '#4b5563',
+            color: 'var(--ink-muted)',
             textTransform: 'uppercase',
             letterSpacing: 0.5,
           }}
@@ -727,7 +730,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 padding: '8px 10px',
                 fontSize: 12,
                 alignItems: 'center',
-                borderBottom: i < rows.length - 1 ? '1px solid #f3f4f6' : 'none',
+                borderBottom: i < rows.length - 1 ? '1px solid var(--divider)' : 'none',
                 cursor: 'pointer',
                 background: i % 2 ? '#fafafa' : 'white',
                 opacity: inactive ? 0.55 : 1,
@@ -737,7 +740,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
               <span
                 style={{
                   fontWeight: 700,
-                  color: '#111827',
+                  color: 'var(--ink)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -775,28 +778,30 @@ const LivestockFeedInputsPanel = ({sb}) => {
               >
                 {cat.l}
               </span>
-              <span style={{textAlign: 'right', color: '#374151'}}>
+              <span style={{textAlign: 'right', color: 'var(--ink)'}}>
                 {f.unit}
                 {f.unit_weight_lbs ? ' \u00b7 ' + f.unit_weight_lbs + ' lb' : ''}
               </span>
               <span
                 style={{
                   textAlign: 'right',
-                  color: dm != null ? '#065f46' : '#9ca3af',
+                  color: dm != null ? '#065f46' : 'var(--ink-faint)',
                   fontWeight: dm != null ? 600 : 400,
                 }}
               >
                 {dm != null ? Math.round(dm * 10) / 10 + ' lb' : '\u2014'}
               </span>
-              <span style={{textAlign: 'right', color: '#4b5563'}}>
+              <span style={{textAlign: 'right', color: 'var(--ink-muted)'}}>
                 {f.moisture_pct != null ? f.moisture_pct + '%' : '\u2014'}
               </span>
-              <span style={{textAlign: 'right', color: '#4b5563'}}>
+              <span style={{textAlign: 'right', color: 'var(--ink-muted)'}}>
                 {f.protein_pct != null || f.nfc_pct != null
                   ? (f.protein_pct ?? '\u2014') + '/' + (f.nfc_pct ?? '\u2014')
                   : '\u2014'}
               </span>
-              <span style={{textAlign: 'right', color: lpl ? '#065f46' : '#9ca3af', fontWeight: lpl ? 600 : 400}}>
+              <span
+                style={{textAlign: 'right', color: lpl ? '#065f46' : 'var(--ink-faint)', fontWeight: lpl ? 600 : 400}}
+              >
                 {lpl != null ? '$' + lpl.toFixed(3) : '\u2014'}
               </span>
               <span style={{display: 'flex', gap: 4, justifyContent: 'flex-end'}}>
@@ -829,9 +834,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   style={{
                     padding: '3px 8px',
                     borderRadius: 5,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#4b5563',
+                    color: 'var(--ink-muted)',
                     fontSize: 10,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -850,21 +855,25 @@ const LivestockFeedInputsPanel = ({sb}) => {
 
   return (
     <div style={{marginTop: 16}}>
-      <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '20px'}}>
+      <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: '20px'}}>
         <div
           {...openableProps(() => setExpanded(!expanded))}
           className="hoverable-tile"
           style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 10}}
         >
           <div style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1}}>
-            <span style={{fontSize: 12, color: '#6b7280'}}>{expanded ? '\u25bc' : '\u25b6'}</span>
+            <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{expanded ? '\u25bc' : '\u25b6'}</span>
             <div>
-              <div style={{fontSize: 15, fontWeight: 700, color: '#111827'}}>
+              <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)'}}>
                 {'Cattle & Sheep Inputs '}
-                <span style={{fontSize: 12, fontWeight: 400, color: '#6b7280'}}>{'(' + feeds.length + ')'}</span>
+                <span style={{fontSize: 12, fontWeight: 400, color: 'var(--ink-muted)'}}>
+                  {'(' + feeds.length + ')'}
+                </span>
               </div>
               {!expanded && (
-                <div style={{fontSize: 11, color: '#9ca3af', marginTop: 2}}>Click to expand the master feed list.</div>
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 2}}>
+                  Click to expand the master feed list.
+                </div>
               )}
             </div>
           </div>
@@ -894,7 +903,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
 
         {expanded && (
           <>
-            <div style={{fontSize: 12, color: '#6b7280', marginTop: 8}}>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 8}}>
               Master list of every cattle and sheep hay, pellet, liquid, mineral, and supplement used on-farm. Nutrition
               values are snapshotted onto daily reports at submit time {'\u2014'} editing an input here doesn{'\u2019'}t
               rewrite historical reports.
@@ -904,7 +913,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
               </div>
             )}
-            <div style={{height: 1, background: '#e5e7eb', margin: '14px 0'}} />
+            <div style={{height: 1, background: 'var(--border)', margin: '14px 0'}} />
 
             {/* Filter chips */}
             <div style={{display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap'}}>
@@ -918,9 +927,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                     style={{
                       padding: '4px 10px',
                       borderRadius: 14,
-                      border: '1px solid ' + (active ? '#085041' : '#d1d5db'),
-                      background: active ? '#085041' : 'white',
-                      color: active ? 'white' : '#374151',
+                      border: '1px solid ' + (active ? 'var(--brand)' : 'var(--border-strong)'),
+                      background: 'white',
+                      color: active ? 'var(--brand)' : 'var(--ink-muted)',
                       fontSize: 11,
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -934,12 +943,12 @@ const LivestockFeedInputsPanel = ({sb}) => {
             </div>
 
             {loading && (
-              <div style={{textAlign: 'center', padding: '1.5rem', color: '#9ca3af', fontSize: 13}}>
+              <div style={{textAlign: 'center', padding: '1.5rem', color: 'var(--ink-faint)', fontSize: 13}}>
                 Loading feeds{'\u2026'}
               </div>
             )}
             {!loading && filteredFeeds.length === 0 && (
-              <div style={{textAlign: 'center', padding: '1.5rem', color: '#9ca3af', fontSize: 13}}>
+              <div style={{textAlign: 'center', padding: '1.5rem', color: 'var(--ink-faint)', fontSize: 13}}>
                 No feeds in this category.
               </div>
             )}
@@ -957,11 +966,11 @@ const LivestockFeedInputsPanel = ({sb}) => {
                     <div
                       data-feed-inputs-empty-active="1"
                       style={{
-                        border: '1px solid #e5e7eb',
+                        border: '1px solid var(--border)',
                         borderRadius: 8,
                         padding: '12px',
                         fontSize: 12,
-                        color: '#9ca3af',
+                        color: 'var(--ink-faint)',
                       }}
                     >
                       No active feeds in this category.
@@ -983,9 +992,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         gap: 8,
                         padding: '9px 10px',
                         borderRadius: 8,
-                        border: '1px solid #e5e7eb',
-                        background: '#f9fafb',
-                        color: '#374151',
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface-2)',
+                        color: 'var(--ink)',
                         cursor: 'pointer',
                         fontFamily: 'inherit',
                         fontSize: 12,
@@ -993,7 +1002,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         textAlign: 'left',
                       }}
                     >
-                      <span style={{fontSize: 11, color: '#6b7280'}}>{showInactiveFeeds ? '\u25bc' : '\u25b6'}</span>
+                      <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
+                        {showInactiveFeeds ? '\u25bc' : '\u25b6'}
+                      </span>
                       <span>Inactive feeds ({inactiveFeeds.length})</span>
                     </button>
                     {showInactiveFeeds && (
@@ -1040,7 +1051,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1049,16 +1060,22 @@ const LivestockFeedInputsPanel = ({sb}) => {
               <div style={{fontSize: 15, fontWeight: 600, color: '#085041'}}>
                 {editingId ? 'Edit Feed' : 'New Feed'}
                 {editingId && (
-                  <span style={{fontSize: 11, fontWeight: 400, color: '#9ca3af', marginLeft: 8}}>
+                  <span style={{fontSize: 11, fontWeight: 400, color: 'var(--ink-faint)', marginLeft: 8}}>
                     Auto-saves as you type
                   </span>
                 )}
               </div>
               <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
-                {saving && <span style={{fontSize: 11, color: '#9ca3af'}}>{'Saving\u2026'}</span>}
+                {saving && <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'Saving\u2026'}</span>}
                 <button
                   onClick={cancelForm}
-                  style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 22,
+                    cursor: 'pointer',
+                    color: 'var(--ink-faint)',
+                  }}
                 >
                   {'\u00d7'}
                 </button>
@@ -1087,7 +1104,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   style={inpS}
                 />
                 {!editingId && form.name && (
-                  <div style={{fontSize: 10, color: '#9ca3af', marginTop: 2}}>
+                  <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 2}}>
                     ID:{' '}
                     {form.name
                       .toLowerCase()
@@ -1141,12 +1158,12 @@ const LivestockFeedInputsPanel = ({sb}) => {
                     <div
                       style={{
                         padding: '7px 10px',
-                        background: '#f9fafb',
-                        border: '1px solid #e5e7eb',
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--border)',
                         borderRadius: 6,
                         fontSize: 13,
                         fontWeight: 700,
-                        color: dm != null ? '#065f46' : '#9ca3af',
+                        color: dm != null ? '#065f46' : 'var(--ink-faint)',
                       }}
                     >
                       {dm != null ? Math.round(dm * 10) / 10 + ' lbs DM' : '\u2014'}
@@ -1156,8 +1173,16 @@ const LivestockFeedInputsPanel = ({sb}) => {
               </div>
 
               {/* Cost section */}
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
-                <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 8}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4}}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: 'var(--ink-muted)',
+                    letterSpacing: 0.5,
+                    marginBottom: 8,
+                  }}
+                >
                   {'\ud83d\udcb0 LANDED COST'}
                 </div>
               </div>
@@ -1201,12 +1226,12 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 <div
                   style={{
                     padding: '7px 10px',
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
                     borderRadius: 6,
                     fontSize: 13,
                     fontWeight: 700,
-                    color: landedPerLb(form) ? '#065f46' : '#9ca3af',
+                    color: landedPerLb(form) ? '#065f46' : 'var(--ink-faint)',
                   }}
                 >
                   {landedPerLb(form) != null ? '$' + landedPerLb(form).toFixed(4) + ' / lb' : '\u2014'}
@@ -1214,10 +1239,18 @@ const LivestockFeedInputsPanel = ({sb}) => {
               </div>
 
               {/* Nutrition */}
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
-                <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 4}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4}}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: 'var(--ink-muted)',
+                    letterSpacing: 0.5,
+                    marginBottom: 4,
+                  }}
+                >
                   {'\ud83e\uddea NUTRITION'}{' '}
-                  <span style={{fontWeight: 400, color: '#9ca3af'}}>
+                  <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>
                     (manual entry for now; test PDF upload in next build step)
                   </span>
                 </div>
@@ -1264,13 +1297,13 @@ const LivestockFeedInputsPanel = ({sb}) => {
 
               {/* Test history — only for existing feeds */}
               {editingId && (
-                <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
+                <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4}}>
                   <div
                     style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}
                   >
-                    <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5}}>
+                    <div style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-muted)', letterSpacing: 0.5}}>
                       {'\ud83d\udcc4 TEST RESULTS'}{' '}
-                      <span style={{fontWeight: 400, color: '#9ca3af'}}>({feedTests.length} on file)</span>
+                      <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>({feedTests.length} on file)</span>
                     </div>
                     {!showTestForm && (
                       <button
@@ -1428,9 +1461,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                           style={{
                             padding: '6px 12px',
                             borderRadius: 6,
-                            border: '1px solid #d1d5db',
+                            border: '1px solid var(--border-strong)',
                             background: 'white',
-                            color: '#6b7280',
+                            color: 'var(--ink-muted)',
                             fontSize: 12,
                             cursor: 'pointer',
                             fontFamily: 'inherit',
@@ -1443,7 +1476,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   )}
 
                   {feedTests.length === 0 && !showTestForm && (
-                    <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic', padding: '4px 0'}}>
+                    <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', padding: '4px 0'}}>
                       No test results on file.
                     </div>
                   )}
@@ -1456,8 +1489,8 @@ const LivestockFeedInputsPanel = ({sb}) => {
                       <div
                         key={t.id}
                         style={{
-                          background: isLatest ? '#ecfdf5' : '#f9fafb',
-                          border: '1px solid ' + (isLatest ? '#a7f3d0' : '#e5e7eb'),
+                          background: isLatest ? '#ecfdf5' : 'var(--surface-2)',
+                          border: '1px solid ' + (isLatest ? '#a7f3d0' : 'var(--border)'),
                           borderRadius: 8,
                           padding: '8px 12px',
                           marginBottom: 6,
@@ -1467,7 +1500,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                           flexWrap: 'wrap',
                         }}
                       >
-                        <span style={{fontSize: 11, fontWeight: 700, color: '#111827', minWidth: 100}}>
+                        <span style={{fontSize: 11, fontWeight: 700, color: 'var(--ink)', minWidth: 100}}>
                           {t.effective_date || 'Unknown date'}
                         </span>
                         {isLatest && (
@@ -1486,21 +1519,23 @@ const LivestockFeedInputsPanel = ({sb}) => {
                           </span>
                         )}
                         {t.moisture_pct != null && (
-                          <span style={{fontSize: 11, color: '#4b5563'}}>Moist {t.moisture_pct}%</span>
+                          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Moist {t.moisture_pct}%</span>
                         )}
-                        {t.nfc_pct != null && <span style={{fontSize: 11, color: '#4b5563'}}>NFC {t.nfc_pct}% DM</span>}
+                        {t.nfc_pct != null && (
+                          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>NFC {t.nfc_pct}% DM</span>
+                        )}
                         {t.protein_pct != null && (
-                          <span style={{fontSize: 11, color: '#4b5563'}}>CP {t.protein_pct}% DM</span>
+                          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>CP {t.protein_pct}% DM</span>
                         )}
                         {t.bale_weight_lbs != null && (
-                          <span style={{fontSize: 11, color: '#4b5563'}}>Bale {t.bale_weight_lbs} lb</span>
+                          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Bale {t.bale_weight_lbs} lb</span>
                         )}
                         {pdfUrl && (
                           <a
                             href={pdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{fontSize: 11, color: '#1d4ed8', fontWeight: 600, textDecoration: 'none'}}
+                            style={{fontSize: 11, color: 'var(--brand)', fontWeight: 600, textDecoration: 'none'}}
                           >
                             View PDF
                           </a>
@@ -1511,7 +1546,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                             onClick={() => openEditTest(t)}
                             style={{
                               fontSize: 11,
-                              color: '#1d4ed8',
+                              color: 'var(--brand)',
                               background: 'none',
                               border: 'none',
                               cursor: 'pointer',
@@ -1542,10 +1577,18 @@ const LivestockFeedInputsPanel = ({sb}) => {
               )}
 
               {/* Herd scope */}
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
-                <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 8}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4}}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: 'var(--ink-muted)',
+                    letterSpacing: 0.5,
+                    marginBottom: 8,
+                  }}
+                >
                   {renderCattleIconLabel('HERD / FLOCK SCOPE', {size: 16})}{' '}
-                  <span style={{fontWeight: 400, color: '#9ca3af'}}>
+                  <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>
                     (which herds/flocks see this in webform dropdowns)
                   </span>
                 </div>
@@ -1560,9 +1603,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         style={{
                           padding: '6px 14px',
                           borderRadius: 7,
-                          border: '1px solid ' + (on ? '#085041' : '#d1d5db'),
+                          border: '1px solid ' + (on ? '#085041' : 'var(--border-strong)'),
                           background: on ? '#ecfdf5' : 'white',
-                          color: on ? '#085041' : '#6b7280',
+                          color: on ? '#085041' : 'var(--ink-muted)',
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
@@ -1578,7 +1621,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
               </div>
 
               {/* Status + notes */}
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4}}>
                 <label style={lbl}>Status</label>
                 <select
                   value={form.status}
@@ -1599,7 +1642,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 />
               </div>
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               {!editingId && (
                 <button
                   onClick={closeForm}
@@ -1640,9 +1683,9 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 style={{
                   padding: '8px 16px',
                   borderRadius: 7,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   fontSize: 13,
                   cursor: 'pointer',
                   fontFamily: 'inherit',

@@ -191,7 +191,7 @@ export default function ActivityLogView({Header}) {
   const inputStyle = {
     padding: '6px 10px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
     background: 'white',
@@ -200,7 +200,7 @@ export default function ActivityLogView({Header}) {
   return React.createElement(
     'div',
     {
-      style: {minHeight: '100vh', background: '#f9fafb'},
+      style: {minHeight: '100vh', background: 'var(--bg-page)'},
       'data-view': 'activity-log',
       'data-activity-log-loaded': loading || loadError ? 'false' : 'true',
     },
@@ -208,10 +208,10 @@ export default function ActivityLogView({Header}) {
     React.createElement(
       'div',
       {style: {maxWidth: 880, margin: '0 auto', padding: '16px 18px'}},
-      React.createElement('h1', {style: {fontSize: 20, margin: '0 0 4px', color: '#111827'}}, 'Activity Log'),
+      React.createElement('h1', {style: {fontSize: 20, margin: '0 0 4px', color: 'var(--ink)'}}, 'Activity Log'),
       React.createElement(
         'div',
-        {style: {fontSize: 12, color: '#6b7280', marginBottom: 14}},
+        {style: {fontSize: 12, color: 'var(--ink-muted)', marginBottom: 14}},
         'Farm-wide activity timeline. Shows comments, completions, and events you have access to.',
       ),
 
@@ -261,9 +261,9 @@ export default function ActivityLogView({Header}) {
             style: {
               padding: '6px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -281,9 +281,9 @@ export default function ActivityLogView({Header}) {
             style: {
               padding: '6px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -329,7 +329,7 @@ export default function ActivityLogView({Header}) {
         rows.length === 0 &&
         React.createElement(
           'div',
-          {style: {color: '#9ca3af', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
+          {style: {color: 'var(--ink-faint)', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
           'Loading...',
         ),
 
@@ -339,7 +339,7 @@ export default function ActivityLogView({Header}) {
         !loadError &&
         React.createElement(
           'div',
-          {style: {color: '#9ca3af', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
+          {style: {color: 'var(--ink-faint)', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
           'No activity found.',
         ),
 
@@ -361,7 +361,7 @@ export default function ActivityLogView({Header}) {
                 style: {
                   padding: '10px 14px',
                   background: r.deleted_at ? '#fafafa' : 'white',
-                  border: '1px solid #f3f4f6',
+                  border: '1px solid var(--divider)',
                   borderRadius: 6,
                   cursor: routable ? 'pointer' : 'default',
                   display: 'flex',
@@ -379,10 +379,10 @@ export default function ActivityLogView({Header}) {
                 {style: {minWidth: 100, flexShrink: 0}},
                 React.createElement(
                   'div',
-                  {style: {fontWeight: 600, color: '#111827', fontSize: 12}},
+                  {style: {fontWeight: 600, color: 'var(--ink)', fontSize: 12}},
                   r.actor_display_name,
                 ),
-                React.createElement('div', {style: {fontSize: 11, color: '#9ca3af'}}, fmtTime(r.created_at)),
+                React.createElement('div', {style: {fontSize: 11, color: 'var(--ink-faint)'}}, fmtTime(r.created_at)),
               ),
               // Center: event + entity + body
               React.createElement(
@@ -408,25 +408,25 @@ export default function ActivityLogView({Header}) {
                   ),
                   React.createElement(
                     'span',
-                    {style: {fontSize: 11, color: '#6b7280'}},
+                    {style: {fontSize: 11, color: 'var(--ink-muted)'}},
                     ENTITY_TYPE_LABELS[r.entity_type] || r.entity_type,
                   ),
                   React.createElement(
                     'span',
-                    {style: {fontSize: 12, fontWeight: 600, color: '#374151'}},
+                    {style: {fontSize: 12, fontWeight: 600, color: 'var(--ink)'}},
                     r.entity_label || r.entity_id,
                   ),
                 ),
                 r.deleted_at
                   ? React.createElement(
                       'div',
-                      {style: {fontSize: 12, color: '#9ca3af', fontStyle: 'italic'}},
+                      {style: {fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic'}},
                       '(comment deleted)',
                     )
                   : r.body &&
                       React.createElement(
                         'div',
-                        {style: {fontSize: 12, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word'}},
+                        {style: {fontSize: 12, color: 'var(--ink)', whiteSpace: 'pre-wrap', wordBreak: 'break-word'}},
                         r.body.length > 200 ? r.body.slice(0, 200) + '...' : r.body,
                       ),
                 !r.deleted_at &&
@@ -468,7 +468,7 @@ export default function ActivityLogView({Header}) {
                 style: {
                   padding: '6px 18px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
                   fontSize: 12,
                   cursor: loadingMore ? 'default' : 'pointer',

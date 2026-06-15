@@ -100,16 +100,18 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
 
   return (
     <div style={{marginTop: 8}}>
-      <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '20px'}}>
-        <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4}}>Feed Cost by Month</div>
-        <div style={{fontSize: 12, color: '#6b7280', marginBottom: 14}}>
+      <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: '20px'}}>
+        <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 4}}>Feed Cost by Month</div>
+        <div style={{fontSize: 12, color: 'var(--ink-muted)', marginBottom: 14}}>
           Aggregated from daily reports. Broiler / Layer / Pig rates come from <strong>Feed Costs</strong> above. Cattle
           cost per feed comes from the <strong>Cattle & Sheep Inputs</strong> panel (cost per unit + freight amortized
           across units per truck). Current costs apply to all months \u2014 no per-month historical ledger.
         </div>
-        {loading && <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af'}}>{'Loading\u2026'}</div>}
+        {loading && (
+          <div style={{padding: '2rem', textAlign: 'center', color: 'var(--ink-faint)'}}>{'Loading\u2026'}</div>
+        )}
         {!loading && rows.length === 0 && (
-          <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+          <div style={{padding: '2rem', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
             No daily reports with matching feed costs yet. Fill in feed costs above and in Cattle & Sheep Inputs to
             populate this view.
           </div>
@@ -118,13 +120,13 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
           <div style={{overflowX: 'auto'}}>
             <table style={{width: '100%', fontSize: 12, borderCollapse: 'collapse'}}>
               <thead>
-                <tr style={{background: '#f9fafb', borderBottom: '2px solid #e5e7eb'}}>
+                <tr style={{background: 'var(--surface-2)', borderBottom: '2px solid var(--border)'}}>
                   <th
                     style={{
                       padding: '10px',
                       textAlign: 'left',
                       fontWeight: 700,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -189,7 +191,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       padding: '10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#111827',
+                      color: 'var(--ink)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -203,30 +205,54 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                 {rows.map((r, i) => (
                   <tr
                     key={r.month}
-                    style={{borderBottom: '1px solid #f3f4f6', background: i % 2 ? '#fafafa' : 'white'}}
+                    style={{borderBottom: '1px solid var(--divider)', background: i % 2 ? '#fafafa' : 'white'}}
                   >
-                    <td style={{padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#111827'}}>
+                    <td style={{padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--ink)'}}>
                       {fmtMonth(r.month)}
                     </td>
-                    <td style={{padding: '8px 10px', textAlign: 'right', color: r.broiler > 0 ? '#a16207' : '#9ca3af'}}>
+                    <td
+                      style={{
+                        padding: '8px 10px',
+                        textAlign: 'right',
+                        color: r.broiler > 0 ? '#a16207' : 'var(--ink-faint)',
+                      }}
+                    >
                       {fmtCost(r.broiler)}
                     </td>
-                    <td style={{padding: '8px 10px', textAlign: 'right', color: r.layer > 0 ? '#78350f' : '#9ca3af'}}>
+                    <td
+                      style={{
+                        padding: '8px 10px',
+                        textAlign: 'right',
+                        color: r.layer > 0 ? '#78350f' : 'var(--ink-faint)',
+                      }}
+                    >
                       {fmtCost(r.layer)}
                     </td>
-                    <td style={{padding: '8px 10px', textAlign: 'right', color: r.pig > 0 ? '#1e40af' : '#9ca3af'}}>
+                    <td
+                      style={{
+                        padding: '8px 10px',
+                        textAlign: 'right',
+                        color: r.pig > 0 ? '#1e40af' : 'var(--ink-faint)',
+                      }}
+                    >
                       {fmtCost(r.pig)}
                     </td>
-                    <td style={{padding: '8px 10px', textAlign: 'right', color: r.cattle > 0 ? '#991b1b' : '#9ca3af'}}>
+                    <td
+                      style={{
+                        padding: '8px 10px',
+                        textAlign: 'right',
+                        color: r.cattle > 0 ? '#991b1b' : 'var(--ink-faint)',
+                      }}
+                    >
                       {fmtCost(r.cattle)}
                     </td>
-                    <td style={{padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#111827'}}>
+                    <td style={{padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--ink)'}}>
                       {fmtCost(r.total)}
                     </td>
                   </tr>
                 ))}
                 <tr style={{borderTop: '2px solid #111827', background: '#f3f4f6'}}>
-                  <td style={{padding: '10px', textAlign: 'left', fontWeight: 700, color: '#111827', fontSize: 12}}>
+                  <td style={{padding: '10px', textAlign: 'left', fontWeight: 700, color: 'var(--ink)', fontSize: 12}}>
                     All-time total
                   </td>
                   <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: '#a16207'}}>
@@ -241,7 +267,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                   <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: '#991b1b'}}>
                     {fmtCost(totals.cattle)}
                   </td>
-                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: 13}}>
+                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--ink)', fontSize: 13}}>
                     {fmtCost(totals.total)}
                   </td>
                 </tr>

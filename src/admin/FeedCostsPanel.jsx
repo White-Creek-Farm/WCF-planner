@@ -19,7 +19,7 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
   const inpS = {
     fontSize: 13,
     padding: '7px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     fontFamily: 'inherit',
     width: '100%',
@@ -35,17 +35,17 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
 
   return (
     <div style={{marginTop: 8}}>
-      <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '20px'}}>
+      <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: '20px'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4}}>
           <div>
-            <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2}}>Feed Costs</div>
-            <div style={{fontSize: 12, color: '#6b7280'}}>
+            <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 2}}>Feed Costs</div>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>
               Set the cost per pound for each feed type. Active batches update automatically. Retired and processed
               batches keep their locked price.
             </div>
           </div>
         </div>
-        <div style={{height: 1, background: '#e5e7eb', margin: '14px 0'}} />
+        <div style={{height: 1, background: 'var(--border)', margin: '14px 0'}} />
         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 18}}>
           {fields.map(({key, label, icon, color}) => (
             <div key={key}>
@@ -53,7 +53,7 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
                 {icon + ' ' + label}
               </label>
               <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                <span style={{fontSize: 13, color: '#6b7280'}}>$</span>
+                <span style={{fontSize: 13, color: 'var(--ink-muted)'}}>$</span>
                 <input
                   type="number"
                   min="0"
@@ -63,10 +63,10 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
                   placeholder="0.000"
                   style={inpS}
                 />
-                <span style={{fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap'}}>/lb</span>
+                <span style={{fontSize: 12, color: 'var(--ink-faint)', whiteSpace: 'nowrap'}}>/lb</span>
               </div>
               {local[key] > 0 && (
-                <div style={{fontSize: 11, color: '#6b7280', marginTop: 3}}>
+                <div style={{fontSize: 11, color: 'var(--ink-muted)', marginTop: 3}}>
                   ${(local[key] * 100).toFixed(2)} per 100 lbs
                 </div>
               )}
@@ -96,13 +96,13 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
           style={{
             marginTop: 16,
             padding: '10px 14px',
-            background: '#f9fafb',
+            background: 'var(--surface-2)',
             borderRadius: 8,
             fontSize: 12,
-            color: '#6b7280',
+            color: 'var(--ink-muted)',
           }}
         >
-          <strong style={{color: '#374151'}}>Current prices:</strong>{' '}
+          <strong style={{color: 'var(--ink)'}}>Current prices:</strong>{' '}
           {fields.map(({key, label}) => label + ': $' + (feedCosts[key] || 0).toFixed(3) + '/lb').join(' \u00b7 ')}
         </div>
       </div>

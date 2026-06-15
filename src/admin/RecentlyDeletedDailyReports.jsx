@@ -181,7 +181,7 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
 
   return (
     <div data-recently-deleted-dailys-loaded={loading || loadError ? 'false' : 'true'}>
-      <div style={{fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 12}}>Recently Deleted Records</div>
+      <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 12}}>Recently Deleted Records</div>
       <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       {loadError && (
         <div data-recently-deleted-dailys-load-error="true">
@@ -193,7 +193,7 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
             style={{
               padding: '7px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#085041',
               fontSize: 12,
@@ -207,9 +207,11 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
           </button>
         </div>
       )}
-      {loading && <div style={{color: '#9ca3af', fontSize: 13, padding: '2rem 0'}}>Loading...</div>}
+      {loading && <div style={{color: 'var(--ink-faint)', fontSize: 13, padding: '2rem 0'}}>Loading...</div>}
       {!loading && !loadError && rows.length === 0 && (
-        <div style={{color: '#6b7280', fontSize: 13, padding: '2rem 0', textAlign: 'center'}}>No deleted records.</div>
+        <div style={{color: 'var(--ink-muted)', fontSize: 13, padding: '2rem 0', textAlign: 'center'}}>
+          No deleted records.
+        </div>
       )}
       {!loading && !loadError && rows.length > 0 && (
         <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
@@ -226,7 +228,7 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
                   gap: 10,
                   padding: '10px 14px',
                   background: 'white',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   fontSize: 13,
                 }}
@@ -244,11 +246,11 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
                 >
                   {r.tableLabel}
                 </span>
-                <span style={{fontWeight: 600, color: '#111827'}}>{r.date || r.identityLabel || r.id}</span>
-                {r.date && r.identityLabel && <span style={{color: '#6b7280'}}>{r.identityLabel}</span>}
-                {r.detailLabel && <span style={{color: '#6b7280'}}>{r.detailLabel}</span>}
-                {r.team_member && <span style={{color: '#9ca3af', fontSize: 11}}>by {r.team_member}</span>}
-                <span style={{color: '#9ca3af', fontSize: 11, marginLeft: 'auto'}}>
+                <span style={{fontWeight: 600, color: 'var(--ink)'}}>{r.date || r.identityLabel || r.id}</span>
+                {r.date && r.identityLabel && <span style={{color: 'var(--ink-muted)'}}>{r.identityLabel}</span>}
+                {r.detailLabel && <span style={{color: 'var(--ink-muted)'}}>{r.detailLabel}</span>}
+                {r.team_member && <span style={{color: 'var(--ink-faint)', fontSize: 11}}>by {r.team_member}</span>}
+                <span style={{color: 'var(--ink-faint)', fontSize: 11, marginLeft: 'auto'}}>
                   Deleted {fmtDate(r.deleted_at)}
                 </span>
                 <button

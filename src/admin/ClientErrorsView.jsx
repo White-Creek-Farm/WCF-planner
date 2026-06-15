@@ -15,20 +15,20 @@ const PAGE = 100;
 const cellStyle = {
   padding: '8px 10px',
   fontSize: 12,
-  color: '#374151',
-  borderBottom: '1px solid #f3f4f6',
+  color: 'var(--ink)',
+  borderBottom: '1px solid var(--divider)',
   verticalAlign: 'top',
   textAlign: 'left',
 };
 const headStyle = {
   ...cellStyle,
   fontWeight: 700,
-  color: '#6b7280',
+  color: 'var(--ink-muted)',
   textTransform: 'uppercase',
   fontSize: 10,
   position: 'sticky',
   top: 0,
-  background: '#f9fafb',
+  background: 'var(--surface-2)',
 };
 
 function fmtWhen(ts) {
@@ -87,7 +87,7 @@ export default function ClientErrorsView({Header}) {
   return React.createElement(
     'div',
     {
-      style: {minHeight: '100vh', background: '#f9fafb'},
+      style: {minHeight: '100vh', background: 'var(--bg-page)'},
       'data-view': 'client-errors',
       'data-client-errors-loaded': loading || loadError ? 'false' : 'true',
     },
@@ -95,10 +95,10 @@ export default function ClientErrorsView({Header}) {
     React.createElement(
       'div',
       {style: {maxWidth: 1000, margin: '0 auto', padding: '16px 18px'}},
-      React.createElement('h1', {style: {fontSize: 20, margin: '0 0 4px', color: '#111827'}}, 'Client Errors'),
+      React.createElement('h1', {style: {fontSize: 20, margin: '0 0 4px', color: 'var(--ink)'}}, 'Client Errors'),
       React.createElement(
         'div',
-        {style: {fontSize: 12, color: '#6b7280', marginBottom: 14}},
+        {style: {fontSize: 12, color: 'var(--ink-muted)', marginBottom: 14}},
         'Redacted client/runtime errors captured from the app. Admin-only, read-only.',
       ),
 
@@ -134,7 +134,7 @@ export default function ClientErrorsView({Header}) {
         rows.length === 0 &&
         React.createElement(
           'div',
-          {style: {color: '#9ca3af', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
+          {style: {color: 'var(--ink-faint)', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
           'Loading...',
         ),
 
@@ -143,7 +143,7 @@ export default function ClientErrorsView({Header}) {
         !loadError &&
         React.createElement(
           'div',
-          {style: {color: '#9ca3af', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
+          {style: {color: 'var(--ink-faint)', fontSize: 13, padding: '2rem 0', textAlign: 'center'}},
           'No client errors recorded.',
         ),
 
@@ -151,7 +151,7 @@ export default function ClientErrorsView({Header}) {
         rows.length > 0 &&
         React.createElement(
           'div',
-          {style: {overflowX: 'auto', border: '1px solid #f3f4f6', borderRadius: 8, background: 'white'}},
+          {style: {overflowX: 'auto', border: '1px solid var(--divider)', borderRadius: 8, background: 'white'}},
           React.createElement(
             'table',
             {style: {width: '100%', borderCollapse: 'collapse'}, 'data-client-errors-table': '1'},
@@ -177,8 +177,8 @@ export default function ClientErrorsView({Header}) {
                   React.createElement('td', {style: cellStyle}, r.source),
                   React.createElement('td', {style: cellStyle}, r.error_kind),
                   React.createElement('td', {style: {...cellStyle, maxWidth: 360, wordBreak: 'break-word'}}, r.message),
-                  React.createElement('td', {style: {...cellStyle, color: '#6b7280'}}, r.route || '—'),
-                  React.createElement('td', {style: {...cellStyle, color: '#6b7280'}}, r.app_version || '—'),
+                  React.createElement('td', {style: {...cellStyle, color: 'var(--ink-muted)'}}, r.route || '—'),
+                  React.createElement('td', {style: {...cellStyle, color: 'var(--ink-muted)'}}, r.app_version || '—'),
                 ),
               ),
             ),
@@ -208,7 +208,7 @@ export default function ClientErrorsView({Header}) {
                 style: {
                   padding: '6px 18px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
                   fontSize: 12,
                   cursor: loadingMore ? 'default' : 'pointer',
