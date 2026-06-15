@@ -167,7 +167,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
         {...openableProps(() => openEdit(g))}
         style={{
           background: 'white',
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--border)',
           borderRadius: 12,
           padding: '14px 18px',
           cursor: 'pointer',
@@ -179,7 +179,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
       >
         <div style={{minWidth: 220, flexShrink: 0}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4}}>
-            <div style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{g.name}</div>
+            <div style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{g.name}</div>
             <span
               style={{
                 fontSize: 10,
@@ -214,7 +214,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
               {occupyingHousing.current_count ? ' · ' + occupyingHousing.current_count + ' hens' : ''}
             </div>
           )}
-          {g.notes && <div style={{fontSize: 11, color: '#6b7280'}}>{g.notes}</div>}
+          {g.notes && <div style={{fontSize: 11, color: 'var(--ink-muted)'}}>{g.notes}</div>}
         </div>
         <div style={{display: 'flex', gap: 24, flex: 1, flexWrap: 'wrap'}}>
           {[
@@ -224,17 +224,17 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
             ['Feed/lb cost', g.perLbFeedCost > 0 ? '$' + g.perLbFeedCost : '—'],
           ].map(([l, v]) => (
             <div key={l}>
-              <div style={{fontSize: 10, color: '#9ca3af', marginBottom: 1}}>{l}</div>
-              <div style={{fontWeight: 600, color: '#374151', fontSize: 12}}>{v}</div>
+              <div style={{fontSize: 10, color: 'var(--ink-faint)', marginBottom: 1}}>{l}</div>
+              <div style={{fontWeight: 600, color: 'var(--ink)', fontSize: 12}}>{v}</div>
             </div>
           ))}
         </div>
         {gDailys.length > 0 && (
-          <div style={{borderLeft: '1px solid #e5e7eb', paddingLeft: 16, flexShrink: 0, fontSize: 11}}>
-            <div style={{color: '#6b7280', marginBottom: 3}}>Last: {fmt(gDailys[0].date)}</div>
+          <div style={{borderLeft: '1px solid var(--border)', paddingLeft: 16, flexShrink: 0, fontSize: 11}}>
+            <div style={{color: 'var(--ink-muted)', marginBottom: 3}}>Last: {fmt(gDailys[0].date)}</div>
             <div style={{display: 'flex', gap: 8}}>
               {lastFeed > 0 && <span style={{color: '#92400e', fontWeight: 600}}>🌾 {lastFeed} lbs</span>}
-              {lastCount > 0 && <span style={{color: '#374151'}}>🐔 {lastCount}</span>}
+              {lastCount > 0 && <span style={{color: 'var(--ink)'}}>🐔 {lastCount}</span>}
               {recentMort > 0 && <span style={{color: '#b91c1c', fontWeight: 600}}>💀 {recentMort}</span>}
             </div>
           </div>
@@ -244,13 +244,13 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
   };
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       <Header />
       <div style={{padding: '1rem', maxWidth: 1100, margin: '0 auto'}}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
-          <div style={{fontSize: 20, fontWeight: 700, color: '#111827'}}>
+          <div style={{fontSize: 20, fontWeight: 700, color: 'var(--ink)'}}>
             Layer Groups{' '}
-            <span style={{fontSize: 13, fontWeight: 400, color: '#6b7280'}}>
+            <span style={{fontSize: 13, fontWeight: 400, color: 'var(--ink-muted)'}}>
               {active.length} active · {retired.length} retired
             </span>
           </div>
@@ -276,7 +276,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
           </button>
         </div>
         {active.length > 0 && (
-          <div style={{marginBottom: 8, fontSize: 12, fontWeight: 600, color: '#4b5563', letterSpacing: 0.3}}>
+          <div style={{marginBottom: 8, fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', letterSpacing: 0.3}}>
             ACTIVE GROUPS
           </div>
         )}
@@ -287,7 +287,9 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
         </div>
         {retired.length > 0 && (
           <>
-            <div style={{marginBottom: 8, fontSize: 12, fontWeight: 600, color: '#4b5563', letterSpacing: 0.3}}>
+            <div
+              style={{marginBottom: 8, fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', letterSpacing: 0.3}}
+            >
               RETIRED GROUPS
             </div>
             <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
@@ -298,7 +300,9 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
           </>
         )}
         {layerGroups.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>No layer groups yet.</div>
+          <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)', fontSize: 13}}>
+            No layer groups yet.
+          </div>
         )}
       </div>
       {showForm && (
@@ -333,7 +337,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -346,7 +350,9 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
                 <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>
                   {editId ? 'Edit Layer Group' : 'New Layer Group'}
                 </div>
-                {editId && <div style={{marginLeft: 8, fontSize: 11, color: '#9ca3af'}}>Auto-saves as you type</div>}
+                {editId && (
+                  <div style={{marginLeft: 8, fontSize: 11, color: 'var(--ink-faint)'}}>Auto-saves as you type</div>
+                )}
                 {editId &&
                   (() => {
                     const idx = sorted.findIndex((g) => g.id === editId);
@@ -355,9 +361,9 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
                     const ns = (on) => ({
                       padding: '3px 10px',
                       borderRadius: 6,
-                      border: '1px solid #d1d5db',
-                      background: on ? 'white' : '#f9fafb',
-                      color: on ? '#374151' : '#d1d5db',
+                      border: '1px solid var(--border-strong)',
+                      background: on ? 'white' : 'var(--surface-2)',
+                      color: on ? 'var(--ink)' : '#d1d5db',
                       cursor: on ? 'pointer' : 'default',
                       fontSize: 11,
                       fontWeight: 600,
@@ -393,7 +399,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
                         >
                           {'\u2039 ' + (prev ? prev.name : '\u2014')}
                         </button>
-                        <span style={{fontSize: 10, color: '#9ca3af'}}>
+                        <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>
                           {idx + 1}/{sorted.length}
                         </span>
                         <button
@@ -430,7 +436,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
               </div>
               <button
                 onClick={closeLayerForm}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 ×
               </button>
@@ -556,7 +562,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
                 />
               </div>
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               {editId ? (
                 <button onClick={closeLayerForm} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
                   Done

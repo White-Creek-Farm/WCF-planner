@@ -204,8 +204,8 @@ export default function BroilerBatchPage({
           >
             {batch.status}
           </span>
-          {batch.breed && <span style={{fontSize: 12, color: '#6b7280'}}>Breed: {batch.breed}</span>}
-          {batch.hatchery && <span style={{fontSize: 12, color: '#6b7280'}}>Hatchery: {batch.hatchery}</span>}
+          {batch.breed && <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>Breed: {batch.breed}</span>}
+          {batch.hatchery && <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>Hatchery: {batch.hatchery}</span>}
         </div>
 
         {formReady && (

@@ -366,7 +366,7 @@ export default function LayerHousingPage({
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#1d4ed8',
+                color: 'var(--brand)',
                 cursor: 'pointer',
                 fontSize: 12,
                 fontFamily: 'inherit',
@@ -376,9 +376,11 @@ export default function LayerHousingPage({
               Batch: {parentBatch.name}
             </button>
           )}
-          {housing.start_date && <span style={{fontSize: 12, color: '#6b7280'}}>from {fmt(housing.start_date)}</span>}
+          {housing.start_date && (
+            <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>from {fmt(housing.start_date)}</span>
+          )}
           {housing.retired_date && (
-            <span style={{fontSize: 12, color: '#9ca3af'}}>{'→ ' + fmt(housing.retired_date)}</span>
+            <span style={{fontSize: 12, color: 'var(--ink-faint)'}}>{'→ ' + fmt(housing.retired_date)}</span>
           )}
         </div>
 
@@ -387,18 +389,24 @@ export default function LayerHousingPage({
         <div
           style={{
             background: 'white',
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '14px 18px',
             marginBottom: 12,
           }}
         >
-          <div style={{display: 'flex', gap: 16, fontSize: 12, color: '#374151', flexWrap: 'wrap', marginBottom: 10}}>
+          <div
+            style={{display: 'flex', gap: 16, fontSize: 12, color: 'var(--ink)', flexWrap: 'wrap', marginBottom: 10}}
+          >
             <span>
               Physical:{' '}
-              <strong style={{color: '#111827'}}>{housing.current_count != null ? housing.current_count : '—'}</strong>
+              <strong style={{color: 'var(--ink)'}}>
+                {housing.current_count != null ? housing.current_count : '—'}
+              </strong>
               {housing.current_count_date ? (
-                <span style={{color: '#9ca3af', fontWeight: 400}}>{' on ' + fmt(housing.current_count_date)}</span>
+                <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>
+                  {' on ' + fmt(housing.current_count_date)}
+                </span>
               ) : null}
             </span>
             {proj && proj.anchorDate && proj.mortSince > 0 && (
@@ -417,11 +425,11 @@ export default function LayerHousingPage({
                 <strong style={{color: proj.projected < proj.anchor * 0.9 ? '#b91c1c' : '#92400e'}}>
                   {proj.projected}
                 </strong>
-                <span style={{color: '#9ca3af', fontWeight: 400}}>{' (−' + proj.mortSince + ')'}</span>
+                <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>{' (−' + proj.mortSince + ')'}</span>
               </span>
             )}
             <span>
-              Capacity: <strong style={{color: '#111827'}}>{cap === 9999 ? 'Unlimited' : cap}</strong>
+              Capacity: <strong style={{color: 'var(--ink)'}}>{cap === 9999 ? 'Unlimited' : cap}</strong>
             </span>
             {util !== null && (
               <span>
@@ -450,8 +458,8 @@ export default function LayerHousingPage({
               <div
                 key={label}
                 style={{
-                  background: '#f9fafb',
-                  border: '1px solid #e5e7eb',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '10px 12px',
                   textAlign: 'center',
@@ -460,7 +468,7 @@ export default function LayerHousingPage({
                 <div
                   style={{
                     fontSize: 10,
-                    color: '#6b7280',
+                    color: 'var(--ink-muted)',
                     marginBottom: 4,
                     textTransform: 'uppercase',
                     letterSpacing: 0.5,
@@ -474,7 +482,9 @@ export default function LayerHousingPage({
           </div>
 
           {housing.notes && (
-            <div style={{marginTop: 6, fontSize: 11, color: '#6b7280', fontStyle: 'italic'}}>{housing.notes}</div>
+            <div style={{marginTop: 6, fontSize: 11, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
+              {housing.notes}
+            </div>
           )}
 
           {canEdit && (
@@ -486,9 +496,9 @@ export default function LayerHousingPage({
                 style={{
                   padding: '10px 16px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   fontSize: 12,
@@ -563,7 +573,7 @@ export default function LayerHousingPage({
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -571,22 +581,28 @@ export default function LayerHousingPage({
             >
               <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>
                 Edit Housing{' '}
-                <span style={{fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 6}}>
+                <span style={{fontSize: 11, color: 'var(--ink-faint)', fontWeight: 400, marginLeft: 6}}>
                   Auto-saves as you type
                 </span>
               </div>
               <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
                 {housingSaving ? (
-                  <span style={{fontSize: 11, color: '#9ca3af'}}>{'Saving…'}</span>
+                  <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'Saving…'}</span>
                 ) : housingPending ? (
-                  <span style={{fontSize: 11, color: '#9ca3af'}}>{'Unsaved…'}</span>
+                  <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'Unsaved…'}</span>
                 ) : (
                   <span style={{fontSize: 11, color: '#065f46'}}>{'✓ Saved'}</span>
                 )}
                 <button
                   type="button"
                   onClick={closeForm}
-                  style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 22,
+                    cursor: 'pointer',
+                    color: 'var(--ink-faint)',
+                  }}
                 >
                   ×
                 </button>
@@ -664,7 +680,7 @@ export default function LayerHousingPage({
                     }
                     if (housing.current_count_date) {
                       return (
-                        <div style={{fontSize: 10, color: '#9ca3af', marginTop: 4}}>
+                        <div style={{fontSize: 10, color: 'var(--ink-faint)', marginTop: 4}}>
                           {'Last set: ' + fmt(housing.current_count_date)}
                         </div>
                       );

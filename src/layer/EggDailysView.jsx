@@ -399,7 +399,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
   const fi = {
     padding: '6px 10px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
     background: 'white',
@@ -411,7 +411,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
   );
   const savedViewGhostBtnS = {
     ...fi,
-    color: '#374151',
+    color: 'var(--ink)',
     fontWeight: 600,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
@@ -422,13 +422,13 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
     <div
-      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      style={{minHeight: '100vh', background: 'var(--bg-page)'}}
       data-egg-dailys-loaded={loading || loadError ? 'false' : 'true'}
     >
       <Header />
@@ -444,8 +444,10 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
           }}
         >
           <div>
-            <div style={{fontSize: 15, fontWeight: 700, color: '#111827'}}>Daily Reports</div>
-            <div style={{fontSize: 12, color: '#6b7280', marginTop: 2}}>{records.length.toLocaleString()} total</div>
+            <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)'}}>Daily Reports</div>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>
+              {records.length.toLocaleString()} total
+            </div>
           </div>
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
             <button
@@ -455,7 +457,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
               disabled={loading || !!loadError}
               style={{
                 ...fi,
-                color: loading || loadError ? '#9ca3af' : '#374151',
+                color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
                 fontWeight: 600,
                 cursor: loading || loadError ? 'not-allowed' : 'pointer',
               }}
@@ -469,7 +471,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
               disabled={loading || !!loadError}
               style={{
                 ...fi,
-                color: loading || loadError ? '#9ca3af' : '#374151',
+                color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
                 fontWeight: 600,
                 cursor: loading || loadError ? 'not-allowed' : 'pointer',
               }}
@@ -515,7 +517,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
               data-egg-dailys-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -525,7 +527,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-egg-dailys-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -668,7 +670,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
         )}
         <div style={{display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center'}}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{...fi, width: 130}} />
-          <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
+          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>to</span>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{...fi, width: 130}} />
           <select data-egg-dailys-team-filter="1" value={fTeam} onChange={(e) => setFTeam(e.target.value)} style={fi}>
             <option value="">All team members</option>
@@ -685,7 +687,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                 setFFrom('');
                 setFTo('');
               }}
-              style={{...fi, color: '#6b7280', cursor: 'pointer'}}
+              style={{...fi, color: 'var(--ink-muted)', cursor: 'pointer'}}
             >
               Clear
             </button>
@@ -701,9 +703,9 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
               marginBottom: 12,
               padding: '7px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -714,7 +716,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
           </button>
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
-        {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
+        {loading && <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)'}}>Loading...</div>}
         <OperationalListEmptyState
           loading={loading}
           loadError={loadError}
@@ -750,7 +752,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                     background: 'white',
                     borderRadius: 10,
                     cursor: 'pointer',
-                    border: notable ? '1.5px solid #fca5a5' : '1px solid #e5e7eb',
+                    border: notable ? '1.5px solid #fca5a5' : '1px solid var(--border)',
                     padding: '10px 14px',
                     display: 'flex',
                     flexDirection: 'column',
@@ -762,7 +764,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                     data-mobile-1col="1"
                     style={{display: 'grid', gridTemplateColumns: '90px 100px 90px 1fr', alignItems: 'center', gap: 12}}
                   >
-                    <span style={{fontSize: 12, color: '#6b7280'}}>{fmt(d.date)}</span>
+                    <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
                     <span style={{fontWeight: 700, color: '#78350f', fontSize: 13, whiteSpace: 'nowrap'}}>
                       {'\ud83e\udd5a ' + total + ' eggs'}
                     </span>
@@ -785,7 +787,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                     </span>
                     <span style={{display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
                       {groups.map(([n, c]) => (
-                        <span key={n} style={{color: '#374151', fontSize: 12, whiteSpace: 'nowrap'}}>
+                        <span key={n} style={{color: 'var(--ink)', fontSize: 12, whiteSpace: 'nowrap'}}>
                           {n}: <strong>{c}</strong>
                         </span>
                       ))}
@@ -818,7 +820,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
           </div>
         )}
         {hasMore && (
-          <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: '#9ca3af'}}>
+          <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: 'var(--ink-faint)'}}>
             Loading more records...
           </div>
         )}
@@ -858,7 +860,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -873,7 +875,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                   setNotice(null);
                   setShowForm(false);
                 }}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 ×
               </button>
@@ -946,8 +948,8 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                 <label style={S.label}>Collected Today (calculated)</label>
                 <div
                   style={{
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
                     borderRadius: 6,
                     padding: '8px 12px',
                     fontSize: 14,
@@ -975,7 +977,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                 />
               </div>
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button onClick={save} style={{...S.btnPrimary, width: 'auto'}}>
                 Save
               </button>

@@ -431,7 +431,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
   const fi = {
     padding: '6px 10px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
     background: 'white',
@@ -444,9 +444,9 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
   const savedViewGhostBtnS = {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -459,13 +459,13 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
     <div
-      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      style={{minHeight: '100vh', background: 'var(--bg-page)'}}
       data-broiler-dailys-loaded={loading || loadError ? 'false' : 'true'}
     >
       <Header />
@@ -481,8 +481,10 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
           }}
         >
           <div>
-            <div style={{fontSize: 15, fontWeight: 700, color: '#111827'}}>Daily Reports</div>
-            <div style={{fontSize: 12, color: '#6b7280', marginTop: 2}}>{records.length.toLocaleString()} total</div>
+            <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)'}}>Daily Reports</div>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>
+              {records.length.toLocaleString()} total
+            </div>
           </div>
           <div style={{display: 'flex', gap: 8}}>
             <button
@@ -523,7 +525,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
               data-broiler-dailys-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -533,7 +535,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-broiler-dailys-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -677,7 +679,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
         {exportNotice && <div style={{marginBottom: 14, color: '#b91c1c', fontSize: 12}}>{exportNotice}</div>}
         <div style={{display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center'}}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{...fi, width: 130}} />
-          <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
+          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>to</span>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{...fi, width: 130}} />
           <select value={fBatch} onChange={(e) => setFBatch(e.target.value)} style={fi}>
             <option value="">All groups</option>
@@ -709,7 +711,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                 setFTo('');
                 setSrcFilter('all');
               }}
-              style={{...fi, color: '#6b7280', cursor: 'pointer'}}
+              style={{...fi, color: 'var(--ink-muted)', cursor: 'pointer'}}
             >
               Clear
             </button>
@@ -736,14 +738,14 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                   }}
                   style={{
                     padding: '5px 10px',
-                    border: 'none',
+                    border: srcFilter === o.k ? '1px solid #92400e' : 'none',
                     borderRight: oi < 2 ? '1px solid #d1d5db' : 'none',
                     fontFamily: 'inherit',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: srcFilter === o.k ? '#92400e' : 'white',
-                    color: srcFilter === o.k ? 'white' : '#6b7280',
+                    background: 'white',
+                    color: srcFilter === o.k ? '#92400e' : 'var(--ink-muted)',
                   }}
                 >
                   {o.l}
@@ -758,7 +760,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
             disabled={loading || !!loadError}
             style={{
               ...fi,
-              color: loading || loadError ? '#9ca3af' : '#374151',
+              color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
               fontWeight: 600,
               cursor: loading || loadError ? 'not-allowed' : 'pointer',
             }}
@@ -772,7 +774,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
             disabled={loading || !!loadError}
             style={{
               ...fi,
-              color: loading || loadError ? '#9ca3af' : '#374151',
+              color: loading || loadError ? 'var(--ink-faint)' : 'var(--ink)',
               fontWeight: 600,
               cursor: loading || loadError ? 'not-allowed' : 'pointer',
             }}
@@ -790,9 +792,9 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
               marginBottom: 12,
               padding: '7px 14px',
               borderRadius: 6,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -803,7 +805,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
           </button>
         )}
         <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
-        {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
+        {loading && <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)'}}>Loading...</div>}
         <OperationalListEmptyState
           loading={loading}
           loadError={loadError}
@@ -824,7 +826,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                 const prevDate = i > 0 ? filtered[i - 1].date : null;
                 const showDivider = prevDate && prevDate !== d.date;
                 const dateIdx = dates.indexOf(d.date);
-                const shadeBg = dateIdx % 2 === 0 ? 'white' : '#f8fafc';
+                const shadeBg = dateIdx % 2 === 0 ? 'white' : 'var(--surface-2)';
                 return (
                   <React.Fragment key={d.id}>
                     {showDivider && (
@@ -846,7 +848,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                           ? '1.5px solid #fca5a5'
                           : d.source === 'add_feed_webform'
                             ? '1px solid #fde68a'
-                            : '1px solid #e5e7eb',
+                            : '1px solid var(--border)',
                         padding: '10px 14px',
                         display: 'flex',
                         flexDirection: 'column',
@@ -863,12 +865,12 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                           gap: 12,
                         }}
                       >
-                        <span style={{fontSize: 12, color: '#6b7280'}}>{fmt(d.date)}</span>
+                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
                         <span style={{display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
                           <span
                             style={{
                               fontWeight: 700,
-                              color: '#111827',
+                              color: 'var(--ink)',
                               fontSize: 13,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -943,7 +945,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                         </span>
                         <span
                           style={{
-                            color: '#374151',
+                            color: 'var(--ink)',
                             fontSize: 12,
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
@@ -1026,7 +1028,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
           </div>
         )}
         {hasMore && (
-          <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: '#9ca3af'}}>
+          <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: 'var(--ink-faint)'}}>
             Loading more records...
           </div>
         )}
@@ -1066,7 +1068,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1087,7 +1089,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                   setNotice(null);
                   setShowForm(false);
                 }}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 ×
               </button>
@@ -1140,7 +1142,14 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
               </div>
               <div style={{gridColumn: '1/-1'}}>
                 <label style={S.label}>Feed Type</label>
-                <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+                <div
+                  style={{
+                    display: 'flex',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    border: '1px solid var(--border-strong)',
+                  }}
+                >
                   {[
                     {v: 'STARTER', l: 'Starter'},
                     {v: 'GROWER', l: 'Grower'},
@@ -1215,7 +1224,14 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
               {editSource !== 'add_feed_webform' && (
                 <div>
                   <label style={S.label}>Group moved?</label>
-                  <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      borderRadius: 6,
+                      overflow: 'hidden',
+                      border: '1px solid var(--border-strong)',
+                    }}
+                  >
                     {[
                       {v: true, l: 'Yes'},
                       {v: false, l: 'No'},
@@ -1244,7 +1260,14 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
               {editSource !== 'add_feed_webform' && (
                 <div>
                   <label style={S.label}>Waterer checked?</label>
-                  <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      borderRadius: 6,
+                      overflow: 'hidden',
+                      border: '1px solid var(--border-strong)',
+                    }}
+                  >
                     {[
                       {v: true, l: 'Yes'},
                       {v: false, l: 'No'},
@@ -1283,7 +1306,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
               )}
               <DailyPhotoThumbnails photos={form?.photos} />
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button onClick={save} style={{...S.btnPrimary, width: 'auto'}}>
                 Save
               </button>

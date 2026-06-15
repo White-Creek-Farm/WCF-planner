@@ -10,25 +10,23 @@
 //   • Physical-count row right below. Feed-type selector + lbs input + a
 //     "Count includes [today's month] order" checkbox. No editable date —
 //     count saves stamp today.
-//   • Monthly cards: active editable first, most-recent fully-saved second,
-//     older fully-saved months behind a "Show older months (N)" collapse.
-//     Each active row reads as Start − Consumed + Ordered = End per feed
-//     type. Saved cards render plain text values; only the most-recent
-//     saved one has Edit.
+//   • Monthly cards: exactly one calendar-pinned order month. Each active
+//     row reads as Start − Consumed + Ordered = End per feed type. A saved
+//     pinned month renders plain text values with an Edit action.
 //   • Existing per-batch broiler + layer reference sections kept at the
 //     bottom.
 //
 // Saved-vs-active rule:
 //   A month is "fully saved" only when starter, grower, AND layerfeed
-//   orders are all present (including explicit 0). Active month = the
-//   first month at or after today's month that is NOT fully saved.
+//   orders are all present (including explicit 0). Active month is the
+//   next calendar month and does not advance early when saved.
 //
 // Save behavior (single month-level button):
 //   • For each feed type, either the operator typed a value OR the
 //     recommendation for that type is exactly 0 (a "Save 0 row").
 //   • Save Order writes all three feedOrders.{starter|grower|layerfeed}
-//     [activeYM] in one sbSave call; the active month advances naturally
-//     since it now reads as fully saved.
+//     [activeYM] in one sbSave call; the active month stays pinned until
+//     the calendar month flips.
 //   • Button reads "Save 0" only when all three drafts are blank AND all
 //     three recommendations are 0. Otherwise reads "Save Order" and is
 //     disabled if any blank type still has a non-zero recommendation.
@@ -65,7 +63,7 @@ import {useLayer} from '../contexts/LayerContext.jsx';
 import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
-import {recommendedFeedOrder} from '../lib/feedOrderBasis.js';
+import {calendarOrderYM, recommendedFeedOrder} from '../lib/feedOrderBasis.js';
 
 export default function BroilerFeedView({
   Header,
@@ -83,7 +81,6 @@ export default function BroilerFeedView({
   const [countType, setCountType] = useState('starter');
   const [editingMonthYM, setEditingMonthYM] = useState(null);
   const [activeOrderDrafts, setActiveOrderDrafts] = useState({starter: '', grower: '', layerfeed: ''});
-  const [showOlderMonths, setShowOlderMonths] = useState(false);
 
   const today = new Date();
   const todayDate = todayISO();
@@ -212,17 +209,7 @@ export default function BroilerFeedView({
       (feedOrders.layerfeed || {})[ym] != null
     );
   }
-  const allOrderYMs = new Set();
-  Object.keys(feedOrders.starter || {}).forEach((k) => allOrderYMs.add(k));
-  Object.keys(feedOrders.grower || {}).forEach((k) => allOrderYMs.add(k));
-  Object.keys(feedOrders.layerfeed || {}).forEach((k) => allOrderYMs.add(k));
-  const savedOrderYMs = [...allOrderYMs].filter(isMonthFullySaved).sort();
-  function firstUnsavedFrom(ym) {
-    let cur = ym;
-    while (isMonthFullySaved(cur)) cur = addMonthsYM(cur, 1);
-    return cur;
-  }
-  const autoActiveYM = firstUnsavedFrom(thisYM);
+  const autoActiveYM = calendarOrderYM(today);
   const activeYM = editingMonthYM != null ? editingMonthYM : autoActiveYM;
   const isActiveEditMode = editingMonthYM != null;
   const prevYM = addMonthsYM(activeYM, -1);
@@ -231,17 +218,8 @@ export default function BroilerFeedView({
   const activeLabel = ymShort(activeYM);
   const nextLabel = ymShort(nextYM);
 
-  // "Once a later month is saved, older months can no longer be edited."
-  // In edit mode the operator rewound to the most-recently-saved month;
-  // every other saved month sits strictly before that one, so none of
-  // them can be the LAST SAVED affordance. They all go behind the Show
-  // older months collapse with plain-text Ordered values and no Edit.
-  const savedExcludingActive = savedOrderYMs.filter((ym) => ym !== activeYM);
-  const mostRecentSavedNonActiveYM =
-    !isActiveEditMode && savedExcludingActive.length ? savedExcludingActive[savedExcludingActive.length - 1] : null;
-  const olderSavedYMs = isActiveEditMode
-    ? savedExcludingActive.slice(-5).reverse()
-    : savedExcludingActive.slice(0, -1).slice(-5).reverse();
+  // One visible order card only. Saving the pinned month never advances this
+  // section; it moves when the calendar month moves.
 
   // ── Running ledger per feed type ─────────────────────────────────────────
   // Anchored by the per-type physical count when present; otherwise by
@@ -483,7 +461,7 @@ export default function BroilerFeedView({
             style={{
               fontSize: 16,
               fontWeight: 700,
-              color: missing ? '#9ca3af' : valueColorFn(val),
+              color: missing ? 'var(--ink-faint)' : valueColorFn(val),
             }}
           >
             {missing ? '—' : val.toLocaleString() + ' lbs'}
@@ -516,11 +494,11 @@ export default function BroilerFeedView({
   //   • In auto-active mode (editingMonthYM == null), rows whose persisted
   //     value exists for activeYM render as plain text and pass through
   //     unchanged on save. Only the missing rows accept input.
-  //   • In edit mode (operator clicked Edit on the most-recent fully-saved
-  //     month), all three rows become editable so the operator can change
+  //   • In edit mode (operator clicked Edit on the pinned fully-saved month),
+  //     all three rows become editable so the operator can change
   //     any of them. Drafts are pre-loaded with the persisted values.
-  //   (isActiveEditMode is declared earlier so the saved-months selection
-  //   can also gate the LAST SAVED affordance against edit mode.)
+  //   (isActiveEditMode is declared earlier so a pinned saved month can
+  //   switch from read-only values into editable inputs.)
   function persistedValueForActive(orderKey) {
     return (feedOrders[orderKey] || {})[activeYM];
   }
@@ -630,13 +608,13 @@ export default function BroilerFeedView({
 
   const tileShellS = {
     background: 'white',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '14px 16px',
   };
   const tileLabelS = {
     fontSize: 11,
-    color: '#6b7280',
+    color: 'var(--ink-muted)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
@@ -647,13 +625,9 @@ export default function BroilerFeedView({
     const md = monthlyData.find((m) => m.ym === ym);
     if (!md) return null;
     const isActive = ym === activeYM;
-    const isMostRecentSavedCard = !isActive && ym === mostRecentSavedNonActiveYM;
-    const cardBorder = isActive
-      ? '2px solid #085041'
-      : isMostRecentSavedCard
-        ? '2px solid #a7f3d0'
-        : '1px solid #e5e7eb';
-    const cardHeaderBg = isActive ? '#ecfdf5' : isMostRecentSavedCard ? '#f0fdf4' : 'white';
+    const isActiveSavedCard = isActive && isMonthFullySaved(ym) && !isActiveEditMode;
+    const cardBorder = isActive ? '2px solid #085041' : '1px solid var(--border)';
+    const cardHeaderBg = isActive ? '#ecfdf5' : 'white';
 
     const rowDefs = [
       {key: 'starter', label: 'Starter', orderKey: 'starter', draftKey: 'starter', color: '#1d4ed8'},
@@ -681,7 +655,7 @@ export default function BroilerFeedView({
             background: cardHeaderBg,
           }}
         >
-          <span style={{fontSize: 14, fontWeight: 700, color: '#111827'}}>{ymLabel(ym)}</span>
+          <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{ymLabel(ym)}</span>
           {isActive && (
             <span
               style={{
@@ -694,20 +668,6 @@ export default function BroilerFeedView({
               }}
             >
               ACTIVE
-            </span>
-          )}
-          {isMostRecentSavedCard && (
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: '#065f46',
-                background: '#d1fae5',
-                padding: '1px 8px',
-                borderRadius: 10,
-              }}
-            >
-              LAST SAVED
             </span>
           )}
         </div>
@@ -735,28 +695,28 @@ export default function BroilerFeedView({
                   gap: 8,
                   alignItems: 'end',
                   padding: '6px 0',
-                  borderTop: '1px solid #f3f4f6',
+                  borderTop: '1px solid var(--divider)',
                 }}
               >
                 <div style={{fontSize: 12, fontWeight: 700, color: row.color}}>{row.label}</div>
                 <div style={{textAlign: 'right'}}>
-                  <div style={{fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}}>
+                  <div style={{fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: 0.5}}>
                     Start
                   </div>
-                  <div style={{fontSize: 13, fontWeight: 600, color: lg && lg.start >= 0 ? '#374151' : '#b91c1c'}}>
+                  <div style={{fontSize: 13, fontWeight: 600, color: lg && lg.start >= 0 ? 'var(--ink)' : '#b91c1c'}}>
                     {lg ? lg.start.toLocaleString() : '—'}
                   </div>
                 </div>
-                <div style={{fontSize: 14, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'−'}</div>
+                <div style={{fontSize: 14, fontWeight: 700, color: 'var(--ink-faint)', textAlign: 'center'}}>{'−'}</div>
                 <div style={{textAlign: 'right'}}>
-                  <div style={{fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}}>
+                  <div style={{fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: 0.5}}>
                     Consumed
                   </div>
-                  <div style={{fontSize: 13, fontWeight: 600, color: '#111827'}}>
+                  <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)'}}>
                     {lg ? lg.consumed.toLocaleString() : '—'}
                   </div>
                 </div>
-                <div style={{fontSize: 14, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'+'}</div>
+                <div style={{fontSize: 14, fontWeight: 700, color: 'var(--ink-faint)', textAlign: 'center'}}>{'+'}</div>
                 {/* Ordered cell: label sits directly above the value/input
                     (both right-aligned) so saved values like 4,000 read as
                     being IN the Ordered column rather than floating. */}
@@ -764,7 +724,7 @@ export default function BroilerFeedView({
                   <div
                     style={{
                       fontSize: 9,
-                      color: '#9ca3af',
+                      color: 'var(--ink-faint)',
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
                       marginBottom: 2,
@@ -783,7 +743,7 @@ export default function BroilerFeedView({
                         width: '100%',
                         fontSize: 13,
                         padding: '4px 8px',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-strong)',
                         borderRadius: 6,
                         textAlign: 'right',
                         fontFamily: 'inherit',
@@ -792,19 +752,21 @@ export default function BroilerFeedView({
                       }}
                     />
                   ) : (
-                    <div style={{fontSize: 13, fontWeight: 600, color: '#111827'}}>
+                    <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)'}}>
                       {isSaved ? Number(savedVal).toLocaleString() : '—'}
                     </div>
                   )}
                 </div>
-                <div style={{fontSize: 14, fontWeight: 700, color: '#9ca3af', textAlign: 'center'}}>{'='}</div>
+                <div style={{fontSize: 14, fontWeight: 700, color: 'var(--ink-faint)', textAlign: 'center'}}>{'='}</div>
                 <div style={{textAlign: 'right'}}>
-                  <div style={{fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}}>End</div>
+                  <div style={{fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: 0.5}}>
+                    End
+                  </div>
                   <div
                     style={{
                       fontSize: 14,
                       fontWeight: 700,
-                      color: liveEnd != null ? (liveEnd > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
+                      color: liveEnd != null ? (liveEnd > 0 ? '#065f46' : '#b91c1c') : 'var(--ink-faint)',
                     }}
                   >
                     {liveEnd != null ? liveEnd.toLocaleString() : '—'}
@@ -815,14 +777,40 @@ export default function BroilerFeedView({
           })}
         </div>
 
-        {/* Active-card save row; Edit affordance on the most-recent-saved card */}
-        {isActive ? (
+        {/* Active-card save row; fully saved pinned month exposes Edit. */}
+        {isActiveSavedCard ? (
           <div
             style={{
               padding: '8px 16px 12px',
               display: 'flex',
               justifyContent: 'flex-end',
-              borderTop: '1px solid #f3f4f6',
+              borderTop: '1px solid var(--divider)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => editMonth(ym)}
+              style={{
+                fontSize: 11,
+                padding: '4px 10px',
+                borderRadius: 5,
+                border: '1px solid var(--border-strong)',
+                background: 'white',
+                color: 'var(--ink-muted)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Edit
+            </button>
+          </div>
+        ) : isActive ? (
+          <div
+            style={{
+              padding: '8px 16px 12px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              borderTop: '1px solid var(--divider)',
             }}
           >
             <button
@@ -845,35 +833,7 @@ export default function BroilerFeedView({
               {saveButtonLabel}
             </button>
           </div>
-        ) : (
-          isMostRecentSavedCard && (
-            <div
-              style={{
-                padding: '8px 16px 12px',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                borderTop: '1px solid #f3f4f6',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => editMonth(ym)}
-                style={{
-                  fontSize: 11,
-                  padding: '4px 10px',
-                  borderRadius: 5,
-                  border: '1px solid #d1d5db',
-                  background: 'white',
-                  color: '#4b5563',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Edit
-              </button>
-            </div>
-          )
-        )}
+        ) : null}
       </div>
     );
   }
@@ -919,20 +879,22 @@ export default function BroilerFeedView({
           {/* Need Thru [next] */}
           <div style={tileShellS}>
             <div style={tileLabelS}>{'Need Thru ' + nextLabel}</div>
-            {renderTileRows(needThruNext, () => '#111827')}
+            {renderTileRows(needThruNext, () => 'var(--ink)')}
           </div>
         </div>
 
         {/* Physical count input — no editable date */}
-        <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '12px 20px'}}>
+        <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 20px'}}>
           <div style={{display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap'}}>
-            <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563', alignSelf: 'center'}}>
+            <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', alignSelf: 'center'}}>
               {poultryFeedInventory && poultryFeedInventory[countType]
                 ? 'Update Physical Count'
                 : 'Enter Physical Count'}
             </div>
             <div>
-              <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3}}>Feed type</label>
+              <label style={{fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3}}>
+                Feed type
+              </label>
               <select
                 id="poultry-feed-count-type"
                 value={countType}
@@ -940,7 +902,7 @@ export default function BroilerFeedView({
                 style={{
                   fontSize: 13,
                   padding: '7px 10px',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 6,
                   fontFamily: 'inherit',
                 }}
@@ -951,7 +913,9 @@ export default function BroilerFeedView({
               </select>
             </div>
             <div>
-              <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3}}>Lbs on hand</label>
+              <label style={{fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3}}>
+                Lbs on hand
+              </label>
               <input
                 id="poultry-feed-count-input"
                 type="number"
@@ -963,7 +927,7 @@ export default function BroilerFeedView({
                 style={{
                   fontSize: 13,
                   padding: '7px 10px',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 6,
                   width: 100,
                   fontFamily: 'inherit',
@@ -976,9 +940,9 @@ export default function BroilerFeedView({
                 alignItems: 'center',
                 gap: 8,
                 padding: '7px 12px',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 borderRadius: 6,
-                background: '#f9fafb',
+                background: 'var(--surface-2)',
                 fontSize: 12,
                 color: '#000',
                 cursor: 'pointer',
@@ -1024,7 +988,7 @@ export default function BroilerFeedView({
               Save Count
             </button>
             {poultryFeedInventory && poultryFeedInventory[countType] && (
-              <div style={{fontSize: 10, color: '#9ca3af', alignSelf: 'center'}}>
+              <div style={{fontSize: 10, color: 'var(--ink-faint)', alignSelf: 'center'}}>
                 {'Last: ' + fmt(poultryFeedInventory[countType].date)}
               </div>
             )}
@@ -1036,31 +1000,10 @@ export default function BroilerFeedView({
           )}
         </div>
 
-        {/* Monthly cards: active first, then last-saved, then older behind a collapse */}
+        {/* Monthly cards: one calendar-pinned order month */}
         <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
           <div style={{fontSize: 14, fontWeight: 700, color: '#085041'}}>Monthly Poultry Feed Ledger</div>
           {renderMonthCard(activeYM)}
-          {mostRecentSavedNonActiveYM && renderMonthCard(mostRecentSavedNonActiveYM)}
-          {olderSavedYMs.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowOlderMonths((s) => !s)}
-              style={{
-                alignSelf: 'flex-start',
-                padding: '6px 12px',
-                background: 'transparent',
-                border: '1px solid #d1d5db',
-                borderRadius: 6,
-                fontSize: 12,
-                color: '#4b5563',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {showOlderMonths ? '▼ Hide older months' : '▶ Show older months (' + olderSavedYMs.length + ')'}
-            </button>
-          )}
-          {showOlderMonths && olderSavedYMs.map((ym) => renderMonthCard(ym))}
         </div>
 
         {/* Per-batch breakdown - Broiler: Active expanded, Processed collapsible, Planned collapsible */}
@@ -1078,7 +1021,7 @@ export default function BroilerFeedView({
             var actTotal = actStarter + actGrower;
             return React.createElement(
               'div',
-              {key: b.id, style: {borderBottom: '1px solid #e5e7eb'}},
+              {key: b.id, style: {borderBottom: '1px solid var(--border)'}},
               React.createElement(
                 'div',
                 {
@@ -1087,7 +1030,7 @@ export default function BroilerFeedView({
                     alignItems: 'center',
                     gap: 10,
                     padding: '10px 16px',
-                    background: '#f9fafb',
+                    background: 'var(--surface-2)',
                     flexWrap: 'wrap',
                   },
                 },
@@ -1117,7 +1060,11 @@ export default function BroilerFeedView({
                   breedLabel(b.breed),
                 ),
                 React.createElement('span', {style: S.badge('#f3f4f6', '#374151')}, 'Schooner ' + b.schooner),
-                React.createElement('span', {style: {fontSize: 12, color: '#4b5563'}}, 'Hatch: ' + fmt(b.hatchDate)),
+                React.createElement(
+                  'span',
+                  {style: {fontSize: 12, color: 'var(--ink-muted)'}},
+                  'Hatch: ' + fmt(b.hatchDate),
+                ),
                 (function () {
                   var autoSt2 = calcPoultryStatus(b);
                   var endDate = autoSt2 === 'processed' ? b.processingDate : todayISO();
@@ -1172,7 +1119,14 @@ export default function BroilerFeedView({
                       {key: col.label, style: {textAlign: 'center'}},
                       React.createElement(
                         'div',
-                        {style: {fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}},
+                        {
+                          style: {
+                            fontSize: 10,
+                            color: 'var(--ink-faint)',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.5,
+                          },
+                        },
                         col.label,
                       ),
                       React.createElement(
@@ -1183,10 +1137,16 @@ export default function BroilerFeedView({
                           {style: {fontSize: 13, fontWeight: 700, color: col.color}},
                           col.proj.toLocaleString(),
                         ),
-                        React.createElement('span', {style: {fontSize: 10, color: '#9ca3af'}}, '/'),
+                        React.createElement('span', {style: {fontSize: 10, color: 'var(--ink-faint)'}}, '/'),
                         React.createElement(
                           'span',
-                          {style: {fontSize: 13, fontWeight: 700, color: col.act > 0 ? '#111827' : '#9ca3af'}},
+                          {
+                            style: {
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: col.act > 0 ? 'var(--ink)' : 'var(--ink-faint)',
+                            },
+                          },
                           col.act > 0 ? col.act.toLocaleString() : '—',
                         ),
                       ),
@@ -1211,7 +1171,7 @@ export default function BroilerFeedView({
                     null,
                     React.createElement(
                       'tr',
-                      {style: {background: '#ecfdf5'}},
+                      {style: {background: 'var(--surface-2)'}},
                       React.createElement(
                         'th',
                         {
@@ -1219,7 +1179,7 @@ export default function BroilerFeedView({
                             padding: '5px 12px',
                             textAlign: 'left',
                             fontWeight: 600,
-                            color: '#4b5563',
+                            color: 'var(--ink-muted)',
                             whiteSpace: 'nowrap',
                           },
                         },
@@ -1227,12 +1187,12 @@ export default function BroilerFeedView({
                       ),
                       React.createElement(
                         'th',
-                        {style: {padding: '5px 12px', textAlign: 'left', fontWeight: 600, color: '#4b5563'}},
+                        {style: {padding: '5px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--ink-muted)'}},
                         'Phase',
                       ),
                       React.createElement(
                         'th',
-                        {style: {padding: '5px 12px', textAlign: 'left', fontWeight: 600, color: '#4b5563'}},
+                        {style: {padding: '5px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--ink-muted)'}},
                         'Location',
                       ),
                       React.createElement(
@@ -1242,7 +1202,7 @@ export default function BroilerFeedView({
                             padding: '5px 12px',
                             textAlign: 'right',
                             fontWeight: 600,
-                            color: '#4b5563',
+                            color: 'var(--ink-muted)',
                             whiteSpace: 'nowrap',
                           },
                         },
@@ -1255,7 +1215,7 @@ export default function BroilerFeedView({
                             padding: '5px 12px',
                             textAlign: 'right',
                             fontWeight: 600,
-                            color: '#4b5563',
+                            color: 'var(--ink-muted)',
                             whiteSpace: 'nowrap',
                           },
                         },
@@ -1272,7 +1232,7 @@ export default function BroilerFeedView({
                         {
                           key: i,
                           style: {
-                            borderTop: '1px solid #e5e7eb',
+                            borderTop: '1px solid var(--border)',
                             background: w.phase === 'starter' ? '#f0f7ff' : '#f0faf5',
                           },
                         },
@@ -1297,7 +1257,7 @@ export default function BroilerFeedView({
                         ),
                         React.createElement(
                           'td',
-                          {style: {padding: '5px 12px', color: '#4b5563'}},
+                          {style: {padding: '5px 12px', color: 'var(--ink-muted)'}},
                           i < 2 ? 'Brooder ' + b.brooder : 'Schooner ' + b.schooner,
                         ),
                         React.createElement(
@@ -1314,10 +1274,10 @@ export default function BroilerFeedView({
                     }),
                     React.createElement(
                       'tr',
-                      {style: {borderTop: '2px solid #ddd', background: '#ecfdf5', fontWeight: 600}},
+                      {style: {borderTop: '2px solid #ddd', background: 'var(--surface-2)', fontWeight: 600}},
                       React.createElement(
                         'td',
-                        {colSpan: 4, style: {padding: '6px 12px', textAlign: 'right', color: '#4b5563'}},
+                        {colSpan: 4, style: {padding: '6px 12px', textAlign: 'right', color: 'var(--ink-muted)'}},
                         'Total',
                       ),
                       React.createElement(
@@ -1357,7 +1317,7 @@ export default function BroilerFeedView({
             {style: {...S.card}},
             React.createElement(
               'div',
-              {style: {padding: '12px 16px', borderBottom: '1px solid #e5e7eb'}},
+              {style: {padding: '12px 16px', borderBottom: '1px solid var(--border)'}},
               React.createElement(
                 'div',
                 {style: {fontWeight: 600, fontSize: 14, color: '#085041'}},
@@ -1376,9 +1336,9 @@ export default function BroilerFeedView({
                       padding: '8px 16px',
                       fontSize: 12,
                       fontWeight: 700,
-                      color: '#065f46',
-                      background: '#ecfdf5',
-                      borderBottom: '1px solid #d1fae5',
+                      color: 'var(--ink-muted)',
+                      background: 'var(--surface-2)',
+                      borderBottom: '1px solid var(--border)',
                     },
                   },
                   'ACTIVE (' + activeBrFeed.length + ')',
@@ -1388,7 +1348,7 @@ export default function BroilerFeedView({
             activeBrFeed.length === 0 &&
               React.createElement(
                 'div',
-                {style: {padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}},
+                {style: {padding: '2rem', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}},
                 'No active broiler batches',
               ),
             // Processed — collapsible, newest first
@@ -1407,16 +1367,20 @@ export default function BroilerFeedView({
                       padding: '8px 16px',
                       fontSize: 12,
                       fontWeight: 700,
-                      color: '#4b5563',
-                      background: '#f9fafb',
-                      borderBottom: '1px solid #e5e7eb',
+                      color: 'var(--ink-muted)',
+                      background: 'var(--surface-2)',
+                      borderBottom: '1px solid var(--border)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,
                     },
                   },
-                  React.createElement('span', {style: {fontSize: 10, color: '#9ca3af'}}, secT.has('proc') ? '▼' : '▶'),
+                  React.createElement(
+                    'span',
+                    {style: {fontSize: 10, color: 'var(--ink-faint)'}},
+                    secT.has('proc') ? '▼' : '▶',
+                  ),
                   'PROCESSED (' + processedBrFeed.length + ')',
                 ),
                 secT.has('proc') && processedBrFeed.map(renderBroilerBatchFeed),
@@ -1437,9 +1401,9 @@ export default function BroilerFeedView({
                       padding: '8px 16px',
                       fontSize: 12,
                       fontWeight: 700,
-                      color: '#4b5563',
-                      background: '#f8fafc',
-                      borderBottom: '1px solid #e5e7eb',
+                      color: 'var(--ink-muted)',
+                      background: 'var(--surface-2)',
+                      borderBottom: '1px solid var(--border)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -1448,7 +1412,7 @@ export default function BroilerFeedView({
                   },
                   React.createElement(
                     'span',
-                    {style: {fontSize: 10, color: '#9ca3af'}},
+                    {style: {fontSize: 10, color: 'var(--ink-faint)'}},
                     secT.has('planned') ? '▼' : '▶',
                   ),
                   'PLANNED (' + plannedBrFeed.length + ')',
@@ -1464,7 +1428,7 @@ export default function BroilerFeedView({
             className="hoverable-tile"
             style={{
               padding: '12px 16px',
-              borderBottom: '1px solid #e5e7eb',
+              borderBottom: '1px solid var(--border)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -1479,14 +1443,14 @@ export default function BroilerFeedView({
             )}
           >
             <div style={{fontWeight: 600, fontSize: 14, color: '#78350f'}}>{'🐓 Layer Feed Estimate Per Batch'}</div>
-            <span style={{fontSize: 12, color: '#9ca3af'}}>
+            <span style={{fontSize: 12, color: 'var(--ink-faint)'}}>
               {collapsedBatches.has('layers') ? '▶ expand' : '▼ collapse'}
             </span>
           </div>
           {!collapsedBatches.has('layers') && (
             <>
               {activeLayerBatchesForFeed.length === 0 && (
-                <div style={{padding: '2rem', textAlign: 'center', color: '#9ca3af', fontSize: 13}}>
+                <div style={{padding: '2rem', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
                   No active layer batches
                 </div>
               )}
@@ -1517,7 +1481,7 @@ export default function BroilerFeedView({
                 var ageWeeks = ageMs > 0 ? Math.floor(ageMs / 86400000 / 7) : 0;
                 var phase = ageWeeks < 6 ? 'Starter' : ageWeeks < 20 ? 'Grower' : 'Layer Feed';
                 return (
-                  <div key={b.id} style={{borderBottom: '1px solid #e5e7eb'}}>
+                  <div key={b.id} style={{borderBottom: '1px solid var(--border)'}}>
                     <div
                       style={{
                         display: 'flex',
@@ -1531,16 +1495,25 @@ export default function BroilerFeedView({
                       <span style={{fontSize: 14}}>{'🐓'}</span>
                       <div style={{fontWeight: 600, fontSize: 13, color: '#92400e', minWidth: 100}}>{b.name}</div>
                       <span style={S.badge('#fef3c7', '#92400e')}>{phase}</span>
-                      {startDate && <span style={{fontSize: 11, color: '#6b7280'}}>Started: {fmt(startDate)}</span>}
-                      <span style={{fontSize: 11, color: '#6b7280'}}>
+                      {startDate && (
+                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Started: {fmt(startDate)}</span>
+                      )}
+                      <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                         {birdCount > 0 ? birdCount + ' birds' : 'no bird count'}
                       </span>
                       {hens !== birdCount && (
-                        <span style={{fontSize: 11, color: '#6b7280'}}>{'→ ' + hens + ' projected hens'}</span>
+                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{'→ ' + hens + ' projected hens'}</span>
                       )}
                       <div style={{marginLeft: 'auto', display: 'flex', gap: 16, flexWrap: 'wrap'}}>
                         <div style={{textAlign: 'center'}}>
-                          <div style={{fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}}>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: 'var(--ink-faint)',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.5,
+                            }}
+                          >
                             Starter
                           </div>
                           <div style={{fontSize: 15, fontWeight: 700, color: '#1d4ed8'}}>
@@ -1548,7 +1521,14 @@ export default function BroilerFeedView({
                           </div>
                         </div>
                         <div style={{textAlign: 'center'}}>
-                          <div style={{fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}}>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: 'var(--ink-faint)',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.5,
+                            }}
+                          >
                             Grower
                           </div>
                           <div style={{fontSize: 15, fontWeight: 700, color: '#085041'}}>
@@ -1556,7 +1536,14 @@ export default function BroilerFeedView({
                           </div>
                         </div>
                         <div style={{textAlign: 'center'}}>
-                          <div style={{fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5}}>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              color: 'var(--ink-faint)',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.5,
+                            }}
+                          >
                             Layer / Year
                           </div>
                           <div style={{fontSize: 15, fontWeight: 700, color: '#78350f'}}>

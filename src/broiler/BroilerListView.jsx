@@ -411,7 +411,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
   const inpS = {
     fontSize: 13,
     padding: '7px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
@@ -419,9 +419,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
   const savedViewGhostBtnS = {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -434,12 +434,12 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {showUsers && (
         <UsersModal
           sb={sb}
@@ -460,9 +460,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
             style={{
               padding: '7px 12px',
               borderRadius: 8,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               cursor: 'pointer',
               fontSize: 12,
               fontWeight: 600,
@@ -478,9 +478,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
             style={{
               padding: '7px 12px',
               borderRadius: 8,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#374151',
+              color: 'var(--ink)',
               cursor: 'pointer',
               fontSize: 12,
               fontWeight: 600,
@@ -513,7 +513,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
           data-broiler-saved-views-row
           style={{
             background: 'white',
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '10px 14px',
             marginBottom: 8,
@@ -523,7 +523,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
             flexWrap: 'wrap',
           }}
         >
-          <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+          <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
           {savedViewsError ? (
             <span style={{fontSize: 12, color: '#b91c1c'}} data-broiler-saved-views-error>
               Saved views unavailable. Filters still work.
@@ -662,7 +662,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
           data-broiler-batches-toolbar
           style={{
             background: 'white',
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '12px 16px',
             marginBottom: 12,
@@ -706,7 +706,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 </option>
               ))}
             </select>
-            <label style={{fontSize: 11, color: '#6b7280', display: 'inline-flex', alignItems: 'center', gap: 4}}>
+            <label
+              style={{fontSize: 11, color: 'var(--ink-muted)', display: 'inline-flex', alignItems: 'center', gap: 4}}
+            >
               Hatch after
               <input
                 type="date"
@@ -716,7 +718,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 style={{...inpS, width: 'auto'}}
               />
             </label>
-            <label style={{fontSize: 11, color: '#6b7280', display: 'inline-flex', alignItems: 'center', gap: 4}}>
+            <label
+              style={{fontSize: 11, color: 'var(--ink-muted)', display: 'inline-flex', alignItems: 'center', gap: 4}}
+            >
               before
               <input
                 type="date"
@@ -753,7 +757,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
               </button>
             )}
           </div>
-          <div style={{fontSize: 12, color: '#6b7280'}} data-broiler-count>
+          <div style={{fontSize: 12, color: 'var(--ink-muted)'}} data-broiler-count>
             Showing {visibleCount} of {totalCount} batches
             {filterCount > 0 && ' - ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
           </div>
@@ -761,7 +765,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
         <div style={{...S.card, overflowX: 'auto'}}>
           <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 900}}>
             <thead>
-              <tr style={{background: '#ecfdf5', borderBottom: '1px solid #e5e7eb'}}>
+              <tr style={{background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'}}>
                 {[
                   'Batch Name',
                   'Breed',
@@ -785,7 +789,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       padding: '8px 10px',
                       textAlign: 'left',
                       fontWeight: 600,
-                      color: '#4b5563',
+                      color: 'var(--ink-muted)',
                       whiteSpace: 'nowrap',
                       fontSize: 11,
                     }}
@@ -800,7 +804,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 <tr>
                   <td
                     colSpan={15}
-                    style={{padding: '2.5rem', textAlign: 'center', color: '#9ca3af'}}
+                    style={{padding: '2.5rem', textAlign: 'center', color: 'var(--ink-faint)'}}
                     data-broiler-batches-empty={totalCount === 0 ? 'true' : 'filtered'}
                   >
                     {totalCount === 0
@@ -832,7 +836,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                     {...openableProps(() => openBatch(b, activeRows))}
                     className="hoverable-row"
                     style={{
-                      borderBottom: '1px solid #e5e7eb',
+                      borderBottom: '1px solid var(--border)',
                       background: i % 2 === 0 ? 'white' : '#fafafa',
                       cursor: 'pointer',
                     }}
@@ -854,7 +858,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                     <td style={{padding: '8px 10px'}}>
                       <span style={S.badge(B2.bg, B2.tx)}>{b.breed}</span>
                     </td>
-                    <td style={{padding: '8px 10px', color: '#4b5563', whiteSpace: 'nowrap'}}>{b.hatchery}</td>
+                    <td style={{padding: '8px 10px', color: 'var(--ink-muted)', whiteSpace: 'nowrap'}}>{b.hatchery}</td>
                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap'}}>
                       {fmt(b.hatchDate)}
                       {hw ? ' \u26a0' : ''}
@@ -899,10 +903,10 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                     <td style={{padding: '8px 10px'}}>
                       <span style={S.badge('#f3f4f6', '#374151')}>{b.schooner}</span>
                     </td>
-                    <td style={{padding: '8px 10px', whiteSpace: 'nowrap', color: '#4b5563'}}>
+                    <td style={{padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--ink-muted)'}}>
                       {fmtS(brooderIn) + ' \u2192 ' + fmtS(brooderOut)}
                     </td>
-                    <td style={{padding: '8px 10px', whiteSpace: 'nowrap', color: '#4b5563'}}>
+                    <td style={{padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--ink-muted)'}}>
                       {fmtS(schoonerIn) + ' \u2192 ' + fmtS(schoonerOut)}
                     </td>
                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap'}}>
@@ -912,12 +916,13 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           {pw ? ' ⚠' : ''}
                         </span>
                       ) : (
-                        <span style={{color: '#9ca3af'}}>TBD</span>
+                        <span style={{color: 'var(--ink-faint)'}}>TBD</span>
                       )}
                     </td>
                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap'}}>
                       {(() => {
-                        if (!b.hatchDate || !b.processingDate) return <span style={{color: '#9ca3af'}}>—</span>;
+                        if (!b.hatchDate || !b.processingDate)
+                          return <span style={{color: 'var(--ink-faint)'}}>—</span>;
                         const days = Math.round(
                           (new Date(b.processingDate + 'T12:00:00') - new Date(b.hatchDate + 'T12:00:00')) / 86400000,
                         );
@@ -938,7 +943,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           return total > 0 ? (
                             <span style={{color: '#92400e', fontWeight: 600}}>{total.toLocaleString()} lbs</span>
                           ) : (
-                            <span style={{color: '#9ca3af'}}>—</span>
+                            <span style={{color: 'var(--ink-faint)'}}>—</span>
                           );
                         }
                         const bd = broilerDailys.filter(
@@ -950,7 +955,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                               .trim() === b.name.toLowerCase().trim(),
                         );
                         const total = bd.reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
-                        if (bd.length === 0) return <span style={{color: '#9ca3af'}}>—</span>;
+                        if (bd.length === 0) return <span style={{color: 'var(--ink-faint)'}}>—</span>;
                         return (
                           <span style={{color: '#92400e', fontWeight: 600}}>
                             {Math.round(total).toLocaleString()} lbs
@@ -973,7 +978,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           }}
                           style={{
                             fontSize: 11,
-                            color: '#6b7280',
+                            color: 'var(--ink-muted)',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -1027,7 +1032,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
           return (
             <div style={{marginTop: 24}}>
               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8}}>
-                <div style={{fontSize: 13, fontWeight: 700, color: '#374151', letterSpacing: 0.3}}>
+                <div style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', letterSpacing: 0.3}}>
                   BATCH COMPARISON
                 </div>
                 {completedBatches.length > 10 && (
@@ -1051,7 +1056,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
               <div style={{...S.card, overflowX: 'auto'}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 1100}}>
                   <thead>
-                    <tr style={{background: '#ecfdf5', borderBottom: '1px solid #d1fae5'}}>
+                    <tr style={{background: 'var(--surface-2)', borderBottom: '1px solid var(--border)'}}>
                       {[
                         'Batch',
                         'Breed',
@@ -1077,7 +1082,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                             padding: '7px 10px',
                             textAlign: 'left',
                             fontWeight: 600,
-                            color: '#374151',
+                            color: 'var(--ink)',
                             whiteSpace: 'nowrap',
                             fontSize: 11,
                           }}
@@ -1136,14 +1141,14 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       })();
                       const cell = (v, opts = {}) => {
                         const {green, bold} = opts;
-                        const color = green ? '#085041' : '#111827';
+                        const color = green ? '#085041' : 'var(--ink)';
                         return (
                           <td
                             key={Math.random()}
                             style={{
                               padding: '7px 10px',
                               whiteSpace: 'nowrap',
-                              color: v ? color : '#9ca3af',
+                              color: v ? color : 'var(--ink-faint)',
                               fontWeight: bold || v ? 600 : 400,
                             }}
                           >
@@ -1156,20 +1161,20 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           key={b.id}
                           {...openableProps(() => openBatch(b, displayed))}
                           style={{
-                            borderBottom: '1px solid #e5e7eb',
+                            borderBottom: '1px solid var(--border)',
                             background: i % 2 === 0 ? 'white' : '#fafafa',
                             cursor: 'pointer',
                           }}
                           className="hoverable-row"
                         >
-                          <td style={{padding: '7px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#111827'}}>
+                          <td style={{padding: '7px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--ink)'}}>
                             {b.name}
                           </td>
                           <td style={{padding: '7px 10px'}}>
                             {b.breed ? (
                               <span style={S.badge(B2.bg, B2.tx)}>{b.breed}</span>
                             ) : (
-                              <span style={{color: '#9ca3af'}}>—</span>
+                              <span style={{color: 'var(--ink-faint)'}}>—</span>
                             )}
                           </td>
                           {cell(b.hatchery || null)}
@@ -1189,7 +1194,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                                 {sch}
                               </span>
                             ) : (
-                              <span style={{color: '#9ca3af'}}>{'\u2014'}</span>
+                              <span style={{color: 'var(--ink-faint)'}}>{'\u2014'}</span>
                             )}
                           </td>
                           {cell(b.birdCountActual ? parseInt(b.birdCountActual).toLocaleString() : null)}
@@ -1230,7 +1235,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 </table>
               </div>
               {!showAllComparison && completedBatches.length > 10 && (
-                <div style={{textAlign: 'center', fontSize: 11, color: '#9ca3af', marginTop: 6}}>
+                <div style={{textAlign: 'center', fontSize: 11, color: 'var(--ink-faint)', marginTop: 6}}>
                   {completedBatches.length - 10} more batches hidden — click "Show All" to expand
                 </div>
               )}
@@ -1241,7 +1246,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
         {/* Processed batches */}
         {processedCardRows.length > 0 && (
           <div style={{marginTop: 20}}>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-faint)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               PROCESSED ({processedCardRows.length})
             </div>
             {processedCardRows.map((b, i) => {
@@ -1284,7 +1291,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                   {...openableProps(() => openBatch(b, processedCardRows))}
                   style={{
                     background: 'white',
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid var(--border)',
                     borderRadius: 10,
                     marginBottom: 10,
                     overflow: 'hidden',
@@ -1297,17 +1304,17 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                   <div
                     style={{
                       padding: '10px 14px',
-                      background: '#f9fafb',
+                      background: 'var(--surface-2)',
                       display: 'flex',
                       flexWrap: 'wrap',
                       gap: '6px 14px',
                       alignItems: 'center',
-                      borderBottom: '1px solid #e5e7eb',
+                      borderBottom: '1px solid var(--border)',
                     }}
                   >
-                    <strong style={{fontSize: 13, color: '#111827'}}>{b.name}</strong>
+                    <strong style={{fontSize: 13, color: 'var(--ink)'}}>{b.name}</strong>
                     {b.breed && <span style={S.badge(B2.bg, B2.tx)}>{breedLabel(b.breed)}</span>}
-                    {b.hatchery && <span style={{color: '#6b7280', fontSize: 12}}>{b.hatchery}</span>}
+                    {b.hatchery && <span style={{color: 'var(--ink-muted)', fontSize: 12}}>{b.hatchery}</span>}
                     {b.schooner && (
                       <span
                         style={{
@@ -1403,10 +1410,10 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         {l: 'Lbs / Bird', v: lbsPerBird ? `${lbsPerBird} lbs` : '—'},
                       ];
                     })().map(({l, v, warn}) => (
-                      <div key={l} style={{background: '#f9fafb', borderRadius: 6, padding: '6px 8px'}}>
+                      <div key={l} style={{background: 'var(--surface-2)', borderRadius: 6, padding: '6px 8px'}}>
                         <div
                           style={{
-                            color: '#9ca3af',
+                            color: 'var(--ink-faint)',
                             marginBottom: 2,
                             fontSize: 10,
                             textTransform: 'uppercase',
@@ -1415,7 +1422,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         >
                           {l}
                         </div>
-                        <div style={{fontWeight: 700, color: warn ? '#b91c1c' : '#111827', fontSize: 12}}>
+                        <div style={{fontWeight: 700, color: warn ? '#b91c1c' : 'var(--ink)', fontSize: 12}}>
                           {v || '\u2014'}
                         </div>
                       </div>
@@ -1426,7 +1433,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                     <div
                       style={{
                         padding: '8px 14px',
-                        borderTop: '1px solid #f3f4f6',
+                        borderTop: '1px solid var(--divider)',
                         display: 'grid',
                         gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))',
                         gap: 8,
@@ -1488,12 +1495,12 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                     <div
                       style={{
                         padding: '8px 14px',
-                        borderTop: '1px solid #f3f4f6',
+                        borderTop: '1px solid var(--divider)',
                         display: 'flex',
                         flexWrap: 'wrap',
                         gap: '6px 20px',
                         fontSize: 11,
-                        color: '#6b7280',
+                        color: 'var(--ink-muted)',
                       }}
                     >
                       {b.week4Lbs > 0 && (

@@ -40,15 +40,15 @@ import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 
 const weighInSourcedValueBox = {
   ...recordControl,
-  background: '#f9fafb',
-  borderColor: '#e5e7eb',
-  color: '#374151',
+  background: 'var(--surface-2)',
+  borderColor: 'var(--border)',
+  color: 'var(--ink)',
   fontWeight: 600,
   display: 'flex',
   alignItems: 'center',
 };
 
-const weighInSourcedHint = {fontSize: 11, color: '#9ca3af', marginTop: 3};
+const weighInSourcedHint = {fontSize: 11, color: 'var(--ink-faint)', marginTop: 3};
 
 function broilerWeekWeightLabel(value) {
   const parsed = Number.parseFloat(value);
@@ -139,7 +139,7 @@ export default function BatchForm({
             borderRadius: 12,
             width: '100%',
             maxWidth: 806,
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--border)',
             marginBottom: '2rem',
           }}
         >
@@ -147,7 +147,7 @@ export default function BatchForm({
           <div
             style={{
               padding: '12px 20px',
-              borderBottom: '1px solid #e5e7eb',
+              borderBottom: '1px solid var(--border)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -159,7 +159,7 @@ export default function BatchForm({
             }}
           >
             <div style={{display: 'flex', alignItems: 'center', gap: 10, minWidth: 0}}>
-              <div style={{fontSize: 13, fontWeight: 500, color: '#9ca3af', flexShrink: 0}}>
+              <div style={{fontSize: 13, fontWeight: 500, color: 'var(--ink-faint)', flexShrink: 0}}>
                 {editId ? 'Edit Batch' : 'Add New Batch'}
               </div>
               {form.name && (
@@ -317,9 +317,9 @@ export default function BatchForm({
                         marginTop: 5,
                         padding: '3px 9px',
                         borderRadius: 5,
-                        border: '1px solid ' + (showLegacy ? '#92400e' : '#d1d5db'),
-                        background: showLegacy ? '#fffbeb' : 'white',
-                        color: showLegacy ? '#92400e' : '#6b7280',
+                        border: '1px solid ' + (showLegacy ? '#92400e' : 'var(--border-strong)'),
+                        background: 'white',
+                        color: showLegacy ? '#92400e' : 'var(--ink-muted)',
                         fontSize: 10,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -466,7 +466,9 @@ export default function BatchForm({
                   value={form.birdCount || ''}
                   onChange={(e) => upd('birdCount', e.target.value)}
                 />
-                <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>Standard 750 · Schooner 1 solo: 650</div>
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
+                  Standard 750 · Schooner 1 solo: 650
+                </div>
               </div>
               <div>
                 <label style={recordFieldLabel}>Birds arrived</label>
@@ -477,7 +479,7 @@ export default function BatchForm({
                   onChange={(e) => upd('birdCountActual', e.target.value)}
                   placeholder="Enter actual count"
                 />
-                <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
                   Actual day-1 count after hatchery overship. Enter manually — never auto-fills from ordered.
                 </div>
               </div>
@@ -492,7 +494,7 @@ export default function BatchForm({
                   onChange={(e) => upd('chickCost', e.target.value)}
                   placeholder="Total paid to hatchery"
                 />
-                <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
                   Total paid to the hatchery for this batch's chicks. Rolls into Total Cost.
                 </div>
               </div>
@@ -541,8 +543,10 @@ export default function BatchForm({
               />
             </div>
             {/* ── Brooder / Schooner Counts ── */}
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 12, marginTop: 4}}>
-              <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
+            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4}}>
+              <div
+                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
+              >
                 BROODER & SCHOONER
               </div>
               <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
@@ -554,7 +558,9 @@ export default function BatchForm({
                     value={form.brooderIn}
                     onChange={(e) => upd('brooderIn', e.target.value)}
                   />
-                  <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>Defaults to hatch date + 1 day</div>
+                  <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
+                    Defaults to hatch date + 1 day
+                  </div>
                 </div>
                 <div>
                   <label style={recordFieldLabel}>Date Out of Brooder</label>
@@ -601,17 +607,17 @@ export default function BatchForm({
                       <div
                         style={{
                           padding: '8px 11px',
-                          background: '#f9fafb',
-                          border: '1px solid #e5e7eb',
+                          background: 'var(--surface-2)',
+                          border: '1px solid var(--border)',
                           borderRadius: 6,
                           fontSize: 13,
                           fontWeight: 600,
-                          color: stats.mortality > 0 ? '#b91c1c' : '#9ca3af',
+                          color: stats.mortality > 0 ? '#b91c1c' : 'var(--ink-faint)',
                         }}
                       >
                         {stats.mortality.toLocaleString()}
                         {stats.mortPct > 0 ? (
-                          <span style={{fontWeight: 400, color: '#9ca3af', marginLeft: 6}}>
+                          <span style={{fontWeight: 400, color: 'var(--ink-faint)', marginLeft: 6}}>
                             ({stats.mortPct.toFixed(1)}%)
                           </span>
                         ) : null}
@@ -622,8 +628,10 @@ export default function BatchForm({
               </div>
             </div>
             {/* ── Feed ── */}
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 12}}>
-              <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
+            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
+              <div
+                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
+              >
                 FEED & GRIT
               </div>
               {editId &&
@@ -730,17 +738,17 @@ export default function BatchForm({
                 const ro = (label, val, suffix) => (
                   <div>
                     <label style={recordFieldLabel}>
-                      {label} <span style={{fontWeight: 400, color: '#9ca3af'}}>(from daily reports)</span>
+                      {label} <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>(from daily reports)</span>
                     </label>
                     <div
                       style={{
                         padding: '8px 11px',
-                        background: '#f9fafb',
-                        border: '1px solid #e5e7eb',
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--border)',
                         borderRadius: 6,
                         fontSize: 13,
                         fontWeight: 600,
-                        color: val > 0 ? '#085041' : '#9ca3af',
+                        color: val > 0 ? '#085041' : 'var(--ink-faint)',
                       }}
                     >
                       {val > 0 ? val.toLocaleString() + suffix : '\u2014'}
@@ -756,10 +764,18 @@ export default function BatchForm({
                 );
               })()}
               {/* FEED COST RATES (read-only — set in Admin → Feed Costs, propagated to all active broiler batches) */}
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 10}}>
-                <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 6}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10}}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: 'var(--ink-muted)',
+                    letterSpacing: 0.5,
+                    marginBottom: 6,
+                  }}
+                >
                   {'\ud83d\udcb0 FEED COST RATES'}{' '}
-                  <span style={{fontWeight: 400, color: '#9ca3af'}}>
+                  <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>
                     {'(locked \u2014 set in Admin \u203a Feed Costs)'}
                   </span>
                 </div>
@@ -768,11 +784,11 @@ export default function BatchForm({
                     display: 'flex',
                     gap: 16,
                     fontSize: 12,
-                    color: '#374151',
+                    color: 'var(--ink)',
                     padding: '8px 12px',
-                    background: '#f9fafb',
+                    background: 'var(--surface-2)',
                     borderRadius: 8,
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid var(--border)',
                     flexWrap: 'wrap',
                   }}
                 >
@@ -804,8 +820,10 @@ export default function BatchForm({
               </div>
             </div>
             {/* ── Processing ── */}
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 12}}>
-              <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
+            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
+              <div
+                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
+              >
                 PROCESSING
               </div>
               <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
@@ -835,15 +853,15 @@ export default function BatchForm({
                   <div
                     style={{
                       padding: '8px 10px',
-                      background: '#f9fafb',
-                      border: '1px solid #e5e7eb',
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border)',
                       borderRadius: 6,
                       fontSize: 13,
                       fontWeight: 600,
                       color: (() => {
                         const tf = (parseFloat(form.brooderFeedLbs) || 0) + (parseFloat(form.schoonerFeedLbs) || 0);
                         const p = parseFloat(form.totalToProcessor) || 0;
-                        return tf > 0 && p > 0 ? '#085041' : '#9ca3af';
+                        return tf > 0 && p > 0 ? '#085041' : 'var(--ink-faint)';
                       })(),
                     }}
                   >
@@ -891,8 +909,10 @@ export default function BatchForm({
                 </div>
               </div>
             </div>
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 12}}>
-              <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
+            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
+              <div
+                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
+              >
                 PRODUCTION TOTALS
               </div>
               <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
@@ -922,8 +942,16 @@ export default function BatchForm({
             </div>
             {/* ── Documents ── */}
             {editId && (
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid #e5e7eb', paddingTop: 12}}>
-                <div style={{fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: 0.5, marginBottom: 8}}>
+              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: 'var(--ink-faint)',
+                    letterSpacing: 0.5,
+                    marginBottom: 8,
+                  }}
+                >
                   DOCUMENTS
                 </div>
 
@@ -971,7 +999,7 @@ export default function BatchForm({
                         >
                           <input type="checkbox" defaultChecked={true} id={`pp_${f.key}`} style={recordCheckbox} />
                           <span style={{fontSize: 12, color: '#1e40af', minWidth: 160}}>{f.label}</span>
-                          <span style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>{f.fmt(f.val)}</span>
+                          <span style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>{f.fmt(f.val)}</span>
                         </label>
                       ))}
                     <div style={{display: 'flex', gap: 8, marginTop: 10}}>
@@ -1040,9 +1068,9 @@ export default function BatchForm({
                         style={{
                           padding: '6px 12px',
                           borderRadius: 7,
-                          border: '1px solid #d1d5db',
+                          border: '1px solid var(--border-strong)',
                           background: 'white',
-                          color: '#6b7280',
+                          color: 'var(--ink-muted)',
                           fontSize: 12,
                           cursor: 'pointer',
                           fontFamily: 'inherit',
@@ -1064,13 +1092,13 @@ export default function BatchForm({
                     e.currentTarget.style.borderColor = '#085041';
                   }}
                   onDragLeave={(e) => {
-                    e.currentTarget.style.background = '#f8fafc';
-                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.background = 'var(--surface-2)';
+                    e.currentTarget.style.borderColor = 'var(--border-strong)';
                   }}
                   onDrop={async (e) => {
                     e.preventDefault();
-                    e.currentTarget.style.background = '#f8fafc';
-                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.background = 'var(--surface-2)';
+                    e.currentTarget.style.borderColor = 'var(--border-strong)';
                     setFormNotice(null);
                     const files = Array.from(e.dataTransfer.files).filter((f) => /\.(pdf|xlsx|xls|csv)$/i.test(f.name));
                     if (!files.length) {
@@ -1120,8 +1148,8 @@ export default function BatchForm({
                     justifyContent: 'center',
                     gap: 6,
                     padding: '20px',
-                    background: '#f8fafc',
-                    border: '2px dashed #d1d5db',
+                    background: 'var(--surface-2)',
+                    border: '2px dashed var(--border-strong)',
                     borderRadius: 10,
                     cursor: docUploading ? 'not-allowed' : 'pointer',
                     marginBottom: 10,
@@ -1129,10 +1157,10 @@ export default function BatchForm({
                   }}
                 >
                   <span style={{fontSize: 28}}>{docUploading ? '⏳' : '📎'}</span>
-                  <div style={{fontSize: 12, fontWeight: 600, color: '#374151'}}>
+                  <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink)'}}>
                     {docUploading ? 'Uploading…' : 'Drop files here'}
                   </div>
-                  <div style={{fontSize: 11, color: '#9ca3af'}}>
+                  <div style={{fontSize: 11, color: 'var(--ink-faint)'}}>
                     PDF, Excel, CSV · click to browse · Excel files scanned for processor data
                   </div>
                   <input
@@ -1189,7 +1217,9 @@ export default function BatchForm({
                   />
                 </label>
                 {(form.documents || []).length === 0 && (
-                  <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic'}}>No documents attached yet</div>
+                  <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic'}}>
+                    No documents attached yet
+                  </div>
                 )}
                 {(form.documents || []).map((doc, i) => (
                   <div
@@ -1199,8 +1229,8 @@ export default function BatchForm({
                       alignItems: 'center',
                       gap: 8,
                       padding: '8px 10px',
-                      background: '#f8fafc',
-                      border: '1px solid #e5e7eb',
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border)',
                       borderRadius: 7,
                       marginBottom: 6,
                     }}
@@ -1215,7 +1245,7 @@ export default function BatchForm({
                         style={{
                           fontSize: 12,
                           fontWeight: 600,
-                          color: '#111827',
+                          color: 'var(--ink)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -1223,7 +1253,7 @@ export default function BatchForm({
                       >
                         {doc.name}
                       </div>
-                      <div style={{fontSize: 10, color: '#9ca3af'}}>
+                      <div style={{fontSize: 10, color: 'var(--ink-faint)'}}>
                         {doc.size ? Math.round(doc.size / 1024) + ' KB' : ''}
                         {doc.uploadedAt ? ' · ' + fmt(doc.uploadedAt) : ''}
                       </div>
@@ -1232,7 +1262,13 @@ export default function BatchForm({
                       href={doc.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{fontSize: 11, color: '#1d4ed8', fontWeight: 600, textDecoration: 'none', flexShrink: 0}}
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--brand)',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        flexShrink: 0,
+                      }}
                     >
                       View
                     </a>
@@ -1271,7 +1307,7 @@ export default function BatchForm({
           <div
             style={{
               padding: '12px 20px',
-              borderTop: '1px solid #e5e7eb',
+              borderTop: '1px solid var(--border)',
               display: 'flex',
               gap: 8,
               alignItems: 'center',
@@ -1302,7 +1338,9 @@ export default function BatchForm({
             >
               Close
             </button>
-            {editId && <div style={{marginLeft: 'auto', fontSize: 11, color: '#9ca3af'}}>Auto-saves as you type</div>}
+            {editId && (
+              <div style={{marginLeft: 'auto', fontSize: 11, color: 'var(--ink-faint)'}}>Auto-saves as you type</div>
+            )}
           </div>
         </div>
       </div>

@@ -493,7 +493,7 @@ export default function LayerBatchPage({
     const costPerHen = feedCost != null && orig > 0 ? feedCost / orig : null;
     perfTiles = [
       {l: 'Batch Age', v: batchAgeStr, c: '#78350f'},
-      {l: 'Days in Housing', v: daysInHousing > 0 ? daysInHousing + ' days' : '—', c: '#374151'},
+      {l: 'Days in Housing', v: daysInHousing > 0 ? daysInHousing + ' days' : '—', c: 'var(--ink)'},
       {
         l: 'Original → Current',
         v: orig > 0 ? orig.toLocaleString() + ' → ' + currentHens.toLocaleString() : '—',
@@ -542,7 +542,9 @@ export default function LayerBatchPage({
             (() => {
               const anchor = batch.brooder_entry_date || batch.arrival_date;
               const months = +((new Date() - new Date(anchor + 'T12:00:00')) / 86400000 / 30.44).toFixed(1);
-              return months > 0 ? <span style={{fontSize: 12, color: '#6b7280'}}>{months + ' months old'}</span> : null;
+              return months > 0 ? (
+                <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{months + ' months old'}</span>
+              ) : null;
             })()}
           {canEdit && (
             <button
@@ -553,7 +555,7 @@ export default function LayerBatchPage({
                 marginLeft: 'auto',
                 padding: '10px 16px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
                 fontSize: 12,
                 cursor: 'pointer',
@@ -654,7 +656,7 @@ export default function LayerBatchPage({
               key={l}
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '12px 14px',
                 textAlign: 'center',
@@ -663,7 +665,7 @@ export default function LayerBatchPage({
               <div
                 style={{
                   fontSize: 10,
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   marginBottom: 4,
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
@@ -671,7 +673,7 @@ export default function LayerBatchPage({
               >
                 {l}
               </div>
-              <div style={{fontSize: 18, fontWeight: 700, color: c || '#111827'}}>{v}</div>
+              <div style={{fontSize: 18, fontWeight: 700, color: c || 'var(--ink)'}}>{v}</div>
             </div>
           ))}
         </div>
@@ -681,13 +683,15 @@ export default function LayerBatchPage({
           <div
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '16px 20px',
               marginBottom: 16,
             }}
           >
-            <div style={{fontSize: 12, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 12}}>
+            <div
+              style={{fontSize: 12, fontWeight: 700, color: 'var(--ink-muted)', letterSpacing: 0.5, marginBottom: 12}}
+            >
               PERFORMANCE SUMMARY
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10}}>
@@ -695,8 +699,8 @@ export default function LayerBatchPage({
                 <div
                   key={t.l}
                   style={{
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
                     borderRadius: 10,
                     padding: '12px 14px',
                     textAlign: 'center',
@@ -705,7 +709,7 @@ export default function LayerBatchPage({
                   <div
                     style={{
                       fontSize: 10,
-                      color: '#6b7280',
+                      color: 'var(--ink-muted)',
                       marginBottom: 4,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -713,7 +717,7 @@ export default function LayerBatchPage({
                   >
                     {t.l}
                   </div>
-                  <div style={{fontSize: 18, fontWeight: 700, color: t.c || '#111827'}}>{t.v}</div>
+                  <div style={{fontSize: 18, fontWeight: 700, color: t.c || 'var(--ink)'}}>{t.v}</div>
                 </div>
               ))}
             </div>
@@ -725,13 +729,15 @@ export default function LayerBatchPage({
           <div
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '16px 20px',
               marginBottom: 16,
             }}
           >
-            <div style={{fontSize: 12, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 12}}>
+            <div
+              style={{fontSize: 12, fontWeight: 700, color: 'var(--ink-muted)', letterSpacing: 0.5, marginBottom: 12}}
+            >
               LIFECYCLE PHASES
             </div>
             <div style={{display: 'flex', gap: 0, alignItems: 'stretch'}}>
@@ -794,10 +800,10 @@ export default function LayerBatchPage({
                     >
                       {phase.icon} {phase.label.toUpperCase()}
                     </div>
-                    <div style={{fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 4}}>
-                      {phase.name || <span style={{color: '#9ca3af'}}>Not set</span>}
+                    <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 4}}>
+                      {phase.name || <span style={{color: 'var(--ink-faint)'}}>Not set</span>}
                     </div>
-                    <div style={{fontSize: 10, color: '#6b7280'}}>
+                    <div style={{fontSize: 10, color: 'var(--ink-muted)'}}>
                       {phase.entry ? fmt(phase.entry) : '—'}
                       {phase.exit ? ' → ' + fmt(phase.exit) : ' → present'}
                     </div>
@@ -810,7 +816,7 @@ export default function LayerBatchPage({
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: 14,
-                        color: '#9ca3af',
+                        color: 'var(--ink-faint)',
                         flexShrink: 0,
                       }}
                     >
@@ -826,7 +832,7 @@ export default function LayerBatchPage({
         {/* Housings */}
         <div style={{marginBottom: 16}}>
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10}}>
-            <div style={{fontSize: 12, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5}}>HOUSINGS</div>
+            <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink-muted)', letterSpacing: 0.5}}>HOUSINGS</div>
             {canEdit && batch.status === 'active' && (
               <button
                 type="button"
@@ -853,7 +859,7 @@ export default function LayerBatchPage({
             )}
           </div>
           {batchHousings.length === 0 && (
-            <div style={{color: '#9ca3af', fontSize: 13, padding: '1rem 0'}}>No housings yet.</div>
+            <div style={{color: 'var(--ink-faint)', fontSize: 13, padding: '1rem 0'}}>No housings yet.</div>
           )}
           <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
             {batchHousings.map((h) => {
@@ -875,7 +881,7 @@ export default function LayerBatchPage({
                   className="hoverable-tile"
                   style={{
                     background: 'white',
-                    border: h.status === 'active' ? '1px solid #fde68a' : '1px solid #e5e7eb',
+                    border: h.status === 'active' ? '1px solid #fde68a' : '1px solid var(--border)',
                     borderRadius: 10,
                     padding: '14px 18px',
                     display: 'flex',
@@ -886,7 +892,7 @@ export default function LayerBatchPage({
                 >
                   <div style={{flex: 1}}>
                     <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap'}}>
-                      <span style={{fontSize: 13, fontWeight: 700, color: '#111827'}}>{'🏠 ' + h.housing_name}</span>
+                      <span style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)'}}>{'🏠 ' + h.housing_name}</span>
                       <span
                         style={{
                           fontSize: 10,
@@ -900,15 +906,17 @@ export default function LayerBatchPage({
                       >
                         {h.status}
                       </span>
-                      {h.start_date && <span style={{fontSize: 11, color: '#6b7280'}}>from {fmt(h.start_date)}</span>}
+                      {h.start_date && (
+                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>from {fmt(h.start_date)}</span>
+                      )}
                       {h.retired_date && (
-                        <span style={{fontSize: 11, color: '#9ca3af'}}>{'→ ' + fmt(h.retired_date)}</span>
+                        <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'→ ' + fmt(h.retired_date)}</span>
                       )}
                     </div>
-                    <div style={{display: 'flex', gap: 16, fontSize: 11, color: '#6b7280', flexWrap: 'wrap'}}>
+                    <div style={{display: 'flex', gap: 16, fontSize: 11, color: 'var(--ink-muted)', flexWrap: 'wrap'}}>
                       <span>
                         Physical:{' '}
-                        <strong style={{color: '#374151'}}>{h.current_count != null ? h.current_count : '—'}</strong>
+                        <strong style={{color: 'var(--ink)'}}>{h.current_count != null ? h.current_count : '—'}</strong>
                       </span>
                       {proj && proj.anchorDate && proj.mortSince > 0 && (
                         <span>
@@ -919,7 +927,7 @@ export default function LayerBatchPage({
                         </span>
                       )}
                       <span>
-                        Capacity: <strong style={{color: '#374151'}}>{cap === 9999 ? 'Unlimited' : cap}</strong>
+                        Capacity: <strong style={{color: 'var(--ink)'}}>{cap === 9999 ? 'Unlimited' : cap}</strong>
                       </span>
                       {util !== null && (
                         <span>
@@ -929,7 +937,7 @@ export default function LayerBatchPage({
                           </strong>
                         </span>
                       )}
-                      <span style={{fontSize: 11, color: '#6b7280'}}>
+                      <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                         Feed: {hs.totalFeed > 0 ? Math.round(hs.totalFeed) + ' lbs' : '—'} · Eggs:{' '}
                         {hs.totalEggs > 0 ? hs.totalEggs.toLocaleString() : '—'}
                       </span>
@@ -946,15 +954,15 @@ export default function LayerBatchPage({
           <div
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 10,
               padding: '12px 16px',
               fontSize: 12,
-              color: '#374151',
+              color: 'var(--ink)',
               marginBottom: 16,
             }}
           >
-            <span style={{color: '#9ca3af'}}>Notes: </span>
+            <span style={{color: 'var(--ink-faint)'}}>Notes: </span>
             {batch.notes}
           </div>
         )}
@@ -1002,7 +1010,7 @@ export default function LayerBatchPage({
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1012,7 +1020,7 @@ export default function LayerBatchPage({
               <button
                 type="button"
                 onClick={() => setShowAddHousing(false)}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 ×
               </button>
@@ -1053,9 +1061,9 @@ export default function LayerBatchPage({
               <div
                 style={{
                   fontSize: 11,
-                  color: '#6b7280',
-                  background: '#f9fafb',
-                  border: '1px solid #e5e7eb',
+                  color: 'var(--ink-muted)',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '8px 10px',
                 }}
@@ -1064,7 +1072,7 @@ export default function LayerBatchPage({
               </div>
               {addHousingErr && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600}}>{addHousingErr}</div>}
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button
                 type="button"
                 onClick={saveNewHousing}
@@ -1090,9 +1098,9 @@ export default function LayerBatchPage({
                 style={{
                   padding: '10px 16px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   fontSize: 13,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -1139,7 +1147,7 @@ export default function LayerBatchPage({
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1147,22 +1155,28 @@ export default function LayerBatchPage({
             >
               <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>
                 Edit Layer Batch{' '}
-                <span style={{fontSize: 11, color: '#9ca3af', fontWeight: 400, marginLeft: 6}}>
+                <span style={{fontSize: 11, color: 'var(--ink-faint)', fontWeight: 400, marginLeft: 6}}>
                   Auto-saves as you type
                 </span>
               </div>
               <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
                 {batchSaving ? (
-                  <span style={{fontSize: 11, color: '#9ca3af'}}>{'Saving…'}</span>
+                  <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'Saving…'}</span>
                 ) : batchPending ? (
-                  <span style={{fontSize: 11, color: '#9ca3af'}}>{'Unsaved…'}</span>
+                  <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'Unsaved…'}</span>
                 ) : (
                   <span style={{fontSize: 11, color: '#065f46'}}>{'✓ Saved'}</span>
                 )}
                 <button
                   type="button"
                   onClick={closeBatchForm}
-                  style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 22,
+                    cursor: 'pointer',
+                    color: 'var(--ink-faint)',
+                  }}
                 >
                   ×
                 </button>
@@ -1227,21 +1241,31 @@ export default function LayerBatchPage({
 
               {/* Feed cost rates (read-only) */}
               {bForm.name !== 'Retirement Home' && (
-                <div style={{borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
-                  <div style={{fontSize: 11, fontWeight: 700, color: '#4b5563', letterSpacing: 0.5, marginBottom: 6}}>
+                <div style={{borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4}}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: 'var(--ink-muted)',
+                      letterSpacing: 0.5,
+                      marginBottom: 6,
+                    }}
+                  >
                     {'💰 FEED COST RATES'}{' '}
-                    <span style={{fontWeight: 400, color: '#9ca3af'}}>{'(locked — set in Admin › Feed Costs)'}</span>
+                    <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>
+                      {'(locked — set in Admin › Feed Costs)'}
+                    </span>
                   </div>
                   <div
                     style={{
                       display: 'flex',
                       gap: 16,
                       fontSize: 12,
-                      color: '#374151',
+                      color: 'var(--ink)',
                       padding: '8px 12px',
-                      background: '#f9fafb',
+                      background: 'var(--surface-2)',
                       borderRadius: 6,
-                      border: '1px solid #e5e7eb',
+                      border: '1px solid var(--border)',
                     }}
                   >
                     <span>
@@ -1276,16 +1300,16 @@ export default function LayerBatchPage({
               {bForm.name !== 'Retirement Home' && (
                 <div
                   style={{
-                    borderTop: '1px solid #e5e7eb',
+                    borderTop: '1px solid var(--border)',
                     paddingTop: 10,
                     marginTop: 4,
                     fontSize: 11,
                     fontWeight: 700,
-                    color: '#4b5563',
+                    color: 'var(--ink-muted)',
                     letterSpacing: 0.5,
                   }}
                 >
-                  🔆 BROODER PHASE <span style={{fontWeight: 400, color: '#9ca3af'}}>(fixed 3 weeks)</span>
+                  🔆 BROODER PHASE <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>(fixed 3 weeks)</span>
                 </div>
               )}
               {bForm.name !== 'Retirement Home' && (
@@ -1381,13 +1405,13 @@ export default function LayerBatchPage({
               {bForm.name !== 'Retirement Home' && (
                 <div className={recordFieldRowClass}>
                   <span style={recordFieldLabel}>
-                    Exit Date <span style={{color: '#9ca3af', fontWeight: 400}}>(auto)</span>
+                    Exit Date <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>(auto)</span>
                   </span>
                   <input
                     type="date"
                     value={bForm.brooder_exit_date}
                     readOnly
-                    style={{...recordControl, background: '#f9fafb', color: '#6b7280'}}
+                    style={{...recordControl, background: 'var(--surface-2)', color: 'var(--ink-muted)'}}
                   />
                 </div>
               )}
@@ -1396,16 +1420,16 @@ export default function LayerBatchPage({
               {bForm.name !== 'Retirement Home' && (
                 <div
                   style={{
-                    borderTop: '1px solid #e5e7eb',
+                    borderTop: '1px solid var(--border)',
                     paddingTop: 10,
                     marginTop: 4,
                     fontSize: 11,
                     fontWeight: 700,
-                    color: '#4b5563',
+                    color: 'var(--ink-muted)',
                     letterSpacing: 0.5,
                   }}
                 >
-                  🚌 SCHOONER PHASE <span style={{fontWeight: 400, color: '#9ca3af'}}>(3 to 24 weeks)</span>
+                  🚌 SCHOONER PHASE <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>(3 to 24 weeks)</span>
                 </div>
               )}
               {bForm.name !== 'Retirement Home' && (
@@ -1468,7 +1492,7 @@ export default function LayerBatchPage({
               {bForm.name !== 'Retirement Home' && (
                 <div className={recordFieldRowClass}>
                   <span style={recordFieldLabel}>
-                    Entry Date <span style={{color: '#9ca3af', fontWeight: 400}}>(auto)</span>
+                    Entry Date <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>(auto)</span>
                   </span>
                   <input
                     type="date"
@@ -1485,7 +1509,7 @@ export default function LayerBatchPage({
               {bForm.name !== 'Retirement Home' && (
                 <div className={recordFieldRowClass}>
                   <span style={recordFieldLabel}>
-                    Exit Date <span style={{color: '#9ca3af', fontWeight: 400}}>(editable)</span>
+                    Exit Date <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>(editable)</span>
                   </span>
                   <input
                     type="date"
@@ -1522,7 +1546,7 @@ export default function LayerBatchPage({
                   );
                 })()}
 
-              <div style={{borderTop: '1px solid #e5e7eb', paddingTop: 10, marginTop: 4}}>
+              <div style={{borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4}}>
                 <div className={recordFieldRowClass} style={{borderBottom: 'none'}}>
                   <span style={recordFieldLabel}>Notes</span>
                   <textarea
@@ -1536,7 +1560,7 @@ export default function LayerBatchPage({
               {err && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600}}>{err}</div>}
             </div>
             {!isRetHome && (
-              <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb'}}>
+              <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)'}}>
                 <button
                   type="button"
                   onClick={handleDeleteBatch}

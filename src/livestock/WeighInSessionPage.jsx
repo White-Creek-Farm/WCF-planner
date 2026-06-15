@@ -50,7 +50,7 @@ const SPECIES_BACK = {
 const inp = {
   fontSize: 12,
   padding: '4px 8px',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-strong)',
   borderRadius: 5,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
@@ -1605,8 +1605,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           >
             {session.status}
           </span>
-          {session.team_member && <span style={{fontSize: 12, color: '#6b7280'}}>{session.team_member}</span>}
-          <span style={{fontSize: 12, color: '#6b7280'}}>
+          {session.team_member && <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{session.team_member}</span>}
+          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
             {sEntries.length} {sEntries.length === 1 ? 'entry' : 'entries'}
             {!isPig && !isBroiler && expectedTags > 0 ? ' of ' + expectedTags : ''}
           </span>
@@ -1635,15 +1635,19 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           )}
           {isPig && pigMetrics && (
             <>
-              <span style={{fontSize: 11, color: '#6b7280'}}>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                 {formatAgeRange({
                   minDays: pigMetrics.age_min_days,
                   maxDays: pigMetrics.age_max_days,
                   hasActual: pigMetrics.has_actual_farrowing,
                 })}
               </span>
-              <span style={{fontSize: 11, color: '#6b7280'}}>{formatFeedPerPig(pigMetrics.feed_per_pig_lbs)}</span>
-              <span style={{fontSize: 11, color: '#6b7280'}}>{formatGroupAdg(pigMetrics.group_adg_lbs_per_day)}</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
+                {formatFeedPerPig(pigMetrics.feed_per_pig_lbs)}
+              </span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
+                {formatGroupAdg(pigMetrics.group_adg_lbs_per_day)}
+              </span>
               <span style={{fontSize: 11, fontWeight: 600, color: '#1e40af'}}>
                 {formatAvgWeight(pigMetrics.avg_weight_lbs)}
               </span>
@@ -1700,7 +1704,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               <div
                 data-testid="broiler-meta-panel"
                 style={{
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '10px 12px',
                   marginBottom: 10,
@@ -1710,7 +1714,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   gap: 8,
                 }}
               >
-                <div style={{fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: 0.4}}>
+                <div style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-muted)', letterSpacing: 0.4}}>
                   {'SESSION METADATA'}
                 </div>
                 <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
@@ -1825,9 +1829,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               style={{
                 padding: '10px 16px',
                 borderRadius: 6,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#1d4ed8',
+                color: 'var(--brand)',
                 fontSize: 12,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -1876,7 +1880,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             data-broiler-grid="1"
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 10,
               padding: '14px 18px',
               marginBottom: 12,
@@ -1913,7 +1917,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                         <span
                           style={{
                             fontSize: 10,
-                            color: '#9ca3af',
+                            color: 'var(--ink-faint)',
                             minWidth: 18,
                             textAlign: 'right',
                             fontVariantNumeric: 'tabular-nums',
@@ -1939,12 +1943,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             fontFamily: 'inherit',
                             fontSize: 13,
                             padding: '6px 8px',
-                            border: '1px solid #d1d5db',
+                            border: '1px solid var(--border-strong)',
                             borderRadius: 6,
                             width: '100%',
                             boxSizing: 'border-box',
                             background: 'white',
-                            color: '#111827',
+                            color: 'var(--ink)',
                             outline: 'none',
                           }}
                         />
@@ -1955,7 +1959,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               ))}
             </div>
             <div style={{marginBottom: 10}}>
-              <label style={{display: 'block', fontSize: 12, color: '#374151', marginBottom: 4, fontWeight: 600}}>
+              <label style={{display: 'block', fontSize: 12, color: 'var(--ink)', marginBottom: 4, fontWeight: 600}}>
                 Session note
               </label>
               <textarea
@@ -1967,12 +1971,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   fontFamily: 'inherit',
                   fontSize: 13,
                   padding: '6px 8px',
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 6,
                   width: '100%',
                   boxSizing: 'border-box',
                   background: 'white',
-                  color: '#111827',
+                  color: 'var(--ink)',
                   outline: 'none',
                   resize: 'vertical',
                 }}
@@ -2015,10 +2019,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
         {!isBroiler && (
           <div
             data-weighin-entries="1"
-            style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px'}}
+            style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px'}}
           >
             {sEntries.length === 0 && (
-              <div style={{fontSize: 12, color: '#9ca3af', fontStyle: 'italic', marginBottom: 8}}>No entries yet.</div>
+              <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 8}}>
+                No entries yet.
+              </div>
             )}
             {isPig && sEntries.length > 0 && (
               <div
@@ -2108,9 +2114,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 }
                                 style={{
                                   fontSize: 10,
-                                  color: '#6b7280',
+                                  color: 'var(--ink-muted)',
                                   background: 'white',
-                                  border: '1px solid #d1d5db',
+                                  border: '1px solid var(--border-strong)',
                                   borderRadius: 4,
                                   cursor: 'pointer',
                                   padding: '3px 7px',
@@ -2151,7 +2157,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                           </span>
                         )}
                       </div>
-                      {isLocked && e.note && <div style={{fontSize: 11, color: '#6b7280', marginTop: 2}}>{e.note}</div>}
+                      {isLocked && e.note && (
+                        <div style={{fontSize: 11, color: 'var(--ink-muted)', marginTop: 2}}>{e.note}</div>
+                      )}
                       {pigEntryAdg && (
                         <div
                           data-pig-entry-adg={e.id}
@@ -2168,9 +2176,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             data-pig-entry-prior={e.id}
                             title={'Prior weigh-in on ' + fmt(pigEntryAdg.priorDate)}
                             style={{
-                              color: '#374151',
-                              background: '#f9fafb',
-                              border: '1px solid #e5e7eb',
+                              color: 'var(--ink)',
+                              background: 'var(--surface-2)',
+                              border: '1px solid var(--border)',
                               borderRadius: 4,
                               padding: '1px 6px',
                             }}
@@ -2182,9 +2190,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             data-pig-entry-days={e.id}
                             title={'Days since last weigh-in'}
                             style={{
-                              color: '#374151',
-                              background: '#f9fafb',
-                              border: '1px solid #e5e7eb',
+                              color: 'var(--ink)',
+                              background: 'var(--surface-2)',
+                              border: '1px solid var(--border)',
                               borderRadius: 4,
                               padding: '1px 6px',
                             }}
@@ -2332,7 +2340,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   }}
                 >
                   <thead>
-                    <tr style={{borderBottom: '1px solid #e5e7eb', textAlign: 'left'}}>
+                    <tr style={{borderBottom: '1px solid var(--border)', textAlign: 'left'}}>
                       {[
                         'Tag',
                         'Weight',
@@ -2350,7 +2358,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                           style={{
                             fontSize: 10,
                             fontWeight: 700,
-                            color: '#6b7280',
+                            color: 'var(--ink-muted)',
                             textTransform: 'uppercase',
                             letterSpacing: 0.4,
                             padding: '4px 6px',
@@ -2381,7 +2389,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             ? {color: '#065f46', background: '#ecfdf5', border: '#a7f3d0'}
                             : {color: '#6b7280', background: '#f9fafb', border: '#e5e7eb'};
                       const showProcessorCol = session.species === 'sheep' || session.herd === 'finishers';
-                      const td = {padding: '4px 6px', verticalAlign: 'top', borderBottom: '1px solid #f3f4f6'};
+                      const td = {padding: '4px 6px', verticalAlign: 'top', borderBottom: '1px solid var(--divider)'};
                       return (
                         <tr
                           key={e.id}
@@ -2424,13 +2432,13 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             {prior ? (
                               <span
                                 data-entry-prior={e.id}
-                                style={{fontSize: 10, color: '#374151'}}
+                                style={{fontSize: 10, color: 'var(--ink)'}}
                                 title={'Prior weigh-in on ' + fmt(prior.date)}
                               >
                                 {'Prev ' + Math.round(prior.weight) + ' lb · ' + fmt(prior.date)}
                               </span>
                             ) : (
-                              <span style={{fontSize: 10, color: '#9ca3af'}}>—</span>
+                              <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>—</span>
                             )}
                           </td>
                           <td style={{...td, whiteSpace: 'nowrap'}}>
@@ -2438,12 +2446,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                               <span
                                 data-entry-days={e.id}
                                 title={'Days since last weigh-in'}
-                                style={{fontSize: 10, color: '#374151'}}
+                                style={{fontSize: 10, color: 'var(--ink)'}}
                               >
                                 {'Days ' + priorDays}
                               </span>
                             ) : (
-                              <span style={{fontSize: 10, color: '#9ca3af'}}>—</span>
+                              <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>—</span>
                             )}
                           </td>
                           <td style={{...td, whiteSpace: 'nowrap'}}>
@@ -2464,7 +2472,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 {'+/- ' + formatSignedLbs(weightDelta)}
                               </span>
                             ) : (
-                              <span style={{fontSize: 10, color: '#9ca3af'}}>—</span>
+                              <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>—</span>
                             )}
                           </td>
                           <td style={{...td, whiteSpace: 'nowrap'}}>
@@ -2483,7 +2491,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 {(adg >= 0 ? '+' : '') + adg.toFixed(2) + ' lb/d'}
                               </span>
                             ) : (
-                              <span style={{fontSize: 10, color: '#9ca3af'}}>—</span>
+                              <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>—</span>
                             )}
                           </td>
                           <td style={{...td, whiteSpace: 'nowrap'}}>
@@ -2532,15 +2540,17 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 ✓ Processor
                               </span>
                             ) : cow ? (
-                              <span style={{fontSize: 11, color: '#6b7280'}}>
+                              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                                 {groupLabelsMap[cow.herd || cow.flock] || cow.herd || cow.flock}
                               </span>
                             ) : (
-                              <span style={{fontSize: 10, color: '#9ca3af'}}>—</span>
+                              <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>—</span>
                             )}
                           </td>
                           <td style={{...td, whiteSpace: 'nowrap'}}>
-                            <span style={{fontSize: 10, color: '#9ca3af'}}>{(e.entered_at || '').slice(11, 16)}</span>
+                            <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>
+                              {(e.entered_at || '').slice(11, 16)}
+                            </span>
                           </td>
                           <td style={{...td, whiteSpace: 'nowrap', textAlign: 'right'}}>
                             <div
@@ -2625,10 +2635,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                       marginBottom: 6,
                     }}
                   >
-                    <div style={{fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 4}}>
+                    <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)', marginBottom: 4}}>
                       {'New tag #' + (e.tag || '?') + ' · ' + e.weight + ' lb'}
                       {e.note ? (
-                        <span style={{fontWeight: 400, color: '#6b7280', fontStyle: 'italic'}}>{' · ' + e.note}</span>
+                        <span style={{fontWeight: 400, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
+                          {' · ' + e.note}
+                        </span>
                       ) : null}
                     </div>
                     <select
@@ -2640,7 +2652,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                       style={{
                         fontSize: 12,
                         padding: '4px 8px',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-strong)',
                         borderRadius: 4,
                         fontFamily: 'inherit',
                         width: '100%',
@@ -2847,8 +2859,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               fontFamily: 'inherit',
             }}
           >
-            <h3 style={{margin: '0 0 10px', fontSize: 16, color: '#111827'}}>Transfer to Breeding</h3>
-            <div style={{fontSize: 12, color: '#6b7280', marginBottom: 10}}>
+            <h3 style={{margin: '0 0 10px', fontSize: 16, color: 'var(--ink)'}}>Transfer to Breeding</h3>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)', marginBottom: 10}}>
               Entry weight: {transferModal.entry.weight} lb
             </div>
             {transferNotice && <InlineNotice notice={transferNotice} onDismiss={() => setTransferNotice(null)} />}
@@ -2902,9 +2914,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 style={{
                   padding: '10px 16px',
                   borderRadius: 6,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#374151',
+                  color: 'var(--ink)',
                   fontSize: 12,
                   cursor: 'pointer',
                   fontFamily: 'inherit',

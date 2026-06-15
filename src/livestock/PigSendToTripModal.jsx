@@ -136,7 +136,7 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
     }
   }
 
-  const lblS = {display: 'block', fontSize: 12, color: '#374151', marginBottom: 4, fontWeight: 600};
+  const lblS = {display: 'block', fontSize: 12, color: 'var(--ink)', marginBottom: 4, fontWeight: 600};
 
   // Find the planned target trip for the preview (recon already verified it).
   const targetTrip = recon ? (group.plannedProcessingTrips || []).find((t) => t.id === recon.targetTripId) : null;
@@ -165,23 +165,23 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
           boxShadow: '0 12px 40px rgba(0,0,0,.25)',
         }}
       >
-        <div style={{fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 10}}>
+        <div style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 10}}>
           {'🚚 Send ' + sendCount + ' weigh-ins to next planned trip'}
         </div>
-        <div style={{fontSize: 11, color: '#6b7280', marginBottom: 14}}>
+        <div style={{fontSize: 11, color: 'var(--ink-muted)', marginBottom: 14}}>
           {'Total live weight: ' + totalWeight.toFixed(1) + ' lb'}
         </div>
 
         {sub && sex && (
           <div style={{...lblS}}>
-            <span style={{fontWeight: 700, color: '#111827'}}>{sub.name}</span>{' '}
+            <span style={{fontWeight: 700, color: 'var(--ink)'}}>{sub.name}</span>{' '}
             <span style={{color: '#1d4ed8'}}>({sex})</span>
           </div>
         )}
 
         {recon && targetTrip && (
           <div data-pig-send-target="1" style={{marginBottom: 12}}>
-            <div style={{fontSize: 11, color: '#374151'}}>
+            <div style={{fontSize: 11, color: 'var(--ink)'}}>
               Target planned trip: <strong>{fmt(recon.targetTripDate)}</strong> · planned{' '}
               <strong>{targetTrip.plannedCount}</strong> pigs
             </div>

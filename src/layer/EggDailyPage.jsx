@@ -278,8 +278,8 @@ export default function EggDailyPage({sb, authState, Header}) {
             <LockedTeamMemberField value={form.teamMember} caption={null} />
           </div>
 
-          <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
-            <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 1</span>
+          <div style={{borderBottom: '1px solid var(--border)', padding: '8px 0 4px', marginTop: 4}}>
+            <span style={{fontWeight: 700, color: 'var(--ink)', fontSize: 12}}>Group 1</span>
           </div>
           <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
@@ -301,8 +301,8 @@ export default function EggDailyPage({sb, authState, Header}) {
             />
           </div>
 
-          <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
-            <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 2</span>
+          <div style={{borderBottom: '1px solid var(--border)', padding: '8px 0 4px', marginTop: 4}}>
+            <span style={{fontWeight: 700, color: 'var(--ink)', fontSize: 12}}>Group 2</span>
           </div>
           <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
@@ -324,8 +324,8 @@ export default function EggDailyPage({sb, authState, Header}) {
             />
           </div>
 
-          <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
-            <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 3</span>
+          <div style={{borderBottom: '1px solid var(--border)', padding: '8px 0 4px', marginTop: 4}}>
+            <span style={{fontWeight: 700, color: 'var(--ink)', fontSize: 12}}>Group 3</span>
           </div>
           <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
@@ -347,8 +347,8 @@ export default function EggDailyPage({sb, authState, Header}) {
             />
           </div>
 
-          <div style={{borderBottom: '1px solid #e5e7eb', padding: '8px 0 4px', marginTop: 4}}>
-            <span style={{fontWeight: 700, color: '#374151', fontSize: 12}}>Group 4</span>
+          <div style={{borderBottom: '1px solid var(--border)', padding: '8px 0 4px', marginTop: 4}}>
+            <span style={{fontWeight: 700, color: 'var(--ink)', fontSize: 12}}>Group 4</span>
           </div>
           <div className={fieldRowClass}>
             <span style={fieldLabel}>Name</span>
@@ -370,8 +370,8 @@ export default function EggDailyPage({sb, authState, Header}) {
             />
           </div>
 
-          <div style={{...fieldRow, background: '#f9fafb', borderRadius: 6, padding: '6px 8px', marginTop: 4}}>
-            <span style={{...fieldLabel, color: '#6b7280'}}>Daily dozen count (computed)</span>
+          <div style={{...fieldRow, background: 'var(--surface-2)', borderRadius: 6, padding: '6px 8px', marginTop: 4}}>
+            <span style={{...fieldLabel, color: 'var(--ink-muted)'}}>Daily dozen count (computed)</span>
             <span style={{fontWeight: 600, fontSize: 13}}>{form ? computeDozenCount(form) : '—'}</span>
           </div>
 

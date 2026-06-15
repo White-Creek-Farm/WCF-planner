@@ -184,7 +184,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
           }}
         />
       </div>
-      <span style={{fontSize: 10, color: '#374151', fontWeight: 600, minWidth: 36, textAlign: 'right'}}>
+      <span style={{fontSize: 10, color: 'var(--ink)', fontWeight: 600, minWidth: 36, textAlign: 'right'}}>
         {Math.round(val * 10) / 10}
       </span>
     </div>
@@ -232,11 +232,11 @@ export default function BroilerHomeView({Header, loadUsers}) {
       style={{
         padding: '8px 16px',
         borderRadius: 8,
-        border: '1px solid #d1d5db',
+        border: '1px solid var(--border-strong)',
         background: 'white',
         fontSize: 12,
         fontWeight: 600,
-        color: '#374151',
+        color: 'var(--ink)',
         cursor: 'pointer',
         fontFamily: 'inherit',
       }}
@@ -245,12 +245,20 @@ export default function BroilerHomeView({Header, loadUsers}) {
     </button>
   );
   const StatTile = ({label, val, sub, color = '#085041'}) => (
-    <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-      <div style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4}}>
+    <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--ink-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+          marginBottom: 4,
+        }}
+      >
         {label}
       </div>
       <div style={{fontSize: 24, fontWeight: 700, color, lineHeight: 1}}>{val}</div>
-      {sub && <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>{sub}</div>}
+      {sub && <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>{sub}</div>}
     </div>
   );
   const BreedCol = ({label, stats, color, bg}) =>
@@ -260,13 +268,13 @@ export default function BroilerHomeView({Header, loadUsers}) {
           flex: 1,
           minWidth: 220,
           background: bg,
-          border: '1px solid #e5e7eb',
+          border: '1px solid var(--border)',
           borderRadius: 12,
           padding: '14px 16px',
         }}
       >
         <div style={{fontSize: 12, fontWeight: 700, color, marginBottom: 10}}>
-          {label} <span style={{fontWeight: 400, color: '#9ca3af'}}>({stats.count} batches)</span>
+          {label} <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>({stats.count} batches)</span>
         </div>
         {[
           {l: 'Avg Mortality', v: stats.mort != null ? fmtN(stats.mort) + '%' : '—'},
@@ -286,15 +294,15 @@ export default function BroilerHomeView({Header, loadUsers}) {
               borderBottom: '1px solid rgba(0,0,0,.06)',
             }}
           >
-            <span style={{color: '#6b7280'}}>{l}</span>
-            <span style={{fontWeight: 700, color: '#111827'}}>{v}</span>
+            <span style={{color: 'var(--ink-muted)'}}>{l}</span>
+            <span style={{fontWeight: 700, color: 'var(--ink)'}}>{v}</span>
           </div>
         ))}
       </div>
     ) : null;
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {showUsers && (
         <UsersModal
           sb={sb}
@@ -370,7 +378,9 @@ export default function BroilerHomeView({Header, loadUsers}) {
         {/* Active batch tracker */}
         {activeBatchDetails.length > 0 && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               ACTIVE BATCHES
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))', gap: 10}}>
@@ -381,7 +391,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                     {...openableProps(() => openBroilerBatch(b))}
                     style={{
                       background: 'white',
-                      border: '1px solid #e5e7eb',
+                      border: '1px solid var(--border)',
                       borderRadius: 12,
                       padding: '14px 16px',
                       cursor: 'pointer',
@@ -434,8 +444,8 @@ export default function BroilerHomeView({Header, loadUsers}) {
                         key={l}
                         style={{display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4}}
                       >
-                        <span style={{color: '#9ca3af'}}>{l}</span>
-                        <span style={{fontWeight: 600, color: warn ? '#b91c1c' : green ? '#085041' : '#111827'}}>
+                        <span style={{color: 'var(--ink-faint)'}}>{l}</span>
+                        <span style={{fontWeight: 600, color: warn ? '#b91c1c' : green ? '#085041' : 'var(--ink)'}}>
                           {v}
                         </span>
                       </div>
@@ -446,13 +456,13 @@ export default function BroilerHomeView({Header, loadUsers}) {
                       const pf = calcBatchFeed(b);
                       return React.createElement(
                         'div',
-                        {style: {marginTop: 6, paddingTop: 6, borderTop: '1px solid #f3f4f6'}},
+                        {style: {marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--divider)'}},
                         React.createElement(
                           'div',
                           {
                             style: {
                               fontSize: 10,
-                              color: '#9ca3af',
+                              color: 'var(--ink-faint)',
                               textTransform: 'uppercase',
                               letterSpacing: 0.5,
                               marginBottom: 4,
@@ -481,11 +491,15 @@ export default function BroilerHomeView({Header, loadUsers}) {
                             React.createElement(
                               'div',
                               {style: {display: 'flex', gap: 6, alignItems: 'center'}},
-                              React.createElement('span', {style: {color: '#6b7280'}}, f.proj.toLocaleString()),
-                              React.createElement('span', {style: {color: '#9ca3af'}}, ' / '),
                               React.createElement(
                                 'span',
-                                {style: {fontWeight: 700, color: f.act > 0 ? '#111827' : '#9ca3af'}},
+                                {style: {color: 'var(--ink-muted)'}},
+                                f.proj.toLocaleString(),
+                              ),
+                              React.createElement('span', {style: {color: 'var(--ink-faint)'}}, ' / '),
+                              React.createElement(
+                                'span',
+                                {style: {fontWeight: 700, color: f.act > 0 ? 'var(--ink)' : 'var(--ink-faint)'}},
                                 f.act > 0 ? f.act.toLocaleString() : '\u2014',
                               ),
                               f.act > 0 &&
@@ -516,7 +530,9 @@ export default function BroilerHomeView({Header, loadUsers}) {
         {/* CC vs WR */}
         {(ccStats || wrStats) && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               BREED COMPARISON
             </div>
             <div style={{display: 'flex', gap: 12, flexWrap: 'wrap'}}>
@@ -529,12 +545,18 @@ export default function BroilerHomeView({Header, loadUsers}) {
         {/* Performance trends */}
         {trend10.length >= 3 && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               PERFORMANCE TRENDS — LAST {trend10.length} PROCESSED BATCHES
             </div>
             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12}}>
-              <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-                <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563', marginBottom: 10}}>Mortality %</div>
+              <div
+                style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}
+              >
+                <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 10}}>
+                  Mortality %
+                </div>
                 {trend10.map((b) => {
                   const m = b.birdCount > 0 ? (batchMort(b) / b.birdCount) * 100 : 0;
                   const maxM = Math.max(
@@ -543,14 +565,18 @@ export default function BroilerHomeView({Header, loadUsers}) {
                   );
                   return (
                     <div key={b.id}>
-                      <div style={{fontSize: 10, color: '#6b7280', marginBottom: 1}}>{b.name}</div>
+                      <div style={{fontSize: 10, color: 'var(--ink-muted)', marginBottom: 1}}>{b.name}</div>
                       {trendBar(m, maxM, '#b91c1c')}
                     </div>
                   );
                 })}
               </div>
-              <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-                <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563', marginBottom: 10}}>Feed / Bird (lbs)</div>
+              <div
+                style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}
+              >
+                <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 10}}>
+                  Feed / Bird (lbs)
+                </div>
                 {trend10
                   .filter((b) => batchFeed(b) > 0 && b.totalToProcessor > 0)
                   .map((b) => {
@@ -563,14 +589,16 @@ export default function BroilerHomeView({Header, loadUsers}) {
                     );
                     return (
                       <div key={b.id}>
-                        <div style={{fontSize: 10, color: '#6b7280', marginBottom: 1}}>{b.name}</div>
+                        <div style={{fontSize: 10, color: 'var(--ink-muted)', marginBottom: 1}}>{b.name}</div>
                         {trendBar(f, maxF, '#92400e')}
                       </div>
                     );
                   })}
               </div>
-              <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-                <div style={{fontSize: 12, fontWeight: 600, color: '#4b5563', marginBottom: 10}}>
+              <div
+                style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}
+              >
+                <div style={{fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 10}}>
                   Avg Dressed Wt (lbs)
                 </div>
                 {trend10
@@ -584,7 +612,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                     );
                     return (
                       <div key={b.id}>
-                        <div style={{fontSize: 10, color: '#6b7280', marginBottom: 1}}>{b.name}</div>
+                        <div style={{fontSize: 10, color: 'var(--ink-muted)', marginBottom: 1}}>{b.name}</div>
                         {trendBar(parseFloat(b.avgDressedLbs) || 0, maxW, '#065f46')}
                       </div>
                     );
@@ -597,7 +625,9 @@ export default function BroilerHomeView({Header, loadUsers}) {
         {/* Financial summary */}
         {finBr.length >= 2 && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               {'FINANCIAL SUMMARY ' + currentYear}
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10}}>
@@ -654,24 +684,32 @@ export default function BroilerHomeView({Header, loadUsers}) {
         {/* Lbs produced trend */}
         {lbsTrend.length >= 2 && (
           <div>
-            <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', marginBottom: 8, letterSpacing: 0.3}}>
+            <div
+              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
+            >
               LBS PRODUCED TREND — LAST {lbsTrend.length} BATCHES
             </div>
-            <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '16px'}}>
+            <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '16px'}}>
               {(() => {
                 const maxTotal = Math.max(...lbsTrend.map((b) => b.total), 1);
                 return lbsTrend.map((b, i) => (
                   <div key={i} style={{marginBottom: 10}}>
                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3}}>
-                      <span style={{color: '#374151', fontWeight: 600}}>{b.name}</span>
-                      <span style={{color: '#6b7280'}}>
+                      <span style={{color: 'var(--ink)', fontWeight: 600}}>{b.name}</span>
+                      <span style={{color: 'var(--ink-muted)'}}>
                         {fmt(b.date)} ·{' '}
-                        <strong style={{color: '#111827'}}>{Math.round(b.total).toLocaleString()} lbs total</strong>
+                        <strong style={{color: 'var(--ink)'}}>{Math.round(b.total).toLocaleString()} lbs total</strong>
                       </span>
                     </div>
                     {/* Stacked bar: whole (green) + cuts (blue) */}
                     <div
-                      style={{display: 'flex', height: 16, borderRadius: 6, overflow: 'hidden', background: '#f3f4f6'}}
+                      style={{
+                        display: 'flex',
+                        height: 16,
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        background: 'var(--divider)',
+                      }}
                     >
                       {b.whole > 0 && (
                         <div
@@ -727,7 +765,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                   </div>
                 ));
               })()}
-              <div style={{display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: '#6b7280'}}>
+              <div style={{display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--ink-muted)'}}>
                 <span>
                   <span
                     style={{

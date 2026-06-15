@@ -468,7 +468,7 @@ const LayerBatchesHub = ({
   const fieldS = {
     padding: '6px 10px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
     background: 'white',
@@ -476,7 +476,7 @@ const LayerBatchesHub = ({
   };
   const savedViewGhostBtnS = {
     ...fieldS,
-    color: '#374151',
+    color: 'var(--ink)',
     fontWeight: 600,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
@@ -487,12 +487,12 @@ const LayerBatchesHub = ({
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       <Header />
       <div
         style={{padding: '1rem', maxWidth: 1100, margin: '0 auto'}}
@@ -508,7 +508,7 @@ const LayerBatchesHub = ({
             style={{
               padding: '7px 14px',
               borderRadius: 7,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#085041',
               fontSize: 12,
@@ -522,9 +522,12 @@ const LayerBatchesHub = ({
           </button>
         )}
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
-          <div style={{fontSize: 20, fontWeight: 700, color: '#111827'}}>
+          <div style={{fontSize: 20, fontWeight: 700, color: 'var(--ink)'}}>
             Layer Batches
-            <span style={{fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 8}} data-layer-batches-count>
+            <span
+              style={{fontSize: 13, fontWeight: 400, color: 'var(--ink-muted)', marginLeft: 8}}
+              data-layer-batches-count
+            >
               {sorted.length} of {totalBatches}
               {totalBatches > 0 ? ' · ' + activeBatches.length + ' active' : ''}
             </span>
@@ -537,9 +540,9 @@ const LayerBatchesHub = ({
               style={{
                 padding: '7px 12px',
                 borderRadius: 8,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#374151',
+                color: 'var(--ink)',
                 cursor: 'pointer',
                 fontSize: 12,
                 fontWeight: 600,
@@ -554,9 +557,9 @@ const LayerBatchesHub = ({
               style={{
                 padding: '7px 12px',
                 borderRadius: 8,
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#374151',
+                color: 'var(--ink)',
                 cursor: 'pointer',
                 fontSize: 12,
                 fontWeight: 600,
@@ -592,7 +595,7 @@ const LayerBatchesHub = ({
               data-layer-batches-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -602,7 +605,7 @@ const LayerBatchesHub = ({
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-layer-batches-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -779,7 +782,7 @@ const LayerBatchesHub = ({
                   </option>
                 ))}
               </select>
-              <span style={{fontSize: 11, color: '#6b7280'}}>Start</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Start</span>
               <input
                 type="date"
                 data-layer-batches-start-after
@@ -787,7 +790,7 @@ const LayerBatchesHub = ({
                 onChange={(e) => setFStartAfter(e.target.value)}
                 style={{...fieldS, width: 130}}
               />
-              <span style={{fontSize: 12, color: '#6b7280'}}>to</span>
+              <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>to</span>
               <input
                 type="date"
                 data-layer-batches-start-before
@@ -795,7 +798,7 @@ const LayerBatchesHub = ({
                 onChange={(e) => setFStartBefore(e.target.value)}
                 style={{...fieldS, width: 130}}
               />
-              <span style={{fontSize: 11, color: '#6b7280'}}>Birds</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Birds</span>
               <input
                 type="number"
                 min="0"
@@ -842,7 +845,7 @@ const LayerBatchesHub = ({
                   type="button"
                   data-layer-batches-clear-filters
                   onClick={clearFilters}
-                  style={{...fieldS, color: '#6b7280', cursor: 'pointer', fontWeight: 600}}
+                  style={{...fieldS, color: 'var(--ink-muted)', cursor: 'pointer', fontWeight: 600}}
                 >
                   Clear
                 </button>
@@ -851,18 +854,18 @@ const LayerBatchesHub = ({
           </>
         )}
 
-        {loading && <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af'}}>Loading...</div>}
+        {loading && <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)'}}>Loading...</div>}
 
         {!loading && !loadError && totalBatches === 0 && (
           <div
             data-empty-state="true-empty"
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '2rem',
               textAlign: 'center',
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontSize: 13,
             }}
           >
@@ -885,7 +888,7 @@ const LayerBatchesHub = ({
         )}
 
         {!loading && !loadError && sorted.length > 0 && (
-          <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden'}}>
+          <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'}}>
             {/* Header row — same grid template as every batch row below. */}
             <div
               data-layer-batches-grid-header
@@ -895,11 +898,11 @@ const LayerBatchesHub = ({
                 gap: 10,
                 alignItems: 'center',
                 padding: '8px 14px',
-                borderBottom: '1px solid #e5e7eb',
-                background: '#f9fafb',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--surface-2)',
                 fontSize: 10,
                 fontWeight: 700,
-                color: '#6b7280',
+                color: 'var(--ink-muted)',
                 textTransform: 'uppercase',
                 letterSpacing: 0.3,
               }}
@@ -934,7 +937,7 @@ const LayerBatchesHub = ({
                     gap: 10,
                     alignItems: 'center',
                     padding: '10px 14px',
-                    borderBottom: '1px solid #f3f4f6',
+                    borderBottom: '1px solid var(--divider)',
                     cursor: 'pointer',
                     background: isRetired ? '#fafafa' : 'white',
                     opacity: isRetired ? 0.85 : 1,
@@ -945,7 +948,7 @@ const LayerBatchesHub = ({
                     style={{
                       fontWeight: 700,
                       fontSize: 13,
-                      color: '#111827',
+                      color: 'var(--ink)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -973,7 +976,7 @@ const LayerBatchesHub = ({
                   <span
                     style={{
                       fontSize: 11,
-                      color: row.active_housing_names ? '#374151' : '#9ca3af',
+                      color: row.active_housing_names ? 'var(--ink)' : 'var(--ink-faint)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -982,7 +985,7 @@ const LayerBatchesHub = ({
                     {row.active_housing_names ? '🏠 ' + row.active_housing_names : '—'}
                   </span>
                   {/* Current hens */}
-                  <span style={{fontSize: 12, color: '#374151', fontVariantNumeric: 'tabular-nums'}}>
+                  <span style={{fontSize: 12, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums'}}>
                     {row.current_hens > 0 ? <strong>{row.current_hens.toLocaleString()}</strong> : '—'}
                   </span>
                   {/* Feed */}
@@ -1056,7 +1059,7 @@ const LayerBatchesHub = ({
             <div
               style={{
                 padding: '14px 20px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1066,14 +1069,16 @@ const LayerBatchesHub = ({
               <button
                 type="button"
                 onClick={() => setShowAddBatch(false)}
-                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#9ca3af'}}
+                style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
               >
                 ×
               </button>
             </div>
             <div style={{padding: '16px 20px', display: 'grid', gap: 10}}>
               <div>
-                <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                <label
+                  style={{fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500}}
+                >
                   Batch Name *
                 </label>
                 <input
@@ -1084,7 +1089,9 @@ const LayerBatchesHub = ({
                 />
               </div>
               <div>
-                <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                <label
+                  style={{fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500}}
+                >
                   Status
                 </label>
                 <select value={addStatus} onChange={(e) => setAddStatus(e.target.value)}>
@@ -1093,7 +1100,9 @@ const LayerBatchesHub = ({
                 </select>
               </div>
               <div>
-                <label style={{fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 3, fontWeight: 500}}>
+                <label
+                  style={{fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500}}
+                >
                   Arrival Date
                 </label>
                 <input type="date" value={addArrivalDate} onChange={(e) => setAddArrivalDate(e.target.value)} />
@@ -1101,9 +1110,9 @@ const LayerBatchesHub = ({
               <div
                 style={{
                   fontSize: 11,
-                  color: '#6b7280',
-                  background: '#f9fafb',
-                  border: '1px solid #e5e7eb',
+                  color: 'var(--ink-muted)',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '8px 10px',
                 }}
@@ -1112,7 +1121,7 @@ const LayerBatchesHub = ({
               </div>
               {addErr && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600}}>{addErr}</div>}
             </div>
-            <div style={{padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8}}>
+            <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button
                 type="button"
                 onClick={saveNewBatch}
@@ -1138,9 +1147,9 @@ const LayerBatchesHub = ({
                 style={{
                   padding: '8px 16px',
                   borderRadius: 7,
-                  border: '1px solid #d1d5db',
+                  border: '1px solid var(--border-strong)',
                   background: 'white',
-                  color: '#6b7280',
+                  color: 'var(--ink-muted)',
                   fontSize: 13,
                   cursor: 'pointer',
                   fontFamily: 'inherit',

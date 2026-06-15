@@ -394,7 +394,7 @@ export default function PoultryDailyPage({sb, authState, Header, batches = []}) 
           )}
 
           {!canEditOwnRecord(authState, record) && (
-            <div data-daily-view-only="1" style={{marginTop: 8, fontSize: 11, color: '#6b7280'}}>
+            <div data-daily-view-only="1" style={{marginTop: 8, fontSize: 11, color: 'var(--ink-muted)'}}>
               View only — you can edit or delete only your own reports.
             </div>
           )}

@@ -299,18 +299,18 @@ const LivestockWeighInsView = ({
     fontFamily: 'inherit',
     fontSize: 12,
     padding: '6px 10px',
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     borderRadius: 6,
     boxSizing: 'border-box',
     background: 'white',
-    color: '#111827',
+    color: 'var(--ink)',
   };
   const savedViewGhostBtnS = {
     padding: '6px 12px',
     borderRadius: 6,
-    border: '1px solid #d1d5db',
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#374151',
+    color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -323,13 +323,13 @@ const LivestockWeighInsView = ({
     alignItems: 'center',
     gap: 4,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--ink)',
     cursor: 'pointer',
   };
 
   return (
     <div
-      style={{minHeight: '100vh', background: '#f1f3f2'}}
+      style={{minHeight: '100vh', background: 'var(--bg-page)'}}
       data-weighin-list-loaded={loading || loadFailed ? 'false' : 'true'}
     >
       {showUsers && (
@@ -352,7 +352,7 @@ const LivestockWeighInsView = ({
             style={{
               padding: '7px 14px',
               borderRadius: 7,
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#1e40af',
               fontSize: 12,
@@ -371,7 +371,7 @@ const LivestockWeighInsView = ({
               data-livestock-weighins-saved-views-row
               style={{
                 background: 'white',
-                border: '1px solid #e5e7eb',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 14px',
                 marginBottom: 8,
@@ -381,7 +381,7 @@ const LivestockWeighInsView = ({
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, color: '#6b7280', fontWeight: 600}}>Saved views</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
                 <span style={{fontSize: 12, color: '#b91c1c'}} data-livestock-weighins-saved-views-error>
                   Saved views unavailable. Filters still work.
@@ -534,13 +534,15 @@ const LivestockWeighInsView = ({
           }}
         >
           <div>
-            <div style={{fontSize: 16, fontWeight: 700, color: '#111827'}}>{speciesLabel} Weigh-In Sessions</div>
-            <div style={{fontSize: 12, color: '#6b7280', marginTop: 2}}>
+            <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>{speciesLabel} Weigh-In Sessions</div>
+            <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>
               {filtered.length} sessions {'·'} {totalEntries} total entries
             </div>
           </div>
           <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-            <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+            <div
+              style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-strong)'}}
+            >
               {[
                 {k: 'all', l: 'All'},
                 {k: 'draft', l: 'Drafts'},
@@ -552,13 +554,13 @@ const LivestockWeighInsView = ({
                   style={{
                     padding: '5px 10px',
                     border: 'none',
-                    borderRight: oi < 2 ? '1px solid #d1d5db' : 'none',
+                    borderRight: oi < 2 ? '1px solid var(--border-strong)' : 'none',
                     fontFamily: 'inherit',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: statusFilter === o.k ? '#1e40af' : 'white',
-                    color: statusFilter === o.k ? 'white' : '#6b7280',
+                    background: 'white',
+                    color: statusFilter === o.k ? '#1e40af' : 'var(--ink-muted)',
                   }}
                 >
                   {o.l}
@@ -573,9 +575,9 @@ const LivestockWeighInsView = ({
               style={{
                 padding: '7px 14px',
                 borderRadius: 7,
-                border: '1px solid #d1d5db',
-                background: loading || loadFailed ? '#f9fafb' : 'white',
-                color: loading || loadFailed ? '#9ca3af' : '#374151',
+                border: '1px solid var(--border-strong)',
+                background: loading || loadFailed ? 'var(--surface-2)' : 'white',
+                color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
@@ -592,9 +594,9 @@ const LivestockWeighInsView = ({
               style={{
                 padding: '7px 14px',
                 borderRadius: 7,
-                border: '1px solid #d1d5db',
-                background: loading || loadFailed ? '#f9fafb' : 'white',
-                color: loading || loadFailed ? '#9ca3af' : '#374151',
+                border: '1px solid var(--border-strong)',
+                background: loading || loadFailed ? 'var(--surface-2)' : 'white',
+                color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
@@ -638,22 +640,22 @@ const LivestockWeighInsView = ({
           />
         )}
 
-        {loading && <div style={{textAlign: 'center', padding: '2rem', color: '#9ca3af'}}>Loading{'…'}</div>}
+        {loading && <div style={{textAlign: 'center', padding: '2rem', color: 'var(--ink-faint)'}}>Loading{'…'}</div>}
         {!loading && !loadFailed && filtered.length === 0 && (
           <div
             data-weighin-empty-state="1"
             data-weighin-empty-kind={emptyStateKind}
             style={{
               background: 'white',
-              border: '1px solid #e5e7eb',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '2rem',
               textAlign: 'center',
-              color: '#6b7280',
+              color: 'var(--ink-muted)',
               fontSize: 13,
             }}
           >
-            <div style={{fontWeight: 700, color: '#374151', marginBottom: 4}}>{emptyStateMessage}</div>
+            <div style={{fontWeight: 700, color: 'var(--ink)', marginBottom: 4}}>{emptyStateMessage}</div>
             <div>{emptyStateHint}</div>
           </div>
         )}
@@ -675,7 +677,7 @@ const LivestockWeighInsView = ({
               return (
                 <div
                   key={s.id}
-                  style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden'}}
+                  style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden'}}
                 >
                   <WeighInSessionListTile
                     session={s}
@@ -723,7 +725,7 @@ const LivestockWeighInsView = ({
                       </span>
                     )}
                     {species === 'broiler' && avgWeight > 0 && s.broiler_week && (
-                      <span style={{fontSize: 10, color: '#6b7280', fontStyle: 'italic'}}>
+                      <span style={{fontSize: 10, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
                         {'→ batch wk' + s.broiler_week + 'Lbs'}
                       </span>
                     )}
@@ -736,7 +738,7 @@ const LivestockWeighInsView = ({
                         data-pig-metrics-row={s.id}
                         style={{
                           padding: '8px 16px',
-                          borderTop: '1px solid #f3f4f6',
+                          borderTop: '1px solid var(--divider)',
                           display: 'grid',
                           gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
                           gap: 8,
@@ -744,8 +746,10 @@ const LivestockWeighInsView = ({
                         }}
                       >
                         <div data-pig-metric="age">
-                          <div style={{fontSize: 9, color: '#6b7280', textTransform: 'uppercase'}}>Age at weigh-in</div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>
+                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
+                            Age at weigh-in
+                          </div>
+                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
                             {formatAgeRange({
                               minDays: pigMetricsBySession[s.id].age_min_days,
                               maxDays: pigMetricsBySession[s.id].age_max_days,
@@ -754,26 +758,32 @@ const LivestockWeighInsView = ({
                           </div>
                         </div>
                         <div data-pig-metric="feed">
-                          <div style={{fontSize: 9, color: '#6b7280', textTransform: 'uppercase'}}>Feed/pig</div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>
+                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
+                            Feed/pig
+                          </div>
+                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
                             {formatFeedPerPig(pigMetricsBySession[s.id].feed_per_pig_lbs)}
                           </div>
                         </div>
                         <div data-pig-metric="adg">
-                          <div style={{fontSize: 9, color: '#6b7280', textTransform: 'uppercase'}}>Group ADG</div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>
+                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
+                            Group ADG
+                          </div>
+                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
                             {formatGroupAdg(pigMetricsBySession[s.id].group_adg_lbs_per_day)}
                           </div>
                         </div>
                         <div data-pig-metric="avg">
-                          <div style={{fontSize: 9, color: '#6b7280', textTransform: 'uppercase'}}>Avg weight</div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: '#111827'}}>
+                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
+                            Avg weight
+                          </div>
+                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
                             {formatAvgWeight(pigMetricsBySession[s.id].avg_weight_lbs)}
                           </div>
                         </div>
                         {pigEntryAdgs.length > 0 && (
                           <div data-pig-metric="entry-adg" style={{gridColumn: '1 / -1'}}>
-                            <div style={{fontSize: 9, color: '#6b7280', textTransform: 'uppercase'}}>
+                            <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
                               Rank-matched pig ADG
                             </div>
                             <div style={{display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3}}>

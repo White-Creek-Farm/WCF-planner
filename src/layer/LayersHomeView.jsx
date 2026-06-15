@@ -292,12 +292,20 @@ export default function LayersHomeView({Header, loadUsers}) {
   const dozensOnHand = latestEggReport?.dozens_on_hand || 0;
 
   const StatTile = ({label, val, sub, color = '#78350f'}) => (
-    <div style={{background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px'}}>
-      <div style={{fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4}}>
+    <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--ink-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+          marginBottom: 4,
+        }}
+      >
         {label}
       </div>
       <div style={{fontSize: 24, fontWeight: 700, color, lineHeight: 1}}>{val}</div>
-      {sub && <div style={{fontSize: 11, color: '#9ca3af', marginTop: 3}}>{sub}</div>}
+      {sub && <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>{sub}</div>}
     </div>
   );
 
@@ -344,15 +352,21 @@ export default function LayersHomeView({Header, loadUsers}) {
             key={it.l}
             style={{
               padding: '8px 10px',
-              background: '#f9fafb',
-              border: '1px solid #f3f4f6',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--divider)',
               borderRadius: 8,
               minWidth: 0,
               overflow: 'hidden',
             }}
           >
             <div
-              style={{fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2}}
+              style={{
+                fontSize: 9,
+                color: 'var(--ink-faint)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 2,
+              }}
             >
               {it.l}
             </div>
@@ -360,7 +374,7 @@ export default function LayersHomeView({Header, loadUsers}) {
               style={{
                 fontSize: 13,
                 fontWeight: 700,
-                color: it.warn ? '#b91c1c' : it.good ? '#065f46' : it.color || '#111827',
+                color: it.warn ? '#b91c1c' : it.good ? '#065f46' : it.color || 'var(--ink)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -385,13 +399,13 @@ export default function LayersHomeView({Header, loadUsers}) {
           onClick={() => setVal(v)}
           style={{
             padding: '6px 14px',
-            border: 'none',
+            border: '1px solid ' + (val === v ? '#085041' : 'var(--border-strong)'),
             fontFamily: 'inherit',
             fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer',
-            background: val === v ? '#085041' : 'white',
-            color: val === v ? 'white' : '#6b7280',
+            background: 'white',
+            color: val === v ? '#085041' : 'var(--ink-muted)',
           }}
         >
           {l}
@@ -401,7 +415,7 @@ export default function LayersHomeView({Header, loadUsers}) {
   );
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2', overflow: 'hidden'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)', overflow: 'hidden'}}>
       {showUsers && (
         <UsersModal
           sb={sb}
@@ -438,7 +452,7 @@ export default function LayersHomeView({Header, loadUsers}) {
 
         {/* Lifetime stats for active batches */}
         <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
-          <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', letterSpacing: 0.3}}>
+          <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', letterSpacing: 0.3}}>
             ACTIVE BATCHES {'\u2014'} LIFETIME
           </div>
         </div>
@@ -466,7 +480,7 @@ export default function LayersHomeView({Header, loadUsers}) {
                 {...openableProps(() => setView('layerbatches'))}
                 style={{
                   background: 'white',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: 14,
                   overflow: 'hidden',
                   cursor: 'pointer',
@@ -475,8 +489,9 @@ export default function LayersHomeView({Header, loadUsers}) {
               >
                 <div
                   style={{
-                    background: bc.bg,
+                    background: 'white',
                     borderBottom: '1px solid ' + bc.bd,
+                    borderLeft: '3px solid ' + bc.tx,
                     padding: '12px 20px',
                     display: 'flex',
                     alignItems: 'center',
@@ -505,11 +520,11 @@ export default function LayersHomeView({Header, loadUsers}) {
                 <div style={{padding: '14px 20px'}}>
                   <MetricsGrid s={cur} hidePhases={myHousings.length > 0} />
                   {myHousings.length > 1 && (
-                    <div style={{marginTop: 14, paddingTop: 12, borderTop: '1px dashed #e5e7eb'}}>
+                    <div style={{marginTop: 14, paddingTop: 12, borderTop: '1px dashed var(--border)'}}>
                       <div
                         style={{
                           fontSize: 10,
-                          color: '#9ca3af',
+                          color: 'var(--ink-faint)',
                           textTransform: 'uppercase',
                           letterSpacing: 0.5,
                           marginBottom: 8,
@@ -534,8 +549,9 @@ export default function LayersHomeView({Header, loadUsers}) {
                                 key={h.id}
                                 style={{
                                   padding: '10px 12px',
-                                  background: bc.bg,
+                                  background: 'white',
                                   border: '1px solid ' + bc.bd,
+                                  borderLeft: '3px solid ' + bc.tx,
                                   borderRadius: 10,
                                 }}
                               >
@@ -592,7 +608,7 @@ export default function LayersHomeView({Header, loadUsers}) {
             return (
               <div style={{marginTop: 6}}>
                 <div style={{display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap'}}>
-                  <div style={{fontSize: 13, fontWeight: 600, color: '#4b5563', letterSpacing: 0.3}}>
+                  <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', letterSpacing: 0.3}}>
                     {'\ud83c\udfe1 RETIREMENT HOME \u2014 ROLLING WINDOW'}
                   </div>
                   <PeriodToggle
@@ -631,7 +647,7 @@ export default function LayersHomeView({Header, loadUsers}) {
                     >
                       Permanent
                     </span>
-                    <span style={{fontSize: 11, color: '#6b7280'}}>
+                    <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                       {myHousings.length} housing{myHousings.length === 1 ? '' : 's'} {'\u00b7'}{' '}
                       {cur.hens.toLocaleString()} hens
                     </span>

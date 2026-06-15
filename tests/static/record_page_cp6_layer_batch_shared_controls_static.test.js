@@ -43,8 +43,8 @@ describe('CP6: LayerBatchPage adopts shared record-page controls', () => {
   it('preserves small meaningful local overrides on shared controls', () => {
     // Compact numeric width for Cost per Bird.
     expect(src).toMatch(/\{\.\.\.recordControl, maxWidth: 160\}/);
-    // Read-only brooder Exit Date keeps its muted background.
-    expect(src).toMatch(/\{\.\.\.recordControl, background: '#f9fafb', color: '#6b7280'\}/);
+    // Read-only brooder Exit Date keeps its muted background (parity tokens).
+    expect(src).toMatch(/\{\.\.\.recordControl, background: 'var\(--surface-2\)', color: 'var\(--ink-muted\)'\}/);
   });
 
   it('keeps the modal scaffolding + indicators + data attributes', () => {

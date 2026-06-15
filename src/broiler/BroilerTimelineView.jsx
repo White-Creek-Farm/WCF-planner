@@ -91,7 +91,7 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
   });
 
   return (
-    <div style={{minHeight: '100vh', background: '#f1f3f2'}}>
+    <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {showUsers && (
         <UsersModal
           sb={sb}
@@ -262,7 +262,7 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
               })()}
 
             {/* Week headers */}
-            <div style={{display: 'flex', borderBottom: '1px solid #e5e7eb'}}>
+            <div style={{display: 'flex', borderBottom: '1px solid var(--border)'}}>
               <div
                 style={{
                   width: 145,
@@ -270,9 +270,9 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
                   padding: '6px 10px',
                   fontSize: 10,
                   fontWeight: 600,
-                  color: '#9ca3af',
-                  borderRight: '1px solid #e5e7eb',
-                  background: '#ecfdf5',
+                  color: 'var(--ink-faint)',
+                  borderRight: '1px solid var(--border)',
+                  background: 'var(--surface-2)',
                   position: 'sticky',
                   left: 0,
                   zIndex: 10,
@@ -338,9 +338,9 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
                       height: 44,
                       fontSize: 11,
                       fontWeight: 600,
-                      color: '#4b5563',
-                      borderRight: '1px solid #e5e7eb',
-                      background: '#ecfdf5',
+                      color: 'var(--ink-muted)',
+                      borderRight: '1px solid var(--border)',
+                      background: 'var(--surface-2)',
                       position: 'sticky',
                       left: 0,
                       zIndex: 10,
@@ -547,14 +547,14 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
 
         {/* Legend */}
         <div style={{display: 'flex', gap: 14, marginTop: 10, flexWrap: 'wrap', alignItems: 'center'}}>
-          <span style={{fontSize: 11, color: '#9ca3af'}}>
+          <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>
             Each batch has its own color {'\u00b7'} brooder and schooner phases share the same color {'\u00b7'} amber
             border = layer batch ({'\ud83e\udd5a'}) {'\u00b7'} click any bar to edit {'\u00b7'} green line = today
           </span>
         </div>
 
         {batches.length === 0 && (
-          <div style={{textAlign: 'center', padding: '3rem', color: '#9ca3af', fontSize: 13}}>
+          <div style={{textAlign: 'center', padding: '3rem', color: 'var(--ink-faint)', fontSize: 13}}>
             No batches yet — click "+ Add Batch" to get started
           </div>
         )}
