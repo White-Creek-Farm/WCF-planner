@@ -7,10 +7,11 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-13.
-Current source checkpoint for this wrap: `1acd43d` (`Hotfix home text color
-hierarchy`). This `PROJECT.md` wrap is the only tracked handoff change unless
-Ronnie asks for a commit/push.
+Last updated: 2026-06-15.
+Current source checkpoint: `19c2326` (`Hotfix home border contrast`, pushed to
+`origin/main`, local `main` 0/0). This `PROJECT.md` edit records that hotfix into
+the frozen Home parity token reference and is the only tracked handoff change
+unless Ronnie asks for a commit/push.
 Current pushed source checkpoint before this wrap: `1acd43d`. Since the
 `bb8fdad` integration, `main` has shipped Animals on Farm display polish
 (`c61fab0`), cattle weigh-in swap/blacklist dropdown repairs (`9159ca5`), retag
@@ -26,9 +27,12 @@ task-row photo thumbnails (`8394162`), the shared Task Center To Do List
 (`d63c5c3`, migration `115`), animal record-page hotfixes (`a8d117d`), daily-hub
 token closure (`5539348`), the PWA offline app-shell cache (`4f85c44`, merged
 `ab2bd68`), Cattle Log unmatched-calves reminder (`052af25`, merged `b2b1e73`),
-and the Home text-color hierarchy hotfix (`1acd43d`). Netlify auto-deploys from
-GitHub `main`; CC later state-synced `1acd43d` on `origin/main` with local
-`main` at 0/0 and confirmed the hotfix files match the accepted text-color rule.
+the Home text-color hierarchy hotfix (`1acd43d`), and the Home border-contrast
+hotfix (`19c2326`, 2026-06-15) that darkened Home card/button/section borders via
+a scoped `.home-dashboard` `--border`/`--border-strong` override. Netlify
+auto-deploys from GitHub `main`; CC later state-synced `1acd43d` on `origin/main`
+with local `main` at 0/0 and confirmed the hotfix files match the accepted
+text-color rule.
 Capture served-PROD asset evidence next session only if a gate needs it. Ronnie
 screenshot-verified the Cattle Log build and To Do screenshot packet before the
 relevant gates. Migrations `112` (2026-06-12) and `113`/`114`/`115`
@@ -198,8 +202,9 @@ plus a guard update in the same change.
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Current source checkpoint for this wrap: `1acd43d`; this `PROJECT.md` wrap is
-  the only tracked handoff change unless Ronnie asks for a commit/push. Since
+- Current source checkpoint: `19c2326` (`Hotfix home border contrast`), pushed to
+  `origin/main` with local `main` 0/0; this `PROJECT.md` edit is the only tracked
+  handoff change unless Ronnie asks for a commit/push. Since
   the `bb8fdad` integration, `main` shipped Animals on Farm display polish, the
   public cattle weigh-in fixes and layout polish, retag
   weight-history preservation, calf-row heifer promotion, weigh-in note
@@ -208,8 +213,11 @@ plus a guard update in the same change.
   daily-report review hub, task photo cap parity, the Cattle Log field journal,
   task-row photo thumbnails, the Task Center To Do List, animal record-page
   transfer/blacklist hotfixes, daily-hub token closure, PWA offline app-shell
-  cache, Cattle Log unmatched-calves reminder, and the Home text-color hierarchy
-  hotfix. See Latest Shipped Checkpoint and Build Queue for per-lane detail.
+  cache, Cattle Log unmatched-calves reminder, the Home text-color hierarchy
+  hotfix, and the Home border-contrast hotfix (`19c2326`: darker scoped
+  `.home-dashboard` `--border`/`--border-strong`, the new parity basis for global
+  border contrast). See Latest Shipped Checkpoint and Build Queue for per-lane
+  detail.
 - Latest live verification: CC reported all three parallel lanes live on
   2026-06-13 before the Home text hotfix: daily-hub token closure asset rotated,
   `/sw.js` live for the PWA offline app-shell cache, and Cattle Log unmatched
@@ -1157,14 +1165,22 @@ Current open queue after the 2026-06-13 `1acd43d` source checkpoint:
      focus states where the chevron is revealed. Public/mobile field use matters;
      do not rely only on desktop screenshots.
    Frozen Home parity token reference (Phase 0). CC produced this read-only
-   reference from the live `src/dashboard/homeRedesign.css` at `1acd43d` (freeze
-   from live CSS, not stale prose). The pilot primitive builds against these exact
-   values; APP radius/type stay canonical (reconcile-down):
+   reference from the live `src/dashboard/homeRedesign.css` at `19c2326` (freeze
+   from live CSS, not stale prose; refreshed after the `19c2326` border-contrast
+   hotfix darkened the Home border tokens). The pilot primitive builds against
+   these exact values; APP radius/type stay canonical (reconcile-down):
    - Neutrals/surfaces (use the Home color values directly): canvas (page bg)
      `oklch(0.991 0.002 225)` promoted to ONE named token; surface `#ffffff`;
-     surface-2 `oklch(0.975 0.003 225)`; border `oklch(0.915 0.005 230)` 1px;
-     border-strong `oklch(0.85 0.007 230)`; divider `oklch(0.938 0.004 230)`;
-     row-hover wash `oklch(0.979 0.003 230)`.
+     surface-2 `oklch(0.975 0.003 225)`; border `oklch(0.84 0.008 230)` 1px;
+     border-strong `oklch(0.72 0.011 230)`; divider `oklch(0.938 0.004 230)`;
+     row-hover wash `oklch(0.979 0.003 230)`. Border tokens are the darker
+     post-hotfix values (`19c2326`, 2026-06-15): Home now applies them via a
+     scoped `.home.theme-crisp.home-dashboard` override of `--border`/
+     `--border-strong` (base `.theme-crisp` still carries the older lighter
+     `0.915`/`0.85` values), and hardcoded inline `#e5e7eb`/`#e2e8f0` card,
+     button, and Last-5-Days borders were converted to `var(--border)` so they
+     inherit the darker token. Global parity bases card/button/section border
+     contrast on these darker values, NOT the lighter base-token values.
    - Elevation: shadow-card (rest) `0 1px 2px rgba(20,30,40,0.045)`; shadow-hover
      (lift) `0 7px 20px rgba(20,30,40,0.1)`.
    - Text (locked, post-hotfix): main/title/label/button-label/row-name/primary-
