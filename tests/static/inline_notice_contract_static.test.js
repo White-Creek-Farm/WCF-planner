@@ -17,15 +17,16 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const inlineNotice = read('src/shared/InlineNotice.jsx');
 const cattleAnimal = read('src/cattle/CattleAnimalPage.jsx');
 const sheepAnimal = read('src/sheep/SheepAnimalPage.jsx');
-const mySubmissions = read('src/dashboard/MySubmissions.jsx');
 const forecast = read('src/cattle/CattleForecastView.jsx');
 const cowDetail = read('src/cattle/CowDetail.jsx');
 
 // Call sites that must use the canonical notice={...} shape.
+// (MySubmissions was rebuilt into a no-data "View Past Reports" navigation hub
+// in commit a56e57e and no longer renders InlineNotice at all, so it is no
+// longer a call site.)
 const CALL_SITES = [
   ['src/cattle/CattleAnimalPage.jsx', cattleAnimal],
   ['src/sheep/SheepAnimalPage.jsx', sheepAnimal],
-  ['src/dashboard/MySubmissions.jsx', mySubmissions],
 ];
 
 describe('InlineNotice — component shape and info kind', () => {
@@ -68,14 +69,6 @@ describe('InlineNotice — canonical call shape at fixed sites', () => {
 
   it('SheepAnimalPage passes the notice object, not flat kind/message', () => {
     expect(sheepAnimal).toContain('<InlineNotice notice={notice} onDismiss={() => setNotice(null)} />');
-  });
-
-  it('MySubmissions passes the notice object for the mutation notice', () => {
-    expect(mySubmissions).toContain('<InlineNotice notice={notice} onDismiss={() => setNotice(null)} />');
-  });
-
-  it('MySubmissions wraps the load error in a notice object', () => {
-    expect(mySubmissions).toContain("notice={{kind: 'error', message: 'Could not load: ' + loadError}}");
   });
 });
 

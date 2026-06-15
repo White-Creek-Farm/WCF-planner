@@ -214,8 +214,10 @@ describe('Public Tasks admin assignee tile', () => {
     // Default-inclusion copy, locked via the data-availability-default-copy
     // attr so it stays at the top of the assignee tile.
     expect(adminSrc).toMatch(/data-availability-default-copy="tasks-public"/);
+    // Whitespace-tolerant: JSX collapses inter-word whitespace at runtime, so the
+    // copy reads identically whether Prettier keeps it on one line or wraps it.
     expect(adminSrc).toMatch(
-      /Active planner users are included by default\. Uncheck to hide a user from the public Tasks Assign-to dropdown\./,
+      /Active\s+planner\s+users\s+are\s+included\s+by\s+default\.\s+Uncheck\s+to\s+hide\s+a\s+user\s+from\s+the\s+public\s+Tasks\s+Assign-to\s+dropdown\./,
     );
   });
 });

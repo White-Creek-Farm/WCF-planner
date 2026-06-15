@@ -1,9 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {
-  assertTaskPhotoLimit,
-  MAX_TASK_PHOTOS_PER_TASK,
-  remainingTaskPhotoSlots,
-} from './tasksCenterMutationsApi.js';
+import {assertTaskPhotoLimit, MAX_TASK_PHOTOS_PER_TASK, remainingTaskPhotoSlots} from './tasksCenterMutationsApi.js';
 
 describe('task photo total limit helpers', () => {
   it('uses a 5-photo total cap for each task', () => {

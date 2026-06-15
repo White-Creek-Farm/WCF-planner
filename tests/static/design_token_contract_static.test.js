@@ -72,7 +72,7 @@ describe('Lane I token contract - shared primitive guard', () => {
   });
 
   it('ConfirmModal and DeleteModal stay at the top destructive overlay z-index', () => {
-    expect(read('src/shared/ConfirmModal.jsx')).toContain('zIndex: 9000');
-    expect(read('src/shared/DeleteModal.jsx')).toContain('zIndex: 9000');
+    expect(read('src/shared/ConfirmModal.jsx')).toContain('zIndex: 11000');
+    expect(read('src/shared/DeleteModal.jsx')).toContain('zIndex: 11000');
   });
 });

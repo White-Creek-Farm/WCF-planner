@@ -123,10 +123,7 @@ function TeamAvailabilityEditor({loadUsers}) {
   function initialsFor(user) {
     const source = String(user.full_name || user.email || user.id || '').trim();
     if (!source) return '?';
-    const parts = source
-      .replace(/@.*/, '')
-      .split(/\s+/)
-      .filter(Boolean);
+    const parts = source.replace(/@.*/, '').split(/\s+/).filter(Boolean);
     const letters = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : source.slice(0, 2);
     return letters.toUpperCase();
   }
@@ -152,7 +149,8 @@ function TeamAvailabilityEditor({loadUsers}) {
             data-availability-default-copy="tasks-public"
             style={{fontSize: 12, color: '#64748b', lineHeight: 1.45, maxWidth: 560}}
           >
-            Active planner users are included by default. Uncheck to hide a user from the public Tasks Assign-to dropdown.
+            Active planner users are included by default. Uncheck to hide a user from the public Tasks Assign-to
+            dropdown.
           </div>
         </div>
         <div

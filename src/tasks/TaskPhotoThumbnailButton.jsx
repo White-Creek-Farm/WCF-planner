@@ -131,7 +131,7 @@ export default function TaskPhotoThumbnailButton({sb, task, onClick}) {
       style={BUTTON}
     >
       {url ? (
-        <img src={url} alt="" loading="lazy" style={IMG} />
+        <img src={url} alt="" aria-hidden="true" loading="lazy" style={IMG} />
       ) : (
         <span aria-hidden="true" style={FALLBACK}>
           {loaded ? 'Photo' : ''}

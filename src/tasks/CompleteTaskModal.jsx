@@ -102,12 +102,11 @@ export default function CompleteTaskModal({sb, task, isOpen, onClose, onComplete
   const remainingPhotoSlots = remainingTaskPhotoSlots(existingPhotoCount);
   const availablePhotoSlots = photoCountLoaded ? Math.max(0, remainingPhotoSlots - photos.length) : 0;
   const photoLimitMessage = `Tasks can have up to ${MAX_TASK_PHOTOS_PER_TASK} photos.`;
-  const photoLabel =
-    !photoCountLoaded
-      ? 'Optional completion photos (checking slots)'
-      : remainingPhotoSlots <= 0
-        ? `Optional completion photos (0 of ${MAX_TASK_PHOTOS_PER_TASK} slots left)`
-        : `Optional completion photos (${availablePhotoSlots} of ${MAX_TASK_PHOTOS_PER_TASK} slots left)`;
+  const photoLabel = !photoCountLoaded
+    ? 'Optional completion photos (checking slots)'
+    : remainingPhotoSlots <= 0
+      ? `Optional completion photos (0 of ${MAX_TASK_PHOTOS_PER_TASK} slots left)`
+      : `Optional completion photos (${availablePhotoSlots} of ${MAX_TASK_PHOTOS_PER_TASK} slots left)`;
 
   if (!isOpen || !task) return null;
 

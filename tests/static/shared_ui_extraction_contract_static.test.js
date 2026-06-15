@@ -221,7 +221,7 @@ describe('shared UI extraction contract', () => {
     expect(src).toContain('onKeyDown={handleDialogKeyDown}');
     expect(src).toContain('aria-label="Type delete to confirm"');
     expect(src).toContain('data-modal-initial-focus="1"');
-    expect(src).toContain('zIndex: 9000');
+    expect(src).toContain('zIndex: 11000');
     expect(src).toContain("typed.trim().toLowerCase() === 'delete'");
     expect(src).toContain("e.key === 'Enter' && ready");
     expect(src).toMatch(/Cancel[\s\S]*Delete/);
@@ -249,7 +249,7 @@ describe('shared UI extraction contract', () => {
     expect(src).toContain('autoFocus');
     expect(src).toContain('data-modal-initial-focus="1"');
     expect(src).toMatch(/Cancel[\s\S]*\{label\}/);
-    expect(src).toContain('zIndex: 9000');
+    expect(src).toContain('zIndex: 11000');
     expect(src).toContain("padding: '10px 16px'");
     expect(src).not.toMatch(/borderRadius:\s*(?:7|8|12)\b/);
     expect(src).not.toMatch(/window\.(?:alert|confirm|prompt)\s*\(/);

@@ -18,6 +18,7 @@ const EXPECTED_IMG_OWNERS = [
   'src/shared/CommentsSection.jsx',
   'src/shared/DailyPhotoThumbnails.jsx',
   'src/tasks/TaskPhotoLightbox.jsx',
+  'src/tasks/TaskPhotoThumbnailButton.jsx',
   'src/tasks/TodoPhotoThumbs.jsx',
   'src/webforms/EquipmentFuelingWebform.jsx',
 ];

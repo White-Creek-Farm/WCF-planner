@@ -167,8 +167,6 @@ describe('MyTasksTab — preserved load-bearing data-* hooks', () => {
     'data-due-state=',
     'data-due-date=',
     'data-task-attribution-label=',
-    'data-task-has-photo=',
-    'data-task-photo-open=',
     'data-task-complete-button=',
     'data-task-edit-due-button=',
     'data-task-assign-button=',
@@ -182,4 +180,14 @@ describe('MyTasksTab — preserved load-bearing data-* hooks', () => {
       expect(SRC, `missing required data-* hook: ${hook}`).toContain(hook);
     });
   }
+
+  it('renders the shared TaskPhotoThumbnailButton, which owns the photo data-* hooks', () => {
+    // The data-task-has-photo / data-task-photo-open hooks moved into the shared
+    // TaskPhotoThumbnailButton component (commit 8394162). The row still renders
+    // them through that button, so the e2e photo hooks stay present in the DOM.
+    expect(SRC).toContain('TaskPhotoThumbnailButton');
+    const photoBtn = readFileSync(resolve(ROOT, 'src/tasks/TaskPhotoThumbnailButton.jsx'), 'utf8');
+    expect(photoBtn).toContain('data-task-has-photo="1"');
+    expect(photoBtn).toContain('data-task-photo-open="1"');
+  });
 });

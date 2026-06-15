@@ -129,14 +129,22 @@ describe('CompletedTab — preserved row contract + read-only boundary', () => {
     'data-completed-by-name=',
     'data-completion-note="1"',
     'data-task-attribution-label=',
-    'data-task-has-photo="1"',
-    'data-task-photo-open="1"',
   ];
   for (const hook of REQUIRED_HOOKS) {
     it(`preserves ${hook}`, () => {
       expect(completedSrc, `missing required data-* hook: ${hook}`).toContain(hook);
     });
   }
+
+  it('renders the shared TaskPhotoThumbnailButton, which owns the photo data-* hooks', () => {
+    // The data-task-has-photo / data-task-photo-open hooks moved into the shared
+    // TaskPhotoThumbnailButton component (commit 8394162). The row still renders
+    // them through that button, so the e2e photo hooks stay present in the DOM.
+    expect(completedSrc).toContain('TaskPhotoThumbnailButton');
+    const photoBtn = readFileSync(resolve(ROOT, 'src/tasks/TaskPhotoThumbnailButton.jsx'), 'utf8');
+    expect(photoBtn).toContain('data-task-has-photo="1"');
+    expect(photoBtn).toContain('data-task-photo-open="1"');
+  });
 
   it('imports only read helpers — no mutation wrapper imports', () => {
     // Lock the T2/T4 read-only contract: Completed tab uses the

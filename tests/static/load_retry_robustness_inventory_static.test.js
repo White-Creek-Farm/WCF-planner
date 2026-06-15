@@ -23,7 +23,6 @@ const EXPECTED_READY_MARKERS = new Map([
   ['src/cattle/CattleLogPage.jsx', ['data-cattle-log-loaded']],
   ['src/cattle/CattleWeighInsView.jsx', ['data-weighin-list-loaded']],
   ['src/dashboard/AnimalHistoryPage.jsx', ['data-animal-history-loaded']],
-  ['src/dashboard/MySubmissions.jsx', ['data-my-submissions-loaded']],
   ['src/equipment/EquipmentChecklistEntryPage.jsx', ['data-equipment-checklist-record-loaded']],
   ['src/equipment/EquipmentDetail.jsx', ['data-equipment-record-loaded']],
   ['src/equipment/EquipmentFleetView.jsx', ['data-equipment-fleet-loaded']],
@@ -76,7 +75,6 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/cattle/CattleLogPage.jsx', {retry: true, inlineNotice: true}],
   ['src/cattle/CattleWeighInsView.jsx', {retry: true, inlineNotice: true}],
   ['src/dashboard/AnimalHistoryPage.jsx', {retry: true, inlineNotice: true}],
-  ['src/dashboard/MySubmissions.jsx', {retry: true, inlineNotice: true}],
   ['src/equipment/EquipmentChecklistEntryPage.jsx', {retry: true, inlineNotice: true}],
   ['src/equipment/EquipmentFuelingEntryPage.jsx', {retry: true, inlineNotice: true}],
   ['src/equipment/EquipmentHome.jsx', {retry: true, inlineNotice: true}],
@@ -226,22 +224,11 @@ describe('load/retry robustness inventory', () => {
 });
 
 describe('load/retry fail-closed behavior details', () => {
-  const mySubmissions = fs.readFileSync(path.join(ROOT, 'src/dashboard/MySubmissions.jsx'), 'utf8');
+  // MySubmissions was rebuilt into a no-data "View Past Reports" navigation hub
+  // (commit a56e57e); it no longer fetches fuelings/supplies, so there is no
+  // stale-data / fail-closed surface to lock here. Edit/delete moved to the
+  // daily record pages, which carry their own fail-closed loading.
   const recentlyDeleted = fs.readFileSync(path.join(ROOT, 'src/admin/RecentlyDeletedDailyReports.jsx'), 'utf8');
-
-  it('keeps My Submissions from showing stale rows after a failed load', () => {
-    expect(mySubmissions).toContain("data-my-submissions-loaded={loaded && !loadError ? 'true' : 'false'}");
-    expect(mySubmissions).toContain('data-my-submissions-load-error="true"');
-    expect(mySubmissions).toContain('data-my-submissions-retry="1"');
-    expect(mySubmissions).toContain(
-      "<InlineNotice notice={{kind: 'error', message: 'Could not load: ' + loadError}} />",
-    );
-    expect(mySubmissions).toMatch(/\.catch\(\(e\) => \{[\s\S]*?setFuelings\(\[\]\);[\s\S]*?setSupplies\(\[\]\);/);
-    expect(mySubmissions).toContain('!loadError && fuelings.map');
-    expect(mySubmissions).toContain('!loadError && supplies.map');
-    expect(mySubmissions).toContain('!loadError && loaded && fuelings.length === 0');
-    expect(mySubmissions).toContain('!loadError && loaded && supplies.length === 0');
-  });
 
   it('keeps Recently Deleted Daily Reports from showing partial recovery data after a failed load', () => {
     expect(recentlyDeleted).toContain("data-recently-deleted-dailys-loaded={loading || loadError ? 'false' : 'true'}");

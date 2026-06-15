@@ -41,7 +41,7 @@ describe('Light daily report edit/delete window', () => {
   });
 
   it('database RPCs enforce the same submitted_at window for Light users', () => {
-    expect(mig).toContain("_assert_light_daily_report_mutation_window");
+    expect(mig).toContain('_assert_light_daily_report_mutation_window');
     expect(mig).toContain("p_submitted_at + interval '3 days'");
     expect(mig).toMatch(/t\.owner_profile_id,\s*t\.submitted_at/);
     expect(mig).toMatch(/owner_profile_id,\s*submitted_at/);

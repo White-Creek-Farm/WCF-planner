@@ -660,7 +660,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   marginBottom: 14,
                 }}
               >
-                Set a password now to skip email delivery, or leave the password fields blank to send a password reset email.
+                Set a password now to skip email delivery, or leave the password fields blank to send a password reset
+                email.
               </div>
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
                 <div style={{gridColumn: '1/-1'}}>
