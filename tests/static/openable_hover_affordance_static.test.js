@@ -64,23 +64,35 @@ describe('Global openable affordance - HTML entry contract', () => {
     expect(block).toContain('.hoverable-row{cursor:pointer}');
   });
 
-  it('hover is gated behind (hover:hover): tiles wash + lift + shadow, row cells wash', () => {
+  it('hover is gated behind (hover:hover): tiles lift + shadow + stronger border (no wash), row cells wash', () => {
     expect(block).toContain('@media (hover:hover){');
+    // Home-parity .lift: cards/tiles rise with a soft shadow + darker border and
+    // NO background wash (the green wash was retired in the parity rollout).
     expect(block).toContain(
-      '.hoverable-tile:hover{background:#f0fdf4 !important;transform:translateY(-1px);box-shadow:',
+      '.hoverable-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:var(--border-strong) !important}',
     );
-    expect(block).toContain('.hoverable-row:hover td{background:#f0fdf4 !important}');
+    // Dense rows stay flat and take the neutral row-hover wash on their cells.
+    expect(block).toContain('.hoverable-row:hover td{background:var(--row-hover) !important}');
   });
 
-  it('keyboard users get the same affordance via :focus-visible', () => {
+  it('keyboard users get the same affordance via :focus-visible (brand ring + row wash)', () => {
     expect(block).toContain(
-      '.hoverable-tile:focus-visible,.hoverable-row:focus-visible{outline:2px solid var(--green-500)',
+      '.hoverable-tile:focus-visible,.hoverable-row:focus-visible{outline:2px solid var(--brand)',
     );
   });
 
-  it('touch/click gets an :active wash (hover wash is unavailable on coarse pointers)', () => {
-    expect(block).toContain('.hoverable-tile:active{background:#f0fdf4 !important');
-    expect(block).toContain('.hoverable-row:active td{background:#f0fdf4 !important}');
+  it('touch/click gets an :active state (tile resets, row cells wash — coarse pointers have no hover)', () => {
+    expect(block).toContain('.hoverable-tile:active{transform:none;box-shadow:none}');
+    expect(block).toContain('.hoverable-row:active td{background:var(--row-hover) !important}');
+  });
+
+  it('respects prefers-reduced-motion by dropping the tile lift transform (all three entries)', () => {
+    for (const rel of HTML_ENTRIES) {
+      const src = read(rel);
+      const idx = src.indexOf('@media (prefers-reduced-motion: reduce){');
+      expect(idx, `${rel} is missing the reduced-motion fallback for .hoverable-tile`).toBeGreaterThan(-1);
+      expect(src.slice(idx, idx + 220)).toContain('.hoverable-tile:hover{transform:none}');
+    }
   });
 
   it('hover/focus/active rules only change paint, never box metrics (no layout shift)', () => {

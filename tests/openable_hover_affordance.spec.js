@@ -5,17 +5,31 @@ import {test, expect} from './fixtures.js';
 // Affordance"). Static contract lives in
 // tests/static/openable_hover_affordance_static.test.js; this spec proves the
 // affordance actually renders in a browser on the two representative shapes:
-//   - .hoverable-tile  → equipment fleet card (/fleet)
-//   - .hoverable-row   → broiler batches <table> row (/broiler/batches)
-// Wash color is the contract #f0fdf4 = rgb(240, 253, 244).
+//   - .hoverable-tile  → equipment fleet card (/fleet): lifts on hover (Home
+//     parity .lift) with a soft shadow, NO background wash.
+//   - .hoverable-row   → broiler batches <table> row (/broiler/batches):
+//     neutral --row-hover wash on its cells, no lift.
+// The row wash follows the --row-hover token, resolved to rgb at runtime rather
+// than a hardcoded literal (the parity rollout retired the green #f0fdf4 wash).
 // ============================================================================
-
-const WASH = 'rgb(240, 253, 244)';
 
 function matrixTranslateY(transform) {
   if (!transform || transform === 'none') return 0;
   const match = transform.match(/^matrix\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,\s*([^)]+)\)$/);
   return match ? Number(match[1]) : NaN;
+}
+
+// Resolve a CSS custom property to the rgb() string the browser computes for it,
+// so wash assertions track the token instead of a brittle hardcoded color.
+async function resolveVarRgb(page, varName) {
+  return page.evaluate((name) => {
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = `var(${name})`;
+    document.body.appendChild(probe);
+    const c = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return c;
+  }, varName);
 }
 
 async function seedEquipment(supabaseAdmin, {id, name}) {
@@ -60,18 +74,20 @@ test('fleet tile: pointer cursor, hover wash + lift, keyboard focus + Enter open
   expect(resting.cursor).toBe('pointer');
   expect(resting.transform).toBe('none');
 
+  const restingBg = await tile.evaluate((el) => getComputedStyle(el).backgroundColor);
   await tile.hover();
+  // Parity .lift: the tile rises ~2px and gains a shadow; it must NOT wash.
   await expect
-    .poll(async () => tile.evaluate((el) => getComputedStyle(el).backgroundColor), {timeout: 3_000})
-    .toBe(WASH);
+    .poll(async () => matrixTranslateY(await tile.evaluate((el) => getComputedStyle(el).transform)), {timeout: 3_000})
+    .toBeLessThanOrEqual(-1.9);
   const hovered = await tile.evaluate((el) => {
     const cs = getComputedStyle(el);
-    return {transform: cs.transform, boxShadow: cs.boxShadow};
+    return {transform: cs.transform, boxShadow: cs.boxShadow, backgroundColor: cs.backgroundColor};
   });
-  const hoverLift = matrixTranslateY(hovered.transform);
-  expect(hoverLift).toBeLessThanOrEqual(-0.9);
-  expect(hoverLift).toBeGreaterThanOrEqual(-1.1);
+  expect(matrixTranslateY(hovered.transform)).toBeGreaterThanOrEqual(-2.1);
   expect(hovered.boxShadow).not.toBe('none');
+  // No wash: hovering a tile must not repaint its background.
+  expect(hovered.backgroundColor).toBe(restingBg);
 
   // Keyboard: Tab reaches the tile, :focus-visible draws the ring, Enter opens.
   await page.mouse.move(0, 0);
@@ -103,11 +119,12 @@ test('broiler batches row: pointer cursor, hover wash on cells, no transform, En
 
   expect(await row.evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
 
+  const expectedWash = await resolveVarRgb(page, '--row-hover');
   await row.hover();
   const cell = row.locator('td').first();
   await expect
     .poll(async () => cell.evaluate((el) => getComputedStyle(el).backgroundColor), {timeout: 3_000})
-    .toBe(WASH);
+    .toBe(expectedWash);
   // Rows wash only — the tile lift must not leak onto table rows.
   expect(await row.evaluate((el) => getComputedStyle(el).transform)).toBe('none');
 
