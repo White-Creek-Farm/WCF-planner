@@ -63,6 +63,10 @@ const LivestockWeighInsView = ({
   const myProfileId = authState?.user?.id || null;
 
   const speciesLabel = species === 'broiler' ? 'Broiler' : 'Pig';
+  // Pig redesign: no saved views / export / print / status filter. Sessions are
+  // split into Active vs Complete sections instead. Broiler keeps the full
+  // toolbar unchanged.
+  const isPig = species === 'pig';
   const savedViewSurfaceKey = WEIGHIN_SESSION_SURFACE_KEYS[species] || species + '.weighins';
 
   async function loadAll() {
@@ -129,6 +133,15 @@ const LivestockWeighInsView = ({
   }
 
   useEffect(() => {
+    if (isPig) {
+      // Pig list has no saved views; never load or render them.
+      setSavedViews([]);
+      setSavedViewsError(null);
+      setSavedViewsLoading(false);
+      setSelectedViewId('');
+      setSavedViewNotice(null);
+      return;
+    }
     setSelectedViewId('');
     setSavedViewNotice(null);
     loadSavedViews();
@@ -164,17 +177,25 @@ const LivestockWeighInsView = ({
   }, [species, sessions, entries]);
 
   const filtered = sessions.filter((s) => statusFilter === 'all' || s.status === statusFilter);
-  const totalEntries = filtered.reduce((s, sess) => s + (entries[sess.id] ? entries[sess.id].length : 0), 0);
+  // Pig ignores statusFilter entirely (no filter UI); broiler keeps it.
+  const visibleSessions = isPig ? sessions : filtered;
+  const visibleTotalEntries = visibleSessions.reduce(
+    (s, sess) => s + (entries[sess.id] ? entries[sess.id].length : 0),
+    0,
+  );
   const loadFailed = !!notice;
   const selectedView = savedViews.find((v) => v.id === selectedViewId) || null;
   const selectedViewIsMine = !!(selectedView && myProfileId && selectedView.owner_profile_id === myProfileId);
   const emptyStateKind = sessions.length === 0 ? 'none' : 'filtered';
+  // Pig never filters, so its empty state is always the plain "none" copy.
   const emptyStateMessage =
-    emptyStateKind === 'none'
+    isPig || emptyStateKind === 'none'
       ? 'No ' + speciesLabel.toLowerCase() + ' weigh-in sessions yet.'
       : 'No ' + speciesLabel.toLowerCase() + ' weigh-in sessions match the current filters.';
   const emptyStateHint =
-    emptyStateKind === 'none' ? 'Click New Weigh-In to start one.' : 'Switch back to All to see every session.';
+    isPig || emptyStateKind === 'none'
+      ? 'Click New Weigh-In to start one.'
+      : 'Switch back to All to see every session.';
 
   function livestockWeighInsViewState() {
     return {
@@ -365,7 +386,7 @@ const LivestockWeighInsView = ({
             Retry
           </button>
         )}
-        {!loadFailed && (
+        {!loadFailed && !isPig && (
           <>
             <div
               data-livestock-weighins-saved-views-row
@@ -536,75 +557,84 @@ const LivestockWeighInsView = ({
           <div>
             <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>{speciesLabel} Weigh-In Sessions</div>
             <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>
-              {filtered.length} sessions {'·'} {totalEntries} total entries
+              {visibleSessions.length} sessions {'·'} {visibleTotalEntries} total entries
             </div>
           </div>
           <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-            <div
-              style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-strong)'}}
-            >
-              {[
-                {k: 'all', l: 'All'},
-                {k: 'draft', l: 'Drafts'},
-                {k: 'complete', l: 'Complete'},
-              ].map((o, oi) => (
-                <button
-                  key={o.k}
-                  onClick={() => setStatusFilter(o.k)}
+            {!isPig && (
+              <>
+                <div
                   style={{
-                    padding: '5px 10px',
-                    border: 'none',
-                    borderRight: oi < 2 ? '1px solid var(--border-strong)' : 'none',
-                    fontFamily: 'inherit',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    background: 'white',
-                    color: statusFilter === o.k ? '#1e40af' : 'var(--ink-muted)',
+                    display: 'flex',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    border: '1px solid var(--border-strong)',
                   }}
                 >
-                  {o.l}
+                  {[
+                    {k: 'all', l: 'All'},
+                    {k: 'draft', l: 'Drafts'},
+                    {k: 'complete', l: 'Complete'},
+                  ].map((o, oi) => (
+                    <button
+                      key={o.k}
+                      onClick={() => setStatusFilter(o.k)}
+                      style={{
+                        padding: '5px 10px',
+                        border: 'none',
+                        borderRight: oi < 2 ? '1px solid var(--border-strong)' : 'none',
+                        fontFamily: 'inherit',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        background: 'white',
+                        color: statusFilter === o.k ? '#1e40af' : 'var(--ink-muted)',
+                      }}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  data-livestock-weighins-export-csv="1"
+                  onClick={handleExportCsv}
+                  disabled={loading || loadFailed}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid var(--border-strong)',
+                    background: loading || loadFailed ? 'var(--surface-2)' : 'white',
+                    color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Export CSV
                 </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              data-livestock-weighins-export-csv="1"
-              onClick={handleExportCsv}
-              disabled={loading || loadFailed}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 7,
-                border: '1px solid var(--border-strong)',
-                background: loading || loadFailed ? 'var(--surface-2)' : 'white',
-                color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
-                fontWeight: 600,
-                fontSize: 12,
-                cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Export CSV
-            </button>
-            <button
-              type="button"
-              data-livestock-weighins-print="1"
-              onClick={handlePrintRows}
-              disabled={loading || loadFailed}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 7,
-                border: '1px solid var(--border-strong)',
-                background: loading || loadFailed ? 'var(--surface-2)' : 'white',
-                color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
-                fontWeight: 600,
-                fontSize: 12,
-                cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Print
-            </button>
+                <button
+                  type="button"
+                  data-livestock-weighins-print="1"
+                  onClick={handlePrintRows}
+                  disabled={loading || loadFailed}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid var(--border-strong)',
+                    background: loading || loadFailed ? 'var(--surface-2)' : 'white',
+                    color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: loading || loadFailed ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Print
+                </button>
+              </>
+            )}
             <button
               onClick={() => setShowNewModal(true)}
               style={{
@@ -641,7 +671,7 @@ const LivestockWeighInsView = ({
         )}
 
         {loading && <div style={{textAlign: 'center', padding: '2rem', color: 'var(--ink-faint)'}}>Loading{'…'}</div>}
-        {!loading && !loadFailed && filtered.length === 0 && (
+        {!loading && !loadFailed && visibleSessions.length === 0 && (
           <div
             data-weighin-empty-state="1"
             data-weighin-empty-kind={emptyStateKind}
@@ -660,9 +690,9 @@ const LivestockWeighInsView = ({
           </div>
         )}
 
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-          {!loadFailed &&
-            filtered.map((s) => {
+        {!loadFailed &&
+          (() => {
+            const renderSessionCard = (s) => {
               const sEntries = entries[s.id] || [];
               const avgWeight = averageEntryWeight(sEntries);
               const priorPigSession = species === 'pig' ? findPriorPigWeighInSession(s, sessions) : null;
@@ -823,8 +853,51 @@ const LivestockWeighInsView = ({
                     )}
                 </div>
               );
-            })}
-        </div>
+            };
+            if (isPig) {
+              if (sessions.length === 0) return null;
+              const renderSection = (title, marker, items) => (
+                <div data-livestock-weighins-section={marker} style={{marginBottom: 16}}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.4,
+                      color: 'var(--ink-muted)',
+                      margin: '4px 2px 8px',
+                    }}
+                  >
+                    {title} ({items.length})
+                  </div>
+                  {items.length === 0 ? (
+                    <div style={{fontSize: 12, color: 'var(--ink-faint)', padding: '2px 2px 4px'}}>
+                      No {title.toLowerCase()} sessions.
+                    </div>
+                  ) : (
+                    <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>{items.map(renderSessionCard)}</div>
+                  )}
+                </div>
+              );
+              return (
+                <>
+                  {renderSection(
+                    'Active',
+                    'active',
+                    sessions.filter((s) => s.status !== 'complete'),
+                  )}
+                  {renderSection(
+                    'Complete',
+                    'complete',
+                    sessions.filter((s) => s.status === 'complete'),
+                  )}
+                </>
+              );
+            }
+            return (
+              <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>{filtered.map(renderSessionCard)}</div>
+            );
+          })()}
       </div>
     </div>
   );

@@ -17,11 +17,11 @@ const sheepCacheSrc = fs.readFileSync(path.join(ROOT, 'src/lib/sheepCache.js'), 
 const csvExport = fs.readFileSync(path.join(ROOT, 'src/lib/csvExport.js'), 'utf8');
 const printExport = fs.readFileSync(path.join(ROOT, 'src/lib/printExport.js'), 'utf8');
 const savedViewsApi = fs.readFileSync(path.join(ROOT, 'src/lib/savedViewsApi.js'), 'utf8');
-// Cattle/sheep entries now render as a dense table (Lane 18); pig entries keep
-// the card grid. The two render branches are guarded by stable conditions used
-// as slice anchors. Pig branch: from the pig grid guard to the cattle/sheep
-// table guard. Cattle/sheep branch: from the table guard to the reconcile-panel
-// guard (the table itself, excluding the Add-entry form + reconcile panel).
+// Both pig and cattle/sheep entries now render as dense tables (pig redesign).
+// The two render branches are guarded by stable conditions used as slice
+// anchors. Pig branch: from the pig table guard to the cattle/sheep table
+// guard. Cattle/sheep branch: from the table guard to the reconcile-panel guard
+// (the table itself, excluding the Add-entry form + reconcile panel).
 const pigEntryBranchStart = pageSrc.indexOf('{isPig && sEntries.length > 0 && (');
 const cattleSheepEntryBranchStart = pageSrc.indexOf('{!isPig && sEntries.length > 0 && (');
 const cattleSheepEntryBranchEnd = pageSrc.indexOf('{!isPig && pendingReconciles.length > 0 && (');
@@ -140,13 +140,30 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
     expect(pageSrc).toContain('showPigNoteInput');
     expect(pageSrc).toContain('data-pig-entry-add-note');
   });
-  it('renders sent-to-trip badge for pig entries', () => {
+  it('renders sent-to-trip status text for pig entries', () => {
     expect(pageSrc).toContain('sent_to_trip_id');
     expect(pageSrc).toContain('Sent to trip');
   });
-  it('renders transferred badge for pig entries', () => {
+  it('renders transferred status text for pig entries', () => {
     expect(pageSrc).toContain('transferred_to_breeding');
     expect(pageSrc).toContain('Transferred');
+  });
+  it('renders pig entries as a dense table, not a badge/card grid', () => {
+    expect(pigEntryBranch).toContain('<table');
+    expect(pigEntryBranch).toContain('<thead');
+    expect(pigEntryBranch).toContain('<tbody');
+    // No card-grid auto-fill template inside the pig branch anymore.
+    expect(pigEntryBranch).not.toContain('minmax(260px, 1fr)');
+  });
+  it('puts the send-to-trip checkbox in the leftmost pig table column', () => {
+    // First column header is the trip-select column; the row checkbox carries
+    // the send-select marker and toggles selectedEntryIds.
+    expect(pigEntryBranch).toContain("['Trip', 'Weight', 'Note', 'Prior', 'Days', '+/-', 'ADG', 'Status', '']");
+    expect(pigEntryBranch).toContain('data-pig-send-select');
+    expect(pigEntryBranch).toMatch(/type="checkbox"[\s\S]*?setSelectedEntryIds/);
+    // Sent rows show locked-checked; ineligible rows are disabled.
+    expect(pigEntryBranch).toContain('checked={isSent || (canSelect && selectedEntryIds.has(e.id))}');
+    expect(pigEntryBranch).toContain('disabled={!canSelect}');
   });
   it('locks sent/transferred pig entries as read-only', () => {
     expect(pageSrc).toContain('isLocked');
@@ -732,6 +749,54 @@ describe('Pig and broiler weigh-in list saved views (Lane F)', () => {
   });
 });
 
+describe('Pig weigh-in list — Active/Complete sections (pig redesign)', () => {
+  it('splits the pig list into Active and Complete sections', () => {
+    expect(livestockSrc).toContain("const isPig = species === 'pig'");
+    expect(livestockSrc).toContain('data-livestock-weighins-section');
+    expect(livestockSrc).toMatch(/renderSection\(\s*'Active'/);
+    expect(livestockSrc).toMatch(/renderSection\(\s*'Complete'/);
+    // Active = non-complete (incl. draft); Complete = complete.
+    expect(livestockSrc).toContain("sessions.filter((s) => s.status !== 'complete')");
+    expect(livestockSrc).toContain("sessions.filter((s) => s.status === 'complete')");
+  });
+
+  it('hides saved views, export, print, and the status filter for the pig list (broiler keeps them)', () => {
+    // Saved-view row and the export/print/status-filter toolbar are gated so
+    // they render for broiler but never for pig.
+    expect(livestockSrc).toContain('{!loadFailed && !isPig && (');
+    expect(livestockSrc).toContain('{!isPig && (');
+    // The features still exist in the file for the broiler branch.
+    expect(livestockSrc).toContain('data-livestock-weighins-export-csv="1"');
+    expect(livestockSrc).toContain('data-livestock-weighins-print="1"');
+  });
+
+  it('keeps New Weigh-In for the pig list', () => {
+    expect(livestockSrc).toContain('New Weigh-In');
+  });
+
+  it('bases the pig header/summary on sessions, ignoring statusFilter', () => {
+    expect(livestockSrc).toContain('const visibleSessions = isPig ? sessions : filtered');
+    expect(livestockSrc).toContain('const visibleTotalEntries = visibleSessions.reduce(');
+    // Header renders the visible (unfiltered for pig) counts.
+    expect(livestockSrc).toContain('{visibleSessions.length} sessions');
+    expect(livestockSrc).toContain('{visibleTotalEntries} total entries');
+  });
+
+  it('uses sessions.length for the pig empty state with no filter wording', () => {
+    expect(livestockSrc).toMatch(/!loading && !loadFailed && visibleSessions\.length === 0/);
+    // Pig empty copy is the plain "none" message/hint — no filter wording.
+    expect(livestockSrc).toMatch(/emptyStateMessage =\s*isPig \|\| emptyStateKind === 'none'/);
+    expect(livestockSrc).toMatch(/emptyStateHint =\s*isPig \|\| emptyStateKind === 'none'/);
+  });
+
+  it('does not load saved views for pig but still loads them for broiler', () => {
+    // Effect returns early for pig after clearing saved-view state.
+    expect(livestockSrc).toMatch(/if \(isPig\) \{[\s\S]{0,260}setSavedViews\(\[\]\)[\s\S]{0,260}return;/);
+    // Broiler path still calls loadSavedViews().
+    expect(livestockSrc).toContain('loadSavedViews();');
+  });
+});
+
 describe('SheepWeighInsView - CSV export', () => {
   it('uses the shared csvExport owner for browser download mechanics', () => {
     expect(csvExport).toContain('export function rowsToCsv');
@@ -1131,10 +1196,17 @@ describe('Weigh-in list load-error states', () => {
   });
 
   it('does not render empty-state or tiles while a load failure is active', () => {
-    for (const src of [listSrc, sheepListSrc, livestockSrc]) {
+    // Cattle/sheep gate the empty-state + tile map directly on filtered.
+    for (const src of [listSrc, sheepListSrc]) {
       expect(src).toMatch(/!loading && !loadFailed && filtered\.length === 0/);
       expect(src).toMatch(/!loadFailed &&\s*filtered\.map/);
     }
+    // The shared pig/broiler list gates on visibleSessions (pig=sessions,
+    // broiler=filtered) and renders via an IIFE; broiler maps `filtered`, pig
+    // renders Active/Complete sections.
+    expect(livestockSrc).toMatch(/!loading && !loadFailed && visibleSessions\.length === 0/);
+    expect(livestockSrc).toMatch(/!loadFailed &&\s*\(\(\) =>/);
+    expect(livestockSrc).toContain('filtered.map(renderSessionCard)');
   });
 });
 

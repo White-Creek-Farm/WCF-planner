@@ -1857,6 +1857,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           </button>
           {isPig && session.status === 'draft' && canManagePigPlannedTrips && selectedEntryIds.size > 0 && (
             <button
+              data-pig-send-bar="1"
               onClick={openTripModal}
               style={{
                 padding: '10px 16px',
@@ -2027,79 +2028,122 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               </div>
             )}
             {isPig && sEntries.length > 0 && (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                  gap: 6,
-                  marginBottom: 8,
-                }}
-              >
-                {sEntries.map((e) => {
-                  const ef = entryEdits[e.id] || entryDraft(e);
-                  // Pig entries render as cards in this grid; cattle/sheep render
-                  // in the dense table below. isPig already gates this whole block.
-                  const isSent = !!e.sent_to_trip_id;
-                  const isTransferred = !!(e.transferred_to_breeding || /\[transferred_to_breeding/.test(e.note || ''));
-                  const isLocked = isSent || isTransferred;
-                  const pigEntryAdg = pigEntryAdgById[e.id];
-                  const hasPigNote = String(ef.note || '').trim().length > 0;
-                  const showPigNoteInput = hasPigNote || openPigNoteEntryIds.has(e.id);
-                  const autosaveState = entryAutosave[e.id];
-                  const autosaveTone =
-                    autosaveState && autosaveState.status === 'error'
-                      ? {color: '#b91c1c', background: '#fef2f2', border: '#fecaca'}
-                      : autosaveState && autosaveState.status === 'saved'
-                        ? {color: '#065f46', background: '#ecfdf5', border: '#a7f3d0'}
-                        : {color: '#6b7280', background: '#f9fafb', border: '#e5e7eb'};
-                  return (
-                    <div
-                      key={e.id}
-                      style={{
-                        background: isSent ? '#ecfdf5' : isTransferred ? '#eef2ff' : 'white',
-                        border: '1px solid ' + (isSent ? '#a7f3d0' : isTransferred ? '#c7d2fe' : '#e5e7eb'),
-                        borderRadius: 6,
-                        padding: '6px 10px',
-                        fontSize: 12,
-                      }}
-                    >
-                      <div style={{display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap'}}>
-                        {!isLocked && session.status === 'draft' && canManagePigPlannedTrips && (
-                          <input
-                            type="checkbox"
-                            checked={selectedEntryIds.has(e.id)}
-                            onChange={() =>
-                              setSelectedEntryIds((prev) => {
-                                const n = new Set(prev);
-                                if (n.has(e.id)) n.delete(e.id);
-                                else n.add(e.id);
-                                return n;
-                              })
-                            }
-                          />
-                        )}
-                        {isLocked ? (
-                          <span style={{fontWeight: 600, color: '#1e40af', flex: 1}}>{e.weight} lb</span>
-                        ) : (
-                          <>
+              <div data-weighin-entry-list="1" style={{overflowX: 'auto', marginBottom: 8}}>
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: 12,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <thead>
+                    <tr style={{borderBottom: '1px solid var(--border)', textAlign: 'left'}}>
+                      {['Trip', 'Weight', 'Note', 'Prior', 'Days', '+/-', 'ADG', 'Status', ''].map((h, i) => (
+                        <th
+                          key={i}
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: 'var(--ink-muted)',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.4,
+                            padding: '4px 6px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sEntries.map((e) => {
+                      const ef = entryEdits[e.id] || entryDraft(e);
+                      const isSent = !!e.sent_to_trip_id;
+                      const isTransferred = !!(
+                        e.transferred_to_breeding || /\[transferred_to_breeding/.test(e.note || '')
+                      );
+                      const isLocked = isSent || isTransferred;
+                      const pigEntryAdg = pigEntryAdgById[e.id];
+                      const hasPigNote = String(ef.note || '').trim().length > 0;
+                      const showPigNoteInput = hasPigNote || openPigNoteEntryIds.has(e.id);
+                      const autosaveState = entryAutosave[e.id];
+                      const autosaveTone =
+                        autosaveState && autosaveState.status === 'error'
+                          ? {color: '#b91c1c', background: '#fef2f2', border: '#fecaca'}
+                          : autosaveState && autosaveState.status === 'saved'
+                            ? {color: '#065f46', background: '#ecfdf5', border: '#a7f3d0'}
+                            : {color: '#6b7280', background: '#f9fafb', border: '#e5e7eb'};
+                      const canSelect = !isLocked && session.status === 'draft' && canManagePigPlannedTrips;
+                      const td = {
+                        padding: '4px 6px',
+                        verticalAlign: 'top',
+                        borderBottom: '1px solid var(--divider)',
+                      };
+                      const dash = <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>—</span>;
+                      return (
+                        <tr
+                          key={e.id}
+                          data-pig-entry-row={e.id}
+                          style={{background: isSent ? '#ecfdf5' : isTransferred ? '#eef2ff' : 'white'}}
+                        >
+                          <td style={{...td, whiteSpace: 'nowrap'}}>
+                            {/* Send-to-trip select lives in the leftmost column. Eligible
+                                draft rows toggle selectedEntryIds; sent rows show locked
+                                checked; transferred/locked rows are disabled. */}
                             <input
-                              type="number"
-                              min="0"
-                              step="0.1"
-                              placeholder="lb"
-                              value={ef.weight}
-                              onChange={(ev) => setPigEntryField(e, 'weight', ev.target.value)}
-                              onBlur={() => flushPigEntryAutosave(e.id)}
-                              style={{...inp, flex: '0 0 80px', minWidth: 0}}
+                              type="checkbox"
+                              data-pig-send-select={canSelect ? '1' : undefined}
+                              aria-label="Select for send to trip"
+                              checked={isSent || (canSelect && selectedEntryIds.has(e.id))}
+                              disabled={!canSelect}
+                              onChange={
+                                canSelect
+                                  ? () =>
+                                      setSelectedEntryIds((prev) => {
+                                        const n = new Set(prev);
+                                        if (n.has(e.id)) n.delete(e.id);
+                                        else n.add(e.id);
+                                        return n;
+                                      })
+                                  : undefined
+                              }
                             />
-                            {showPigNoteInput ? (
+                          </td>
+                          <td style={td}>
+                            {isLocked ? (
+                              <span style={{fontWeight: 600, color: '#1e40af', whiteSpace: 'nowrap'}}>
+                                {e.weight} lb
+                              </span>
+                            ) : (
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                placeholder="lb"
+                                value={ef.weight}
+                                onChange={(ev) => setPigEntryField(e, 'weight', ev.target.value)}
+                                onBlur={() => flushPigEntryAutosave(e.id)}
+                                style={{...inp, width: 64}}
+                              />
+                            )}
+                          </td>
+                          <td style={{...td, minWidth: 120}}>
+                            {isLocked ? (
+                              e.note ? (
+                                <span style={{color: 'var(--ink-muted)'}}>{e.note}</span>
+                              ) : (
+                                dash
+                              )
+                            ) : showPigNoteInput ? (
                               <input
                                 type="text"
                                 placeholder="Note"
                                 value={ef.note}
                                 onChange={(ev) => setPigEntryField(e, 'note', ev.target.value)}
                                 onBlur={() => flushPigEntryAutosave(e.id)}
-                                style={{...inp, flex: '1 1 120px', minWidth: 100}}
+                                style={{...inp, width: '100%', minWidth: 100}}
                               />
                             ) : (
                               <button
@@ -2126,207 +2170,182 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                 + Note
                               </button>
                             )}
-                          </>
-                        )}
-                        {isSent && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: '1px 6px',
-                              borderRadius: 4,
-                              background: '#d1fae5',
-                              color: '#065f46',
-                            }}
-                          >
-                            Sent to trip
-                          </span>
-                        )}
-                        {isTransferred && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: '1px 6px',
-                              borderRadius: 4,
-                              background: '#eef2ff',
-                              color: '#3730a3',
-                            }}
-                          >
-                            Transferred
-                          </span>
-                        )}
-                      </div>
-                      {isLocked && e.note && (
-                        <div style={{fontSize: 11, color: 'var(--ink-muted)', marginTop: 2}}>{e.note}</div>
-                      )}
-                      {pigEntryAdg && (
-                        <div
-                          data-pig-entry-adg={e.id}
-                          style={{
-                            display: 'flex',
-                            gap: 6,
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            marginTop: 4,
-                            fontSize: 10,
-                          }}
-                        >
-                          <span
-                            data-pig-entry-prior={e.id}
-                            title={'Prior weigh-in on ' + fmt(pigEntryAdg.priorDate)}
-                            style={{
-                              color: 'var(--ink)',
-                              background: 'var(--surface-2)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 4,
-                              padding: '1px 6px',
-                            }}
-                          >
-                            {'Prev ' + Math.round(pigEntryAdg.priorWeightLbs) + ' lb · ' + fmt(pigEntryAdg.priorDate)}
-                          </span>
-                          <span
-                            data-entry-days={e.id}
-                            data-pig-entry-days={e.id}
-                            title={'Days since last weigh-in'}
-                            style={{
-                              color: 'var(--ink)',
-                              background: 'var(--surface-2)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 4,
-                              padding: '1px 6px',
-                            }}
-                          >
-                            {'Days ' + pigEntryAdg.daysBetween}
-                          </span>
-                          <span
-                            data-entry-delta={e.id}
-                            data-pig-entry-delta={e.id}
-                            title={'Weight change since prior weigh-in'}
-                            style={{
-                              fontWeight: 700,
-                              color: pigEntryAdg.weightDeltaLbs >= 0 ? '#065f46' : '#b91c1c',
-                              background: pigEntryAdg.weightDeltaLbs >= 0 ? '#ecfdf5' : '#fef2f2',
-                              border: '1px solid ' + (pigEntryAdg.weightDeltaLbs >= 0 ? '#a7f3d0' : '#fecaca'),
-                              borderRadius: 4,
-                              padding: '1px 6px',
-                            }}
-                          >
-                            {'+/- ' + formatSignedLbs(pigEntryAdg.weightDeltaLbs)}
-                          </span>
-                          <span
-                            title={
-                              'rank ' +
-                              pigEntryAdg.rank +
-                              ' vs prior ' +
-                              fmt(pigEntryAdg.priorDate) +
-                              ' at ' +
-                              Math.round(pigEntryAdg.priorWeightLbs) +
-                              ' lb'
-                            }
-                            style={{
-                              fontWeight: 700,
-                              color: pigEntryAdg.adgLbsPerDay >= 0 ? '#065f46' : '#b91c1c',
-                              background: pigEntryAdg.adgLbsPerDay >= 0 ? '#ecfdf5' : '#fef2f2',
-                              border: '1px solid ' + (pigEntryAdg.adgLbsPerDay >= 0 ? '#a7f3d0' : '#fecaca'),
-                              borderRadius: 4,
-                              padding: '1px 6px',
-                            }}
-                          >
-                            {'ADG ' +
-                              (pigEntryAdg.adgLbsPerDay >= 0 ? '+' : '') +
-                              pigEntryAdg.adgLbsPerDay.toFixed(2) +
-                              ' lb/day'}
-                          </span>
-                        </div>
-                      )}
-                      <div
-                        style={{display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: 4, flexWrap: 'wrap'}}
-                      >
-                        {isSent && canManagePigPlannedTrips && (
-                          <button
-                            onClick={() => undoSendToTrip(e)}
-                            style={{
-                              fontSize: 10,
-                              color: '#b45309',
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px 6px',
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Undo send
-                          </button>
-                        )}
-                        {isTransferred && (
-                          <button
-                            onClick={() => undoTransferToBreeding(e)}
-                            style={{
-                              fontSize: 10,
-                              color: '#b45309',
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px 6px',
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Undo transfer
-                          </button>
-                        )}
-                        {autosaveState && !isLocked && (
-                          <span
-                            data-entry-autosave={e.id}
-                            data-pig-entry-autosave={e.id}
-                            style={{
-                              fontSize: 10,
-                              color: autosaveTone.color,
-                              background: autosaveTone.background,
-                              border: '1px solid ' + autosaveTone.border,
-                              borderRadius: 4,
-                              padding: '1px 6px',
-                            }}
-                          >
-                            {autosaveState.message}
-                          </span>
-                        )}
-                        {!isLocked && (
-                          <>
-                            <button
-                              onClick={() => openTransferModal(e)}
+                          </td>
+                          <td style={{...td, whiteSpace: 'nowrap'}}>
+                            {pigEntryAdg ? (
+                              <span
+                                data-pig-entry-prior={e.id}
+                                title={'Prior weigh-in on ' + fmt(pigEntryAdg.priorDate)}
+                                style={{fontSize: 10, color: 'var(--ink)'}}
+                              >
+                                {'Prev ' +
+                                  Math.round(pigEntryAdg.priorWeightLbs) +
+                                  ' lb · ' +
+                                  fmt(pigEntryAdg.priorDate)}
+                              </span>
+                            ) : (
+                              dash
+                            )}
+                          </td>
+                          <td style={{...td, whiteSpace: 'nowrap'}}>
+                            {pigEntryAdg ? (
+                              <span
+                                data-entry-days={e.id}
+                                data-pig-entry-days={e.id}
+                                title={'Days since last weigh-in'}
+                                style={{fontSize: 10, color: 'var(--ink)'}}
+                              >
+                                {'Days ' + pigEntryAdg.daysBetween}
+                              </span>
+                            ) : (
+                              dash
+                            )}
+                          </td>
+                          <td style={{...td, whiteSpace: 'nowrap'}}>
+                            {pigEntryAdg ? (
+                              <span
+                                data-entry-delta={e.id}
+                                data-pig-entry-delta={e.id}
+                                title={'Weight change since prior weigh-in'}
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: pigEntryAdg.weightDeltaLbs >= 0 ? '#065f46' : '#b91c1c',
+                                }}
+                              >
+                                {'+/- ' + formatSignedLbs(pigEntryAdg.weightDeltaLbs)}
+                              </span>
+                            ) : (
+                              dash
+                            )}
+                          </td>
+                          <td style={{...td, whiteSpace: 'nowrap'}}>
+                            {pigEntryAdg ? (
+                              <span
+                                data-pig-entry-adg={e.id}
+                                title={
+                                  'rank ' +
+                                  pigEntryAdg.rank +
+                                  ' vs prior ' +
+                                  fmt(pigEntryAdg.priorDate) +
+                                  ' at ' +
+                                  Math.round(pigEntryAdg.priorWeightLbs) +
+                                  ' lb'
+                                }
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: pigEntryAdg.adgLbsPerDay >= 0 ? '#065f46' : '#b91c1c',
+                                }}
+                              >
+                                {'ADG ' +
+                                  (pigEntryAdg.adgLbsPerDay >= 0 ? '+' : '') +
+                                  pigEntryAdg.adgLbsPerDay.toFixed(2) +
+                                  ' lb/day'}
+                              </span>
+                            ) : (
+                              dash
+                            )}
+                          </td>
+                          <td style={{...td, whiteSpace: 'nowrap'}}>
+                            {isSent ? (
+                              <span style={{fontSize: 11, fontWeight: 600, color: '#065f46'}}>Sent to trip</span>
+                            ) : isTransferred ? (
+                              <span style={{fontSize: 11, fontWeight: 600, color: '#3730a3'}}>Transferred</span>
+                            ) : (
+                              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Draft</span>
+                            )}
+                          </td>
+                          <td style={{...td, whiteSpace: 'nowrap', textAlign: 'right'}}>
+                            <div
                               style={{
-                                fontSize: 10,
-                                color: '#3730a3',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '2px 6px',
-                                fontFamily: 'inherit',
+                                display: 'flex',
+                                gap: 8,
+                                justifyContent: 'flex-end',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
                               }}
                             >
-                              → Breeding
-                            </button>
-                            <button
-                              onClick={() => deleteEntry(e)}
-                              style={{
-                                fontSize: 10,
-                                color: '#b91c1c',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '2px 6px',
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                              {autosaveState && !isLocked && (
+                                <span
+                                  data-entry-autosave={e.id}
+                                  data-pig-entry-autosave={e.id}
+                                  style={{fontSize: 10, color: autosaveTone.color}}
+                                >
+                                  {autosaveState.message}
+                                </span>
+                              )}
+                              {isSent && canManagePigPlannedTrips && (
+                                <button
+                                  onClick={() => undoSendToTrip(e)}
+                                  style={{
+                                    fontSize: 10,
+                                    color: '#b45309',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '2px 6px',
+                                    fontFamily: 'inherit',
+                                  }}
+                                >
+                                  Undo send
+                                </button>
+                              )}
+                              {isTransferred && (
+                                <button
+                                  onClick={() => undoTransferToBreeding(e)}
+                                  style={{
+                                    fontSize: 10,
+                                    color: '#b45309',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '2px 6px',
+                                    fontFamily: 'inherit',
+                                  }}
+                                >
+                                  Undo transfer
+                                </button>
+                              )}
+                              {!isLocked && (
+                                <>
+                                  <button
+                                    onClick={() => openTransferModal(e)}
+                                    style={{
+                                      fontSize: 10,
+                                      color: '#3730a3',
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      padding: '2px 6px',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    → Breeding
+                                  </button>
+                                  <button
+                                    onClick={() => deleteEntry(e)}
+                                    style={{
+                                      fontSize: 10,
+                                      color: '#b91c1c',
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      padding: '2px 6px',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
             {!isPig && sEntries.length > 0 && (
