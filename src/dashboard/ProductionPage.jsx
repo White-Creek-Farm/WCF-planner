@@ -3,53 +3,31 @@ import './homeRedesign.css';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {sb} from '../lib/supabase.js';
 import {loadProductionSources} from '../lib/productionApi.js';
+import {rowsToCsv, csvFilename, downloadCsv} from '../lib/csvExport.js';
 import {
-  PAGE_PRODUCTION_PROGRAMS,
+  PROGRAM_ACCENT_VAR,
   PROGRAM_BY_KEY,
+  PAGE_PRODUCTION_PROGRAMS,
   buildProductionModel,
+  buildProductionSummary,
+  buildProductionLedger,
+  buildProductionAuditView,
   formatEventQuantity,
   formatProductionDelta,
   formatProductionNumber,
   totalsForYear,
 } from '../lib/production.js';
 
-function Chevron({className}) {
-  return (
-    <svg
-      className={className}
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M9 6l6 6-6 6" />
-    </svg>
-  );
-}
+const TABS = [
+  {key: 'summary', label: 'Summary'},
+  {key: 'counted', label: 'Counted Events'},
+  {key: 'reconcile', label: 'Reconciliation'},
+];
 
-function sourceName(event) {
-  return event.source === 'legacy' ? 'Legacy spreadsheet' : 'Planner';
-}
+const SOURCE_LABEL = {planner: 'Planner', legacy: 'Legacy spreadsheet'};
 
-function auditLabel(status) {
-  return {
-    matched: 'Matched',
-    matched_loose: 'Matched',
-    legacy_only: 'Legacy only',
-    possible_duplicate: 'Review',
-    conflict: 'Conflict',
-  }[status || ''];
-}
-
-function auditClass(status) {
-  if (status === 'legacy_only' || status === 'matched' || status === 'matched_loose') return 'badge-ok';
-  if (status === 'conflict') return 'badge-danger';
-  return 'badge-warn';
+function programLabel(programKey) {
+  return PROGRAM_BY_KEY[programKey]?.label.replace('/doz', '') || programKey;
 }
 
 function formatDate(date) {
@@ -58,73 +36,97 @@ function formatDate(date) {
   return `${m}/${d}/${y.slice(2)}`;
 }
 
-function ProgramTotalsTable({programKey, rows}) {
-  const program = PROGRAM_BY_KEY[programKey];
+function num(programKey, quantity) {
+  return quantity === null || quantity === undefined ? '--' : formatProductionNumber(programKey, quantity);
+}
+
+function ProgramDot({programKey}) {
+  return <span className="prod-dot" style={{background: PROGRAM_ACCENT_VAR[programKey]}} aria-hidden="true" />;
+}
+
+function SummaryTable({rows}) {
   return (
-    <section className="production-program" data-production-program={programKey}>
-      <h3>{program.label}</h3>
-      <div className="production-table-wrap">
-        <table className="production-table">
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th>{program.quantityLabel}</th>
-              <th>YoY</th>
+    <div className="production-table-wrap">
+      <table className="production-table production-summary-table">
+        <thead>
+          <tr>
+            <th>Program</th>
+            <th>Counted</th>
+            <th>Planner</th>
+            <th>Legacy backfill</th>
+            <th>Held out</th>
+            <th>Conflict</th>
+            <th>YoY</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.programKey} style={{'--row-accent': row.accent}}>
+              <td className="prod-program-cell">
+                <ProgramDot programKey={row.programKey} />
+                {programLabel(row.programKey)}
+              </td>
+              <td className="prod-counted-col">{num(row.programKey, row.counted)}</td>
+              <td>{num(row.programKey, row.plannerCounted)}</td>
+              <td>{row.legacyCounted ? num(row.programKey, row.legacyCounted) : '--'}</td>
+              <td>{row.heldOut ? num(row.programKey, row.heldOut) : '--'}</td>
+              <td className={row.conflict ? 'is-down' : undefined}>
+                {row.conflict ? num(row.programKey, row.conflict) : '--'}
+              </td>
+              <td className={row.yoy > 0 ? 'is-up' : row.yoy < 0 ? 'is-down' : undefined}>
+                {row.yoy === null || row.yoy === undefined ? '--' : formatProductionDelta(row.programKey, row.yoy)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan="3" className="production-empty-cell">
-                  No records
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.year}>
-                  <td>{row.year}</td>
-                  <td>{formatProductionNumber(programKey, row.quantity)}</td>
-                  <td className={row.yoy > 0 ? 'is-up' : row.yoy < 0 ? 'is-down' : undefined}>
-                    {formatProductionDelta(programKey, row.yoy)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
-function EventsTable({events}) {
+function LedgerTable({rows}) {
   return (
     <div className="production-table-wrap">
-      <table className="production-table production-events-table">
+      <table className="production-table production-ledger-table">
         <thead>
           <tr>
             <th>Date</th>
             <th>Program</th>
-            <th>Batch</th>
-            <th>Count</th>
+            <th>Batch / Event</th>
+            <th>Quantity</th>
             <th>Source</th>
+            <th>Counted</th>
+            <th>Status</th>
+            <th>Reason</th>
           </tr>
         </thead>
         <tbody>
-          {events.length === 0 ? (
+          {rows.length === 0 ? (
             <tr>
-              <td colSpan="5" className="production-empty-cell">
+              <td colSpan="8" className="production-empty-cell">
                 No records
               </td>
             </tr>
           ) : (
-            events.map((event) => (
-              <tr key={event.id}>
-                <td>{formatDate(event.date)}</td>
-                <td>{PROGRAM_BY_KEY[event.program]?.label || event.program}</td>
-                <td>{event.batchName || '--'}</td>
-                <td>{formatEventQuantity(event)}</td>
-                <td>{sourceName(event)}</td>
+            rows.map((row) => (
+              <tr key={row.id} style={{'--row-accent': PROGRAM_ACCENT_VAR[row.program]}}>
+                <td>{formatDate(row.date)}</td>
+                <td className="prod-program-cell">
+                  <ProgramDot programKey={row.program} />
+                  {programLabel(row.program)}
+                </td>
+                <td>{row.batchName || '--'}</td>
+                <td>{formatEventQuantity(row.event)}</td>
+                <td>{SOURCE_LABEL[row.source] || row.source}</td>
+                <td>
+                  <span className={`badge-soft ${row.counted ? 'badge-ok' : 'badge-warn'}`}>
+                    {row.counted ? 'Counted' : 'Held out'}
+                  </span>
+                </td>
+                <td>
+                  <span className={`badge-soft badge-${row.tone}`}>{row.statusLabel}</span>
+                </td>
+                <td className="prod-reason-cell">{row.reason}</td>
               </tr>
             ))
           )}
@@ -134,52 +136,95 @@ function EventsTable({events}) {
   );
 }
 
-function AuditTable({auditRows}) {
+function FilterBar({filters, setFilters, statusOptions}) {
+  const update = (patch) => setFilters((prev) => ({...prev, ...patch}));
   return (
-    <div className="production-table-wrap">
-      <table className="production-table production-audit-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Program</th>
-            <th>Batch</th>
-            <th>Count</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {auditRows.length === 0 ? (
-            <tr>
-              <td colSpan="5" className="production-empty-cell">
-                No records
-              </td>
-            </tr>
-          ) : (
-            auditRows.map((row, index) => {
-              const event = row.legacyEvent;
-              return (
-                <tr key={`${event.id}:${row.status}:${index}`} title={row.reason}>
-                  <td>{formatDate(event.date)}</td>
-                  <td>{PROGRAM_BY_KEY[event.program]?.label || event.program}</td>
-                  <td>{event.batchName || '--'}</td>
-                  <td>{formatEventQuantity(event)}</td>
-                  <td>
-                    <span className={`badge-soft ${auditClass(row.status)}`}>{auditLabel(row.status)}</span>
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
+    <div className="production-filters">
+      <label>
+        <span>Program</span>
+        <select value={filters.program} onChange={(e) => update({program: e.target.value})}>
+          <option value="all">All</option>
+          {PAGE_PRODUCTION_PROGRAMS.map((programKey) => (
+            <option key={programKey} value={programKey}>
+              {programLabel(programKey)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>Source</span>
+        <select value={filters.source} onChange={(e) => update({source: e.target.value})}>
+          <option value="all">All</option>
+          <option value="planner">Planner</option>
+          <option value="legacy">Legacy spreadsheet</option>
+        </select>
+      </label>
+      <label>
+        <span>Status</span>
+        <select value={filters.status} onChange={(e) => update({status: e.target.value})}>
+          <option value="all">All</option>
+          {statusOptions.map((opt) => (
+            <option key={opt.status} value={opt.status}>
+              {opt.statusLabel}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="production-filter-search">
+        <span>Search</span>
+        <input
+          type="search"
+          value={filters.search}
+          placeholder="Batch or event"
+          onChange={(e) => update({search: e.target.value})}
+        />
+      </label>
     </div>
   );
 }
+
+function applyFilters(rows, filters) {
+  const search = filters.search.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (filters.program !== 'all' && row.program !== filters.program) return false;
+    if (filters.source !== 'all' && row.source !== filters.source) return false;
+    if (filters.status !== 'all' && row.status !== filters.status) return false;
+    if (search && !(row.batchName || '').toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
+const SUMMARY_COLUMNS = [
+  {key: 'label', header: 'Program', value: (r) => programLabel(r.programKey)},
+  {key: 'counted', header: 'Counted', value: (r) => num(r.programKey, r.counted)},
+  {key: 'plannerCounted', header: 'Planner', value: (r) => num(r.programKey, r.plannerCounted)},
+  {key: 'legacyCounted', header: 'Legacy backfill', value: (r) => num(r.programKey, r.legacyCounted)},
+  {key: 'heldOut', header: 'Held out', value: (r) => num(r.programKey, r.heldOut)},
+  {key: 'conflict', header: 'Conflict', value: (r) => num(r.programKey, r.conflict)},
+  {
+    key: 'yoy',
+    header: 'YoY',
+    value: (r) => (r.yoy === null || r.yoy === undefined ? '' : formatProductionDelta(r.programKey, r.yoy)),
+  },
+];
+
+const LEDGER_COLUMNS = [
+  {key: 'date', header: 'Date'},
+  {key: 'program', header: 'Program', value: (r) => programLabel(r.program)},
+  {key: 'batchName', header: 'Batch / Event', value: (r) => r.batchName || ''},
+  {key: 'quantity', header: 'Quantity', value: (r) => num(r.program, r.quantity)},
+  {key: 'source', header: 'Source', value: (r) => SOURCE_LABEL[r.source] || r.source},
+  {key: 'counted', header: 'Counted', value: (r) => (r.counted ? 'Yes' : 'No')},
+  {key: 'status', header: 'Status', value: (r) => r.statusLabel},
+  {key: 'reason', header: 'Reason'},
+];
 
 export default function ProductionPage({Header, setView}) {
   const currentYear = String(new Date().getFullYear());
   const [sources, setSources] = React.useState(null);
   const [selectedYear, setSelectedYear] = React.useState(currentYear);
+  const [tab, setTab] = React.useState('summary');
+  const [filters, setFilters] = React.useState({program: 'all', source: 'all', status: 'all', search: ''});
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState(null);
 
@@ -211,10 +256,30 @@ export default function ProductionPage({Header, setView}) {
     all.add(currentYear);
     return [...all].sort();
   }, [model.years, currentYear]);
+
   const selectedTotals = totalsForYear(model.events, selectedYear);
-  const processingEvents = model.events.filter((event) => event.year === selectedYear && event.program !== 'egg');
-  const eggEvents = model.events.filter((event) => event.year === selectedYear && event.program === 'egg');
-  const auditRows = model.audit.filter((row) => row.legacyEvent.year === selectedYear);
+  const yearEvents = model.events.filter((event) => event.year === selectedYear);
+  const processingCount = yearEvents.filter((event) => event.program !== 'egg').length;
+  const eggDayCount = yearEvents.filter((event) => event.program === 'egg').length;
+  const summaryRows = React.useMemo(() => buildProductionSummary(model, selectedYear), [model, selectedYear]);
+  const ledgerRows = React.useMemo(() => buildProductionLedger(model, selectedYear), [model, selectedYear]);
+  const auditRows = React.useMemo(() => buildProductionAuditView(model, selectedYear), [model, selectedYear]);
+
+  const activeRows = tab === 'reconcile' ? auditRows : ledgerRows;
+  const statusOptions = React.useMemo(() => {
+    const seen = new Map();
+    for (const row of activeRows) if (!seen.has(row.status)) seen.set(row.status, row.statusLabel);
+    return [...seen.entries()].map(([status, statusLabel]) => ({status, statusLabel}));
+  }, [activeRows]);
+  const filteredRows = React.useMemo(() => applyFilters(activeRows, filters), [activeRows, filters]);
+
+  const exportCsv = React.useCallback(() => {
+    const isSummary = tab === 'summary';
+    const columns = isSummary ? SUMMARY_COLUMNS : LEDGER_COLUMNS;
+    const data = isSummary ? summaryRows : filteredRows;
+    const csv = rowsToCsv(columns, data);
+    downloadCsv(csvFilename(`production-${tab}-${selectedYear}`), csv);
+  }, [tab, summaryRows, filteredRows, selectedYear]);
 
   return (
     <div className="home theme-crisp production-page" data-production-loaded={loading ? 'false' : 'true'}>
@@ -224,7 +289,12 @@ export default function ProductionPage({Header, setView}) {
           <button type="button" className="btn-clear" onClick={() => setView('home')}>
             Back to Home
           </button>
-          <span>{loading ? 'Loading' : `${model.events.length.toLocaleString()} events`}</span>
+          <span>
+            {loading
+              ? 'Loading'
+              : `${processingCount.toLocaleString()} processing event${processingCount === 1 ? '' : 's'} · ` +
+                `${eggDayCount.toLocaleString()} egg-day record${eggDayCount === 1 ? '' : 's'} (${selectedYear})`}
+          </span>
         </div>
 
         <section className="production-title">
@@ -233,7 +303,15 @@ export default function ProductionPage({Header, setView}) {
           </div>
           <label className="production-year-picker">
             <span>Year</span>
-            <select value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)}>
+            <select
+              value={selectedYear}
+              onChange={(event) => {
+                setSelectedYear(event.target.value);
+                // A status only valid for the old year (e.g. conflict) must not
+                // persist and silently empty the new year's table.
+                setFilters((prev) => ({...prev, status: 'all'}));
+              }}
+            >
               {years.map((year) => (
                 <option key={year} value={year}>
                   {year}
@@ -262,50 +340,73 @@ export default function ProductionPage({Header, setView}) {
                 </div>
                 <div className="stat-l">
                   <span className={`sdot sdot-${programKey === 'egg' ? 'layer' : programKey}`} />
-                  {PROGRAM_BY_KEY[programKey].label.replace('/doz', '')}
+                  {programLabel(programKey)}
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="card production-totals-card">
-          <div className="stats-head">
-            <div className="card-label">Program Totals</div>
-          </div>
-          <div className="production-program-grid">
-            {PAGE_PRODUCTION_PROGRAMS.map((programKey) => (
-              <ProgramTotalsTable key={programKey} programKey={programKey} rows={model.programRows[programKey] || []} />
+        <div className="production-toolbar">
+          <div className="production-tabs" role="tablist" aria-label="Production view">
+            {TABS.map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === entry.key}
+                className={`production-tab${tab === entry.key ? ' is-active' : ''}`}
+                onClick={() => {
+                  setTab(entry.key);
+                  // Status options are per-tab; carrying one over can leave an
+                  // invalid filter that blanks the table. Program/source/search
+                  // stay since they are valid across tabs.
+                  setFilters((prev) => ({...prev, status: 'all'}));
+                }}
+              >
+                {entry.label}
+              </button>
             ))}
           </div>
-        </section>
+          <button
+            type="button"
+            className="btn-clear production-export"
+            onClick={exportCsv}
+            disabled={loading || (tab !== 'summary' && filteredRows.length === 0)}
+          >
+            Export CSV
+          </button>
+        </div>
 
-        <details className="card production-details">
-          <summary>
-            <span className="card-label">Processing Events</span>
-            <span className="count-pill count-warn">{processingEvents.length}</span>
-            <Chevron className="go" />
-          </summary>
-          <EventsTable events={processingEvents} />
-        </details>
-
-        <details className="card production-details">
-          <summary>
-            <span className="card-label">Egg Events</span>
-            <span className="count-pill count-warn">{eggEvents.length}</span>
-            <Chevron className="go" />
-          </summary>
-          <EventsTable events={eggEvents} />
-        </details>
-
-        <details className="card production-details">
-          <summary>
-            <span className="card-label">Legacy / Audit Review</span>
-            <span className="count-pill count-warn">{auditRows.length}</span>
-            <Chevron className="go" />
-          </summary>
-          <AuditTable auditRows={auditRows} />
-        </details>
+        {tab === 'summary' ? (
+          <section className="card production-panel-card">
+            <div className="stats-head">
+              <div className="card-label">Program Totals - {selectedYear}</div>
+            </div>
+            <p className="production-help">
+              Counted = Planner records plus legacy backfill for years before Planner tracked a program. Where Planner
+              has records, Planner wins and the legacy rows are held out (Conflict is a subset of Held out, not an extra
+              bucket). YoY is within each program. Eggs come from the Planner daily counts.
+            </p>
+            <SummaryTable rows={summaryRows} />
+          </section>
+        ) : (
+          <section className="card production-panel-card">
+            <div className="stats-head">
+              <div className="card-label">
+                {tab === 'counted' ? 'Counted Events' : 'Reconciliation / Audit'} - {selectedYear}
+              </div>
+              <span className="production-rowcount">{filteredRows.length.toLocaleString()} rows</span>
+            </div>
+            <p className="production-help">
+              {tab === 'counted'
+                ? 'Every event that contributes to the per-program totals above, with its reconciliation status.'
+                : 'Every legacy backfill row and whether it counted or was held out so Planner wins, with the reason.'}
+            </p>
+            <FilterBar filters={filters} setFilters={setFilters} statusOptions={statusOptions} />
+            <LedgerTable rows={filteredRows} />
+          </section>
+        )}
       </main>
     </div>
   );

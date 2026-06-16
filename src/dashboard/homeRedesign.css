@@ -644,9 +644,11 @@
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
-.home .production-events-table,
-.home .production-audit-table {
-  min-width: 760px;
+.home .production-summary-table {
+  min-width: 720px;
+}
+.home .production-ledger-table {
+  min-width: 880px;
 }
 .home .production-table th,
 .home .production-table td {
@@ -667,18 +669,20 @@
 .home .production-table td:first-child {
   text-align: left;
 }
-.home .production-events-table th:nth-child(2),
-.home .production-events-table td:nth-child(2),
-.home .production-events-table th:nth-child(3),
-.home .production-events-table td:nth-child(3),
-.home .production-events-table th:nth-child(5),
-.home .production-events-table td:nth-child(5),
-.home .production-audit-table th:nth-child(2),
-.home .production-audit-table td:nth-child(2),
-.home .production-audit-table th:nth-child(3),
-.home .production-audit-table td:nth-child(3),
-.home .production-audit-table th:nth-child(5),
-.home .production-audit-table td:nth-child(5) {
+/* Ledger: program, batch, source, counted, status, and reason are textual and
+   read left-aligned; only the numeric Quantity column stays right-aligned. */
+.home .production-ledger-table th:nth-child(2),
+.home .production-ledger-table td:nth-child(2),
+.home .production-ledger-table th:nth-child(3),
+.home .production-ledger-table td:nth-child(3),
+.home .production-ledger-table th:nth-child(5),
+.home .production-ledger-table td:nth-child(5),
+.home .production-ledger-table th:nth-child(6),
+.home .production-ledger-table td:nth-child(6),
+.home .production-ledger-table th:nth-child(7),
+.home .production-ledger-table td:nth-child(7),
+.home .production-ledger-table th:nth-child(8),
+.home .production-ledger-table td:nth-child(8) {
   text-align: left;
 }
 .home .production-table td {
@@ -695,30 +699,114 @@
   color: var(--text-faint) !important;
   text-align: left !important;
 }
-.home .production-details {
-  padding: 0;
-  overflow: hidden;
+/* Per-program accent: a thin colored rule on the program cell color-keys each
+   row to the same palette as Home's program dots. */
+.home .prod-program-cell {
+  border-left: 3px solid var(--row-accent, transparent);
+  padding-left: 11px !important;
 }
-.home .production-details summary {
+.home .prod-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  margin-right: 7px;
+  vertical-align: baseline;
+}
+.home .production-summary-table .prod-counted-col {
+  font-weight: 800;
+}
+.home .prod-reason-cell {
+  color: var(--text-muted);
+  font-weight: 600;
+  min-width: 240px;
+}
+
+/* ---------- production toolbar: tabs + export ---------- */
+.home .production-toolbar {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 15px 18px;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.home .production-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--row-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.home .production-tab {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: calc(var(--r-sm) - 3px);
   cursor: pointer;
-  list-style: none;
 }
-.home .production-details summary::-webkit-details-marker {
-  display: none;
+.home .production-tab.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
 }
-.home .production-details summary .go {
-  opacity: 1;
-  transform: none;
+.home .production-export {
+  font-weight: 700;
+  font-size: 12.5px;
 }
-.home .production-details[open] summary .go {
-  transform: rotate(90deg);
+.home .production-rowcount {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
 }
-.home .production-details .production-table-wrap {
-  padding: 0 18px 18px;
+.home .production-panel-card {
+  padding: 18px 22px 20px;
+}
+.home .production-help {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ---------- production filters ---------- */
+.home .production-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 14px;
+}
+.home .production-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.home .production-filters select,
+.home .production-filters input {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 7px 9px;
+  min-width: 130px;
+}
+.home .production-filter-search {
+  flex: 1 1 200px;
+}
+.home .production-filter-search input {
+  width: 100%;
 }
 
 /* ---------- slim status note (caught-up banners) ---------- */
@@ -1154,10 +1242,25 @@
     font-size: 28px;
   }
   .home .production-year-card,
-  .home .production-totals-card {
+  .home .production-panel-card {
     padding: 16px 14px 18px;
   }
-  .home .production-program-grid {
-    grid-template-columns: 1fr;
+  .home .production-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .home .production-tabs {
+    justify-content: space-between;
+  }
+  .home .production-tab {
+    flex: 1 1 0;
+    text-align: center;
+    padding: 8px 6px;
+  }
+  .home .production-export {
+    align-self: flex-end;
+  }
+  .home .production-filter-search {
+    flex-basis: 100%;
   }
 }

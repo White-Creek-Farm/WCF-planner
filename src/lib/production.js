@@ -13,6 +13,31 @@ export const PAGE_PRODUCTION_PROGRAMS = ['cattle', 'broiler', 'pig', 'sheep', 'e
 
 export const PROGRAM_BY_KEY = Object.fromEntries(PRODUCTION_PROGRAMS.map((program) => [program.key, program]));
 
+// Per-program accent, mapped onto the shared homeRedesign.css tokens. Eggs reuse
+// the layer accent so the ledger color-keys to the same palette as Home.
+export const PROGRAM_ACCENT_VAR = {
+  broiler: 'var(--c-broiler)',
+  egg: 'var(--c-layer)',
+  pig: 'var(--c-pig)',
+  cattle: 'var(--c-cattle)',
+  sheep: 'var(--c-sheep)',
+};
+
+// Display metadata for every reconciliation disposition. `counted` mirrors
+// whether the row contributes to the per-program total.
+export const PRODUCTION_STATUS_META = {
+  planner: {label: 'Planner', tone: 'ok', counted: true},
+  legacy_only: {label: 'Legacy backfill', tone: 'info', counted: true},
+  matched: {label: 'Matched · held out', tone: 'warn', counted: false},
+  matched_loose: {label: 'Loose match · held out', tone: 'warn', counted: false},
+  superseded: {label: 'Superseded by Planner · held out', tone: 'warn', counted: false},
+  conflict: {label: 'Conflict · held out', tone: 'danger', counted: false},
+};
+
+export function productionStatusMeta(status) {
+  return PRODUCTION_STATUS_META[status] || {label: status || 'Unknown', tone: 'warn', counted: false};
+}
+
 export function normalizeProductionProgram(value) {
   const raw = String(value || '')
     .trim()
@@ -252,72 +277,93 @@ function indexEvents(events, keyFn) {
   return map;
 }
 
+// Classify a held-out legacy row against Planner for the audit view. Counting is
+// decided by coverage (see reconcileProductionEvents); this only labels WHY a
+// legacy row in a Planner-covered program/year is held.
+function classifyCoveredLegacy(legacyEvent, plannerEvents, plannerByExact, plannerByLoose) {
+  if (legacyEvent.batchKey) {
+    const exact = plannerByExact.get(exactEventKey(legacyEvent)) || [];
+    if (exact.length >= 1) {
+      return {
+        status: 'matched',
+        plannerEvent: exact[0],
+        reason: 'Same program, date, batch, and count already exist in Planner.',
+      };
+    }
+  }
+  const loose = plannerByLoose.get(looseEventKey(legacyEvent)) || [];
+  if (loose.length >= 1) {
+    return {
+      status: 'matched_loose',
+      plannerEvent: loose[0],
+      reason: 'Same program, date, and count already exist in Planner; legacy batch name is blank or different.',
+    };
+  }
+  // Same program + date but a different count (or same batch identity): a real
+  // conflict where Planner wins.
+  const sameDate = plannerEvents.filter(
+    (event) => event.program === legacyEvent.program && event.date === legacyEvent.date,
+  );
+  if (sameDate.length > 0) {
+    const sameBatch = legacyEvent.batchKey ? sameDate.find((event) => event.batchKey === legacyEvent.batchKey) : null;
+    return {
+      status: 'conflict',
+      plannerEvent: sameBatch || sameDate[0],
+      reason: 'Planner has the same event identity with a different count. Planner wins until reviewed.',
+    };
+  }
+  // Same batch name elsewhere in Planner: the legacy row is the same batch dated
+  // at a different time (e.g. an export-time stamp).
+  if (legacyEvent.batchKey) {
+    const sameBatch = plannerEvents.find(
+      (event) => event.program === legacyEvent.program && event.batchKey === legacyEvent.batchKey,
+    );
+    if (sameBatch) {
+      return {
+        status: 'matched',
+        plannerEvent: sameBatch,
+        reason: `Planner already has batch ${legacyEvent.batchName}; the legacy row is the same batch dated differently.`,
+      };
+    }
+  }
+  return {
+    status: 'superseded',
+    plannerEvent: null,
+    reason: 'Planner has records for this program and year, so the legacy row is held as backfill (Planner wins).',
+  };
+}
+
+// Planner wins by coverage: for any program+year Planner has events, Planner IS
+// the total and legacy rows are held as backfill (no per-row date/name guessing
+// that can double-count). Legacy counts only for program+years Planner has
+// nothing — pre-Planner history. Eggs are Planner-only and unaffected.
 export function reconcileProductionEvents({plannerEvents = [], legacyEvents = []} = {}) {
-  const combined = plannerEvents.map((event) => ({...event, reconciliationStatus: 'planner'}));
+  const combined = plannerEvents.map((event) => ({
+    ...event,
+    reconciliationStatus: 'planner',
+    reason: 'Counted from the Planner record.',
+  }));
   const audit = [];
+  const plannerCoverage = new Set(plannerEvents.map((event) => `${event.program}|${event.year}`));
   const plannerByExact = indexEvents(plannerEvents, exactEventKey);
   const plannerByLoose = indexEvents(plannerEvents, looseEventKey);
 
   for (const legacyEvent of legacyEvents) {
-    const exactMatches = legacyEvent.batchKey ? plannerByExact.get(exactEventKey(legacyEvent)) || [] : [];
-    if (exactMatches.length === 1) {
-      audit.push({
+    const covered = plannerCoverage.has(`${legacyEvent.program}|${legacyEvent.year}`);
+    if (covered) {
+      const {status, plannerEvent, reason} = classifyCoveredLegacy(
         legacyEvent,
-        plannerEvent: exactMatches[0],
-        status: 'matched',
-        counted: false,
-        reason: 'Same program, date, batch, and count already exist in Planner.',
-      });
+        plannerEvents,
+        plannerByExact,
+        plannerByLoose,
+      );
+      audit.push({legacyEvent, plannerEvent, status, counted: false, reason});
       continue;
     }
 
-    const looseMatches = plannerByLoose.get(looseEventKey(legacyEvent)) || [];
-    if (looseMatches.length === 1) {
-      audit.push({
-        legacyEvent,
-        plannerEvent: looseMatches[0],
-        status: 'matched_loose',
-        counted: false,
-        reason: 'Same program, date, and count already exist in Planner; legacy batch name is blank or different.',
-      });
-      continue;
-    }
-    if (looseMatches.length > 1) {
-      audit.push({
-        legacyEvent,
-        plannerEvent: null,
-        status: 'possible_duplicate',
-        counted: false,
-        reason:
-          'Multiple Planner events share this program, date, and count. Legacy row is held out to avoid double counting.',
-      });
-      continue;
-    }
-
-    const identityMatches = plannerEvents.filter((event) => {
-      if (event.program !== legacyEvent.program || event.date !== legacyEvent.date) return false;
-      if (legacyEvent.batchKey) return event.batchKey === legacyEvent.batchKey;
-      return event.quantity !== legacyEvent.quantity;
-    });
-    if (identityMatches.length > 0) {
-      audit.push({
-        legacyEvent,
-        plannerEvent: identityMatches[0],
-        status: 'conflict',
-        counted: false,
-        reason: 'Planner has the same event identity with a different count. Planner wins until reviewed.',
-      });
-      continue;
-    }
-
-    combined.push({...legacyEvent, reconciliationStatus: 'legacy_only'});
-    audit.push({
-      legacyEvent,
-      plannerEvent: null,
-      status: 'legacy_only',
-      counted: true,
-      reason: 'Only found in the legacy spreadsheet backfill.',
-    });
+    const reason = 'Only found in the legacy backfill (no Planner records for this program and year).';
+    combined.push({...legacyEvent, reconciliationStatus: 'legacy_only', reason});
+    audit.push({legacyEvent, plannerEvent: null, status: 'legacy_only', counted: true, reason});
   }
 
   return {
@@ -428,6 +474,86 @@ export function totalsForYear(events = [], year) {
     totals.set(event.program, (totals.get(event.program) || 0) + event.quantity);
   }
   return totals;
+}
+
+// Per-program summary for a single year. Decomposes the counted total into
+// Planner vs legacy backfill, plus the held-out legacy rows (Planner wins).
+export function buildProductionSummary(model, year) {
+  const yearStr = String(year);
+  const events = (model && model.events) || [];
+  const audit = (model && model.audit) || [];
+  const programRows = (model && model.programRows) || {};
+  const sum = (list) => list.reduce((total, item) => total + (item.quantity || 0), 0);
+  return PAGE_PRODUCTION_PROGRAMS.map((programKey) => {
+    const inYear = (event) => event.program === programKey && event.year === yearStr;
+    const countedRows = events.filter(inYear);
+    const counted = sum(countedRows);
+    const plannerCounted = sum(countedRows.filter((event) => event.source === 'planner'));
+    const legacyCounted = sum(countedRows.filter((event) => event.source === 'legacy'));
+    const heldRows = audit.filter(
+      (row) => !row.counted && row.legacyEvent.program === programKey && row.legacyEvent.year === yearStr,
+    );
+    const heldOut = heldRows.reduce((total, row) => total + (row.legacyEvent.quantity || 0), 0);
+    const conflict = heldRows
+      .filter((row) => row.status === 'conflict')
+      .reduce((total, row) => total + (row.legacyEvent.quantity || 0), 0);
+    const yoyRow = (programRows[programKey] || []).find((row) => row.year === yearStr);
+    return {
+      programKey,
+      label: PROGRAM_BY_KEY[programKey].label,
+      accent: PROGRAM_ACCENT_VAR[programKey],
+      counted,
+      plannerCounted,
+      legacyCounted,
+      heldOut,
+      conflict,
+      yoy: yoyRow ? yoyRow.yoy : null,
+    };
+  });
+}
+
+function decorateLedgerRow(event, {counted, status, reason}) {
+  const meta = productionStatusMeta(status);
+  return {
+    id: `${event.id}:${status}`,
+    date: event.date,
+    program: event.program,
+    batchName: event.batchName,
+    quantity: event.quantity,
+    source: event.source,
+    counted,
+    status,
+    statusLabel: meta.label,
+    tone: meta.tone,
+    reason,
+    event,
+  };
+}
+
+// Counted events for a year (Planner + legacy-only), annotated with status,
+// reason, and tone so the ledger can render reconciliation state inline.
+export function buildProductionLedger(model, year) {
+  const yearStr = String(year);
+  return ((model && model.events) || [])
+    .filter((event) => event.year === yearStr)
+    .map((event) => {
+      const status = event.reconciliationStatus || (event.source === 'legacy' ? 'legacy_only' : 'planner');
+      const reason =
+        event.reason ||
+        (event.source === 'legacy'
+          ? 'Only found in the legacy spreadsheet backfill.'
+          : 'Counted from the Planner record.');
+      return decorateLedgerRow(event, {counted: true, status, reason});
+    });
+}
+
+// Every legacy backfill row's disposition for a year, counted or held out, with the
+// reason surfaced as data (not a title hover).
+export function buildProductionAuditView(model, year) {
+  const yearStr = String(year);
+  return ((model && model.audit) || [])
+    .filter((row) => row.legacyEvent.year === yearStr)
+    .map((row) => decorateLedgerRow(row.legacyEvent, {counted: row.counted, status: row.status, reason: row.reason}));
 }
 
 export function homeProductionStats(model, year = new Date().getFullYear()) {
