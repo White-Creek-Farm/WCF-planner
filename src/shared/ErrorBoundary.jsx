@@ -23,7 +23,7 @@ const CARD = {
 const BTN = {
   marginTop: 16,
   padding: '10px 24px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: 'none',
   background: '#085041',
   color: 'white',

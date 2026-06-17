@@ -155,7 +155,7 @@ const CattleBreedingView = ({
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -186,7 +186,7 @@ const CattleBreedingView = ({
             onClick={openAdd}
             style={{
               padding: '7px 16px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: 'none',
               background: '#991b1b',
               color: 'white',
@@ -318,7 +318,7 @@ const CattleBreedingView = ({
                       padding: '8px 12px',
                       background: '#fef2f2',
                       border: '1px solid #fecaca',
-                      borderRadius: 8,
+                      borderRadius: 10,
                     }}
                   >
                     <div style={{fontSize: 11, fontWeight: 700, color: '#991b1b', marginBottom: 4}}>
@@ -470,7 +470,7 @@ const CattleBreedingView = ({
                 onClick={saveCycle}
                 style={{
                   padding: '8px 20px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#991b1b',
                   color: 'white',
@@ -487,7 +487,7 @@ const CattleBreedingView = ({
                   onClick={() => deleteCycle(editId)}
                   style={{
                     padding: '8px 16px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid #F09595',
                     background: 'white',
                     color: '#b91c1c',
@@ -508,7 +508,7 @@ const CattleBreedingView = ({
                 }}
                 style={{
                   padding: '8px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',

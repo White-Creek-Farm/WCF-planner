@@ -80,7 +80,7 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
             width: '100%',
             padding: '8px 12px',
             border: '1px solid var(--border-strong)',
-            borderRadius: 6,
+            borderRadius: 10,
             fontSize: 13,
             fontFamily: 'inherit',
             marginBottom: 16,
@@ -93,7 +93,7 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
             onClick={onCancel}
             style={{
               padding: '10px 16px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -110,7 +110,7 @@ const DeleteModal = ({msg, onConfirm, onCancel}) => {
             onClick={confirmAndClose}
             style={{
               padding: '10px 16px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: 'none',
               background: ready ? '#b91c1c' : '#f3f4f6',
               color: ready ? 'white' : '#9ca3af',

@@ -10,7 +10,7 @@
 // A live HUD shows acres + perimeter while drawing/editing and flags
 // self-intersection (client guard; the create/update RPCs are the backstop).
 //
-// Areas color by live occupancy/rest state first, then by classification.
+// Occupancy / rest-day coloring is still CP3 — areas color by classification.
 // ============================================================================
 import React from 'react';
 import L from 'leaflet';
@@ -22,8 +22,6 @@ import {polygonMetrics, ringPerimeterM, SQM_PER_ACRE} from '../lib/pastureGeomet
 
 const WCF_CENTER = [30.84175647927683, -86.43686683451689];
 const NAIP_URL = 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}';
-const MAP_MAX_ZOOM = 22;
-const IMAGERY_NATIVE_MAX_ZOOM = 19;
 
 function styleForArea(a) {
   if (a.status === 'blocked_repair') return {color: '#b91c1c', weight: 2, fillColor: '#ef4444', fillOpacity: 0.18};
@@ -35,12 +33,6 @@ function styleForArea(a) {
     return {color: '#dc2626', weight: 2, dashArray: '3,4', fillColor: '#f87171', fillOpacity: 0.1};
   if (a.kind === 'infrastructure' || a.kind === 'scratch')
     return {color: '#475569', weight: 2, fillColor: '#64748b', fillOpacity: 0.15};
-  if (a.rest_state === 'occupied' || Number(a.current_occupancy_count || 0) > 0)
-    return {color: '#991b1b', weight: 3, fillColor: '#ef4444', fillOpacity: 0.22};
-  if (a.rest_state === 'resting') return {color: '#b45309', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.2};
-  if (a.rest_state === 'baseline' || a.rest_state === 'no_history')
-    return {color: '#6b7280', weight: 2, dashArray: '5,5', fillColor: '#94a3b8', fillOpacity: 0.08};
-  if (a.rest_state === 'rested') return {color: '#047857', weight: 2, fillColor: '#10b981', fillOpacity: 0.16};
   return {color: '#15803d', weight: 2, fillColor: '#22c55e', fillOpacity: 0.14};
 }
 
@@ -102,7 +94,6 @@ export default function PastureMapCanvas({
   const locateRef = React.useRef(null);
   const tempRef = React.useRef(null);
   const editLayerRef = React.useRef(null);
-  const fitSignatureRef = React.useRef('');
   const cbRef = React.useRef({});
   cbRef.current = {onSelect, onDrawComplete, onEditGeometry};
   const [gpsMsg, setGpsMsg] = React.useState('');
@@ -111,17 +102,8 @@ export default function PastureMapCanvas({
   // ── Map init ──
   React.useEffect(() => {
     if (mapRef.current || !elRef.current) return;
-    const map = L.map(elRef.current, {
-      center: WCF_CENTER,
-      zoom: 15,
-      maxZoom: MAP_MAX_ZOOM,
-      zoomControl: true,
-    });
-    L.tileLayer(NAIP_URL, {
-      maxZoom: MAP_MAX_ZOOM,
-      maxNativeZoom: IMAGERY_NATIVE_MAX_ZOOM,
-      attribution: 'Imagery: USGS / NAIP (public domain)',
-    }).addTo(map);
+    const map = L.map(elRef.current, {center: WCF_CENTER, zoom: 15, zoomControl: true});
+    L.tileLayer(NAIP_URL, {maxZoom: 19, attribution: 'Imagery: USGS / NAIP (public domain)'}).addTo(map);
     if (map.pm) map.pm.setGlobalOptions({snappable: true, snapDistance: 20});
     mapRef.current = map;
     return () => {
@@ -137,13 +119,6 @@ export default function PastureMapCanvas({
     if (layerRef.current) layerRef.current.remove();
     areaLayersRef.current = new Map();
     const group = L.featureGroup();
-    const fitSignature = (areas || [])
-      .map((a) => {
-        const version = a.current_version && (a.current_version.id || a.current_version.version_number);
-        const rawType = a.raw_geometry && a.raw_geometry.type;
-        return [a.id, version || '', a.geometry_status || '', rawType || ''].join(':');
-      })
-      .join('|');
     (areas || []).forEach((a) => {
       const g = areaGeom(a);
       if (!g) return;
@@ -169,10 +144,7 @@ export default function PastureMapCanvas({
     layerRef.current = group;
     try {
       const b = group.getBounds();
-      if (fitSignature && fitSignature !== fitSignatureRef.current && b && b.isValid()) {
-        map.fitBounds(b, {padding: [30, 30], maxZoom: 19});
-        fitSignatureRef.current = fitSignature;
-      }
+      if (b && b.isValid()) map.fitBounds(b, {padding: [30, 30], maxZoom: 17});
     } catch {
       /* no bounds yet */
     }
@@ -244,9 +216,7 @@ export default function PastureMapCanvas({
             /* noop */
           }
         } else {
-          clearTemp();
-          tempRef.current = layer;
-          if (layer.setStyle) layer.setStyle({color: '#047857', weight: 3, fillColor: '#22c55e', fillOpacity: 0.22});
+          map.removeLayer(layer);
           setHud({...metrics, frozen: true, mode: 'draw'});
           try {
             map.pm.disableDraw();
@@ -280,7 +250,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     if (!map) return;
     setGpsMsg('Locating…');
-    map.locate({setView: true, enableHighAccuracy: true, maxZoom: 20, timeout: 15000});
+    map.locate({setView: true, enableHighAccuracy: true, maxZoom: 18, timeout: 15000});
     map.once('locationfound', (e) => {
       if (locateRef.current) locateRef.current.remove();
       const g = L.layerGroup();

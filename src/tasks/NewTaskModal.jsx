@@ -275,7 +275,7 @@ export default function NewTaskModal({sb, profilesById, authState, isOpen, onClo
                       style={{
                         flex: 1,
                         padding: '10px 16px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         cursor: 'pointer',
                         fontSize: 13,
                         fontWeight: 600,
@@ -421,7 +421,7 @@ export default function NewTaskModal({sb, profilesById, authState, isOpen, onClo
                         padding: '4px 8px',
                         background: 'var(--divider)',
                         border: '1px solid var(--border)',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 6,

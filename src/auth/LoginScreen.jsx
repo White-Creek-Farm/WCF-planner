@@ -92,7 +92,7 @@ function LoginScreen({onLogin}) {
             </div>
             {error && (
               <div
-                style={{color: '#b91c1c', fontSize: 12, background: '#fef2f2', padding: '8px 12px', borderRadius: 6}}
+                style={{color: '#b91c1c', fontSize: 12, background: '#fef2f2', padding: '8px 12px', borderRadius: 10}}
               >
                 {error}
               </div>
@@ -155,7 +155,7 @@ function LoginScreen({onLogin}) {
                       fontSize: 12,
                       background: '#fef2f2',
                       padding: '8px 12px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                     }}
                   >
                     {error}

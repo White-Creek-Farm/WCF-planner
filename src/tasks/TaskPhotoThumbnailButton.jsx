@@ -8,7 +8,7 @@ const BUTTON = {
   position: 'relative',
   width: 48,
   height: 38,
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid var(--border-strong)',
   background: 'var(--divider)',
   padding: 0,

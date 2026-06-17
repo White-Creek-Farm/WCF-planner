@@ -1,8 +1,8 @@
 // Pasture Map CP1 — import + classify e2e (NON-resetting). Cleans ONLY the
 // isolated pasture tables (land_areas / land_area_geometry_versions /
 // pasture_import_batches — none in the reset.js shared whitelist), imports the
-// deterministic OnX-shaped fixture, classifies, closes an outline candidate,
-// and captures desktop/mobile + GPS screenshots for UI sign-off. Run via
+// real OnX export, classifies, closes an outline candidate, and captures
+// desktop/mobile + GPS screenshots for UI sign-off. Run via
 // playwright.pasture.config.js on port 5199 so it cannot collide with the
 // active Home-parity lane.
 import {test, expect} from '@playwright/test';
@@ -10,13 +10,13 @@ import fs from 'fs';
 import path from 'path';
 import {getTestAdminClient} from './setup/reset.js';
 
-const KML_PATH = path.resolve('tests/fixtures/pasture_map_onx_sample.kml');
+const KML_PATH = 'C:\\Users\\Ronni\\OneDrive\\Desktop\\onx-markups-06152026.kml';
 const SHOTS = path.resolve('pasture-map-shots');
 
 async function cleanPastureTables() {
   const c = getTestAdminClient();
   const {error} = await c.rpc('exec_sql', {
-    sql: 'TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
+    sql: 'TRUNCATE TABLE public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
   });
   if (error) throw new Error('clean pasture tables: ' + error.message);
 }

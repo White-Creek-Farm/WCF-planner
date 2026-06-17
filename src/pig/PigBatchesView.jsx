@@ -964,7 +964,7 @@ export default function PigBatchesView({
                 style={{
                   fontSize: 11,
                   padding: '3px 10px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--brand)',
@@ -988,7 +988,7 @@ export default function PigBatchesView({
                     fontSize: 13,
                     padding: '4px 8px',
                     border: '1px solid var(--border-strong)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     width: 110,
                     fontFamily: 'inherit',
                   }}
@@ -1007,7 +1007,7 @@ export default function PigBatchesView({
                   style={{
                     fontSize: 11,
                     padding: '4px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid #085041',
                     background: '#085041',
                     color: 'white',
@@ -1022,7 +1022,7 @@ export default function PigBatchesView({
                   style={{
                     fontSize: 11,
                     padding: '4px 10px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink-muted)',
@@ -1067,7 +1067,7 @@ export default function PigBatchesView({
                     data-pig-batches-export-csv="1"
                     style={{
                       padding: '7px 12px',
-                      borderRadius: 8,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: 'var(--ink)',
@@ -1085,7 +1085,7 @@ export default function PigBatchesView({
                     data-pig-batches-print="1"
                     style={{
                       padding: '7px 12px',
-                      borderRadius: 8,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: 'var(--ink)',
@@ -1102,7 +1102,7 @@ export default function PigBatchesView({
                       onClick={() => setShowArchBatches((s) => !s)}
                       style={{
                         padding: '7px 14px',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: '1px solid var(--border-strong)',
                         background: 'white',
                         color: 'var(--ink-muted)',
@@ -1139,7 +1139,7 @@ export default function PigBatchesView({
                 }}
                 style={{
                   padding: '7px 18px',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#085041',
                   color: 'white',
@@ -1217,7 +1217,7 @@ export default function PigBatchesView({
                       const next = idx < sorted.length - 1 ? sorted[idx + 1] : null;
                       const ns = (on) => ({
                         padding: '3px 10px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid var(--border-strong)',
                         background: on ? 'white' : 'var(--surface-2)',
                         color: on ? 'var(--ink)' : '#d1d5db',
@@ -1414,7 +1414,7 @@ export default function PigBatchesView({
                         padding: '8px 11px',
                         background: 'var(--surface-2)',
                         border: '1px solid var(--border)',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         fontSize: 13,
                         fontWeight: 600,
                         color: 'var(--ink)',
@@ -1442,7 +1442,7 @@ export default function PigBatchesView({
                           style={{
                             gridColumn: '1/-1',
                             border: '1px solid var(--border)',
-                            borderRadius: 8,
+                            borderRadius: 10,
                             padding: '10px 12px',
                             background: '#fafafa',
                           }}
@@ -1470,7 +1470,7 @@ export default function PigBatchesView({
                                     style={{
                                       fontSize: 11,
                                       padding: '3px 8px',
-                                      borderRadius: 5,
+                                      borderRadius: 10,
                                       background: isBoars ? '#dbeafe' : '#d1fae5',
                                       color: isBoars ? '#1e40af' : '#065f46',
                                       textAlign: 'center',
@@ -1505,7 +1505,7 @@ export default function PigBatchesView({
                                 color: '#b91c1c',
                                 background: '#fef2f2',
                                 border: '1px solid #fecaca',
-                                borderRadius: 5,
+                                borderRadius: 10,
                                 padding: '5px 9px',
                               }}
                             >
@@ -1552,7 +1552,7 @@ export default function PigBatchesView({
                         color: 'var(--ink)',
                         padding: '8px 12px',
                         background: 'var(--surface-2)',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: '1px solid var(--border)',
                       }}
                     >
@@ -1571,7 +1571,7 @@ export default function PigBatchesView({
                         gridColumn: '1/-1',
                         background: '#ecfdf5',
                         border: '1px solid #a7f3d0',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         padding: '8px 12px',
                         fontSize: 12,
                         color: '#085041',
@@ -1714,7 +1714,7 @@ export default function PigBatchesView({
                     disabled={savedViewsLoading}
                     onChange={(e) => onSelectSavedView(e.target.value)}
                     style={{
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: 'var(--ink)',
@@ -1753,7 +1753,7 @@ export default function PigBatchesView({
                         disabled={savedViewBusy}
                         style={{
                           padding: '6px 12px',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           border: '1px solid var(--border-strong)',
                           background: 'white',
                           color: 'var(--ink)',
@@ -1773,7 +1773,7 @@ export default function PigBatchesView({
                         disabled={savedViewBusy}
                         style={{
                           padding: '6px 12px',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           border: '1px solid #fecaca',
                           background: 'white',
                           color: '#b91c1c',
@@ -1796,7 +1796,7 @@ export default function PigBatchesView({
                     disabled={savedViewBusy}
                     style={{
                       padding: '6px 12px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid #085041',
                       background: 'white',
                       color: '#085041',
@@ -1836,7 +1836,7 @@ export default function PigBatchesView({
                     if (e.key === 'Enter') submitSaveView();
                   }}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '6px 10px',
@@ -1876,7 +1876,7 @@ export default function PigBatchesView({
                   disabled={savedViewBusy}
                   style={{
                     padding: '6px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid #085041',
                     background: '#085041',
                     color: 'white',
@@ -1894,7 +1894,7 @@ export default function PigBatchesView({
                   disabled={savedViewBusy}
                   style={{
                     padding: '6px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -1928,7 +1928,7 @@ export default function PigBatchesView({
                 placeholder="Search batch name, sub-batch, notes…"
                 onChange={(e) => setFilter('textSearch', e.target.value)}
                 style={{
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   fontSize: 13,
                   padding: '6px 10px',
@@ -1944,7 +1944,7 @@ export default function PigBatchesView({
                   e.target.value === 'all' ? clearFilter('status') : setFilter('status', e.target.value)
                 }
                 style={{
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -1966,7 +1966,7 @@ export default function PigBatchesView({
                   else setFilter('hasSubBatches', v === 'yes');
                 }}
                 style={{
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -1998,7 +1998,7 @@ export default function PigBatchesView({
                     else setFilter('startedRange', {min, max});
                   }}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '6px 8px',
@@ -2022,7 +2022,7 @@ export default function PigBatchesView({
                     else setFilter('startedRange', {min, max});
                   }}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '6px 8px',
@@ -2046,7 +2046,7 @@ export default function PigBatchesView({
                     else setFilter('startDateRange', {after, before});
                   }}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '5px 8px',
@@ -2065,7 +2065,7 @@ export default function PigBatchesView({
                     else setFilter('startDateRange', {after, before});
                   }}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     fontSize: 12,
                     padding: '5px 8px',
@@ -2082,7 +2082,7 @@ export default function PigBatchesView({
                   value={sortRule.key}
                   onChange={(e) => setSortRule({key: e.target.value, dir: sortRule.dir})}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -2103,7 +2103,7 @@ export default function PigBatchesView({
                   onClick={() => setSortRule({key: sortRule.key, dir: sortRule.dir === 'asc' ? 'desc' : 'asc'})}
                   title={sortRule.dir === 'asc' ? 'Ascending' : 'Descending'}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -2123,7 +2123,7 @@ export default function PigBatchesView({
                   data-pig-batches-clear-filters
                   onClick={clearAllFilters}
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: '#b91c1c',

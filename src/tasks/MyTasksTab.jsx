@@ -107,7 +107,7 @@ const BUCKET_DOT_UPCOMING = {
 const GROUP_HEADER = {
   background: 'white',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 10,
   padding: '8px 12px',
   marginBottom: 8,
   cursor: 'pointer',
@@ -133,7 +133,7 @@ const BADGE_TODAY = {...BADGE_BASE, background: '#fffbeb', color: '#92400e', mar
 
 const COMPLETE_BTN = {
   padding: '4px 10px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid #085041',
   background: '#085041',
   color: 'white',
@@ -144,7 +144,7 @@ const COMPLETE_BTN = {
 };
 const ROW_GHOST_BTN = {
   padding: '4px 10px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid var(--border-strong)',
   background: 'white',
   color: 'var(--ink)',
@@ -155,7 +155,7 @@ const ROW_GHOST_BTN = {
 };
 const ROW_DANGER_BTN = {
   padding: '4px 10px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid #b91c1c',
   background: 'white',
   color: '#b91c1c',
@@ -166,7 +166,7 @@ const ROW_DANGER_BTN = {
 };
 const LOAD_RETRY_BTN = {
   padding: '6px 12px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid #991b1b',
   background: 'white',
   color: '#991b1b',
@@ -576,7 +576,7 @@ export default function MyTasksTab({sb, authState}) {
             border: '1px solid #fecaca',
             color: '#991b1b',
             padding: '8px 12px',
-            borderRadius: 8,
+            borderRadius: 10,
             marginBottom: 12,
             fontSize: 13,
           }}

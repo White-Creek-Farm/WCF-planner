@@ -279,14 +279,14 @@ const SheepWeighInsView = ({
     fontSize: 12,
     padding: '6px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     boxSizing: 'border-box',
     background: 'white',
     color: 'var(--ink)',
   };
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -330,7 +330,7 @@ const SheepWeighInsView = ({
             onClick={loadAll}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#1e40af',
@@ -540,7 +540,7 @@ const SheepWeighInsView = ({
                       fontSize: 12,
                       padding: '6px 28px 6px 10px',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       width: 160,
                       boxSizing: 'border-box',
                       background: 'white',
@@ -575,7 +575,7 @@ const SheepWeighInsView = ({
                 <div
                   style={{
                     display: 'flex',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     overflow: 'hidden',
                     border: '1px solid var(--border-strong)',
                   }}
@@ -611,7 +611,7 @@ const SheepWeighInsView = ({
                   disabled={loading || loadFailed}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: loading || loadFailed ? 'var(--surface-2)' : 'white',
                     color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
@@ -630,7 +630,7 @@ const SheepWeighInsView = ({
                   disabled={loading || loadFailed}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: loading || loadFailed ? 'var(--surface-2)' : 'white',
                     color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
@@ -649,7 +649,7 @@ const SheepWeighInsView = ({
               onClick={() => setShowNewModal(true)}
               style={{
                 padding: '7px 14px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: '#1e40af',
                 color: 'white',
@@ -722,7 +722,7 @@ const SheepWeighInsView = ({
                           fontSize: 10,
                           fontWeight: 700,
                           padding: '2px 6px',
-                          borderRadius: 4,
+                          borderRadius: 10,
                           background: '#fef2f2',
                           color: '#b91c1c',
                         }}

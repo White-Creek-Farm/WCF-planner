@@ -393,7 +393,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
     fontSize: 14,
     padding: '10px 12px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 8,
+    borderRadius: 10,
     width: '100%',
     outline: 'none',
     background: 'white',
@@ -455,7 +455,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                 lineHeight: 1.5,
                 background: '#fef3c7',
                 border: '1px solid #fde68a',
-                borderRadius: 8,
+                borderRadius: 10,
                 padding: '8px 12px',
                 textAlign: 'left',
               }}
@@ -659,7 +659,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                     fontStyle: 'italic',
                     background: '#fffbeb',
                     border: '1px solid #fde68a',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     padding: '6px 8px',
                     whiteSpace: 'pre-wrap',
                   }}
@@ -720,7 +720,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                   color: '#78716c',
                   background: '#fffbeb',
                   border: '1px solid #fde68a',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '8px 10px',
                   marginBottom: 10,
                   fontStyle: 'italic',
@@ -750,7 +750,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                         alignItems: 'center',
                         gap: 10,
                         padding: '10px 12px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         background: bg,
                         cursor: 'pointer',
                         border: '1px solid ' + bd,
@@ -788,7 +788,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                           color: '#92400e',
                           background: '#fffbeb',
                           border: '1px solid #fde68a',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           padding: '5px 8px',
                         }}
                       >
@@ -855,7 +855,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                       <div
                         key={k}
                         style={{
-                          borderRadius: 8,
+                          borderRadius: 10,
                           background: done ? '#eff6ff' : '#fef2f2',
                           border: '1px solid ' + (done ? '#bfdbfe' : '#fca5a5'),
                           padding: '12px 14px',
@@ -917,7 +917,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                                       marginTop: 4,
                                       background: '#fffbeb',
                                       border: '1px solid #fde68a',
-                                      borderRadius: 5,
+                                      borderRadius: 10,
                                       padding: '5px 8px',
                                     }}
                                   >
@@ -961,7 +961,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                               color: '#78716c',
                               background: '#fffbeb',
                               border: '1px solid #fde68a',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               padding: '6px 8px',
                               marginBottom: tasks.length > 0 ? 8 : 0,
                               fontStyle: 'italic',
@@ -993,7 +993,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                                     alignItems: 'flex-start',
                                     gap: 8,
                                     padding: '6px 8px',
-                                    borderRadius: 5,
+                                    borderRadius: 10,
                                     background: ticked ? '#dcfce7' : 'white',
                                     cursor: implicit ? 'not-allowed' : 'pointer',
                                     fontSize: 12,
@@ -1052,7 +1052,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                   <div
                     key={key}
                     style={{
-                      borderRadius: 8,
+                      borderRadius: 10,
                       background: allTicked ? '#eff6ff' : anyTicked ? '#fffbeb' : '#fafafa',
                       border: '1px solid ' + (allTicked ? '#bfdbfe' : anyTicked ? '#fde68a' : '#e5e7eb'),
                       padding: '12px 14px',
@@ -1071,7 +1071,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                           color: '#78716c',
                           background: '#fffbeb',
                           border: '1px solid #fde68a',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           padding: '6px 8px',
                           marginBottom: 8,
                           fontStyle: 'italic',
@@ -1093,7 +1093,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                                 alignItems: 'flex-start',
                                 gap: 8,
                                 padding: '6px 8px',
-                                borderRadius: 5,
+                                borderRadius: 10,
                                 background: ticked ? '#dcfce7' : 'white',
                                 cursor: 'pointer',
                                 fontSize: 12,
@@ -1157,7 +1157,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
                         width: 80,
                         height: 80,
                         objectFit: 'cover',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid var(--border)',
                       }}
                     />
@@ -1230,7 +1230,7 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
               marginBottom: 10,
               padding: '8px 12px',
               background: '#fef2f2',
-              borderRadius: 8,
+              borderRadius: 10,
             }}
           >
             {err}

@@ -121,7 +121,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
     fontSize: 14,
     padding: '10px 12px',
     border: '1px solid #d1d5db',
-    borderRadius: 8,
+    borderRadius: 10,
     width: '100%',
     outline: 'none',
     background: 'white',
@@ -1241,7 +1241,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                             color: '#1d4ed8',
                             background: '#eff6ff',
                             border: '1px solid #bfdbfe',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             padding: '4px 8px',
                           }}
                         >
@@ -2197,7 +2197,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                                 style={{
                                   padding: '8px 10px',
                                   border: '1px solid #d1d5db',
-                                  borderRadius: 6,
+                                  borderRadius: 10,
                                   background: 'white',
                                   color: '#9ca3af',
                                   cursor: 'pointer',
@@ -2249,7 +2249,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                         style={{
                           width: '100%',
                           padding: 10,
-                          borderRadius: 8,
+                          borderRadius: 10,
                           border: '2px dashed #fca5a5',
                           background: 'transparent',
                           color: '#991b1b',
@@ -2327,7 +2327,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                                 style={{
                                   padding: '8px 10px',
                                   border: '1px solid #d1d5db',
-                                  borderRadius: 6,
+                                  borderRadius: 10,
                                   background: 'white',
                                   color: '#9ca3af',
                                   cursor: 'pointer',
@@ -2349,7 +2349,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                         style={{
                           width: '100%',
                           padding: 10,
-                          borderRadius: 8,
+                          borderRadius: 10,
                           border: '2px dashed #fca5a5',
                           background: 'transparent',
                           color: '#991b1b',
@@ -2525,7 +2525,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                                     style={{
                                       padding: '8px 10px',
                                       border: '1px solid #d1d5db',
-                                      borderRadius: 6,
+                                      borderRadius: 10,
                                       background: 'white',
                                       color: '#9ca3af',
                                       cursor: 'pointer',
@@ -2547,7 +2547,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                             style={{
                               width: '100%',
                               padding: 10,
-                              borderRadius: 8,
+                              borderRadius: 10,
                               border: '2px dashed #5eead4',
                               background: 'transparent',
                               color: '#0f766e',
@@ -2636,7 +2636,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                                     style={{
                                       padding: '8px 10px',
                                       border: '1px solid #d1d5db',
-                                      borderRadius: 6,
+                                      borderRadius: 10,
                                       background: 'white',
                                       color: '#9ca3af',
                                       cursor: 'pointer',
@@ -2658,7 +2658,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                             style={{
                               width: '100%',
                               padding: 10,
-                              borderRadius: 8,
+                              borderRadius: 10,
                               border: '2px dashed #d8b4fe',
                               background: 'transparent',
                               color: '#6b21a8',
@@ -2734,7 +2734,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                 marginTop: 8,
                 padding: '8px 12px',
                 background: '#fef2f2',
-                borderRadius: 8,
+                borderRadius: 10,
                 borderLeft: '3px solid #fca5a5',
               }}
             >

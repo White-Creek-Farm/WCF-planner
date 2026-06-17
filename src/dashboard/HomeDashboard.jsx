@@ -1056,7 +1056,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                     })}
                                     style={{
                                       background: shadeBg,
-                                      borderRadius: 7,
+                                      borderRadius: 10,
                                       border: notable ? '1.5px solid #fca5a5' : '1px solid var(--border)',
                                       padding: '8px 12px',
                                       cursor: 'pointer',
@@ -1073,7 +1073,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                         fontSize: 10,
                                         fontWeight: 600,
                                         padding: '2px 7px',
-                                        borderRadius: 4,
+                                        borderRadius: 10,
                                       };
                                       const chipYes = (label, ok) => (
                                         <span
@@ -1093,7 +1093,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                             fontSize: 11,
                                             fontWeight: 600,
                                             padding: '2px 8px',
-                                            borderRadius: 4,
+                                            borderRadius: 10,
                                             background: '#f1f5f9',
                                             color: '#475569',
                                             border: '1px solid var(--border)',
@@ -1112,7 +1112,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                             fontSize: 11,
                                             fontWeight: 600,
                                             padding: '3px 8px',
-                                            borderRadius: 6,
+                                            borderRadius: 10,
                                             background: '#fef2f2',
                                             color: '#b91c1c',
                                             border: '1px solid #fecaca',
@@ -1129,7 +1129,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                             padding: '3px 10px',
                                             background: '#fffbeb',
                                             border: '1px solid #fde68a',
-                                            borderRadius: 6,
+                                            borderRadius: 10,
                                             fontStyle: 'italic',
                                           }}
                                         >
@@ -1190,7 +1190,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                                       fontSize: 10,
                                                       fontWeight: 700,
                                                       padding: '1px 5px',
-                                                      borderRadius: 4,
+                                                      borderRadius: 10,
                                                       background: d.feed_type === 'STARTER' ? '#dbeafe' : '#d1fae5',
                                                       color: d.feed_type === 'STARTER' ? '#1e40af' : '#065f46',
                                                     }}
@@ -1293,7 +1293,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                                       fontSize: 10,
                                                       fontWeight: 700,
                                                       padding: '1px 5px',
-                                                      borderRadius: 4,
+                                                      borderRadius: 10,
                                                       background:
                                                         d.feed_type === 'STARTER'
                                                           ? '#dbeafe'
@@ -1534,7 +1534,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                               <span
                                                 style={{
                                                   padding: '2px 8px',
-                                                  borderRadius: 4,
+                                                  borderRadius: 10,
                                                   fontSize: 11,
                                                   fontWeight: 700,
                                                   background: hc.bg,
@@ -1660,7 +1660,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                               <span
                                                 style={{
                                                   padding: '2px 8px',
-                                                  borderRadius: 4,
+                                                  borderRadius: 10,
                                                   fontSize: 11,
                                                   fontWeight: 700,
                                                   background: fc.bg,

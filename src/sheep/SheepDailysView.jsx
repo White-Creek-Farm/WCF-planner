@@ -454,7 +454,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
 
   const fi = {
     padding: '6px 10px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
@@ -467,7 +467,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
   );
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -543,7 +543,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
               }}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: '#0f766e',
                 color: 'white',
@@ -765,7 +765,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
           <div
             style={{
               display: 'flex',
-              borderRadius: 6,
+              borderRadius: 10,
               overflow: 'hidden',
               border: '1px solid var(--border-strong)',
               marginLeft: 'auto',
@@ -834,7 +834,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
             style={{
               marginBottom: 12,
               padding: '7px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -888,7 +888,14 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                 return (
                   <React.Fragment key={d.id}>
                     {showDivider && (
-                      <div style={{height: 2, background: '#9ca3af', margin: '6px 0', borderRadius: 1}} />
+                      <div
+                        style={{
+                          height: 2,
+                          background: '#9ca3af',
+                          margin: '6px 0',
+                          borderRadius: 1 /* radius-allow: 2px tall section divider bar */,
+                        }}
+                      />
                     )}
                     <div
                       data-daily-row={d.id}
@@ -925,7 +932,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                           <span
                             style={{
                               padding: '2px 8px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                               fontSize: 11,
                               fontWeight: 700,
                               background: fc.bg,
@@ -945,7 +952,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                                 fontSize: 10,
                                 fontWeight: 700,
                                 padding: '1px 6px',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 background: '#fef3c7',
                                 color: '#92400e',
                                 border: '1px solid #fde68a',
@@ -962,7 +969,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                             fontSize: 11,
                             fontWeight: 600,
                             padding: '2px 8px',
-                            borderRadius: 4,
+                            borderRadius: 10,
                             background: '#f1f5f9',
                             color: '#475569',
                             border: '1px solid #e2e8f0',
@@ -997,7 +1004,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                               fontSize: 10,
                               fontWeight: 600,
                               padding: '2px 7px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                               background: d.waterers_working === false ? '#fef2f2' : '#f0fdf4',
                               color: d.waterers_working === false ? '#b91c1c' : '#065f46',
                               border: d.waterers_working === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
@@ -1017,7 +1024,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                                 fontSize: 11,
                                 fontWeight: 600,
                                 padding: '3px 8px',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 background: '#fef2f2',
                                 color: '#b91c1c',
                                 border: '1px solid #fecaca',
@@ -1034,7 +1041,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                                 padding: '3px 10px',
                                 background: '#fffbeb',
                                 border: '1px solid #fde68a',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 fontStyle: 'italic',
                               }}
                             >
@@ -1167,7 +1174,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                       color: '#0f766e',
                       background: 'none',
                       border: '1px solid #5eead4',
-                      borderRadius: 5,
+                      borderRadius: 10,
                       padding: '3px 8px',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
@@ -1244,7 +1251,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                         style={{
                           padding: '4px 8px',
                           border: '1px solid var(--border-strong)',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           background: 'white',
                           color: 'var(--ink-faint)',
                           cursor: 'pointer',
@@ -1271,7 +1278,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                       color: '#6b21a8',
                       background: 'none',
                       border: '1px solid #d8b4fe',
-                      borderRadius: 5,
+                      borderRadius: 10,
                       padding: '3px 8px',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
@@ -1338,7 +1345,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                         style={{
                           padding: '4px 8px',
                           border: '1px solid var(--border-strong)',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           background: 'white',
                           color: 'var(--ink-faint)',
                           cursor: 'pointer',
@@ -1366,7 +1373,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                   </div>
                   <div>
                     <label style={S.label}>Waterers working?</label>
-                    <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+                    <div style={{display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid #d1d5db'}}>
                       {[
                         {v: true, l: 'Yes'},
                         {v: false, l: 'No'},

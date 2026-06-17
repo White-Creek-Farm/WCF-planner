@@ -55,7 +55,7 @@ const NutritionTargetsPanel = ({sb}) => {
     fontSize: 13,
     padding: '5px 8px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 5,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: 80,
     textAlign: 'right',

@@ -25,7 +25,7 @@ const inpS = {
   fontSize: 12,
   padding: '6px 8px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 5,
+  borderRadius: 10,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
   width: '100%',
@@ -170,7 +170,7 @@ export default function EquipmentWebformsAdmin() {
                         padding: '7px 12px',
                         border: '1px solid ' + (on ? cat.color : 'var(--border)'),
                         background: 'white',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -184,7 +184,7 @@ export default function EquipmentWebformsAdmin() {
                           style={{
                             fontSize: 10,
                             padding: '1px 6px',
-                            borderRadius: 3,
+                            borderRadius: 999,
                             background: '#fef3c7',
                             color: '#92400e',
                             textTransform: 'uppercase',
@@ -227,7 +227,7 @@ export default function EquipmentWebformsAdmin() {
                       padding: '7px 12px',
                       border: '1px solid ' + (on ? '#6b7280' : 'var(--border)'),
                       background: on ? '#f3f4f6' : 'white',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -241,7 +241,7 @@ export default function EquipmentWebformsAdmin() {
                       style={{
                         fontSize: 10,
                         padding: '1px 6px',
-                        borderRadius: 3,
+                        borderRadius: 999,
                         background: '#e5e7eb',
                         color: '#6b7280',
                         textTransform: 'uppercase',
@@ -332,7 +332,7 @@ export default function EquipmentWebformsAdmin() {
                 style={{
                   fontSize: 14,
                   padding: '6px 14px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -739,7 +739,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
                 padding: '8px 10px',
                 background: '#fafafa',
                 border: '1px solid var(--border)',
-                borderRadius: 6,
+                borderRadius: 10,
               }}
             >
               <span
@@ -747,7 +747,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
                   fontSize: 10,
                   fontWeight: 700,
                   padding: '2px 6px',
-                  borderRadius: 4,
+                  borderRadius: 999,
                   textAlign: 'center',
                   background: m.type === 'pdf' ? '#fef3c7' : '#fee2e2',
                   color: m.type === 'pdf' ? '#92400e' : '#991b1b',
@@ -779,7 +779,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
                 disabled={busy}
                 style={{
                   padding: '4px 8px',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   border: '1px solid #fecaca',
                   background: 'white',
                   color: '#b91c1c',
@@ -795,7 +795,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
         </div>
       )}
       <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
-        <div style={{padding: '10px', background: '#fffbeb', borderRadius: 6, border: '1px dashed #fde68a'}}>
+        <div style={{padding: '10px', background: '#fffbeb', borderRadius: 10, border: '1px dashed #fde68a'}}>
           <div style={{...subTitle, color: '#92400e'}}>Upload PDF</div>
           <input
             type="file"
@@ -809,7 +809,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
           />
           {uploading && <div style={{fontSize: 10, color: '#92400e', marginTop: 4}}>Uploading…</div>}
         </div>
-        <div style={{padding: '10px', background: '#fef2f2', borderRadius: 6, border: '1px dashed #fecaca'}}>
+        <div style={{padding: '10px', background: '#fef2f2', borderRadius: 10, border: '1px dashed #fecaca'}}>
           <div style={{...subTitle, color: '#991b1b'}}>Add YouTube video</div>
           <input
             type="text"
@@ -831,7 +831,7 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
               disabled={busy || !newVideoUrl.trim()}
               style={{
                 padding: '6px 12px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: busy || !newVideoUrl.trim() ? '#9ca3af' : '#991b1b',
                 color: 'white',
@@ -943,7 +943,7 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
                 padding: '8px 10px',
                 background: '#fafafa',
                 border: '1px solid var(--border)',
-                borderRadius: 6,
+                borderRadius: 10,
               }}
             >
               <span
@@ -951,7 +951,7 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
                   fontSize: 10,
                   fontWeight: 700,
                   padding: '2px 6px',
-                  borderRadius: 4,
+                  borderRadius: 999,
                   textAlign: 'center',
                   background: '#e0e7ff',
                   color: '#3730a3',
@@ -983,7 +983,7 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
                 disabled={busy}
                 style={{
                   padding: '4px 8px',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   border: '1px solid #fecaca',
                   background: 'white',
                   color: '#b91c1c',
@@ -998,7 +998,7 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
           ))}
         </div>
       )}
-      <div style={{padding: '10px', background: '#eef2ff', borderRadius: 6, border: '1px dashed #c7d2fe'}}>
+      <div style={{padding: '10px', background: '#eef2ff', borderRadius: 10, border: '1px dashed #c7d2fe'}}>
         <div style={{...subTitle, color: '#3730a3'}}>Upload PDF</div>
         <input
           type="file"
@@ -1218,7 +1218,7 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
                 disabled={busy}
                 style={{
                   padding: '3px 8px',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   border: '1px solid #fecaca',
                   background: 'white',
                   color: '#b91c1c',
@@ -1241,7 +1241,7 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
           marginTop: 10,
           padding: '10px',
           background: '#fafafa',
-          borderRadius: 6,
+          borderRadius: 10,
           border: '1px dashed var(--border-strong)',
           alignItems: 'center',
         }}
@@ -1258,7 +1258,7 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
           disabled={busy || !newLabel.trim()}
           style={{
             padding: '6px 12px',
-            borderRadius: 6,
+            borderRadius: 10,
             border: 'none',
             background: busy || !newLabel.trim() ? '#9ca3af' : '#57534e',
             color: 'white',
@@ -1414,7 +1414,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                 key={i}
                 style={{
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   background: isExpanded ? 'var(--surface-2)' : 'white',
                 }}
               >
@@ -1453,7 +1453,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                     disabled={busy}
                     style={{
                       padding: '3px 8px',
-                      borderRadius: 5,
+                      borderRadius: 10,
                       border: '1px solid #fecaca',
                       background: 'white',
                       color: '#b91c1c',
@@ -1541,7 +1541,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                             background: isDragTarget ? '#fef3c7' : 'transparent',
                             opacity: isDragSource ? 0.4 : 1,
                             border: isDragTarget ? '1px dashed #f59e0b' : '1px solid transparent',
-                            borderRadius: 4,
+                            borderRadius: 10,
                           }}
                         >
                           <span
@@ -1572,7 +1572,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                             disabled={busy}
                             style={{
                               padding: '3px 8px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: '1px solid #fecaca',
                               background: 'white',
                               color: '#b91c1c',
@@ -1594,7 +1594,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                         marginTop: 8,
                         padding: '8px',
                         background: 'white',
-                        borderRadius: 5,
+                        borderRadius: 10,
                         border: '1px dashed var(--border-strong)',
                         alignItems: 'center',
                       }}
@@ -1611,7 +1611,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                         disabled={busy || !(newTaskLabels[i] || '').trim()}
                         style={{
                           padding: '5px 10px',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           border: 'none',
                           background: busy || !(newTaskLabels[i] || '').trim() ? '#9ca3af' : '#57534e',
                           color: 'white',
@@ -1639,7 +1639,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
           marginTop: 10,
           padding: '10px',
           background: '#fafafa',
-          borderRadius: 6,
+          borderRadius: 10,
           border: '1px dashed var(--border-strong)',
           alignItems: 'center',
         }}
@@ -1668,7 +1668,7 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
           disabled={busy || !newVal}
           style={{
             padding: '6px 12px',
-            borderRadius: 6,
+            borderRadius: 10,
             border: 'none',
             background: busy || !newVal ? '#9ca3af' : '#57534e',
             color: 'white',
@@ -1788,7 +1788,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
               key={i}
               style={{
                 border: '1px solid var(--border)',
-                borderRadius: 6,
+                borderRadius: 10,
                 background: isExpanded ? 'var(--surface-2)' : 'white',
               }}
             >
@@ -1878,7 +1878,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                           background: isDragTarget ? '#fef3c7' : 'transparent',
                           opacity: isDragSource ? 0.4 : 1,
                           border: isDragTarget ? '1px dashed #f59e0b' : '1px solid transparent',
-                          borderRadius: 4,
+                          borderRadius: 10,
                         }}
                       >
                         <span
@@ -1909,7 +1909,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                           disabled={busy}
                           style={{
                             padding: '3px 8px',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             border: '1px solid #fecaca',
                             background: 'white',
                             color: '#b91c1c',
@@ -1931,7 +1931,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                       marginTop: 8,
                       padding: '8px',
                       background: 'white',
-                      borderRadius: 5,
+                      borderRadius: 10,
                       border: '1px dashed var(--border-strong)',
                       alignItems: 'center',
                     }}
@@ -1948,7 +1948,7 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                       disabled={busy || !(newTaskLabels[i] || '').trim()}
                       style={{
                         padding: '5px 10px',
-                        borderRadius: 5,
+                        borderRadius: 10,
                         border: 'none',
                         background: busy || !(newTaskLabels[i] || '').trim() ? '#9ca3af' : '#57534e',
                         color: 'white',

@@ -20,7 +20,7 @@ export default function DailyPhotoChip({photos}) {
         fontSize: 10,
         fontWeight: 700,
         padding: '1px 6px',
-        borderRadius: 6,
+        borderRadius: 10,
         background: '#eef2ff',
         color: '#4338ca',
         border: '1px solid #c7d2fe',

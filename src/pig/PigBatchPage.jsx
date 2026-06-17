@@ -595,7 +595,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           style={{
                             fontSize: 11,
                             padding: '3px 10px',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             border: '1px solid var(--border-strong)',
                             color: 'var(--ink-muted)',
                             background: 'white',
@@ -611,7 +611,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           style={{
                             fontSize: 11,
                             padding: '3px 10px',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             border: '1px solid #085041',
                             color: '#085041',
                             background: 'white',
@@ -627,7 +627,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         style={{
                           fontSize: 11,
                           padding: '3px 10px',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           border: '1px solid #fecaca',
                           color: '#b91c1c',
                           background: 'white',
@@ -776,7 +776,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           textAlign: 'center',
                           background: 'white',
                           border: '1px solid var(--border)',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           padding: '6px 10px',
                         }}
                       >
@@ -882,7 +882,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         }}
                         style={{
                           padding: '3px 10px',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           border: 'none',
                           background: '#ecfdf5',
                           color: '#083d30',
@@ -1022,7 +1022,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                 padding: '10px 12px',
                                 background: 'var(--surface-2)',
                                 border: '1px solid var(--border)',
-                                borderRadius: 6,
+                                borderRadius: 10,
                               }}
                             >
                               <div style={{fontSize: 11, color: 'var(--ink-faint)', marginBottom: 4}}>
@@ -1134,7 +1134,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           alignItems: 'center',
                           gap: '6px 12px',
                           padding: '8px 10px',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           border: '1px solid var(--border)',
                           marginBottom: 6,
                           background: sb.status === 'processed' ? 'var(--surface-2)' : 'white',
@@ -1192,7 +1192,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                               background: '#fef2f2',
                               border: '1px solid #fecaca',
                               padding: '1px 6px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                             }}
                             title="Latest daily count differs from ledger by more than 2"
                           >
@@ -1210,7 +1210,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                               style={{
                                 fontSize: 11,
                                 padding: '2px 8px',
-                                borderRadius: 5,
+                                borderRadius: 10,
                                 border: '1px solid var(--border-strong)',
                                 color: 'var(--ink-muted)',
                                 background: 'white',
@@ -1226,7 +1226,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                               style={{
                                 fontSize: 11,
                                 padding: '2px 8px',
-                                borderRadius: 5,
+                                borderRadius: 10,
                                 border: '1px solid #085041',
                                 color: '#085041',
                                 background: 'white',
@@ -1273,7 +1273,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           style={{
                             margin: '0 0 8px 0',
                             padding: '6px 10px',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             border: '1px dashed var(--border-strong)',
                             background: '#fafafa',
                           }}
@@ -1329,7 +1329,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     alignItems: 'center',
                                     background: 'white',
                                     border: '1px solid var(--border-strong)',
-                                    borderRadius: 6,
+                                    borderRadius: 10,
                                     padding: '6px 8px',
                                     fontSize: 11,
                                   }}
@@ -1343,7 +1343,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                       fontSize: 11,
                                       padding: '2px 4px',
                                       border: '1px solid var(--border-strong)',
-                                      borderRadius: 5,
+                                      borderRadius: 10,
                                       fontFamily: 'inherit',
                                       width: 132,
                                       minWidth: 132,
@@ -1363,7 +1363,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                       fontSize: 11,
                                       padding: '2px 4px',
                                       border: '1px solid var(--border-strong)',
-                                      borderRadius: 5,
+                                      borderRadius: 10,
                                       fontFamily: 'inherit',
                                       width: 70,
                                     }}
@@ -1390,7 +1390,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     style={{
                                       fontSize: 10,
                                       padding: '3px 10px',
-                                      borderRadius: 5,
+                                      borderRadius: 10,
                                       border: '1px solid #085041',
                                       background: '#085041',
                                       color: 'white',
@@ -1410,7 +1410,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     style={{
                                       fontSize: 10,
                                       padding: '3px 10px',
-                                      borderRadius: 5,
+                                      borderRadius: 10,
                                       border: '1px solid var(--border-strong)',
                                       background: 'white',
                                       color: 'var(--ink-muted)',
@@ -1454,7 +1454,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                           style={{
                                             fontSize: 10,
                                             padding: '3px 10px',
-                                            borderRadius: 5,
+                                            borderRadius: 10,
                                             border: '1px solid #1d4ed8',
                                             background: giltChainLocked ? '#f3f4f6' : 'white',
                                             color: giltChainLocked ? '#9ca3af' : '#1d4ed8',
@@ -1485,7 +1485,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                           style={{
                                             fontSize: 10,
                                             padding: '3px 10px',
-                                            borderRadius: 5,
+                                            borderRadius: 10,
                                             border: '1px solid #1d4ed8',
                                             background: boarChainLocked ? '#f3f4f6' : 'white',
                                             color: boarChainLocked ? '#9ca3af' : '#1d4ed8',
@@ -1556,7 +1556,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                     style={{
                                       background: tripLocked ? 'var(--surface-2)' : 'white',
                                       border: tripLocked ? '1px solid #cbd5f5' : '1px solid var(--border)',
-                                      borderRadius: 6,
+                                      borderRadius: 10,
                                       padding: '6px 10px',
                                       fontSize: 11,
                                       display: 'flex',
@@ -1616,7 +1616,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                               width: 24,
                                               height: 22,
                                               padding: 0,
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid #bfdbfe',
                                               background: '#eff6ff',
                                               color: '#1d4ed8',
@@ -1636,7 +1636,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 5px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid #bfdbfe',
                                               background: 'white',
                                               color: '#1d4ed8',
@@ -1653,7 +1653,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 5px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid #bfdbfe',
                                               background: 'white',
                                               color: '#1d4ed8',
@@ -1670,7 +1670,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 6px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid #c7d2fe',
                                               background: 'white',
                                               color: '#3730a3',
@@ -1699,7 +1699,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             fontSize: 11,
                                             padding: '2px 4px',
                                             border: '1px solid var(--border-strong)',
-                                            borderRadius: 5,
+                                            borderRadius: 10,
                                             fontFamily: 'inherit',
                                             width: 132,
                                           }}
@@ -1719,7 +1719,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             fontSize: 10,
                                             fontWeight: 700,
                                             padding: '1px 6px',
-                                            borderRadius: 6,
+                                            borderRadius: 10,
                                             background: '#d1fae5',
                                             color: '#065f46',
                                             textTransform: 'uppercase',
@@ -1734,7 +1734,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             fontSize: 10,
                                             fontWeight: 700,
                                             padding: '1px 6px',
-                                            borderRadius: 6,
+                                            borderRadius: 10,
                                             background: '#fef3c7',
                                             color: '#92400e',
                                             textTransform: 'uppercase',
@@ -1749,7 +1749,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             fontSize: 10,
                                             fontWeight: 700,
                                             padding: '1px 6px',
-                                            borderRadius: 6,
+                                            borderRadius: 10,
                                             background: '#fee2e2',
                                             color: '#991b1b',
                                             textTransform: 'uppercase',
@@ -1777,7 +1777,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 6px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid var(--border-strong)',
                                               background: 'white',
                                               color: (parseInt(t.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
@@ -1797,7 +1797,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 6px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid var(--border-strong)',
                                               background: 'white',
                                               color: (parseInt(t.plannedCount) || 0) > 0 ? '#1d4ed8' : '#9ca3af',
@@ -1816,7 +1816,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 6px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid #fecaca',
                                               background: 'white',
                                               color: '#b91c1c',
@@ -1845,7 +1845,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             padding: '6px 8px',
                                             border: '1px solid #fecaca',
                                             background: '#fef2f2',
-                                            borderRadius: 6,
+                                            borderRadius: 10,
                                             alignItems: 'center',
                                           }}
                                         >
@@ -1866,7 +1866,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 8px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid var(--border-strong)',
                                               background: 'white',
                                               color: 'var(--ink-muted)',
@@ -1882,7 +1882,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 10px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: 'none',
                                               background: '#b91c1c',
                                               color: 'white',
@@ -1902,7 +1902,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                             style={{
                                               fontSize: 10,
                                               padding: '2px 8px',
-                                              borderRadius: 5,
+                                              borderRadius: 10,
                                               border: '1px solid #c7d2fe',
                                               background: 'white',
                                               color: '#3730a3',
@@ -2053,7 +2053,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                         padding: '5px 9px',
                                         background: '#ecfdf5',
                                         border: '1px solid #a7f3d0',
-                                        borderRadius: 5,
+                                        borderRadius: 10,
                                       }}
                                     >
                                       <strong>Sources:</strong>{' '}
@@ -2070,7 +2070,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                         padding: '5px 9px',
                                         background: '#fffbeb',
                                         border: '1px solid #fde68a',
-                                        borderRadius: 5,
+                                        borderRadius: 10,
                                       }}
                                     >
                                       No linked weigh-in entries found. This existing trip is using stored legacy
@@ -2299,7 +2299,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                 alignItems: 'center',
                                 padding: '4px 8px',
                                 background: 'white',
-                                borderRadius: 5,
+                                borderRadius: 10,
                                 border: '1px solid #fde68a',
                                 flexWrap: 'wrap',
                               }}

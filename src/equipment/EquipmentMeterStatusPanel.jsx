@@ -142,7 +142,7 @@ export default function EquipmentMeterStatusPanel({equipment, fuelings, fmt, onR
         style={{
           background: palette.bg,
           border: '1px solid ' + palette.border,
-          borderRadius: 8,
+          borderRadius: 10,
           padding: '10px 12px',
           marginBottom: 10,
         }}
@@ -161,7 +161,7 @@ export default function EquipmentMeterStatusPanel({equipment, fuelings, fmt, onR
               data-meter-sync-button="1"
               style={{
                 padding: '5px 12px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid #085041',
                 background: busy ? '#9ca3af' : '#085041',
                 color: 'white',

@@ -215,7 +215,7 @@ export default function CompleteTaskModal({sb, task, isOpen, onClose, onComplete
                       padding: '4px 8px',
                       background: 'var(--divider)',
                       border: '1px solid var(--border)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 6,

@@ -175,6 +175,11 @@ function collectLoadErrorSurfaces() {
   for (const file of runtimeSourceFiles()) {
     const rel = path.relative(ROOT, file).replace(/\\/g, '/');
     if (rel === 'src/shared/OperationalListEmptyState.jsx') continue;
+    // DataTable is a generic primitive that RECEIVES loadError as a prop and
+    // renders the shared InlineNotice + Retry on behalf of its host surface.
+    // The consuming surfaces carry their own inventoried fail-closed loading;
+    // the primitive itself is not a load-bearing surface. (CP0 §A6.)
+    if (rel === 'src/shared/DataTable.jsx') continue;
 
     const code = stripComments(fs.readFileSync(file, 'utf8'));
     if (!/\b(loadError|loadFailed|notifLoadError)\b/.test(code)) continue;

@@ -79,14 +79,14 @@ const inpS = {
   fontSize: 13,
   padding: '7px 10px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 6,
+  borderRadius: 10,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
 };
 
 const ghostBtnS = {
   padding: '6px 12px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid var(--border-strong)',
   background: 'white',
   color: 'var(--ink)',
@@ -687,7 +687,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
           onClick={() => setShowAdd(true)}
           style={{
             padding: '7px 16px',
-            borderRadius: 8,
+            borderRadius: 10,
             border: 'none',
             background: EQUIPMENT_COLOR,
             color: 'white',
@@ -730,7 +730,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
                 style={{
                   fontSize: 11,
                   padding: '3px 10px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -962,7 +962,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
                 fontSize: 12,
                 color: 'var(--ink)',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '4px 8px',
               }}
             >
@@ -997,7 +997,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
                 fontSize: 12,
                 color: 'var(--ink)',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '4px 8px',
               }}
             >
@@ -1033,7 +1033,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
               onClick={() => setShowAdd(true)}
               style={{
                 padding: '7px 16px',
-                borderRadius: 8,
+                borderRadius: 10,
                 border: 'none',
                 background: EQUIPMENT_COLOR,
                 color: 'white',

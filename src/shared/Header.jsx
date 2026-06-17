@@ -222,7 +222,7 @@ const ROLE_PREVIEW_LABELS = {
 const ROLE_PREVIEW_SELECT = {
   width: '100%',
   padding: '7px 9px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid #d1d5db',
   background: 'white',
   color: '#111827',
@@ -418,7 +418,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   const inSubnav = inPoultry || inPigs || inLayers || inCattle || inSheep;
   const nb = (active) => ({
     padding: '7px 16px',
-    borderRadius: 6,
+    borderRadius: 10,
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: 12,
@@ -430,7 +430,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   });
   const ghostBtn = {
     padding: '7px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid #d1d5db',
     cursor: 'pointer',
     fontSize: 12,
@@ -688,7 +688,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                           onClick={() => setNotifReloadKey((k) => k + 1)}
                           style={{
                             padding: '6px 12px',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             border: '1px solid #b91c1c',
                             background: '#b91c1c',
                             color: 'white',

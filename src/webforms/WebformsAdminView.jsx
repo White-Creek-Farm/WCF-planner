@@ -76,7 +76,7 @@ function TeamAvailabilityEditor({loadUsers}) {
   const card = {
     background: 'linear-gradient(180deg, #ffffff 0%, #fbfdfc 100%)',
     border: '1px solid #d8e4de',
-    borderRadius: 8,
+    borderRadius: 14,
     boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',
     marginBottom: 18,
     overflow: 'hidden',
@@ -89,7 +89,7 @@ function TeamAvailabilityEditor({loadUsers}) {
     minHeight: 54,
     padding: '10px 12px',
     border: '1px solid var(--border)',
-    borderRadius: 8,
+    borderRadius: 10,
     background: '#ffffff',
     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
     fontSize: 12,
@@ -278,7 +278,7 @@ function TeamAvailabilityEditor({loadUsers}) {
             border: '1px solid #fecaca',
             color: '#b91c1c',
             padding: '6px 10px',
-            borderRadius: 6,
+            borderRadius: 10,
             fontSize: 12,
           }}
         >
@@ -444,7 +444,7 @@ export default function WebformsAdminView({
           onClick={() => setView('home')}
           style={{
             padding: '7px 12px',
-            borderRadius: 8,
+            borderRadius: 10,
             border: '1px solid var(--border-strong)',
             cursor: 'pointer',
             fontSize: 12,
@@ -476,7 +476,7 @@ export default function WebformsAdminView({
               }}
               style={{
                 padding: '7px 16px',
-                borderRadius: 8,
+                borderRadius: 10,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 fontSize: 12,
@@ -622,7 +622,7 @@ export default function WebformsAdminView({
                     onClick={addSection}
                     style={{
                       padding: '6px 14px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: 'none',
                       background: '#085041',
                       color: 'white',
@@ -708,7 +708,7 @@ export default function WebformsAdminView({
                             fontSize: 13,
                             fontWeight: 600,
                             border: '1px solid #3b82f6',
-                            borderRadius: 4,
+                            borderRadius: 10,
                             padding: '2px 6px',
                             flex: 1,
                           }}
@@ -733,7 +733,7 @@ export default function WebformsAdminView({
                                 color: '#085041',
                                 background: '#ecfdf5',
                                 border: '1px solid #a7f3d0',
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 padding: '1px 5px',
                               }}
                             >
@@ -769,7 +769,7 @@ export default function WebformsAdminView({
                           style={{
                             fontSize: 11,
                             padding: '3px 10px',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             border: '1px solid var(--border-strong)',
                             background: 'white',
                             color: '#085041',
@@ -845,7 +845,7 @@ export default function WebformsAdminView({
                                   key={o}
                                   style={{
                                     background: '#e5e7eb',
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                     padding: '2px 8px',
                                     fontSize: 11,
                                     display: 'flex',
@@ -903,7 +903,7 @@ export default function WebformsAdminView({
                                 }}
                                 style={{
                                   padding: '5px 10px',
-                                  borderRadius: 5,
+                                  borderRadius: 10,
                                   border: 'none',
                                   background: '#374151',
                                   color: 'white',
@@ -939,7 +939,7 @@ export default function WebformsAdminView({
                             onClick={() => saveNewField(si)}
                             style={{
                               padding: '6px 14px',
-                              borderRadius: 6,
+                              borderRadius: 10,
                               border: 'none',
                               background: '#085041',
                               color: 'white',
@@ -959,7 +959,7 @@ export default function WebformsAdminView({
                             }}
                             style={{
                               padding: '6px 12px',
-                              borderRadius: 6,
+                              borderRadius: 10,
                               border: '1px solid var(--border-strong)',
                               background: 'white',
                               color: 'var(--ink)',
@@ -1051,7 +1051,7 @@ export default function WebformsAdminView({
                               style={{
                                 fontSize: 13,
                                 border: '1px solid #3b82f6',
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 padding: '2px 6px',
                                 width: '100%',
                               }}
@@ -1084,7 +1084,7 @@ export default function WebformsAdminView({
                               style={{
                                 fontSize: 10,
                                 padding: '1px 6px',
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 background: TYPE_COLOR[f.type] || '#374151',
                                 color: 'white',
                                 fontWeight: 500,
@@ -1097,7 +1097,7 @@ export default function WebformsAdminView({
                                 style={{
                                   fontSize: 10,
                                   padding: '1px 6px',
-                                  borderRadius: 4,
+                                  borderRadius: 10,
                                   background: '#fef3c7',
                                   color: '#92400e',
                                   fontWeight: 500,
@@ -1111,7 +1111,7 @@ export default function WebformsAdminView({
                                 style={{
                                   fontSize: 10,
                                   padding: '1px 6px',
-                                  borderRadius: 4,
+                                  borderRadius: 10,
                                   background: '#f3f4f6',
                                   color: '#6b7280',
                                 }}
@@ -1145,7 +1145,7 @@ export default function WebformsAdminView({
                                 style={{
                                   fontSize: 11,
                                   padding: '3px 8px',
-                                  borderRadius: 5,
+                                  borderRadius: 10,
                                   border: '1px solid var(--border-strong)',
                                   background: f.required ? '#fef3c7' : 'white',
                                   color: f.required ? '#92400e' : 'var(--ink-muted)',
@@ -1160,7 +1160,7 @@ export default function WebformsAdminView({
                                 style={{
                                   fontSize: 11,
                                   padding: '3px 8px',
-                                  borderRadius: 5,
+                                  borderRadius: 10,
                                   border: '1px solid var(--border-strong)',
                                   background: 'white',
                                   color: 'var(--ink-muted)',
@@ -1200,7 +1200,7 @@ export default function WebformsAdminView({
                     onClick={() => setView('home')}
                     style={{
                       padding: '5px 14px',
-                      borderRadius: 7,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: 'var(--ink)',
@@ -1279,7 +1279,7 @@ export default function WebformsAdminView({
                           }}
                           style={{
                             padding: '6px 16px',
-                            borderRadius: 7,
+                            borderRadius: 10,
                             border: 'none',
                             background: accent,
                             color: 'white',

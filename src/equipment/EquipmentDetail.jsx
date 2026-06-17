@@ -379,7 +379,7 @@ export default function EquipmentDetail({
     fontSize: 12,
     padding: '5px 8px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 5,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -444,7 +444,7 @@ export default function EquipmentDetail({
             style={{
               marginLeft: 'auto',
               padding: '5px 12px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid ' + (eq.status === 'sold' ? '#047857' : '#b45309'),
               background: 'white',
               color: eq.status === 'sold' ? '#047857' : '#92400e',
@@ -483,7 +483,7 @@ export default function EquipmentDetail({
               padding: '6px 10px',
               background: '#fffbeb',
               border: '1px solid #fde68a',
-              borderRadius: 6,
+              borderRadius: 10,
               fontSize: 12,
               color: '#92400e',
             }}
@@ -545,7 +545,7 @@ export default function EquipmentDetail({
                     style={{
                       background: bg,
                       border: '1px solid ' + bd,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '8px 10px',
                       fontSize: 11,
                     }}
@@ -651,7 +651,7 @@ export default function EquipmentDetail({
           <div style={{fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic'}}>No fueling entries yet.</div>
         )}
         {sortedFuelings.length > 0 && (
-          <div style={{border: '1px solid var(--divider)', borderRadius: 6, overflow: 'hidden'}}>
+          <div style={{border: '1px solid var(--divider)', borderRadius: 10, overflow: 'hidden'}}>
             <div
               style={{
                 display: 'grid',
@@ -742,7 +742,7 @@ export default function EquipmentDetail({
                             flexShrink: 0,
                             fontSize: 10,
                             padding: '1px 6px',
-                            borderRadius: 3,
+                            borderRadius: 999,
                             fontWeight: 700,
                             letterSpacing: 0.3,
                             background: c.isFull ? '#dbeafe' : '#fef3c7',
@@ -761,7 +761,7 @@ export default function EquipmentDetail({
                             flexShrink: 0,
                             fontSize: 10,
                             padding: '1px 6px',
-                            borderRadius: 3,
+                            borderRadius: 999,
                             fontWeight: 700,
                             background: '#f3f4f6',
                             color: '#374151',
@@ -946,7 +946,7 @@ export default function EquipmentDetail({
                                     style={{
                                       fontSize: 10,
                                       padding: '3px 8px',
-                                      borderRadius: 4,
+                                      borderRadius: 10,
                                       fontFamily: 'inherit',
                                       cursor: 'pointer',
                                       background: ticked ? '#d1fae5' : 'white',
@@ -967,7 +967,7 @@ export default function EquipmentDetail({
                                   style={{
                                     fontSize: 10,
                                     padding: '3px 8px',
-                                    borderRadius: 4,
+                                    borderRadius: 10,
                                     background: '#f3f4f6',
                                     color: '#6b7280',
                                     border: '1px dashed #d1d5db',
@@ -1009,7 +1009,7 @@ export default function EquipmentDetail({
                                   padding: '8px 10px',
                                   background: 'white',
                                   border: '1px solid ' + (isFull ? '#bfdbfe' : '#fde68a'),
-                                  borderRadius: 6,
+                                  borderRadius: 10,
                                 }}
                               >
                                 <div
@@ -1039,7 +1039,7 @@ export default function EquipmentDetail({
                                     style={{
                                       flexShrink: 0,
                                       padding: '2px 8px',
-                                      borderRadius: 4,
+                                      borderRadius: 10,
                                       border: '1px solid #fecaca',
                                       background: 'white',
                                       color: '#b91c1c',
@@ -1063,7 +1063,7 @@ export default function EquipmentDetail({
                                           style={{
                                             fontSize: 10,
                                             padding: '3px 8px',
-                                            borderRadius: 4,
+                                            borderRadius: 10,
                                             fontFamily: 'inherit',
                                             cursor: 'pointer',
                                             background: ticked ? '#eff6ff' : 'white',
@@ -1084,7 +1084,7 @@ export default function EquipmentDetail({
                                         style={{
                                           fontSize: 10,
                                           padding: '3px 8px',
-                                          borderRadius: 4,
+                                          borderRadius: 10,
                                           background: '#f3f4f6',
                                           color: '#6b7280',
                                           border: '1px dashed #d1d5db',
@@ -1124,7 +1124,7 @@ export default function EquipmentDetail({
                                     width: 90,
                                     height: 90,
                                     objectFit: 'cover',
-                                    borderRadius: 6,
+                                    borderRadius: 10,
                                     border: '1px solid var(--border)',
                                     cursor: 'pointer',
                                   }}
@@ -1139,7 +1139,7 @@ export default function EquipmentDetail({
                           onClick={() => deleteFueling(f.id)}
                           style={{
                             padding: '4px 10px',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             border: '1px solid #fecaca',
                             background: 'white',
                             color: '#b91c1c',
@@ -1188,7 +1188,7 @@ export default function EquipmentDetail({
                 color: 'white',
                 background: EQUIPMENT_COLOR,
                 border: 'none',
-                borderRadius: 5,
+                borderRadius: 10,
                 padding: '5px 12px',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -1209,7 +1209,7 @@ export default function EquipmentDetail({
                   style={{
                     background: '#fafafa',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     padding: '10px 14px',
                   }}
                 >
@@ -1221,7 +1221,7 @@ export default function EquipmentDetail({
                           fontSize: 10,
                           fontWeight: 700,
                           padding: '1px 8px',
-                          borderRadius: 4,
+                          borderRadius: 999,
                           background: '#eff6ff',
                           color: '#1e40af',
                           textTransform: 'uppercase',
@@ -1312,7 +1312,7 @@ export default function EquipmentDetail({
                               width: 80,
                               height: 80,
                               objectFit: 'cover',
-                              borderRadius: 6,
+                              borderRadius: 10,
                               border: '1px solid var(--border)',
                             }}
                           />
@@ -1416,7 +1416,7 @@ export default function EquipmentDetail({
                     transform: 'translateY(-50%)',
                     width: 48,
                     height: 64,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: 'none',
                     background: 'rgba(255,255,255,.12)',
                     color: 'white',
@@ -1436,7 +1436,7 @@ export default function EquipmentDetail({
                   maxWidth: '100%',
                   maxHeight: 'calc(100vh - 80px)',
                   objectFit: 'contain',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   boxShadow: '0 10px 40px rgba(0,0,0,.4)',
                 }}
               />
@@ -1451,7 +1451,7 @@ export default function EquipmentDetail({
                     transform: 'translateY(-50%)',
                     width: 48,
                     height: 64,
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: 'none',
                     background: 'rgba(255,255,255,.12)',
                     color: 'white',
@@ -1473,7 +1473,7 @@ export default function EquipmentDetail({
                   background: 'rgba(0,0,0,.65)',
                   color: 'white',
                   padding: '10px 16px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   fontSize: 12,
                   maxWidth: '80%',
                   textAlign: 'center',

@@ -474,7 +474,7 @@ const LayerBatchesHub = ({
 
   const fieldS = {
     padding: '6px 10px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
@@ -514,7 +514,7 @@ const LayerBatchesHub = ({
             onClick={loadLayerMetrics}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#085041',
@@ -548,7 +548,7 @@ const LayerBatchesHub = ({
                   data-layer-batches-export-csv="1"
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -565,7 +565,7 @@ const LayerBatchesHub = ({
                   data-layer-batches-print="1"
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -585,7 +585,7 @@ const LayerBatchesHub = ({
                 data-layer-new-batch
                 style={{
                   padding: '7px 18px',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#085041',
                   color: 'white',
@@ -1124,7 +1124,7 @@ const LayerBatchesHub = ({
                   color: 'var(--ink-muted)',
                   background: 'var(--surface-2)',
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '8px 10px',
                 }}
               >
@@ -1140,7 +1140,7 @@ const LayerBatchesHub = ({
                 data-layer-new-batch-save
                 style={{
                   padding: '8px 18px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: 'none',
                   background: addBusy ? '#9ca3af' : '#085041',
                   color: 'white',
@@ -1157,7 +1157,7 @@ const LayerBatchesHub = ({
                 onClick={() => setShowAddBatch(false)}
                 style={{
                   padding: '8px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',

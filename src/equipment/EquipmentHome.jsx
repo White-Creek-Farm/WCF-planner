@@ -151,7 +151,7 @@ export default function EquipmentHome({
 
   const subNavBtn = (active) => ({
     padding: '7px 14px',
-    borderRadius: 8,
+    borderRadius: 10,
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: 12,
@@ -229,7 +229,7 @@ export default function EquipmentHome({
             <span
               style={{
                 padding: '7px 14px',
-                borderRadius: 8,
+                borderRadius: 10,
                 border: '2px solid var(--brand)',
                 background: 'white',
                 color: 'var(--brand)',
@@ -284,7 +284,7 @@ export default function EquipmentHome({
                     onClick={() => loadAll()}
                     style={{
                       padding: '7px 14px',
-                      borderRadius: 7,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: '#57534e',

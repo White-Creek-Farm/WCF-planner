@@ -45,7 +45,7 @@ export const taskModalInput = {
   width: '100%',
   padding: '8px 11px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 14,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
@@ -54,7 +54,7 @@ export const taskModalInput = {
 export const taskModalReadOnlyBlock = {
   background: 'var(--surface-2)',
   border: '1px solid var(--border)',
-  borderRadius: 6,
+  borderRadius: 10,
   padding: '8px 12px',
   fontSize: 13,
   color: 'var(--ink)',
@@ -63,7 +63,7 @@ export const taskModalReadOnlyBlock = {
 
 const taskModalButtonBase = {
   padding: '10px 16px',
-  borderRadius: 6,
+  borderRadius: 10,
   cursor: 'pointer',
   fontSize: 13,
   fontWeight: 600,
@@ -96,7 +96,7 @@ export const taskModalErrorNotice = {
   border: '1px solid #fecaca',
   color: '#991b1b',
   padding: '8px 12px',
-  borderRadius: 6,
+  borderRadius: 10,
   marginTop: 12,
   fontSize: 13,
 };
@@ -104,7 +104,7 @@ export const taskModalErrorNotice = {
 export const taskModalHistoryRow = {
   background: 'var(--surface-2)',
   border: '1px solid var(--border)',
-  borderRadius: 6,
+  borderRadius: 10,
   padding: '6px 10px',
   fontSize: 12,
   color: 'var(--ink)',

@@ -134,7 +134,7 @@ export default function SheepSendToProcessorModal({
     fontSize: 13,
     padding: '8px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     width: '100%',
     boxSizing: 'border-box',
     background: 'white',
@@ -188,7 +188,7 @@ export default function SheepSendToProcessorModal({
                 style={{
                   flex: 1,
                   padding: '7px 10px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid ' + (mode === 'existing' ? '#0f766e' : '#d1d5db'),
                   background: mode === 'existing' ? '#0f766e' : 'white',
                   color: mode === 'existing' ? 'white' : plannedBatches.length === 0 ? '#d1d5db' : '#374151',
@@ -206,7 +206,7 @@ export default function SheepSendToProcessorModal({
                 style={{
                   flex: 1,
                   padding: '7px 10px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid ' + (mode === 'new' ? '#0f766e' : '#d1d5db'),
                   background: mode === 'new' ? '#0f766e' : 'white',
                   color: mode === 'new' ? 'white' : '#374151',
@@ -269,7 +269,7 @@ export default function SheepSendToProcessorModal({
               marginBottom: 10,
               padding: '6px 10px',
               background: '#fef2f2',
-              borderRadius: 6,
+              borderRadius: 10,
             }}
           >
             {err}

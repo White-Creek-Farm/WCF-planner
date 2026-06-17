@@ -415,13 +415,13 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
   };
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -464,7 +464,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 data-broiler-batches-export-csv="1"
                 style={{
                   padding: '7px 12px',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -482,7 +482,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 data-broiler-batches-print="1"
                 style={{
                   padding: '7px 12px',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -499,7 +499,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
           <button
             style={{
               padding: '7px 18px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: 'none',
               background: '#085041',
               color: 'white',
@@ -858,7 +858,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           display: 'inline-block',
                           width: 10,
                           height: 10,
-                          borderRadius: 2,
+                          borderRadius: 2 /* radius-allow: 10px legend swatch */,
                           background: C.bg,
                           marginRight: 6,
                           verticalAlign: 'middle',
@@ -1055,7 +1055,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       color: '#085041',
                       background: 'none',
                       border: '1px solid #085041',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '3px 10px',
                       cursor: 'pointer',
                     }}
@@ -1195,7 +1195,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                               <span
                                 style={{
                                   padding: '2px 8px',
-                                  borderRadius: 4,
+                                  borderRadius: 999,
                                   fontSize: 10,
                                   fontWeight: 600,
                                   background: '#fef9c3',
@@ -1330,7 +1330,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       <span
                         style={{
                           padding: '2px 8px',
-                          borderRadius: 4,
+                          borderRadius: 999,
                           fontSize: 11,
                           fontWeight: 600,
                           background: '#fef9c3',
@@ -1421,7 +1421,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         {l: 'Lbs / Bird', v: lbsPerBird ? `${lbsPerBird} lbs` : '—'},
                       ];
                     })().map(({l, v, warn}) => (
-                      <div key={l} style={{background: 'var(--surface-2)', borderRadius: 6, padding: '6px 8px'}}>
+                      <div key={l} style={{background: 'var(--surface-2)', borderRadius: 10, padding: '6px 8px'}}>
                         <div
                           style={{
                             color: 'var(--ink-faint)',
@@ -1484,7 +1484,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         {l: 'Total Cost', v: totalCost > 0 ? `$${totalCost.toFixed(2)}` : '—'},
                         {l: 'Per Bird Cost', v: perBird > 0 ? `$${perBird.toFixed(2)}` : '—'},
                       ].map(({l, v}) => (
-                        <div key={l} style={{background: 'rgba(255,255,255,.6)', borderRadius: 6, padding: '6px 8px'}}>
+                        <div key={l} style={{background: 'rgba(255,255,255,.6)', borderRadius: 10, padding: '6px 8px'}}>
                           <div
                             style={{
                               color: '#92400e',

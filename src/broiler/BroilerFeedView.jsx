@@ -744,7 +744,7 @@ export default function BroilerFeedView({
                         fontSize: 13,
                         padding: '4px 8px',
                         border: '1px solid var(--border-strong)',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         textAlign: 'right',
                         fontFamily: 'inherit',
                         fontWeight: 600,
@@ -793,7 +793,7 @@ export default function BroilerFeedView({
               style={{
                 fontSize: 11,
                 padding: '4px 10px',
-                borderRadius: 5,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: 'var(--ink-muted)',
@@ -819,7 +819,7 @@ export default function BroilerFeedView({
               disabled={!saveEnabled}
               style={{
                 padding: '8px 18px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: saveEnabled ? '#085041' : '#9ca3af',
                 color: 'white',
@@ -903,7 +903,7 @@ export default function BroilerFeedView({
                   fontSize: 13,
                   padding: '7px 10px',
                   border: '1px solid var(--border-strong)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   fontFamily: 'inherit',
                 }}
               >
@@ -928,7 +928,7 @@ export default function BroilerFeedView({
                   fontSize: 13,
                   padding: '7px 10px',
                   border: '1px solid var(--border-strong)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   width: 100,
                   fontFamily: 'inherit',
                 }}
@@ -941,7 +941,7 @@ export default function BroilerFeedView({
                 gap: 8,
                 padding: '7px 12px',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 background: 'var(--surface-2)',
                 fontSize: 12,
                 color: '#000',
@@ -974,7 +974,7 @@ export default function BroilerFeedView({
               }}
               style={{
                 padding: '7px 16px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: '#085041',
                 color: 'white',
@@ -1039,7 +1039,7 @@ export default function BroilerFeedView({
                     display: 'inline-block',
                     width: 12,
                     height: 12,
-                    borderRadius: 3,
+                    borderRadius: 3 /* radius-allow: 12px legend swatch */,
                     background: C.bg,
                     border: '1px solid ' + C.bd,
                   },
@@ -1245,7 +1245,7 @@ export default function BroilerFeedView({
                             {
                               style: {
                                 padding: '2px 7px',
-                                borderRadius: 4,
+                                borderRadius: 999,
                                 fontSize: 10,
                                 fontWeight: 600,
                                 background: w.phase === 'starter' ? '#E6F1FB' : '#EAF3DE',

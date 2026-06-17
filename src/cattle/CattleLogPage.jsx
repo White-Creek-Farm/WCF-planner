@@ -105,7 +105,7 @@ const CONTROL = {
   fontSize: 13,
   padding: '7px 10px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 6,
+  borderRadius: 10,
   fontFamily: 'inherit',
   width: '100%',
   boxSizing: 'border-box',
@@ -114,7 +114,7 @@ const CONTROL = {
 const LBL = {fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500};
 const PRIMARY_BTN = {
   padding: '10px 16px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid #085041',
   background: '#085041',
   color: 'white',
@@ -129,7 +129,7 @@ const PRIMARY_BTN = {
 const PRIMARY_BTN_DISABLED = {...PRIMARY_BTN, background: '#9ca3af', borderColor: '#9ca3af', cursor: 'not-allowed'};
 const SMALL_BTN = {
   padding: '4px 10px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid var(--border-strong)',
   background: 'white',
   color: 'var(--ink)',
@@ -149,12 +149,18 @@ const LINK_BTN = {
   cursor: 'pointer',
   fontFamily: 'inherit',
 };
-const MENTION_CHIP = {background: '#fef3c7', color: '#92400e', borderRadius: 4, padding: '0 4px', fontWeight: 600};
+const MENTION_CHIP = {
+  background: '#fef3c7',
+  color: '#92400e',
+  borderRadius: 4 /* radius-allow: inline mention chip, no vertical padding */,
+  padding: '0 4px',
+  fontWeight: 600,
+};
 const TAG_CHIP_RESOLVED = {
   background: '#ecfdf5',
   border: '1px solid #a7f3d0',
   color: '#065f46',
-  borderRadius: 4,
+  borderRadius: 4 /* radius-allow: inline tag chip, no vertical padding */,
   padding: '0 4px',
   fontWeight: 600,
 };
@@ -162,7 +168,7 @@ const TAG_CHIP_UNRESOLVED = {
   background: '#fffbeb',
   border: '1px solid #fde68a',
   color: '#92400e',
-  borderRadius: 4,
+  borderRadius: 4 /* radius-allow: inline tag chip, no vertical padding */,
   padding: '0 4px',
   fontWeight: 600,
 };
@@ -170,13 +176,13 @@ const TAG_CHIP_AMBIGUOUS = {
   background: '#fef2f2',
   border: '1px solid #fca5a5',
   color: '#b91c1c',
-  borderRadius: 4,
+  borderRadius: 4 /* radius-allow: inline tag chip, no vertical padding */,
   padding: '0 4px',
   fontWeight: 600,
 };
 const filterBtn = (active) => ({
   padding: '7px 16px',
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
@@ -317,7 +323,7 @@ function CattleLogAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
           alignItems: 'center',
           gap: 4,
           padding: '4px 8px',
-          borderRadius: 6,
+          borderRadius: 10,
           border: '1px solid var(--border)',
           background: 'var(--divider)',
           fontSize: 11,
@@ -340,7 +346,7 @@ function CattleLogAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
         display: 'block',
         width: 60,
         height: 60,
-        borderRadius: 6,
+        borderRadius: 10,
         overflow: 'hidden',
         border: '1px solid var(--border)',
         background: 'var(--divider)',
@@ -443,7 +449,7 @@ function CalfNotePanel({tag, note, onChange, originOptions, breedOptions, damTag
   return (
     <div
       data-cattle-log-calf-panel={tag}
-      style={{border: '1px solid #fde68a', background: '#fffbeb', borderRadius: 6, padding: '10px 12px', marginTop: 8}}
+      style={{border: '1px solid #fde68a', background: '#fffbeb', borderRadius: 10, padding: '10px 12px', marginTop: 8}}
     >
       <div style={{fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 8}}>
         #{tag} doesn't match an active cow — add calf details
@@ -1401,7 +1407,7 @@ export default function CattleLogPage({sb, authState, Header}) {
                 const rowStyle = {
                   border: '1px solid #fde68a',
                   background: 'white',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '8px 10px',
                   fontFamily: 'inherit',
                   textAlign: 'left',
@@ -1462,7 +1468,7 @@ export default function CattleLogPage({sb, authState, Header}) {
                 style={{
                   border: '1px solid #fca5a5',
                   background: '#fef2f2',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '10px 12px',
                   fontSize: 12,
                   color: '#7f1d1d',
@@ -1517,7 +1523,7 @@ export default function CattleLogPage({sb, authState, Header}) {
                 style={{
                   border: '1px solid #fde68a',
                   background: '#fffbeb',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '10px 12px',
                   fontSize: 12,
                   color: '#78716c',
@@ -1650,7 +1656,7 @@ export default function CattleLogPage({sb, authState, Header}) {
                                   alignItems: 'center',
                                   gap: 4,
                                   padding: '3px 8px',
-                                  borderRadius: 6,
+                                  borderRadius: 10,
                                   border: '1px solid var(--border)',
                                   background: 'var(--divider)',
                                   color: 'var(--ink)',
@@ -1762,7 +1768,7 @@ export default function CattleLogPage({sb, authState, Header}) {
                               color: '#92400e',
                               background: '#fffbeb',
                               border: '1px solid #fde68a',
-                              borderRadius: 6,
+                              borderRadius: 10,
                               padding: '6px 8px',
                             }}
                           >

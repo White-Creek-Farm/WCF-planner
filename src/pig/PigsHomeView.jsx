@@ -236,7 +236,7 @@ export default function PigsHomeView({Header, loadUsers}) {
       onClick={() => setView(v)}
       style={{
         padding: '8px 16px',
-        borderRadius: 8,
+        borderRadius: 10,
         border: '1px solid var(--border-strong)',
         background: 'white',
         fontSize: 12,
@@ -251,13 +251,21 @@ export default function PigsHomeView({Header, loadUsers}) {
   );
   const trendBar = (val, max, color) => (
     <div style={{display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4}}>
-      <div style={{flex: 1, height: 7, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden'}}>
+      <div
+        style={{
+          flex: 1,
+          height: 7,
+          background: '#f0f0f0',
+          borderRadius: 4 /* radius-allow: trend bar track (height 7) */,
+          overflow: 'hidden',
+        }}
+      >
         <div
           style={{
             height: '100%',
             width: `${Math.min(100, max > 0 ? (val / max) * 100 : 0)}%`,
             background: color,
-            borderRadius: 4,
+            borderRadius: 4 /* radius-allow: trend bar fill (height 7) */,
           }}
         />
       </div>
@@ -702,7 +710,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                                 padding: '8px 10px',
                                 background: 'var(--surface-2)',
                                 border: '1px solid var(--divider)',
-                                borderRadius: 8,
+                                borderRadius: 10,
                               }}
                             >
                               <div

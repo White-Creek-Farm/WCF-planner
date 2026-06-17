@@ -336,7 +336,7 @@ const CattleHomeView = ({
               padding: '8px 10px',
               background: 'var(--surface-2)',
               border: '1px solid var(--divider)',
-              borderRadius: 8,
+              borderRadius: 10,
               minWidth: 0,
               overflow: 'hidden',
             }}
@@ -381,7 +381,7 @@ const CattleHomeView = ({
     <div
       style={{
         display: 'flex',
-        borderRadius: 8,
+        borderRadius: 10,
         overflow: 'hidden',
         border: '1px solid var(--border-strong)',
         width: 'fit-content',
@@ -467,7 +467,7 @@ const CattleHomeView = ({
               onClick={loadAll}
               style={{
                 padding: '7px 14px',
-                borderRadius: 8,
+                borderRadius: 10,
                 border: '1px solid #991b1b',
                 background: 'white',
                 color: '#991b1b',
@@ -534,7 +534,7 @@ const CattleHomeView = ({
                 padding: '3px 8px',
                 background: '#991b1b',
                 color: 'white',
-                borderRadius: 4,
+                borderRadius: 999,
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,

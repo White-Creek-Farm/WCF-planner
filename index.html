@@ -39,18 +39,23 @@
     --green-700: #165749;
     --green-800: #10433a;
     --green-900: #0b3530;
-    --text-primary:   #111827;
+    /* CP0 §A1: primary text is true black (#000), no off-black. Was #111827. */
+    --text-primary:   #000000;
     --text-secondary: #4b5563;
     --text-muted:     #9ca3af;
-    --border:         oklch(0.84 0.008 230);
-    --border-strong:  oklch(0.72 0.011 230);
+    /* CP0 §A2: keep DEFINED borders, unify the two tokens to one deliberate
+       gray for cards AND controls (was an accidental 0.84/0.72 mismatch).
+       Working value — exact shade to be tuned against a screenshot. */
+    --border:         oklch(0.80 0.008 240);
+    --border-strong:  oklch(0.80 0.008 240);
     --bg-page:        oklch(0.991 0.002 225);
     --bg-card:        #ffffff;
     --shadow-sm:  0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
     --shadow-md:  0 4px 6px rgba(0,0,0,.05), 0 2px 4px rgba(0,0,0,.04);
     --shadow-lg:  0 10px 15px rgba(0,0,0,.06), 0 4px 6px rgba(0,0,0,.04);
-    --radius-sm:  6px;
-    --radius-md:  10px;
+    /* CP0 §A3: 10px radius floor site-wide; 6 retired. (Island keeps 9/12/18.) */
+    --radius-sm:  10px;
+    --radius-md:  12px;
     --radius-lg:  14px;
     /* ── Home aesthetic parity token layer (Build Queue item 1) ──
        Reconcile-down from src/dashboard/homeRedesign.css so site-wide parity
@@ -66,11 +71,13 @@
     --ink:          #000000;
     --ink-muted:    oklch(0.52 0.012 250);
     --ink-faint:    oklch(0.69 0.01 250);
-    --c-broiler:    oklch(0.66 0.12 70);
-    --c-layer:      oklch(0.58 0.13 45);
-    --c-pig:        oklch(0.6 0.11 350);
-    --c-cattle:     oklch(0.52 0.15 25);
-    --c-sheep:      oklch(0.58 0.07 195);
+    /* CP0 §A12: locked program palette (supersedes the old OKLCH dots). */
+    --c-broiler:    #C7920A;
+    --c-layer:      #D2601A;
+    --c-pig:        #2B4C9B;
+    --c-cattle:     #8E3328;
+    --c-sheep:      #4CA035;
+    --c-equipment:  #6B7280;
     --danger:       oklch(0.56 0.18 26);
     --danger-soft:  oklch(0.952 0.038 28);
     --warn:         oklch(0.66 0.13 70);

@@ -265,7 +265,7 @@ export default function BatchForm({
                           onClick={() => submit(true)}
                           style={{
                             padding: '6px 14px',
-                            borderRadius: 8,
+                            borderRadius: 10,
                             border: 'none',
                             background: '#A32D2D',
                             color: 'white',
@@ -316,7 +316,7 @@ export default function BatchForm({
                       style={{
                         marginTop: 5,
                         padding: '3px 9px',
-                        borderRadius: 5,
+                        borderRadius: 10,
                         border: '1px solid ' + (showLegacy ? '#92400e' : 'var(--border-strong)'),
                         background: 'white',
                         color: showLegacy ? '#92400e' : 'var(--ink-muted)',
@@ -359,7 +359,7 @@ export default function BatchForm({
                         onClick={() => upd('hatchDate', s.iso)}
                         style={{
                           padding: '4px 10px',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           fontSize: 11,
                           cursor: 'pointer',
                           fontWeight: 500,
@@ -609,7 +609,7 @@ export default function BatchForm({
                           padding: '8px 11px',
                           background: 'var(--surface-2)',
                           border: '1px solid var(--border)',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           fontSize: 13,
                           fontWeight: 600,
                           color: stats.mortality > 0 ? '#b91c1c' : 'var(--ink-faint)',
@@ -654,7 +654,7 @@ export default function BatchForm({
                           color: '#b91c1c',
                           background: '#fef2f2',
                           border: '1px solid #fecaca',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           padding: '5px 10px',
                           marginBottom: 8,
                         }}
@@ -670,7 +670,7 @@ export default function BatchForm({
                           color: '#b91c1c',
                           background: '#fef2f2',
                           border: '1px solid #fecaca',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           padding: '5px 10px',
                           marginBottom: 8,
                         }}
@@ -686,7 +686,7 @@ export default function BatchForm({
                         color: '#085041',
                         background: '#ecfdf5',
                         border: '1px solid #a7f3d0',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         padding: '5px 10px',
                         marginBottom: 8,
                       }}
@@ -745,7 +745,7 @@ export default function BatchForm({
                         padding: '8px 11px',
                         background: 'var(--surface-2)',
                         border: '1px solid var(--border)',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         fontSize: 13,
                         fontWeight: 600,
                         color: val > 0 ? '#085041' : 'var(--ink-faint)',
@@ -787,7 +787,7 @@ export default function BatchForm({
                     color: 'var(--ink)',
                     padding: '8px 12px',
                     background: 'var(--surface-2)',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: '1px solid var(--border)',
                     flexWrap: 'wrap',
                   }}
@@ -855,7 +855,7 @@ export default function BatchForm({
                       padding: '8px 10px',
                       background: 'var(--surface-2)',
                       border: '1px solid var(--border)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       fontSize: 13,
                       fontWeight: 600,
                       color: (() => {
@@ -1022,7 +1022,7 @@ export default function BatchForm({
                         }}
                         style={{
                           padding: '6px 16px',
-                          borderRadius: 7,
+                          borderRadius: 10,
                           border: 'none',
                           background: '#085041',
                           color: 'white',
@@ -1051,7 +1051,7 @@ export default function BatchForm({
                         }}
                         style={{
                           padding: '6px 16px',
-                          borderRadius: 7,
+                          borderRadius: 10,
                           border: '1px solid #085041',
                           background: 'white',
                           color: '#085041',
@@ -1067,7 +1067,7 @@ export default function BatchForm({
                         onClick={() => setParsedProcessor(null)}
                         style={{
                           padding: '6px 12px',
-                          borderRadius: 7,
+                          borderRadius: 10,
                           border: '1px solid var(--border-strong)',
                           background: 'white',
                           color: 'var(--ink-muted)',
@@ -1231,7 +1231,7 @@ export default function BatchForm({
                       padding: '8px 10px',
                       background: 'var(--surface-2)',
                       border: '1px solid var(--border)',
-                      borderRadius: 7,
+                      borderRadius: 10,
                       marginBottom: 6,
                     }}
                   >

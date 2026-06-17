@@ -20,7 +20,7 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -78,7 +78,7 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
             onClick={doSave}
             style={{
               padding: '9px 24px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: 'none',
               background: '#085041',
               color: 'white',
@@ -97,7 +97,7 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
             marginTop: 16,
             padding: '10px 14px',
             background: 'var(--surface-2)',
-            borderRadius: 8,
+            borderRadius: 10,
             fontSize: 12,
             color: 'var(--ink-muted)',
           }}
