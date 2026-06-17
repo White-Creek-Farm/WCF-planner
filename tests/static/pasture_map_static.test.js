@@ -462,6 +462,19 @@ describe('CP7 API + UI wiring', () => {
     expect(canvasSrc).toContain("color: '#dc2626', weight: 5");
   });
 
+  it('baseline / no-history pastures render solid by default (no forced dashArray)', () => {
+    // A missing move history is not an outline candidate. The baseline/no_history
+    // branch must NOT hardcode a dash; dashed is reserved for outline candidates,
+    // retired/invalid states, GPS field tracks, and explicit line_pattern='dashed'.
+    const baselineBranch = canvasSrc.match(/rest_state === 'baseline'[\s\S]*?fillOpacity: 0\.08\}\)/);
+    expect(baselineBranch).toBeTruthy();
+    expect(baselineBranch[0]).not.toContain('dashArray');
+    // Explicit saved line_pattern='dashed' still maps to a dash via applyLineStyle.
+    expect(canvasSrc).toContain("dashed: '10,8'");
+    // Outline candidates remain intentionally dashed.
+    expect(canvasSrc).toMatch(/outline_candidate[\s\S]*?dashArray: '6,6'/);
+  });
+
   it('view renders manager line-style controls and list chips', () => {
     for (const marker of [
       'data-pasture-style-panel',

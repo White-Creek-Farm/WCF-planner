@@ -99,8 +99,12 @@ function styleForArea(a) {
     return applyLineStyle(a, {color: '#991b1b', weight: 3, fillColor: '#ef4444', fillOpacity: 0.22});
   if (a.rest_state === 'resting')
     return applyLineStyle(a, {color: '#b45309', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.2});
+  // Baseline / no-history pastures render SOLID by default — a missing move
+  // history is not an outline candidate. Dashed is reserved for outline
+  // candidates, retired/invalid states, GPS field tracks, and an explicit saved
+  // line_pattern='dashed' (which still maps to dashed via applyLineStyle).
   if (a.rest_state === 'baseline' || a.rest_state === 'no_history')
-    return applyLineStyle(a, {color: '#6b7280', weight: 2, dashArray: '5,5', fillColor: '#94a3b8', fillOpacity: 0.08});
+    return applyLineStyle(a, {color: '#6b7280', weight: 2, fillColor: '#94a3b8', fillOpacity: 0.08});
   if (a.rest_state === 'rested')
     return applyLineStyle(a, {color: '#047857', weight: 2, fillColor: '#10b981', fillOpacity: 0.16});
   return applyLineStyle(a, {color: '#15803d', weight: 2, fillColor: '#22c55e', fillOpacity: 0.14});
