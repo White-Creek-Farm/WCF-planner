@@ -6,7 +6,6 @@
 // "None" / "none" / "0" / "n/a" no longer render as a pill badge.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
-import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {softDeleteDailyReport, canDeleteDailyReport, updateDailyReport} from '../lib/dailyReportsApi.js';
@@ -21,6 +20,10 @@ import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import SheepDailyPage from './SheepDailyPage.jsx';
@@ -857,205 +860,158 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
           emptyLabel="No sheep daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
-            {(() => {
-              const dates = [...new Set(filtered.map((r) => r.date))];
-              return filtered.map((d, i) => {
-                const hasMort = parseInt(d.mortality_count) > 0;
-                const comments = isSentinelComment(d.comments) ? '' : String(d.comments).trim();
-                const notable = hasMort || comments;
-                const prevDate = i > 0 ? filtered[i - 1].date : null;
-                const showDivider = prevDate && prevDate !== d.date;
-                const dateIdx = dates.indexOf(d.date);
-                const shadeBg = dateIdx % 2 === 0 ? 'white' : 'var(--surface-2)';
-                const fc = FLOCK_COLORS[d.flock] || FLOCK_COLORS.ewes;
-                const feedSummary =
-                  Array.isArray(d.feeds) && d.feeds.length > 0
-                    ? d.feeds
-                        .map((f) => (f.feed_name || '?') + (f.qty != null ? ' ' + f.qty + ' ' + (f.unit || '') : ''))
-                        .join(', ')
-                    : '';
-                const mineralSummary =
-                  Array.isArray(d.minerals) && d.minerals.length > 0
-                    ? d.minerals
-                        .map((m) => {
-                          const parts = [m.name || '?'];
-                          if (m.lbs != null) parts.push(m.lbs + ' lb');
-                          return parts.join(' ');
-                        })
-                        .join(', ')
-                    : '';
-                return (
-                  <React.Fragment key={d.id}>
-                    {showDivider && (
-                      <div
+          <DataTable
+            surfaceKey="sheep-dailys-table"
+            rows={filtered}
+            rowKey="id"
+            density="comfortable"
+            onRowOpen={(d) => navigate('/sheep/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'flock')))}
+            rowProps={(d) => ({'data-daily-row': d.id})}
+            rowStyle={(d) => {
+              const hasMort = parseInt(d.mortality_count) > 0;
+              const comments = isSentinelComment(d.comments) ? '' : String(d.comments).trim();
+              const notable = hasMort || comments;
+              if (notable) return {background: '#fef2f2'};
+              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
+              return undefined;
+            }}
+            columns={[
+              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
+              {
+                key: 'flock',
+                label: 'Flock',
+                primary: true,
+                render: (d) => {
+                  const fc = FLOCK_COLORS[d.flock] || FLOCK_COLORS.ewes;
+                  return (
+                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
+                      <span
                         style={{
-                          height: 2,
-                          background: '#9ca3af',
-                          margin: '6px 0',
-                          borderRadius: 1 /* radius-allow: 2px tall section divider bar */,
-                        }}
-                      />
-                    )}
-                    <div
-                      data-daily-row={d.id}
-                      {...openableProps(() =>
-                        navigate('/sheep/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'flock'))),
-                      )}
-                      style={{
-                        background: d.source === 'add_feed_webform' ? '#fffbeb' : shadeBg,
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                        border: notable
-                          ? '1.5px solid #fca5a5'
-                          : d.source === 'add_feed_webform'
-                            ? '1px solid #fde68a'
-                            : '1px solid var(--border)',
-                        padding: '10px 14px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 4,
-                      }}
-                      className="hoverable-tile"
-                    >
-                      <div
-                        data-mobile-1col="1"
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '90px 120px 90px 90px 1fr',
-                          alignItems: 'center',
-                          gap: 12,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: fc.bg,
+                          color: fc.tx,
+                          border: '1px solid ' + fc.bd,
+                          whiteSpace: 'nowrap',
                         }}
                       >
-                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
-                        <span style={{display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
-                          <span
-                            style={{
-                              padding: '2px 8px',
-                              borderRadius: 10,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              background: fc.bg,
-                              color: fc.tx,
-                              border: '1px solid ' + fc.bd,
-                              textAlign: 'center',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {FLOCK_LABELS[d.flock] || d.flock}
-                          </span>
-                          {d.source === 'add_feed_webform' && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                padding: '1px 6px',
-                                borderRadius: 10,
-                                background: '#fef3c7',
-                                color: '#92400e',
-                                border: '1px solid #fde68a',
-                                flexShrink: 0,
-                              }}
-                            >
-                              {'🌾'}
-                            </span>
-                          )}
-                          <DailyPhotoChip photos={d.photos} />
-                        </span>
+                        {FLOCK_LABELS[d.flock] || d.flock}
+                      </span>
+                      {d.source === 'add_feed_webform' && (
                         <span
                           style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: '2px 8px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '1px 6px',
                             borderRadius: 10,
-                            background: '#f1f5f9',
-                            color: '#475569',
-                            border: '1px solid #e2e8f0',
-                            textAlign: 'center',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
+                            background: '#fef3c7',
+                            color: '#92400e',
+                            border: '1px solid #fde68a',
+                            flexShrink: 0,
                           }}
+                          title="Add Feed log"
+                          aria-label="Add Feed log"
                         >
-                          {d.team_member || '—'}
+                          {'🌾'}
                         </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color:
-                              d.fence_voltage_kv != null
-                                ? parseFloat(d.fence_voltage_kv) < 3
-                                  ? '#b91c1c'
-                                  : parseFloat(d.fence_voltage_kv) < 5
-                                    ? '#92400e'
-                                    : '#065f46'
-                                : '#9ca3af',
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {d.fence_voltage_kv != null ? '⚡ ' + d.fence_voltage_kv + ' kV' : 'no voltage'}
-                        </span>
-                        <span style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              padding: '2px 7px',
-                              borderRadius: 10,
-                              background: d.waterers_working === false ? '#fef2f2' : '#f0fdf4',
-                              color: d.waterers_working === false ? '#b91c1c' : '#065f46',
-                              border: d.waterers_working === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
-                            }}
-                          >
-                            {'Water: ' + (d.waterers_working === false ? 'No' : 'Yes')}
-                          </span>
-                        </span>
-                      </div>
-                      {feedSummary && <div style={{fontSize: 11, color: '#92400e'}}>{'🌾 ' + feedSummary}</div>}
-                      {mineralSummary && <div style={{fontSize: 11, color: '#6b21a8'}}>{'🧂 ' + mineralSummary}</div>}
-                      {(hasMort || comments) && (
-                        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 2}}>
-                          {hasMort && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                padding: '3px 8px',
-                                borderRadius: 10,
-                                background: '#fef2f2',
-                                color: '#b91c1c',
-                                border: '1px solid #fecaca',
-                              }}
-                            >
-                              {'💀 ' + d.mortality_count + ' mort.'}
-                            </span>
-                          )}
-                          {comments && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: '#92400e',
-                                padding: '3px 10px',
-                                background: '#fffbeb',
-                                border: '1px solid #fde68a',
-                                borderRadius: 10,
-                                fontStyle: 'italic',
-                              }}
-                            >
-                              {'💬 ' + comments}
-                            </span>
-                          )}
-                        </div>
                       )}
-                    </div>
-                  </React.Fragment>
-                );
-              });
-            })()}
-          </div>
+                      <DailyPhotoChip photos={d.photos} />
+                    </span>
+                  );
+                },
+              },
+              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
+              {
+                key: 'voltage',
+                label: 'Voltage',
+                align: 'right',
+                mobilePriority: false,
+                render: (d) => {
+                  if (d.fence_voltage_kv == null) return <StatusText tone="muted">no voltage</StatusText>;
+                  const v = parseFloat(d.fence_voltage_kv);
+                  const tone = v < 3 ? 'danger' : v < 5 ? 'warn' : 'ok';
+                  return <StatusText tone={tone}>{'⚡ ' + d.fence_voltage_kv + ' kV'}</StatusText>;
+                },
+              },
+              {
+                key: 'water',
+                label: 'Water',
+                mobilePriority: false,
+                render: (d) => (
+                  <StatusText tone={d.waterers_working === false ? 'danger' : 'ok'}>
+                    {'Water ' + (d.waterers_working === false ? '✗' : '✓')}
+                  </StatusText>
+                ),
+              },
+              {
+                key: 'feed',
+                label: 'Feed',
+                render: (d) => {
+                  const feedSummary =
+                    Array.isArray(d.feeds) && d.feeds.length > 0
+                      ? d.feeds
+                          .map((f) => (f.feed_name || '?') + (f.qty != null ? ' ' + f.qty + ' ' + (f.unit || '') : ''))
+                          .join(', ')
+                      : '';
+                  if (!feedSummary) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return (
+                    <StatusText tone="muted" title={feedSummary} style={{color: '#92400e'}}>
+                      {'🌾 ' + feedSummary}
+                    </StatusText>
+                  );
+                },
+              },
+              {
+                key: 'minerals',
+                label: 'Minerals',
+                mobilePriority: false,
+                render: (d) => {
+                  const mineralSummary =
+                    Array.isArray(d.minerals) && d.minerals.length > 0
+                      ? d.minerals
+                          .map((m) => {
+                            const parts = [m.name || '?'];
+                            if (m.lbs != null) parts.push(m.lbs + ' lb');
+                            return parts.join(' ');
+                          })
+                          .join(', ')
+                      : '';
+                  if (!mineralSummary) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return (
+                    <StatusText tone="muted" title={mineralSummary} style={{color: '#6b21a8'}}>
+                      {'🧂 ' + mineralSummary}
+                    </StatusText>
+                  );
+                },
+              },
+              {
+                key: 'mortality',
+                label: 'Mort.',
+                align: 'right',
+                render: (d) =>
+                  parseInt(d.mortality_count) > 0 ? (
+                    <StatusText tone="danger">{'💀 ' + d.mortality_count}</StatusText>
+                  ) : (
+                    <StatusText tone="muted">{'—'}</StatusText>
+                  ),
+              },
+              {
+                key: 'comments',
+                label: 'Comments',
+                render: (d) => {
+                  const comments = isSentinelComment(d.comments) ? '' : String(d.comments).trim();
+                  if (!comments) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return (
+                    <StatusText tone="warn" title={comments}>
+                      {comments}
+                    </StatusText>
+                  );
+                },
+              },
+            ]}
+          />
         )}
         {hasMore && (
           <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: 'var(--ink-faint)'}}>

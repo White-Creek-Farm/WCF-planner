@@ -1,7 +1,6 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
-import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
@@ -16,6 +15,10 @@ import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import PigDailyPage from './PigDailyPage.jsx';
@@ -814,199 +817,104 @@ const PigDailysHub = ({
           emptyLabel="No pig daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
-            {(() => {
-              const dates = [...new Set(filtered.map((r) => r.date))];
-              return filtered.map((d, i) => {
-                const hasFeed = parseFloat(d.feed_lbs) > 0;
-                const hasCount = parseInt(d.pig_count) > 0;
-                const hasVolt = d.fence_voltage != null && String(d.fence_voltage).trim() !== '';
-                const issues = d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
-                const notable = issues || (hasVolt && parseFloat(d.fence_voltage) < 3);
-                const prevDate = i > 0 ? filtered[i - 1].date : null;
-                const showDivider = prevDate && prevDate !== d.date;
-                const dateIdx = dates.indexOf(d.date);
-                const shadeBg = dateIdx % 2 === 0 ? 'white' : 'var(--surface-2)';
-                return (
-                  <React.Fragment key={d.id}>
-                    {showDivider && (
-                      <div
-                        style={{
-                          height: 2,
-                          background: '#9ca3af',
-                          margin: '6px 0',
-                          borderRadius: 1 /* radius-allow: 2px date divider bar */,
-                        }}
-                      />
+          <DataTable
+            surfaceKey="pig-dailys-table"
+            rows={filtered}
+            rowKey="id"
+            density="comfortable"
+            onRowOpen={(d) =>
+              navigate('/pig/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
+            }
+            rowProps={(d) => ({'data-daily-row': d.id})}
+            rowStyle={(d) => {
+              const notable =
+                (d.issues && String(d.issues).trim().length > 2) ||
+                (d.fence_voltage != null && String(d.fence_voltage).trim() !== '' && parseFloat(d.fence_voltage) < 3);
+              if (notable) return {background: '#fef2f2'};
+              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
+              return undefined;
+            }}
+            columns={[
+              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
+              {
+                key: 'batch',
+                label: 'Pig group',
+                primary: true,
+                render: (d) => (
+                  <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                    <span>{d.batch_label || '—'}</span>
+                    {d.source === 'add_feed_webform' && (
+                      <span title="Add Feed log" aria-label="Add Feed log">
+                        {'🌾'}
+                      </span>
                     )}
-                    <div
-                      data-daily-row={d.id}
-                      {...openableProps(() =>
-                        navigate('/pig/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label'))),
-                      )}
-                      style={{
-                        background: d.source === 'add_feed_webform' ? '#fffbeb' : shadeBg,
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                        border: notable
-                          ? '1.5px solid #fca5a5'
-                          : d.source === 'add_feed_webform'
-                            ? '1px solid #fde68a'
-                            : '1px solid var(--border)',
-                        padding: '10px 14px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 4,
-                      }}
-                      className="hoverable-tile"
-                    >
-                      <div
-                        data-mobile-1col="1"
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '90px 120px 90px 130px 90px 90px 1fr',
-                          alignItems: 'center',
-                          gap: 12,
-                        }}
-                      >
-                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
-                        <span style={{display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              color: 'var(--ink)',
-                              fontSize: 13,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {d.batch_label || '\u2014'}
-                          </span>
-                          {d.source === 'add_feed_webform' && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                padding: '1px 6px',
-                                borderRadius: 10,
-                                background: '#fef3c7',
-                                color: '#92400e',
-                                border: '1px solid #fde68a',
-                                flexShrink: 0,
-                              }}
-                            >
-                              {'\ud83c\udf3e'}
-                            </span>
-                          )}
-                          <DailyPhotoChip photos={d.photos} />
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            background: '#f1f5f9',
-                            color: '#475569',
-                            border: '1px solid #e2e8f0',
-                            textAlign: 'center',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {d.team_member || '\u2014'}
-                        </span>
-                        <span
-                          style={{
-                            color: hasFeed ? '#92400e' : 'var(--ink-faint)',
-                            fontWeight: hasFeed ? 600 : 400,
-                            fontSize: 12,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {hasFeed ? `\ud83c\udf3e ${parseFloat(d.feed_lbs).toLocaleString()} lbs` : 'no feed'}
-                        </span>
-                        <span style={{color: '#1e40af', fontSize: 12, whiteSpace: 'nowrap'}}>
-                          {hasCount ? `\ud83d\udc37 ${d.pig_count} pigs` : 'no count'}
-                        </span>
-                        <span
-                          style={{
-                            color: hasVolt ? voltColor(parseFloat(d.fence_voltage)) : 'var(--ink-faint)',
-                            fontWeight: hasVolt ? 600 : 400,
-                            fontSize: 12,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {hasVolt ? `\u26a1 ${d.fence_voltage} kV` : 'no voltage'}
-                        </span>
-                        <span style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              padding: '2px 7px',
-                              borderRadius: 10,
-                              background: d.group_moved === false ? '#fef2f2' : '#f0fdf4',
-                              color: d.group_moved === false ? '#b91c1c' : '#065f46',
-                              border: d.group_moved === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
-                            }}
-                          >
-                            {'Moved: ' + (d.group_moved === false ? 'No' : 'Yes')}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              padding: '2px 7px',
-                              borderRadius: 10,
-                              background: d.nipple_drinker_working === false ? '#fef2f2' : '#f0fdf4',
-                              color: d.nipple_drinker_working === false ? '#b91c1c' : '#065f46',
-                              border: d.nipple_drinker_working === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
-                            }}
-                          >
-                            {'Nipple: ' + (d.nipple_drinker_working === false ? 'No' : 'Yes')}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              padding: '2px 7px',
-                              borderRadius: 10,
-                              background: d.fence_walked === false ? '#fef2f2' : '#f0fdf4',
-                              color: d.fence_walked === false ? '#b91c1c' : '#065f46',
-                              border: d.fence_walked === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
-                            }}
-                          >
-                            {'Fence: ' + (d.fence_walked === false ? 'No' : 'Yes')}
-                          </span>
-                        </span>
-                      </div>
-                      {issues && (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: '#92400e',
-                            marginTop: 2,
-                            padding: '4px 10px',
-                            background: '#fffbeb',
-                            border: '1px solid #fde68a',
-                            borderRadius: 10,
-                            fontStyle: 'italic',
-                          }}
-                        >
-                          {'\ud83d\udcac ' + issues}
-                        </div>
-                      )}
-                    </div>
-                  </React.Fragment>
-                );
-              });
-            })()}
-          </div>
+                    <DailyPhotoChip photos={d.photos} />
+                  </span>
+                ),
+              },
+              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
+              {
+                key: 'feed',
+                label: 'Feed',
+                align: 'right',
+                render: (d) =>
+                  parseFloat(d.feed_lbs) > 0 ? (
+                    parseFloat(d.feed_lbs).toLocaleString() + ' lbs'
+                  ) : (
+                    <StatusText tone="muted">no feed</StatusText>
+                  ),
+              },
+              {
+                key: 'pigs',
+                label: 'Pigs',
+                align: 'right',
+                render: (d) =>
+                  parseInt(d.pig_count) > 0 ? String(d.pig_count) : <StatusText tone="muted">{'—'}</StatusText>,
+              },
+              {
+                key: 'voltage',
+                label: 'Voltage',
+                align: 'right',
+                mobilePriority: false,
+                render: (d) => {
+                  const v = d.fence_voltage;
+                  if (v == null || String(v).trim() === '') return <StatusText tone="muted">{'—'}</StatusText>;
+                  return <span style={{color: voltColor(parseFloat(v)), fontWeight: 600}}>{v + ' kV'}</span>;
+                },
+              },
+              {
+                key: 'checks',
+                label: 'Checks',
+                mobilePriority: false,
+                render: (d) => (
+                  <span style={{display: 'inline-flex', gap: 10, flexWrap: 'wrap'}}>
+                    <StatusText tone={d.group_moved === false ? 'danger' : 'ok'}>
+                      {'Moved ' + (d.group_moved === false ? '✗' : '✓')}
+                    </StatusText>
+                    <StatusText tone={d.nipple_drinker_working === false ? 'danger' : 'ok'}>
+                      {'Nipple ' + (d.nipple_drinker_working === false ? '✗' : '✓')}
+                    </StatusText>
+                    <StatusText tone={d.fence_walked === false ? 'danger' : 'ok'}>
+                      {'Fence ' + (d.fence_walked === false ? '✗' : '✓')}
+                    </StatusText>
+                  </span>
+                ),
+              },
+              {
+                key: 'issues',
+                label: 'Issues',
+                render: (d) => {
+                  const issues = d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
+                  if (!issues) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return (
+                    <StatusText tone="warn" title={issues}>
+                      {issues}
+                    </StatusText>
+                  );
+                },
+              },
+            ]}
+          />
         )}
       </div>
       {showForm && (

@@ -1,7 +1,6 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
-import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
@@ -15,9 +14,13 @@ import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
-// eslint-disable-next-line no-unused-vars -- JSX-only use
+
 import EggDailyPage from './EggDailyPage.jsx';
 
 const EGG_DAILYS_SURFACE_KEY = 'layer.eggs';
@@ -726,98 +729,96 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
           filteredLabel="No egg reports match the current filters"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-            {filtered.map((d, i) => {
-              const total =
-                (parseInt(d.group1_count) || 0) +
-                (parseInt(d.group2_count) || 0) +
-                (parseInt(d.group3_count) || 0) +
-                (parseInt(d.group4_count) || 0);
-              const groups = [
-                [d.group1_name, d.group1_count],
-                [d.group2_name, d.group2_count],
-                [d.group3_name, d.group3_count],
-                [d.group4_name, d.group4_count],
-              ].filter(([n, c]) => n && parseInt(c) > 0);
-              const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
-              const notable = comment;
-              return (
-                <div
-                  key={d.id}
-                  data-daily-row={d.id}
-                  {...openableProps(() =>
-                    navigate('/layer/eggs/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, null))),
-                  )}
-                  style={{
-                    background: 'white',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    border: notable ? '1.5px solid #fca5a5' : '1px solid var(--border)',
-                    padding: '10px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                  }}
-                  className="hoverable-tile"
-                >
-                  <div
-                    data-mobile-1col="1"
-                    style={{display: 'grid', gridTemplateColumns: '90px 100px 90px 1fr', alignItems: 'center', gap: 12}}
-                  >
-                    <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
-                    <span style={{fontWeight: 700, color: '#78350f', fontSize: 13, whiteSpace: 'nowrap'}}>
-                      {'\ud83e\udd5a ' + total + ' eggs'}
+          <DataTable
+            surfaceKey="egg-dailys-table"
+            rows={filtered}
+            rowKey="id"
+            density="comfortable"
+            onRowOpen={(d) => navigate('/layer/eggs/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, null)))}
+            rowProps={(d) => ({'data-daily-row': d.id})}
+            rowStyle={(d) => {
+              const notable = d.comments && String(d.comments).trim().length > 2;
+              if (notable) return {background: '#fef2f2'};
+              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
+              return undefined;
+            }}
+            columns={[
+              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
+              {
+                key: 'eggs',
+                label: 'Eggs',
+                primary: true,
+                align: 'right',
+                render: (d) => {
+                  const total =
+                    (parseInt(d.group1_count) || 0) +
+                    (parseInt(d.group2_count) || 0) +
+                    (parseInt(d.group3_count) || 0) +
+                    (parseInt(d.group4_count) || 0);
+                  return (
+                    <span style={{fontWeight: 700, color: '#78350f', whiteSpace: 'nowrap'}}>
+                      {'🥚 ' + total + ' eggs'}
                     </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: 10,
-                        background: '#f1f5f9',
-                        color: '#475569',
-                        border: '1px solid #e2e8f0',
-                        textAlign: 'center',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {d.team_member || '\u2014'}
-                    </span>
+                  );
+                },
+              },
+              {
+                key: 'team',
+                label: 'Team',
+                mobilePriority: false,
+                render: (d) => d.team_member || <StatusText tone="muted">{'—'}</StatusText>,
+              },
+              {
+                key: 'groups',
+                label: 'Groups',
+                render: (d) => {
+                  const groups = [
+                    [d.group1_name, d.group1_count],
+                    [d.group2_name, d.group2_count],
+                    [d.group3_name, d.group3_count],
+                    [d.group4_name, d.group4_count],
+                  ].filter(([n, c]) => n && parseInt(c) > 0);
+                  if (groups.length === 0) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return (
                     <span style={{display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
                       {groups.map(([n, c]) => (
-                        <span key={n} style={{color: 'var(--ink)', fontSize: 12, whiteSpace: 'nowrap'}}>
+                        <span key={n} style={{color: 'var(--ink)', whiteSpace: 'nowrap'}}>
                           {n}: <strong>{c}</strong>
                         </span>
                       ))}
-                      {parseFloat(d.dozens_on_hand) > 0 && (
-                        <span style={{color: '#065f46', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap'}}>
-                          {'\ud83d\udce6 ' + d.dozens_on_hand + ' doz on hand'}
-                        </span>
-                      )}
                     </span>
-                  </div>
-                  {comment && (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: '#92400e',
-                        marginTop: 2,
-                        padding: '4px 10px',
-                        background: '#fffbeb',
-                        border: '1px solid #fde68a',
-                        borderRadius: 10,
-                        fontStyle: 'italic',
-                      }}
-                    >
-                      {'\ud83d\udcac ' + comment}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  );
+                },
+              },
+              {
+                key: 'dozens',
+                label: 'Doz on hand',
+                align: 'right',
+                mobilePriority: false,
+                render: (d) =>
+                  parseFloat(d.dozens_on_hand) > 0 ? (
+                    <span style={{color: '#065f46', fontWeight: 600, whiteSpace: 'nowrap'}}>
+                      {'📦 ' + d.dozens_on_hand}
+                    </span>
+                  ) : (
+                    <StatusText tone="muted">{'—'}</StatusText>
+                  ),
+              },
+              {
+                key: 'comments',
+                label: 'Comments',
+                render: (d) => {
+                  const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
+                  if (!comment) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return (
+                    <StatusText tone="warn" title={comment}>
+                      {comment}
+                    </StatusText>
+                  );
+                },
+              },
+            ]}
+          />
         )}
         {hasMore && (
           <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: 'var(--ink-faint)'}}>

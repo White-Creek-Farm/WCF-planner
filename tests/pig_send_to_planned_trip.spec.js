@@ -30,7 +30,7 @@ async function seedPlannedTrips(supabaseAdmin, subAId, plannedTrips) {
 async function openSessionAndSelectAll(page, {status = /draft/i} = {}) {
   await page.goto('/pig/weighins');
   const sessionRow = page
-    .locator('.hoverable-tile')
+    .locator('tr[data-weighin-session-tile]')
     .filter({hasText: /p-26-01/i})
     .filter({hasText: status})
     .first();
@@ -239,7 +239,7 @@ test.describe('pig planned trips — Send-to-Trip integration', () => {
     await setRoleOverride(page, 'farm_team');
     await page.goto('/pig/weighins');
     const sessionRow = page
-      .locator('.hoverable-tile')
+      .locator('tr[data-weighin-session-tile]')
       .filter({hasText: /p-26-01/i})
       .filter({hasText: /draft/i})
       .first();

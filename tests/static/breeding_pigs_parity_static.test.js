@@ -22,8 +22,19 @@ describe('Breeding pigs hub parity', () => {
     expect(sowsView).not.toContain('placeholder="Weight (lbs)"');
   });
 
-  it('makes the table row itself the record-page navigation target with hover styling', () => {
-    expect(sowsView).toContain('className="hoverable-tile"');
+  // CP3: the animal-list rows render through the shared <DataTable> (real
+  // <table> + .hoverable-row tr) instead of the old .hoverable-tile faux grid.
+  // The per-row record-open navigation and per-row data-* hook are preserved.
+  it('renders the section rows through the shared DataTable with row numbers', () => {
+    expect(sowsView).toContain("import DataTable from '../shared/DataTable.jsx'");
+    expect(sowsView).toContain('surfaceKey="breeding-pig-table"');
+    expect(sowsView).toContain('showRowNumbers');
+    expect(sowsView).toContain("rowProps={(pig) => ({'data-breeding-pig-row': pig.id})}");
+    expect(sowsView).not.toContain('className="hoverable-tile"');
+  });
+
+  it('makes the table row itself the record-page navigation target', () => {
+    expect(sowsView).toContain('onRowOpen={(pig) => openBreedingPigRecord(pig, rows)}');
     expect(sowsView).toContain('openBreedingPigRecord(pig, rows)');
     expect(sowsView).toContain("navigate('/pig/sows/' + encodeURIComponent(pig.id)");
   });

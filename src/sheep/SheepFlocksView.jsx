@@ -24,6 +24,12 @@ import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {
   listSavedViews,
@@ -963,6 +969,100 @@ const SheepFlocksHub = ({
     setOpenToolPanel((cur) => (cur === panel ? null : panel));
   }
 
+  // Shared id/tag primary cell — keeps the disclosure caret + tag text.
+  function renderSheepTag(s) {
+    return (
+      <span style={{display: 'flex', alignItems: 'center', gap: 6}}>
+        <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'▶'}</span>
+        <span style={{fontWeight: 700}}>{s.tag ? '#' + s.tag : '(no tag)'}</span>
+      </span>
+    );
+  }
+  function renderSheepWeight(s) {
+    const lw = lastWeight(s);
+    if (!lw) return <StatusText tone="muted">no weigh-in</StatusText>;
+    return <StatusText tone="ok">{lw.toLocaleString() + ' lb'}</StatusText>;
+  }
+  // Blacklisted rows keep their soft red wash from the tile era.
+  function sheepRowStyle(s) {
+    return s.breeding_blacklist ? {background: '#fecaca'} : undefined;
+  }
+  // FLAT mode columns: Flock, Sex, Breed, Age, Weight, Signals.
+  const flatColumns = [
+    {key: 'tag', label: 'Tag', primary: true, render: renderSheepTag},
+    {
+      key: 'flock',
+      label: 'Flock',
+      render: (s) => {
+        const fc = FLOCK_COLORS[s.flock] || FLOCK_COLORS.ewes;
+        return (
+          <span
+            style={{
+              fontSize: 11,
+              padding: '2px 8px',
+              borderRadius: 999,
+              background: 'white',
+              color: fc.tx,
+              border: '1px solid ' + fc.bd,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {FLOCK_LABELS[s.flock]}
+          </span>
+        );
+      },
+    },
+    {key: 'sex', label: 'Sex', render: (s) => s.sex || '—'},
+    {key: 'breed', label: 'Breed', mobilePriority: false, render: (s) => s.breed || '—'},
+    {key: 'age', label: 'Age', render: (s) => age(s.birth_date) || '—'},
+    {key: 'weight', label: 'Last weight', align: 'right', render: renderSheepWeight},
+    {
+      key: 'signals',
+      label: 'Notes',
+      mobilePriority: false,
+      render: (s) => (
+        <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+          {s.dam_tag && <StatusText tone="muted">{'dam #' + s.dam_tag}</StatusText>}
+          {s.maternal_issue_flag && <Badge variant="danger">MATERNAL ISSUE</Badge>}
+          {s.breeding_blacklist && <Badge variant="danger">BLACKLIST</Badge>}
+        </span>
+      ),
+    },
+  ];
+  // TILE mode columns (per flock): Sex, Breed, Age, Weight, Signals.
+  // `flockKey` drives the ewe-only lamb count / last-lambed signals.
+  function tileColumns(flockKey) {
+    return [
+      {key: 'tag', label: 'Tag', primary: true, render: renderSheepTag},
+      {key: 'sex', label: 'Sex', render: (s) => s.sex || '—'},
+      {key: 'breed', label: 'Breed', mobilePriority: false, render: (s) => s.breed || '—'},
+      {key: 'age', label: 'Age', render: (s) => age(s.birth_date) || '—'},
+      {key: 'weight', label: 'Last weight', align: 'right', render: renderSheepWeight},
+      {
+        key: 'signals',
+        label: 'Notes',
+        mobilePriority: false,
+        render: (s) => {
+          const lc = lambCount(s.tag);
+          const ll = lastLambing(s.tag);
+          return (
+            <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+              {flockKey === 'ewes' && lc > 0 && (
+                <StatusText tone="ok">{lc + ' ' + (lc === 1 ? 'lamb' : 'lambs')}</StatusText>
+              )}
+              {flockKey === 'ewes' && ll && (
+                <StatusText tone="muted">{'last lambed ' + fmt(ll.lambing_date)}</StatusText>
+              )}
+              {s.maternal_issue_flag && <Badge variant="danger">MATERNAL</Badge>}
+              {s.breeding_blacklist && <Badge variant="danger">BLACKLIST</Badge>}
+            </span>
+          );
+        },
+      },
+    ];
+  }
+
   return (
     <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {showUsers && (
@@ -1444,132 +1544,17 @@ const SheepFlocksHub = ({
                     No sheep match the current filter.
                   </div>
                 )}
-                {sorted.map((s, i) => {
-                  const fc = FLOCK_COLORS[s.flock] || FLOCK_COLORS.ewes;
-                  const lw = lastWeight(s);
-                  return (
-                    <div
-                      key={s.id}
-                      id={'sheep-' + s.id}
-                      style={{borderBottom: i < sorted.length - 1 ? '1px solid var(--divider)' : 'none'}}
-                    >
-                      <div
-                        {...openableProps(() => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted)))}
-                        style={{
-                          padding: '10px 16px 10px 0',
-                          display: 'grid',
-                          gridTemplateColumns: '48px 16px 70px 110px 60px 180px 70px 90px 1fr',
-                          alignItems: 'center',
-                          gap: 10,
-                          cursor: 'pointer',
-                          background: s.breeding_blacklist ? '#fecaca' : 'white',
-                        }}
-                        className="hoverable-tile"
-                      >
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: 'var(--ink-faint)',
-                            fontVariantNumeric: 'tabular-nums',
-                            alignSelf: 'stretch',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-end',
-                            paddingRight: 10,
-                            paddingLeft: 8,
-                            marginTop: -10,
-                            marginBottom: -10,
-                            borderRight: '1px solid var(--border-strong)',
-                            fontWeight: 600,
-                          }}
-                        >
-                          {i + 1}
-                        </span>
-                        <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'▶'}</span>
-                        <span
-                          style={{
-                            fontWeight: 700,
-                            fontSize: 13,
-                            color: 'var(--ink)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                          }}
-                        >
-                          {s.tag ? '#' + s.tag : '(no tag)'}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            background: 'white',
-                            color: fc.tx,
-                            border: '1px solid ' + fc.bd,
-                            fontWeight: 600,
-                            textAlign: 'center',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {FLOCK_LABELS[s.flock]}
-                        </span>
-                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{s.sex || '—'}</span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: 'var(--ink-muted)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {s.breed || '—'}
-                        </span>
-                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{age(s.birth_date) || '—'}</span>
-                        <span
-                          style={{fontSize: 11, color: lw ? '#065f46' : 'var(--ink-faint)', fontWeight: lw ? 600 : 400}}
-                        >
-                          {lw ? lw.toLocaleString() + ' lb' : 'no weigh-in'}
-                        </span>
-                        <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-                          {s.dam_tag && (
-                            <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'dam #' + s.dam_tag}</span>
-                          )}
-                          {s.maternal_issue_flag && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                padding: '1px 6px',
-                                borderRadius: 10,
-                                background: '#fef2f2',
-                                color: '#b91c1c',
-                                fontWeight: 600,
-                              }}
-                            >
-                              MATERNAL ISSUE
-                            </span>
-                          )}
-                          {s.breeding_blacklist && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                padding: '1px 6px',
-                                borderRadius: 10,
-                                background: '#fef2f2',
-                                color: '#b91c1c',
-                                fontWeight: 600,
-                              }}
-                            >
-                              BLACKLIST
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                <DataTable
+                  surfaceKey="sheep-flocks-flat-table"
+                  showRowNumbers
+                  rows={sorted}
+                  rowKey="id"
+                  density="comfortable"
+                  columns={flatColumns}
+                  rowProps={(s) => ({id: 'sheep-' + s.id, 'data-sheep-flock-row': s.id})}
+                  rowStyle={sheepRowStyle}
+                  onRowOpen={(s) => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(sorted))}
+                />
               </div>
             )}
 
@@ -1629,128 +1614,19 @@ const SheepFlocksHub = ({
                           {filterCount > 0 ? 'No sheep match the current filters.' : 'No sheep in this flock yet.'}
                         </div>
                       )}
-                      {open &&
-                        flockSheep.map((s, idx) => {
-                          const lw = lastWeight(s);
-                          const ll = lastLambing(s.tag);
-                          const lc = lambCount(s.tag);
-                          return (
-                            <div key={s.id} id={'sheep-' + s.id} style={{borderBottom: '1px solid var(--divider)'}}>
-                              <div
-                                {...openableProps(() =>
-                                  navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep)),
-                                )}
-                                style={{
-                                  padding: '10px 18px 10px 0',
-                                  display: 'grid',
-                                  gridTemplateColumns: '48px 16px 70px 60px 180px 70px 90px 1fr',
-                                  alignItems: 'center',
-                                  gap: 10,
-                                  cursor: 'pointer',
-                                  background: s.breeding_blacklist ? '#fecaca' : 'transparent',
-                                }}
-                                className="hoverable-tile"
-                              >
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    color: 'var(--ink-faint)',
-                                    fontVariantNumeric: 'tabular-nums',
-                                    alignSelf: 'stretch',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'flex-end',
-                                    paddingRight: 10,
-                                    paddingLeft: 8,
-                                    marginTop: -10,
-                                    marginBottom: -10,
-                                    borderRight: '1px solid var(--border-strong)',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {idx + 1}
-                                </span>
-                                <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'▶'}</span>
-                                <span
-                                  style={{
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                    color: 'var(--ink)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                  }}
-                                >
-                                  {s.tag ? '#' + s.tag : '(no tag)'}
-                                </span>
-                                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{s.sex || '—'}</span>
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    color: 'var(--ink-muted)',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {s.breed || '—'}
-                                </span>
-                                <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
-                                  {age(s.birth_date) || '—'}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    color: lw ? '#065f46' : 'var(--ink-faint)',
-                                    fontWeight: lw ? 600 : 400,
-                                  }}
-                                >
-                                  {lw ? lw.toLocaleString() + ' lb' : '—'}
-                                </span>
-                                <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-                                  {f === 'ewes' && lc > 0 && (
-                                    <span style={{fontSize: 11, color: '#0f766e', fontWeight: 600}}>
-                                      {lc + ' ' + (lc === 1 ? 'lamb' : 'lambs')}
-                                    </span>
-                                  )}
-                                  {f === 'ewes' && ll && (
-                                    <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>
-                                      {'last lambed ' + fmt(ll.lambing_date)}
-                                    </span>
-                                  )}
-                                  {s.maternal_issue_flag && (
-                                    <span
-                                      style={{
-                                        fontSize: 10,
-                                        padding: '1px 6px',
-                                        borderRadius: 10,
-                                        background: '#fef2f2',
-                                        color: '#b91c1c',
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      MATERNAL
-                                    </span>
-                                  )}
-                                  {s.breeding_blacklist && (
-                                    <span
-                                      style={{
-                                        fontSize: 10,
-                                        padding: '1px 6px',
-                                        borderRadius: 10,
-                                        background: '#fef2f2',
-                                        color: '#b91c1c',
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      BLACKLIST
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      {open && flockSheep.length > 0 && (
+                        <DataTable
+                          surfaceKey={'sheep-flocks-tile-' + f}
+                          showRowNumbers
+                          rows={flockSheep}
+                          rowKey="id"
+                          density="comfortable"
+                          columns={tileColumns(f)}
+                          rowProps={(s) => ({id: 'sheep-' + s.id, 'data-sheep-flock-row': s.id})}
+                          rowStyle={sheepRowStyle}
+                          onRowOpen={(s) => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep))}
+                        />
+                      )}
                     </div>
                   );
                 })}

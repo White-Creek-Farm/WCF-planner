@@ -9,7 +9,11 @@ import CattleNewWeighInModal from './CattleNewWeighInModal.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import WeighInSessionListTile from '../shared/WeighInSessionListTile.jsx';
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -692,53 +696,76 @@ const CattleWeighInsView = ({
           </div>
         )}
 
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-          {!loadFailed &&
-            filtered.map((s) => {
-              const sEntriesAll = entries[s.id] || [];
-              const countLabel = tagQ
-                ? sEntriesAll.filter(entryMatchesTag).length + ' of ' + sEntriesAll.length + ' match'
-                : sEntriesAll.length + ' ' + (sEntriesAll.length === 1 ? 'entry' : 'entries');
-              const newTagCount = sEntriesAll.filter((e) => e.new_tag_flag).length;
-              return (
-                <WeighInSessionListTile
-                  key={s.id}
-                  session={s}
-                  label={HERD_LABELS[s.herd] || s.herd || 'Unknown herd'}
-                  fmt={fmt}
-                  countLabel={countLabel}
-                  countColor={tagQ ? '#065f46' : '#1e40af'}
-                  onClick={() =>
-                    navigate(
-                      '/weigh-in-sessions/' + s.id,
-                      recordSeqNavOptions(
-                        filtered.map((r) => ({
-                          id: r.id,
-                          label: (r.date || '') + ' · ' + (HERD_LABELS[r.herd] || r.herd || 'cattle'),
-                        })),
-                      ),
-                    )
+        {!loadFailed && filtered.length > 0 && (
+          <DataTable
+            surfaceKey="cattle-weighins-table"
+            rows={filtered}
+            rowKey="id"
+            density="comfortable"
+            rowProps={(s) => ({'data-weighin-session-tile': s.id})}
+            onRowOpen={(s) =>
+              navigate(
+                '/weigh-in-sessions/' + s.id,
+                recordSeqNavOptions(
+                  filtered.map((r) => ({
+                    id: r.id,
+                    label: (r.date || '') + ' · ' + (HERD_LABELS[r.herd] || r.herd || 'cattle'),
+                  })),
+                ),
+              )
+            }
+            columns={[
+              {
+                key: 'herd',
+                label: 'Herd',
+                primary: true,
+                render: (s) => HERD_LABELS[s.herd] || s.herd || 'Unknown herd',
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (s) => <Badge variant={s.status === 'complete' ? 'ok' : 'warn'}>{s.status}</Badge>,
+              },
+              {key: 'date', label: 'Date', render: (s) => fmt(s.date)},
+              {
+                key: 'team',
+                label: 'Team',
+                mobilePriority: false,
+                render: (s) => s.team_member || <StatusText tone="muted">{'—'}</StatusText>,
+              },
+              {
+                key: 'count',
+                label: 'Entries',
+                align: 'right',
+                render: (s) => {
+                  const sEntriesAll = entries[s.id] || [];
+                  if (tagQ) {
+                    return (
+                      <StatusText tone="ok">
+                        {sEntriesAll.filter(entryMatchesTag).length + ' of ' + sEntriesAll.length + ' match'}
+                      </StatusText>
+                    );
                   }
-                  afterCount={
-                    newTagCount > 0 && !tagQ ? (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: '2px 6px',
-                          borderRadius: 10,
-                          background: '#fef2f2',
-                          color: '#b91c1c',
-                        }}
-                      >
-                        {newTagCount + ' new tags'}
-                      </span>
-                    ) : null
+                  return sEntriesAll.length + ' ' + (sEntriesAll.length === 1 ? 'entry' : 'entries');
+                },
+              },
+              {
+                key: 'newTags',
+                label: 'New tags',
+                align: 'right',
+                mobilePriority: false,
+                render: (s) => {
+                  const sEntriesAll = entries[s.id] || [];
+                  const newTagCount = sEntriesAll.filter((e) => e.new_tag_flag).length;
+                  if (newTagCount > 0 && !tagQ) {
+                    return <StatusText tone="danger">{newTagCount + ' new tags'}</StatusText>;
                   }
-                />
-              );
-            })}
-        </div>
+                  return <StatusText tone="muted">{'—'}</StatusText>;
+                },
+              },
+            ]}
+          />
+        )}
       </div>
       {showNewModal && (
         <CattleNewWeighInModal

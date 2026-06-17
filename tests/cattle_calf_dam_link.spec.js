@@ -243,7 +243,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async
   const calfRow = page.locator(`#cow-${CALF_BLANK.id}`).first();
   await expect(calfRow).toBeVisible({timeout: 10_000});
   // Clicking the cow row opens the cattle animal record page.
-  await calfRow.locator('.hoverable-tile').first().click();
+  await calfRow.click();
   await expect(page).toHaveURL(new RegExp('/cattle/herds/' + CALF_BLANK.id + '$'), {timeout: 10_000});
 
   const record = page.locator('[data-cattle-animal-page="1"]');
@@ -275,7 +275,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is blank', asy
 
   const calfRow = page.locator(`#cow-${CALF_BLANK.id}`).first();
   await expect(calfRow).toBeVisible({timeout: 10_000});
-  await calfRow.locator('.hoverable-tile').first().click();
+  await calfRow.click();
   await expect(page).toHaveURL(new RegExp('/cattle/herds/' + CALF_BLANK.id + '$'), {timeout: 10_000});
 
   const record = page.locator('[data-cattle-animal-page="1"]');
@@ -315,7 +315,7 @@ test('UI: calving record list and form omit born/died entirely', async ({page, s
   // Calving list lives on the dam's record page (CowDetail composed there).
   const damRow = page.locator(`#cow-${DAM.id}`).first();
   await expect(damRow).toBeVisible({timeout: 10_000});
-  await damRow.locator('.hoverable-tile').first().click();
+  await damRow.click();
   await expect(page).toHaveURL(new RegExp('/cattle/herds/' + DAM.id + '$'), {timeout: 10_000});
 
   const record = page.locator('[data-cattle-animal-page="1"]');
@@ -351,7 +351,7 @@ test('UI: + Add Calving submit writes no auto-comment to the dam timeline', asyn
 
   const damRow = page.locator(`#cow-${DAM.id}`).first();
   await expect(damRow).toBeVisible({timeout: 10_000});
-  await damRow.locator('.hoverable-tile').first().click();
+  await damRow.click();
   await expect(page).toHaveURL(new RegExp('/cattle/herds/' + DAM.id + '$'), {timeout: 10_000});
 
   const record = page.locator('[data-cattle-animal-page="1"]');

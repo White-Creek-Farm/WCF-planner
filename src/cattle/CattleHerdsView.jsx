@@ -44,6 +44,12 @@ import {
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
@@ -1194,124 +1200,145 @@ const CattleHerdsHub = ({
     );
   }
 
-  // Shared cow row — used by BOTH the flat list and grouped tiles so the two
-  // can't drift again (PROJECT.md row-parity item). `showHerd` adds the herd
-  // badge column for the flat list; grouped omits it because rows already sit
-  // under a herd tile. Calf count + last-calved render for FEMALES (cow/heifer)
-  // in either mode — herd-independent, which is the parity fix (previously flat
-  // showed neither and grouped only showed them for the mommas tile).
-  // eslint-disable-next-line no-unused-vars -- JSX-only use
-  function CowListRow({c, index, navList, showHerd}) {
-    const hc = HERD_COLORS[c.herd] || HERD_COLORS.mommas;
-    const lw = lastWeight(c);
-    const isFemale = c.sex === 'cow' || c.sex === 'heifer';
-    const lc = isFemale ? lastCalving(c.tag) : null;
-    const cc = isFemale ? calfCount(c.tag) : 0;
-    const gridTemplateColumns = showHerd
-      ? '48px 16px 70px 110px 60px 160px 140px 70px 90px 1fr'
-      : '48px 16px 70px 60px 160px 140px 70px 90px 1fr';
-    const ellipsisCell = {
-      fontSize: 11,
-      color: 'var(--ink-muted)',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    };
-    return (
-      <div id={'cow-' + c.id} data-cow-row-tag={c.tag || ''} style={{borderBottom: '1px solid var(--divider)'}}>
-        <div
-          {...openableProps(() => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(navList)))}
-          style={{
-            padding: showHerd ? '10px 16px 10px 0' : '10px 18px 10px 0',
-            display: 'grid',
-            gridTemplateColumns,
-            alignItems: 'center',
-            gap: 10,
-            cursor: 'pointer',
-            background: c.breeding_blacklist ? '#fecaca' : showHerd ? 'white' : 'transparent',
-          }}
-          className="hoverable-tile"
-        >
-          <span
-            style={{
-              fontSize: 11,
-              color: 'var(--ink-faint)',
-              fontVariantNumeric: 'tabular-nums',
-              alignSelf: 'stretch',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              paddingRight: 10,
-              paddingLeft: 8,
-              marginTop: -10,
-              marginBottom: -10,
-              borderRight: '1px solid var(--border-strong)',
-              fontWeight: 600,
-            }}
-          >
-            {index + 1}
+  // Shared cow columns — used by BOTH the flat list and grouped tiles (rendered
+  // through <DataTable>) so the two can't drift again (PROJECT.md row-parity
+  // item). `showHerd` adds the Herd badge column for the flat list; grouped
+  // omits it because rows already sit under a herd tile. Calf count +
+  // last-calved render for FEMALES (cow/heifer) in either mode — herd-
+  // independent, which is the parity fix (previously flat showed neither and
+  // grouped only showed them for the mommas tile). CP3: faux-grid
+  // `.hoverable-tile` rows replaced by the shared <DataTable> (row RENDERING
+  // only — filters/sort/saved-views/CSV/print/grouping logic unchanged).
+  const ellipsisCellS = {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    maxWidth: 160,
+  };
+  function cowTableColumns(showHerd) {
+    const cols = [
+      {
+        key: 'tag',
+        label: 'Tag',
+        primary: true,
+        render: (c) => (
+          <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+            <span style={{fontWeight: 700}}>{c.tag ? '#' + c.tag : '(no tag)'}</span>
+            {c.breeding_blacklist && <Badge variant="danger">BLACKLIST</Badge>}
           </span>
-          <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'▶'}</span>
-          <span
-            style={{fontWeight: 700, fontSize: 13, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 4}}
-          >
-            {c.tag ? '#' + c.tag : '(no tag)'}
-          </span>
-          {showHerd && (
+        ),
+      },
+    ];
+    if (showHerd) {
+      cols.push({
+        key: 'herd',
+        label: 'Herd',
+        render: (c) => {
+          const hc = HERD_COLORS[c.herd] || HERD_COLORS.mommas;
+          return (
             <span
               style={{
                 fontSize: 11,
                 padding: '2px 8px',
-                borderRadius: 10,
+                borderRadius: 999,
                 background: 'white',
                 color: hc.tx,
                 border: '1px solid ' + hc.bd,
                 fontWeight: 600,
-                textAlign: 'center',
                 whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
               }}
             >
               {HERD_LABELS[c.herd]}
             </span>
-          )}
-          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{c.sex || '—'}</span>
-          <span style={ellipsisCell}>{c.breed || '—'}</span>
-          <span data-cattle-row-origin={c.id} style={ellipsisCell}>
-            {c.origin || '—'}
-          </span>
-          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{age(c.birth_date) || '—'}</span>
-          <span style={{fontSize: 11, color: lw ? '#065f46' : 'var(--ink-faint)', fontWeight: lw ? 600 : 400}}>
-            {lw ? lw.toLocaleString() + ' lb' : 'no weigh-in'}
-          </span>
-          <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-            {c.dam_tag && <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'dam #' + c.dam_tag}</span>}
-            {isFemale && (
-              <span data-calf-count={cc} style={{fontSize: 11, color: '#7f1d1d', fontWeight: 600}}>
-                {'Calves: ' + cc}
-              </span>
-            )}
-            {isFemale && lc && (
-              <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'last calved ' + fmt(lc.calving_date)}</span>
-            )}
-            {c.breeding_blacklist && (
-              <span
-                style={{
-                  fontSize: 10,
-                  padding: '1px 6px',
-                  borderRadius: 10,
-                  background: '#fef2f2',
-                  color: '#b91c1c',
-                  fontWeight: 600,
-                }}
-              >
-                BLACKLIST
-              </span>
-            )}
-          </span>
-        </div>
-      </div>
+          );
+        },
+      });
+    }
+    cols.push(
+      {
+        key: 'sex',
+        label: 'Sex',
+        render: (c) => <StatusText tone="muted">{c.sex || '—'}</StatusText>,
+      },
+      {
+        key: 'breed',
+        label: 'Breed',
+        render: (c) => (
+          <StatusText tone="muted" style={ellipsisCellS}>
+            {c.breed || '—'}
+          </StatusText>
+        ),
+      },
+      {
+        key: 'origin',
+        label: 'Origin',
+        render: (c) => (
+          <StatusText tone="muted" style={ellipsisCellS}>
+            <span data-cattle-row-origin={c.id}>{c.origin || '—'}</span>
+          </StatusText>
+        ),
+      },
+      {
+        key: 'age',
+        label: 'Age',
+        align: 'right',
+        render: (c) => <StatusText tone="muted">{age(c.birth_date) || '—'}</StatusText>,
+      },
+      {
+        key: 'lastWeight',
+        label: 'Last weight',
+        align: 'right',
+        render: (c) => {
+          const lw = lastWeight(c);
+          return lw ? (
+            <StatusText tone="ok">{lw.toLocaleString() + ' lb'}</StatusText>
+          ) : (
+            <StatusText tone="muted">no weigh-in</StatusText>
+          );
+        },
+      },
+      {
+        key: 'meta',
+        label: 'Calving',
+        render: (c) => {
+          const isFemale = c.sex === 'cow' || c.sex === 'heifer';
+          const lc = isFemale ? lastCalving(c.tag) : null;
+          const cc = isFemale ? calfCount(c.tag) : 0;
+          return (
+            <span style={{display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+              {c.dam_tag && <StatusText tone="muted">{'dam #' + c.dam_tag}</StatusText>}
+              {isFemale && (
+                <span data-calf-count={cc} style={{fontSize: 11, color: '#7f1d1d', fontWeight: 600}}>
+                  {'Calves: ' + cc}
+                </span>
+              )}
+              {isFemale && lc && <StatusText tone="muted">{'last calved ' + fmt(lc.calving_date)}</StatusText>}
+            </span>
+          );
+        },
+      },
+    );
+    return cols;
+  }
+
+  // Shared <DataTable> renderer for the cattle list. `navList` is the exact
+  // visible-order array (sortedFlat for flat; per-herd cows for grouped) so the
+  // record page's sequence nav still walks the on-screen order. The per-row
+  // hooks (id="cow-<id>", data-cow-row-tag) and the blacklist row tint are
+  // preserved via rowProps + rowStyle.
+  // eslint-disable-next-line no-unused-vars -- JSX-only use
+  function CattleDataTable({navList, showHerd, surfaceKey}) {
+    return (
+      <DataTable
+        surfaceKey={surfaceKey}
+        rowKey="id"
+        showRowNumbers
+        columns={cowTableColumns(showHerd)}
+        rows={navList}
+        onRowOpen={(c) => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(navList))}
+        rowProps={(c) => ({id: 'cow-' + c.id, 'data-cow-row-tag': c.tag || ''})}
+        rowStyle={(c) => (c.breeding_blacklist ? {background: '#fecaca'} : undefined)}
+      />
     );
   }
 
@@ -1824,9 +1851,7 @@ const CattleHerdsHub = ({
                     No cattle match the current filter.
                   </div>
                 )}
-                {sortedFlat.map((c, i) => (
-                  <CowListRow key={c.id} c={c} index={i} navList={sortedFlat} showHerd />
-                ))}
+                <CattleDataTable navList={sortedFlat} showHerd surfaceKey="cattle-herds-flat" />
               </div>
             )}
 
@@ -1902,10 +1927,9 @@ const CattleHerdsHub = ({
                           {filterCount > 0 ? 'No cows match the current filters.' : 'No cows in this herd yet.'}
                         </div>
                       )}
-                      {herdOpen &&
-                        cows.map((c, cowIdx) => (
-                          <CowListRow key={c.id} c={c} index={cowIdx} navList={cows} showHerd={false} />
-                        ))}
+                      {herdOpen && cows.length > 0 && (
+                        <CattleDataTable navList={cows} showHerd={false} surfaceKey={'cattle-herds-' + h} />
+                      )}
                     </div>
                   );
                 })}

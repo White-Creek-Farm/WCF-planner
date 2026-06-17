@@ -8,7 +8,11 @@ import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from 
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import AdminNewWeighInModal from '../shared/AdminNewWeighInModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import WeighInSessionListTile from '../shared/WeighInSessionListTile.jsx';
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -690,212 +694,198 @@ const LivestockWeighInsView = ({
         )}
 
         {!loadFailed &&
+          !loading &&
+          (isPig ? sessions.length > 0 : filtered.length > 0) &&
           (() => {
-            const renderSessionCard = (s) => {
-              const sEntries = entries[s.id] || [];
-              const avgWeight = averageEntryWeight(sEntries);
-              const priorPigSession = species === 'pig' ? findPriorPigWeighInSession(s, sessions) : null;
-              const pigEntryAdgs = priorPigSession
-                ? computeRankMatchedPigEntryADG(
-                    sEntries,
-                    entries[priorPigSession.id] || [],
-                    s.date,
-                    priorPigSession.date,
-                  )
-                : [];
-              return (
-                <div
-                  key={s.id}
-                  style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden'}}
-                >
-                  <WeighInSessionListTile
-                    session={s}
-                    label={s.batch_id || 'Unknown batch'}
-                    fmt={fmt}
-                    countLabel={sEntries.length + ' ' + (sEntries.length === 1 ? 'entry' : 'entries')}
-                    embedded
-                    onClick={() =>
-                      navigate(
-                        '/weigh-in-sessions/' + s.id,
-                        recordSeqNavOptions(
-                          filtered.map((r) => ({id: r.id, label: (r.date || '') + ' · ' + (r.batch_id || species)})),
-                        ),
-                      )
-                    }
-                    beforeStatus={
-                      species === 'broiler' && s.broiler_week ? (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            background: '#fef3c7',
-                            color: '#92400e',
-                          }}
-                        >
-                          {'WK ' + s.broiler_week}
-                        </span>
-                      ) : null
-                    }
-                  >
-                    {species !== 'pig' && avgWeight > 0 && (
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: '#065f46',
-                          padding: '2px 10px',
-                          borderRadius: 10,
-                          background: '#d1fae5',
-                        }}
-                      >
-                        avg {Math.round(avgWeight * 100) / 100} lb
-                      </span>
-                    )}
-                    {species === 'broiler' && avgWeight > 0 && s.broiler_week && (
-                      <span style={{fontSize: 10, color: 'var(--ink-muted)', fontStyle: 'italic'}}>
-                        {'→ batch wk' + s.broiler_week + 'Lbs'}
-                      </span>
-                    )}
-                  </WeighInSessionListTile>
-                  {species === 'pig' &&
-                    sEntries.length > 0 &&
-                    pigMetricsBySession[s.id] &&
-                    pigMetricsBySession[s.id].available && (
-                      <div
-                        data-pig-metrics-row={s.id}
-                        style={{
-                          padding: '8px 16px',
-                          borderTop: '1px solid var(--divider)',
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                          gap: 8,
-                          background: '#fafafa',
-                        }}
-                      >
-                        <div data-pig-metric="age">
-                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
-                            Age at weigh-in
-                          </div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
-                            {formatAgeRange({
-                              minDays: pigMetricsBySession[s.id].age_min_days,
-                              maxDays: pigMetricsBySession[s.id].age_max_days,
-                              hasActual: pigMetricsBySession[s.id].has_actual_farrowing,
-                            })}
-                          </div>
-                        </div>
-                        <div data-pig-metric="feed">
-                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
-                            Feed/pig
-                          </div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
-                            {formatFeedPerPig(pigMetricsBySession[s.id].feed_per_pig_lbs)}
-                          </div>
-                        </div>
-                        <div data-pig-metric="adg">
-                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
-                            Group ADG
-                          </div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
-                            {formatGroupAdg(pigMetricsBySession[s.id].group_adg_lbs_per_day)}
-                          </div>
-                        </div>
-                        <div data-pig-metric="avg">
-                          <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
-                            Avg weight
-                          </div>
-                          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>
-                            {formatAvgWeight(pigMetricsBySession[s.id].avg_weight_lbs)}
-                          </div>
-                        </div>
-                        {pigEntryAdgs.length > 0 && (
-                          <div data-pig-metric="entry-adg" style={{gridColumn: '1 / -1'}}>
-                            <div style={{fontSize: 9, color: 'var(--ink-muted)', textTransform: 'uppercase'}}>
-                              Rank-matched pig ADG
-                            </div>
-                            <div style={{display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3}}>
-                              {pigEntryAdgs.map((m) => (
-                                <span
-                                  key={m.entryId || m.rank}
-                                  title={
-                                    'rank ' +
-                                    m.rank +
-                                    ' vs prior ' +
-                                    fmt(m.priorDate) +
-                                    ' at ' +
-                                    Math.round(m.priorWeightLbs) +
-                                    ' lb'
-                                  }
-                                  style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    color: m.adgLbsPerDay >= 0 ? '#065f46' : '#b91c1c',
-                                    background: m.adgLbsPerDay >= 0 ? '#ecfdf5' : '#fef2f2',
-                                    border: '1px solid ' + (m.adgLbsPerDay >= 0 ? '#a7f3d0' : '#fecaca'),
-                                    borderRadius: 10,
-                                    padding: '2px 6px',
-                                  }}
-                                >
-                                  {Math.round(m.currentWeightLbs) +
-                                    ' lb ' +
-                                    (m.adgLbsPerDay >= 0 ? '+' : '') +
-                                    m.adgLbsPerDay.toFixed(2) +
-                                    ' lb/day'}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                </div>
+            // Each session row carries the same derived facts the old card showed:
+            // average entry weight (broiler) and the pig metric/ADG bundle (pig).
+            const openSession = (s) =>
+              navigate(
+                '/weigh-in-sessions/' + s.id,
+                recordSeqNavOptions(
+                  filtered.map((r) => ({id: r.id, label: (r.date || '') + ' · ' + (r.batch_id || species)})),
+                ),
               );
-            };
-            if (isPig) {
-              if (sessions.length === 0) return null;
-              const renderSection = (title, marker, items) => (
-                <div data-livestock-weighins-section={marker} style={{marginBottom: 16}}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.4,
-                      color: 'var(--ink-muted)',
-                      margin: '4px 2px 8px',
-                    }}
-                  >
-                    {title} ({items.length})
-                  </div>
-                  {items.length === 0 ? (
-                    <div style={{fontSize: 12, color: 'var(--ink-faint)', padding: '2px 2px 4px'}}>
-                      No {title.toLowerCase()} sessions.
-                    </div>
+
+            const columns = [
+              {
+                key: 'label',
+                label: 'Session',
+                primary: true,
+                render: (s) => {
+                  const avgWeight = averageEntryWeight(entries[s.id] || []);
+                  return (
+                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
+                      {species === 'broiler' && s.broiler_week ? (
+                        <Badge variant="warn">{'WK ' + s.broiler_week}</Badge>
+                      ) : null}
+                      <span>{s.batch_id || 'Unknown batch'}</span>
+                      {species === 'broiler' && avgWeight > 0 && s.broiler_week ? (
+                        <StatusText tone="muted" style={{fontStyle: 'italic', fontWeight: 400}}>
+                          {'→ batch wk' + s.broiler_week + 'Lbs'}
+                        </StatusText>
+                      ) : null}
+                    </span>
+                  );
+                },
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (s) => <Badge variant={s.status === 'complete' ? 'ok' : 'warn'}>{s.status}</Badge>,
+              },
+              {key: 'date', label: 'Date', render: (s) => fmt(s.date)},
+              {
+                key: 'team',
+                label: 'Team',
+                render: (s) => s.team_member || <StatusText tone="muted">{'—'}</StatusText>,
+              },
+              {
+                key: 'entries',
+                label: 'Entries',
+                align: 'right',
+                render: (s) => (entries[s.id] || []).length,
+              },
+            ];
+
+            if (species === 'pig') {
+              const metric = (s) => pigMetricsBySession[s.id];
+              const hasMetrics = (s) => (entries[s.id] || []).length > 0 && metric(s) && metric(s).available;
+              columns.push(
+                {
+                  key: 'age',
+                  label: 'Age at weigh-in',
+                  align: 'right',
+                  mobilePriority: false,
+                  render: (s) =>
+                    hasMetrics(s) ? (
+                      formatAgeRange({
+                        minDays: metric(s).age_min_days,
+                        maxDays: metric(s).age_max_days,
+                        hasActual: metric(s).has_actual_farrowing,
+                      })
+                    ) : (
+                      <StatusText tone="muted">{'—'}</StatusText>
+                    ),
+                },
+                {
+                  key: 'feedPerPig',
+                  label: 'Feed/pig',
+                  align: 'right',
+                  mobilePriority: false,
+                  render: (s) =>
+                    hasMetrics(s) ? (
+                      formatFeedPerPig(metric(s).feed_per_pig_lbs)
+                    ) : (
+                      <StatusText tone="muted">{'—'}</StatusText>
+                    ),
+                },
+                {
+                  key: 'groupAdg',
+                  label: 'Group ADG',
+                  align: 'right',
+                  render: (s) => {
+                    if (!hasMetrics(s)) return <StatusText tone="muted">{'—'}</StatusText>;
+                    const v = metric(s).group_adg_lbs_per_day;
+                    const num = v == null ? null : parseFloat(v);
+                    const tone = num == null || !isFinite(num) ? 'muted' : num >= 0 ? 'ok' : 'danger';
+                    return <StatusText tone={tone}>{formatGroupAdg(v)}</StatusText>;
+                  },
+                },
+                {
+                  key: 'avgWeight',
+                  label: 'Avg weight',
+                  align: 'right',
+                  render: (s) =>
+                    hasMetrics(s) ? (
+                      formatAvgWeight(metric(s).avg_weight_lbs)
+                    ) : (
+                      <StatusText tone="muted">{'—'}</StatusText>
+                    ),
+                },
+                {
+                  key: 'entryAdg',
+                  label: 'Rank-matched pig ADG',
+                  mobilePriority: false,
+                  render: (s) => {
+                    const sEntries = entries[s.id] || [];
+                    const priorPigSession = findPriorPigWeighInSession(s, sessions);
+                    const pigEntryAdgs = priorPigSession
+                      ? computeRankMatchedPigEntryADG(
+                          sEntries,
+                          entries[priorPigSession.id] || [],
+                          s.date,
+                          priorPigSession.date,
+                        )
+                      : [];
+                    if (pigEntryAdgs.length === 0) return <StatusText tone="muted">{'—'}</StatusText>;
+                    return (
+                      <span data-pig-metric="entry-adg" style={{display: 'inline-flex', flexWrap: 'wrap', gap: 4}}>
+                        {pigEntryAdgs.map((m) => (
+                          <StatusText
+                            key={m.entryId || m.rank}
+                            tone={m.adgLbsPerDay >= 0 ? 'ok' : 'danger'}
+                            title={
+                              'rank ' +
+                              m.rank +
+                              ' vs prior ' +
+                              fmt(m.priorDate) +
+                              ' at ' +
+                              Math.round(m.priorWeightLbs) +
+                              ' lb'
+                            }
+                          >
+                            {Math.round(m.currentWeightLbs) +
+                              ' lb ' +
+                              (m.adgLbsPerDay >= 0 ? '+' : '') +
+                              m.adgLbsPerDay.toFixed(2) +
+                              ' lb/day'}
+                          </StatusText>
+                        ))}
+                      </span>
+                    );
+                  },
+                },
+              );
+            } else {
+              columns.push({
+                key: 'avg',
+                label: 'Avg weight',
+                align: 'right',
+                render: (s) => {
+                  const avgWeight = averageEntryWeight(entries[s.id] || []);
+                  return avgWeight > 0 ? (
+                    <StatusText tone="ok">{'avg ' + Math.round(avgWeight * 100) / 100 + ' lb'}</StatusText>
                   ) : (
-                    <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>{items.map(renderSessionCard)}</div>
-                  )}
-                </div>
-              );
+                    <StatusText tone="muted">{'—'}</StatusText>
+                  );
+                },
+              });
+            }
+
+            const sharedProps = {
+              surfaceKey: 'pig-and-shared-weighins-table',
+              rowKey: 'id',
+              density: 'comfortable',
+              columns,
+              onRowOpen: openSession,
+              rowProps: (s) => ({'data-weighin-session-tile': s.id}),
+            };
+
+            if (isPig) {
+              const activeRows = sessions.filter((s) => s.status !== 'complete');
+              const completeRows = sessions.filter((s) => s.status === 'complete');
               return (
-                <>
-                  {renderSection(
-                    'Active',
-                    'active',
-                    sessions.filter((s) => s.status !== 'complete'),
-                  )}
-                  {renderSection(
-                    'Complete',
-                    'complete',
-                    sessions.filter((s) => s.status === 'complete'),
-                  )}
-                </>
+                <DataTable
+                  {...sharedProps}
+                  sections={[
+                    {key: 'active', label: 'Active', rows: activeRows},
+                    {key: 'complete', label: 'Complete', rows: completeRows},
+                  ]}
+                />
               );
             }
-            return (
-              <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>{filtered.map(renderSessionCard)}</div>
-            );
+            return <DataTable {...sharedProps} rows={filtered} />;
           })()}
       </div>
     </div>

@@ -50,6 +50,9 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     'src/livestock/WeighInSessionPage.jsx',
     'src/pig/PigBatchPage.jsx',
     'src/pig/PigDailyPage.jsx',
+    // SowsView hosts the pig.breeder record surface inline and mounts
+    // RecordCollaborationSection (comments + audit) for the selected breeding pig.
+    'src/pig/SowsView.jsx',
     'src/sheep/SheepAnimalPage.jsx',
     'src/sheep/SheepBatchPage.jsx',
     'src/sheep/SheepDailyPage.jsx',

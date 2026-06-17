@@ -261,7 +261,7 @@ test('forecast → send: active batch saved with exact virtual batch name', asyn
   // Drive the WeighIns view's Complete Session to fire the modal.
   await page.goto('/cattle/weighins');
   // Pick the draft session.
-  const draftRow = page.locator('.hoverable-tile').filter({hasText: /draft/i}).first();
+  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
   await expect(draftRow).toBeVisible({timeout: 15_000});
   await draftRow.click();
   await page.getByRole('button', {name: /Complete Session/}).click();
@@ -325,7 +325,7 @@ test('forecast → send: outside-projection tags warn but do not block; sent cow
   await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).eq('id', 'wi-send-F-AT-MAX');
 
   await page.goto('/cattle/weighins');
-  const draftRow = page.locator('.hoverable-tile').filter({hasText: /draft/i}).first();
+  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
   await expect(draftRow).toBeVisible({timeout: 15_000});
   await draftRow.click();
   await page.getByRole('button', {name: /Complete Session/}).click();
@@ -409,7 +409,7 @@ test('send-to-processor: scheduled row promotes to active; same id; only sent ca
   await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).eq('id', 'wi-send-F-AT-MAX');
 
   await page.goto('/cattle/weighins');
-  const draftRow = page.locator('.hoverable-tile').filter({hasText: /draft/i}).first();
+  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
   await expect(draftRow).toBeVisible({timeout: 15_000});
   await draftRow.click();
   await page.getByRole('button', {name: /Complete Session/}).click();
@@ -495,7 +495,7 @@ test('send-to-processor: farm_team cannot send even when the tag gate would othe
   await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).in('id', ['wi-send-F1', 'wi-send-F-HIDE']);
 
   await page.goto('/cattle/weighins');
-  const draftRow = page.locator('.hoverable-tile').filter({hasText: /draft/i}).first();
+  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
   await expect(draftRow).toBeVisible({timeout: 15_000});
   await draftRow.click();
   await page.getByRole('button', {name: /Complete Session/}).click();

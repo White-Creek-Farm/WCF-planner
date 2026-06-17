@@ -1,7 +1,6 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
-import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
 import {checkDailyDuplicate, formatDuplicateError, friendlyDailyDbError} from '../lib/dailyDuplicateCheck.js';
@@ -17,8 +16,12 @@ import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use
+
 import LayerDailyPage from './LayerDailyPage.jsx';
 import {setHousingAnchorFromReport} from '../lib/layerHousing.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
@@ -868,236 +871,134 @@ const LayerDailysHub = ({
           emptyLabel="No layer daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
-            {(() => {
-              const dates = [...new Set(filtered.map((r) => r.date))];
-              return filtered.map((d, i) => {
-                const hasMort = parseInt(d.mortality_count) > 0;
-                const hasFeed = parseFloat(d.feed_lbs) > 0;
-                const hasGrit = parseFloat(d.grit_lbs) > 0;
-                const hasCount = parseInt(d.layer_count) > 0;
-                const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
-                const notable = hasMort || comment;
-                const prevDate = i > 0 ? filtered[i - 1].date : null;
-                const showDivider = prevDate && prevDate !== d.date;
-                const dateIdx = dates.indexOf(d.date);
-                const shadeBg = dateIdx % 2 === 0 ? 'white' : 'var(--surface-2)';
-                return (
-                  <React.Fragment key={d.id}>
-                    {showDivider && (
-                      <div
-                        style={{
-                          height: 2,
-                          background: 'var(--ink-faint)',
-                          margin: '6px 0',
-                          borderRadius: 1 /* radius-allow: 2px date-group divider bar */,
-                        }}
-                      />
+          <DataTable
+            surfaceKey="layer-dailys-table"
+            rows={filtered}
+            rowKey="id"
+            density="comfortable"
+            onRowOpen={(d) =>
+              navigate('/layer/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
+            }
+            rowProps={(d) => ({'data-daily-row': d.id})}
+            rowStyle={(d) => {
+              const notable = parseInt(d.mortality_count) > 0 || (d.comments && String(d.comments).trim().length > 2);
+              if (notable) return {background: '#fef2f2'};
+              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
+              return undefined;
+            }}
+            columns={[
+              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
+              {
+                key: 'group',
+                label: 'Group',
+                primary: true,
+                render: (d) => (
+                  <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                    <span>{d.batch_label || '—'}</span>
+                    {d.source === 'add_feed_webform' && (
+                      <span title="Add Feed log" aria-label="Add Feed log">
+                        {'🌾'}
+                      </span>
                     )}
-                    <div
-                      data-daily-row={d.id}
-                      {...openableProps(() =>
-                        navigate('/layer/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label'))),
-                      )}
-                      style={{
-                        background: d.source === 'add_feed_webform' ? '#fffbeb' : shadeBg,
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                        border: notable
-                          ? '1.5px solid #fca5a5'
-                          : d.source === 'add_feed_webform'
-                            ? '1px solid #fde68a'
-                            : '1px solid var(--border)',
-                        padding: '10px 14px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 4,
-                      }}
-                      className="hoverable-tile"
-                    >
-                      <div
-                        data-mobile-1col="1"
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '90px 130px 90px 150px 90px 90px 1fr',
-                          alignItems: 'center',
-                          gap: 12,
-                        }}
-                      >
-                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{fmt(d.date)}</span>
-                        <span style={{display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              color: 'var(--ink)',
-                              fontSize: 13,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {d.batch_label || '\u2014'}
-                          </span>
-                          {d.source === 'add_feed_webform' && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                padding: '1px 6px',
-                                borderRadius: 10,
-                                background: '#fef3c7',
-                                color: '#92400e',
-                                border: '1px solid #fde68a',
-                                flexShrink: 0,
-                              }}
-                            >
-                              {'\ud83c\udf3e'}
-                            </span>
-                          )}
-                          <DailyPhotoChip photos={d.photos} />
-                        </span>
+                    <DailyPhotoChip photos={d.photos} />
+                  </span>
+                ),
+              },
+              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
+              {
+                key: 'feed',
+                label: 'Feed',
+                align: 'right',
+                render: (d) => {
+                  const hasFeed = parseFloat(d.feed_lbs) > 0;
+                  if (!hasFeed) return <StatusText tone="muted">no feed</StatusText>;
+                  return (
+                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end'}}>
+                      <span>{parseFloat(d.feed_lbs).toLocaleString() + ' lbs'}</span>
+                      {d.feed_type && (
                         <span
                           style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: '2px 8px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '1px 5px',
                             borderRadius: 10,
-                            background: '#f1f5f9',
-                            color: '#475569',
-                            border: '1px solid #e2e8f0',
-                            textAlign: 'center',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
+                            background:
+                              d.feed_type === 'STARTER' ? '#dbeafe' : d.feed_type === 'GROWER' ? '#d1fae5' : '#fef3c7',
+                            color:
+                              d.feed_type === 'STARTER' ? '#1e40af' : d.feed_type === 'GROWER' ? '#065f46' : '#92400e',
                           }}
                         >
-                          {d.team_member || '\u2014'}
+                          {d.feed_type}
                         </span>
-                        <span
-                          style={{
-                            color: hasFeed ? '#92400e' : '#9ca3af',
-                            fontWeight: hasFeed ? 600 : 400,
-                            fontSize: 12,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            overflow: 'hidden',
-                            whiteSpace: 'nowrap',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {hasFeed ? `\ud83c\udf3e ${parseFloat(d.feed_lbs).toLocaleString()} lbs` : 'no feed'}
-                          {hasFeed && d.feed_type && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                padding: '1px 5px',
-                                borderRadius: 10,
-                                background:
-                                  d.feed_type === 'STARTER'
-                                    ? '#dbeafe'
-                                    : d.feed_type === 'GROWER'
-                                      ? '#d1fae5'
-                                      : '#fef3c7',
-                                color:
-                                  d.feed_type === 'STARTER'
-                                    ? '#1e40af'
-                                    : d.feed_type === 'GROWER'
-                                      ? '#065f46'
-                                      : '#92400e',
-                              }}
-                            >
-                              {d.feed_type}
-                            </span>
-                          )}
-                        </span>
-                        <span
-                          style={{
-                            color: 'var(--ink)',
-                            fontSize: 12,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {hasGrit ? `grit ${parseFloat(d.grit_lbs)} lbs` : 'no grit'}
-                        </span>
-                        <span style={{color: 'var(--ink)', fontSize: 12, whiteSpace: 'nowrap'}}>
-                          {hasCount ? `\ud83d\udc14 ${d.layer_count} hens` : 'no count'}
-                        </span>
-                        <span style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              padding: '2px 7px',
-                              borderRadius: 10,
-                              background: d.group_moved === false ? '#fef2f2' : '#f0fdf4',
-                              color: d.group_moved === false ? '#b91c1c' : '#065f46',
-                              border: d.group_moved === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
-                            }}
-                          >
-                            {'Moved: ' + (d.group_moved === false ? 'No' : 'Yes')}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 600,
-                              padding: '2px 7px',
-                              borderRadius: 10,
-                              background: d.waterer_checked === false ? '#fef2f2' : '#f0fdf4',
-                              color: d.waterer_checked === false ? '#b91c1c' : '#065f46',
-                              border: d.waterer_checked === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
-                            }}
-                          >
-                            {'Waterer: ' + (d.waterer_checked === false ? 'No' : 'Yes')}
-                          </span>
-                        </span>
-                      </div>
-                      {(hasMort || comment) && (
-                        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 2}}>
-                          {hasMort && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                padding: '3px 8px',
-                                borderRadius: 10,
-                                background: '#fef2f2',
-                                color: '#b91c1c',
-                                border: '1px solid #fecaca',
-                              }}
-                            >
-                              {'\ud83d\udc80 ' +
-                                d.mortality_count +
-                                ' mort.' +
-                                (d.mortality_reason ? ' \u2014 ' + d.mortality_reason : '')}
-                            </span>
-                          )}
-                          {comment && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: '#92400e',
-                                padding: '3px 10px',
-                                background: '#fffbeb',
-                                border: '1px solid #fde68a',
-                                borderRadius: 10,
-                                fontStyle: 'italic',
-                              }}
-                            >
-                              {'\ud83d\udcac ' + comment}
-                            </span>
-                          )}
-                        </div>
                       )}
-                    </div>
-                  </React.Fragment>
-                );
-              });
-            })()}
-          </div>
+                    </span>
+                  );
+                },
+              },
+              {
+                key: 'grit',
+                label: 'Grit',
+                align: 'right',
+                mobilePriority: false,
+                render: (d) =>
+                  parseFloat(d.grit_lbs) > 0 ? (
+                    parseFloat(d.grit_lbs) + ' lbs'
+                  ) : (
+                    <StatusText tone="muted">no grit</StatusText>
+                  ),
+              },
+              {
+                key: 'count',
+                label: 'Hens',
+                align: 'right',
+                render: (d) =>
+                  parseInt(d.layer_count) > 0 ? String(d.layer_count) : <StatusText tone="muted">no count</StatusText>,
+              },
+              {
+                key: 'checks',
+                label: 'Checks',
+                mobilePriority: false,
+                render: (d) => (
+                  <span style={{display: 'inline-flex', gap: 10, flexWrap: 'wrap'}}>
+                    <StatusText tone={d.group_moved === false ? 'danger' : 'ok'}>
+                      {'Moved ' + (d.group_moved === false ? '✗' : '✓')}
+                    </StatusText>
+                    <StatusText tone={d.waterer_checked === false ? 'danger' : 'ok'}>
+                      {'Waterer ' + (d.waterer_checked === false ? '✗' : '✓')}
+                    </StatusText>
+                  </span>
+                ),
+              },
+              {
+                key: 'mortality',
+                label: 'Mortality',
+                align: 'right',
+                render: (d) => {
+                  const mort = parseInt(d.mortality_count);
+                  if (!(mort > 0)) return <StatusText tone="muted">{'—'}</StatusText>;
+                  const text = '💀 ' + d.mortality_count + (d.mortality_reason ? ' — ' + d.mortality_reason : '');
+                  return (
+                    <StatusText tone="danger" title={text}>
+                      {text}
+                    </StatusText>
+                  );
+                },
+              },
+              {
+                key: 'comments',
+                label: 'Comments',
+                render: (d) => {
+                  const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
+                  if (!comment) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return (
+                    <StatusText tone="warn" title={comment}>
+                      {comment}
+                    </StatusText>
+                  );
+                },
+              },
+            ]}
+          />
         )}
         {hasMore && (
           <div style={{textAlign: 'center', padding: '0.5rem', fontSize: 11, color: 'var(--ink-faint)'}}>

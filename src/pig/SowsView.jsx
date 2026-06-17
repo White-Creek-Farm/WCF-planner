@@ -8,7 +8,6 @@
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {sb} from '../lib/supabase.js';
-import {openableProps} from '../shared/openable.js';
 import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
@@ -19,6 +18,10 @@ import {buildChanges} from '../lib/activityChangeDiff.js';
 import {recordActivityEvent, recordFieldChange} from '../lib/entityMutations.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
@@ -30,7 +33,6 @@ import {useDailysRecent} from '../contexts/DailysRecentContext.jsx';
 
 const BREEDING_PIG_ENTITY_TYPE = 'pig.breeder';
 const EXTENDED_LIST_CONTROLS_ENABLED = false;
-const BREEDING_PIG_GRID = '44px 16px 76px 70px 92px 92px 128px 128px 106px 106px 128px 96px minmax(180px,1fr) 64px';
 const BREEDER_ACTIVITY_LABELS = {
   tag: 'Tag',
   sex: 'Sex',
@@ -475,6 +477,123 @@ export default function SowsView({
     return history;
   }
 
+  // CP3: animal-list rows now render through the shared <DataTable> (real
+  // table semantics, openable rows with right-aligned numerics; DataTable owns
+  // the keyboard-open wiring). The section chrome (title band + count + muted
+  // state) is preserved around it; the view's own grouping/sort/filter still
+  // feed `pigs`/`rows` unchanged.
+  const breedingPigColumns = [
+    {
+      key: 'tag',
+      label: 'Tag',
+      primary: true,
+      render: (pig) => (
+        <span style={{fontWeight: 700, color: 'var(--ink)'}}>{pig.tag ? '#' + pig.tag : '(no tag)'}</span>
+      ),
+    },
+    {key: 'sex', label: 'Sex', render: (pig) => <StatusText tone="muted">{displayCell(pig.sex)}</StatusText>},
+    {key: 'group', label: 'Group', render: (pig) => <StatusText tone="muted">{groupLabelForPig(pig)}</StatusText>},
+    {key: 'status', label: 'Status', render: (pig) => <StatusText tone="muted">{displayCell(pig.status)}</StatusText>},
+    {
+      key: 'breed',
+      label: 'Breed',
+      mobilePriority: false,
+      render: (pig) => <StatusText tone="muted">{displayCell(pig.breed)}</StatusText>,
+    },
+    {
+      key: 'origin',
+      label: 'Origin',
+      mobilePriority: false,
+      render: (pig) => <StatusText tone="muted">{displayCell(pig.origin)}</StatusText>,
+    },
+    {
+      key: 'birth',
+      label: 'Birth',
+      render: (pig) => (
+        <StatusText tone="muted">
+          {pig.birthDate ? fmtS(pig.birthDate) + ' (' + pigAge(pig.birthDate) + ')' : '-'}
+        </StatusText>
+      ),
+    },
+    {
+      key: 'weight',
+      label: 'Weight',
+      align: 'right',
+      render: (pig) => {
+        const latestWeight = latestBreederWeight(pig);
+        return latestWeight ? (
+          <span style={{color: '#065f46', fontWeight: 700}}>{latestWeight + ' lb'}</span>
+        ) : (
+          <StatusText tone="muted">{'-'}</StatusText>
+        );
+      },
+    },
+    {
+      key: 'purchase',
+      label: 'Purchase',
+      mobilePriority: false,
+      render: (pig) => (
+        <StatusText tone="muted">
+          {(pig.purchaseDate ? fmtS(pig.purchaseDate) : '-') + ' ' + currencyLabel(pig.purchaseAmount)}
+        </StatusText>
+      ),
+    },
+    {
+      key: 'litters',
+      label: 'Litters',
+      align: 'right',
+      render: (pig) => {
+        const isSow = pig.sex === 'Sow' || pig.sex === 'Gilt';
+        if (!isSow) return <StatusText tone="muted">{'-'}</StatusText>;
+        const stats = sowFarrowStats(pig.tag);
+        return (
+          <span style={{color: '#065f46', fontWeight: 700}}>{stats.litters + ' / ' + stats.alive + ' alive'}</span>
+        );
+      },
+    },
+    {
+      key: 'notes',
+      label: 'Notes',
+      render: (pig) => {
+        const transfer = pig.transferredFromBatch;
+        const transferLabel = transfer
+          ? 'Saved from ' +
+            (transfer.subBatchName || transfer.batchName || '?') +
+            (transfer.transferDate ? ' on ' + fmtS(transfer.transferDate) : '')
+          : '';
+        return <StatusText tone="muted">{pig.notes || transferLabel || '-'}</StatusText>;
+      },
+    },
+    {
+      key: 'edit',
+      label: '',
+      mobilePriority: false,
+      render: (pig) => (
+        <button
+          type="button"
+          data-breeding-pig-edit={pig.id}
+          onClick={(e) => {
+            e.stopPropagation();
+            openBreedingPigEditor(pig);
+          }}
+          style={{
+            padding: '4px 8px',
+            borderRadius: 10,
+            border: '1px solid var(--border-strong)',
+            background: 'white',
+            color: '#085041',
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+          }}
+        >
+          Edit
+        </button>
+      ),
+    },
+  ];
+
   function BreedingPigTableSection({title, pigs, color = '#085041', rows = breedingPigSeqRows, muted = false}) {
     if (!pigs || pigs.length === 0) return null;
     return (
@@ -482,7 +601,7 @@ export default function SowsView({
         data-breeding-pig-table-section={title}
         style={{
           border: '1px solid var(--border)',
-          borderRadius: 14,
+          borderRadius: 10,
           overflow: 'hidden',
           background: 'white',
           opacity: muted ? 0.78 : 1,
@@ -503,137 +622,16 @@ export default function SowsView({
             {pigs.length} {pigs.length === 1 ? 'pig' : 'pigs'}
           </span>
         </div>
-        <div style={{overflowX: 'auto'}}>
-          <div style={{minWidth: 1320}}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: BREEDING_PIG_GRID,
-                gap: 10,
-                padding: '8px 14px 8px 0',
-                borderBottom: '1px solid var(--border)',
-                color: 'var(--ink-faint)',
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: 0.4,
-              }}
-            >
-              <span style={{paddingLeft: 8, textAlign: 'right'}}>#</span>
-              <span />
-              <span>Tag</span>
-              <span>Sex</span>
-              <span>Group</span>
-              <span>Status</span>
-              <span>Breed</span>
-              <span>Origin</span>
-              <span>Birth</span>
-              <span>Weight</span>
-              <span>Purchase</span>
-              <span>Litters</span>
-              <span>Notes</span>
-              <span />
-            </div>
-            {pigs.map((pig, index) => {
-              const stats = sowFarrowStats(pig.tag);
-              const isSow = pig.sex === 'Sow' || pig.sex === 'Gilt';
-              const latestWeight = latestBreederWeight(pig);
-              const transfer = pig.transferredFromBatch;
-              const transferLabel = transfer
-                ? 'Saved from ' +
-                  (transfer.subBatchName || transfer.batchName || '?') +
-                  (transfer.transferDate ? ' on ' + fmtS(transfer.transferDate) : '')
-                : '';
-              return (
-                <div
-                  key={pig.id}
-                  {...openableProps(() => openBreedingPigRecord(pig, rows))}
-                  className="hoverable-tile"
-                  data-breeding-pig-row={pig.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: BREEDING_PIG_GRID,
-                    gap: 10,
-                    alignItems: 'center',
-                    padding: '10px 14px 10px 0',
-                    borderBottom: index < pigs.length - 1 ? '1px solid var(--divider)' : 'none',
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    background: 'white',
-                  }}
-                >
-                  <span
-                    style={{
-                      color: 'var(--ink-faint)',
-                      fontVariantNumeric: 'tabular-nums',
-                      alignSelf: 'stretch',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-end',
-                      paddingRight: 10,
-                      paddingLeft: 8,
-                      marginTop: -10,
-                      marginBottom: -10,
-                      borderRight: '1px solid var(--border-strong)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {index + 1}
-                  </span>
-                  <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'>'}</span>
-                  <span style={{fontWeight: 700, color: 'var(--ink)'}}>{pig.tag ? '#' + pig.tag : '(no tag)'}</span>
-                  <span style={{color: 'var(--ink-muted)'}}>{displayCell(pig.sex)}</span>
-                  <span style={{color: 'var(--ink-muted)'}}>{groupLabelForPig(pig)}</span>
-                  <span style={{color: 'var(--ink-muted)'}}>{displayCell(pig.status)}</span>
-                  <span style={{color: 'var(--ink-muted)', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                    {displayCell(pig.breed)}
-                  </span>
-                  <span style={{color: 'var(--ink-muted)', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                    {displayCell(pig.origin)}
-                  </span>
-                  <span style={{color: 'var(--ink-muted)'}}>
-                    {pig.birthDate ? fmtS(pig.birthDate) + ' (' + pigAge(pig.birthDate) + ')' : '-'}
-                  </span>
-                  <span
-                    style={{color: latestWeight ? '#065f46' : 'var(--ink-faint)', fontWeight: latestWeight ? 700 : 400}}
-                  >
-                    {latestWeight ? latestWeight + ' lb' : '-'}
-                  </span>
-                  <span style={{color: 'var(--ink-muted)'}}>
-                    {pig.purchaseDate ? fmtS(pig.purchaseDate) : '-'} {currencyLabel(pig.purchaseAmount)}
-                  </span>
-                  <span style={{color: isSow ? '#065f46' : 'var(--ink-faint)', fontWeight: isSow ? 700 : 400}}>
-                    {isSow ? stats.litters + ' / ' + stats.alive + ' alive' : '-'}
-                  </span>
-                  <span style={{color: 'var(--ink-muted)', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                    {pig.notes || transferLabel || '-'}
-                  </span>
-                  <button
-                    type="button"
-                    data-breeding-pig-edit={pig.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openBreedingPigEditor(pig);
-                    }}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: 10,
-                      border: '1px solid var(--border-strong)',
-                      background: 'white',
-                      color: '#085041',
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    Edit
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <DataTable
+          surfaceKey="breeding-pig-table"
+          rows={pigs}
+          rowKey="id"
+          density="comfortable"
+          showRowNumbers
+          columns={breedingPigColumns}
+          onRowOpen={(pig) => openBreedingPigRecord(pig, rows)}
+          rowProps={(pig) => ({'data-breeding-pig-row': pig.id})}
+        />
       </div>
     );
   }
