@@ -1,5 +1,5 @@
 // Pasture Map CP7 - manager-controlled boundary line style.
-// Seeds one paddock, changes its stroke color/weight through the selected-area
+// Seeds one paddock, changes its stroke color/weight/pattern through the selected-area
 // panel, and verifies both the rendered map stroke and persisted DB values.
 import {test, expect} from '@playwright/test';
 import {getTestAdminClient} from './setup/reset.js';
@@ -36,7 +36,7 @@ test.beforeAll(async () => {
   await cleanAndSeedPastureTables();
 });
 
-test('CP7: manager changes paddock line color and weight', async ({page}) => {
+test('CP7: manager changes paddock line color, weight, and pattern', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
 
@@ -46,21 +46,20 @@ test('CP7: manager changes paddock line color and weight', async ({page}) => {
 
   await expect(page.locator('[data-pasture-style-panel]')).toBeVisible();
   await page.locator('[data-pasture-style-swatch="2563eb"]').click();
+  await page.locator('[data-pasture-style-pattern="dashed"]').click();
   await page.locator('[data-pasture-style-weight-number]').fill('6');
   await page.locator('[data-pasture-style-save]').click();
 
-  await expect(row.locator('[data-pasture-line-style]')).toContainText('6 px', {timeout: 15_000});
-  await expect(page.locator('.leaflet-overlay-pane path[stroke="#2563eb"]').first()).toHaveAttribute(
-    'stroke-width',
-    '6',
-    {timeout: 10_000},
-  );
+  await expect(row.locator('[data-pasture-line-style]')).toContainText('6 px Dashed', {timeout: 15_000});
+  const styledPath = page.locator('.leaflet-overlay-pane path[stroke="#2563eb"]').first();
+  await expect(styledPath).toHaveAttribute('stroke-width', '6', {timeout: 10_000});
+  await expect(styledPath).toHaveAttribute('stroke-dasharray', '10,8', {timeout: 10_000});
 
   const {data, error} = await getTestAdminClient()
     .from('land_areas')
-    .select('line_color,line_weight')
+    .select('line_color,line_weight,line_pattern')
     .eq('id', A_ID)
     .single();
   expect(error).toBeFalsy();
-  expect(data).toEqual({line_color: '#2563eb', line_weight: 6});
+  expect(data).toEqual({line_color: '#2563eb', line_weight: 6, line_pattern: 'dashed'});
 });

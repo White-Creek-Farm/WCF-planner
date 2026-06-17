@@ -42,7 +42,7 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-title')).toHaveText('Pasture Map');
   // Toolbar modes present for admin.
-  for (const m of ['select', 'measure', 'draw', 'edit']) {
+  for (const m of ['move', 'select', 'measure', 'draw', 'edit']) {
     await expect(page.locator(`[data-mode="${m}"]`)).toBeVisible();
   }
   await page.waitForTimeout(2000);
@@ -110,7 +110,7 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await page.locator('[data-mode="edit"]').click();
   await expect(page.locator('[data-pasture-editbar]')).toBeVisible({timeout: 8000});
   await page.screenshot({path: path.join(SHOTS, '05-edit-bar.png'), fullPage: true});
-  await page.locator('[data-pasture-editbar]').getByRole('button', {name: 'Cancel'}).click();
+  await page.locator('[data-pasture-editbar]').getByRole('button', {name: 'Exit edit'}).click();
   await expect(page.locator('[data-pasture-editbar]')).toHaveCount(0);
 
   // ── Edit is disabled for an outline candidate (no polygon yet) ──

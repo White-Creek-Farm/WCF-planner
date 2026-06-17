@@ -123,9 +123,6 @@ export async function updateLandArea(id, fields = {}) {
     reviewStatus: 'p_review_status',
     manualAcres: 'p_manual_acres',
     clearManual: 'p_clear_manual',
-    lineColor: 'p_line_color',
-    lineWeight: 'p_line_weight',
-    clearLineStyle: 'p_clear_line_style',
   };
   for (const [k, arg] of Object.entries(map)) {
     if (fields[k] !== undefined) args[arg] = fields[k];
@@ -139,9 +136,20 @@ export async function classifyLandArea(id, kind) {
   return updateLandArea(id, {kind, reviewStatus: 'reviewed'});
 }
 
-export async function updateLandAreaStyle(id, {lineColor = null, lineWeight = null, clear = false} = {}) {
-  if (clear) return updateLandArea(id, {clearLineStyle: true});
-  return updateLandArea(id, {lineColor, lineWeight});
+export async function updateLandAreaStyle(
+  id,
+  {lineColor = null, lineWeight = null, linePattern = null, clear = false} = {},
+) {
+  return unwrap(
+    await sb.rpc('update_land_area_line_style', {
+      p_id: id,
+      p_line_color: lineColor,
+      p_line_weight: lineWeight,
+      p_line_pattern: linePattern,
+      p_clear: clear,
+    }),
+    'update_land_area_line_style',
+  );
 }
 
 // Promote/close an outline candidate from a human-confirmed closed polygon

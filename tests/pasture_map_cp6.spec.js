@@ -56,4 +56,13 @@ test('CP6: mobile GPS track saves as an outline candidate', async ({page}) => {
   const row = page.locator('.pm-item', {hasText: 'Mobile Track Test'}).first();
   await expect(row).toBeVisible({timeout: 15_000});
   await expect(row.locator('.pm-chip-outline_candidate')).toBeVisible();
+  await expect(row.locator('[data-pasture-line-style]')).toContainText('5 px Dashed');
+
+  const {data, error} = await getTestAdminClient()
+    .from('land_areas')
+    .select('line_color,line_weight,line_pattern')
+    .eq('name', 'Mobile Track Test')
+    .single();
+  expect(error).toBeFalsy();
+  expect(data).toEqual({line_color: '#ffffff', line_weight: 5, line_pattern: 'dashed'});
 });

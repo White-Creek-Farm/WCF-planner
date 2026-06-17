@@ -22,8 +22,13 @@ import {polygonMetrics, ringPerimeterM, SQM_PER_ACRE} from '../lib/pastureGeomet
 
 const WCF_CENTER = [30.84175647927683, -86.43686683451689];
 const NAIP_URL = 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}';
-const MAP_MAX_ZOOM = 22;
+const MAP_MAX_ZOOM = 26;
 const IMAGERY_NATIVE_MAX_ZOOM = 19;
+const LINE_PATTERN_DASH = {
+  solid: null,
+  dashed: '10,8',
+  dotted: '1,8',
+};
 
 function cleanLineColor(value) {
   if (typeof value !== 'string') return null;
@@ -38,14 +43,45 @@ function cleanLineWeight(value) {
   return rounded >= 1 && rounded <= 10 ? rounded : null;
 }
 
+function cleanLinePattern(value) {
+  return value === 'solid' || value === 'dashed' || value === 'dotted' ? value : null;
+}
+
 function applyLineStyle(a, style) {
   const color = cleanLineColor(a && a.line_color);
   const weight = cleanLineWeight(a && a.line_weight);
-  return {
+  const pattern = cleanLinePattern(a && a.line_pattern);
+  const next = {
     ...style,
     ...(color ? {color} : {}),
     ...(weight ? {weight} : {}),
   };
+  if (pattern) {
+    const dashArray = LINE_PATTERN_DASH[pattern];
+    if (dashArray) next.dashArray = dashArray;
+    else delete next.dashArray;
+  }
+  return next;
+}
+
+function hasSavedLineStyle(a) {
+  return !!(
+    cleanLineColor(a && a.line_color) ||
+    cleanLineWeight(a && a.line_weight) ||
+    cleanLinePattern(a && a.line_pattern)
+  );
+}
+
+function defaultLineStyleForArea(a, style) {
+  if (!a || hasSavedLineStyle(a)) return style;
+  const rg = a.raw_geometry;
+  const rawType = rg && rg.type;
+  if (a.source === 'onx_kml' && (rawType === 'LineString' || rawType === 'MultiLineString')) {
+    const next = {...style, color: '#dc2626', weight: 5};
+    delete next.dashArray;
+    return next;
+  }
+  return style;
 }
 
 function styleForArea(a) {
@@ -143,6 +179,9 @@ export default function PastureMapCanvas({
       center: WCF_CENTER,
       zoom: 15,
       maxZoom: MAP_MAX_ZOOM,
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      wheelPxPerZoomLevel: 40,
       zoomControl: true,
     });
     L.tileLayer(NAIP_URL, {
@@ -176,13 +215,16 @@ export default function PastureMapCanvas({
       const g = areaGeom(a);
       if (!g) return;
       const baseStyle = styleForArea(a);
-      const style = g.kind === 'line' ? {...baseStyle, fill: false, dashArray: '6,6'} : baseStyle;
+      const style =
+        g.kind === 'line' ? defaultLineStyleForArea(a, {...baseStyle, fill: false, dashArray: '6,6'}) : baseStyle;
       const lyr = L.geoJSON({type: 'Feature', geometry: g.geometry, properties: {}}, {style});
       lyr.bindTooltip(labelFor(a) + (g.kind === 'line' ? ' (outline)' : ''), {
         direction: 'center',
         className: 'pm-label',
       });
-      lyr.on('click', () => cbRef.current.onSelect && cbRef.current.onSelect(a.id));
+      lyr.on('click', () => {
+        if (mode !== 'move' && cbRef.current.onSelect) cbRef.current.onSelect(a.id);
+      });
       lyr.addTo(group);
       if (g.kind === 'polygon') {
         // The first sub-layer is the editable polygon for CP2 edit mode.
@@ -204,7 +246,7 @@ export default function PastureMapCanvas({
     } catch {
       /* no bounds yet */
     }
-  }, [areas]);
+  }, [areas, mode]);
 
   React.useEffect(() => {
     const map = mapRef.current;
@@ -221,7 +263,7 @@ export default function PastureMapCanvas({
     if (coords.length >= 2) {
       L.geoJSON(
         {type: 'Feature', geometry: {type: 'LineString', coordinates: coords}, properties: {}},
-        {style: {color: '#2563eb', weight: 4, opacity: 0.9, dashArray: '7,5'}},
+        {style: {color: '#ffffff', weight: 5, opacity: 1, dashArray: LINE_PATTERN_DASH.dashed}},
       ).addTo(group);
     }
     const last = coords[coords.length - 1];
@@ -346,7 +388,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     if (!map) return;
     setGpsMsg('Locating…');
-    map.locate({setView: true, enableHighAccuracy: true, maxZoom: 20, timeout: 15000});
+    map.locate({setView: true, enableHighAccuracy: true, maxZoom: MAP_MAX_ZOOM, timeout: 15000});
     map.once('locationfound', (e) => {
       if (locateRef.current) locateRef.current.remove();
       const g = L.layerGroup();

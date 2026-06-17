@@ -64,8 +64,14 @@ const DRAW_KINDS = ['unclassified', 'pasture', 'paddock', 'feeder_pig_area', 'se
 const LINE_STYLE_COLORS = ['#15803d', '#2563eb', '#d97706', '#dc2626', '#7c3aed', '#0f172a', '#ffffff'];
 const DEFAULT_LINE_COLOR = '#15803d';
 const DEFAULT_LINE_WEIGHT = 2;
+const DEFAULT_LINE_PATTERN = 'solid';
 const MIN_LINE_WEIGHT = 1;
 const MAX_LINE_WEIGHT = 10;
+const LINE_STYLE_PATTERNS = [
+  {key: 'solid', label: 'Solid', css: 'solid'},
+  {key: 'dashed', label: 'Dashed', css: 'dashed'},
+  {key: 'dotted', label: 'Dotted', css: 'dotted'},
+];
 
 const ANIMAL_TYPE_LABEL = {
   cattle_herd: 'Cattle herd',
@@ -160,10 +166,23 @@ function cleanLineWeight(value) {
   return Math.min(MAX_LINE_WEIGHT, Math.max(MIN_LINE_WEIGHT, weight));
 }
 
+function cleanLinePattern(value) {
+  return value === 'solid' || value === 'dashed' || value === 'dotted' ? value : DEFAULT_LINE_PATTERN;
+}
+
+function cssLinePattern(value) {
+  return LINE_STYLE_PATTERNS.find((p) => p.key === cleanLinePattern(value))?.css || 'solid';
+}
+
+function labelLinePattern(value) {
+  return LINE_STYLE_PATTERNS.find((p) => p.key === cleanLinePattern(value))?.label || 'Solid';
+}
+
 function styleDraftFromArea(area) {
   return {
     lineColor: cleanLineColor(area && area.line_color) || DEFAULT_LINE_COLOR,
     lineWeight: cleanLineWeight(area && area.line_weight),
+    linePattern: cleanLinePattern(area && area.line_pattern),
   };
 }
 
@@ -171,15 +190,24 @@ function lineStyleChanged(area, draft) {
   if (!area || !draft) return false;
   const currentColor = cleanLineColor(area.line_color) || '';
   const currentWeight = area.line_weight == null ? null : cleanLineWeight(area.line_weight);
+  const currentPattern = area.line_pattern == null ? null : cleanLinePattern(area.line_pattern);
   if (
     !currentColor &&
     currentWeight == null &&
+    currentPattern == null &&
     draft.lineColor === DEFAULT_LINE_COLOR &&
-    draft.lineWeight === DEFAULT_LINE_WEIGHT
+    draft.lineWeight === DEFAULT_LINE_WEIGHT &&
+    draft.linePattern === DEFAULT_LINE_PATTERN
   ) {
     return false;
   }
-  return currentColor !== draft.lineColor || currentWeight !== draft.lineWeight;
+  return currentColor !== draft.lineColor || currentWeight !== draft.lineWeight || currentPattern !== draft.linePattern;
+}
+
+function linePreviewStyle({lineColor, lineWeight, linePattern}) {
+  return {
+    borderTop: `${cleanLineWeight(lineWeight)}px ${cssLinePattern(linePattern)} ${lineColor || DEFAULT_LINE_COLOR}`,
+  };
 }
 
 function initialTrackState() {
@@ -287,7 +315,7 @@ export default function PastureMapView({Header, authState}) {
   const fileRef = React.useRef(null);
 
   // CP2 state
-  const [mode, setMode] = React.useState('select'); // select | measure | draw | edit | track
+  const [mode, setMode] = React.useState('move'); // move | select | measure | draw | edit | track
   const [selectedId, setSelectedId] = React.useState(null);
   const [styleDraft, setStyleDraft] = React.useState(() => styleDraftFromArea(null));
   const [drawForm, setDrawForm] = React.useState(null); // {geometry, metrics, name, kind}
@@ -575,7 +603,7 @@ export default function PastureMapView({Header, authState}) {
   }
   function cancelTrack() {
     resetTrackFlow();
-    setMode('select');
+    setMode('move');
   }
   async function saveTrack() {
     if (!trackForm) return;
@@ -600,7 +628,7 @@ export default function PastureMapView({Header, authState}) {
     try {
       const saved = await createLandAreaTrack(createPayload);
       resetTrackFlow();
-      setMode('select');
+      setMode('move');
       setSelectedId((saved && saved.id) || trackId);
       await reload();
     } catch (e) {
@@ -617,6 +645,9 @@ export default function PastureMapView({Header, authState}) {
             baseline_no_history: true,
             source: 'drawn',
             raw_notes: 'created_via=field_track',
+            line_color: '#ffffff',
+            line_weight: 5,
+            line_pattern: 'dashed',
             raw_geometry: trackForm.geometry,
             current_version: null,
             computed_acres: null,
@@ -631,7 +662,7 @@ export default function PastureMapView({Header, authState}) {
           cachePastureSnapshot({areas: nextAreas, moves, plans, restReport, stockingReport});
           await refreshQueueState();
           resetTrackFlow();
-          setMode('select');
+          setMode('move');
           setSelectedId(trackId);
           setOfflineStatus('Field track saved on this device and will sync when the connection returns.');
         } catch (queueErr) {
@@ -828,7 +859,7 @@ export default function PastureMapView({Header, authState}) {
     try {
       await createLandArea(createPayload);
       setDrawForm(null);
-      setMode('select');
+      setMode('move');
       await reload();
     } catch (e) {
       if (classifyPastureOfflineError(e) === 'transient') {
@@ -863,7 +894,7 @@ export default function PastureMapView({Header, authState}) {
           await refreshQueueState();
           setSelectedId(areaId);
           setDrawForm(null);
-          setMode('select');
+          setMode('move');
           setOfflineStatus('New paddock saved on this device and will sync when the connection returns.');
         } catch (queueErr) {
           setErr(queueErr.message || 'Could not queue the drawn area.');
@@ -877,13 +908,13 @@ export default function PastureMapView({Header, authState}) {
   }
   function cancelDraw() {
     setDrawForm(null);
-    setMode('select');
+    setMode('move');
   }
   async function saveEdit() {
     if (!selectedId) return;
     if (!editGeom) {
       // No vertex change captured — nothing to save.
-      setMode('select');
+      setMode('move');
       await reload();
       return;
     }
@@ -896,7 +927,7 @@ export default function PastureMapView({Header, authState}) {
     try {
       await updateLandAreaGeometry(selectedId, editGeom.geometry);
       setEditGeom(null);
-      setMode('select');
+      setMode('move');
       await reload();
     } catch (e) {
       setErr(e.message || 'Could not save the edited boundary.');
@@ -906,13 +937,14 @@ export default function PastureMapView({Header, authState}) {
   }
   async function cancelEdit() {
     setEditGeom(null);
-    setMode('select');
+    setMode('move');
     await reload(); // discard in-place vertex drags by re-rendering from the DB
   }
   async function saveLineStyle() {
     if (!selectedArea) return;
     const lineColor = cleanLineColor(styleDraft.lineColor);
     const lineWeight = cleanLineWeight(styleDraft.lineWeight);
+    const linePattern = cleanLinePattern(styleDraft.linePattern);
     if (!lineColor) {
       setErr('Line color must be a 6-digit hex color.');
       return;
@@ -921,7 +953,7 @@ export default function PastureMapView({Header, authState}) {
       setErr('This area is queued on this device. Let it sync before changing line style.');
       return;
     }
-    return withBusy(selectedArea.id, () => updateLandAreaStyle(selectedArea.id, {lineColor, lineWeight}));
+    return withBusy(selectedArea.id, () => updateLandAreaStyle(selectedArea.id, {lineColor, lineWeight, linePattern}));
   }
   async function resetLineStyle() {
     if (!selectedArea) return;
@@ -943,6 +975,7 @@ export default function PastureMapView({Header, authState}) {
     selectedArea && selectedArea.id,
     selectedArea && selectedArea.line_color,
     selectedArea && selectedArea.line_weight,
+    selectedArea && selectedArea.line_pattern,
   ]);
   const selectedStyleChanged = lineStyleChanged(selectedArea, styleDraft);
   const selectedStyleBusy = selectedArea && busyId === selectedArea.id;
@@ -1073,6 +1106,14 @@ export default function PastureMapView({Header, authState}) {
             <div className="pm-toolbar" data-pasture-toolbar="1">
               <button
                 type="button"
+                className={'pm-mode' + (mode === 'move' ? ' is-active' : '')}
+                onClick={() => switchMode('move')}
+                data-mode="move"
+              >
+                Move
+              </button>
+              <button
+                type="button"
                 className={'pm-mode' + (mode === 'select' ? ' is-active' : '')}
                 onClick={() => switchMode('select')}
                 data-mode="select"
@@ -1123,12 +1164,14 @@ export default function PastureMapView({Header, authState}) {
                 {mode === 'draw'
                   ? 'Tap to add points; tap the first point to finish.'
                   : mode === 'edit'
-                    ? 'Drag the white handles to reshape.'
+                    ? 'Drag the white handles to reshape. Use Exit edit or Move to leave editing.'
                     : mode === 'track'
                       ? 'Record a GPS line while walking or driving.'
                       : mode === 'measure'
                         ? 'Draw a shape to read its acres/perimeter.'
-                        : 'Tap an area to select it.'}
+                        : mode === 'select'
+                          ? 'Tap an area to select it.'
+                          : 'Pan and zoom without changing selection.'}
               </span>
             </div>
 
@@ -1280,8 +1323,14 @@ export default function PastureMapView({Header, authState}) {
                     : ''}
                 </span>
                 <div className="pm-editbar-actions">
-                  <button type="button" className="pm-btn" onClick={cancelEdit} disabled={saving}>
-                    Cancel
+                  <button
+                    type="button"
+                    className="pm-btn"
+                    onClick={cancelEdit}
+                    disabled={saving}
+                    data-pasture-editbar-exit="1"
+                  >
+                    Exit edit
                   </button>
                   <button
                     type="button"
@@ -1343,14 +1392,7 @@ export default function PastureMapView({Header, authState}) {
                   <div className="pm-style-panel" data-pasture-style-panel="1">
                     <div className="pm-style-head">
                       <div className="pm-move-title">Line style</div>
-                      <span
-                        className="pm-style-preview"
-                        style={{
-                          '--pm-style-color': styleDraft.lineColor,
-                          '--pm-style-weight': `${styleDraft.lineWeight}px`,
-                        }}
-                        aria-hidden="true"
-                      />
+                      <span className="pm-style-preview" style={linePreviewStyle(styleDraft)} aria-hidden="true" />
                     </div>
                     <div className="pm-style-grid">
                       <label className="pm-field pm-style-color-field">
@@ -1373,6 +1415,19 @@ export default function PastureMapView({Header, authState}) {
                             aria-label={`Use ${color}`}
                             data-pasture-style-swatch={color.slice(1)}
                           />
+                        ))}
+                      </div>
+                      <div className="pm-style-patterns" aria-label="Line pattern">
+                        {LINE_STYLE_PATTERNS.map((pattern) => (
+                          <button
+                            type="button"
+                            key={pattern.key}
+                            className={'pm-pattern' + (styleDraft.linePattern === pattern.key ? ' is-active' : '')}
+                            onClick={() => setStyleDraft((f) => ({...f, linePattern: pattern.key}))}
+                            data-pasture-style-pattern={pattern.key}
+                          >
+                            {pattern.label}
+                          </button>
                         ))}
                       </div>
                       <label className="pm-field pm-style-weight-field">
@@ -1732,17 +1787,17 @@ export default function PastureMapView({Header, authState}) {
                         )}
                         {a.queued_offline && <span className="pm-chip pm-chip-queued">Queued</span>}
                         {acres != null && <span className="pm-acres">{acres} ac</span>}
-                        {(a.line_color || a.line_weight) && (
-                          <span
-                            className="pm-line-style-chip"
-                            data-pasture-line-style="1"
-                            style={{
-                              '--pm-style-color': cleanLineColor(a.line_color) || DEFAULT_LINE_COLOR,
-                              '--pm-style-weight': `${cleanLineWeight(a.line_weight)}px`,
-                            }}
-                          >
-                            <span aria-hidden="true" />
-                            {cleanLineWeight(a.line_weight)} px
+                        {(a.line_color || a.line_weight || a.line_pattern) && (
+                          <span className="pm-line-style-chip" data-pasture-line-style="1">
+                            <span
+                              aria-hidden="true"
+                              style={linePreviewStyle({
+                                lineColor: cleanLineColor(a.line_color) || DEFAULT_LINE_COLOR,
+                                lineWeight: cleanLineWeight(a.line_weight),
+                                linePattern: cleanLinePattern(a.line_pattern),
+                              })}
+                            />
+                            {cleanLineWeight(a.line_weight)} px {labelLinePattern(a.line_pattern)}
                           </span>
                         )}
                         {mismatch && <span className="pm-note-acres">OnX note: {noteAc} ac</span>}

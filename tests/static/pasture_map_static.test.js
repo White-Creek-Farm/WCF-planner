@@ -14,6 +14,7 @@ const mig128 = read('supabase-migrations/128_pasture_map_move_ledger.sql');
 const mig129 = read('supabase-migrations/129_pasture_map_planning_reports.sql');
 const mig130 = read('supabase-migrations/130_pasture_map_field_tracks.sql');
 const mig131 = read('supabase-migrations/131_pasture_map_line_style.sql');
+const mig132 = read('supabase-migrations/132_pasture_map_line_patterns_and_defaults.sql');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const viewSrc = read('src/pasture/PastureMapView.jsx');
@@ -145,8 +146,8 @@ describe('CP2 API wrappers + draw/edit UI', () => {
     expect(apiSrc).toContain("sb.rpc('update_land_area_geometry'");
   });
 
-  it('view has select/draw/edit/measure modes and an in-app name+kind save form', () => {
-    for (const m of ['select', 'draw', 'edit', 'measure']) {
+  it('view has move/select/draw/edit/measure modes and an in-app name+kind save form', () => {
+    for (const m of ['move', 'select', 'draw', 'edit', 'measure']) {
       expect(viewSrc).toContain(`data-mode="${m}"`);
     }
     expect(viewSrc).toContain('data-pasture-drawform-name');
@@ -253,10 +254,11 @@ describe('CP3 API + UI wiring', () => {
   });
 
   it('allows field-level over-zoom on NAIP imagery', () => {
-    expect(canvasSrc).toContain('const MAP_MAX_ZOOM = 22');
+    expect(canvasSrc).toContain('const MAP_MAX_ZOOM = 26');
     expect(canvasSrc).toContain('const IMAGERY_NATIVE_MAX_ZOOM = 19');
     expect(canvasSrc).toContain('maxNativeZoom: IMAGERY_NATIVE_MAX_ZOOM');
     expect(canvasSrc).toContain('maxZoom: MAP_MAX_ZOOM');
+    expect(canvasSrc).toContain('zoomSnap: 0.25');
   });
 
   it('does not refit the map on occupancy-only refreshes', () => {
@@ -409,33 +411,74 @@ describe('Migration 131 - CP7 boundary line styling', () => {
   });
 });
 
-describe('CP7 API + UI wiring', () => {
-  it('pastureMapApi wraps line style updates over update_land_area', () => {
-    expect(apiSrc).toContain('export async function updateLandAreaStyle');
-    expect(apiSrc).toContain('p_line_color');
-    expect(apiSrc).toContain('p_line_weight');
-    expect(apiSrc).toContain('p_clear_line_style');
+describe('Migration 132 - CP8 line patterns and defaults', () => {
+  it('adds constrained line_pattern and exposes it in summaries', () => {
+    expect(mig132).toContain('ADD COLUMN IF NOT EXISTS line_pattern text');
+    expect(mig132).toContain('land_areas_line_pattern_check');
+    expect(mig132).toContain("'line_pattern', a.line_pattern");
+    expect(mig132).toContain("'current_occupants', v_current");
+    expect(mig132).toContain("'rest_state', v_rest_state");
   });
 
-  it('canvas applies optional line_color / line_weight stroke overrides', () => {
+  it('restyles imported OnX lines and defaults field tracks to white dashed 5px', () => {
+    expect(mig132).toContain("source = 'onx_kml'");
+    expect(mig132).toContain("IN ('ST_LineString', 'ST_MultiLineString')");
+    expect(mig132).toContain("line_color = '#dc2626'");
+    expect(mig132).toContain('line_weight = 5');
+    expect(mig132).toContain("line_pattern = 'solid'");
+    expect(mig132).toContain("'#ffffff', 5, 'dashed'");
+  });
+
+  it('exposes a dedicated authenticated manager/admin line-style RPC', () => {
+    expect(mig132).toContain('CREATE OR REPLACE FUNCTION public.update_land_area_line_style');
+    expect(mig132).toContain('p_line_color');
+    expect(mig132).toContain('p_line_weight');
+    expect(mig132).toContain('p_line_pattern');
+    expect(mig132).toContain("v_role NOT IN ('management', 'admin')");
+    expect(mig132).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.update_land_area_line_style\(text, text, integer, text, boolean\)\s+TO authenticated/,
+    );
+    expect(mig132).toContain("NOTIFY pgrst, 'reload schema'");
+  });
+});
+
+describe('CP7 API + UI wiring', () => {
+  it('pastureMapApi wraps line style updates over update_land_area_line_style', () => {
+    expect(apiSrc).toContain('export async function updateLandAreaStyle');
+    expect(apiSrc).toContain("sb.rpc('update_land_area_line_style'");
+    expect(apiSrc).toContain('p_line_color');
+    expect(apiSrc).toContain('p_line_weight');
+    expect(apiSrc).toContain('p_line_pattern');
+    expect(apiSrc).toContain('p_clear');
+  });
+
+  it('canvas applies optional line_color / line_weight / line_pattern stroke overrides', () => {
     expect(canvasSrc).toContain('line_color');
     expect(canvasSrc).toContain('line_weight');
+    expect(canvasSrc).toContain('line_pattern');
     expect(canvasSrc).toContain('applyLineStyle');
+    expect(canvasSrc).toContain("dashed: '10,8'");
+    expect(canvasSrc).toContain("color: '#ffffff', weight: 5");
+    expect(canvasSrc).toContain("color: '#dc2626', weight: 5");
   });
 
   it('view renders manager line-style controls and list chips', () => {
     for (const marker of [
       'data-pasture-style-panel',
       'data-pasture-style-color',
+      'data-pasture-style-pattern',
       'data-pasture-style-weight',
       'data-pasture-style-weight-number',
       'data-pasture-style-save',
       'data-pasture-style-reset',
       'data-pasture-line-style',
+      'data-pasture-editbar-exit',
     ]) {
       expect(viewSrc).toContain(marker);
     }
     expect(viewSrc).toContain('LINE_STYLE_COLORS');
+    expect(viewSrc).toContain('LINE_STYLE_PATTERNS');
+    expect(viewSrc).toContain('Exit edit');
   });
 
   it('pasture Playwright lane includes CP7 coverage', () => {
