@@ -193,13 +193,21 @@ export default function FarrowingView({
           </div>
           {total > 0 && (
             <>
-              <div style={{flex: 1, height: 8, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden'}}>
+              <div
+                style={{
+                  flex: 1,
+                  height: 8,
+                  background: '#f0f0f0',
+                  borderRadius: 4 /* radius-allow: progress bar track (height 8) */,
+                  overflow: 'hidden',
+                }}
+              >
                 <div
                   style={{
                     height: '100%',
                     width: `${pct}%`,
                     background: pct >= 100 ? '#1D9E75' : '#378ADD',
-                    borderRadius: 4,
+                    borderRadius: 4 /* radius-allow: progress bar fill (height 8) */,
                   }}
                 />
               </div>
@@ -221,7 +229,7 @@ export default function FarrowingView({
                   textAlign: 'center',
                   background: 'white',
                   border: '1px solid var(--border)',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '6px 8px',
                 }}
               >
@@ -491,7 +499,7 @@ export default function FarrowingView({
                 var readOnlyField = {
                   padding: '7px 10px',
                   border: '1px solid var(--border)',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   background: 'var(--green-50)',
                   fontSize: 13,
                   color: '#085041',
@@ -885,7 +893,7 @@ export default function FarrowingView({
                   style={{
                     marginLeft: 'auto',
                     padding: '4px 12px',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     border: 'none',
                     background: 'var(--green-700)',
                     color: 'white',
@@ -1123,7 +1131,7 @@ export default function FarrowingView({
                 style={{
                   marginLeft: 'auto',
                   padding: '4px 12px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#085041',
                   color: 'white',

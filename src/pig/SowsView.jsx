@@ -341,7 +341,7 @@ export default function SowsView({
               onClick={() => setAdding(true)}
               style={{
                 padding: '4px 10px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 cursor: 'pointer',
@@ -379,7 +379,7 @@ export default function SowsView({
               }}
               style={{
                 padding: '4px 10px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: '#085041',
                 color: 'white',
@@ -398,7 +398,7 @@ export default function SowsView({
               }}
               style={{
                 padding: '4px 10px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 cursor: 'pointer',
@@ -482,7 +482,7 @@ export default function SowsView({
         data-breeding-pig-table-section={title}
         style={{
           border: '1px solid var(--border)',
-          borderRadius: 8,
+          borderRadius: 14,
           overflow: 'hidden',
           background: 'white',
           opacity: muted ? 0.78 : 1,
@@ -617,7 +617,7 @@ export default function SowsView({
                     }}
                     style={{
                       padding: '4px 8px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: '#085041',
@@ -644,7 +644,7 @@ export default function SowsView({
     const history = isSow ? sowFarrowHistory(pig.tag) : [];
     const weighins = Array.isArray(pig.weighins) ? pig.weighins : [];
     const latestWeight = latestBreederWeight(pig);
-    const fieldStyle = {background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px'};
+    const fieldStyle = {background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px'};
     const labelStyle = {fontSize: 11, color: 'var(--ink-muted)', marginBottom: 3};
     const valueStyle = {fontSize: 14, color: 'var(--ink)', fontWeight: 600};
     const value = (v) => (v == null || v === '' ? '\u2014' : v);
@@ -655,7 +655,7 @@ export default function SowsView({
           style={{
             background: 'white',
             border: '1px solid var(--border)',
-            borderRadius: 8,
+            borderRadius: 10,
             padding: 14,
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))',
@@ -721,7 +721,7 @@ export default function SowsView({
         </div>
 
         {weighins.length > 0 && (
-          <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 14}}>
+          <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: 14}}>
             <div style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}>Weight History</div>
             <div data-breeding-pig-weight-history={pig.id} style={{display: 'flex', flexWrap: 'wrap', gap: '6px 12px'}}>
               {weighins
@@ -738,7 +738,7 @@ export default function SowsView({
         )}
 
         {isSow && history.length > 0 && (
-          <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: 14}}>
+          <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 10, padding: 14}}>
             <div style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 8}}>Farrowing History</div>
             <div data-breeding-pig-farrowing-history={pig.id} style={{display: 'flex', flexDirection: 'column'}}>
               {history
@@ -766,7 +766,7 @@ export default function SowsView({
                             fontWeight: 700,
                             background: '#fef2f2',
                             padding: '1px 6px',
-                            borderRadius: 4,
+                            borderRadius: 10,
                             fontSize: 10,
                           }}
                         >
@@ -823,7 +823,7 @@ export default function SowsView({
                   padding: '8px 12px',
                   background: '#f5f3ff',
                   border: '1px solid #ddd6fe',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   fontSize: 12,
                   color: '#5b21b6',
                   fontWeight: 700,
@@ -840,7 +840,7 @@ export default function SowsView({
             style={{
               background: 'white',
               border: '1px solid var(--border)',
-              borderRadius: 8,
+              borderRadius: 10,
               padding: 14,
               fontSize: 13,
               color: 'var(--ink-muted)',
@@ -1090,7 +1090,7 @@ export default function SowsView({
                 onClick={() => setSowSearch('')}
                 style={{
                   padding: '7px 12px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',
@@ -1114,7 +1114,7 @@ export default function SowsView({
                   disabled={breedingPigSeqRows.length === 0}
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: breedingPigSeqRows.length === 0 ? 'var(--ink-faint)' : '#085041',
@@ -1133,7 +1133,7 @@ export default function SowsView({
                   disabled={breedingPigSeqRows.length === 0}
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: breedingPigSeqRows.length === 0 ? 'var(--ink-faint)' : '#085041',
@@ -1168,7 +1168,7 @@ export default function SowsView({
               }}
               style={{
                 padding: '7px 18px',
-                borderRadius: 8,
+                borderRadius: 10,
                 border: 'none',
                 background: '#085041',
                 color: 'white',

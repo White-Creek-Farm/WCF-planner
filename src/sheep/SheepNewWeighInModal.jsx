@@ -51,7 +51,7 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
     fontSize: 13,
     padding: '8px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     width: '100%',
     boxSizing: 'border-box',
     background: 'white',
@@ -125,7 +125,7 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
               marginBottom: 10,
               padding: '6px 10px',
               background: '#fef2f2',
-              borderRadius: 6,
+              borderRadius: 10,
             }}
           >
             {err}

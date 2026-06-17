@@ -111,7 +111,7 @@ export default function RecordActivityLog({sb, entityType, entityId, limit = 50,
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   padding: '1px 6px',
-                  borderRadius: 4,
+                  borderRadius: 999,
                   background: '#e0f2fe',
                   color: '#075985',
                 }}

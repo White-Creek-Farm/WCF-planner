@@ -370,7 +370,9 @@ export default function EggDailyPage({sb, authState, Header}) {
             />
           </div>
 
-          <div style={{...fieldRow, background: 'var(--surface-2)', borderRadius: 6, padding: '6px 8px', marginTop: 4}}>
+          <div
+            style={{...fieldRow, background: 'var(--surface-2)', borderRadius: 10, padding: '6px 8px', marginTop: 4}}
+          >
             <span style={{...fieldLabel, color: 'var(--ink-muted)'}}>Daily dozen count (computed)</span>
             <span style={{fontWeight: 600, fontSize: 13}}>{form ? computeDozenCount(form) : '—'}</span>
           </div>

@@ -44,7 +44,8 @@ describe('Lane I CP5 task modal token cleanup', () => {
     }
     expect(taskModalStyles).toContain("padding: '10px 16px'");
     expect(taskModalStyles).toContain("padding: '8px 11px'");
-    expect(taskModalStyles).toContain('borderRadius: 6');
+    // CP0 §A3: 10px radius floor (was 6).
+    expect(taskModalStyles).toContain('borderRadius: 10');
   });
 
   for (const rel of TOKENIZED_TASK_MODALS) {

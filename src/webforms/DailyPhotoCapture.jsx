@@ -71,7 +71,7 @@ export default function DailyPhotoCapture({files, statuses = [], onChange, disab
           data-add-photos="1"
           style={{
             padding: '6px 12px',
-            borderRadius: 6,
+            borderRadius: 10,
             border: '1px solid var(--border-strong)',
             background: disabled || atCap ? '#f3f4f6' : 'white',
             color: disabled || atCap ? 'var(--ink-faint)' : 'var(--ink)',
@@ -105,7 +105,7 @@ export default function DailyPhotoCapture({files, statuses = [], onChange, disab
           style={{
             background: '#fef3c7',
             border: '1px solid #fde68a',
-            borderRadius: 6,
+            borderRadius: 10,
             padding: '6px 10px',
             fontSize: 11,
             color: '#92400e',
@@ -121,7 +121,7 @@ export default function DailyPhotoCapture({files, statuses = [], onChange, disab
           style={{
             background: '#eff6ff',
             border: '1px solid #bfdbfe',
-            borderRadius: 6,
+            borderRadius: 10,
             padding: '6px 10px',
             fontSize: 11,
             color: '#1e40af',
@@ -151,7 +151,7 @@ export default function DailyPhotoCapture({files, statuses = [], onChange, disab
                   background: sty.bg,
                   border: '1px solid ' + sty.border,
                   color: sty.fg,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '4px 8px',
                   fontSize: 11,
                   maxWidth: 240,

@@ -437,7 +437,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
     fontSize: 14,
     padding: '10px 12px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 8,
+    borderRadius: 10,
     width: '100%',
     outline: 'none',
     background: 'white',
@@ -491,7 +491,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
                 lineHeight: 1.5,
                 background: '#fef3c7',
                 border: '1px solid #fde68a',
-                borderRadius: 8,
+                borderRadius: 10,
                 padding: '8px 12px',
                 textAlign: 'left',
               }}
@@ -659,7 +659,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
                 color: '#1d4ed8',
                 background: '#eff6ff',
                 border: '1px solid #bfdbfe',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '4px 8px',
               },
             },
@@ -680,7 +680,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
           ),
           React.createElement(
             'div',
-            {style: {display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #d1d5db'}},
+            {style: {display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid #d1d5db'}},
             (program === 'layer' ? ['STARTER', 'GROWER', 'LAYER'] : ['STARTER', 'GROWER']).map(function (f, fi, arr) {
               return React.createElement(
                 'button',
@@ -1225,7 +1225,7 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
               marginBottom: 10,
               padding: '8px 12px',
               background: '#fef2f2',
-              borderRadius: 8,
+              borderRadius: 10,
             }}
           >
             {err}

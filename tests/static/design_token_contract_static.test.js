@@ -61,13 +61,16 @@ describe('Lane I token contract - shared primitive guard', () => {
     });
   }
 
-  it('shared button style tokens use the standard 10px 16px pad and 6px radius', () => {
+  // CP0 §A3: 10px radius floor — shared buttons moved 6 -> 10. (Full inline
+  // radius migration across all locked files is the CP rollout; this asserts
+  // the ratified control radius that has landed.)
+  it('shared button style tokens use the standard 10px 16px pad and 10px radius', () => {
     const src = read('src/lib/styles.js');
     for (const key of ['navBtn', 'addBtn', 'btnPrimary', 'btnDanger', 'btnGhost']) {
       const start = src.indexOf(`${key}`);
       const block = src.slice(start, start + 260);
       expect(block).toContain("padding: '10px 16px'");
-      expect(block).toContain('borderRadius: 6');
+      expect(block).toContain('borderRadius: 10');
     }
   });
 

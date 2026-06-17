@@ -354,7 +354,7 @@ export default function LayersHomeView({Header, loadUsers}) {
               padding: '8px 10px',
               background: 'var(--surface-2)',
               border: '1px solid var(--divider)',
-              borderRadius: 8,
+              borderRadius: 10,
               minWidth: 0,
               overflow: 'hidden',
             }}
@@ -391,7 +391,7 @@ export default function LayersHomeView({Header, loadUsers}) {
 
   const PeriodToggle = ({val, setVal, opts}) => (
     <div
-      style={{display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #d1d5db', width: 'fit-content'}}
+      style={{display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid #d1d5db', width: 'fit-content'}}
     >
       {opts.map(({v, l}) => (
         <button
@@ -572,7 +572,7 @@ export default function LayersHomeView({Header, loadUsers}) {
                                       fontSize: 10,
                                       fontWeight: 700,
                                       padding: '1px 7px',
-                                      borderRadius: 8,
+                                      borderRadius: 10,
                                       background: h.status === 'active' ? '#d1fae5' : '#f3f4f6',
                                       color: h.status === 'active' ? '#065f46' : '#6b7280',
                                       textTransform: 'uppercase',

@@ -202,7 +202,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
                 gap: 4,
                 background: '#fffbeb',
                 border: '1px solid #fde68a',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '2px 8px',
                 fontSize: 11,
                 fontWeight: 700,
@@ -263,7 +263,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
             }}
             style={{
               padding: '7px 18px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: 'none',
               background: '#085041',
               color: 'white',
@@ -360,7 +360,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
                     const next = idx < sorted.length - 1 ? sorted[idx + 1] : null;
                     const ns = (on) => ({
                       padding: '3px 10px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: on ? 'white' : 'var(--surface-2)',
                       color: on ? 'var(--ink)' : '#d1d5db',

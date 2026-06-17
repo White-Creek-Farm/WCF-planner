@@ -110,7 +110,7 @@ export default function TodoHowTo({onClose, canManage}) {
             onClick={onClose}
             style={{
               padding: '10px 16px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid #085041',
               background: '#085041',
               color: 'white',

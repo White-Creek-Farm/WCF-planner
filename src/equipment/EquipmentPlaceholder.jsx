@@ -48,7 +48,7 @@ export default function EquipmentPlaceholder({
             onClick={() => setView('home')}
             style={{
               padding: '8px 20px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',

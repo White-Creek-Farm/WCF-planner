@@ -554,7 +554,7 @@ export default function LayerBatchPage({
               style={{
                 marginLeft: 'auto',
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 fontSize: 12,
@@ -576,7 +576,7 @@ export default function LayerBatchPage({
               display: 'flex',
               gap: 0,
               marginBottom: 12,
-              borderRadius: 6,
+              borderRadius: 10,
               overflow: 'hidden',
               border: '1px solid #d1d5db',
               width: 'fit-content',
@@ -845,7 +845,7 @@ export default function LayerBatchPage({
                 data-layer-batch-add-housing={batch.id}
                 style={{
                   padding: '5px 14px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#085041',
                   color: 'white',
@@ -898,7 +898,7 @@ export default function LayerBatchPage({
                           fontSize: 10,
                           fontWeight: 700,
                           padding: '2px 7px',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           background: h.status === 'active' ? '#d1fae5' : '#f3f4f6',
                           color: h.status === 'active' ? '#065f46' : '#6b7280',
                           textTransform: 'uppercase',
@@ -1064,7 +1064,7 @@ export default function LayerBatchPage({
                   color: 'var(--ink-muted)',
                   background: 'var(--surface-2)',
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '8px 10px',
                 }}
               >
@@ -1080,7 +1080,7 @@ export default function LayerBatchPage({
                 data-layer-add-housing-save
                 style={{
                   padding: '8px 18px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: 'none',
                   background: addHousingBusy || !addHousingName ? '#9ca3af' : '#085041',
                   color: 'white',
@@ -1097,7 +1097,7 @@ export default function LayerBatchPage({
                 onClick={() => setShowAddHousing(false)}
                 style={{
                   padding: '10px 16px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',
@@ -1264,7 +1264,7 @@ export default function LayerBatchPage({
                       color: 'var(--ink)',
                       padding: '8px 12px',
                       background: 'var(--surface-2)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid var(--border)',
                     }}
                   >
@@ -1534,7 +1534,7 @@ export default function LayerBatchPage({
                       style={{
                         fontSize: 11,
                         padding: '4px 8px',
-                        borderRadius: 5,
+                        borderRadius: 10,
                         background: warn ? '#fef2f2' : '#ecfdf5',
                         color: warn ? '#b91c1c' : '#065f46',
                         fontWeight: 600,

@@ -435,7 +435,7 @@ const PigDailysHub = ({
   const voltColor = (v) => (v == null ? 'var(--ink-faint)' : v < 3 ? '#b91c1c' : v < 5 ? '#92400e' : '#065f46');
   const fi = {
     padding: '6px 10px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
@@ -448,7 +448,7 @@ const PigDailysHub = ({
   );
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -499,7 +499,7 @@ const PigDailysHub = ({
               }}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: '#085041',
                 color: 'white',
@@ -719,7 +719,7 @@ const PigDailysHub = ({
           <div
             style={{
               display: 'flex',
-              borderRadius: 6,
+              borderRadius: 10,
               overflow: 'hidden',
               border: '1px solid var(--border-strong)',
               marginLeft: 'auto',
@@ -791,7 +791,7 @@ const PigDailysHub = ({
             style={{
               marginBottom: 12,
               padding: '7px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -830,7 +830,14 @@ const PigDailysHub = ({
                 return (
                   <React.Fragment key={d.id}>
                     {showDivider && (
-                      <div style={{height: 2, background: '#9ca3af', margin: '6px 0', borderRadius: 1}} />
+                      <div
+                        style={{
+                          height: 2,
+                          background: '#9ca3af',
+                          margin: '6px 0',
+                          borderRadius: 1 /* radius-allow: 2px date divider bar */,
+                        }}
+                      />
                     )}
                     <div
                       data-daily-row={d.id}
@@ -882,7 +889,7 @@ const PigDailysHub = ({
                                 fontSize: 10,
                                 fontWeight: 700,
                                 padding: '1px 6px',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 background: '#fef3c7',
                                 color: '#92400e',
                                 border: '1px solid #fde68a',
@@ -899,7 +906,7 @@ const PigDailysHub = ({
                             fontSize: 11,
                             fontWeight: 600,
                             padding: '2px 8px',
-                            borderRadius: 4,
+                            borderRadius: 10,
                             background: '#f1f5f9',
                             color: '#475569',
                             border: '1px solid #e2e8f0',
@@ -942,7 +949,7 @@ const PigDailysHub = ({
                               fontSize: 10,
                               fontWeight: 600,
                               padding: '2px 7px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                               background: d.group_moved === false ? '#fef2f2' : '#f0fdf4',
                               color: d.group_moved === false ? '#b91c1c' : '#065f46',
                               border: d.group_moved === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
@@ -955,7 +962,7 @@ const PigDailysHub = ({
                               fontSize: 10,
                               fontWeight: 600,
                               padding: '2px 7px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                               background: d.nipple_drinker_working === false ? '#fef2f2' : '#f0fdf4',
                               color: d.nipple_drinker_working === false ? '#b91c1c' : '#065f46',
                               border: d.nipple_drinker_working === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
@@ -968,7 +975,7 @@ const PigDailysHub = ({
                               fontSize: 10,
                               fontWeight: 600,
                               padding: '2px 7px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                               background: d.fence_walked === false ? '#fef2f2' : '#f0fdf4',
                               color: d.fence_walked === false ? '#b91c1c' : '#065f46',
                               border: d.fence_walked === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
@@ -987,7 +994,7 @@ const PigDailysHub = ({
                             padding: '4px 10px',
                             background: '#fffbeb',
                             border: '1px solid #fde68a',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             fontStyle: 'italic',
                           }}
                         >
@@ -1155,7 +1162,7 @@ const PigDailysHub = ({
                     <div
                       style={{
                         display: 'flex',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         overflow: 'hidden',
                         border: '1px solid var(--border-strong)',
                       }}

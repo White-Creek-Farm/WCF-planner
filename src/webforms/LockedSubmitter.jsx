@@ -16,7 +16,7 @@ export default function LockedSubmitter({name, label = 'Team member', labelStyle
     fontSize: 14,
     padding: '10px 12px',
     border: '1px solid var(--border)',
-    borderRadius: 6,
+    borderRadius: 10,
     background: 'var(--surface-2)',
     color: 'var(--ink)',
     width: '100%',

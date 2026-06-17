@@ -107,7 +107,7 @@ export default function FuelLogAdmin() {
         onClick={() => setMode(id)}
         style={{
           padding: '7px 14px',
-          borderRadius: 6,
+          borderRadius: 10,
           border: on ? '2px solid var(--brand)' : '1px solid var(--border-strong)',
           background: 'white',
           color: on ? 'var(--brand)' : 'var(--ink-muted)',
@@ -220,7 +220,7 @@ export default function FuelLogAdmin() {
                   style={{
                     marginLeft: 'auto',
                     padding: '6px 14px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: 'none',
                     background: newOpen ? '#b91c1c' : '#085041',
                     color: 'white',
@@ -306,7 +306,7 @@ export default function FuelLogAdmin() {
                                   fontSize: 10,
                                   fontWeight: 700,
                                   padding: '2px 7px',
-                                  borderRadius: 4,
+                                  borderRadius: 999,
                                   background: '#eff6ff',
                                   color: '#1e40af',
                                   textTransform: 'uppercase',
@@ -321,7 +321,7 @@ export default function FuelLogAdmin() {
                                   fontSize: 10,
                                   fontWeight: 700,
                                   padding: '2px 7px',
-                                  borderRadius: 4,
+                                  borderRadius: 999,
                                   background: dm.bg,
                                   color: dm.color,
                                   textTransform: 'uppercase',
@@ -452,7 +452,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
     fontSize: 13,
     padding: '6px 9px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 5,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -472,7 +472,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
       style={{
         background: '#fafafa',
         border: '1px solid var(--border)',
-        borderRadius: 8,
+        borderRadius: 10,
         padding: '14px 18px',
         margin: isNew ? '0 0 14px' : 0,
       }}
@@ -572,7 +572,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
             border: '1px solid #fecaca',
             color: '#b91c1c',
             padding: '6px 10px',
-            borderRadius: 5,
+            borderRadius: 10,
             fontSize: 12,
             marginBottom: 10,
           }}
@@ -586,7 +586,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
           disabled={busy}
           style={{
             padding: '6px 16px',
-            borderRadius: 5,
+            borderRadius: 10,
             border: 'none',
             background: busy ? '#9ca3af' : '#085041',
             color: 'white',
@@ -602,7 +602,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
           onClick={onCancel}
           style={{
             padding: '6px 16px',
-            borderRadius: 5,
+            borderRadius: 10,
             border: '1px solid var(--border-strong)',
             background: 'white',
             color: 'var(--ink)',
@@ -621,7 +621,7 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
             style={{
               marginLeft: 'auto',
               padding: '6px 12px',
-              borderRadius: 5,
+              borderRadius: 10,
               border: '1px solid #fecaca',
               background: 'white',
               color: '#b91c1c',

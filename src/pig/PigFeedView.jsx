@@ -583,7 +583,7 @@ export default function PigFeedView({
                   fontSize: 13,
                   padding: '7px 10px',
                   border: '1px solid var(--border-strong)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   width: 120,
                   fontFamily: 'inherit',
                 }}
@@ -596,7 +596,7 @@ export default function PigFeedView({
                 gap: 8,
                 padding: '7px 12px',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 background: 'var(--surface-2)',
                 fontSize: 12,
                 color: '#000',
@@ -628,7 +628,7 @@ export default function PigFeedView({
               }}
               style={{
                 padding: '7px 16px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: '#085041',
                 color: 'white',
@@ -810,7 +810,7 @@ export default function PigFeedView({
                                   fontSize: 14,
                                   padding: '4px 8px',
                                   border: '1px solid var(--border-strong)',
-                                  borderRadius: 6,
+                                  borderRadius: 10,
                                   textAlign: 'right',
                                   fontFamily: 'inherit',
                                   fontWeight: 600,
@@ -822,7 +822,7 @@ export default function PigFeedView({
                                 disabled={!saveEnabled}
                                 style={{
                                   padding: '5px 10px',
-                                  borderRadius: 6,
+                                  borderRadius: 10,
                                   border: 'none',
                                   background: saveEnabled ? '#085041' : '#9ca3af',
                                   color: 'white',
@@ -849,7 +849,7 @@ export default function PigFeedView({
                               style={{
                                 fontSize: 11,
                                 padding: '3px 8px',
-                                borderRadius: 5,
+                                borderRadius: 10,
                                 border: '1px solid var(--border-strong)',
                                 background: 'white',
                                 color: 'var(--ink-muted)',

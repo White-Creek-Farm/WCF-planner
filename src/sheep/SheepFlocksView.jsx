@@ -562,7 +562,7 @@ const SheepFlocksHub = ({
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -791,7 +791,7 @@ const SheepFlocksHub = ({
                 fontSize: 11,
                 background: 'var(--surface-2)',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 4,
+                borderRadius: 10,
                 padding: '0 6px',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -916,7 +916,7 @@ const SheepFlocksHub = ({
   );
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -938,7 +938,7 @@ const SheepFlocksHub = ({
   const toolButtonS = (active = false) => ({
     width: 34,
     height: 34,
-    borderRadius: 6,
+    borderRadius: 10,
     border: active ? '1px solid #0f766e' : '1px solid var(--border-strong)',
     background: active ? '#f0fdfa' : 'white',
     color: active ? '#0f766e' : 'var(--ink)',
@@ -990,7 +990,7 @@ const SheepFlocksHub = ({
               onClick={loadAll}
               style={{
                 padding: '7px 14px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: '#085041',
@@ -1263,7 +1263,7 @@ const SheepFlocksHub = ({
                       fontSize: 12,
                       color: 'var(--ink)',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '4px 8px',
                     }}
                   >
@@ -1328,7 +1328,7 @@ const SheepFlocksHub = ({
                   onClick={() => setShowBulkImport(true)}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid #0f766e',
                     background: 'white',
                     color: '#0f766e',
@@ -1345,7 +1345,7 @@ const SheepFlocksHub = ({
                   onClick={openAdd}
                   style={{
                     padding: '7px 16px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: 'none',
                     background: '#0f766e',
                     color: 'white',
@@ -1369,7 +1369,7 @@ const SheepFlocksHub = ({
                         onClick={clearAllFilters}
                         style={{
                           padding: '5px 10px',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           border: '1px solid var(--border-strong)',
                           background: 'white',
                           color: 'var(--ink-muted)',
@@ -1502,7 +1502,7 @@ const SheepFlocksHub = ({
                           style={{
                             fontSize: 11,
                             padding: '2px 8px',
-                            borderRadius: 4,
+                            borderRadius: 10,
                             background: 'white',
                             color: fc.tx,
                             border: '1px solid ' + fc.bd,
@@ -1542,7 +1542,7 @@ const SheepFlocksHub = ({
                               style={{
                                 fontSize: 10,
                                 padding: '1px 6px',
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 background: '#fef2f2',
                                 color: '#b91c1c',
                                 fontWeight: 600,
@@ -1556,7 +1556,7 @@ const SheepFlocksHub = ({
                               style={{
                                 fontSize: 10,
                                 padding: '1px 6px',
-                                borderRadius: 4,
+                                borderRadius: 10,
                                 background: '#fef2f2',
                                 color: '#b91c1c',
                                 fontWeight: 600,
@@ -1723,7 +1723,7 @@ const SheepFlocksHub = ({
                                       style={{
                                         fontSize: 10,
                                         padding: '1px 6px',
-                                        borderRadius: 4,
+                                        borderRadius: 10,
                                         background: '#fef2f2',
                                         color: '#b91c1c',
                                         fontWeight: 600,
@@ -1737,7 +1737,7 @@ const SheepFlocksHub = ({
                                       style={{
                                         fontSize: 10,
                                         padding: '1px 6px',
-                                        borderRadius: 4,
+                                        borderRadius: 10,
                                         background: '#fef2f2',
                                         color: '#b91c1c',
                                         fontWeight: 600,
@@ -1998,7 +1998,7 @@ const SheepFlocksHub = ({
                 }}
                 style={{
                   padding: '8px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',
@@ -2014,7 +2014,7 @@ const SheepFlocksHub = ({
                 disabled={saving}
                 style={{
                   padding: '8px 20px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#0f766e',
                   color: 'white',
@@ -2054,7 +2054,7 @@ function SheepFilterPopover({
     left: 0,
     width: 280,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     boxShadow: '0 10px 28px rgba(0,0,0,.14)',
@@ -2065,7 +2065,7 @@ function SheepFilterPopover({
     fontSize: 12,
     padding: '6px 8px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -2073,7 +2073,7 @@ function SheepFilterPopover({
   const smallInputS = {...inputS, width: 110};
   const btnS = {
     padding: '5px 10px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',

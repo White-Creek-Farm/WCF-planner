@@ -192,7 +192,7 @@ const inpS = {
   fontSize: 13,
   padding: '7px 10px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 6,
+  borderRadius: 10,
   fontFamily: 'inherit',
   width: '100%',
   boxSizing: 'border-box',
@@ -1041,7 +1041,7 @@ const CattleHerdsHub = ({
           alignItems: 'center',
           gap: 6,
           padding: '5px 10px',
-          borderRadius: 6,
+          borderRadius: 10,
           border: checked ? '1px solid #991b1b' : '1px solid var(--border-strong)',
           background: checked ? '#fef2f2' : 'white',
           color: checked ? '#991b1b' : 'var(--ink)',
@@ -1112,7 +1112,7 @@ const CattleHerdsHub = ({
                 fontSize: 11,
                 background: 'var(--surface-2)',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 4,
+                borderRadius: 10,
                 padding: '0 6px',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -1262,7 +1262,7 @@ const CattleHerdsHub = ({
               style={{
                 fontSize: 11,
                 padding: '2px 8px',
-                borderRadius: 4,
+                borderRadius: 10,
                 background: 'white',
                 color: hc.tx,
                 border: '1px solid ' + hc.bd,
@@ -1300,7 +1300,7 @@ const CattleHerdsHub = ({
                 style={{
                   fontSize: 10,
                   padding: '1px 6px',
-                  borderRadius: 4,
+                  borderRadius: 10,
                   background: '#fef2f2',
                   color: '#b91c1c',
                   fontWeight: 600,
@@ -1329,7 +1329,7 @@ const CattleHerdsHub = ({
   );
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -1351,7 +1351,7 @@ const CattleHerdsHub = ({
   const toolButtonS = (active = false) => ({
     width: 34,
     height: 34,
-    borderRadius: 6,
+    borderRadius: 10,
     border: active ? '1px solid #991b1b' : '1px solid var(--border-strong)',
     background: active ? '#fff7f7' : 'white',
     color: active ? '#991b1b' : 'var(--ink)',
@@ -1403,7 +1403,7 @@ const CattleHerdsHub = ({
               onClick={loadAll}
               style={{
                 padding: '7px 14px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: '#085041',
@@ -1646,7 +1646,7 @@ const CattleHerdsHub = ({
                       fontSize: 12,
                       color: 'var(--ink)',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '4px 8px',
                     }}
                   >
@@ -1707,7 +1707,7 @@ const CattleHerdsHub = ({
                   onClick={() => setShowBulkImport(true)}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid #991b1b',
                     background: 'white',
                     color: '#991b1b',
@@ -1724,7 +1724,7 @@ const CattleHerdsHub = ({
                   onClick={openAdd}
                   style={{
                     padding: '7px 16px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: 'none',
                     background: '#991b1b',
                     color: 'white',
@@ -2136,7 +2136,7 @@ const CattleHerdsHub = ({
                       }}
                       style={{
                         padding: '5px 12px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: 'none',
                         background: '#1d4ed8',
                         color: 'white',
@@ -2156,7 +2156,7 @@ const CattleHerdsHub = ({
                       }}
                       style={{
                         padding: '5px 12px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid var(--border-strong)',
                         background: 'white',
                         color: 'var(--ink)',
@@ -2267,7 +2267,7 @@ const CattleHerdsHub = ({
                       color: 'var(--brand)',
                       background: 'none',
                       border: '1px dashed #bfdbfe',
-                      borderRadius: 5,
+                      borderRadius: 10,
                       padding: '3px 10px',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
@@ -2343,7 +2343,7 @@ const CattleHerdsHub = ({
                         style={{
                           background: 'none',
                           border: '1px solid #F09595',
-                          borderRadius: 5,
+                          borderRadius: 10,
                           color: '#b91c1c',
                           cursor: 'pointer',
                           fontSize: 14,
@@ -2439,7 +2439,7 @@ const CattleHerdsHub = ({
                 disabled={saving}
                 style={{
                   padding: '8px 20px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#991b1b',
                   color: 'white',
@@ -2457,7 +2457,7 @@ const CattleHerdsHub = ({
                   onClick={() => deleteCow(editId)}
                   style={{
                     padding: '8px 16px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid #F09595',
                     background: 'white',
                     color: '#b91c1c',
@@ -2475,7 +2475,7 @@ const CattleHerdsHub = ({
                 }}
                 style={{
                   padding: '8px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',
@@ -2512,7 +2512,7 @@ function FilterChipPopover({
     left: 0,
     background: 'white',
     border: '1px solid var(--border-strong)',
-    borderRadius: 8,
+    borderRadius: 10,
     padding: '10px 12px',
     boxShadow: '0 4px 16px rgba(0,0,0,.08)',
     zIndex: 50,
@@ -3009,7 +3009,7 @@ function PopoverFooter({onClear, onClose}) {
           color: '#b91c1c',
           background: 'none',
           border: '1px solid #fecaca',
-          borderRadius: 5,
+          borderRadius: 10,
           padding: '3px 8px',
           cursor: 'pointer',
           fontFamily: 'inherit',
@@ -3025,7 +3025,7 @@ function PopoverFooter({onClear, onClose}) {
           color: 'var(--ink)',
           background: 'white',
           border: '1px solid var(--border-strong)',
-          borderRadius: 5,
+          borderRadius: 10,
           padding: '3px 8px',
           cursor: 'pointer',
           fontFamily: 'inherit',

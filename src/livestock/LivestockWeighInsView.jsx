@@ -320,14 +320,14 @@ const LivestockWeighInsView = ({
     fontSize: 12,
     padding: '6px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     boxSizing: 'border-box',
     background: 'white',
     color: 'var(--ink)',
   };
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -371,7 +371,7 @@ const LivestockWeighInsView = ({
             onClick={loadAll}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#1e40af',
@@ -565,7 +565,7 @@ const LivestockWeighInsView = ({
                 <div
                   style={{
                     display: 'flex',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     overflow: 'hidden',
                     border: '1px solid var(--border-strong)',
                   }}
@@ -601,7 +601,7 @@ const LivestockWeighInsView = ({
                   disabled={loading || loadFailed}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: loading || loadFailed ? 'var(--surface-2)' : 'white',
                     color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
@@ -620,7 +620,7 @@ const LivestockWeighInsView = ({
                   disabled={loading || loadFailed}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: loading || loadFailed ? 'var(--surface-2)' : 'white',
                     color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
@@ -638,7 +638,7 @@ const LivestockWeighInsView = ({
               onClick={() => setShowNewModal(true)}
               style={{
                 padding: '7px 14px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: '#1e40af',
                 color: 'white',
@@ -834,7 +834,7 @@ const LivestockWeighInsView = ({
                                     color: m.adgLbsPerDay >= 0 ? '#065f46' : '#b91c1c',
                                     background: m.adgLbsPerDay >= 0 ? '#ecfdf5' : '#fef2f2',
                                     border: '1px solid ' + (m.adgLbsPerDay >= 0 ? '#a7f3d0' : '#fecaca'),
-                                    borderRadius: 5,
+                                    borderRadius: 10,
                                     padding: '2px 6px',
                                   }}
                                 >

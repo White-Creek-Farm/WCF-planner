@@ -410,7 +410,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                 style={{
                   fontSize: 12,
                   padding: '10px 16px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid #fca5a5',
                   background: 'white',
                   color: '#b91c1c',
@@ -433,7 +433,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                   style={{
                     fontSize: 11,
                     padding: '4px 10px',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -450,7 +450,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                   style={{
                     fontSize: 11,
                     padding: '4px 10px',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     border: 'none',
                     background: '#b91c1c',
                     color: 'white',
@@ -515,7 +515,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                     style={{
                       fontSize: 12,
                       padding: '10px 16px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: 'none',
                       background: '#374151',
                       color: 'white',
@@ -533,7 +533,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                     style={{
                       fontSize: 12,
                       padding: '10px 16px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid var(--brand)',
                       background: 'white',
                       color: 'var(--brand)',
@@ -583,7 +583,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                     fontSize: 13,
                     padding: '6px 8px',
                     border: '1px solid var(--border)',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     fontFamily: 'inherit',
                     width: '100%',
                     minWidth: 70,
@@ -601,7 +601,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                       data-batch-cow-row={r.cattle_id}
                       style={{
                         border: '1px solid var(--divider)',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         padding: '8px 10px',
                         fontSize: 12,
                       }}

@@ -192,7 +192,7 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
             onClick={load}
             style={{
               padding: '7px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#085041',
@@ -229,7 +229,7 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
                   padding: '10px 14px',
                   background: 'white',
                   border: '1px solid var(--border)',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   fontSize: 13,
                 }}
               >
@@ -238,7 +238,7 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
                     fontSize: 10,
                     fontWeight: 700,
                     padding: '2px 8px',
-                    borderRadius: 6,
+                    borderRadius: 999,
                     background: bc.bg,
                     color: bc.color,
                     textTransform: 'uppercase',
@@ -258,7 +258,7 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
                   onClick={() => handleRestore(r)}
                   style={{
                     padding: '4px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid #065f46',
                     background: '#ecfdf5',
                     color: '#065f46',

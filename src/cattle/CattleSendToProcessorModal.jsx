@@ -247,7 +247,7 @@ export default function CattleSendToProcessorModal({
               padding: '10px 12px',
               border: '1px solid #fca5a5',
               borderLeft: '4px solid #991b1b',
-              borderRadius: 6,
+              borderRadius: 10,
               background: '#fef2f2',
               marginBottom: 12,
             }}
@@ -269,7 +269,7 @@ export default function CattleSendToProcessorModal({
           <div
             style={{
               padding: '10px 12px',
-              borderRadius: 6,
+              borderRadius: 10,
               background: '#fef2f2',
               border: '1px solid #fca5a5',
               color: '#991b1b',
@@ -288,7 +288,7 @@ export default function CattleSendToProcessorModal({
             data-send-modal-outside-reason={isEmptyScheduled ? 'empty_scheduled' : 'outside_projection'}
             style={{
               padding: '10px 12px',
-              borderRadius: 6,
+              borderRadius: 10,
               background: '#fffbeb',
               border: '1px solid #fde68a',
               color: '#92400e',
@@ -344,7 +344,7 @@ export default function CattleSendToProcessorModal({
               marginBottom: 10,
               padding: '6px 10px',
               background: '#fef2f2',
-              borderRadius: 6,
+              borderRadius: 10,
             }}
           >
             {err}

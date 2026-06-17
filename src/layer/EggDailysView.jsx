@@ -398,7 +398,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
 
   const fi = {
     padding: '6px 10px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
@@ -485,7 +485,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
               }}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: '#085041',
                 color: 'white',
@@ -702,7 +702,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
             style={{
               marginBottom: 12,
               padding: '7px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -773,7 +773,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                         fontSize: 11,
                         fontWeight: 600,
                         padding: '2px 8px',
-                        borderRadius: 4,
+                        borderRadius: 10,
                         background: '#f1f5f9',
                         color: '#475569',
                         border: '1px solid #e2e8f0',
@@ -807,7 +807,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                         padding: '4px 10px',
                         background: '#fffbeb',
                         border: '1px solid #fde68a',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         fontStyle: 'italic',
                       }}
                     >
@@ -950,7 +950,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                   style={{
                     background: 'var(--surface-2)',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     padding: '8px 12px',
                     fontSize: 14,
                     fontWeight: 700,

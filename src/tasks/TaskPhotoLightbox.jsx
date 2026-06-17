@@ -183,7 +183,7 @@ export default function TaskPhotoLightbox({sb, task, isOpen, onClose}) {
         )}
 
         {err && (
-          <div style={{fontSize: 12, color: '#991b1b', background: '#fef2f2', padding: '6px 10px', borderRadius: 6}}>
+          <div style={{fontSize: 12, color: '#991b1b', background: '#fef2f2', padding: '6px 10px', borderRadius: 10}}>
             {err}
           </div>
         )}

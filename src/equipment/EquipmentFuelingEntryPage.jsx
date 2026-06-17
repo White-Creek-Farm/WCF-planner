@@ -156,7 +156,7 @@ export default function EquipmentFuelingEntryPage({
                 style={{
                   fontSize: 10,
                   padding: '3px 8px',
-                  borderRadius: 4,
+                  borderRadius: 999,
                   background: '#d1fae5',
                   color: '#065f46',
                   border: '1px solid #a7f3d0',
@@ -186,7 +186,7 @@ export default function EquipmentFuelingEntryPage({
                     padding: '8px 10px',
                     background: '#fafafa',
                     border: '1px solid ' + (isFull ? '#bfdbfe' : '#fde68a'),
-                    borderRadius: 6,
+                    borderRadius: 10,
                     fontSize: 12,
                     color: isFull ? '#1e40af' : '#92400e',
                     fontWeight: 600,
@@ -218,7 +218,7 @@ export default function EquipmentFuelingEntryPage({
                     width: 90,
                     height: 90,
                     objectFit: 'cover',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border)',
                   }}
                 />

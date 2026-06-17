@@ -64,7 +64,7 @@ const CHIP_ACTIVE = {
 };
 const SMALL_BTN = {
   padding: '6px 10px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid var(--border-strong)',
   background: 'white',
   color: 'var(--ink)',

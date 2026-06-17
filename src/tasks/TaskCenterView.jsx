@@ -254,7 +254,7 @@ function TaskCenterView({Header, sb, authState, forceMode}) {
             onClick={() => setNewTaskOpen(true)}
             style={{
               padding: '8px 14px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: '1px solid #085041',
               background: '#085041',
               color: 'white',

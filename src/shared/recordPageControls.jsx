@@ -58,7 +58,7 @@ export const recordControl = {
   fontSize: 14,
   padding: '7px 10px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 6,
+  borderRadius: 10,
   fontFamily: 'inherit',
   width: '100%',
   maxWidth: 340,
@@ -86,7 +86,7 @@ export const recordCheckbox = {width: 18, height: 18, cursor: 'pointer'};
 // spread.
 const recordActionButtonBase = {
   padding: '10px 16px',
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 13,
   fontWeight: 600,
   cursor: 'pointer',

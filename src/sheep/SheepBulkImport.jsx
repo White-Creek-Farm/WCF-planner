@@ -328,7 +328,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
 
   const btnPrimary = {
     padding: '9px 18px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: 'none',
     background: '#0f766e',
     color: 'white',
@@ -339,7 +339,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
   };
   const btnSecondary = {
     padding: '9px 18px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -405,7 +405,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                 border: '1px solid #fecaca',
                 color: '#991b1b',
                 padding: '10px 14px',
-                borderRadius: 8,
+                borderRadius: 10,
                 marginBottom: 14,
                 fontSize: 13,
               }}
@@ -454,7 +454,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                     padding: '4px 10px',
                     background: '#dcfce7',
                     color: '#166534',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     fontWeight: 600,
                   }}
                 >
@@ -466,7 +466,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                       padding: '4px 10px',
                       background: '#fef3c7',
                       color: '#92400e',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       fontWeight: 600,
                     }}
                   >
@@ -479,7 +479,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                       padding: '4px 10px',
                       background: '#fef2f2',
                       color: '#991b1b',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       fontWeight: 600,
                     }}
                   >
@@ -487,7 +487,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   </span>
                 )}
               </div>
-              <div style={{maxHeight: '55vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8}}>
+              <div style={{maxHeight: '55vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10}}>
                 <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
                   <thead style={{position: 'sticky', top: 0, background: 'var(--surface-2)', zIndex: 1}}>
                     <tr>
@@ -672,7 +672,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                 style={{
                   height: 8,
                   background: 'var(--divider)',
-                  borderRadius: 4,
+                  borderRadius: 4 /* radius-allow: 8px-tall progress bar track */,
                   overflow: 'hidden',
                   maxWidth: 400,
                   margin: '0 auto',
@@ -698,7 +698,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                     padding: '6px 12px',
                     background: '#dcfce7',
                     color: '#166534',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     fontWeight: 600,
                   }}
                 >
@@ -710,7 +710,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                       padding: '6px 12px',
                       background: '#fef2f2',
                       color: '#991b1b',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       fontWeight: 600,
                     }}
                   >
@@ -723,7 +723,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                       padding: '6px 12px',
                       background: '#f3f4f6',
                       color: '#4b5563',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       fontWeight: 600,
                     }}
                   >
@@ -736,7 +736,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   maxHeight: '40vh',
                   overflowY: 'auto',
                   border: '1px solid var(--border)',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '10px 14px',
                 }}
               >

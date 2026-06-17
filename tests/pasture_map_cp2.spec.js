@@ -8,13 +8,13 @@ import fs from 'fs';
 import path from 'path';
 import {getTestAdminClient} from './setup/reset.js';
 
-const KML_PATH = path.resolve('tests/fixtures/pasture_map_onx_sample.kml');
+const KML_PATH = 'C:\\Users\\Ronni\\OneDrive\\Desktop\\onx-markups-06152026.kml';
 const SHOTS = path.resolve('pasture-cp2-shots');
 
 async function cleanPastureTables() {
   const c = getTestAdminClient();
   const {error} = await c.rpc('exec_sql', {
-    sql: 'TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
+    sql: 'TRUNCATE TABLE public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
   });
   if (error) throw new Error('clean pasture tables: ' + error.message);
 }

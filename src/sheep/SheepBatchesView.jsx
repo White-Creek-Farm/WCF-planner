@@ -403,7 +403,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -411,7 +411,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
   const lbl = {fontSize: 11, color: 'var(--ink-muted)', display: 'block', marginBottom: 3, fontWeight: 500};
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -456,7 +456,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             onClick={loadAll}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#0f766e',
@@ -490,7 +490,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                   data-sheep-batches-export-csv="1"
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -508,7 +508,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                   data-sheep-batches-print="1"
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -528,7 +528,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 onClick={openAdd}
                 style={{
                   padding: '7px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#0f766e',
                   color: 'white',
@@ -738,7 +738,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                         onClick={() => toggleStatusValue(s)}
                         style={{
                           padding: '6px 12px',
-                          borderRadius: 7,
+                          borderRadius: 10,
                           border: '1px solid ' + (on ? '#0f766e' : 'var(--border-strong)'),
                           background: 'white',
                           color: on ? '#0f766e' : 'var(--ink-muted)',
@@ -841,7 +841,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                     title={sortRule.dir === 'asc' ? 'Ascending' : 'Descending'}
                     style={{
                       padding: '7px 12px',
-                      borderRadius: 7,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: 'var(--ink)',
@@ -862,7 +862,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                   onClick={clearAllFilters}
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink-muted)',
@@ -1052,7 +1052,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                   padding: '10px 12px',
                   background: 'var(--surface-2)',
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   fontSize: 11,
                   color: 'var(--ink-muted)',
                 }}
@@ -1069,7 +1069,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 data-sheep-new-batch-save
                 style={{
                   padding: '8px 20px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: 'none',
                   background: creating ? '#9ca3af' : '#0f766e',
                   color: 'white',
@@ -1086,7 +1086,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 onClick={closeForm}
                 style={{
                   padding: '8px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',

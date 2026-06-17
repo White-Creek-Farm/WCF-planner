@@ -44,7 +44,7 @@ const COUNT_BADGE = {
 };
 const POST_BTN = {
   padding: '10px 16px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid #085041',
   background: '#085041',
   color: 'white',
@@ -87,7 +87,7 @@ const BODY = {
 const MENTION_CHIP = {
   display: 'inline-block',
   padding: '0 4px',
-  borderRadius: 4,
+  borderRadius: 999,
   background: '#fef3c7',
   color: '#92400e',
   fontWeight: 600,
@@ -120,7 +120,7 @@ const ACTION_BTN = {
 const EDIT_HISTORY = {
   background: 'var(--surface-2)',
   border: '1px solid var(--border)',
-  borderRadius: 6,
+  borderRadius: 10,
   padding: 10,
   marginTop: 6,
   fontSize: 12,
@@ -368,7 +368,7 @@ export default function CommentsSection({
           style={{
             background: '#fef2f2',
             border: '1px solid #fca5a5',
-            borderRadius: 6,
+            borderRadius: 10,
             padding: '6px 10px',
             fontSize: 12,
             color: '#b91c1c',
@@ -569,7 +569,7 @@ export default function CommentsSection({
                             alignItems: 'center',
                             gap: 4,
                             padding: '2px 8px',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             border: '1px solid var(--border)',
                             background: 'var(--divider)',
                             fontSize: 11,
@@ -710,7 +710,7 @@ function CommentAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
           alignItems: 'center',
           gap: 4,
           padding: '4px 8px',
-          borderRadius: 6,
+          borderRadius: 10,
           border: '1px solid var(--border)',
           background: 'var(--divider)',
           fontSize: 11,
@@ -733,7 +733,7 @@ function CommentAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
         display: 'block',
         width: 60,
         height: 60,
-        borderRadius: 6,
+        borderRadius: 10,
         overflow: 'hidden',
         border: '1px solid var(--border)',
         background: 'var(--divider)',

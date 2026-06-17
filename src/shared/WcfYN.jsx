@@ -7,7 +7,7 @@
 import React from 'react';
 
 const WcfYN = ({val, onChange}) => (
-  <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-strong)'}}>
+  <div style={{display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border-strong)'}}>
     {[
       {v: true, l: 'Yes'},
       {v: false, l: 'No'},

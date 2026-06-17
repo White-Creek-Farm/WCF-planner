@@ -13,6 +13,11 @@ const EXPECTED_LOCAL_STORAGE_OWNERS = new Map([
   // so these live in localStorage (not the sessionStorage view-state hook).
   ['src/lib/todoApi.js', 4],
   ['src/main.jsx', 4],
+  // Pasture Map offline vector-outline cache (offline field-use lane): outlines
+  // are cached in localStorage so the map works without signal. This owner was
+  // added to the codebase without updating this inventory (the guard's total
+  // was stale at 13 vs main's actual 15); reconciled here.
+  ['src/lib/pastureOffline.js', 2],
 ]);
 
 const ALLOWED_LITERAL_KEYS = new Set([
@@ -70,7 +75,7 @@ describe('localStorage boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(total).toBe(13);
+    expect(total).toBe(15);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
