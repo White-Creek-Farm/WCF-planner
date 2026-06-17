@@ -193,7 +193,7 @@ export default function ActivityLogView({Header}) {
 
   const inputStyle = {
     padding: '6px 10px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     fontSize: 12,
     fontFamily: 'inherit',
@@ -244,7 +244,7 @@ export default function ActivityLogView({Header}) {
               type: 'submit',
               style: {
                 padding: '6px 14px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid #085041',
                 background: '#085041',
                 color: 'white',
@@ -264,7 +264,7 @@ export default function ActivityLogView({Header}) {
               'data-activity-log-export-csv': '1',
               style: {
                 padding: '6px 14px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: 'var(--ink)',
@@ -284,7 +284,7 @@ export default function ActivityLogView({Header}) {
               'data-activity-log-print': '1',
               style: {
                 padding: '6px 14px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: 'var(--ink)',
@@ -314,7 +314,7 @@ export default function ActivityLogView({Header}) {
               style: {
                 marginBottom: 12,
                 padding: '6px 14px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid #b91c1c',
                 background: '#b91c1c',
                 color: 'white',
@@ -366,7 +366,7 @@ export default function ActivityLogView({Header}) {
                   padding: '10px 14px',
                   background: r.deleted_at ? '#fafafa' : 'white',
                   border: '1px solid var(--divider)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   cursor: routable ? 'pointer' : 'default',
                   display: 'flex',
                   gap: 10,
@@ -402,7 +402,7 @@ export default function ActivityLogView({Header}) {
                         fontSize: 10,
                         fontWeight: 700,
                         padding: '1px 6px',
-                        borderRadius: 4,
+                        borderRadius: 999,
                         background: '#ecfdf5',
                         color: '#065f46',
                         textTransform: 'uppercase',
@@ -471,7 +471,7 @@ export default function ActivityLogView({Header}) {
                 'data-activity-log-load-more': 'true',
                 style: {
                   padding: '6px 18px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   fontSize: 12,

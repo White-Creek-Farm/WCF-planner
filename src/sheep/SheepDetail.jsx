@@ -85,7 +85,7 @@ const SheepDetail = ({
     fontSize: 12,
     padding: '5px 8px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 5,
+    borderRadius: 10,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
     width: '100%',
@@ -166,7 +166,7 @@ const SheepDetail = ({
         background: '#ffffff',
         padding: '14px 18px',
         border: '2px solid ' + accentColor,
-        borderRadius: 6,
+        borderRadius: 10,
         boxShadow: '0 2px 6px rgba(0,0,0,.06)',
         margin: '8px 12px 14px',
       }}
@@ -178,7 +178,7 @@ const SheepDetail = ({
             padding: '6px 10px',
             background: '#eff6ff',
             border: '1px solid #bfdbfe',
-            borderRadius: 6,
+            borderRadius: 10,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
@@ -298,7 +298,7 @@ const SheepDetail = ({
               marginLeft: 'auto',
               background: 'none',
               border: '1px solid var(--border-strong)',
-              borderRadius: 6,
+              borderRadius: 10,
               color: 'var(--ink-muted)',
               cursor: 'pointer',
               fontSize: 18,
@@ -448,7 +448,7 @@ const SheepDetail = ({
               color: 'var(--brand)',
               background: 'none',
               border: '1px dashed #bfdbfe',
-              borderRadius: 5,
+              borderRadius: 10,
               padding: '3px 10px',
               cursor: 'pointer',
               fontFamily: 'inherit',
@@ -500,7 +500,7 @@ const SheepDetail = ({
               style={{
                 background: 'none',
                 border: '1px solid #F09595',
-                borderRadius: 5,
+                borderRadius: 10,
                 color: '#b91c1c',
                 cursor: 'pointer',
                 fontSize: 14,
@@ -531,7 +531,7 @@ const SheepDetail = ({
             background: sheep.breeding_blacklist ? '#991b1b' : '#fee2e2',
             color: sheep.breeding_blacklist ? 'white' : '#7f1d1d',
             border: '1px solid ' + (sheep.breeding_blacklist ? '#991b1b' : '#fecaca'),
-            borderRadius: 6,
+            borderRadius: 10,
             cursor: 'pointer',
             fontSize: 13,
             fontWeight: 700,
@@ -624,7 +624,7 @@ const SheepDetail = ({
                 <div
                   style={{
                     display: 'flex',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     overflow: 'hidden',
                     border: '1px solid var(--border-strong)',
                   }}
@@ -659,7 +659,7 @@ const SheepDetail = ({
                   style={{
                     background: 'white',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     overflow: 'hidden',
                     maxWidth: 640,
                   }}
@@ -764,7 +764,7 @@ const SheepDetail = ({
                   style={{
                     background: 'white',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     padding: '10px 12px',
                   }}
                 >
@@ -936,7 +936,7 @@ const SheepDetail = ({
                   color: '#0f766e',
                   background: 'none',
                   border: '1px solid #5eead4',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   padding: '3px 8px',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -951,7 +951,7 @@ const SheepDetail = ({
               style={{
                 background: '#f0fdfa',
                 border: '1px solid #5eead4',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '10px 12px',
                 marginBottom: 8,
               }}
@@ -1033,7 +1033,7 @@ const SheepDetail = ({
                   onClick={submitLambing}
                   style={{
                     padding: '10px 16px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: 'none',
                     background: '#0f766e',
                     color: 'white',
@@ -1050,7 +1050,7 @@ const SheepDetail = ({
                   onClick={() => setShowLambForm(false)}
                   style={{
                     padding: '6px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink-muted)',
@@ -1082,7 +1082,7 @@ const SheepDetail = ({
                 style={{
                   background: 'white',
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '6px 10px',
                   marginBottom: 4,
                   fontSize: 11,
@@ -1140,7 +1140,7 @@ const SheepDetail = ({
                     style={{
                       fontSize: 11,
                       padding: '3px 8px',
-                      borderRadius: 5,
+                      borderRadius: 10,
                       border: '1px solid #5eead4',
                       background: '#f0fdfa',
                       color: '#0f766e',
@@ -1172,7 +1172,7 @@ const SheepDetail = ({
                 fontSize: 12,
                 padding: '6px 10px',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 fontFamily: 'inherit',
               }}
             />
@@ -1184,7 +1184,7 @@ const SheepDetail = ({
               disabled={!commentText.trim()}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: commentText.trim() ? '#0f766e' : '#d1d5db',
                 color: 'white',
@@ -1207,7 +1207,7 @@ const SheepDetail = ({
                     style={{
                       background: 'white',
                       border: '1px solid var(--border)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '6px 10px',
                       marginBottom: 4,
                       fontSize: 11,
@@ -1219,7 +1219,7 @@ const SheepDetail = ({
                           fontSize: 10,
                           fontWeight: 700,
                           padding: '1px 6px',
-                          borderRadius: 4,
+                          borderRadius: 999,
                           background:
                             c.source === 'weigh_in'
                               ? '#eff6ff'
@@ -1298,7 +1298,7 @@ const SheepDetail = ({
                             fontSize: 11,
                             padding: '4px 8px',
                             border: '1px solid var(--border-strong)',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             fontFamily: 'inherit',
                             boxSizing: 'border-box',
                             resize: 'vertical',
@@ -1315,7 +1315,7 @@ const SheepDetail = ({
                             disabled={!editingCommentText.trim()}
                             style={{
                               padding: '3px 10px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: 'none',
                               background: editingCommentText.trim() ? '#0f766e' : '#d1d5db',
                               color: 'white',
@@ -1335,7 +1335,7 @@ const SheepDetail = ({
                             }}
                             style={{
                               padding: '3px 10px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: '1px solid var(--border-strong)',
                               background: 'white',
                               color: 'var(--ink-muted)',
@@ -1364,7 +1364,7 @@ const SheepDetail = ({
                 marginTop: 8,
                 background: '#fecaca',
                 border: '1px solid #f87171',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '6px 10px',
                 fontSize: 11,
                 display: 'flex',
@@ -1377,7 +1377,7 @@ const SheepDetail = ({
                   fontSize: 10,
                   fontWeight: 700,
                   padding: '1px 6px',
-                  borderRadius: 4,
+                  borderRadius: 999,
                   background: '#991b1b',
                   color: 'white',
                 }}
@@ -1406,7 +1406,7 @@ const SheepDetail = ({
             onClick={onDelete}
             style={{
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid #F09595',
               background: 'white',
               color: '#b91c1c',

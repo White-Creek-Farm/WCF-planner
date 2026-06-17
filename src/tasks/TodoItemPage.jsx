@@ -50,7 +50,7 @@ import {taskModalFieldLabel, taskModalInput, taskModalPrimaryButton, taskModalGh
 
 const ACTION_BTN = {
   padding: '8px 14px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid var(--border-strong)',
   background: 'white',
   color: 'var(--ink)',

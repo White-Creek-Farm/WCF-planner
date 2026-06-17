@@ -672,7 +672,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -683,7 +683,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
     return (
       <div
         data-feed-inputs-table={section}
-        style={{border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden'}}
+        style={{border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden'}}
       >
         <div
           style={{
@@ -753,7 +753,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                       marginLeft: 6,
                       fontSize: 10,
                       padding: '1px 5px',
-                      borderRadius: 3,
+                      borderRadius: 999,
                       background: '#fef2f2',
                       color: '#b91c1c',
                       fontWeight: 700,
@@ -767,7 +767,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 style={{
                   fontSize: 10,
                   padding: '1px 6px',
-                  borderRadius: 3,
+                  borderRadius: 999,
                   background: cat.bg,
                   color: cat.color,
                   fontWeight: 700,
@@ -813,7 +813,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   }}
                   style={{
                     padding: '3px 8px',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     border: '1px solid #085041',
                     background: 'white',
                     color: '#085041',
@@ -833,7 +833,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   }}
                   style={{
                     padding: '3px 8px',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink-muted)',
@@ -885,7 +885,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
               }}
               style={{
                 padding: '7px 16px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: '#085041',
                 color: 'white',
@@ -967,7 +967,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                       data-feed-inputs-empty-active="1"
                       style={{
                         border: '1px solid var(--border)',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         padding: '12px',
                         fontSize: 12,
                         color: 'var(--ink-faint)',
@@ -991,7 +991,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         alignItems: 'center',
                         gap: 8,
                         padding: '9px 10px',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: '1px solid var(--border)',
                         background: 'var(--surface-2)',
                         color: 'var(--ink)',
@@ -1160,7 +1160,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         padding: '7px 10px',
                         background: 'var(--surface-2)',
                         border: '1px solid var(--border)',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         fontSize: 13,
                         fontWeight: 700,
                         color: dm != null ? '#065f46' : 'var(--ink-faint)',
@@ -1228,7 +1228,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                     padding: '7px 10px',
                     background: 'var(--surface-2)',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     fontSize: 13,
                     fontWeight: 700,
                     color: landedPerLb(form) ? '#065f46' : 'var(--ink-faint)',
@@ -1311,7 +1311,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         onClick={openTestForm}
                         style={{
                           padding: '4px 10px',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           border: '1px solid #085041',
                           background: 'white',
                           color: '#085041',
@@ -1331,7 +1331,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                       style={{
                         background: '#f0f7ff',
                         border: '1px solid #bfdbfe',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         padding: '12px 14px',
                         marginBottom: 10,
                       }}
@@ -1437,7 +1437,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                           disabled={uploadingTest}
                           style={{
                             padding: '6px 14px',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             border: 'none',
                             background: '#085041',
                             color: 'white',
@@ -1460,7 +1460,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                           }}
                           style={{
                             padding: '6px 12px',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             border: '1px solid var(--border-strong)',
                             background: 'white',
                             color: 'var(--ink-muted)',
@@ -1491,7 +1491,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         style={{
                           background: isLatest ? '#ecfdf5' : 'var(--surface-2)',
                           border: '1px solid ' + (isLatest ? '#a7f3d0' : 'var(--border)'),
-                          borderRadius: 8,
+                          borderRadius: 10,
                           padding: '8px 12px',
                           marginBottom: 6,
                           display: 'flex',
@@ -1511,7 +1511,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                               color: '#065f46',
                               background: '#d1fae5',
                               padding: '1px 6px',
-                              borderRadius: 4,
+                              borderRadius: 999,
                               letterSpacing: 0.4,
                             }}
                           >
@@ -1602,7 +1602,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         onClick={() => toggleHerdScope(h.v)}
                         style={{
                           padding: '6px 14px',
-                          borderRadius: 7,
+                          borderRadius: 10,
                           border: '1px solid ' + (on ? '#085041' : 'var(--border-strong)'),
                           background: on ? '#ecfdf5' : 'white',
                           color: on ? '#085041' : 'var(--ink-muted)',
@@ -1648,7 +1648,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   onClick={closeForm}
                   style={{
                     padding: '8px 20px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: 'none',
                     background: '#085041',
                     color: 'white',
@@ -1666,7 +1666,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   onClick={() => deleteFeedPermanently(editingId)}
                   style={{
                     padding: '8px 16px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid #F09595',
                     background: 'white',
                     color: '#b91c1c',
@@ -1682,7 +1682,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                 onClick={cancelForm}
                 style={{
                   padding: '8px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',

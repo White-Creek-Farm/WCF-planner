@@ -94,11 +94,20 @@ describe('Cattle herd filters — always-visible organized groups', () => {
 });
 
 describe('Cattle herd rows — flat/grouped parity via shared renderer', () => {
-  it('uses one CowListRow for both lists', () => {
-    expect(herdsView).toContain('function CowListRow');
-    // Both the flat list and the grouped tiles render through CowListRow.
-    const cowListRowUses = herdsView.match(/<CowListRow/g) || [];
-    expect(cowListRowUses.length).toBeGreaterThanOrEqual(2);
+  // CP3: the faux-grid `.hoverable-tile` CowListRow was replaced by the shared
+  // <DataTable>. Parity is now enforced by one shared columns builder
+  // (cowTableColumns) + one shared renderer (CattleDataTable) used by BOTH the
+  // flat list and the grouped tiles — intent preserved, asserting the new
+  // DataTable structure instead of the retired tile DOM.
+  it('renders both lists through the shared DataTable renderer', () => {
+    expect(herdsView).toContain('function cowTableColumns');
+    expect(herdsView).toContain('function CattleDataTable');
+    expect(herdsView).toContain('<DataTable');
+    // Both the flat list and the grouped tiles render through CattleDataTable.
+    const sharedRendererUses = herdsView.match(/<CattleDataTable/g) || [];
+    expect(sharedRendererUses.length).toBeGreaterThanOrEqual(2);
+    // The retired faux-grid row component is gone.
+    expect(herdsView).not.toContain('function CowListRow');
   });
 
   it('shows calf count + last calved metadata in the shared row', () => {

@@ -36,9 +36,9 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
     expect(herdsView).toContain("navigate('/cattle/herds/' + c.id");
   });
   it('passes the visible-order sequence through route state on row click (flat + grouped)', () => {
-    // Both lists now render through the shared CowListRow, which threads its
-    // navList prop into recordSeqNavOptions. Flat hands sortedFlat; grouped
-    // hands the per-herd cows. Both feed RecordSequenceNav on the record page.
+    // CP3: both lists now render through the shared CattleDataTable, which
+    // threads its navList prop into recordSeqNavOptions on onRowOpen. Flat hands
+    // sortedFlat; grouped hands the per-herd cows. Both feed RecordSequenceNav.
     expect(herdsView).toContain('recordSeqNavOptions(navList)');
     expect(herdsView).toContain('navList={sortedFlat}');
     expect(herdsView).toContain('navList={cows}');
@@ -69,19 +69,24 @@ describe('CowDetail - herd status selector replaces duplicate transfer control',
 });
 
 describe('CattleHerdsView — visible herd row columns', () => {
-  it('renders origin via the shared CowListRow used by both flat and grouped lists', () => {
-    // Flat and grouped rows now go through one shared CowListRow so they can't
-    // drift; origin renders once with a single hook in that shared component.
+  it('renders origin via the shared DataTable columns used by both flat and grouped lists', () => {
+    // CP3: flat and grouped rows now go through one shared columns builder
+    // (cowTableColumns) rendered by <DataTable>, so they can't drift; origin
+    // renders once with a single hook in that shared column. The retired
+    // faux-grid widths + CowListRow are gone.
     expect(herdsView).toContain('data-cattle-row-origin={c.id}');
     expect(herdsView).not.toContain('data-cattle-flat-row-origin');
     expect(herdsView).not.toContain('data-cattle-grouped-row-origin');
     expect(herdsView).toMatch(/\{c\.origin \|\| '—'\}/);
-    // Both flat (with herd badge) and grouped (without) grid widths still live in
-    // the shared row, selected by showHerd.
-    expect(herdsView).toContain("'48px 16px 70px 110px 60px 160px 140px 70px 90px 1fr'");
-    expect(herdsView).toContain("'48px 16px 70px 60px 160px 140px 70px 90px 1fr'");
-    expect(herdsView).toContain('function CowListRow');
-    expect(herdsView).toContain('<CowListRow');
+    // The Herd badge column is conditional on showHerd (flat only); both lists
+    // share one columns builder + one renderer.
+    expect(herdsView).toContain('function cowTableColumns');
+    expect(herdsView).toContain('function CattleDataTable');
+    expect(herdsView).toContain('<DataTable');
+    expect(herdsView).not.toContain('function CowListRow');
+    // The old faux-grid gridTemplateColumns widths were retired with the tile.
+    expect(herdsView).not.toContain("'48px 16px 70px 110px 60px 160px 140px 70px 90px 1fr'");
+    expect(herdsView).not.toContain("'48px 16px 70px 60px 160px 140px 70px 90px 1fr'");
   });
 });
 

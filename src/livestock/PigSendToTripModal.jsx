@@ -192,7 +192,7 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
                 color: '#1e40af',
                 background: '#eff6ff',
                 border: '1px solid #bfdbfe',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '6px 10px',
                 marginTop: 6,
               }}
@@ -216,7 +216,7 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
               marginBottom: 10,
               padding: '6px 10px',
               background: '#fef2f2',
-              borderRadius: 6,
+              borderRadius: 10,
             }}
           >
             {blockerError || err}

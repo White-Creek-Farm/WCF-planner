@@ -215,7 +215,7 @@ const SheepHomeView = ({
     <div
       style={{
         display: 'flex',
-        borderRadius: 8,
+        borderRadius: 10,
         overflow: 'hidden',
         border: '1px solid var(--border-strong)',
         width: 'fit-content',
@@ -281,7 +281,7 @@ const SheepHomeView = ({
               onClick={loadAll}
               style={{
                 padding: '7px 14px',
-                borderRadius: 8,
+                borderRadius: 10,
                 border: '1px solid #991b1b',
                 background: 'white',
                 color: '#991b1b',
@@ -473,7 +473,7 @@ const SheepHomeView = ({
                         padding: '8px 10px',
                         background: 'var(--surface-2)',
                         border: '1px solid var(--divider)',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         minWidth: 0,
                         overflow: 'hidden',
                       }}

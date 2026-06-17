@@ -51,7 +51,7 @@ const inp = {
   fontSize: 12,
   padding: '4px 8px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 5,
+  borderRadius: 10,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
 };
@@ -1615,7 +1615,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               title={adgs.length + ' of ' + sEntries.length + ' entries have a prior weigh-in'}
               style={{
                 padding: '3px 10px',
-                borderRadius: 6,
+                borderRadius: 999,
                 background: avgAdg >= 0 ? '#ecfdf5' : '#fef2f2',
                 color: avgAdg >= 0 ? '#065f46' : '#b91c1c',
                 border: '1px solid ' + (avgAdg >= 0 ? '#a7f3d0' : '#fecaca'),
@@ -1691,7 +1691,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             const metaDirty = Number(metaWeek) !== Number(session.broiler_week);
             const wkBtnStyle = (active) => ({
               padding: '4px 10px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid ' + (active ? '#1e40af' : '#d1d5db'),
               background: active ? '#1e40af' : 'white',
               color: active ? 'white' : '#374151',
@@ -1705,7 +1705,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 data-testid="broiler-meta-panel"
                 style={{
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 14,
                   padding: '10px 12px',
                   marginBottom: 10,
                   background: 'white',
@@ -1755,7 +1755,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                       disabled={metaBusy}
                       style={{
                         padding: '4px 12px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: 'none',
                         background: metaBusy ? '#9ca3af' : '#1e40af',
                         color: 'white',
@@ -1803,7 +1803,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   }
                   style={{
                     padding: '10px 16px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid ' + (blockComplete ? '#9ca3af' : '#047857'),
                     background: blockComplete ? '#9ca3af' : '#047857',
                     color: 'white',
@@ -1828,7 +1828,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               onClick={reopenSession}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
                 color: 'var(--brand)',
@@ -1844,7 +1844,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             onClick={deleteSession}
             style={{
               padding: '10px 16px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid #fca5a5',
               background: 'white',
               color: '#b91c1c',
@@ -1861,7 +1861,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               onClick={openTripModal}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid #047857',
                 background: '#047857',
                 color: 'white',
@@ -1906,7 +1906,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                       padding: '4px 0',
                       marginBottom: 4,
                       background: '#eef2ff',
-                      borderRadius: 6,
+                      borderRadius: 10,
                     }}
                   >
                     {'Schooner ' + label}
@@ -1945,7 +1945,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                             fontSize: 13,
                             padding: '6px 8px',
                             border: '1px solid var(--border-strong)',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             width: '100%',
                             boxSizing: 'border-box',
                             background: 'white',
@@ -1973,7 +1973,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   fontSize: 13,
                   padding: '6px 8px',
                   border: '1px solid var(--border-strong)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   width: '100%',
                   boxSizing: 'border-box',
                   background: 'white',
@@ -1991,7 +1991,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   marginBottom: 8,
                   padding: '6px 10px',
                   background: '#fef2f2',
-                  borderRadius: 6,
+                  borderRadius: 10,
                 }}
               >
                 {gridErr}
@@ -2002,7 +2002,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               disabled={savingGrid}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: savingGrid ? '#9ca3af' : '#1e40af',
                 color: 'white',
@@ -2161,7 +2161,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                   color: 'var(--ink-muted)',
                                   background: 'white',
                                   border: '1px solid var(--border-strong)',
-                                  borderRadius: 4,
+                                  borderRadius: 10,
                                   cursor: 'pointer',
                                   padding: '3px 7px',
                                   fontFamily: 'inherit',
@@ -2482,7 +2482,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                   fontSize: 10,
                                   fontWeight: 700,
                                   padding: '1px 6px',
-                                  borderRadius: 4,
+                                  borderRadius: 999,
                                   background: weightDelta >= 0 ? '#ecfdf5' : '#fef2f2',
                                   color: weightDelta >= 0 ? '#065f46' : '#b91c1c',
                                   border: '1px solid ' + (weightDelta >= 0 ? '#a7f3d0' : '#fecaca'),
@@ -2501,7 +2501,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                   fontSize: 10,
                                   fontWeight: 700,
                                   padding: '1px 6px',
-                                  borderRadius: 4,
+                                  borderRadius: 999,
                                   background: adg >= 0 ? '#ecfdf5' : '#fef2f2',
                                   color: adg >= 0 ? '#065f46' : '#b91c1c',
                                   border: '1px solid ' + (adg >= 0 ? '#a7f3d0' : '#fecaca'),
@@ -2521,7 +2521,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                   fontSize: 10,
                                   fontWeight: 700,
                                   padding: '1px 6px',
-                                  borderRadius: 4,
+                                  borderRadius: 999,
                                   background: '#fef2f2',
                                   color: '#b91c1c',
                                 }}
@@ -2535,7 +2535,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                   fontSize: 10,
                                   fontWeight: 700,
                                   padding: '3px 8px',
-                                  borderRadius: 4,
+                                  borderRadius: 10,
                                   border: '1px solid ' + (e.send_to_processor ? '#991b1b' : '#d1d5db'),
                                   background: e.send_to_processor ? '#991b1b' : 'white',
                                   color: e.send_to_processor ? 'white' : '#6b7280',
@@ -2551,7 +2551,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                   fontSize: 10,
                                   fontWeight: 700,
                                   padding: '3px 8px',
-                                  borderRadius: 4,
+                                  borderRadius: 999,
                                   background: '#991b1b',
                                   color: 'white',
                                 }}
@@ -2589,7 +2589,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                                     color: autosaveTone.color,
                                     background: autosaveTone.background,
                                     border: '1px solid ' + autosaveTone.border,
-                                    borderRadius: 4,
+                                    borderRadius: 999,
                                     padding: '1px 6px',
                                   }}
                                 >
@@ -2628,7 +2628,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   marginBottom: 8,
                   border: '2px solid #f59e0b',
                   background: '#fffbeb',
-                  borderRadius: 6,
+                  borderRadius: 14,
                   padding: '8px 10px',
                 }}
               >
@@ -2650,7 +2650,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                       padding: '6px 8px',
                       background: 'white',
                       border: '1px solid #fde68a',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       marginBottom: 6,
                     }}
                   >
@@ -2672,7 +2672,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                         fontSize: 12,
                         padding: '4px 8px',
                         border: '1px solid var(--border-strong)',
-                        borderRadius: 4,
+                        borderRadius: 10,
                         fontFamily: 'inherit',
                         width: '100%',
                         boxSizing: 'border-box',
@@ -2710,7 +2710,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 marginTop: 8,
                 background: '#eff6ff',
                 border: '1px dashed #bfdbfe',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '8px 10px',
                 display: 'flex',
                 alignItems: 'center',
@@ -2787,7 +2787,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 disabled={!(parseFloat(addForm.weight) > 0)}
                 style={{
                   padding: '4px 12px',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   border: 'none',
                   background: parseFloat(addForm.weight) > 0 ? '#1e40af' : '#d1d5db',
                   color: 'white',
@@ -2932,7 +2932,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 disabled={transferBusy}
                 style={{
                   padding: '10px 16px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -2948,7 +2948,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 disabled={transferBusy}
                 style={{
                   padding: '10px 16px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: 'none',
                   background: '#3730a3',
                   color: 'white',

@@ -112,7 +112,7 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -244,7 +244,7 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
                       width: 80,
                       height: 80,
                       objectFit: 'cover',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid var(--border)',
                     }}
                   />
@@ -292,7 +292,7 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
                 fontSize: 12,
                 padding: '6px 10px',
                 background: '#fef2f2',
-                borderRadius: 6,
+                borderRadius: 10,
               }}
             >
               {err}

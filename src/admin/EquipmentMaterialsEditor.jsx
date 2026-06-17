@@ -25,7 +25,7 @@ const inpS = {
   fontSize: 12,
   padding: '6px 8px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 5,
+  borderRadius: 10,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
   width: '100%',
@@ -320,7 +320,7 @@ export default function EquipmentMaterialsEditor({equipment}) {
           style={{
             background: '#fef2f2',
             border: '1px solid #fecaca',
-            borderRadius: 6,
+            borderRadius: 10,
             color: '#b91c1c',
             padding: '6px 10px',
             fontSize: 12,
@@ -344,7 +344,7 @@ export default function EquipmentMaterialsEditor({equipment}) {
                 key={g.key}
                 style={{
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   background: isExpanded ? 'var(--surface-2)' : 'white',
                 }}
                 data-materials-group={g.key}
@@ -367,7 +367,7 @@ export default function EquipmentMaterialsEditor({equipment}) {
                       style={{
                         fontSize: 10,
                         padding: '1px 6px',
-                        borderRadius: 3,
+                        borderRadius: 999,
                         background: '#fef3c7',
                         color: '#92400e',
                         fontWeight: 600,
@@ -477,7 +477,7 @@ function MaterialRow({material, clears, busy, onPatch, onRemove, onUnclear}) {
             title={`Cleared in ${clears.length} bucket${clears.length === 1 ? '' : 's'} — reset to bring back to operator list`}
             style={{
               padding: '3px 8px',
-              borderRadius: 5,
+              borderRadius: 10,
               border: '1px solid #fde68a',
               background: '#fffbeb',
               color: '#92400e',
@@ -495,7 +495,7 @@ function MaterialRow({material, clears, busy, onPatch, onRemove, onUnclear}) {
           disabled={busy}
           style={{
             padding: '3px 8px',
-            borderRadius: 5,
+            borderRadius: 10,
             border: '1px solid #fecaca',
             background: 'white',
             color: '#b91c1c',
@@ -538,7 +538,7 @@ function AddMaterialRow({group, busy, onAdd}) {
         disabled={busy || !name.trim()}
         style={{
           padding: '5px 12px',
-          borderRadius: 5,
+          borderRadius: 10,
           border: '1px solid var(--border-strong)',
           background: !name.trim() ? '#f3f4f6' : 'white',
           color: !name.trim() ? 'var(--ink-faint)' : '#085041',

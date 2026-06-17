@@ -297,7 +297,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               style={{
                 background: '#ecfdf5',
                 border: '1px solid #a7f3d0',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '10px 14px',
                 fontSize: 12,
                 color: '#065f46',
@@ -312,7 +312,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               style={{
                 background: '#fef2f2',
                 border: '1px solid #fecaca',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '10px 14px',
                 fontSize: 12,
                 color: '#b91c1c',
@@ -330,7 +330,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                 style={{
                   background: 'var(--surface-2)',
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '10px 14px',
                   fontSize: 11,
                   marginBottom: 14,
@@ -409,7 +409,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                             fontSize: 13,
                             fontWeight: 600,
                             border: '1px solid #3b82f6',
-                            borderRadius: 4,
+                            borderRadius: 10,
                             padding: '2px 6px',
                             width: '100%',
                             fontFamily: 'inherit',
@@ -485,7 +485,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       style={{
                         fontSize: 12,
                         padding: '5px 10px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid var(--border-strong)',
                         color: roleColor[u.role] || '#374151',
                         fontWeight: 600,
@@ -545,7 +545,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                               style={{
                                 fontSize: 11,
                                 padding: '4px 10px',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 border: '1px solid ' + (has ? 'var(--brand)' : 'var(--border-strong)'),
                                 background: 'white',
                                 color: has ? 'var(--brand)' : 'var(--ink-muted)',
@@ -636,7 +636,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                             cursor: 'pointer',
                             fontFamily: 'inherit',
                             padding: '2px 8px',
-                            borderRadius: 4,
+                            borderRadius: 10,
                           }}
                         >
                           {'\ud83d\uddd1 Delete'}
@@ -655,7 +655,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                 style={{
                   background: '#fffbeb',
                   border: '1px solid #fde68a',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '10px 14px',
                   fontSize: 12,
                   color: '#92400e',
@@ -686,7 +686,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       fontSize: 13,
                       padding: '8px 12px',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       width: '100%',
                     }}
                   />
@@ -712,7 +712,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       fontSize: 13,
                       padding: '8px 12px',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       width: '100%',
                     }}
                   />
@@ -733,7 +733,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     style={{
                       display: 'grid',
                       gridTemplateColumns: `repeat(${ROLES.length}, 1fr)`,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       overflow: 'hidden',
                       border: '1px solid #d1d5db',
                     }}
@@ -782,7 +782,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       fontSize: 13,
                       padding: '8px 12px',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       width: '100%',
                     }}
                   />
@@ -809,7 +809,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       fontSize: 13,
                       padding: '8px 12px',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       width: '100%',
                     }}
                   />
@@ -822,7 +822,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   width: '100%',
                   marginTop: 16,
                   padding: '10px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: 'none',
                   background: umLoading ? '#9ca3af' : '#085041',
                   color: 'white',

@@ -116,7 +116,7 @@ export default function ClientErrorsView({Header}) {
               style: {
                 marginBottom: 12,
                 padding: '6px 14px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: '1px solid #b91c1c',
                 background: '#b91c1c',
                 color: 'white',
@@ -151,7 +151,7 @@ export default function ClientErrorsView({Header}) {
         rows.length > 0 &&
         React.createElement(
           'div',
-          {style: {overflowX: 'auto', border: '1px solid var(--divider)', borderRadius: 8, background: 'white'}},
+          {style: {overflowX: 'auto', border: '1px solid var(--divider)', borderRadius: 10, background: 'white'}},
           React.createElement(
             'table',
             {style: {width: '100%', borderCollapse: 'collapse'}, 'data-client-errors-table': '1'},
@@ -207,7 +207,7 @@ export default function ClientErrorsView({Header}) {
                 'data-client-errors-load-more': 'true',
                 style: {
                   padding: '6px 18px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   fontSize: 12,

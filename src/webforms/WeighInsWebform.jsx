@@ -1313,7 +1313,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     fontSize: 14,
     padding: '10px 12px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 8,
+    borderRadius: 10,
     width: '100%',
     outline: 'none',
     background: 'white',
@@ -1405,7 +1405,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
               lineHeight: 1.5,
               background: '#fef3c7',
               border: '1px solid #fde68a',
-              borderRadius: 8,
+              borderRadius: 10,
               padding: '8px 12px',
               textAlign: 'left',
             }}
@@ -1699,7 +1699,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                   style={{
                     background: 'var(--surface-2)',
                     border: '1px solid var(--border)',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     padding: '10px 12px',
                     marginBottom: 6,
                     cursor: 'pointer',
@@ -1828,7 +1828,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                   <div
                     style={{
                       display: 'flex',
-                      borderRadius: 8,
+                      borderRadius: 10,
                       overflow: 'hidden',
                       border: '1px solid var(--border-strong)',
                     }}
@@ -1921,7 +1921,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                   marginTop: 10,
                   padding: '8px 12px',
                   background: '#fef2f2',
-                  borderRadius: 8,
+                  borderRadius: 10,
                 }}
               >
                 {err}
@@ -2008,7 +2008,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       style={{
                         flex: '1 1 120px',
                         padding: 8,
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: '1px dashed #047857',
                         background: 'transparent',
                         color: '#065f46',
@@ -2039,7 +2039,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       style={{
                         flex: '1 1 120px',
                         padding: 8,
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: '1px dashed #1d4ed8',
                         background: 'transparent',
                         color: '#1e40af',
@@ -2063,7 +2063,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       style={{
                         flex: '1 1 120px',
                         padding: 8,
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: '1px dashed #b45309',
                         background: 'transparent',
                         color: '#92400e',
@@ -2084,7 +2084,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     marginBottom: 10,
                     padding: 10,
                     background: 'white',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: '1px solid var(--border)',
                     borderLeft: '3px solid #047857',
                   }}
@@ -2109,7 +2109,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       }}
                       style={{
                         padding: '3px 9px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid #6b7280',
                         background: 'white',
                         color: 'var(--ink)',
@@ -2137,7 +2137,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     <div
                       style={{
                         display: 'flex',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         overflow: 'hidden',
                         border: '1px solid var(--border-strong)',
                       }}
@@ -2184,7 +2184,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     marginBottom: 10,
                     padding: 10,
                     background: 'white',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: '1px solid var(--border)',
                     borderLeft: '3px solid #1e40af',
                   }}
@@ -2209,7 +2209,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       }}
                       style={{
                         padding: '3px 9px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid #6b7280',
                         background: 'white',
                         color: 'var(--ink)',
@@ -2255,7 +2255,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     marginBottom: 10,
                     padding: 10,
                     background: 'white',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: '1px solid var(--border)',
                     borderLeft: '3px solid #b45309',
                   }}
@@ -2279,7 +2279,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                       }}
                       style={{
                         padding: '3px 9px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid #6b7280',
                         background: 'white',
                         color: 'var(--ink)',
@@ -2337,7 +2337,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     marginBottom: 10,
                     padding: '8px 12px',
                     background: '#fef2f2',
-                    borderRadius: 8,
+                    borderRadius: 10,
                   }}
                 >
                   {err}
@@ -2422,7 +2422,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     marginBottom: 10,
                     padding: '8px 12px',
                     background: '#fef2f2',
-                    borderRadius: 8,
+                    borderRadius: 10,
                   }}
                 >
                   {err}
@@ -2483,7 +2483,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     marginBottom: 10,
                     padding: '8px 12px',
                     background: '#fef2f2',
-                    borderRadius: 8,
+                    borderRadius: 10,
                   }}
                 >
                   {err}
@@ -2537,7 +2537,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                         padding: '4px 0',
                         marginBottom: 4,
                         background: 'var(--surface-2)',
-                        borderRadius: 6,
+                        borderRadius: 10,
                       }}
                     >
                       {species === 'broiler' ? 'Schooner ' + label : 'Col ' + label}
@@ -2600,7 +2600,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     marginBottom: 10,
                     padding: '8px 12px',
                     background: '#fef2f2',
-                    borderRadius: 8,
+                    borderRadius: 10,
                   }}
                 >
                   {err}
@@ -2734,7 +2734,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                                 fontSize: 13,
                                 padding: '6px 10px',
                                 border: '1px solid var(--border-strong)',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 fontFamily: 'inherit',
                                 width: 90,
                               }}
@@ -2748,7 +2748,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                                 fontSize: 13,
                                 padding: '6px 10px',
                                 border: '1px solid var(--border-strong)',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 fontFamily: 'inherit',
                                 flex: 1,
                                 minWidth: 100,
@@ -2760,7 +2760,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                               onClick={() => setEditingEntryId(null)}
                               style={{
                                 padding: '5px 12px',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 border: '1px solid var(--border-strong)',
                                 background: 'white',
                                 color: 'var(--ink-muted)',
@@ -2776,7 +2776,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                               disabled={busy || !(parseFloat(editDraft.weight) > 0)}
                               style={{
                                 padding: '5px 14px',
-                                borderRadius: 6,
+                                borderRadius: 10,
                                 border: 'none',
                                 background: busy || !(parseFloat(editDraft.weight) > 0) ? '#9ca3af' : '#085041',
                                 color: 'white',
@@ -2961,7 +2961,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                               style={{
                                 flex: '1 1 120px',
                                 padding: '6px 8px',
-                                borderRadius: 7,
+                                borderRadius: 10,
                                 border: '1px solid var(--border-strong)',
                                 background: editDraft.newTagFlag ? 'white' : '#ecfdf5',
                                 color: '#065f46',
@@ -2980,7 +2980,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                               style={{
                                 flex: '1 1 120px',
                                 padding: '6px 8px',
-                                borderRadius: 7,
+                                borderRadius: 10,
                                 border: '1px dashed #b45309',
                                 background: editDraft.newTagFlag ? '#fffbeb' : 'white',
                                 color: '#92400e',
@@ -3026,7 +3026,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                           onClick={() => setEditingEntryId(null)}
                           style={{
                             padding: '5px 12px',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             border: '1px solid var(--border-strong)',
                             background: 'white',
                             color: 'var(--ink-muted)',
@@ -3042,7 +3042,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                           disabled={editSaveDisabled}
                           style={{
                             padding: '5px 14px',
-                            borderRadius: 6,
+                            borderRadius: 10,
                             border: 'none',
                             background: editSaveDisabled ? '#9ca3af' : '#085041',
                             color: 'white',
@@ -3092,7 +3092,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                               fontSize: 11,
                               fontWeight: 700,
                               padding: '1px 6px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                               background: adg >= 0 ? '#ecfdf5' : '#fef2f2',
                               color: adg >= 0 ? '#065f46' : '#b91c1c',
                               border: '1px solid ' + (adg >= 0 ? '#a7f3d0' : '#fecaca'),
@@ -3111,7 +3111,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                               fontSize: 9,
                               fontWeight: 700,
                               padding: '1px 5px',
-                              borderRadius: 4,
+                              borderRadius: 10,
                               background: '#fef2f2',
                               color: '#b91c1c',
                             }}
@@ -3130,7 +3130,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                               fontSize: 11,
                               fontWeight: 700,
                               padding: '3px 8px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: '1px solid ' + (e.send_to_processor ? '#991b1b' : 'var(--border-strong)'),
                               background: e.send_to_processor ? '#991b1b' : 'white',
                               color: e.send_to_processor ? 'white' : '#6b7280',
@@ -3258,7 +3258,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     padding: '8px 10px',
                     background: 'white',
                     border: '1px solid #fde68a',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     marginBottom: 6,
                   }}
                 >
@@ -3324,7 +3324,7 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     padding: '8px 12px',
                     background: '#ecfdf5',
                     border: '1px solid #a7f3d0',
-                    borderRadius: 8,
+                    borderRadius: 10,
                     fontSize: 12,
                     color: '#065f46',
                     marginTop: 8,

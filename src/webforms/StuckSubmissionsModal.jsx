@@ -85,7 +85,7 @@ export default function StuckSubmissionsModal({
                 style={{
                   border: '1px solid #fde68a',
                   background: '#fffbeb',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '10px 12px',
                   fontSize: 12,
                   color: '#78716c',
@@ -104,7 +104,7 @@ export default function StuckSubmissionsModal({
                     data-stuck-action="retry"
                     style={{
                       padding: '6px 14px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: 'none',
                       background: '#085041',
                       color: 'white',
@@ -121,7 +121,7 @@ export default function StuckSubmissionsModal({
                     data-stuck-action="discard"
                     style={{
                       padding: '6px 14px',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
                       color: '#b91c1c',
@@ -144,7 +144,7 @@ export default function StuckSubmissionsModal({
             onClick={onClose}
             style={{
               padding: '8px 18px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',

@@ -47,7 +47,7 @@ const inpS = {
   fontSize: 14,
   padding: '10px 12px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 8,
+  borderRadius: 10,
   width: '100%',
   outline: 'none',
   background: 'white',
@@ -176,7 +176,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
                 lineHeight: 1.5,
                 background: '#fef3c7',
                 border: '1px solid #fde68a',
-                borderRadius: 8,
+                borderRadius: 10,
                 padding: '8px 12px',
                 textAlign: 'left',
               }}
@@ -334,7 +334,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
                 style={{
                   background: 'none',
                   border: '1px solid var(--border-strong)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '4px 10px',
                   fontSize: 12,
                   color: 'var(--ink)',
@@ -369,7 +369,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
               marginBottom: 10,
               padding: '8px 12px',
               background: '#fef2f2',
-              borderRadius: 8,
+              borderRadius: 10,
             }}
           >
             {err}

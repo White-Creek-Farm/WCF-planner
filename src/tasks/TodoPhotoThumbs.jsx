@@ -69,7 +69,7 @@ function Thumb({sb, photo, index, total, onOpen}) {
         height: 36,
         padding: 0,
         border: '1px solid #d1d5db',
-        borderRadius: 6,
+        borderRadius: 10,
         overflow: 'hidden',
         cursor: 'pointer',
         background: 'linear-gradient(135deg, #e5e7eb, #f3f4f6)',

@@ -66,7 +66,7 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
             onClick={onCancel}
             style={{
               padding: '10px 16px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -84,7 +84,7 @@ const ConfirmModal = ({msg, confirmLabel, onConfirm, onCancel}) => {
             onClick={confirmAndClose}
             style={{
               padding: '10px 16px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: 'none',
               background: '#1d4ed8',
               color: 'white',

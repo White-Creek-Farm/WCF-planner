@@ -70,12 +70,12 @@ export default function ManualsCard({equipment}) {
               fontStyle: 'italic',
               padding: '10px 12px',
               background: '#fafafa',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px dashed var(--border)',
             }}
           >
             No instructional manuals or videos added for this piece yet. Admins can add them via{' '}
-            <code style={{background: 'white', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)'}}>
+            <code style={{background: 'white', padding: '1px 5px', borderRadius: 3 /* radius-allow: inline code chip */, border: '1px solid var(--border)'}}>
               /admin
             </code>{' '}
             → Equipment → (click piece) → Manuals &amp; Videos.
@@ -112,7 +112,7 @@ export default function ManualsCard({equipment}) {
                       padding: '8px 10px',
                       background: 'white',
                       border: '1px solid #fde68a',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       textDecoration: 'none',
                       color: '#92400e',
                       fontSize: 13,
@@ -154,7 +154,7 @@ export default function ManualsCard({equipment}) {
                         display: 'block',
                         background: 'white',
                         border: '1px solid #fecaca',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         overflow: 'hidden',
                         textDecoration: 'none',
                         color: '#991b1b',

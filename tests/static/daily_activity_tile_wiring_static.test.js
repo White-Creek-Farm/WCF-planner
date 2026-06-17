@@ -98,7 +98,11 @@ describe('Daily views — pass visible-order sequence through route state (CP2)'
       expect(v.src).toContain('recordSeqNavOptions(dailySeqItems(filtered, ' + v.suffix + '))');
     });
     it(`${v.name} row carries a data-daily-row hook`, () => {
-      expect(v.src).toContain('data-daily-row={d.id}');
+      // CP2: daily rows render through the shared DataTable, which emits the
+      // hook via rowProps={(d) => ({'data-daily-row': d.id})}. Accept that form
+      // or the legacy inline data-daily-row={d.id} attribute. The runtime
+      // contract (every daily row carries data-daily-row=<id>) is unchanged.
+      expect(v.src).toMatch(/data-daily-row(?:=\{d\.id\}|': d\.id)/);
     });
   }
 });

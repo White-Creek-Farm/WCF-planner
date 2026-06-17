@@ -81,7 +81,7 @@ const CowDetail = ({
     fontSize: 12,
     padding: '5px 8px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 5,
+    borderRadius: 10,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
     width: '100%',
@@ -160,7 +160,7 @@ const CowDetail = ({
         background: '#ffffff',
         padding: '14px 18px',
         border: '2px solid ' + accentColor,
-        borderRadius: 6,
+        borderRadius: 10,
         boxShadow: '0 2px 6px rgba(0,0,0,.06)',
         margin: '8px 12px 14px',
       }}
@@ -172,7 +172,7 @@ const CowDetail = ({
             padding: '6px 10px',
             background: '#eff6ff',
             border: '1px solid #bfdbfe',
-            borderRadius: 6,
+            borderRadius: 10,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
@@ -295,7 +295,7 @@ const CowDetail = ({
               marginLeft: 'auto',
               background: 'none',
               border: '1px solid var(--border-strong)',
-              borderRadius: 6,
+              borderRadius: 10,
               color: 'var(--ink-muted)',
               cursor: 'pointer',
               fontSize: 18,
@@ -461,7 +461,7 @@ const CowDetail = ({
               color: 'var(--brand)',
               background: 'none',
               border: '1px dashed #bfdbfe',
-              borderRadius: 5,
+              borderRadius: 10,
               padding: '3px 10px',
               cursor: 'pointer',
               fontFamily: 'inherit',
@@ -513,7 +513,7 @@ const CowDetail = ({
               style={{
                 background: 'none',
                 border: '1px solid #F09595',
-                borderRadius: 5,
+                borderRadius: 10,
                 color: '#b91c1c',
                 cursor: 'pointer',
                 fontSize: 14,
@@ -543,7 +543,7 @@ const CowDetail = ({
             background: cow.breeding_blacklist ? '#991b1b' : '#fee2e2',
             color: cow.breeding_blacklist ? 'white' : '#7f1d1d',
             border: '1px solid ' + (cow.breeding_blacklist ? '#991b1b' : '#fecaca'),
-            borderRadius: 6,
+            borderRadius: 10,
             cursor: 'pointer',
             fontSize: 13,
             fontWeight: 700,
@@ -642,7 +642,7 @@ const CowDetail = ({
                 <div
                   style={{
                     display: 'flex',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     overflow: 'hidden',
                     border: '1px solid var(--border-strong)',
                   }}
@@ -677,7 +677,7 @@ const CowDetail = ({
                   style={{
                     background: 'white',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     overflow: 'hidden',
                     maxWidth: 640,
                   }}
@@ -728,7 +728,7 @@ const CowDetail = ({
                                 color: '#92400e',
                                 marginTop: 2,
                                 padding: '1px 5px',
-                                borderRadius: 3,
+                                borderRadius: 999,
                                 background: '#fef3c7',
                                 fontWeight: 600,
                                 display: 'inline-block',
@@ -804,7 +804,7 @@ const CowDetail = ({
                   style={{
                     background: 'white',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     padding: '10px 12px',
                   }}
                 >
@@ -983,7 +983,7 @@ const CowDetail = ({
                   color: '#991b1b',
                   background: 'none',
                   border: '1px solid #fca5a5',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   padding: '3px 8px',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -998,7 +998,7 @@ const CowDetail = ({
               style={{
                 background: '#fef2f2',
                 border: '1px solid #fca5a5',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '10px 12px',
                 marginBottom: 8,
               }}
@@ -1075,7 +1075,7 @@ const CowDetail = ({
                   onClick={submitCalving}
                   style={{
                     padding: '10px 16px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: 'none',
                     background: '#991b1b',
                     color: 'white',
@@ -1092,7 +1092,7 @@ const CowDetail = ({
                   onClick={() => setShowCalvingForm(false)}
                   style={{
                     padding: '6px 12px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink-muted)',
@@ -1147,7 +1147,7 @@ const CowDetail = ({
                   style={{
                     background: 'white',
                     border: '1px solid var(--border)',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     padding: '6px 10px',
                     marginBottom: 4,
                     fontSize: 11,
@@ -1230,7 +1230,7 @@ const CowDetail = ({
               style={{
                 background: 'white',
                 border: '1px solid var(--border)',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '6px 10px',
                 marginBottom: 4,
                 fontSize: 11,
@@ -1261,7 +1261,7 @@ const CowDetail = ({
                 fontSize: 12,
                 padding: '6px 10px',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 fontFamily: 'inherit',
               }}
             />
@@ -1273,7 +1273,7 @@ const CowDetail = ({
               disabled={!commentText.trim()}
               style={{
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: 10,
                 border: 'none',
                 background: commentText.trim() ? '#991b1b' : '#d1d5db',
                 color: 'white',
@@ -1296,7 +1296,7 @@ const CowDetail = ({
                     style={{
                       background: 'white',
                       border: '1px solid var(--border)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '6px 10px',
                       marginBottom: 4,
                       fontSize: 11,
@@ -1308,7 +1308,7 @@ const CowDetail = ({
                           fontSize: 10,
                           fontWeight: 700,
                           padding: '1px 6px',
-                          borderRadius: 4,
+                          borderRadius: 999,
                           background:
                             c.source === 'weigh_in'
                               ? '#eff6ff'
@@ -1387,7 +1387,7 @@ const CowDetail = ({
                             fontSize: 11,
                             padding: '4px 8px',
                             border: '1px solid var(--border-strong)',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             fontFamily: 'inherit',
                             boxSizing: 'border-box',
                             resize: 'vertical',
@@ -1404,7 +1404,7 @@ const CowDetail = ({
                             disabled={!editingCommentText.trim()}
                             style={{
                               padding: '3px 10px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: 'none',
                               background: editingCommentText.trim() ? '#991b1b' : '#d1d5db',
                               color: 'white',
@@ -1424,7 +1424,7 @@ const CowDetail = ({
                             }}
                             style={{
                               padding: '3px 10px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: '1px solid var(--border-strong)',
                               background: 'white',
                               color: 'var(--ink-muted)',
@@ -1453,7 +1453,7 @@ const CowDetail = ({
                 marginTop: 8,
                 background: '#fecaca',
                 border: '1px solid #f87171',
-                borderRadius: 6,
+                borderRadius: 10,
                 padding: '6px 10px',
                 fontSize: 11,
                 display: 'flex',
@@ -1466,7 +1466,7 @@ const CowDetail = ({
                   fontSize: 10,
                   fontWeight: 700,
                   padding: '1px 6px',
-                  borderRadius: 4,
+                  borderRadius: 999,
                   background: '#991b1b',
                   color: 'white',
                 }}
@@ -1495,7 +1495,7 @@ const CowDetail = ({
             onClick={onDelete}
             style={{
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid #F09595',
               background: 'white',
               color: '#b91c1c',

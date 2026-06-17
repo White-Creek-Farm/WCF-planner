@@ -103,7 +103,7 @@ export default function FuelBillsView() {
           style={{
             marginLeft: 'auto',
             padding: '6px 14px',
-            borderRadius: 6,
+            borderRadius: 10,
             border: 'none',
             background: '#085041',
             color: 'white',
@@ -325,7 +325,7 @@ function BillDetail({bill, lines, onChanged}) {
           borderCollapse: 'collapse',
           background: 'white',
           border: '1px solid var(--border)',
-          borderRadius: 6,
+          borderRadius: 10,
           overflow: 'hidden',
         }}
       >
@@ -373,7 +373,7 @@ function BillDetail({bill, lines, onChanged}) {
           style={{
             marginLeft: 'auto',
             padding: '5px 12px',
-            borderRadius: 5,
+            borderRadius: 10,
             border: '1px solid #fecaca',
             background: 'white',
             color: '#b91c1c',
@@ -528,7 +528,7 @@ function BillUploadModal({onClose, onSaved}) {
     fontSize: 13,
     padding: '6px 9px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 5,
+    borderRadius: 10,
     fontFamily: 'inherit',
     width: '100%',
     boxSizing: 'border-box',
@@ -599,7 +599,7 @@ function BillUploadModal({onClose, onSaved}) {
             style={{
               fontSize: 14,
               padding: '6px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -617,7 +617,7 @@ function BillUploadModal({onClose, onSaved}) {
             style={{
               padding: 14,
               border: '1px dashed var(--border-strong)',
-              borderRadius: 8,
+              borderRadius: 10,
               background: '#fafafa',
               marginBottom: 14,
             }}
@@ -641,7 +641,7 @@ function BillUploadModal({onClose, onSaved}) {
                 padding: '10px 14px',
                 background: '#fffbeb',
                 border: '1px solid #fde68a',
-                borderRadius: 8,
+                borderRadius: 10,
                 marginBottom: 14,
                 fontSize: 12,
                 color: '#92400e',
@@ -831,7 +831,7 @@ function BillUploadModal({onClose, onSaved}) {
                     background: '#fef2f2',
                     border: '1px solid #fecaca',
                     color: '#b91c1c',
-                    borderRadius: 5,
+                    borderRadius: 10,
                     fontSize: 12,
                     marginBottom: 10,
                   }}
@@ -845,7 +845,7 @@ function BillUploadModal({onClose, onSaved}) {
                   onClick={onClose}
                   style={{
                     padding: '8px 16px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -862,7 +862,7 @@ function BillUploadModal({onClose, onSaved}) {
                   disabled={busy}
                   style={{
                     padding: '8px 18px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: 'none',
                     background: busy ? '#9ca3af' : '#085041',
                     color: 'white',

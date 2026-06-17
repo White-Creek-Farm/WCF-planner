@@ -108,7 +108,7 @@ export default function EquipmentChecklistEntryPage({
                 fontSize: 10,
                 fontWeight: 700,
                 padding: '1px 8px',
-                borderRadius: 4,
+                borderRadius: 999,
                 background: '#eff6ff',
                 color: '#1e40af',
                 textTransform: 'uppercase',
@@ -155,7 +155,7 @@ export default function EquipmentChecklistEntryPage({
                     width: 90,
                     height: 90,
                     objectFit: 'cover',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border)',
                   }}
                 />

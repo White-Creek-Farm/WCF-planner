@@ -9,7 +9,11 @@ import SheepNewWeighInModal from './SheepNewWeighInModal.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import WeighInSessionListTile from '../shared/WeighInSessionListTile.jsx';
+import DataTable from '../shared/DataTable.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -279,14 +283,14 @@ const SheepWeighInsView = ({
     fontSize: 12,
     padding: '6px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     boxSizing: 'border-box',
     background: 'white',
     color: 'var(--ink)',
   };
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -330,7 +334,7 @@ const SheepWeighInsView = ({
             onClick={loadAll}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: '#1e40af',
@@ -540,7 +544,7 @@ const SheepWeighInsView = ({
                       fontSize: 12,
                       padding: '6px 28px 6px 10px',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       width: 160,
                       boxSizing: 'border-box',
                       background: 'white',
@@ -575,7 +579,7 @@ const SheepWeighInsView = ({
                 <div
                   style={{
                     display: 'flex',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     overflow: 'hidden',
                     border: '1px solid var(--border-strong)',
                   }}
@@ -611,7 +615,7 @@ const SheepWeighInsView = ({
                   disabled={loading || loadFailed}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: loading || loadFailed ? 'var(--surface-2)' : 'white',
                     color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
@@ -630,7 +634,7 @@ const SheepWeighInsView = ({
                   disabled={loading || loadFailed}
                   style={{
                     padding: '7px 14px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: loading || loadFailed ? 'var(--surface-2)' : 'white',
                     color: loading || loadFailed ? 'var(--ink-faint)' : 'var(--ink)',
@@ -649,7 +653,7 @@ const SheepWeighInsView = ({
               onClick={() => setShowNewModal(true)}
               style={{
                 padding: '7px 14px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: '#1e40af',
                 color: 'white',
@@ -688,53 +692,71 @@ const SheepWeighInsView = ({
           </div>
         )}
 
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-          {!loadFailed &&
-            filtered.map((s) => {
-              const sEntriesAll = entries[s.id] || [];
-              const countLabel = tagQ
-                ? sEntriesAll.filter(entryMatchesTag).length + ' of ' + sEntriesAll.length + ' match'
-                : sEntriesAll.length + ' ' + (sEntriesAll.length === 1 ? 'entry' : 'entries');
-              const newTagCount = sEntriesAll.filter((e) => e.new_tag_flag).length;
-              return (
-                <WeighInSessionListTile
-                  key={s.id}
-                  session={s}
-                  label={FLOCK_LABELS[s.herd] || s.herd || 'Unknown flock'}
-                  fmt={fmt}
-                  countLabel={countLabel}
-                  countColor={tagQ ? '#065f46' : '#1e40af'}
-                  onClick={() =>
-                    navigate(
-                      '/weigh-in-sessions/' + s.id,
-                      recordSeqNavOptions(
-                        filtered.map((r) => ({
-                          id: r.id,
-                          label: (r.date || '') + ' · ' + (FLOCK_LABELS[r.herd] || r.herd || 'sheep'),
-                        })),
-                      ),
-                    )
-                  }
-                  afterCount={
-                    newTagCount > 0 && !tagQ ? (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          background: '#fef2f2',
-                          color: '#b91c1c',
-                        }}
-                      >
-                        {newTagCount + ' new tags'}
-                      </span>
-                    ) : null
-                  }
-                />
-              );
-            })}
-        </div>
+        {!loadFailed && filtered.length > 0 && (
+          <DataTable
+            surfaceKey="sheep-weighins-table"
+            rows={filtered}
+            rowKey="id"
+            density="comfortable"
+            rowProps={(s) => ({'data-weighin-session-tile': s.id})}
+            onRowOpen={(s) =>
+              navigate(
+                '/weigh-in-sessions/' + s.id,
+                recordSeqNavOptions(
+                  filtered.map((r) => ({
+                    id: r.id,
+                    label: (r.date || '') + ' · ' + (FLOCK_LABELS[r.herd] || r.herd || 'sheep'),
+                  })),
+                ),
+              )
+            }
+            columns={[
+              {
+                key: 'label',
+                label: 'Flock',
+                primary: true,
+                render: (s) => FLOCK_LABELS[s.herd] || s.herd || 'Unknown flock',
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (s) => (
+                  <Badge variant={s.status === 'complete' ? 'ok' : 'warn'}>{s.status}</Badge>
+                ),
+              },
+              {key: 'date', label: 'Date', render: (s) => fmt(s.date)},
+              {
+                key: 'team',
+                label: 'Team',
+                mobilePriority: false,
+                render: (s) => s.team_member || <StatusText tone="muted">{'—'}</StatusText>,
+              },
+              {
+                key: 'entries',
+                label: 'Entries',
+                align: 'right',
+                render: (s) => {
+                  const sEntriesAll = entries[s.id] || [];
+                  return tagQ
+                    ? sEntriesAll.filter(entryMatchesTag).length + ' of ' + sEntriesAll.length + ' match'
+                    : sEntriesAll.length + ' ' + (sEntriesAll.length === 1 ? 'entry' : 'entries');
+                },
+              },
+              {
+                key: 'newtags',
+                label: 'New tags',
+                align: 'right',
+                mobilePriority: false,
+                render: (s) => {
+                  if (tagQ) return <StatusText tone="muted">{'—'}</StatusText>;
+                  const newTagCount = (entries[s.id] || []).filter((e) => e.new_tag_flag).length;
+                  if (newTagCount === 0) return <StatusText tone="muted">{'—'}</StatusText>;
+                  return <StatusText tone="danger">{newTagCount + ' new'}</StatusText>;
+                },
+              },
+            ]}
+          />
+        )}
       </div>
       {showNewModal && (
         <SheepNewWeighInModal

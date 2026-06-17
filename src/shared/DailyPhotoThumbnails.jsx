@@ -81,7 +81,7 @@ export default function DailyPhotoThumbnails({photos}) {
                 width: 80,
                 height: 80,
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 overflow: 'hidden',
                 padding: 0,
                 background: 'var(--divider)',

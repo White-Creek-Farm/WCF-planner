@@ -229,7 +229,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
     fontSize: 13,
     padding: '7px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
   };
@@ -239,7 +239,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
   );
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -291,7 +291,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
                 style={{
                   fontSize: 11,
                   padding: '3px 10px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -492,7 +492,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
             }}
             style={{
               padding: '7px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -509,7 +509,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
             onClick={handleExportCsv}
             style={{
               padding: '7px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -527,7 +527,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
             onClick={handlePrintRows}
             style={{
               padding: '7px 14px',
-              borderRadius: 6,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',

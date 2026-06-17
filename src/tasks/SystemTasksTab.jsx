@@ -90,7 +90,7 @@ const INACTIVE_TOGGLE_BTN = {
   alignItems: 'center',
   gap: 8,
   padding: '9px 10px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid var(--border)',
   background: 'var(--surface-2)',
   color: 'var(--ink)',
@@ -104,7 +104,7 @@ const INACTIVE_TOGGLE_BTN = {
 };
 const LOAD_RETRY_BTN = {
   padding: '6px 12px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid #991b1b',
   background: 'white',
   color: '#991b1b',
@@ -117,7 +117,7 @@ const LOAD_RETRY_BTN = {
 const GROUP_HEADER = {
   background: 'white',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 10,
   padding: '8px 12px',
   marginBottom: 8,
   cursor: 'pointer',
@@ -204,7 +204,7 @@ function SystemInstanceLine({ti, todayStr, profilesById}) {
       style={{
         background: 'var(--surface-2)',
         border: '1px solid var(--border)',
-        borderRadius: 8,
+        borderRadius: 10,
         padding: '8px 12px',
         marginBottom: 6,
       }}
@@ -384,7 +384,7 @@ export default function SystemTasksTab({sb, authState}) {
                   onClick={() => startEditRule(b.rule)}
                   style={{
                     padding: '4px 10px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -421,7 +421,7 @@ export default function SystemTasksTab({sb, authState}) {
             border: '1px solid #fecaca',
             color: '#991b1b',
             padding: '8px 12px',
-            borderRadius: 8,
+            borderRadius: 10,
             marginBottom: 12,
             fontSize: 13,
           }}

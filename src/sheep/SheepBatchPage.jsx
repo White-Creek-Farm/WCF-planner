@@ -511,7 +511,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                   fontSize: 13,
                   padding: '6px 8px',
                   border: '1px solid var(--border)',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   fontFamily: 'inherit',
                   width: '100%',
                   minWidth: 70,
@@ -527,7 +527,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                     data-batch-sheep-row={r.sheep_id}
                     style={{
                       border: '1px solid var(--divider)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '8px 10px',
                       fontSize: 12,
                     }}
@@ -640,7 +640,7 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
                 data-sheep-batch-delete={batch.id}
                 style={{
                   padding: '10px 16px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid #fca5a5',
                   background: 'white',
                   color: '#b91c1c',

@@ -102,7 +102,7 @@ const feedRowControl = {...recordControl, maxWidth: '100%'};
 
 const btnSmall = {
   padding: '4px 10px',
-  borderRadius: 6,
+  borderRadius: 10,
   border: '1px solid var(--border-strong)',
   background: 'var(--surface-2)',
   color: 'var(--ink)',

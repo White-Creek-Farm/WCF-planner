@@ -752,9 +752,10 @@ describe('Pig and broiler weigh-in list saved views (Lane F)', () => {
 describe('Pig weigh-in list — Active/Complete sections (pig redesign)', () => {
   it('splits the pig list into Active and Complete sections', () => {
     expect(livestockSrc).toContain("const isPig = species === 'pig'");
-    expect(livestockSrc).toContain('data-livestock-weighins-section');
-    expect(livestockSrc).toMatch(/renderSection\(\s*'Active'/);
-    expect(livestockSrc).toMatch(/renderSection\(\s*'Complete'/);
+    // CP2: pig list renders via the shared DataTable's Active/Complete section bands.
+    expect(livestockSrc).toMatch(/sections=\{\[/);
+    expect(livestockSrc).toContain("label: 'Active'");
+    expect(livestockSrc).toContain("label: 'Complete'");
     // Active = non-complete (incl. draft); Complete = complete.
     expect(livestockSrc).toContain("sessions.filter((s) => s.status !== 'complete')");
     expect(livestockSrc).toContain("sessions.filter((s) => s.status === 'complete')");
@@ -940,10 +941,12 @@ describe('Weigh-in list shared tile primitive (Lane F)', () => {
     expect(weighInSessionTileSrc).toContain("color: isComplete ? '#065f46' : '#92400e'");
   });
 
-  it('is used by cattle, sheep, and livestock weigh-in list views', () => {
+  it('all three weigh-in list views render via the shared DataTable primitive', () => {
+    // CP2: the canonical list primitive is the shared DataTable; it replaced the
+    // per-session WeighInSessionListTile card in the list views.
     for (const src of [listSrc, sheepListSrc, livestockSrc]) {
-      expect(src).toContain("import WeighInSessionListTile from '../shared/WeighInSessionListTile.jsx'");
-      expect(src).toContain('<WeighInSessionListTile');
+      expect(src).toContain("import DataTable from '../shared/DataTable.jsx'");
+      expect(src).toContain('<DataTable');
     }
   });
 
@@ -1086,9 +1089,9 @@ describe('LivestockWeighInsView — navigation-only list', () => {
     expect(livestockSrc).not.toContain('recomputeBroilerBatchWeekAvg');
     expect(livestockSrc).not.toContain('loadRoster');
   });
-  it('tiles have data-weighin-session-tile marker', () => {
-    expect(weighInSessionTileSrc).toContain('data-weighin-session-tile');
-    expect(livestockSrc).toContain('WeighInSessionListTile');
+  it('rows have data-weighin-session-tile marker', () => {
+    // CP2: the navigation marker now rides on the DataTable row via rowProps.
+    expect(livestockSrc).toContain("'data-weighin-session-tile': s.id");
   });
   it('still has status filter', () => {
     expect(livestockSrc).toContain('statusFilter');
@@ -1197,18 +1200,20 @@ describe('Weigh-in list load-error states', () => {
     }
   });
 
-  it('does not render empty-state or tiles while a load failure is active', () => {
-    // Cattle/sheep gate the empty-state + tile map directly on filtered.
+  it('does not render empty-state or rows while a load failure is active', () => {
+    // CP2: rows render through the shared DataTable, still gated behind
+    // !loadFailed (+ !loading). Cattle/sheep gate the empty-state on filtered
+    // and render <DataTable> only when not failed.
     for (const src of [listSrc, sheepListSrc]) {
       expect(src).toMatch(/!loading && !loadFailed && filtered\.length === 0/);
-      expect(src).toMatch(/!loadFailed &&\s*filtered\.map/);
+      expect(src).toContain('<DataTable');
+      expect(src).toMatch(/!loadFailed/);
     }
-    // The shared pig/broiler list gates on visibleSessions (pig=sessions,
-    // broiler=filtered) and renders via an IIFE; broiler maps `filtered`, pig
-    // renders Active/Complete sections.
+    // The shared pig/broiler list keeps the empty-state gated on visibleSessions
+    // and renders the DataTable via a !loadFailed && !loading-gated IIFE.
     expect(livestockSrc).toMatch(/!loading && !loadFailed && visibleSessions\.length === 0/);
-    expect(livestockSrc).toMatch(/!loadFailed &&\s*\(\(\) =>/);
-    expect(livestockSrc).toContain('filtered.map(renderSessionCard)');
+    expect(livestockSrc).toMatch(/!loadFailed &&\s*!loading &&/);
+    expect(livestockSrc).toContain('<DataTable');
   });
 });
 

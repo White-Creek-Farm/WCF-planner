@@ -103,7 +103,7 @@ const inpS = {
   fontSize: 13,
   padding: '7px 10px',
   border: '1px solid var(--border-strong)',
-  borderRadius: 6,
+  borderRadius: 10,
   fontFamily: 'inherit',
   width: '100%',
   boxSizing: 'border-box',
@@ -519,7 +519,7 @@ const CattleForecastView = ({
                 padding: '3px 8px',
                 background: '#eff6ff',
                 border: '1px solid #bfdbfe',
-                borderRadius: 6,
+                borderRadius: 999,
                 color: '#1e40af',
                 fontWeight: 600,
               }}
@@ -535,7 +535,7 @@ const CattleForecastView = ({
               data-include-heifers-btn
               style={{
                 padding: '7px 14px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: '1px solid #991b1b',
                 background: 'white',
                 color: '#991b1b',
@@ -567,7 +567,7 @@ const CattleForecastView = ({
             onClick={() => setShowSettings((v) => !v)}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -601,7 +601,7 @@ const CattleForecastView = ({
                 fontSize: 13,
                 padding: '7px 10px',
                 border: '1px solid var(--border-strong)',
-                borderRadius: 6,
+                borderRadius: 10,
                 fontFamily: 'inherit',
                 width: '100%',
                 maxWidth: 320,
@@ -616,7 +616,7 @@ const CattleForecastView = ({
                 style={{
                   fontSize: 11,
                   padding: '6px 10px',
-                  borderRadius: 5,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink-muted)',
@@ -695,7 +695,7 @@ const CattleForecastView = ({
                         padding: '4px 12px',
                         background: '#991b1b',
                         color: 'white',
-                        borderRadius: 6,
+                        borderRadius: 999,
                         fontWeight: 700,
                       }}
                     >
@@ -761,7 +761,7 @@ const CattleForecastView = ({
                       color: '#1e40af',
                       background: '#eff6ff',
                       border: '1px solid #bfdbfe',
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '6px 10px',
                       marginBottom: 10,
                     }}
@@ -818,7 +818,7 @@ const CattleForecastView = ({
                       data-save-settings-btn
                       style={{
                         padding: '7px 16px',
-                        borderRadius: 7,
+                        borderRadius: 10,
                         border: 'none',
                         background: '#991b1b',
                         color: 'white',
@@ -835,7 +835,7 @@ const CattleForecastView = ({
                       onClick={discardSettingsDraft}
                       style={{
                         padding: '7px 14px',
-                        borderRadius: 7,
+                        borderRadius: 10,
                         border: '1px solid var(--border-strong)',
                         background: 'white',
                         color: 'var(--ink-muted)',
@@ -1103,7 +1103,7 @@ function LegendSwatch({color, border, label}) {
           height: 12,
           background: color,
           border: border ? '1px solid ' + border : 'none',
-          borderRadius: 2,
+          borderRadius: 2 /* radius-allow: 12px legend swatch, bumping would make it a circle */,
         }}
       />
       {label}
@@ -1216,7 +1216,7 @@ function MonthBucketTile({
             style={{
               fontSize: 10,
               padding: '1px 7px',
-              borderRadius: 4,
+              borderRadius: 999,
               background: '#fef2f2',
               color: '#b91c1c',
               fontWeight: 700,
@@ -1254,7 +1254,7 @@ function MonthBucketTile({
                       style={{
                         background: rb.status === 'complete' ? '#f9fafb' : '#fef2f2',
                         border: '1px solid ' + (rb.status === 'complete' ? '#d1d5db' : '#fca5a5'),
-                        borderRadius: 6,
+                        borderRadius: 10,
                         overflow: 'hidden',
                       }}
                     >
@@ -1276,7 +1276,7 @@ function MonthBucketTile({
                             padding: '1px 6px',
                             background: rb.status === 'complete' ? '#374151' : '#1d4ed8',
                             color: 'white',
-                            borderRadius: 4,
+                            borderRadius: 999,
                             fontWeight: 700,
                             textTransform: 'uppercase',
                           }}
@@ -1454,7 +1454,7 @@ function MonthBucketTile({
                             style={{
                               fontSize: 11,
                               padding: '3px 8px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: '1px solid #fecaca',
                               background: '#fef2f2',
                               color: '#b91c1c',
@@ -1545,7 +1545,7 @@ function MonthBucketTile({
                             style={{
                               fontSize: 11,
                               padding: '3px 8px',
-                              borderRadius: 5,
+                              borderRadius: 10,
                               border: '1px solid #bfdbfe',
                               background: '#eff6ff',
                               color: '#1e40af',
@@ -1663,7 +1663,7 @@ function AttentionSection({rows, canEdit, onToggleHidden, fmt, tagMatch}) {
                           alignItems: 'center',
                           gap: 4,
                           padding: '1px 6px',
-                          borderRadius: 4,
+                          borderRadius: 999,
                           background: '#eff6ff',
                           color: '#1e40af',
                           fontSize: 10,
@@ -1723,7 +1723,7 @@ function PastActuals({batches, fmt}) {
                 gap: 10,
                 padding: '6px 8px',
                 background: rb.status === 'complete' ? '#f9fafb' : '#fef2f2',
-                borderRadius: 6,
+                borderRadius: 10,
                 fontSize: 12,
               }}
             >
@@ -1734,7 +1734,7 @@ function PastActuals({batches, fmt}) {
                   padding: '1px 6px',
                   background: rb.status === 'complete' ? '#374151' : '#1d4ed8',
                   color: 'white',
-                  borderRadius: 4,
+                  borderRadius: 999,
                   fontWeight: 700,
                   textTransform: 'uppercase',
                 }}
@@ -1992,7 +1992,7 @@ function IncludeHeifersModal({
                   data-heifer-inclusion-state={inclusionState}
                   style={{
                     border: '1px solid ' + badge.border,
-                    borderRadius: 8,
+                    borderRadius: 10,
                     marginBottom: 8,
                     overflow: 'hidden',
                     background: pendingRemove ? '#f9fafb' : checked ? '#f8fffb' : 'white',
@@ -2134,7 +2134,7 @@ function IncludeHeifersModal({
               data-confirm-heifers-btn
               style={{
                 padding: '7px 16px',
-                borderRadius: 7,
+                borderRadius: 10,
                 border: 'none',
                 background: '#991b1b',
                 color: 'white',
@@ -2152,7 +2152,7 @@ function IncludeHeifersModal({
             onClick={onClose}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink-muted)',

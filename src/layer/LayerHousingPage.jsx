@@ -460,7 +460,7 @@ export default function LayerHousingPage({
                 style={{
                   background: 'var(--surface-2)',
                   border: '1px solid var(--border)',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   padding: '10px 12px',
                   textAlign: 'center',
                 }}
@@ -495,7 +495,7 @@ export default function LayerHousingPage({
                 data-layer-housing-edit={housing.id}
                 style={{
                   padding: '10px 16px',
-                  borderRadius: 6,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -514,7 +514,7 @@ export default function LayerHousingPage({
                   data-layer-housing-retire={housing.id}
                   style={{
                     padding: '10px 16px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid #fca5a5',
                     background: '#fef2f2',
                     color: '#b91c1c',
@@ -648,7 +648,7 @@ export default function LayerHousingPage({
                           color: '#92400e',
                           background: '#fffbeb',
                           border: '1px solid #fde68a',
-                          borderRadius: 6,
+                          borderRadius: 10,
                           padding: '6px 10px',
                           marginBottom: 4,
                         }}

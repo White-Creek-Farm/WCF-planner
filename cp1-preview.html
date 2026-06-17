@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WCF Planner — CP1 Preview</title>
+<style>
+  @font-face {
+    font-family: 'Hanken Grotesk';
+    font-style: normal;
+    font-weight: 400 800;
+    font-display: swap;
+    src: url('/fonts/hanken-grotesk-latin.woff2') format('woff2');
+  }
+  /* Ratified CP0 tokens (mirrors index.html :root after the CP1 changes). */
+  :root {
+    --green-500: #2d8a72;
+    --text-primary:   #000000;       /* A1 */
+    --text-secondary: #4b5563;
+    --text-muted:     #9ca3af;
+    --border:         oklch(0.80 0.008 240); /* A2 unified */
+    --border-strong:  oklch(0.80 0.008 240); /* A2 unified */
+    --bg-page:        oklch(0.991 0.002 225);
+    --bg-card:        #ffffff;
+    --radius-sm: 10px; --radius-md: 12px; --radius-lg: 14px; /* A3 */
+    --surface-2:    oklch(0.975 0.003 225);
+    --divider:      oklch(0.938 0.004 230);
+    --row-hover:    oklch(0.979 0.003 230);
+    --shadow-card:  0 1px 2px rgba(20,30,40,0.045);
+    --shadow-hover: 0 7px 20px rgba(20,30,40,0.1);
+    --brand:        oklch(0.5 0.095 162);
+    --ink: #000; --ink-muted: oklch(0.52 0.012 250); --ink-faint: oklch(0.69 0.01 250);
+    --c-broiler: #C7920A; --c-layer: #D2601A; --c-pig: #2B4C9B;
+    --c-cattle: #8E3328; --c-sheep: #4CA035; --c-equipment: #6B7280; /* A12 */
+    --danger: oklch(0.56 0.18 26); --danger-soft: oklch(0.952 0.038 28);
+    --warn: oklch(0.66 0.13 70); --warn-ink: oklch(0.5 0.11 62); --warn-soft: oklch(0.955 0.05 82);
+    --ok: oklch(0.56 0.11 156); --ok-ink: oklch(0.45 0.09 156); --ok-soft: oklch(0.952 0.036 162);
+    --info: oklch(0.54 0.13 258); --info-soft: oklch(0.952 0.034 258);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg-page); color:var(--text-primary);
+    font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;cursor:pointer}
+  /* Openable affordance (mirrors index.html so DataTable rows hover/focus). */
+  .hoverable-tile{cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+  .hoverable-row{cursor:pointer}
+  @media (hover:hover){
+    .hoverable-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:var(--border-strong) !important}
+    .hoverable-row:hover td{background:var(--row-hover) !important}
+  }
+  .hoverable-tile:focus-visible,.hoverable-row:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;background:var(--row-hover) !important}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/cp1-preview.jsx"></script>
+</body>
+</html>

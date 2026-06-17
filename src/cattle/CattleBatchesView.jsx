@@ -486,13 +486,13 @@ const CattleBatchesHub = ({
     fontSize: 12,
     padding: '6px 10px',
     border: '1px solid var(--border-strong)',
-    borderRadius: 6,
+    borderRadius: 10,
     fontFamily: 'inherit',
     boxSizing: 'border-box',
   };
   const savedViewGhostBtnS = {
     padding: '6px 12px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid var(--border-strong)',
     background: 'white',
     color: 'var(--ink)',
@@ -536,7 +536,7 @@ const CattleBatchesHub = ({
             onClick={loadAll}
             style={{
               padding: '7px 14px',
-              borderRadius: 7,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--brand)',
@@ -567,7 +567,7 @@ const CattleBatchesHub = ({
                   data-cattle-batches-export-csv="1"
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -585,7 +585,7 @@ const CattleBatchesHub = ({
                   data-cattle-batches-print="1"
                   style={{
                     padding: '7px 12px',
-                    borderRadius: 7,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -606,7 +606,7 @@ const CattleBatchesHub = ({
                   padding: '3px 8px',
                   background: '#eff6ff',
                   border: '1px solid #bfdbfe',
-                  borderRadius: 6,
+                  borderRadius: 999,
                   color: '#1e40af',
                   fontWeight: 600,
                 }}
@@ -815,7 +815,7 @@ const CattleBatchesHub = ({
                       style={{
                         fontSize: 12,
                         padding: '5px 10px',
-                        borderRadius: 6,
+                        borderRadius: 10,
                         border: '1px solid ' + (on ? '#1d4ed8' : 'var(--border-strong)'),
                         background: 'white',
                         color: on ? '#1e40af' : 'var(--ink-muted)',
@@ -947,7 +947,7 @@ const CattleBatchesHub = ({
                       padding: '8px 10px',
                       background: 'white',
                       border: '1px dashed #fca5a5',
-                      borderRadius: 8,
+                      borderRadius: 10,
                       fontSize: 12,
                     }}
                   >
@@ -960,7 +960,7 @@ const CattleBatchesHub = ({
                         background: '#fef2f2',
                         color: '#991b1b',
                         border: '1px solid #fca5a5',
-                        borderRadius: 4,
+                        borderRadius: 999,
                         fontWeight: 700,
                         textTransform: 'uppercase',
                       }}
@@ -987,7 +987,7 @@ const CattleBatchesHub = ({
                             fontSize: 11,
                             padding: '3px 6px',
                             border: '1px solid var(--border-strong)',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             fontFamily: 'inherit',
                           }}
                           title="Processor date for this batch"
@@ -999,7 +999,7 @@ const CattleBatchesHub = ({
                           style={{
                             fontSize: 11,
                             padding: '4px 10px',
-                            borderRadius: 5,
+                            borderRadius: 10,
                             border: 'none',
                             background: scheduleDateDraft[vb.name] ? '#085041' : '#9ca3af',
                             color: 'white',
@@ -1065,7 +1065,7 @@ const CattleBatchesHub = ({
                       padding: '8px 10px',
                       background: 'white',
                       border: '1px solid #fde68a',
-                      borderRadius: 8,
+                      borderRadius: 10,
                       fontSize: 12,
                       cursor: 'pointer',
                     }}
@@ -1078,7 +1078,7 @@ const CattleBatchesHub = ({
                         background: '#fffbeb',
                         color: '#92400e',
                         border: '1px solid #fde68a',
-                        borderRadius: 4,
+                        borderRadius: 999,
                         fontWeight: 700,
                         textTransform: 'uppercase',
                       }}

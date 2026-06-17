@@ -288,7 +288,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                       style={{
                         background: '#f3f4f6',
                         border: '1px solid var(--border-strong)',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         padding: '8px 12px',
                         fontSize: 12,
                         color: 'var(--ink)',
@@ -305,7 +305,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                       style={{
                         background: '#fffbeb',
                         border: '1px solid #fde68a',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         padding: '8px 12px',
                         fontSize: 12,
                         color: '#92400e',
@@ -321,7 +321,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                     style={{
                       background: '#eff6ff',
                       border: '1px solid #bfdbfe',
-                      borderRadius: 8,
+                      borderRadius: 10,
                       padding: '8px 12px',
                       fontSize: 12,
                       color: '#1d4ed8',
@@ -383,7 +383,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                       padding: '6px 8px',
                       background: 'var(--surface-2)',
                       border: '1px solid var(--border)',
-                      borderRadius: 6,
+                      borderRadius: 10,
                     }}
                   >
                     {list.length === 0 && (
@@ -474,7 +474,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                 style={{
                   background: '#ecfdf5',
                   border: '1px solid #a7f3d0',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   padding: '8px 12px',
                   fontSize: 12,
                   color: '#065f46',
@@ -585,7 +585,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                 style={{
                   marginLeft: 'auto',
                   padding: '7px 16px',
-                  borderRadius: 7,
+                  borderRadius: 10,
                   border: '1px solid var(--border-strong)',
                   background: 'white',
                   color: 'var(--ink)',
@@ -624,7 +624,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
             }}
             style={{
               padding: '5px 14px',
-              borderRadius: 5,
+              borderRadius: 10,
               border: 'none',
               background: '#085041',
               color: 'white',
@@ -651,7 +651,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
             style={{
               marginLeft: 'auto',
               padding: '5px 14px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: 'none',
               background: '#085041',
               color: 'white',
@@ -921,7 +921,7 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                             width: `${w}%`,
                             top: 4,
                             bottom: 4,
-                            borderRadius: 8,
+                            borderRadius: 10,
                             cursor: 'pointer',
                             background: phaseColor,
                             display: 'flex',
@@ -964,15 +964,15 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
           {PIG_GROUPS.map((g) => (
             <div key={g} style={{display: 'flex', alignItems: 'center', gap: 6}}>
               <div
-                style={{width: 10, height: 10, borderRadius: 2, background: PIG_GROUP_COLORS[g].gilt}}
+                style={{width: 10, height: 10, borderRadius: 2 /* radius-allow: 10px legend swatch */, background: PIG_GROUP_COLORS[g].gilt}}
                 title="Gilts grow-out"
               />
               <div
-                style={{width: 10, height: 10, borderRadius: 2, background: PIG_GROUP_COLORS[g].farrowing}}
+                style={{width: 10, height: 10, borderRadius: 2 /* radius-allow: 10px legend swatch */, background: PIG_GROUP_COLORS[g].farrowing}}
                 title="Cycle base"
               />
               <div
-                style={{width: 10, height: 10, borderRadius: 2, background: PIG_GROUP_COLORS[g].boarGrow}}
+                style={{width: 10, height: 10, borderRadius: 2 /* radius-allow: 10px legend swatch */, background: PIG_GROUP_COLORS[g].boarGrow}}
                 title="Boars grow-out"
               />
               <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Group {g}</span>

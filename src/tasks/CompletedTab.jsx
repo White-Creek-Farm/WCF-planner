@@ -174,7 +174,7 @@ function bucketByCompletedAt(rows, todayStr) {
 
 const LOAD_RETRY_BTN = {
   padding: '6px 12px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid #991b1b',
   background: 'white',
   color: '#991b1b',
@@ -373,7 +373,7 @@ export default function CompletedTab({sb}) {
             border: '1px solid #fecaca',
             color: '#991b1b',
             padding: '8px 12px',
-            borderRadius: 8,
+            borderRadius: 10,
             marginBottom: 12,
             fontSize: 13,
           }}

@@ -34,7 +34,8 @@ describe('Lane E CP3 record-page action buttons', () => {
       expect(controls).toContain(`export const ${symbol}`);
     }
     expect(controls).toContain("padding: '10px 16px'");
-    expect(controls).toContain('borderRadius: 6');
+    // CP0 §A3: 10px radius floor (was 6).
+    expect(controls).toContain('borderRadius: 10');
   });
 
   for (const rel of RETRY_SURFACES) {

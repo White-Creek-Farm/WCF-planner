@@ -88,7 +88,7 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
     fontSize: 13,
     padding: '8px 10px',
     border: '1px solid #d1d5db',
-    borderRadius: 6,
+    borderRadius: 10,
     width: '100%',
     boxSizing: 'border-box',
     background: 'white',
@@ -159,7 +159,7 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
         {species === 'broiler' && (
           <div style={{marginBottom: 14}}>
             <label style={lblS}>Week *</label>
-            <div style={{display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #d1d5db'}}>
+            <div style={{display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid #d1d5db'}}>
               {[4, 6].map((w) => (
                 <button
                   key={w}
@@ -191,7 +191,7 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
               marginBottom: 10,
               padding: '6px 10px',
               background: '#fef2f2',
-              borderRadius: 6,
+              borderRadius: 10,
             }}
           >
             {err}

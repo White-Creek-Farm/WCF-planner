@@ -80,13 +80,16 @@ describe('Pig weigh-in metrics — admin LivestockWeighInsView (commit 3)', () =
     expect(adminSrc).toMatch(/\.in\('session_id',\s*ids\)\s*\.order\('entered_at',\s*\{ascending:\s*true\}\)/);
   });
 
-  it('removes the standalone avg badge for pig tiles (W3) but preserves it for non-pig species', () => {
-    // Pig tiles get the new metrics row instead.
-    expect(adminSrc).toMatch(/species !== 'pig' && avgWeight > 0 &&/);
-    // The new metrics row is gated by species === 'pig' AND sEntries > 0.
-    expect(adminSrc).toMatch(
-      /species === 'pig' &&\s*sEntries\.length > 0 &&\s*pigMetricsBySession\[s\.id\] &&\s*pigMetricsBySession\[s\.id\]\.available/,
-    );
+  it('pig sessions get metric columns; non-pig species get a simple avg-weight column', () => {
+    // CP2: pig metrics render as DataTable columns (age / feed-per-pig / group
+    // ADG / avg / rank-matched ADG), each gated on metric availability;
+    // non-pig species get a single avg-weight column in the else branch.
+    expect(adminSrc).toContain("key: 'groupAdg'");
+    expect(adminSrc).toContain("key: 'entryAdg'");
+    expect(adminSrc).toContain('pigMetricsBySession');
+    expect(adminSrc).toMatch(/metric\(s\) && metric\(s\)\.available/);
+    expect(adminSrc).toMatch(/else \{[\s\S]*?key: 'avg'/);
+    expect(adminSrc).toMatch(/averageEntryWeight/);
   });
 
   it('pig inline accordion is removed — pig navigates to record page', () => {

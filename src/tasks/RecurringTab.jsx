@@ -92,7 +92,7 @@ const INACTIVE_TOGGLE_BTN = {
   alignItems: 'center',
   gap: 8,
   padding: '9px 10px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid var(--border)',
   background: 'var(--surface-2)',
   color: 'var(--ink)',
@@ -106,7 +106,7 @@ const INACTIVE_TOGGLE_BTN = {
 };
 const LOAD_RETRY_BTN = {
   padding: '6px 12px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: '1px solid #991b1b',
   background: 'white',
   color: '#991b1b',
@@ -119,7 +119,7 @@ const LOAD_RETRY_BTN = {
 const GROUP_HEADER = {
   background: 'white',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 10,
   padding: '8px 12px',
   marginBottom: 8,
   cursor: 'pointer',
@@ -168,7 +168,7 @@ function InstanceLine({ti}) {
       style={{
         background: 'var(--surface-2)',
         border: '1px solid var(--border)',
-        borderRadius: 8,
+        borderRadius: 10,
         padding: '8px 12px',
         marginBottom: 6,
         display: 'flex',
@@ -251,7 +251,7 @@ function DeleteTemplateConfirm({sb, template, isOpen, onClose, onDeleted}) {
             width: '100%',
             padding: '8px 10px',
             border: '1px solid var(--border-strong)',
-            borderRadius: 8,
+            borderRadius: 10,
             fontSize: 14,
             fontFamily: 'inherit',
             boxSizing: 'border-box',
@@ -265,7 +265,7 @@ function DeleteTemplateConfirm({sb, template, isOpen, onClose, onDeleted}) {
               border: '1px solid #fecaca',
               color: '#991b1b',
               padding: '8px 12px',
-              borderRadius: 8,
+              borderRadius: 10,
               marginTop: 12,
               fontSize: 13,
             }}
@@ -280,7 +280,7 @@ function DeleteTemplateConfirm({sb, template, isOpen, onClose, onDeleted}) {
             disabled={saving}
             style={{
               padding: '8px 14px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
               color: 'var(--ink)',
@@ -299,7 +299,7 @@ function DeleteTemplateConfirm({sb, template, isOpen, onClose, onDeleted}) {
             disabled={saving || !confirmed}
             style={{
               padding: '8px 14px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: '1px solid #b91c1c',
               background: '#b91c1c',
               color: 'white',
@@ -460,7 +460,7 @@ export default function RecurringTab({sb, authState}) {
                   onClick={() => startEdit(b.template)}
                   style={{
                     padding: '4px 10px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid var(--border-strong)',
                     background: 'white',
                     color: 'var(--ink)',
@@ -478,7 +478,7 @@ export default function RecurringTab({sb, authState}) {
                   onClick={() => startDelete(b.template)}
                   style={{
                     padding: '4px 10px',
-                    borderRadius: 6,
+                    borderRadius: 10,
                     border: '1px solid #b91c1c',
                     background: 'white',
                     color: '#b91c1c',
@@ -513,7 +513,7 @@ export default function RecurringTab({sb, authState}) {
             border: '1px solid #fecaca',
             color: '#991b1b',
             padding: '8px 12px',
-            borderRadius: 8,
+            borderRadius: 10,
             marginBottom: 12,
             fontSize: 13,
           }}
@@ -539,7 +539,7 @@ export default function RecurringTab({sb, authState}) {
             onClick={startNew}
             style={{
               padding: '6px 12px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: '1px solid #085041',
               background: '#085041',
               color: 'white',

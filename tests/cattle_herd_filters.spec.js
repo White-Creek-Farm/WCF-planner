@@ -104,7 +104,7 @@ test('age sort youngest-first orders newest birth_date first inside tile', async
   // M004 (2019-02 — oldest), M005 (2022-08).
   // Youngest-first asc order: M003, M005, M002, M001, M004.
   const mommasTile = page.locator('[data-herd-tile="mommas"]').locator('..');
-  const cowRows = mommasTile.locator('div[id^="cow-"]');
+  const cowRows = mommasTile.locator('tr[id^="cow-"]');
   await expect(cowRows).toHaveCount(5);
 
   // Read tag via data attribute (sibling spans have no whitespace separator
@@ -148,14 +148,14 @@ test('sex + age compose; same survivors across grouped and flat modes', async ({
   // Verify in grouped tiles.
   await expandHerd(page, 'mommas');
   await expandHerd(page, 'backgrounders');
-  const groupedRows = page.locator('div[id^="cow-"][data-cow-row-tag]');
+  const groupedRows = page.locator('tr[id^="cow-"][data-cow-row-tag]');
   const groupedTags = await readTagsInOrder(groupedRows);
   expect(new Set(groupedTags)).toEqual(new Set(['M003', 'B201', 'B202']));
 
   // Switch to flat.
   await page.locator('input[data-view-mode="flat"]').click();
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  const flatRows = page.locator('[data-cattle-flat-list] div[id^="cow-"]');
+  const flatRows = page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
   await expect(flatRows).toHaveCount(3);
   const flatTags = await readTagsInOrder(flatRows);
   expect(new Set(flatTags)).toEqual(new Set(['M003', 'B201', 'B202']));
@@ -220,7 +220,7 @@ test('calved=no in mommas surfaces only the never-calved heifer', async ({page, 
   await expect(page.locator('[data-cattle-match-count]')).toContainText('1 ');
 
   await expandHerd(page, 'mommas');
-  const visibleRows = page.locator('[data-herd-tile="mommas"]').locator('..').locator('div[id^="cow-"]');
+  const visibleRows = page.locator('[data-herd-tile="mommas"]').locator('..').locator('tr[id^="cow-"]');
   await expect(visibleRows).toHaveCount(1);
   await expect(visibleRows.first()).toContainText('#M003');
 });
@@ -240,7 +240,7 @@ test('blacklist filter surfaces only the blacklisted cow', async ({page, cattleH
 
   // Switch to flat to check the single survivor without expanding tiles.
   await page.locator('input[data-view-mode="flat"]').click();
-  const flatRows = page.locator('[data-cattle-flat-list] div[id^="cow-"]');
+  const flatRows = page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
   await expect(flatRows).toHaveCount(1);
   await expect(flatRows.first()).toContainText('#M004');
 });
@@ -259,13 +259,13 @@ test('grouped/flat toggle yields same filtered survivors', async ({page, cattleH
 
   // Grouped: 3 cows under backgrounders tile.
   await expandHerd(page, 'backgrounders');
-  const groupedRows = page.locator('[data-herd-tile="backgrounders"]').locator('..').locator('div[id^="cow-"]');
+  const groupedRows = page.locator('[data-herd-tile="backgrounders"]').locator('..').locator('tr[id^="cow-"]');
   await expect(groupedRows).toHaveCount(3);
 
   // Switch to flat — same 3.
   await page.locator('input[data-view-mode="flat"]').click();
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  await expect(page.locator('[data-cattle-flat-list] div[id^="cow-"]')).toHaveCount(3);
+  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
 });
 
 // --------------------------------------------------------------------------
@@ -284,7 +284,7 @@ test('saves a cattle herd view and re-applies filters/sort/viewMode from the pic
   await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
   await page.locator('input[data-view-mode="flat"]').click();
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  await expect(page.locator('[data-cattle-flat-list] div[id^="cow-"]')).toHaveCount(3);
+  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
 
   // Save it as a public view.
   const viewName = 'BG Flat ' + Date.now();
@@ -311,7 +311,7 @@ test('saves a cattle herd view and re-applies filters/sort/viewMode from the pic
   await page.locator('[data-saved-view-select]').selectOption({label: optionLabel});
   await expect(page.locator('input[data-view-mode="flat"]')).toBeChecked();
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  await expect(page.locator('[data-cattle-flat-list] div[id^="cow-"]')).toHaveCount(3);
+  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
 
   // Owner controls (update/delete) are available for an owned view.
   await expect(page.locator('[data-saved-view-update]')).toBeVisible();
@@ -335,7 +335,7 @@ test('maternal-issue text absent from herd view, expanded cow detail, and Add mo
   // Cow record page — a cow-row click now routes to the record page (record
   // extraction). Open one and re-scan.
   await expandHerd(page, 'mommas');
-  const firstCow = page.locator('[data-herd-tile="mommas"]').locator('..').locator('div[id^="cow-"]').first();
+  const firstCow = page.locator('[data-herd-tile="mommas"]').locator('..').locator('tr[id^="cow-"]').first();
   await firstCow.click();
   await expect(page).toHaveURL(/\/cattle\/herds\/.+/);
   const recordText = await page.locator('body').innerText();
@@ -426,6 +426,6 @@ test('Unmatched Calves checkbox filters to calves missing a dam', async ({
   await expect(page.locator('[data-cattle-match-count]')).toContainText('1 match');
 
   await page.locator('input[data-view-mode="flat"]').click();
-  await expect(page.locator('[data-cattle-flat-list] div[id^="cow-"]')).toHaveCount(1);
-  await expect(page.locator('[data-cattle-flat-list] div[id^="cow-"]').first()).toContainText('#UC900');
+  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(1);
+  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]').first()).toContainText('#UC900');
 });

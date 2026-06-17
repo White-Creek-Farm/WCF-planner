@@ -174,13 +174,13 @@ export default function BroilerHomeView({Header, loadUsers}) {
 
   const trendBar = (val, max, color) => (
     <div style={{display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4}}>
-      <div style={{flex: 1, height: 7, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden'}}>
+      <div style={{flex: 1, height: 7, background: '#f0f0f0', borderRadius: 4 /* radius-allow: 7px trend bar track */, overflow: 'hidden'}}>
         <div
           style={{
             height: '100%',
             width: `${Math.min(100, max > 0 ? (val / max) * 100 : 0)}%`,
             background: color,
-            borderRadius: 4,
+            borderRadius: 4 /* radius-allow: 7px trend bar fill */,
           }}
         />
       </div>
@@ -231,7 +231,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
       onClick={() => setView(v)}
       style={{
         padding: '8px 16px',
-        borderRadius: 8,
+        borderRadius: 10,
         border: '1px solid var(--border-strong)',
         background: 'white',
         fontSize: 12,
@@ -706,7 +706,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                       style={{
                         display: 'flex',
                         height: 16,
-                        borderRadius: 6,
+                        borderRadius: 10,
                         overflow: 'hidden',
                         background: 'var(--divider)',
                       }}
@@ -773,7 +773,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                       width: 10,
                       height: 10,
                       background: '#065f46',
-                      borderRadius: 2,
+                      borderRadius: 2 /* radius-allow: 10px legend swatch */,
                       marginRight: 4,
                     }}
                   />
@@ -786,7 +786,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                       width: 10,
                       height: 10,
                       background: '#1d4ed8',
-                      borderRadius: 2,
+                      borderRadius: 2 /* radius-allow: 10px legend swatch */,
                       marginRight: 4,
                     }}
                   />

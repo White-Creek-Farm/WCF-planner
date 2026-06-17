@@ -20,7 +20,7 @@ export const S = {
   },
   navBtn: (active) => ({
     padding: '10px 16px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: 'none',
     cursor: 'pointer',
     fontSize: 12,
@@ -31,7 +31,7 @@ export const S = {
   }),
   addBtn: {
     padding: '10px 16px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: 'none',
     cursor: 'pointer',
     fontSize: 12,
@@ -45,7 +45,7 @@ export const S = {
   badge: (bg, tx) => ({
     display: 'inline-block',
     padding: '2px 8px',
-    borderRadius: 4,
+    borderRadius: 10,
     fontSize: 11,
     fontWeight: 500,
     background: bg,
@@ -53,7 +53,7 @@ export const S = {
   }),
   btnPrimary: {
     padding: '10px 16px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: 'none',
     fontWeight: 500,
     fontSize: 13,
@@ -65,7 +65,7 @@ export const S = {
   },
   btnDanger: {
     padding: '10px 16px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid #F09595',
     cursor: 'pointer',
     background: 'white',
@@ -74,7 +74,7 @@ export const S = {
   },
   btnGhost: {
     padding: '10px 16px',
-    borderRadius: 6,
+    borderRadius: 10,
     border: '1px solid #d1d5db',
     cursor: 'pointer',
     background: 'white',
