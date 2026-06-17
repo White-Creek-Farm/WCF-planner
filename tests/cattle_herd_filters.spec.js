@@ -45,7 +45,42 @@ async function expandHerd(page, herd) {
   await expect(tile).toHaveAttribute('data-herd-open', '1');
 }
 
+// Compact-controls model: Saved views / Filters / Sort / View mode each live
+// behind a single-open toggle panel (only one open at a time). Helpers below
+// ensure the relevant panel is open before interacting with its controls.
+const TOOL_PANEL_TOGGLE = {
+  savedViews: '[data-cattle-herds-saved-views-toggle="1"]',
+  filters: '[data-cattle-herds-filters-toggle="1"]',
+  sort: '[data-cattle-herds-sort-toggle="1"]',
+  view: '[data-cattle-herds-view-toggle="1"]',
+};
+
+async function ensureToolPanel(page, name) {
+  const btn = page.locator(TOOL_PANEL_TOGGLE[name]);
+  await expect(btn).toBeVisible();
+  if ((await btn.getAttribute('aria-expanded')) !== 'true') {
+    await btn.click();
+  }
+  await expect(btn).toHaveAttribute('aria-expanded', 'true');
+}
+
+async function setViewMode(page, mode) {
+  await ensureToolPanel(page, 'view');
+  await page.locator(`input[data-view-mode="${mode}"]`).click();
+}
+
+async function expectViewMode(page, mode, checked = true) {
+  await ensureToolPanel(page, 'view');
+  const radio = page.locator(`input[data-view-mode="${mode}"]`);
+  if (checked) {
+    await expect(radio).toBeChecked();
+  } else {
+    await expect(radio).not.toBeChecked();
+  }
+}
+
 async function openFilter(page, key) {
+  await ensureToolPanel(page, 'filters');
   const chip = page.locator(`[data-filter-chip="${key}"]`);
   await expect(chip).toBeVisible();
   await chip.click();
@@ -59,7 +94,8 @@ test('default load: grouped view with 4 active herd tiles', async ({page, cattle
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Grouped radio is selected by default.
+  // Grouped radio is selected by default (open the View panel to read it).
+  await ensureToolPanel(page, 'view');
   await expect(page.locator('input[data-view-mode="grouped"]')).toBeChecked();
   await expect(page.locator('input[data-view-mode="flat"]')).not.toBeChecked();
 
@@ -89,6 +125,7 @@ test('age sort youngest-first orders newest birth_date first inside tile', async
 
   // Add age sort. Adding a non-tag sort replaces the default Tag sort so
   // the visible chip order matches the actual primary sort.
+  await ensureToolPanel(page, 'sort');
   await page.locator('select[data-sort-add]').selectOption('age');
   const sortRules = page.locator('[data-sort-rule]');
   await expect(sortRules.nth(0)).toHaveAttribute('data-sort-rule', 'age');
@@ -153,7 +190,7 @@ test('sex + age compose; same survivors across grouped and flat modes', async ({
   expect(new Set(groupedTags)).toEqual(new Set(['M003', 'B201', 'B202']));
 
   // Switch to flat.
-  await page.locator('input[data-view-mode="flat"]').click();
+  await setViewMode(page, 'flat');
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
   const flatRows = page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
   await expect(flatRows).toHaveCount(3);
@@ -239,7 +276,7 @@ test('blacklist filter surfaces only the blacklisted cow', async ({page, cattleH
   await expect(page.locator('[data-cattle-match-count]')).toContainText('1 ');
 
   // Switch to flat to check the single survivor without expanding tiles.
-  await page.locator('input[data-view-mode="flat"]').click();
+  await setViewMode(page, 'flat');
   const flatRows = page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
   await expect(flatRows).toHaveCount(1);
   await expect(flatRows.first()).toContainText('#M004');
@@ -263,7 +300,7 @@ test('grouped/flat toggle yields same filtered survivors', async ({page, cattleH
   await expect(groupedRows).toHaveCount(3);
 
   // Switch to flat — same 3.
-  await page.locator('input[data-view-mode="flat"]').click();
+  await setViewMode(page, 'flat');
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
   await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
 });
@@ -282,12 +319,13 @@ test('saves a cattle herd view and re-applies filters/sort/viewMode from the pic
   await openFilter(page, 'herdSet');
   await page.locator('[data-filter-popover="herdSet"] >> text=Backgrounders').click();
   await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
-  await page.locator('input[data-view-mode="flat"]').click();
+  await setViewMode(page, 'flat');
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
   await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
 
   // Save it as a public view.
   const viewName = 'BG Flat ' + Date.now();
+  await ensureToolPanel(page, 'savedViews');
   await page.locator('[data-saved-view-save-open]').click();
   await expect(page.locator('[data-saved-view-form]')).toBeVisible();
   await page.locator('[data-saved-view-name]').fill(viewName);
@@ -300,20 +338,23 @@ test('saves a cattle herd view and re-applies filters/sort/viewMode from the pic
   await expect(page.locator('[data-saved-view-select] option', {hasText: viewName})).toHaveCount(1);
 
   // Reset to a different state: clear filters + back to grouped.
-  await page.locator('input[data-view-mode="grouped"]').click();
+  await setViewMode(page, 'grouped');
+  await ensureToolPanel(page, 'filters');
   await page.locator('text=Clear all filters').click();
   await expect(page.locator('[data-cattle-match-count]')).not.toContainText(/^3 /);
-  await expect(page.locator('input[data-view-mode="grouped"]')).toBeChecked();
+  await expectViewMode(page, 'grouped');
 
   // Re-apply: deselect, then pick the saved view by label. Selecting restores
   // filters (backgrounders → 3) and viewMode (flat).
+  await ensureToolPanel(page, 'savedViews');
   await page.locator('[data-saved-view-select]').selectOption('');
   await page.locator('[data-saved-view-select]').selectOption({label: optionLabel});
-  await expect(page.locator('input[data-view-mode="flat"]')).toBeChecked();
+  await expectViewMode(page, 'flat');
   await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
   await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
 
   // Owner controls (update/delete) are available for an owned view.
+  await ensureToolPanel(page, 'savedViews');
   await expect(page.locator('[data-saved-view-update]')).toBeVisible();
   await expect(page.locator('[data-saved-view-delete]')).toBeVisible();
 });
@@ -359,10 +400,9 @@ test('breed filter dropdown includes historical "Heritage Wagyu" present on cow 
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Breed lives in the always-visible Core group now (no More-filters toggle).
-  await page.locator('[data-filter-chip="breed"]').click();
+  // Breed chip lives in the Filters panel (compact controls).
+  await openFilter(page, 'breed');
   const popover = page.locator('[data-filter-popover="breed"]');
-  await expect(popover).toBeVisible();
   await expect(popover).toContainText('Heritage Wagyu');
   await expect(popover).toContainText('(historical)');
 });
@@ -421,11 +461,12 @@ test('Unmatched Calves checkbox filters to calves missing a dam', async ({
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Checkbox-style filter in Lineage/Other (not a pill chip).
+  // Checkbox-style filter in Lineage/Other (not a pill chip) — inside Filters panel.
+  await ensureToolPanel(page, 'filters');
   await page.locator('[data-cattle-special-filter-checkbox="unmatchedCalves"]').check();
   await expect(page.locator('[data-cattle-match-count]')).toContainText('1 match');
 
-  await page.locator('input[data-view-mode="flat"]').click();
+  await setViewMode(page, 'flat');
   await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(1);
   await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]').first()).toContainText('#UC900');
 });
