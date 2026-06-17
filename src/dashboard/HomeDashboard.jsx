@@ -1148,6 +1148,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                         return (
                                           <>
                                             <div
+                                              className="admin-daily-row"
                                               style={{
                                                 display: 'grid',
                                                 gridTemplateColumns: '110px 90px 150px 90px 1fr',
@@ -1251,6 +1252,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                         return (
                                           <>
                                             <div
+                                              className="admin-daily-row"
                                               style={{
                                                 display: 'grid',
                                                 gridTemplateColumns: '110px 90px 150px 80px 80px 1fr',
@@ -1359,6 +1361,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                         return (
                                           <>
                                             <div
+                                              className="admin-daily-row"
                                               style={{
                                                 display: 'grid',
                                                 gridTemplateColumns: '110px 90px 130px 80px 80px 1fr',
@@ -1524,6 +1527,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                         return (
                                           <>
                                             <div
+                                              className="admin-daily-row"
                                               style={{
                                                 display: 'grid',
                                                 gridTemplateColumns: '120px 90px 90px 1fr',
@@ -1650,6 +1654,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                         return (
                                           <>
                                             <div
+                                              className="admin-daily-row"
                                               style={{
                                                 display: 'grid',
                                                 gridTemplateColumns: '120px 90px 90px 90px 90px 1fr',

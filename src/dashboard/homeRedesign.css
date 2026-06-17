@@ -1216,6 +1216,14 @@
   .home .home-col {
     padding: 16px 14px 56px;
   }
+  /* Last 5 Days admin report rows render with fixed multi-column desktop grids
+     (inline styles, per animal kind). On phones those fixed px columns are far
+     wider than the viewport, so columns clipped or pushed the page wide. Collapse
+     them to a bounded 2-up layout so every cell stays visible without overflow. */
+  .home .admin-daily-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px 10px !important;
+  }
   .home .animal-history-topline,
   .home .animal-history-title {
     align-items: flex-start;
