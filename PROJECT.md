@@ -64,8 +64,9 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source: `main` / `origin/main` contains runtime checkpoint `3e71b28`
-  (`fix(pasture): use shared header on map`) plus this PROJECT wrap update.
+- Source: `main` / `origin/main` contains runtime checkpoint `c666553`
+  (`feat(cattle,sheep): column picker + program-color tool buttons; results
+  always flat`) plus this PROJECT wrap update.
 - Extra worktrees:
   - `C:\Users\Ronni\WCF-planner` is the standing repo/worktree on current
     `main`.
@@ -118,6 +119,37 @@ Design/function invariants that govern cross-surface behavior live in
 The following work is merged to `main` and pushed. Netlify deploys from `main`;
 the live bundle is verified in the header above.
 
+- List controls — column pickers, program-color tool buttons, always-flat
+  results (2026-06-18):
+  - Broiler Batches: rich filtering + single-rule sort + saved views scoped to
+    the PROCESSED table only; a processed-table column/display picker over ~30
+    fields (saved in views); Batch Comparison removed; processed default sort is
+    processing-date descending. Active/planned batches stay pinned above the
+    controls, untouched. Pure filter lib: `src/lib/broilerBatchFilters.js`.
+  - Cattle Herds + Sheep Flocks: a column/display picker over every field
+    (cattle 23, sheep 25), persisted per surface (`cattle.herds.columns` /
+    `sheep.flocks.columns`) and stored in saved views. The grouped/flat view
+    toggle is REMOVED — results are always one flat list; outcome herds/flocks
+    (processed/sold/deceased) stay browsable in the collapsible sections below.
+    `tag` is always shown.
+  - Selected tool buttons fill with the program color + readable (white) glyph
+    to match the filled top-nav tab — broiler gold, cattle maroon, sheep green.
+    `getReadableText(accent)` returns white for cattle/sheep; broiler gold is
+    light, so the broiler selected glyph is hard-set white.
+  - Daily program list pages + Home "Last 5 Days" render as white record-cards
+    via shared `DailyRecordCards` (Egg Dailys included; hover-lift preserved).
+  - Shipped to `main`: daily cards `eb1d1c4`, production multi-year `3021078`,
+    broiler `7f9256e`, cattle/sheep `c666553`. Validation: `npm run build`
+    green; cattle/sheep `eslint` 0 errors; `npm run format:check` green; full
+    Vitest at the documented 7 pre-existing failures (programColors, global
+    activity, image capture, pig batch filters/planned trips, breeding pig
+    links, pasture radius floor) with no new failures; all 5 cattle e2e specs
+    green (the grouped-tile `cattle_herd_filters` spec was rewritten flat-only).
+  - Pitfalls logged: the `radius_floor` guard scans every file, so the new
+    column-row hover radius had to be `>=10px` (bumped 8->10 in all three
+    views); the `openable_hover_affordance` guard greps the literal
+    `hoverable-tile` string, so a stale comment mentioning it tripped the guard
+    after `openableProps` was removed — reword such comments.
 - Design-law compliance pass (CP0 A1–A12 + Tabs + WI-6; 2026-06-17 designer
   audit, 53 findings):
   - Tokens + Constitution amended to CP0 — true-black primary text, one defined
@@ -992,6 +1024,13 @@ Workflow/worktable entities:
 - Active cattle herds: `mommas`, `backgrounders`, `finishers`, `bulls`.
 - Active sheep flocks: `rams`, `ewes`, `feeders`.
 - Outcome states are `processed`, `deceased`, `sold`.
+- Cattle Herds and Sheep Flocks render a single always-flat list (the
+  grouped/flat view toggle was removed). A column/display picker chooses which
+  of the full field set shows; `tag` is always shown; the choice persists in
+  saved views (`columnVisible` gates `cowTableColumns` / `flatColumns`). Outcome
+  herds/flocks stay browsable in `CollapsibleOutcomeSections` /
+  `SheepCollapsibleOutcomeSections` below the flat list. Do not reintroduce the
+  per-herd/per-flock grouped tiles or a `viewMode` toggle.
 - Heifer-to-cow promotion fires from both calving records and calf-row dam links.
 - Manual transfer goes through `transfer_cattle_animal` /
   `transfer_sheep_animal`.
@@ -1038,6 +1077,11 @@ Workflow/worktable entities:
 ### Broiler, Layers, And Feed Planning
 
 - Broiler batches live in `ppp-v4`.
+- Broiler Batches filtering/sort/saved-views and the column/display picker are
+  scoped to the PROCESSED table only; active/planned batches stay pinned above
+  the controls. Filter/sort semantics live in the pure module
+  `src/lib/broilerBatchFilters.js` (processing-date-desc default). Batch
+  Comparison was removed — do not reintroduce it.
 - Login-gated `/weighins` cannot read or mutate `app_store.ppp-v4` directly.
 - Week 4/6 completion uses `stamp_broiler_batch_avg` RPC.
 - Broiler batch record Week 4 and Week 6 weight fields are read-only display
