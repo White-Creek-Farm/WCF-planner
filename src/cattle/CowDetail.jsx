@@ -7,6 +7,10 @@ import {
   recordTextarea,
   recordCheckbox,
 } from '../shared/recordPageControls.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 
 const CowDetail = ({
   cow,
@@ -19,7 +23,6 @@ const CowDetail = ({
   fmt,
   HERDS,
   HERD_LABELS,
-  HERD_COLORS,
   onEdit,
   onDelete,
   onComment,
@@ -127,7 +130,6 @@ const CowDetail = ({
 
   // Tag lookup helper for cross-cow navigation (calving → calf, lineage → dam/sire)
   const findByTag = (t) => (t && Array.isArray(cattleList) ? cattleList.find((x) => x.tag === t) : null);
-  const accentColor = (HERD_COLORS && HERD_COLORS[cow.herd] && HERD_COLORS[cow.herd].tx) || '#991b1b';
   const linkStyle = {
     color: 'var(--brand)',
     cursor: 'pointer',
@@ -159,7 +161,7 @@ const CowDetail = ({
       style={{
         background: '#ffffff',
         padding: '14px 18px',
-        border: '2px solid ' + accentColor,
+        border: '1px solid var(--border)',
         borderRadius: 10,
         boxShadow: '0 2px 6px rgba(0,0,0,.06)',
         margin: '8px 12px 14px',
@@ -204,13 +206,13 @@ const CowDetail = ({
         }}
       >
         <div style={{display: 'flex', alignItems: 'center', gap: 4}}>
-          <span style={{fontSize: 16, fontWeight: 700, color: accentColor}}>{'#'}</span>
+          <span style={{fontSize: 16, fontWeight: 700, color: 'var(--text-primary)'}}>{'#'}</span>
           <input
             type="text"
             defaultValue={cow.tag || ''}
             onBlur={patchOnBlur('tag', 'text')}
             placeholder="tag"
-            style={{...editInp, width: 90, fontWeight: 700, fontSize: 14, color: accentColor}}
+            style={{...editInp, width: 90, fontWeight: 700, fontSize: 14, color: 'var(--text-primary)'}}
           />
         </div>
         <div>
@@ -540,9 +542,9 @@ const CowDetail = ({
             maxWidth: '100%',
             boxSizing: 'border-box',
             padding: '6px 12px',
-            background: cow.breeding_blacklist ? '#991b1b' : '#fee2e2',
-            color: cow.breeding_blacklist ? 'white' : '#7f1d1d',
-            border: '1px solid ' + (cow.breeding_blacklist ? '#991b1b' : '#fecaca'),
+            background: cow.breeding_blacklist ? 'var(--danger-soft)' : 'white',
+            color: 'var(--danger)',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             cursor: 'pointer',
             fontSize: 13,
@@ -564,7 +566,7 @@ const CowDetail = ({
               minWidth: 14,
               flex: '0 0 14px',
               boxSizing: 'border-box',
-              accentColor: '#7f1d1d',
+              accentColor: 'var(--danger)',
               cursor: 'pointer',
             }}
           />
@@ -980,9 +982,9 @@ const CowDetail = ({
                 onClick={() => setShowCalvingForm(true)}
                 style={{
                   fontSize: 11,
-                  color: '#991b1b',
-                  background: 'none',
-                  border: '1px solid #fca5a5',
+                  color: 'var(--ink)',
+                  background: 'white',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 10,
                   padding: '3px 8px',
                   cursor: 'pointer',
@@ -996,8 +998,8 @@ const CowDetail = ({
           {showCalvingForm && (
             <div
               style={{
-                background: '#fef2f2',
-                border: '1px solid #fca5a5',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 12px',
                 marginBottom: 8,
@@ -1037,7 +1039,7 @@ const CowDetail = ({
                       alignItems: 'center',
                       gap: 6,
                       fontSize: 11,
-                      color: '#7f1d1d',
+                      color: 'var(--ink)',
                       cursor: 'pointer',
                     }}
                   >
@@ -1077,8 +1079,8 @@ const CowDetail = ({
                     padding: '10px 16px',
                     borderRadius: 10,
                     border: 'none',
-                    background: '#991b1b',
-                    color: 'white',
+                    background: getProgramColor('cattle'),
+                    color: getReadableText(getProgramColor('cattle')),
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1179,7 +1181,7 @@ const CowDetail = ({
                         {'calf #' + r.calf_tag}
                       </button>
                     ) : (
-                      <span style={{color: '#7f1d1d'}}>{'calf #' + r.calf_tag}</span>
+                      <span style={{color: 'var(--text-primary)'}}>{'calf #' + r.calf_tag}</span>
                     ))}
                   {calfCow && (
                     <span style={{fontSize: 10, color: 'var(--ink-muted)'}}>
@@ -1240,7 +1242,7 @@ const CowDetail = ({
               }}
             >
               <strong style={{color: 'var(--ink)'}}>{fmt(r.calving_date)}</strong>
-              {r.calf_tag && <span style={{color: '#7f1d1d'}}>calf #{r.calf_tag}</span>}
+              {r.calf_tag && <span style={{color: 'var(--text-primary)'}}>calf #{r.calf_tag}</span>}
             </div>
           ))}
         </div>
@@ -1275,8 +1277,8 @@ const CowDetail = ({
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: commentText.trim() ? '#991b1b' : '#d1d5db',
-                color: 'white',
+                background: commentText.trim() ? getProgramColor('cattle') : '#d1d5db',
+                color: commentText.trim() ? getReadableText(getProgramColor('cattle')) : 'white',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: commentText.trim() ? 'pointer' : 'not-allowed',
@@ -1309,26 +1311,8 @@ const CowDetail = ({
                           fontWeight: 700,
                           padding: '1px 6px',
                           borderRadius: 999,
-                          background:
-                            c.source === 'weigh_in'
-                              ? '#eff6ff'
-                              : c.source === 'calving'
-                                ? '#fef2f2'
-                                : c.source === 'daily_report'
-                                  ? '#ecfdf5'
-                                  : c.source === 'import'
-                                    ? '#fef3c7'
-                                    : '#f3f4f6',
-                          color:
-                            c.source === 'weigh_in'
-                              ? '#1e40af'
-                              : c.source === 'calving'
-                                ? '#991b1b'
-                                : c.source === 'daily_report'
-                                  ? '#065f46'
-                                  : c.source === 'import'
-                                    ? '#92400e'
-                                    : '#374151',
+                          background: 'var(--surface-2)',
+                          color: 'var(--text-secondary)',
                         }}
                       >
                         {c.source}
@@ -1406,8 +1390,8 @@ const CowDetail = ({
                               padding: '3px 10px',
                               borderRadius: 10,
                               border: 'none',
-                              background: editingCommentText.trim() ? '#991b1b' : '#d1d5db',
-                              color: 'white',
+                              background: editingCommentText.trim() ? getProgramColor('cattle') : '#d1d5db',
+                              color: editingCommentText.trim() ? getReadableText(getProgramColor('cattle')) : 'white',
                               fontSize: 10,
                               fontWeight: 600,
                               cursor: editingCommentText.trim() ? 'pointer' : 'not-allowed',
@@ -1451,8 +1435,8 @@ const CowDetail = ({
             <div
               style={{
                 marginTop: 8,
-                background: '#fecaca',
-                border: '1px solid #f87171',
+                background: 'var(--danger-soft)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '6px 10px',
                 fontSize: 11,
@@ -1461,19 +1445,8 @@ const CowDetail = ({
                 alignItems: 'center',
               }}
             >
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: '1px 6px',
-                  borderRadius: 999,
-                  background: '#991b1b',
-                  color: 'white',
-                }}
-              >
-                BREEDING BLACKLIST
-              </span>
-              <span style={{color: '#7f1d1d', fontWeight: 600}}>{'Flagged \u2014 do not breed.'}</span>
+              <Badge variant="danger">BREEDING BLACKLIST</Badge>
+              <span style={{color: 'var(--danger)', fontWeight: 600}}>{'Flagged \u2014 do not breed.'}</span>
             </div>
           )}
         </div>
@@ -1496,9 +1469,9 @@ const CowDetail = ({
             style={{
               padding: '6px 12px',
               borderRadius: 10,
-              border: '1px solid #F09595',
+              border: '1px solid var(--border)',
               background: 'white',
-              color: '#b91c1c',
+              color: 'var(--danger)',
               fontSize: 12,
               cursor: 'pointer',
               fontFamily: 'inherit',

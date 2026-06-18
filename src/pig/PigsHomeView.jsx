@@ -10,17 +10,10 @@ import {sb} from '../lib/supabase.js';
 import {openableProps} from '../shared/openable.js';
 import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
-import {
-  calcBreedingTimeline,
-  calcCycleStatus,
-  buildCycleSeqMap,
-  PIG_GROUP_COLORS,
-  PIG_GROUP_TEXT,
-  PIG_GROUPS,
-} from '../lib/pig.js';
+import {calcBreedingTimeline, calcCycleStatus, buildCycleSeqMap, PIG_GROUP_COLORS, PIG_GROUPS} from '../lib/pig.js';
+import {programDotStyle} from '../lib/programColors.js';
+import Badge from '../shared/Badge.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
-import PlannerIcon from '../components/PlannerIcon.jsx';
-import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
@@ -214,7 +207,7 @@ export default function PigsHomeView({Header, loadUsers}) {
 
   const recentPigDailys = [...pigDailys].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
-  const StatTile = ({label, val, sub, color = '#1e40af'}) => (
+  const StatTile = ({label, val, sub, color = 'var(--text-primary)'}) => (
     <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
       <div
         style={{
@@ -299,47 +292,29 @@ export default function PigsHomeView({Header, loadUsers}) {
         }}
       >
         <div data-mobile-2col="1" style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10}}>
-          <StatTile
-            label="Pigs on Farm"
-            val={pigsOnFarm > 0 ? pigsOnFarm.toLocaleString() : '\u2014'}
-            color="#1e40af"
-          />
-          <StatTile
-            label="Active Sows"
-            val={activeSows}
-            sub={activeBoars + ' boar' + (activeBoars !== 1 ? 's' : '')}
-            color="#1e40af"
-          />
+          <StatTile label="Pigs on Farm" val={pigsOnFarm > 0 ? pigsOnFarm.toLocaleString() : '\u2014'} />
+          <StatTile label="Active Sows" val={activeSows} sub={activeBoars + ' boar' + (activeBoars !== 1 ? 's' : '')} />
           <StatTile label="Active Cycles" val={activeCycles2.length} />
-          <StatTile label="Active Batches" val={activeFeeders.length} color="#92400e" />
-          <StatTile
-            label="Avg Born / Litter"
-            val={avgLitterBorn != null ? fmtN(avgLitterBorn, 1) : '\u2014'}
-            color="#1e40af"
-          />
-          <StatTile
-            label="Avg Alive / Litter"
-            val={avgLitterAlive != null ? fmtN(avgLitterAlive, 1) : '\u2014'}
-            color="#065f46"
-          />
+          <StatTile label="Active Batches" val={activeFeeders.length} />
+          <StatTile label="Avg Born / Litter" val={avgLitterBorn != null ? fmtN(avgLitterBorn, 1) : '\u2014'} />
+          <StatTile label="Avg Alive / Litter" val={avgLitterAlive != null ? fmtN(avgLitterAlive, 1) : '\u2014'} />
           <StatTile
             label="Overall Survival"
             val={survivalRate != null ? survivalRate + '%' : '\u2014'}
             color={
               survivalRate != null
                 ? survivalRate >= 80
-                  ? '#065f46'
+                  ? 'var(--ok-ink)'
                   : survivalRate >= 65
-                    ? '#92400e'
-                    : '#b91c1c'
-                : 'var(--ink)'
+                    ? 'var(--warn-ink)'
+                    : 'var(--danger)'
+                : 'var(--text-primary)'
             }
             sub={totalFarrowed + ' records'}
           />
           <StatTile
             label={'Processed ' + currentYear}
             val={totalProcessed > 0 ? totalProcessed.toLocaleString() : '\u2014'}
-            color="var(--ink)"
             sub={avgYield != null ? 'Avg yield: ' + avgYield + '%' : null}
           />
         </div>
@@ -386,7 +361,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                     >
                       {name}
                     </div>
-                    <div style={{fontSize: 20, fontWeight: 700, color: '#1e40af'}}>{count}</div>
+                    <div style={{fontSize: 20, fontWeight: 700, color: 'var(--text-primary)'}}>{count}</div>
                   </div>
                 ))}
             </div>
@@ -503,8 +478,6 @@ export default function PigsHomeView({Header, loadUsers}) {
               'div',
               {style: {display: 'grid', gridTemplateColumns: 'repeat(' + PIG_GROUPS.length + ',1fr)', gap: 10}},
               groupStatuses.map(function (gs) {
-                var bgColor = gs.color ? gs.color.boar : '#f3f4f6';
-                var textColor = PIG_GROUP_TEXT[gs.group] || '#111827';
                 return React.createElement(
                   'div',
                   {
@@ -521,17 +494,17 @@ export default function PigsHomeView({Header, loadUsers}) {
                     {
                       style: {
                         background: 'white',
-                        borderLeft: '3px solid ' + bgColor,
+                        borderBottom: '1px solid var(--border)',
                         padding: '8px 14px',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
                       },
                     },
-                    React.createElement(PlannerIcon, {iconKey: ANIMAL_ICON_KEYS.pig, size: 16}),
+                    React.createElement('span', {style: programDotStyle('pig')}),
                     React.createElement(
                       'span',
-                      {style: {fontSize: 13, fontWeight: 700, color: bgColor}},
+                      {style: {fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}},
                       'Group ' + gs.group,
                     ),
                   ),
@@ -541,20 +514,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                     React.createElement(
                       'div',
                       {style: {display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6}},
-                      React.createElement(
-                        'span',
-                        {
-                          style: {
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: gs.isActive ? '#065f46' : '#6b7280',
-                            background: gs.isActive ? '#d1fae5' : '#f3f4f6',
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                          },
-                        },
-                        gs.phase,
-                      ),
+                      React.createElement(Badge, {variant: gs.isActive ? 'ok' : 'neutral'}, gs.phase),
                     ),
                     gs.nextStep &&
                       React.createElement(
@@ -576,7 +536,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                               style: {
                                 marginLeft: 6,
                                 fontWeight: 600,
-                                color: gs.daysToNext <= 7 ? '#b91c1c' : '#6b7280',
+                                color: gs.daysToNext <= 7 ? 'var(--danger)' : 'var(--text-secondary)',
                               },
                             },
                             '(' + gs.daysToNext + ' days)',
@@ -599,14 +559,7 @@ export default function PigsHomeView({Header, loadUsers}) {
             </div>
             <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
               {feederBatchStats.map(
-                ({g, totalFeed, originalCount, reportDays, daysOld, feedPerPig, totalFeedCost, costPerPig}, fbi) => {
-                  const fbColors = [
-                    {bg: '#ecfdf5', bd: '#6ee7b7', tx: '#065f46'},
-                    {bg: '#fef3c7', bd: '#fcd34d', tx: '#92400e'},
-                    {bg: '#dbeafe', bd: '#93c5fd', tx: '#1e40af'},
-                    {bg: '#fce7f3', bd: '#f9a8d4', tx: '#9d174d'},
-                  ];
-                  const fbc = fbColors[fbi % fbColors.length];
+                ({g, totalFeed, originalCount, reportDays, daysOld, feedPerPig, totalFeedCost, costPerPig}) => {
                   const activeSubs = (g.subBatches || []).filter((s) => s.status === 'active');
                   const subNames =
                     activeSubs.length > 0
@@ -636,7 +589,6 @@ export default function PigsHomeView({Header, loadUsers}) {
                       <div
                         style={{
                           background: 'white',
-                          borderLeft: '3px solid ' + fbc.tx,
                           borderBottom: '1px solid var(--border)',
                           padding: '10px 18px',
                           display: 'flex',
@@ -645,22 +597,10 @@ export default function PigsHomeView({Header, loadUsers}) {
                           flexWrap: 'wrap',
                         }}
                       >
-                        <span style={{fontSize: 15, fontWeight: 700, color: fbc.tx}}>{g.batchName}</span>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            background: '#d1fae5',
-                            color: '#065f46',
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          Active
-                        </span>
+                        <span style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>{g.batchName}</span>
+                        <Badge variant="ok">Active</Badge>
                         {daysOld != null && (
-                          <span style={{fontSize: 11, color: fbc.tx, opacity: 0.85}}>
+                          <span style={{fontSize: 11, color: 'var(--text-secondary)'}}>
                             {Math.floor(daysOld / 30) + 'm ' + Math.floor((daysOld % 30) / 7) + 'w old'}
                           </span>
                         )}
@@ -670,12 +610,11 @@ export default function PigsHomeView({Header, loadUsers}) {
                           style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: 8}}
                         >
                           {[
-                            {l: 'Current', v: currentCount > 0 ? currentCount.toString() : '\u2014', c: '#1e40af'},
+                            {l: 'Current', v: currentCount > 0 ? currentCount.toString() : '\u2014'},
                             {l: 'Original', v: originalCount > 0 ? originalCount.toString() : '\u2014'},
                             {
                               l: 'Total Feed',
                               v: totalFeed > 0 ? Math.round(totalFeed).toLocaleString() + ' lbs' : '\u2014',
-                              c: '#92400e',
                             },
                             {l: 'Feed / Pig', v: feedPerPig ? feedPerPig + ' lbs' : '\u2014'},
                             {
@@ -688,7 +627,6 @@ export default function PigsHomeView({Header, loadUsers}) {
                                       maximumFractionDigits: 0,
                                     })
                                   : '\u2014',
-                              c: '#92400e',
                             },
                             {
                               l: 'Cost / Pig',
@@ -700,7 +638,6 @@ export default function PigsHomeView({Header, loadUsers}) {
                                       maximumFractionDigits: 2,
                                     })
                                   : '\u2014',
-                              c: '#065f46',
                             },
                             {l: 'Report Days', v: reportDays.toString()},
                           ].map((t) => (
@@ -724,7 +661,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                               >
                                 {t.l}
                               </div>
-                              <div style={{fontSize: 14, fontWeight: 700, color: t.c || 'var(--ink)'}}>{t.v}</div>
+                              <div style={{fontSize: 14, fontWeight: 700, color: 'var(--text-primary)'}}>{t.v}</div>
                             </div>
                           ))}
                         </div>
@@ -769,7 +706,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                       {trendBar(
                         c.survival,
                         100,
-                        c.survival >= 80 ? '#065f46' : c.survival >= 65 ? '#d97706' : '#b91c1c',
+                        c.survival >= 80 ? 'var(--ok-ink)' : c.survival >= 65 ? 'var(--warn-ink)' : 'var(--danger)',
                       )}
                     </div>
                   ))}
@@ -802,7 +739,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                       <div style={{fontSize: 10, color: 'var(--ink-muted)', marginBottom: 1}}>
                         {t.batch} {'\u00b7'} {fmt(t.date)}
                       </div>
-                      {trendBar(t.yield, 100, '#1e40af')}
+                      {trendBar(t.yield, 100, 'var(--text-secondary)')}
                     </div>
                   ))}
                 </div>

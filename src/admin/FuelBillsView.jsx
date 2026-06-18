@@ -161,12 +161,15 @@ export default function FuelBillsView() {
                       <td style={td}>{fmtDate(b.delivery_date)}</td>
                       <td style={{...td, fontWeight: 600}}>{b.invoice_number || '—'}</td>
                       <td style={{...td, color: 'var(--ink-muted)'}}>{b.supplier || '—'}</td>
-                      <td style={{...td, textAlign: 'right', color: '#1e40af', fontWeight: 600}}>
+                      {/* WI-2a: gallons + money are raw metrics, not signals — black ink. */}
+                      <td style={{...td, textAlign: 'right', color: 'var(--text-primary)', fontWeight: 600}}>
                         {Math.round(totalGal).toLocaleString()}
                       </td>
                       <td style={{...td, textAlign: 'right', color: 'var(--ink-muted)'}}>{money(b.subtotal)}</td>
-                      <td style={{...td, textAlign: 'right', color: '#9a3412'}}>{money(b.tax_total)}</td>
-                      <td style={{...td, textAlign: 'right', color: '#065f46', fontWeight: 700}}>{money(b.total)}</td>
+                      <td style={{...td, textAlign: 'right', color: 'var(--text-primary)'}}>{money(b.tax_total)}</td>
+                      <td style={{...td, textAlign: 'right', color: 'var(--text-primary)', fontWeight: 700}}>
+                        {money(b.total)}
+                      </td>
                       <td style={td}>{b.pdf_path ? <PdfLink path={b.pdf_path} /> : '—'}</td>
                     </tr>
                     {open && (
@@ -316,7 +319,7 @@ function BillDetail({bill, lines, onChanged}) {
         </div>
         <div>
           <span style={{color: 'var(--ink-faint)'}}>Total</span>
-          <div style={{fontWeight: 600, color: '#065f46'}}>{money(bill.total)}</div>
+          <div style={{fontWeight: 600, color: 'var(--text-primary)'}}>{money(bill.total)}</div>
         </div>
       </div>
       <table
@@ -357,9 +360,9 @@ function BillDetail({bill, lines, onChanged}) {
                 {l.unit_price != null ? '$' + Number(l.unit_price).toFixed(4) : '—'}
               </td>
               <td style={{...td, textAlign: 'right'}}>{money(l.line_subtotal)}</td>
-              <td style={{...td, textAlign: 'right', color: '#9a3412'}}>{money(l.allocated_tax)}</td>
+              <td style={{...td, textAlign: 'right', color: 'var(--text-primary)'}}>{money(l.allocated_tax)}</td>
               <td style={{...td, textAlign: 'right', fontWeight: 600}}>{money(l.line_total)}</td>
-              <td style={{...td, textAlign: 'right', color: '#065f46', fontWeight: 700}}>
+              <td style={{...td, textAlign: 'right', color: 'var(--text-primary)', fontWeight: 700}}>
                 {l.effective_per_gal != null ? '$' + Number(l.effective_per_gal).toFixed(4) : '—'}
               </td>
             </tr>
@@ -374,9 +377,10 @@ function BillDetail({bill, lines, onChanged}) {
             marginLeft: 'auto',
             padding: '5px 12px',
             borderRadius: 10,
-            border: '1px solid #fecaca',
+            // WI-2d: destructive action — danger ink on white, neutral border.
+            border: '1px solid var(--border)',
             background: 'white',
-            color: '#b91c1c',
+            color: 'var(--danger)',
             fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer',
@@ -632,19 +636,21 @@ function BillUploadModal({onClose, onSaved}) {
                 {file.name} · {Math.round(file.size / 1024)} KB
               </span>
             )}
-            {parsing && <span style={{marginLeft: 10, fontSize: 12, color: '#1d4ed8'}}>Parsing…</span>}
+            {parsing && <span style={{marginLeft: 10, fontSize: 12, color: 'var(--ink-muted)'}}>Parsing…</span>}
           </div>
 
           {parsed && parsed.warnings.length > 0 && (
             <div
               style={{
                 padding: '10px 14px',
-                background: '#fffbeb',
-                border: '1px solid #fde68a',
+                // WI-5: genuine warn-notice panel — standardized warn ink on
+                // warn-soft with a neutral border.
+                background: 'var(--warn-soft)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 marginBottom: 14,
                 fontSize: 12,
-                color: '#92400e',
+                color: 'var(--warn-ink)',
               }}
             >
               <div style={{fontWeight: 700, marginBottom: 4}}>⚠ Parser warnings</div>
@@ -813,9 +819,11 @@ function BillUploadModal({onClose, onSaved}) {
                           {l.unit_price != null ? '$' + Number(l.unit_price).toFixed(4) : '—'}
                         </td>
                         <td style={{...td, textAlign: 'right'}}>{money(l.line_subtotal)}</td>
-                        <td style={{...td, textAlign: 'right', color: '#9a3412'}}>{money(l.allocated_tax)}</td>
+                        <td style={{...td, textAlign: 'right', color: 'var(--text-primary)'}}>
+                          {money(l.allocated_tax)}
+                        </td>
                         <td style={{...td, textAlign: 'right'}}>{money(l.line_total)}</td>
-                        <td style={{...td, textAlign: 'right', color: '#065f46', fontWeight: 700}}>
+                        <td style={{...td, textAlign: 'right', color: 'var(--text-primary)', fontWeight: 700}}>
                           {l.effective_per_gal != null ? '$' + Number(l.effective_per_gal).toFixed(4) : '—'}
                         </td>
                       </tr>

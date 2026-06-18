@@ -19,6 +19,8 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 
 const FLOCK_LABELS = {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'};
 const SHEEP_WEIGHINS_SURFACE_KEY = 'sheep.weighins';
@@ -300,7 +302,12 @@ const SheepWeighInsView = ({
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #0f766e', color: '#0f766e'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: 'none',
+    background: getProgramColor('sheep'),
+    color: getReadableText(getProgramColor('sheep')),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -337,7 +344,7 @@ const SheepWeighInsView = ({
               borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#1e40af',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -366,7 +373,7 @@ const SheepWeighInsView = ({
             >
               <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
-                <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-weighins-saved-views-error>
+                <span style={{fontSize: 12, color: 'var(--danger)'}} data-sheep-weighins-saved-views-error>
                   Saved views unavailable. Filters still work.
                 </span>
               ) : (
@@ -414,7 +421,7 @@ const SheepWeighInsView = ({
                         data-sheep-weighins-saved-view-delete
                         onClick={deleteSelectedView}
                         disabled={savedViewBusy}
-                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                        style={{...savedViewGhostBtnS, color: 'var(--danger)', borderColor: 'var(--border)'}}
                       >
                         Delete
                       </button>
@@ -422,7 +429,12 @@ const SheepWeighInsView = ({
                   )}
                   <span style={{flex: 1}} />
                   {savedViewNotice && (
-                    <span style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? '#065f46' : '#b91c1c'}}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: savedViewNotice.kind === 'success' ? 'var(--ok-ink)' : 'var(--danger)',
+                      }}
+                    >
                       {savedViewNotice.message}
                     </span>
                   )}
@@ -443,7 +455,7 @@ const SheepWeighInsView = ({
                 data-sheep-weighins-saved-view-form
                 style={{
                   background: 'white',
-                  border: '1px solid #99f6e4',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   padding: '10px 14px',
                   marginBottom: 8,
@@ -601,7 +613,7 @@ const SheepWeighInsView = ({
                         fontWeight: 600,
                         cursor: 'pointer',
                         background: 'white',
-                        color: statusFilter === o.k ? '#1e40af' : 'var(--ink-muted)',
+                        color: statusFilter === o.k ? getProgramColor('sheep') : 'var(--ink-muted)',
                       }}
                     >
                       {o.l}
@@ -655,8 +667,8 @@ const SheepWeighInsView = ({
                 padding: '7px 14px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#1e40af',
-                color: 'white',
+                background: getProgramColor('sheep'),
+                color: getReadableText(getProgramColor('sheep')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',

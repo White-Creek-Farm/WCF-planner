@@ -26,6 +26,7 @@ import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
+import {programDotStyle} from '../lib/programColors.js';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 import LockedSubmitter from './LockedSubmitter.jsx';
 
@@ -799,12 +800,16 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
           <label style={lblS}>Program</label>
           <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 6}}>
             {[
-              {key: 'pig', iconKey: ANIMAL_ICON_KEYS.pig, label: 'Pig', color: '#1e40af', bg: '#eff6ff'},
-              {key: 'broiler', iconKey: ANIMAL_ICON_KEYS.broiler, label: 'Broiler', color: '#a16207', bg: '#fef9c3'},
-              {key: 'layer', iconKey: ANIMAL_ICON_KEYS.layer, label: 'Layer', color: '#78350f', bg: '#fffbeb'},
-              {key: 'cattle', iconKey: ANIMAL_ICON_KEYS.cattle, label: 'Cattle', color: '#991b1b', bg: '#fef2f2'},
-              {key: 'sheep', iconKey: ANIMAL_ICON_KEYS.sheep, label: 'Sheep', color: '#0f766e', bg: '#f0fdfa'},
+              {key: 'pig', iconKey: ANIMAL_ICON_KEYS.pig, label: 'Pig'},
+              {key: 'broiler', iconKey: ANIMAL_ICON_KEYS.broiler, label: 'Broiler'},
+              {key: 'layer', iconKey: ANIMAL_ICON_KEYS.layer, label: 'Layer'},
+              {key: 'cattle', iconKey: ANIMAL_ICON_KEYS.cattle, label: 'Cattle'},
+              {key: 'sheep', iconKey: ANIMAL_ICON_KEYS.sheep, label: 'Sheep'},
             ].map(function (p) {
+              // F048: species identity in a picker = small program dot + black
+              // label, NOT colored border/text. Selection is shown with a neutral
+              // stronger border + tinted neutral fill, no per-program palette.
+              var selected = program === p.key;
               return (
                 <button
                   key={p.key}
@@ -823,8 +828,8 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
                     borderRadius: 10,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
-                    border: program === p.key ? '2px solid ' + p.color : '2px solid #e5e7eb',
-                    background: 'white',
+                    border: selected ? '2px solid var(--border-strong)' : '2px solid var(--border)',
+                    background: selected ? 'var(--surface-2)' : 'white',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -832,7 +837,19 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
                   }}
                 >
                   <PlannerIcon iconKey={p.iconKey} size={24} />
-                  <span style={{fontSize: 11, fontWeight: 600, color: p.color}}>{p.label}</span>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <span style={programDotStyle(p.key, 7)} />
+                    {p.label}
+                  </span>
                 </button>
               );
             })}
@@ -1063,7 +1080,9 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
                   borderRadius: 10,
                   border: '2px dashed var(--border)',
                   background: 'transparent',
-                  color: '#991b1b',
+                  // WI-2d: secondary add-row action — consistent brand ink, not a
+                  // per-program color.
+                  color: '#085041',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -1203,7 +1222,9 @@ const AddFeedWebform = ({sb, sessionSubmitter}) => {
                   borderRadius: 10,
                   border: '2px dashed var(--border)',
                   background: 'transparent',
-                  color: '#0f766e',
+                  // WI-2d: secondary add-row action — consistent brand ink, not a
+                  // per-program color.
+                  color: '#085041',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',

@@ -7,7 +7,6 @@ import {openableProps} from '../shared/openable.js';
 const CollapsibleOutcomeSections = ({
   cattle,
   weighIns,
-  HERD_COLORS,
   HERD_LABELS,
   OUTCOMES,
   fmt,
@@ -21,7 +20,6 @@ const CollapsibleOutcomeSections = ({
       {OUTCOMES.map((h) => {
         const cows = cattle.filter((c) => c.herd === h);
         if (cows.length === 0) return null;
-        const hc = HERD_COLORS[h];
         const isExpanded = expanded[h];
         return (
           <div
@@ -40,16 +38,15 @@ const CollapsibleOutcomeSections = ({
               style={{
                 padding: '10px 16px',
                 background: 'white',
-                borderLeft: '3px solid ' + hc.bd,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
               }}
             >
-              <span style={{fontSize: 11, color: hc.tx}}>{isExpanded ? '▼' : '▶'}</span>
-              <span style={{fontSize: 13, fontWeight: 700, color: hc.tx}}>{HERD_LABELS[h]}</span>
-              <span style={{fontSize: 11, color: hc.tx, opacity: 0.7}}>{cows.length}</span>
+              <span style={{fontSize: 11, color: 'var(--text-primary)'}}>{isExpanded ? '▼' : '▶'}</span>
+              <span style={{fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}}>{HERD_LABELS[h]}</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{cows.length}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -58,7 +55,7 @@ const CollapsibleOutcomeSections = ({
                 style={{
                   marginLeft: 'auto',
                   fontSize: 11,
-                  color: hc.tx,
+                  color: 'var(--text-primary)',
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',

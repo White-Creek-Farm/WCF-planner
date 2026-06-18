@@ -14,11 +14,17 @@
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
 import {openableProps} from '../shared/openable.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
 import {computeHousingDisplayCount, computeLayerFeedCost} from '../lib/layerHousing.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
@@ -488,7 +494,7 @@ const LayerBatchesHub = ({
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #92400e', color: '#92400e'};
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS};
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -517,7 +523,7 @@ const LayerBatchesHub = ({
               borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#085041',
+              color: 'var(--text-primary)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -587,8 +593,8 @@ const LayerBatchesHub = ({
                   padding: '7px 18px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#085041',
-                  color: 'white',
+                  background: getProgramColor('layer'),
+                  color: getReadableText(getProgramColor('layer')),
                   cursor: 'pointer',
                   fontSize: 12,
                   fontWeight: 600,
@@ -618,7 +624,7 @@ const LayerBatchesHub = ({
             >
               <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
-                <span style={{fontSize: 12, color: '#b91c1c'}} data-layer-batches-saved-views-error>
+                <span style={{fontSize: 12, color: 'var(--danger)'}} data-layer-batches-saved-views-error>
                   Saved views unavailable. Filters still work.
                 </span>
               ) : (
@@ -666,7 +672,7 @@ const LayerBatchesHub = ({
                         data-layer-batches-saved-view-delete
                         onClick={deleteSelectedView}
                         disabled={savedViewBusy}
-                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                        style={{...savedViewGhostBtnS, color: 'var(--danger)', borderColor: 'var(--border)'}}
                       >
                         Delete
                       </button>
@@ -674,7 +680,12 @@ const LayerBatchesHub = ({
                   )}
                   <span style={{flex: 1}} />
                   {savedViewNotice && (
-                    <span style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? '#065f46' : '#b91c1c'}}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: savedViewNotice.kind === 'success' ? 'var(--ok-ink)' : 'var(--danger)',
+                      }}
+                    >
                       {savedViewNotice.message}
                     </span>
                   )}
@@ -695,7 +706,7 @@ const LayerBatchesHub = ({
                 data-layer-batches-saved-view-form
                 style={{
                   background: 'white',
-                  border: '1px solid #fde68a',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   padding: '10px 14px',
                   marginBottom: 8,
@@ -933,6 +944,7 @@ const LayerBatchesHub = ({
               const isRetired = row.status === 'retired';
               const isRetHome = row.name === 'Retirement Home';
               const statusLabel = isRetHome ? 'Permanent' : isRetired ? 'Retired' : 'Active';
+              const statusVariant = isRetHome ? 'warn' : isRetired ? 'neutral' : 'ok';
               const fc = row.feed_cost;
               return (
                 <div
@@ -969,19 +981,7 @@ const LayerBatchesHub = ({
                   </span>
                   {/* Status */}
                   <span style={{justifySelf: 'start'}}>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: 10,
-                        background: isRetired ? '#f3f4f6' : '#d1fae5',
-                        color: isRetired ? '#6b7280' : '#065f46',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {statusLabel}
-                    </span>
+                    <Badge variant={statusVariant}>{statusLabel}</Badge>
                   </span>
                   {/* Active housings */}
                   <span
@@ -1000,35 +1000,39 @@ const LayerBatchesHub = ({
                     {row.current_hens > 0 ? <strong>{row.current_hens.toLocaleString()}</strong> : '—'}
                   </span>
                   {/* Feed */}
-                  <span style={{fontSize: 12, color: stats.totalFeed > 0 ? '#92400e' : '#9ca3af'}}>
+                  <span style={{fontSize: 12, color: stats.totalFeed > 0 ? 'var(--text-primary)' : 'var(--ink-faint)'}}>
                     {stats.totalFeed > 0 ? (
                       <strong>{Math.round(stats.totalFeed).toLocaleString() + ' lb'}</strong>
                     ) : (
                       '—'
                     )}
                   </span>
-                  {/* Mortality */}
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: stats.totalMort > 10 ? '#b91c1c' : '#374151',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {row.total_mortality > 0 ? row.total_mortality : '0'}
+                  {/* Mortality — danger ink only when it flags a high loss */}
+                  <span style={{fontSize: 12, fontVariantNumeric: 'tabular-nums'}}>
+                    {stats.totalMort > 10 ? (
+                      <StatusText tone="danger">{row.total_mortality > 0 ? row.total_mortality : '0'}</StatusText>
+                    ) : (
+                      <span style={{color: 'var(--text-primary)'}}>
+                        {row.total_mortality > 0 ? row.total_mortality : '0'}
+                      </span>
+                    )}
                   </span>
                   {/* Dozens */}
-                  <span style={{fontSize: 12, color: row.total_dozens > 0 ? '#065f46' : '#9ca3af'}}>
+                  <span
+                    style={{fontSize: 12, color: row.total_dozens > 0 ? 'var(--text-primary)' : 'var(--ink-faint)'}}
+                  >
                     {row.total_dozens > 0 ? row.total_dozens.toLocaleString() : '—'}
                   </span>
                   {/* Cost */}
-                  <span style={{fontSize: 12, color: fc != null ? '#065f46' : '#9ca3af'}}>
+                  <span style={{fontSize: 12, color: fc != null ? 'var(--text-primary)' : 'var(--ink-faint)'}}>
                     {fc != null
                       ? '$' + fc.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})
                       : '—'}
                   </span>
                   {/* Open */}
-                  <span style={{fontSize: 12, color: '#085041', fontWeight: 600, textAlign: 'right'}}>{'Open ->'}</span>
+                  <span style={{fontSize: 12, color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right'}}>
+                    {'Open ->'}
+                  </span>
                 </div>
               );
             })}
@@ -1076,7 +1080,7 @@ const LayerBatchesHub = ({
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>New Layer Batch</div>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>New Layer Batch</div>
               <button
                 type="button"
                 onClick={() => setShowAddBatch(false)}
@@ -1130,7 +1134,7 @@ const LayerBatchesHub = ({
               >
                 Saves a batch shell and opens its record page. Fill in brooder, schooner, and costs there.
               </div>
-              {addErr && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600}}>{addErr}</div>}
+              {addErr && <div style={{color: 'var(--danger)', fontSize: 12, fontWeight: 600}}>{addErr}</div>}
             </div>
             <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button
@@ -1142,8 +1146,8 @@ const LayerBatchesHub = ({
                   padding: '8px 18px',
                   borderRadius: 10,
                   border: 'none',
-                  background: addBusy ? '#9ca3af' : '#085041',
-                  color: 'white',
+                  background: addBusy ? '#9ca3af' : getProgramColor('layer'),
+                  color: addBusy ? 'white' : getReadableText(getProgramColor('layer')),
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: addBusy ? 'not-allowed' : 'pointer',

@@ -5,6 +5,10 @@ import UsersModal from '../auth/UsersModal.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {calcCattleBreedingTimeline, buildCattleCycleSeqMap, cattleCycleLabel} from '../lib/cattleBreeding.js';
 import {upsertCattleBreedingCycle, deleteCattleBreedingCycle} from '../lib/cattleBreedingCycleApi.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 const CattleBreedingView = ({
@@ -120,13 +124,16 @@ const CattleBreedingView = ({
     if (today <= tl.weaningDate) return 'nursing';
     return 'complete';
   }
-  const STATUS_COLORS = {
-    planned: '#6b7280',
-    exposure: '#1d4ed8',
-    pregcheck: '#7c3aed',
-    calving: '#991b1b',
-    nursing: '#ea580c',
-    complete: '#374151',
+  // Lifecycle status → Badge variant (WI-4). planned = upcoming (warn);
+  // the in-progress phases (exposure/pregcheck/calving/nursing) read as info;
+  // complete = ok.
+  const STATUS_VARIANTS = {
+    planned: 'warn',
+    exposure: 'info',
+    pregcheck: 'info',
+    calving: 'info',
+    nursing: 'info',
+    complete: 'ok',
   };
 
   function outstandingCows(c) {
@@ -188,8 +195,8 @@ const CattleBreedingView = ({
               padding: '7px 16px',
               borderRadius: 10,
               border: 'none',
-              background: '#991b1b',
-              color: 'white',
+              background: getProgramColor('cattle'),
+              color: getReadableText(getProgramColor('cattle')),
               fontWeight: 600,
               fontSize: 12,
               cursor: 'pointer',
@@ -223,7 +230,6 @@ const CattleBreedingView = ({
           {cycles.map((c) => {
             const tl = calcCattleBreedingTimeline(c.bull_exposure_start);
             const status = cycleStatus(c, tl);
-            const sc = STATUS_COLORS[status];
             const outstanding = outstandingCows(c);
             const cowList = (c.cow_tags || '')
               .split(/[\n,]+/)
@@ -242,19 +248,9 @@ const CattleBreedingView = ({
                   <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>
                     {cattleCycleLabel(c, seqMap)}
                   </span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: 10,
-                      background: sc,
-                      color: 'white',
-                      textTransform: 'uppercase',
-                    }}
-                  >
+                  <Badge variant={STATUS_VARIANTS[status] || 'neutral'} style={{textTransform: 'uppercase'}}>
                     {status}
-                  </span>
+                  </Badge>
                   <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                     {cowList.length} {cowList.length === 1 ? 'cow' : 'cows'}{' '}
                     {bullList.length > 0 ? '\u00b7 bulls: ' + bullList.join(', ') : ''}
@@ -316,15 +312,17 @@ const CattleBreedingView = ({
                     style={{
                       marginTop: 10,
                       padding: '8px 12px',
-                      background: '#fef2f2',
-                      border: '1px solid #fecaca',
+                      background: 'var(--warn-soft)',
+                      border: '1px solid var(--border)',
                       borderRadius: 10,
                     }}
                   >
-                    <div style={{fontSize: 11, fontWeight: 700, color: '#991b1b', marginBottom: 4}}>
+                    <div style={{fontSize: 11, fontWeight: 700, color: 'var(--warn-ink)', marginBottom: 4}}>
                       {'\u26a0 Outstanding cows (' + outstanding.length + ')'}
                     </div>
-                    <div style={{fontSize: 11, color: '#7f1d1d'}}>{outstanding.map((t) => '#' + t).join(', ')}</div>
+                    <div style={{fontSize: 11, color: 'var(--warn-ink)'}}>
+                      {outstanding.map((t) => '#' + t).join(', ')}
+                    </div>
                   </div>
                 )}
                 {c.notes && (
@@ -397,7 +395,7 @@ const CattleBreedingView = ({
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#991b1b'}}>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>
                 {editId ? 'Edit Cycle' : 'New Breeding Cycle'}
               </div>
               <button
@@ -445,7 +443,7 @@ const CattleBreedingView = ({
                   rows={5}
                   style={{...inpS, fontFamily: 'monospace'}}
                 />
-                <div style={{fontSize: 11, color: '#085041', marginTop: 3}}>
+                <div style={{fontSize: 11, color: 'var(--text-primary)', marginTop: 3}}>
                   {
                     (form.cow_tags || '')
                       .split(/[\n,]+/)
@@ -472,8 +470,8 @@ const CattleBreedingView = ({
                   padding: '8px 20px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#991b1b',
-                  color: 'white',
+                  background: getProgramColor('cattle'),
+                  color: getReadableText(getProgramColor('cattle')),
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: 'pointer',
@@ -488,9 +486,9 @@ const CattleBreedingView = ({
                   style={{
                     padding: '8px 16px',
                     borderRadius: 10,
-                    border: '1px solid #F09595',
+                    border: '1px solid var(--border)',
                     background: 'white',
-                    color: '#b91c1c',
+                    color: 'var(--danger)',
                     fontSize: 13,
                     cursor: 'pointer',
                     fontFamily: 'inherit',

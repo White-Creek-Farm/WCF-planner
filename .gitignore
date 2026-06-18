@@ -157,3 +157,4 @@ scripts/test-bootstrap.sql
 # Local UI-preview capture specs (machine-specific cc-research output paths; not CI)
 tests/light_portal_screenshots.spec.js
 tests/cp2_light_edit_screenshots.spec.js
+audit-review-shots/

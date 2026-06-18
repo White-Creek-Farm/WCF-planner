@@ -25,6 +25,8 @@ import {
   buildCattleBatchPredicate,
   buildCattleBatchComparator,
 } from '../lib/cattleBatchFilters.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import CattleBatchPage from './CattleBatchPage.jsx';
 
 const CATTLE_BATCHES_SURFACE_KEY = 'cattle.batches';
@@ -599,21 +601,7 @@ const CattleBatchesHub = ({
                 </button>
               </>
             )}
-            {!canEdit && (
-              <span
-                style={{
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  background: '#eff6ff',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: 999,
-                  color: '#1e40af',
-                  fontWeight: 600,
-                }}
-              >
-                READ-ONLY
-              </span>
-            )}
+            {!canEdit && <Badge variant="info">READ-ONLY</Badge>}
           </div>
         </div>
 
@@ -923,9 +911,8 @@ const CattleBatchesHub = ({
             expanded={showPlanned}
             onToggle={() => setShowPlanned((v) => !v)}
             color="white"
-            border="#fca5a5"
-            text="#991b1b"
-            railColor="#991b1b"
+            border="var(--border)"
+            text="var(--text-primary)"
             dataKey="planned"
           >
             {virtualPlanned.length === 0 ? (
@@ -946,32 +933,21 @@ const CattleBatchesHub = ({
                       flexWrap: 'wrap',
                       padding: '8px 10px',
                       background: 'white',
-                      border: '1px dashed #fca5a5',
+                      border: '1px dashed var(--border)',
                       borderRadius: 10,
                       fontSize: 12,
                     }}
                   >
-                    <strong style={{color: '#991b1b'}}>{vb.name}</strong>
+                    <strong style={{color: 'var(--text-primary)'}}>{vb.name}</strong>
                     <span style={{color: 'var(--ink-muted)'}}>{vb.label}</span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        padding: '1px 6px',
-                        background: '#fef2f2',
-                        color: '#991b1b',
-                        border: '1px solid #fca5a5',
-                        borderRadius: 999,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                      }}
-                    >
+                    <Badge variant="warn" style={{textTransform: 'uppercase'}}>
                       Planned
-                    </span>
+                    </Badge>
                     <span style={{color: 'var(--ink-muted)'}}>
                       {vb.animalIds.length} {vb.animalIds.length === 1 ? 'cow' : 'cows'}
                     </span>
                     {vb.projectedTotalLbs > 0 && (
-                      <span style={{color: '#065f46', fontWeight: 600}}>
+                      <span style={{color: 'var(--text-primary)', fontWeight: 600}}>
                         {Math.round(vb.projectedTotalLbs).toLocaleString()} lb projected
                       </span>
                     )}
@@ -1030,7 +1006,7 @@ const CattleBatchesHub = ({
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#92400e',
+                color: 'var(--text-primary)',
                 letterSpacing: 0.4,
                 textTransform: 'uppercase',
                 marginBottom: 8,
@@ -1064,32 +1040,21 @@ const CattleBatchesHub = ({
                       flexWrap: 'wrap',
                       padding: '8px 10px',
                       background: 'white',
-                      border: '1px solid #fde68a',
+                      border: '1px solid var(--border)',
                       borderRadius: 10,
                       fontSize: 12,
                       cursor: 'pointer',
                     }}
                   >
-                    <strong style={{color: '#92400e'}}>{sb2.name}</strong>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        padding: '1px 6px',
-                        background: '#fffbeb',
-                        color: '#92400e',
-                        border: '1px solid #fde68a',
-                        borderRadius: 999,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                      }}
-                    >
+                    <strong style={{color: 'var(--text-primary)'}}>{sb2.name}</strong>
+                    <Badge variant="warn" style={{textTransform: 'uppercase'}}>
                       Scheduled
-                    </span>
+                    </Badge>
                     <span style={{color: 'var(--ink-muted)'}}>
                       {sb2.animalIds.length} {sb2.animalIds.length === 1 ? 'cow' : 'cows'} forecast
                     </span>
                     {sb2.planned_process_date && (
-                      <span style={{color: '#065f46'}}>{fmt(sb2.planned_process_date)}</span>
+                      <span style={{color: 'var(--ink-muted)'}}>{fmt(sb2.planned_process_date)}</span>
                     )}
                     <span style={{flex: 1}} />
                     <span style={{fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic'}}>
@@ -1109,7 +1074,7 @@ const CattleBatchesHub = ({
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#1d4ed8',
+                color: 'var(--text-primary)',
                 letterSpacing: 0.4,
                 textTransform: 'uppercase',
                 marginBottom: 8,
@@ -1179,27 +1144,21 @@ const CattleBatchesHub = ({
                       }}
                     >
                       <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{b.name}</span>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: 10,
-                          background: '#1d4ed8',
-                          color: 'white',
-                          textTransform: 'uppercase',
-                        }}
-                      >
+                      <Badge variant="info" style={{textTransform: 'uppercase'}}>
                         {b.status}
-                      </span>
+                      </Badge>
                       <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                         {rows.length} {rows.length === 1 ? 'cow' : 'cows'}
                       </span>
                       {b.actual_process_date && (
-                        <span style={{fontSize: 11, color: '#065f46'}}>processed {fmt(b.actual_process_date)}</span>
+                        <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
+                          processed {fmt(b.actual_process_date)}
+                        </span>
                       )}
                       {yieldPct && (
-                        <span style={{fontSize: 11, fontWeight: 600, color: '#065f46'}}>{yieldPct + '% yield'}</span>
+                        <span style={{fontSize: 11, fontWeight: 600, color: 'var(--text-primary)'}}>
+                          {yieldPct + '% yield'}
+                        </span>
                       )}
                     </div>
                   );
@@ -1267,29 +1226,21 @@ const CattleBatchesHub = ({
                         }}
                       >
                         <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{b.name}</span>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            background: '#374151',
-                            color: 'white',
-                            textTransform: 'uppercase',
-                          }}
-                        >
+                        <Badge variant="neutral" style={{textTransform: 'uppercase'}}>
                           {b.status}
-                        </span>
+                        </Badge>
                         <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                           {rows.length} {rows.length === 1 ? 'cow' : 'cows'}
                         </span>
                         {(b.actual_process_date || b.planned_process_date) && (
-                          <span style={{fontSize: 11, color: '#065f46'}}>
+                          <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                             processed {fmt(b.actual_process_date || b.planned_process_date)}
                           </span>
                         )}
                         {yieldPct && (
-                          <span style={{fontSize: 11, fontWeight: 600, color: '#065f46'}}>{yieldPct + '% yield'}</span>
+                          <span style={{fontSize: 11, fontWeight: 600, color: 'var(--text-primary)'}}>
+                            {yieldPct + '% yield'}
+                          </span>
                         )}
                       </div>
                     );

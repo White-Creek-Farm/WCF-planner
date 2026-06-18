@@ -24,6 +24,8 @@ import {attachCattleToProcessingBatch} from '../lib/processingAttachApi.js';
 import {buildForecast, checkProcessorGate} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
 import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 
 export default function CattleSendToProcessorModal({
   sb,
@@ -245,16 +247,21 @@ export default function CattleSendToProcessorModal({
           <div
             style={{
               padding: '10px 12px',
-              border: '1px solid #fca5a5',
-              borderLeft: '4px solid #991b1b',
+              border: '1px solid var(--border)',
               borderRadius: 10,
-              background: '#fef2f2',
+              background: 'var(--bg-card)',
               marginBottom: 12,
             }}
             data-send-modal-next-batch
           >
             <div
-              style={{fontSize: 11, color: '#991b1b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5}}
+              style={{
+                fontSize: 11,
+                color: 'var(--ink-muted)',
+                textTransform: 'uppercase',
+                fontWeight: 700,
+                letterSpacing: 0.5,
+              }}
             >
               Next forecast batch
             </div>
@@ -270,9 +277,9 @@ export default function CattleSendToProcessorModal({
             style={{
               padding: '10px 12px',
               borderRadius: 10,
-              background: '#fef2f2',
-              border: '1px solid #fca5a5',
-              color: '#991b1b',
+              background: 'var(--warn-soft)',
+              border: '1px solid var(--border)',
+              color: 'var(--warn-ink)',
               fontSize: 12,
               marginBottom: 12,
             }}
@@ -289,9 +296,9 @@ export default function CattleSendToProcessorModal({
             style={{
               padding: '10px 12px',
               borderRadius: 10,
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
-              color: '#92400e',
+              background: 'var(--warn-soft)',
+              border: '1px solid var(--border)',
+              color: 'var(--warn-ink)',
               fontSize: 12,
               marginBottom: 12,
             }}
@@ -311,15 +318,15 @@ export default function CattleSendToProcessorModal({
                     padding: '2px 8px',
                     borderRadius: 999,
                     background: 'white',
-                    color: '#92400e',
-                    border: '1px solid #fde68a',
+                    color: 'var(--warn-ink)',
+                    border: '1px solid var(--border)',
                   }}
                 >
                   #{t}
                 </span>
               ))}
             </div>
-            <div style={{fontSize: 11, color: '#78350f'}}>
+            <div style={{fontSize: 11, color: 'var(--warn-ink)'}}>
               {isEmptyScheduled
                 ? 'No cattle are currently projected for this scheduled batch. The actual cattle you send override the projection — only the selected entries move to processed.'
                 : "These tags aren't in the next batch's projected cohort. The actual cattle you send override the projection — only the selected entries move to processed. Confirm if you intend to send them anyway."}
@@ -369,7 +376,8 @@ export default function CattleSendToProcessorModal({
             style={{
               ...recordSaveButton,
               border: 'none',
-              background: busy || loading || hardBlocked || !canSend ? '#9ca3af' : '#991b1b',
+              background: busy || loading || hardBlocked || !canSend ? '#9ca3af' : getProgramColor('cattle'),
+              color: busy || loading || hardBlocked || !canSend ? 'white' : getReadableText(getProgramColor('cattle')),
               fontWeight: 700,
               cursor: busy || loading || hardBlocked || !canSend ? 'not-allowed' : 'pointer',
             }}

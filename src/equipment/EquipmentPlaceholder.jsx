@@ -40,7 +40,9 @@ export default function EquipmentPlaceholder({
           }}
         >
           <div style={{fontSize: 48, marginBottom: 12}}>{'\ud83d\ude9c'}</div>
-          <div style={{fontSize: 18, fontWeight: 700, color: '#57534e', marginBottom: 6}}>Equipment Tracking</div>
+          <div style={{fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6}}>
+            Equipment Tracking
+          </div>
           <div style={{fontSize: 13, color: 'var(--ink-muted)', marginBottom: 18}}>
             Tractors, implements, maintenance schedules {'\u2014'} coming in a future build.
           </div>

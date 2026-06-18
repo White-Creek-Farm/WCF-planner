@@ -11,7 +11,7 @@
 // Fail-closed loading order per the Cold-Boot contract: loading -> loadError
 // (user-gated Retry) -> not-found -> record.
 import React from 'react';
-import {EQUIPMENT_COLOR, fmtReading, stripPodioHtml} from '../lib/equipment.js';
+import {fmtReading, stripPodioHtml} from '../lib/equipment.js';
 import {imageAltText} from '../lib/imageAlt.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
@@ -103,11 +103,9 @@ export default function EquipmentFuelingEntryPage({
       <RecordBackLink label={'Back to ' + eq.name} onBack={onBack} />
 
       {/* Header tile */}
-      <div
-        style={{background: 'white', border: '2px solid ' + EQUIPMENT_COLOR, borderRadius: 12, padding: '14px 20px'}}
-      >
+      <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 20px'}}>
         <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8}}>
-          <RecordTitle fontSize={20} margin="0" style={{color: EQUIPMENT_COLOR}}>
+          <RecordTitle fontSize={20} margin="0" style={{color: 'var(--text-primary)'}}>
             Fueling — {fmt(fueling.date)}
           </RecordTitle>
           <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
@@ -157,9 +155,9 @@ export default function EquipmentFuelingEntryPage({
                   fontSize: 10,
                   padding: '3px 8px',
                   borderRadius: 999,
-                  background: '#d1fae5',
-                  color: '#065f46',
-                  border: '1px solid #a7f3d0',
+                  background: 'var(--ok-soft)',
+                  color: 'var(--ok-ink)',
+                  border: '1px solid var(--border)',
                 }}
               >
                 ✓ {c.label || c.id}
@@ -184,11 +182,11 @@ export default function EquipmentFuelingEntryPage({
                   key={i}
                   style={{
                     padding: '8px 10px',
-                    background: '#fafafa',
-                    border: '1px solid ' + (isFull ? '#bfdbfe' : '#fde68a'),
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
                     borderRadius: 10,
                     fontSize: 12,
-                    color: isFull ? '#1e40af' : '#92400e',
+                    color: 'var(--text-primary)',
                     fontWeight: 600,
                   }}
                 >

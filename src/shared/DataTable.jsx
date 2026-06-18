@@ -80,6 +80,7 @@ export default function DataTable({
   emptyAction,
   surfaceKey = 'data-table',
   stickyTop = 0,
+  maxInitialRows,
 }) {
   const isSelected = (k) => {
     if (!selectedIds) return false;
@@ -89,11 +90,25 @@ export default function DataTable({
 
   // Leading columns (select / row-number) widen the colSpan for bands/skeletons.
   const leadCols = (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0);
-  const totalCols = columns.length + leadCols;
+  // CP0 WI-6: openable rows reserve a trailing chevron column; the › is painted
+  // by the global `.hoverable-row .chev` rule on hover/focus (no layout shift).
+  const chevCol = onRowOpen ? 1 : 0;
+  const totalCols = columns.length + leadCols + chevCol;
 
   const loaded = !loading && !loadError;
   const flatRows = sections ? sections.flatMap((s) => s.rows || []) : rows || [];
   const isEmpty = loaded && flatRows.length === 0;
+
+  // §5.2 perf: cap rendered rows for very long flat lists (e.g. dailys with
+  // thousands of records) so the DOM stays bounded. The full row set stays in
+  // memory, so export/print/filters/saved-views are unaffected; "Show more"
+  // reveals the next page. No cap when maxInitialRows is unset (other tables
+  // render every row exactly as before). Reset on row-count change.
+  const pageStep = maxInitialRows || 0;
+  const [visibleCount, setVisibleCount] = React.useState(pageStep || Infinity);
+  React.useEffect(() => {
+    setVisibleCount(pageStep || Infinity);
+  }, [pageStep, flatRows.length]);
 
   function openRow(row, disabled) {
     if (disabled || !onRowOpen) return;
@@ -134,6 +149,11 @@ export default function DataTable({
             {col.render ? col.render(row) : row?.[col.key]}
           </td>
         ))}
+        {openable && (
+          <td className="chev-col mobile-hide" aria-hidden="true">
+            <span className="chev">{'›'}</span>
+          </td>
+        )}
       </tr>
     );
   }
@@ -190,6 +210,7 @@ export default function DataTable({
                   </th>
                 );
               })}
+              {onRowOpen && <th className="chev-col" aria-hidden="true" />}
             </tr>
           </thead>
           <tbody>
@@ -211,7 +232,33 @@ export default function DataTable({
                 </React.Fragment>
               ))}
 
-            {!loading && !sections && (rows || []).map((row, i) => renderBodyRow(row, i))}
+            {!loading && !sections && (rows || []).slice(0, visibleCount).map((row, i) => renderBodyRow(row, i))}
+            {!loading && !sections && (rows || []).length > visibleCount && (
+              <tr>
+                <td colSpan={totalCols} style={{padding: '10px 14px', textAlign: 'center'}}>
+                  <button
+                    type="button"
+                    data-datatable-show-more="1"
+                    onClick={() => setVisibleCount((c) => c + (pageStep || 200))}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: 10,
+                      border: '1px solid var(--border-strong)',
+                      background: 'var(--surface)',
+                      color: 'var(--text-primary)',
+                      fontWeight: 600,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {`Show ${Math.min(pageStep || 200, (rows || []).length - visibleCount)} more (${
+                      (rows || []).length - visibleCount
+                    } remaining)`}
+                  </button>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}

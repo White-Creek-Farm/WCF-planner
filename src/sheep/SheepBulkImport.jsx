@@ -1,6 +1,8 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 /* global XLSX */
 import React from 'react';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {VALID_BREED_STATUS, parseImportDate, parseImportNumber, normTagStr} from '../lib/bulkImport.js';
 
 const SHEEP_IMPORT_COLUMNS = [
@@ -330,8 +332,8 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
     padding: '9px 18px',
     borderRadius: 10,
     border: 'none',
-    background: '#0f766e',
-    color: 'white',
+    background: getProgramColor('sheep'),
+    color: getReadableText(getProgramColor('sheep')),
     fontWeight: 600,
     fontSize: 13,
     cursor: 'pointer',
@@ -386,7 +388,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
             alignItems: 'center',
           }}
         >
-          <h2 style={{margin: 0, fontSize: 16, color: '#0f766e', fontWeight: 700}}>
+          <h2 style={{margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 700}}>
             {'\ud83d\udce5'} Bulk Import Sheep
           </h2>
           <button
@@ -401,9 +403,9 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
           {err && (
             <div
               style={{
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                color: '#991b1b',
+                background: 'var(--danger-soft)',
+                border: '1px solid var(--border)',
+                color: 'var(--danger)',
                 padding: '10px 14px',
                 borderRadius: 10,
                 marginBottom: 14,
@@ -452,8 +454,8 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                 <span
                   style={{
                     padding: '4px 10px',
-                    background: '#dcfce7',
-                    color: '#166534',
+                    background: 'var(--ok-soft)',
+                    color: 'var(--ok-ink)',
                     borderRadius: 10,
                     fontWeight: 600,
                   }}
@@ -464,8 +466,8 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   <span
                     style={{
                       padding: '4px 10px',
-                      background: '#fef3c7',
-                      color: '#92400e',
+                      background: 'var(--warn-soft)',
+                      color: 'var(--warn-ink)',
                       borderRadius: 10,
                       fontWeight: 600,
                     }}
@@ -477,8 +479,8 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   <span
                     style={{
                       padding: '4px 10px',
-                      background: '#fef2f2',
-                      color: '#991b1b',
+                      background: 'var(--danger-soft)',
+                      color: 'var(--danger)',
                       borderRadius: 10,
                       fontWeight: 600,
                     }}
@@ -596,7 +598,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                     {rows.map((r, i) => {
                       const hasErr = r.errors.length > 0;
                       const hasWarn = r.warnings.length > 0;
-                      const bg = hasErr ? '#fef2f2' : hasWarn ? '#fffbeb' : 'white';
+                      const bg = hasErr ? 'var(--danger-soft)' : hasWarn ? 'var(--warn-soft)' : 'white';
                       const extras = [];
                       if (r.parsed.last_lambing_date)
                         extras.push(
@@ -619,11 +621,11 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                           </td>
                           <td style={{padding: '6px 10px'}}>
                             {hasErr ? (
-                              <span style={{color: '#991b1b', fontWeight: 600}}>{'\u2717'} skip</span>
+                              <span style={{color: 'var(--danger)', fontWeight: 600}}>{'\u2717'} skip</span>
                             ) : hasWarn ? (
-                              <span style={{color: '#92400e', fontWeight: 600}}>{'\u26a0'} ready</span>
+                              <span style={{color: 'var(--warn-ink)', fontWeight: 600}}>{'\u26a0'} ready</span>
                             ) : (
-                              <span style={{color: '#166534', fontWeight: 600}}>{'\u2713'} ready</span>
+                              <span style={{color: 'var(--ok-ink)', fontWeight: 600}}>{'\u2713'} ready</span>
                             )}
                           </td>
                           <td style={{padding: '6px 10px', fontWeight: 600}}>{r.parsed.tag || '\u2014'}</td>
@@ -634,7 +636,13 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                           <td style={{padding: '6px 10px', color: 'var(--ink-muted)'}}>
                             {extras.length ? extras.join(' \u00b7 ') : '\u2014'}
                           </td>
-                          <td style={{padding: '6px 10px', color: hasErr ? '#991b1b' : '#92400e', fontSize: 11}}>
+                          <td
+                            style={{
+                              padding: '6px 10px',
+                              color: hasErr ? 'var(--danger)' : 'var(--warn-ink)',
+                              fontSize: 11,
+                            }}
+                          >
                             {[...r.errors, ...r.warnings].join('; ') || '\u2014'}
                           </td>
                         </tr>
@@ -681,7 +689,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                 <div
                   style={{
                     height: '100%',
-                    background: '#0f766e',
+                    background: getProgramColor('sheep'),
                     width: (progress.total ? (progress.done / progress.total) * 100 : 0) + '%',
                     transition: 'width 0.2s',
                   }}
@@ -696,8 +704,8 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                 <span
                   style={{
                     padding: '6px 12px',
-                    background: '#dcfce7',
-                    color: '#166534',
+                    background: 'var(--ok-soft)',
+                    color: 'var(--ok-ink)',
                     borderRadius: 10,
                     fontWeight: 600,
                   }}
@@ -708,8 +716,8 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   <span
                     style={{
                       padding: '6px 12px',
-                      background: '#fef2f2',
-                      color: '#991b1b',
+                      background: 'var(--danger-soft)',
+                      color: 'var(--danger)',
                       borderRadius: 10,
                       fontWeight: 600,
                     }}
@@ -721,8 +729,8 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                   <span
                     style={{
                       padding: '6px 12px',
-                      background: '#f3f4f6',
-                      color: '#4b5563',
+                      background: 'var(--surface-2)',
+                      color: 'var(--text-secondary)',
                       borderRadius: 10,
                       fontWeight: 600,
                     }}
@@ -741,7 +749,7 @@ const SheepBulkImport = ({sb, breedOpts, originOpts, existingSheep, onClose, onC
                 }}
               >
                 {results.log.map((l, i) => (
-                  <div key={i} style={{fontSize: 12, padding: '3px 0', color: l.ok ? 'var(--ink)' : '#991b1b'}}>
+                  <div key={i} style={{fontSize: 12, padding: '3px 0', color: l.ok ? 'var(--ink)' : 'var(--danger)'}}>
                     {l.ok ? '\u2713' : '\u2717'} #{l.tag}
                     {l.msg ? ' \u2014 ' + l.msg : ''}
                   </div>

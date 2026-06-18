@@ -11,8 +11,11 @@ import {toISO} from '../lib/dateUtils.js';
 import {buildForecast} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
+import {getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 const CattleHomeView = ({
   sb,
   fmt,
@@ -37,7 +40,6 @@ const CattleHomeView = ({
   const [forecastTile, setForecastTile] = useState(null);
   const HERDS = ['mommas', 'backgrounders', 'finishers', 'bulls'];
   const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
-  const HERD_COLORS = {mommas: '#dc2626', backgrounders: '#ea580c', finishers: '#e11d48', bulls: '#991b1b'};
   // Pull 120 days of dailys so the nutrition panel can compute 30/90/120-day
   // windows in a single pass without re-fetching.
   const cutoff120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
@@ -301,7 +303,7 @@ const CattleHomeView = ({
     const nfcPct = s.target ? (s.perDay.nfc / s.target.nfc) * 100 : null;
     const items = [
       {l: 'Total feed', v: s.feedLbs > 0 ? Math.round(s.feedLbs).toLocaleString() + ' lbs' : '\u2014'},
-      {l: 'Feed cost', v: s.feedCost > 0 ? '$' + Math.round(s.feedCost).toLocaleString() : '\u2014', color: '#92400e'},
+      {l: 'Feed cost', v: s.feedCost > 0 ? '$' + Math.round(s.feedCost).toLocaleString() : '\u2014'},
       {
         l: 'DM lb/day',
         v: s.perDay.dm > 0 ? s.perDay.dm.toFixed(1) : '\u2014',
@@ -393,13 +395,13 @@ const CattleHomeView = ({
           onClick={() => setVal(v)}
           style={{
             padding: '6px 14px',
-            border: val === v ? '1px solid #991b1b' : '1px solid var(--border-strong)',
+            border: val === v ? '1px solid ' + getProgramColor('cattle') : '1px solid var(--border-strong)',
             fontFamily: 'inherit',
             fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer',
             background: 'white',
-            color: val === v ? '#991b1b' : 'var(--ink-muted)',
+            color: val === v ? getProgramColor('cattle') : 'var(--ink-muted)',
           }}
         >
           {l}
@@ -414,7 +416,7 @@ const CattleHomeView = ({
   const prevToISO = new Date(Date.now() - cattleDashPeriod * 86400000).toISOString().slice(0, 10);
   const prevFromISO = new Date(Date.now() - (cattleDashPeriod * 2 - 1) * 86400000).toISOString().slice(0, 10);
 
-  const StatTile = ({label, val, sub, color = '#991b1b'}) => (
+  const StatTile = ({label, val, sub, color = 'var(--text-primary)'}) => (
     <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
       <div
         style={{
@@ -468,9 +470,9 @@ const CattleHomeView = ({
               style={{
                 padding: '7px 14px',
                 borderRadius: 10,
-                border: '1px solid #991b1b',
+                border: '1px solid var(--border)',
                 background: 'white',
-                color: '#991b1b',
+                color: 'var(--text-primary)',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 fontSize: 12,
@@ -488,24 +490,21 @@ const CattleHomeView = ({
               label="Total Live Weight"
               val={totalLiveWeight > 0 ? Math.round(totalLiveWeight).toLocaleString() + ' lbs' : '\u2014'}
               sub={totalEstimatedCows > 0 ? totalEstimatedCows + ' est. @ 1,000 lb' : null}
-              color="#991b1b"
             />
             <StatTile
               label="Cow Units (1,000 lb)"
               val={totalLiveWeight > 0 ? (totalLiveWeight / 1000).toFixed(1) : '\u2014'}
               sub={totalEstimatedCows > 0 ? totalEstimatedCows + ' est.' : null}
-              color="#7f1d1d"
             />
             <StatTile
               label="Mortality 30d"
               val={totalMort30.toString()}
-              color={totalMort30 > 0 ? '#b91c1c' : 'var(--ink)'}
+              color={totalMort30 > 0 ? 'var(--danger)' : 'var(--text-primary)'}
             />
-            <StatTile label="Reports 30d" val={dailys.length.toString()} color="var(--ink)" />
+            <StatTile label="Reports 30d" val={dailys.length.toString()} />
             <StatTile
               label="Feed Cost 30d"
               val={totalFeedCost30 > 0 ? '$' + Math.round(totalFeedCost30).toLocaleString() : '\u2014'}
-              color="#92400e"
             />
           </div>
         )}
@@ -515,9 +514,8 @@ const CattleHomeView = ({
             data-cattle-home-forecast-tile
             {...openableProps(() => setView('cattleforecast'))}
             style={{
-              background: 'white',
-              border: '1px solid #fca5a5',
-              borderLeft: '4px solid #991b1b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: '14px 18px',
               cursor: 'pointer',
@@ -528,20 +526,7 @@ const CattleHomeView = ({
             }}
             className="hoverable-tile"
           >
-            <span
-              style={{
-                fontSize: 11,
-                padding: '3px 8px',
-                background: '#991b1b',
-                color: 'white',
-                borderRadius: 999,
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-              }}
-            >
-              Forecast
-            </span>
+            <Badge variant="neutral">Forecast</Badge>
             {forecastTile.nextBatch ? (
               <>
                 <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>
@@ -595,7 +580,9 @@ const CattleHomeView = ({
                     className="hoverable-tile"
                   >
                     <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
-                      <span style={{fontSize: 14, fontWeight: 700, color: HERD_COLORS[h]}}>{HERD_LABELS[h]}</span>
+                      <span style={{fontSize: 14, fontWeight: 700, color: 'var(--text-primary)'}}>
+                        {HERD_LABELS[h]}
+                      </span>
                       <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                         {cows.length} {cows.length === 1 ? 'cow' : 'cows'}
                       </span>
@@ -607,7 +594,7 @@ const CattleHomeView = ({
                       Cow units: <strong>{cu > 0 ? cu.toFixed(1) : '\u2014'}</strong>
                     </div>
                     {est > 0 && (
-                      <div style={{fontSize: 11, color: '#92400e', marginTop: 2}}>
+                      <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 2}}>
                         {est + ' est. @ 1,000 lb (no weigh-in yet)'}
                       </div>
                     )}
@@ -653,7 +640,6 @@ const CattleHomeView = ({
                 const t = targets[h];
                 const cows = cattle.filter((c) => c.herd === h);
                 const est = herdEstimatedCount(h);
-                const accent = HERD_COLORS[h];
                 return (
                   <div
                     key={h}
@@ -671,7 +657,6 @@ const CattleHomeView = ({
                       style={{
                         background: 'white',
                         borderBottom: '1px solid var(--divider)',
-                        borderLeft: '4px solid ' + accent,
                         padding: '12px 20px',
                         display: 'flex',
                         alignItems: 'center',
@@ -679,7 +664,7 @@ const CattleHomeView = ({
                         flexWrap: 'wrap',
                       }}
                     >
-                      <span style={{fontSize: 16, fontWeight: 700, color: accent}}>
+                      <span style={{fontSize: 16, fontWeight: 700, color: 'var(--text-primary)'}}>
                         {renderCattleIconLabel(HERD_LABELS[h], {size: 22})}
                       </span>
                       <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
@@ -691,7 +676,7 @@ const CattleHomeView = ({
                         </span>
                       )}
                       {est > 0 && (
-                        <span style={{fontSize: 11, color: '#92400e', fontStyle: 'italic'}}>
+                        <span style={{fontSize: 11, color: 'var(--warn-ink)', fontStyle: 'italic'}}>
                           {'(' + est + ' est. @ 1,000 lb)'}
                         </span>
                       )}
@@ -707,7 +692,9 @@ const CattleHomeView = ({
                         </span>
                       )}
                       {!t && (
-                        <span style={{fontSize: 11, color: '#b91c1c', marginLeft: 'auto'}}>No target configured</span>
+                        <span style={{fontSize: 11, color: 'var(--warn-ink)', marginLeft: 'auto'}}>
+                          No target configured
+                        </span>
                       )}
                     </div>
                     <div style={{padding: '14px 20px'}}>

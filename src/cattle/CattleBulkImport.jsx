@@ -2,6 +2,10 @@
 /* global XLSX */
 import React from 'react';
 import {VALID_BREED_STATUS, parseImportDate, parseImportNumber, normTagStr} from '../lib/bulkImport.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 
 const CATTLE_IMPORT_COLUMNS = [
   'tag',
@@ -352,8 +356,8 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
     padding: '9px 18px',
     borderRadius: 10,
     border: 'none',
-    background: '#991b1b',
-    color: 'white',
+    background: getProgramColor('cattle'),
+    color: getReadableText(getProgramColor('cattle')),
     fontWeight: 600,
     fontSize: 13,
     cursor: 'pointer',
@@ -408,7 +412,7 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
             alignItems: 'center',
           }}
         >
-          <h2 style={{margin: 0, fontSize: 16, color: '#991b1b', fontWeight: 700}}>
+          <h2 style={{margin: 0, fontSize: 16, color: 'var(--text-primary)', fontWeight: 700}}>
             {'\ud83d\udce5'} Bulk Import Cattle
           </h2>
           <button
@@ -424,9 +428,9 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
           {err && (
             <div
               style={{
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                color: '#991b1b',
+                background: 'var(--danger-soft)',
+                border: '1px solid var(--border)',
+                color: 'var(--danger)',
                 padding: '10px 14px',
                 borderRadius: 10,
                 marginBottom: 14,
@@ -472,42 +476,18 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
           {stage === 'preview' && (
             <div>
               <div style={{display: 'flex', gap: 14, fontSize: 13, marginBottom: 14, flexWrap: 'wrap'}}>
-                <span
-                  style={{
-                    padding: '4px 10px',
-                    background: '#dcfce7',
-                    color: '#166534',
-                    borderRadius: 999,
-                    fontWeight: 600,
-                  }}
-                >
+                <Badge variant="ok">
                   {'\u2713'} {readyCount} ready
-                </span>
+                </Badge>
                 {warnCount > 0 && (
-                  <span
-                    style={{
-                      padding: '4px 10px',
-                      background: '#fef3c7',
-                      color: '#92400e',
-                      borderRadius: 999,
-                      fontWeight: 600,
-                    }}
-                  >
+                  <Badge variant="warn">
                     {'\u26a0'} {warnCount} with warnings
-                  </span>
+                  </Badge>
                 )}
                 {errorCount > 0 && (
-                  <span
-                    style={{
-                      padding: '4px 10px',
-                      background: '#fef2f2',
-                      color: '#991b1b',
-                      borderRadius: 999,
-                      fontWeight: 600,
-                    }}
-                  >
+                  <Badge variant="danger">
                     {'\u2717'} {errorCount} with errors (will skip)
-                  </span>
+                  </Badge>
                 )}
               </div>
               <div style={{maxHeight: '55vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 999}}>
@@ -619,7 +599,7 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
                     {rows.map((r, i) => {
                       const hasErr = r.errors.length > 0;
                       const hasWarn = r.warnings.length > 0;
-                      const bg = hasErr ? '#fef2f2' : hasWarn ? '#fffbeb' : 'white';
+                      const bg = hasErr ? 'var(--danger-soft)' : hasWarn ? 'var(--warn-soft)' : 'white';
                       const extras = [];
                       if (r.parsed.last_calve_date) extras.push('calving ' + r.parsed.last_calve_date);
                       if (r.parsed.receiving_weight != null)
@@ -637,11 +617,11 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
                           </td>
                           <td style={{padding: '6px 10px'}}>
                             {hasErr ? (
-                              <span style={{color: '#991b1b', fontWeight: 600}}>{'\u2717'} skip</span>
+                              <span style={{color: 'var(--danger)', fontWeight: 600}}>{'\u2717'} skip</span>
                             ) : hasWarn ? (
-                              <span style={{color: '#92400e', fontWeight: 600}}>{'\u26a0'} ready</span>
+                              <span style={{color: 'var(--warn-ink)', fontWeight: 600}}>{'\u26a0'} ready</span>
                             ) : (
-                              <span style={{color: '#166534', fontWeight: 600}}>{'\u2713'} ready</span>
+                              <span style={{color: 'var(--ok-ink)', fontWeight: 600}}>{'\u2713'} ready</span>
                             )}
                           </td>
                           <td style={{padding: '6px 10px', fontWeight: 600}}>{r.parsed.tag || '\u2014'}</td>
@@ -652,7 +632,13 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
                           <td style={{padding: '6px 10px', color: 'var(--ink-muted)'}}>
                             {extras.length ? extras.join(' \u00b7 ') : '\u2014'}
                           </td>
-                          <td style={{padding: '6px 10px', color: hasErr ? '#991b1b' : '#92400e', fontSize: 11}}>
+                          <td
+                            style={{
+                              padding: '6px 10px',
+                              color: hasErr ? 'var(--danger)' : 'var(--warn-ink)',
+                              fontSize: 11,
+                            }}
+                          >
                             {[...r.errors, ...r.warnings].join('; ') || '\u2014'}
                           </td>
                         </tr>
@@ -699,7 +685,7 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
                 <div
                   style={{
                     height: '100%',
-                    background: '#991b1b',
+                    background: getProgramColor('cattle'),
                     width: (progress.total ? (progress.done / progress.total) * 100 : 0) + '%',
                     transition: 'width 0.2s',
                   }}
@@ -711,43 +697,15 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
           {stage === 'done' && results && (
             <div>
               <div style={{display: 'flex', gap: 14, fontSize: 13, marginBottom: 16, flexWrap: 'wrap'}}>
-                <span
-                  style={{
-                    padding: '6px 12px',
-                    background: '#dcfce7',
-                    color: '#166534',
-                    borderRadius: 999,
-                    fontWeight: 600,
-                  }}
-                >
+                <Badge variant="ok">
                   {'\u2713'} {results.okCount} imported
-                </span>
+                </Badge>
                 {results.failCount > 0 && (
-                  <span
-                    style={{
-                      padding: '6px 12px',
-                      background: '#fef2f2',
-                      color: '#991b1b',
-                      borderRadius: 999,
-                      fontWeight: 600,
-                    }}
-                  >
+                  <Badge variant="danger">
                     {'\u2717'} {results.failCount} failed
-                  </span>
+                  </Badge>
                 )}
-                {results.skipped > 0 && (
-                  <span
-                    style={{
-                      padding: '6px 12px',
-                      background: '#f3f4f6',
-                      color: '#4b5563',
-                      borderRadius: 999,
-                      fontWeight: 600,
-                    }}
-                  >
-                    skipped {results.skipped} with errors
-                  </span>
-                )}
+                {results.skipped > 0 && <Badge variant="neutral">skipped {results.skipped} with errors</Badge>}
               </div>
               <div
                 style={{
@@ -759,7 +717,7 @@ const CattleBulkImport = ({sb, breedOpts, originOpts, existingCattle, onClose, o
                 }}
               >
                 {results.log.map((l, i) => (
-                  <div key={i} style={{fontSize: 12, padding: '3px 0', color: l.ok ? '#374151' : '#991b1b'}}>
+                  <div key={i} style={{fontSize: 12, padding: '3px 0', color: l.ok ? 'var(--ink)' : 'var(--danger)'}}>
                     {l.ok ? '\u2713' : '\u2717'} #{l.tag}
                     {l.msg ? ' \u2014 ' + l.msg : ''}
                   </div>

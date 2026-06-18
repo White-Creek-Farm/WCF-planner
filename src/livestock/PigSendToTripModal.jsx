@@ -175,7 +175,7 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
         {sub && sex && (
           <div style={{...lblS}}>
             <span style={{fontWeight: 700, color: 'var(--ink)'}}>{sub.name}</span>{' '}
-            <span style={{color: '#1d4ed8'}}>({sex})</span>
+            <span style={{color: 'var(--ink-muted)'}}>({sex})</span>
           </div>
         )}
 
@@ -189,9 +189,9 @@ const PigSendToTripModal = ({session, selectedEntries, feederGroups, onClose, on
               data-pig-send-summary="1"
               style={{
                 fontSize: 11,
-                color: '#1e40af',
-                background: '#eff6ff',
-                border: '1px solid #bfdbfe',
+                color: 'var(--info)',
+                background: 'var(--info-soft)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '6px 10px',
                 marginTop: 6,

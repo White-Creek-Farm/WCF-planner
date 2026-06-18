@@ -7,19 +7,17 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, todayISO, addDays, toISO} from '../lib/dateUtils.js';
-import {S} from '../lib/styles.js';
-import {
-  calcBreedingTimeline,
-  buildCycleSeqMap,
-  cycleLabel,
-  PIG_GROUPS,
-  PIG_GROUP_COLORS,
-  getReadableText,
-} from '../lib/pig.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, PIG_GROUPS} from '../lib/pig.js';
+import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 import {matchCycleForFarrowing, ensureFarrowBatchForCycle} from '../lib/pigFarrowBatch.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
@@ -62,12 +60,9 @@ export default function FarrowingView({
       'outside-pen': 'Outside pen',
     })[v] || v;
   const qualityLabel = (v) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : '—');
-  const qualityColor = (v) =>
-    ({
-      excellent: {bg: '#EAF3DE', tx: '#27500A'},
-      average: {bg: '#FAEEDA', tx: '#854F0B'},
-      poor: {bg: '#FCEBEB', tx: '#791F1F'},
-    })[v] || {bg: '#f0f0f0', tx: '#888'};
+  // Mothering rating → colored ink tone (CP0 WI-4: ratings are colored TEXT via
+  // StatusText, not chips). excellent→ok, average→warn, poor→danger.
+  const qualityTone = (v) => ({excellent: 'ok', average: 'warn', poor: 'danger'})[v] || 'muted';
   const EMPTY_FARROW = {
     sow: '',
     group: '1',
@@ -183,7 +178,7 @@ export default function FarrowingView({
       <div>
         <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8}}>
           <div style={{fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap'}}>
-            Sows farrowed: <strong style={{color: pct >= 100 ? '#085041' : '#185FA5'}}>{recs.length}</strong>
+            Sows farrowed: <strong style={{color: 'var(--text-primary)'}}>{recs.length}</strong>
             {total > 0 && (
               <>
                 {' '}
@@ -206,7 +201,7 @@ export default function FarrowingView({
                   style={{
                     height: '100%',
                     width: `${pct}%`,
-                    background: pct >= 100 ? '#1D9E75' : '#378ADD',
+                    background: pct >= 100 ? 'var(--ok-ink)' : 'var(--text-secondary)',
                     borderRadius: 4 /* radius-allow: progress bar fill (height 8) */,
                   }}
                 />
@@ -218,10 +213,10 @@ export default function FarrowingView({
         {recs.length > 0 && (
           <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 10}}>
             {[
-              {label: 'Total born', val: born, color: '#185FA5'},
-              {label: 'Deaths', val: dead, color: '#A32D2D'},
-              {label: 'Alive', val: alive, color: 'var(--green-700)'},
-              {label: 'Survival', val: rate + '%', color: '#639922'},
+              {label: 'Total born', val: born, color: 'var(--text-primary)'},
+              {label: 'Deaths', val: dead, color: 'var(--danger)'},
+              {label: 'Alive', val: alive, color: 'var(--text-primary)'},
+              {label: 'Survival', val: rate + '%', color: 'var(--ok-ink)'},
             ].map((s) => (
               <div
                 key={s.label}
@@ -295,7 +290,6 @@ export default function FarrowingView({
           </thead>
           <tbody>
             {recs.map((r, i) => {
-              const qc = qualityColor(r.motheringQuality);
               const alive = (parseInt(r.totalBorn) || 0) - (parseInt(r.deaths) || 0);
               const impregDate = r.farrowingDate ? toISO(addDays(r.farrowingDate, -116)) : null;
               return (
@@ -305,22 +299,22 @@ export default function FarrowingView({
                 >
                   <td style={{padding: '6px 8px', fontWeight: 600}}>#{r.sow}</td>
                   <td style={{padding: '6px 8px', whiteSpace: 'nowrap'}}>{fmt(r.farrowingDate)}</td>
-                  <td style={{padding: '6px 8px', whiteSpace: 'nowrap', color: 'var(--green-700)'}}>
+                  <td style={{padding: '6px 8px', whiteSpace: 'nowrap', color: 'var(--text-secondary)'}}>
                     {impregDate ? fmt(impregDate) : '\u2014'}
                   </td>
                   <td style={{padding: '6px 8px'}}>{resolveSire(r) || '\u2014'}</td>
                   <td style={{padding: '6px 8px'}}>
                     {r.motheringQuality ? (
-                      <span style={S.badge(qc.bg, qc.tx)}>{qualityLabel(r.motheringQuality)}</span>
+                      <StatusText tone={qualityTone(r.motheringQuality)}>{qualityLabel(r.motheringQuality)}</StatusText>
                     ) : (
                       <span style={{color: 'var(--text-muted)'}}>—</span>
                     )}
                   </td>
                   <td style={{padding: '6px 8px', textAlign: 'center', fontWeight: 500}}>{r.totalBorn || 0}</td>
-                  <td style={{padding: '6px 8px', textAlign: 'center', color: '#A32D2D', fontWeight: 500}}>
+                  <td style={{padding: '6px 8px', textAlign: 'center', color: 'var(--danger)', fontWeight: 500}}>
                     {r.deaths || 0}
                   </td>
-                  <td style={{padding: '6px 8px', textAlign: 'center', color: 'var(--green-700)', fontWeight: 700}}>
+                  <td style={{padding: '6px 8px', textAlign: 'center', color: 'var(--text-primary)', fontWeight: 700}}>
                     {alive}
                   </td>
                   <td style={{padding: '6px 8px', whiteSpace: 'nowrap', color: 'var(--text-secondary)'}}>
@@ -360,7 +354,13 @@ export default function FarrowingView({
                         setEditFarrowId(r.id);
                         setShowFarrowForm(true);
                       }}
-                      style={{fontSize: 11, color: '#185FA5', background: 'none', border: 'none', cursor: 'pointer'}}
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--text-primary)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
                     >
                       Edit
                     </button>
@@ -791,10 +791,10 @@ export default function FarrowingView({
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10}}>
           {[
             {label: 'Total records', val: farrowingRecs.length, color: 'var(--text-primary)'},
-            {label: 'Total born', val: grandBorn, color: '#185FA5'},
-            {label: 'Total alive', val: grandAlive, color: 'var(--green-700)'},
-            {label: 'Total deaths', val: grandDead, color: '#A32D2D'},
-            {label: 'Overall survival', val: grandRate + '%', color: '#639922'},
+            {label: 'Total born', val: grandBorn, color: 'var(--text-primary)'},
+            {label: 'Total alive', val: grandAlive, color: 'var(--text-primary)'},
+            {label: 'Total deaths', val: grandDead, color: 'var(--danger)'},
+            {label: 'Overall survival', val: grandRate + '%', color: 'var(--ok-ink)'},
           ].map((s) => (
             <div
               key={s.label}
@@ -826,15 +826,13 @@ export default function FarrowingView({
         {sortedCycles.map((c) => {
           const tl = calcBreedingTimeline(c.exposureStart);
           if (!tl) return null;
-          const C = PIG_GROUP_COLORS[c.group];
           const recs = getRecsForCycle(c);
           return (
             <div
               key={c.id}
               style={{
                 background: 'white',
-                border: `1px solid ${C.farrowing}`,
-                borderLeft: `5px solid ${C.farrowing}`,
+                border: '1px solid var(--border)',
                 borderRadius: 12,
                 overflow: 'hidden',
                 boxShadow: 'var(--shadow-sm)',
@@ -844,7 +842,7 @@ export default function FarrowingView({
                 style={{
                   padding: '10px 16px',
                   background: 'white',
-                  borderBottom: `1px solid ${C.boar}`,
+                  borderBottom: '1px solid var(--border)',
                   display: 'flex',
                   flexWrap: 'wrap',
                   gap: '6px 16px',
@@ -852,26 +850,30 @@ export default function FarrowingView({
                 }}
               >
                 {(() => {
-                  // CP6 T2: de-pastel the broad C.boar header fill to white; demote the
-                  // group identity to a text accent (C.boar) + a thin border. The card's
-                  // borderLeft C.farrowing rail (above) remains the primary identity accent.
-                  const ht = C ? C.boar : getReadableText(C.boar);
+                  // CP0 WI-2b/2c: group identity demoted to a neutral dot + black
+                  // cycle label; the program/group hue no longer colors the card
+                  // border or the header text.
                   return (
                     <>
-                      <strong style={{fontSize: 13, color: ht}}>{cycleLabel(c, cycleSeqMap)}</strong>
-                      <span style={{fontSize: 12, color: ht, opacity: 0.85}}>
+                      <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                        <span style={programDotStyle('pig')} />
+                        <strong style={{fontSize: 13, color: 'var(--text-primary)'}}>
+                          {cycleLabel(c, cycleSeqMap)}
+                        </strong>
+                      </span>
+                      <span style={{fontSize: 12, color: 'var(--text-secondary)'}}>
                         Boars in: {fmtS(c.exposureStart)} → {fmtS(tl.boarEnd)}
                       </span>
-                      <span style={{fontSize: 12, color: ht, opacity: 0.85}}>
+                      <span style={{fontSize: 12, color: 'var(--text-secondary)'}}>
                         Farrowing window: {fmtS(tl.farrowingStart)} → {fmtS(tl.farrowingEnd)}
                       </span>
                       {c.boar1Tags && (
-                        <span style={{fontSize: 11, color: ht, opacity: 0.75}}>
+                        <span style={{fontSize: 11, color: 'var(--text-secondary)'}}>
                           {c.boar1Name || boarNames.boar1 || 'Boar 1'}: {c.boar1Tags}
                         </span>
                       )}
                       {c.boar2Tags && (
-                        <span style={{fontSize: 11, color: ht, opacity: 0.75}}>
+                        <span style={{fontSize: 11, color: 'var(--text-secondary)'}}>
                           {c.boar2Name || boarNames.boar2 || 'Boar 2'}: {c.boar2Tags}
                         </span>
                       )}
@@ -920,40 +922,18 @@ export default function FarrowingView({
                       </div>
                       <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
                         {confirmed.map((m) => (
-                          <span
-                            key={m.tag}
-                            style={{
-                              padding: '3px 10px',
-                              borderRadius: 20,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              background: '#FCEBEB',
-                              color: '#A32D2D',
-                              border: '1px solid #F09595',
-                            }}
-                          >
+                          <Badge key={m.tag} variant="danger">
                             #{m.tag} — missed
-                          </span>
+                          </Badge>
                         ))}
                         {pending.map((m) => (
-                          <span
-                            key={m.tag}
-                            style={{
-                              padding: '3px 10px',
-                              borderRadius: 20,
-                              fontSize: 11,
-                              fontWeight: 500,
-                              background: '#FAEEDA',
-                              color: '#854F0B',
-                              border: '1px solid #FAC775',
-                            }}
-                          >
+                          <Badge key={m.tag} variant="warn">
                             #{m.tag} — pending
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                       {confirmed.length > 0 && (
-                        <div style={{fontSize: 11, color: '#A32D2D', marginTop: 5}}>
+                        <div style={{fontSize: 11, color: 'var(--danger)', marginTop: 5}}>
                           ⚠ {confirmed.length} sow{confirmed.length > 1 ? 's' : ''} confirmed not pregnant this cycle —
                           farrowing window has passed
                         </div>
@@ -999,19 +979,25 @@ export default function FarrowingView({
             <div
               style={{
                 background: 'white',
-                border: '2px solid #F09595',
+                border: '1px solid var(--border)',
                 borderRadius: 12,
                 overflow: 'hidden',
                 boxShadow: 'var(--shadow-sm)',
               }}
             >
               <div
-                style={{padding: '10px 16px', background: '#FCEBEB', display: 'flex', alignItems: 'center', gap: 10}}
+                style={{
+                  padding: '10px 16px',
+                  background: 'var(--danger-soft)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
               >
-                <strong style={{fontSize: 13, color: '#791F1F'}}>
+                <strong style={{fontSize: 13, color: 'var(--danger)'}}>
                   ⚠ Sows Missing Multiple Cycles ({multiMiss.length})
                 </strong>
-                <span style={{fontSize: 11, color: '#A32D2D'}}>
+                <span style={{fontSize: 11, color: 'var(--danger)'}}>
                   These sows have failed to farrow in 2 or more cycles — review for culling
                 </span>
               </div>
@@ -1067,22 +1053,16 @@ export default function FarrowingView({
                         key={s.tag}
                         style={{borderBottom: '1px solid #f5f5f5', background: i % 2 === 0 ? 'white' : '#fafafa'}}
                       >
-                        <td style={{padding: '7px 10px', fontWeight: 700, color: '#A32D2D'}}>#{s.tag}</td>
+                        <td style={{padding: '7px 10px', fontWeight: 700, color: 'var(--danger)'}}>#{s.tag}</td>
                         <td style={{padding: '7px 10px', textAlign: 'center'}}>
-                          <span
-                            style={{
-                              padding: '2px 10px',
-                              borderRadius: 12,
-                              background: '#FCEBEB',
-                              color: '#A32D2D',
-                              fontWeight: 700,
-                              fontSize: 13,
-                            }}
-                          >
-                            {s.cycles.length}
-                          </span>
+                          <Badge variant="danger">{s.cycles.length}</Badge>
                         </td>
-                        <td style={{padding: '7px 10px', color: s.lastFarrow ? '#333' : '#aaa'}}>
+                        <td
+                          style={{
+                            padding: '7px 10px',
+                            color: s.lastFarrow ? 'var(--text-primary)' : 'var(--text-muted)',
+                          }}
+                        >
                           {s.lastFarrow ? fmt(s.lastFarrow) : 'Never farrowed'}
                         </td>
                         <td style={{padding: '7px 10px', color: 'var(--text-secondary)', fontSize: 11}}>
@@ -1103,7 +1083,6 @@ export default function FarrowingView({
             style={{
               background: 'white',
               border: '1px solid var(--border)',
-              borderLeft: '5px solid #aaa',
               borderRadius: 12,
               overflow: 'hidden',
               boxShadow: 'var(--shadow-sm)',
@@ -1133,8 +1112,8 @@ export default function FarrowingView({
                   padding: '4px 12px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#085041',
-                  color: 'white',
+                  background: getProgramColor('pig'),
+                  color: getReadableText(getProgramColor('pig')),
                   cursor: 'pointer',
                   fontSize: 11,
                   fontWeight: 600,

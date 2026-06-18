@@ -1,4 +1,5 @@
-import {S} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 
 // Shared column template for the unified Pig Batches inspection grid. The hub
 // header row (PigBatchesView) and every batch row (this component) consume the
@@ -41,10 +42,11 @@ function formatFeed(value) {
 
 const ESTIMATED_HINT = 'Estimated from started-head split';
 
-function MetricCell({value, kind = 'head', tone = 'default', estimated = false}) {
+function MetricCell({value, kind = 'head', estimated = false}) {
   const display = kind === 'feed' ? formatFeed(value) : formatHead(value);
   const empty = display === EMPTY_CELL;
-  const color = empty ? 'var(--ink-faint)' : tone === 'feed' ? '#78350f' : 'var(--ink)';
+  // CP0 WI-2a: feed/head metrics are raw numbers → black (no amber tint).
+  const color = empty ? 'var(--ink-faint)' : 'var(--text-primary)';
   // '~' marks proportional started-head estimates (source records carried no
   // sex attribution); exact single-sex values render unmarked.
   const marked = estimated && !empty;
@@ -113,21 +115,21 @@ export default function PigBatchHubTile({group, metrics, statusColor, onOpen}) {
       </span>
 
       <span style={{justifySelf: 'start'}}>
-        <span style={S.badge(statusColor.bg, statusColor.tx)}>{group.status}</span>
+        <Badge variant={group.status === 'processed' ? 'neutral' : 'ok'}>{group.status}</Badge>
       </span>
 
       <MetricCell value={rowMetrics.started} />
       <MetricCell value={rowMetrics.current} />
-      <MetricCell value={rowMetrics.totalFeedLbs} kind="feed" tone="feed" />
-      <MetricCell value={rowMetrics.feedPerPig} kind="feed" tone="feed" />
+      <MetricCell value={rowMetrics.totalFeedLbs} kind="feed" />
+      <MetricCell value={rowMetrics.feedPerPig} kind="feed" />
       <MetricCell value={gilts.started} />
       <MetricCell value={gilts.current} estimated={gilts.currentEstimated} />
-      <MetricCell value={gilts.totalFeedLbs} kind="feed" tone="feed" estimated={gilts.feedEstimated} />
-      <MetricCell value={gilts.feedPerPig} kind="feed" tone="feed" estimated={gilts.feedEstimated} />
+      <MetricCell value={gilts.totalFeedLbs} kind="feed" estimated={gilts.feedEstimated} />
+      <MetricCell value={gilts.feedPerPig} kind="feed" estimated={gilts.feedEstimated} />
       <MetricCell value={boars.started} />
       <MetricCell value={boars.current} estimated={boars.currentEstimated} />
-      <MetricCell value={boars.totalFeedLbs} kind="feed" tone="feed" estimated={boars.feedEstimated} />
-      <MetricCell value={boars.feedPerPig} kind="feed" tone="feed" estimated={boars.feedEstimated} />
+      <MetricCell value={boars.totalFeedLbs} kind="feed" estimated={boars.feedEstimated} />
+      <MetricCell value={boars.feedPerPig} kind="feed" estimated={boars.feedEstimated} />
     </div>
   );
 }

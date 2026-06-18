@@ -4,7 +4,9 @@
 // the detail page). No webform-config seeding required since
 // /fueling reads the equipment table directly.
 import React from 'react';
-import {EQUIPMENT_COLOR, EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
+import {EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 export default function EquipmentAddModal({sb, onClose, onCreated}) {
@@ -111,7 +113,7 @@ export default function EquipmentAddModal({sb, onClose, onCreated}) {
             alignItems: 'center',
           }}
         >
-          <div style={{fontSize: 15, fontWeight: 700, color: EQUIPMENT_COLOR}}>Add Equipment</div>
+          <div style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>Add Equipment</div>
           <button
             onClick={onClose}
             style={{background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink-faint)'}}
@@ -234,10 +236,11 @@ export default function EquipmentAddModal({sb, onClose, onCreated}) {
             <div
               style={{
                 gridColumn: '1/-1',
-                color: '#b91c1c',
+                color: 'var(--danger)',
                 fontSize: 12,
                 padding: '6px 10px',
-                background: '#fef2f2',
+                background: 'var(--danger-soft)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
               }}
             >
@@ -269,7 +272,8 @@ export default function EquipmentAddModal({sb, onClose, onCreated}) {
             style={{
               ...recordSaveButton,
               border: 'none',
-              background: saving || !form.name.trim() ? '#9ca3af' : EQUIPMENT_COLOR,
+              background: saving || !form.name.trim() ? 'var(--border-strong)' : getProgramColor('equipment'),
+              color: getReadableText(getProgramColor('equipment')),
               cursor: saving || !form.name.trim() ? 'not-allowed' : 'pointer',
             }}
           >

@@ -125,7 +125,7 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
     width: '100%',
     outline: 'none',
     background: 'white',
-    color: '#111827',
+    color: 'var(--text-primary)',
     boxSizing: 'border-box',
   };
   const sec = {background: '#f9fafb', borderRadius: 10, padding: '14px', marginBottom: 10, border: '1px solid #e5e7eb'};
@@ -1238,9 +1238,9 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                           style={{
                             marginTop: 4,
                             fontSize: 11,
-                            color: '#1d4ed8',
-                            background: '#eff6ff',
-                            border: '1px solid #bfdbfe',
+                            color: 'var(--info)',
+                            background: 'var(--info-soft)',
+                            border: '1px solid var(--border)',
                             borderRadius: 10,
                             padding: '4px 8px',
                           }}
@@ -1898,7 +1898,9 @@ const AdminAddReportModal = ({sb, formType, onClose, onSaved}) => {
                           marginBottom: 8,
                         }}
                       >
-                        <div style={{fontSize: 13, fontWeight: 600, color: '#1e40af'}}>Additional Group {ei + 2}</div>
+                        <div style={{fontSize: 13, fontWeight: 600, color: 'var(--text-primary)'}}>
+                          Additional Group {ei + 2}
+                        </div>
                         <button
                           type="button"
                           onClick={() => setExtraP((p) => p.filter((_, i) => i !== ei))}

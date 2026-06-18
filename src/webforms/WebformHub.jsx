@@ -1497,6 +1497,9 @@ const WebformHub = ({
           <div style={{fontSize: 13, color: '#6b7280', textAlign: 'center', marginBottom: 20}}>
             Select a report type to fill out
           </div>
+          {/* F047: hub picker cards are white with a gray border. The feature
+              category is shown by the icon + black title; no colored card
+              theme, heading, sub-text, or chevron. */}
           <div
             {...openableProps(function () {
               window.location.hash = '#addfeed';
@@ -1513,18 +1516,18 @@ const WebformHub = ({
               display: 'flex',
               alignItems: 'center',
               gap: 14,
-              border: '1px solid #fde68a',
+              border: '1px solid var(--border)',
             }}
           >
             <PlannerIcon iconKey="feed" size={32} />
             <div style={{flex: 1}}>
-              <div style={{fontSize: 16, fontWeight: 700, color: '#92400e'}}>Add Feed</div>
-              <div style={{fontSize: 12, color: '#92400e', opacity: 0.8}}>Quick log feed added in the field</div>
-              <div style={{fontSize: 11, color: '#92400e', opacity: 0.6, marginTop: 2}}>
+              <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>Add Feed</div>
+              <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>Quick log feed added in the field</div>
+              <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 2}}>
                 {'Pig \u00b7 Broiler \u00b7 Layer \u00b7 Cattle \u00b7 Sheep'}
               </div>
             </div>
-            <div style={{color: '#92400e', fontSize: 18}}>{'\u203a'}</div>
+            <div style={{color: 'var(--ink-faint)', fontSize: 18}}>{'\u203a'}</div>
           </div>
           {!hideWeighIns && (
             <div
@@ -1543,20 +1546,20 @@ const WebformHub = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
-                border: '1px solid #bfdbfe',
+                border: '1px solid var(--border)',
               }}
             >
               <PlannerIcon iconKey="weighins" size={32} />
               <div style={{flex: 1}}>
-                <div style={{fontSize: 16, fontWeight: 700, color: '#1e40af'}}>Weigh-Ins</div>
-                <div style={{fontSize: 12, color: '#1e40af', opacity: 0.8}}>
+                <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>Weigh-Ins</div>
+                <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                   Record weights for cattle, pigs, or broilers
                 </div>
-                <div style={{fontSize: 11, color: '#1e40af', opacity: 0.6, marginTop: 2}}>
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 2}}>
                   {'Sessions auto-save \u00b7 resume on any device'}
                 </div>
               </div>
-              <div style={{color: '#1e40af', fontSize: 18}}>{'\u203a'}</div>
+              <div style={{color: 'var(--ink-faint)', fontSize: 18}}>{'\u203a'}</div>
             </div>
           )}
           {!hideCattleLog && (
@@ -1574,20 +1577,20 @@ const WebformHub = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
-                border: '1px solid #a7f3d0',
+                border: '1px solid var(--border)',
               }}
             >
               <PlannerIcon iconKey={ANIMAL_ICON_KEYS.cattle} size={32} />
               <div style={{flex: 1}}>
-                <div style={{fontSize: 16, fontWeight: 700, color: '#065f46'}}>Cattle Log</div>
-                <div style={{fontSize: 12, color: '#065f46', opacity: 0.8}}>
+                <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>Cattle Log</div>
+                <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                   Free-flowing notes and issues for the cattle program
                 </div>
-                <div style={{fontSize: 11, color: '#065f46', opacity: 0.6, marginTop: 2}}>
+                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 2}}>
                   {'Use #tag to link a cow \u00b7 @name to notify'}
                 </div>
               </div>
-              <div style={{color: '#065f46', fontSize: 18}}>{'\u203a'}</div>
+              <div style={{color: 'var(--ink-faint)', fontSize: 18}}>{'\u203a'}</div>
             </div>
           )}
           <div
@@ -1604,18 +1607,18 @@ const WebformHub = ({
               display: 'flex',
               alignItems: 'center',
               gap: 14,
-              border: '1px solid #99f6e4',
+              border: '1px solid var(--border)',
             }}
           >
             <PlannerIcon iconKey="checkmark" size={32} />
             <div style={{flex: 1}}>
-              <div style={{fontSize: 16, fontWeight: 700, color: '#0f766e'}}>Submit a Task</div>
-              <div style={{fontSize: 12, lineHeight: 1.35, color: '#0f766e', opacity: 0.8}}>
+              <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>Submit a Task</div>
+              <div style={{fontSize: 12, lineHeight: 1.35, color: 'var(--ink-muted)'}}>
                 Use this to assign tasks to a Wcf Planner user when there is a repair needed or anything that shouldn't
                 be forgotten.
               </div>
             </div>
-            <div style={{color: '#0f766e', fontSize: 18}}>{'\u203a'}</div>
+            <div style={{color: 'var(--ink-faint)', fontSize: 18}}>{'\u203a'}</div>
           </div>
           {[
             {id: 'broiler', iconKey: ANIMAL_ICON_KEYS.broiler, label: 'Broiler Daily Report'},

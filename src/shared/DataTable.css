@@ -83,6 +83,24 @@
   white-space: nowrap;
 }
 
+/* CP0 WI-6: trailing chevron column on openable rows. The › itself is painted
+   by the global `.hoverable-row .chev` hover/focus rule (index.html); this just
+   reserves the column so the layout never shifts. Hidden on mobile via the
+   shared .mobile-hide rule + the collapsed-thead media query. */
+.data-table .chev-col {
+  width: 24px;
+  padding-left: 0;
+  padding-right: 12px;
+  text-align: right;
+  vertical-align: middle;
+  color: var(--text-faint);
+}
+.data-table .chev-col .chev {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .data-table .select-col {
   width: 44px;
   text-align: center;

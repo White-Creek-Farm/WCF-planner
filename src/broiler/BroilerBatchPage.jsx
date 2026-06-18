@@ -22,6 +22,8 @@ import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import BatchForm from './BatchForm.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
   RecordPageFrame,
@@ -191,19 +193,10 @@ export default function BroilerBatchPage({
           <RecordTitle fontSize={22} margin={0}>
             {batch.name}
           </RecordTitle>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 10,
-              background: batch.status === 'processed' ? '#374151' : batch.status === 'active' ? '#1d4ed8' : '#fde68a',
-              color: batch.status === 'planned' ? '#92400e' : 'white',
-              textTransform: 'uppercase',
-            }}
-          >
+          {/* WI-4: lifecycle status → Badge. active→ok, planned→warn, processed→neutral. */}
+          <Badge variant={batch.status === 'active' ? 'ok' : batch.status === 'planned' ? 'warn' : 'neutral'}>
             {batch.status}
-          </span>
+          </Badge>
           {batch.breed && <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>Breed: {batch.breed}</span>}
           {batch.hatchery && <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>Hatchery: {batch.hatchery}</span>}
         </div>

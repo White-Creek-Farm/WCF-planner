@@ -19,6 +19,10 @@ import {
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
 import {recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import {detachCattleFromProcessingBatch} from '../lib/processingDetachApi.js';
 import {unscheduleCattleProcessingBatch} from '../lib/processingBatchDeleteApi.js';
 import {batchHasAllHangingWeights, batchMissingHangingTags, validateRealBatchRename} from '../lib/cattleForecast.js';
@@ -349,30 +353,22 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
           <RecordTitle fontSize={22} margin={0}>
             {batch.name}
           </RecordTitle>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 10,
-              background: isComplete ? '#374151' : isScheduled ? '#fef3c7' : '#1d4ed8',
-              color: isScheduled ? '#92400e' : 'white',
-              textTransform: 'uppercase',
-            }}
-          >
+          <Badge variant={isComplete ? 'neutral' : isScheduled ? 'warn' : 'info'} style={{textTransform: 'uppercase'}}>
             {batch.status}
-          </span>
+          </Badge>
           {!isScheduled && (
             <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
               {rows.length} {rows.length === 1 ? 'cow' : 'cows'}
             </span>
           )}
           {(batch.actual_process_date || batch.planned_process_date) && (
-            <span style={{fontSize: 12, color: '#065f46'}}>
+            <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
               {isScheduled ? 'scheduled' : 'processed'} {fmt(batch.actual_process_date || batch.planned_process_date)}
             </span>
           )}
-          {yieldPct && <span style={{fontSize: 12, fontWeight: 600, color: '#065f46'}}>{yieldPct + '% yield'}</span>}
+          {yieldPct && (
+            <span style={{fontSize: 12, fontWeight: 600, color: 'var(--text-primary)'}}>{yieldPct + '% yield'}</span>
+          )}
         </div>
 
         {notice && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
@@ -411,9 +407,9 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                   fontSize: 12,
                   padding: '10px 16px',
                   borderRadius: 10,
-                  border: '1px solid #fca5a5',
+                  border: '1px solid var(--border)',
                   background: 'white',
-                  color: '#b91c1c',
+                  color: 'var(--danger)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                 }}
@@ -425,7 +421,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                 data-scheduled-batch-unschedule-warning={batch.id}
                 style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}
               >
-                <span style={{fontSize: 12, color: '#b91c1c'}}>Remove this scheduled batch?</span>
+                <span style={{fontSize: 12, color: 'var(--danger)'}}>Remove this scheduled batch?</span>
                 <button
                   type="button"
                   onClick={() => setUnscheduling(false)}
@@ -451,9 +447,9 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                     fontSize: 11,
                     padding: '4px 10px',
                     borderRadius: 10,
-                    border: 'none',
-                    background: '#b91c1c',
-                    color: 'white',
+                    border: '1px solid var(--border)',
+                    background: 'white',
+                    color: 'var(--danger)',
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                     fontWeight: 600,
@@ -517,8 +513,8 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                       padding: '10px 16px',
                       borderRadius: 10,
                       border: 'none',
-                      background: '#374151',
-                      color: 'white',
+                      background: getProgramColor('cattle'),
+                      color: getReadableText(getProgramColor('cattle')),
                       cursor: 'pointer',
                       fontFamily: 'inherit',
                       fontWeight: 600,
@@ -566,7 +562,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
               <Stat
                 label="Yield"
                 value={yieldPct ? yieldPct + '%' : '—'}
-                color={yieldPct ? '#065f46' : 'var(--ink-faint)'}
+                color={yieldPct ? 'var(--text-primary)' : 'var(--ink-faint)'}
               />
               <Stat label="Cost" value={batch.processing_cost ? '$' + batch.processing_cost.toLocaleString() : '—'} />
             </div>
@@ -611,7 +607,11 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                           {'#' + (r.tag || cow?.tag || '?')}
                         </span>
                         <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{cow?.breed || '—'}</span>
-                        {y && <span style={{fontSize: 11, fontWeight: 600, color: '#065f46'}}>{y + '% yield'}</span>}
+                        {y && (
+                          <span style={{fontSize: 11, fontWeight: 600, color: 'var(--text-primary)'}}>
+                            {y + '% yield'}
+                          </span>
+                        )}
                         <span style={{flex: 1}} />
                         {canEdit && !isComplete && (
                           <button

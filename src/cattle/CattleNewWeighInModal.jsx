@@ -7,6 +7,8 @@
 import React from 'react';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {LockedTeamMemberField, recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 const CattleNewWeighInModal = ({onClose, onCreate, authState}) => {
   const {useState, useEffect} = React;
   const lockedTeamName =
@@ -138,7 +140,8 @@ const CattleNewWeighInModal = ({onClose, onCreate, authState}) => {
             style={{
               ...recordSaveButton,
               border: 'none',
-              background: busy || !team || !herd ? '#9ca3af' : '#1e40af',
+              background: busy || !team || !herd ? '#9ca3af' : getProgramColor('cattle'),
+              color: busy || !team || !herd ? 'white' : getReadableText(getProgramColor('cattle')),
               fontWeight: 700,
               cursor: busy || !team || !herd ? 'not-allowed' : 'pointer',
             }}

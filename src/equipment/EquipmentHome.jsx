@@ -24,6 +24,7 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
+import {programPillStyle} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 
@@ -149,18 +150,10 @@ export default function EquipmentHome({
     navigate('/fleet/' + slug, recordSeqNavOptions(recordSeq));
   }
 
-  const subNavBtn = (active) => ({
-    padding: '7px 14px',
-    borderRadius: 10,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    fontSize: 12,
-    fontWeight: active ? 700 : 500,
-    whiteSpace: 'nowrap',
-    border: active ? '2px solid var(--brand)' : '1px solid var(--border-strong)',
-    background: 'white',
-    color: active ? 'var(--brand)' : 'var(--ink-muted)',
-  });
+  // Sub-nav tabs use the ratified program-pill treatment (CP0 §A12): selected =
+  // solid equipment-program fill with auto-contrast text; unselected = plain
+  // text, no border.
+  const subNavBtn = (active) => programPillStyle('equipment', active);
 
   return (
     <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
@@ -226,19 +219,7 @@ export default function EquipmentHome({
         {detailSlug && activeEq && !isEquipmentTech && (
           <>
             <span style={{color: 'var(--ink-faint)', fontSize: 12}}>{'›'}</span>
-            <span
-              style={{
-                padding: '7px 14px',
-                borderRadius: 10,
-                border: '2px solid var(--brand)',
-                background: 'white',
-                color: 'var(--brand)',
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              {activeEq.name}
-            </span>
+            <span style={{...programPillStyle('equipment', true), cursor: 'default'}}>{activeEq.name}</span>
           </>
         )}
       </div>
@@ -250,12 +231,12 @@ export default function EquipmentHome({
         {missingSchema && (
           <div
             style={{
-              background: '#fff7ed',
-              border: '1px solid #fdba74',
+              background: 'var(--warn-soft)',
+              border: '1px solid var(--border)',
               borderRadius: 10,
               padding: '1rem 1.25rem',
               marginBottom: 12,
-              color: '#9a3412',
+              color: 'var(--warn-ink)',
               fontSize: 13,
             }}
           >
@@ -287,7 +268,7 @@ export default function EquipmentHome({
                       borderRadius: 10,
                       border: '1px solid var(--border-strong)',
                       background: 'white',
-                      color: '#57534e',
+                      color: 'var(--ink)',
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: 'pointer',

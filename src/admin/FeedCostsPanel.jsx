@@ -26,11 +26,11 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
     boxSizing: 'border-box',
   };
   const fields = [
-    {key: 'starter', label: 'Poultry Starter', icon: '\ud83d\udc14', color: '#a16207'},
-    {key: 'grower', label: 'Poultry Grower', icon: '\ud83d\udc14', color: '#085041'},
-    {key: 'layer', label: 'Layer Feed', icon: '\ud83d\udc13', color: '#78350f'},
-    {key: 'pig', label: 'Pig Feed', icon: '\ud83d\udc37', color: '#1e40af'},
-    {key: 'grit', label: 'Grit', icon: '\ud83c\udf3e', color: '#78350f'},
+    {key: 'starter', label: 'Poultry Starter', icon: '\ud83d\udc14'},
+    {key: 'grower', label: 'Poultry Grower', icon: '\ud83d\udc14'},
+    {key: 'layer', label: 'Layer Feed', icon: '\ud83d\udc13'},
+    {key: 'pig', label: 'Pig Feed', icon: '\ud83d\udc37'},
+    {key: 'grit', label: 'Grit', icon: '\ud83c\udf3e'},
   ];
 
   return (
@@ -47,9 +47,13 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
         </div>
         <div style={{height: 1, background: 'var(--border)', margin: '14px 0'}} />
         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 18}}>
-          {fields.map(({key, label, icon, color}) => (
+          {fields.map(({key, label, icon}) => (
             <div key={key}>
-              <label style={{fontSize: 12, fontWeight: 600, color, display: 'block', marginBottom: 5}}>
+              {/* WI-2e: feed-category labels are plain black; the emoji is the
+                  category marker, not a colored word. */}
+              <label
+                style={{fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: 5}}
+              >
                 {icon + ' ' + label}
               </label>
               <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
@@ -90,7 +94,9 @@ const FeedCostsPanel = ({feedCosts, saveFeedCosts}) => {
           >
             {saved ? '\u2713 Saved!' : 'Save Feed Costs'}
           </button>
-          {saved && <span style={{fontSize: 12, color: '#065f46', fontWeight: 500}}>Active batches updated.</span>}
+          {saved && (
+            <span style={{fontSize: 12, color: 'var(--ok-ink)', fontWeight: 500}}>Active batches updated.</span>
+          )}
         </div>
         <div
           style={{

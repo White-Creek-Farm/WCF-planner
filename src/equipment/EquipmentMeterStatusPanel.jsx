@@ -1,6 +1,8 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {currentReadingFromFuelings, fmtReading} from '../lib/equipment.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 
@@ -60,11 +62,31 @@ export default function EquipmentMeterStatusPanel({equipment, fuelings, fmt, onR
   else state = 'behind';
 
   const STATE = {
-    matching: {bg: '#ecfdf5', border: '#a7f3d0', fg: '#065f46', label: 'In sync'},
-    ahead: {bg: '#fef3c7', border: '#fde68a', fg: '#92400e', label: 'Current is ahead of fuel log'},
-    behind: {bg: '#fef3c7', border: '#fde68a', fg: '#92400e', label: 'Current is behind fuel log'},
-    no_fuel_log: {bg: '#f9fafb', border: '#e5e7eb', fg: '#6b7280', label: 'No fuel log yet'},
-    no_current: {bg: '#f9fafb', border: '#e5e7eb', fg: '#6b7280', label: 'No current reading set'},
+    matching: {bg: 'var(--ok-soft)', border: 'var(--border)', fg: 'var(--ok-ink)', label: 'In sync'},
+    ahead: {
+      bg: 'var(--warn-soft)',
+      border: 'var(--border)',
+      fg: 'var(--warn-ink)',
+      label: 'Current is ahead of fuel log',
+    },
+    behind: {
+      bg: 'var(--warn-soft)',
+      border: 'var(--border)',
+      fg: 'var(--warn-ink)',
+      label: 'Current is behind fuel log',
+    },
+    no_fuel_log: {
+      bg: 'var(--surface-2)',
+      border: 'var(--border)',
+      fg: 'var(--text-secondary)',
+      label: 'No fuel log yet',
+    },
+    no_current: {
+      bg: 'var(--surface-2)',
+      border: 'var(--border)',
+      fg: 'var(--text-secondary)',
+      label: 'No current reading set',
+    },
   };
   const palette = STATE[state];
 
@@ -162,9 +184,9 @@ export default function EquipmentMeterStatusPanel({equipment, fuelings, fmt, onR
               style={{
                 padding: '5px 12px',
                 borderRadius: 10,
-                border: '1px solid #085041',
-                background: busy ? '#9ca3af' : '#085041',
-                color: 'white',
+                border: 'none',
+                background: busy ? 'var(--border-strong)' : getProgramColor('equipment'),
+                color: busy ? 'white' : getReadableText(getProgramColor('equipment')),
                 fontSize: 11,
                 fontWeight: 600,
                 cursor: busy ? 'not-allowed' : 'pointer',

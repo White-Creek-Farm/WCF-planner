@@ -23,7 +23,10 @@ const TOKEN_LOCKED_FILES = [
 
 const CANONICAL_FONT_SIZES = new Set([10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 26, 32, 34, 36, 48, 56]);
 const CANONICAL_FONT_WEIGHTS = new Set([400, 500, 600, 700]);
-const CANONICAL_RADII = new Set([4, 6, 10, 14, 999]);
+// CP0 §A3: canonical radii are 10 / 12 / 14 / 999 (pill) / '50%' (circle).
+// 4-9 are RETIRED on real UI; decorative sub-10 bits use the radius-allow marker
+// (enforced by radius_floor_static.test.js).
+const CANONICAL_RADII = new Set([10, 12, 14, 999]);
 
 function numericMatches(src, pattern) {
   return [...src.matchAll(pattern)].map((m) => Number(m[1]));
@@ -50,7 +53,7 @@ describe('Lane I token contract - shared primitive guard', () => {
       }
     });
 
-    it(`${rel} does not use retired 7px or 8px radii`, () => {
+    it(`${rel} uses only canonical radii (10/12/14/999; 4-9 retired per CP0 §A3)`, () => {
       const values = [
         ...numericMatches(src, /borderRadius:\s*(\d+)/g),
         ...numericMatches(src, /border-radius:\s*(\d+)px/g),

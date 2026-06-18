@@ -1,5 +1,7 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
@@ -468,7 +470,11 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #991b1b', color: '#991b1b'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: `1px solid ${getProgramColor('cattle')}`,
+    color: getProgramColor('cattle'),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -518,8 +524,8 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#991b1b',
-                color: 'white',
+                background: getProgramColor('cattle'),
+                color: getReadableText(getProgramColor('cattle')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -845,12 +851,7 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
             density="comfortable"
             onRowOpen={(d) => navigate('/cattle/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'herd')))}
             rowProps={(d) => ({'data-daily-row': d.id})}
-            rowStyle={(d) => {
-              const notable = parseInt(d.mortality_count) > 0 || (d.issues && String(d.issues).trim().length > 2);
-              if (notable) return {background: '#fef2f2'};
-              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
-              return undefined;
-            }}
+            maxInitialRows={100}
             columns={[
               {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
               {
@@ -862,16 +863,10 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                   return (
                     <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
                       <span
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: hc.bg,
-                          color: hc.tx,
-                          border: '1px solid ' + hc.bd,
-                        }}
-                      >
+                        style={{width: 9, height: 9, borderRadius: '50%', background: hc.tx, flex: '0 0 9px'}}
+                        aria-hidden="true"
+                      />
+                      <span style={{color: 'var(--text-primary)', fontWeight: 600}}>
                         {HERD_LABELS[d.herd] || d.herd}
                       </span>
                       {d.source === 'add_feed_webform' && (
@@ -930,7 +925,9 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                   if (!feedSummary && !mineralSummary) return <StatusText tone="muted">{'—'}</StatusText>;
                   return (
                     <span style={{display: 'inline-flex', flexDirection: 'column', gap: 2}}>
-                      {feedSummary && <span style={{fontSize: 11, color: '#92400e'}}>{'🌾 ' + feedSummary}</span>}
+                      {feedSummary && (
+                        <span style={{fontSize: 11, color: 'var(--text-secondary)'}}>{'🌾 ' + feedSummary}</span>
+                      )}
                       {mineralSummary && <span style={{fontSize: 11, color: '#6b21a8'}}>{'🧂 ' + mineralSummary}</span>}
                     </span>
                   );
@@ -958,9 +955,19 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
                   const issues = d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
                   if (!issues) return <StatusText tone="muted">{'—'}</StatusText>;
                   return (
-                    <StatusText tone="warn" title={issues}>
+                    <span
+                      title={issues}
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        color: 'var(--text-primary)',
+                        maxWidth: 280,
+                      }}
+                    >
                       {issues}
-                    </StatusText>
+                    </span>
                   );
                 },
               },

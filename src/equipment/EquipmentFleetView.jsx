@@ -16,11 +16,14 @@ import {
   CATEGORY_BY_KEY,
   MISSED_FUELING_DAYS,
   WARRANTY_WINDOW_DAYS,
-  EQUIPMENT_COLOR,
   soonestDue,
   daysSince,
   fmtReading,
 } from '../lib/equipment.js';
+import {getProgramColor, programPillStyle} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import EquipmentAddModal from './EquipmentAddModal.jsx';
 import EquipmentCategoryIcon from '../components/EquipmentCategoryIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -96,7 +99,8 @@ const ghostBtnS = {
   fontFamily: 'inherit',
   whiteSpace: 'nowrap',
 };
-const primaryBtnS = {...ghostBtnS, border: '1px solid ' + EQUIPMENT_COLOR, color: EQUIPMENT_COLOR};
+const EQUIPMENT_ACCENT = getProgramColor('equipment');
+const primaryBtnS = {...ghostBtnS, border: '1px solid ' + EQUIPMENT_ACCENT, color: EQUIPMENT_ACCENT};
 const radioLabelS = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -445,7 +449,6 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
 
   const tile = (eq) => {
     const {reading, dueInfo, latestFuel, daysSinceFuel, missedFuel, warrantyExpiresSoon} = rowMeta(eq);
-    const cat = CATEGORY_BY_KEY[eq.category] || {color: '#57534e', bg: '#fafaf9', bd: '#d6d3d1'};
 
     return (
       <div
@@ -456,7 +459,6 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
         style={{
           background: eq.status === 'sold' ? 'var(--surface-2)' : 'white',
           border: '1px solid var(--border)',
-          borderLeft: '3px solid ' + cat.bd,
           borderRadius: 12,
           padding: '14px 18px',
           cursor: 'pointer',
@@ -466,19 +468,9 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
       >
         <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap'}}>
           <span style={{fontSize: 15, fontWeight: 700, color: 'var(--ink)'}}>{eq.name}</span>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 10,
-              background: eq.status === 'active' ? '#d1fae5' : '#f3f4f6',
-              color: eq.status === 'active' ? '#065f46' : '#374151',
-              textTransform: 'uppercase',
-            }}
-          >
+          <Badge variant={eq.status === 'active' ? 'ok' : 'neutral'} style={{textTransform: 'uppercase'}}>
             {eq.status}
-          </span>
+          </Badge>
           {eq.fuel_type && <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{eq.fuel_type}</span>}
         </div>
         <div
@@ -495,7 +487,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
               <div style={{color: 'var(--ink-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4}}>
                 Last fueling
               </div>
-              <div style={{fontWeight: 600, color: missedFuel ? '#b91c1c' : 'var(--ink)'}}>
+              <div style={{fontWeight: 600, color: missedFuel ? 'var(--danger)' : 'var(--ink)'}}>
                 {fmt(latestFuel.date)}
                 {daysSinceFuel != null ? ' (' + daysSinceFuel + 'd)' : ''}
               </div>
@@ -506,7 +498,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
               <div style={{color: 'var(--ink-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4}}>
                 Next service
               </div>
-              <div style={{fontWeight: 700, color: dueInfo.overdue ? '#b91c1c' : '#a16207'}}>
+              <div style={{fontWeight: 700, color: dueInfo.overdue ? 'var(--danger)' : 'var(--warn-ink)'}}>
                 {dueInfo.overdue
                   ? 'OVERDUE ' + dueInfo.hours_or_km + dueInfo.kind.charAt(0)
                   : dueInfo.hours_or_km + dueInfo.kind.charAt(0) + ' at ' + dueInfo.next_due}
@@ -518,7 +510,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
               <div style={{color: 'var(--ink-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4}}>
                 Warranty
               </div>
-              <div style={{fontWeight: 700, color: '#a16207'}}>{fmt(eq.warranty_expiration)}</div>
+              <div style={{fontWeight: 700, color: 'var(--warn-ink)'}}>{fmt(eq.warranty_expiration)}</div>
             </div>
           )}
         </div>
@@ -530,7 +522,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
   const FLAT_GRID = '36px 1fr 110px 80px 90px 120px 150px';
   const flatRow = (eq, i, isLast = i >= sorted.length - 1) => {
     const {reading, dueInfo, latestFuel, daysSinceFuel, missedFuel} = rowMeta(eq);
-    const cat = CATEGORY_BY_KEY[eq.category] || {color: '#57534e', label: eq.category, bg: '#fafaf9', bd: '#d6d3d1'};
+    const cat = CATEGORY_BY_KEY[eq.category] || {label: eq.category};
     return (
       <div
         key={eq.id}
@@ -566,25 +558,18 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
           </span>
           {eq.fuel_type && <span style={{fontSize: 10, color: 'var(--ink-faint)'}}>{eq.fuel_type}</span>}
         </span>
-        <span style={{fontSize: 11, color: cat.color, fontWeight: 600}}>{cat.label || eq.category || '—'}</span>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: '2px 8px',
-            borderRadius: 10,
-            textAlign: 'center',
-            background: eq.status === 'active' ? '#d1fae5' : '#f3f4f6',
-            color: eq.status === 'active' ? '#065f46' : '#374151',
-            textTransform: 'uppercase',
-          }}
-        >
-          {eq.status}
+        <span style={{fontSize: 11, color: 'var(--ink)', fontWeight: 600}}>{cat.label || eq.category || '—'}</span>
+        <span style={{textAlign: 'center'}}>
+          <Badge variant={eq.status === 'active' ? 'ok' : 'neutral'} style={{textTransform: 'uppercase'}}>
+            {eq.status}
+          </Badge>
         </span>
         <span style={{fontSize: 11, fontWeight: 600, color: 'var(--ink)'}}>
           {fmtReading(reading, eq.tracking_unit)}
         </span>
-        <span style={{fontSize: 11, color: missedFuel ? '#b91c1c' : latestFuel ? 'var(--ink)' : 'var(--ink-faint)'}}>
+        <span
+          style={{fontSize: 11, color: missedFuel ? 'var(--danger)' : latestFuel ? 'var(--ink)' : 'var(--ink-faint)'}}
+        >
           {latestFuel
             ? fmt(latestFuel.date) + (daysSinceFuel != null ? ' (' + daysSinceFuel + 'd)' : '')
             : 'no fueling'}
@@ -593,7 +578,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
           style={{
             fontSize: 11,
             fontWeight: 700,
-            color: dueInfo ? (dueInfo.overdue ? '#b91c1c' : '#a16207') : 'var(--ink-faint)',
+            color: dueInfo ? (dueInfo.overdue ? 'var(--danger)' : 'var(--warn-ink)') : 'var(--ink-faint)',
           }}
         >
           {dueInfo
@@ -689,8 +674,8 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
             padding: '7px 16px',
             borderRadius: 10,
             border: 'none',
-            background: EQUIPMENT_COLOR,
-            color: 'white',
+            background: EQUIPMENT_ACCENT,
+            color: getReadableText(EQUIPMENT_ACCENT),
             fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',
@@ -718,7 +703,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
           <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
           {savedViewsError ? (
             <span
-              style={{fontSize: 12, color: '#b91c1c', display: 'inline-flex', alignItems: 'center', gap: 8}}
+              style={{fontSize: 12, color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: 8}}
               data-equipment-saved-views-error
             >
               Saved views unavailable. Filters still work.
@@ -787,7 +772,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
                     data-equipment-saved-view-delete
                     onClick={deleteSelectedView}
                     disabled={savedViewBusy}
-                    style={{...ghostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                    style={{...ghostBtnS, color: 'var(--danger)', borderColor: 'var(--border)'}}
                   >
                     Delete
                   </button>
@@ -812,7 +797,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
           data-equipment-saved-view-form
           style={{
             background: 'white',
-            border: '1px solid ' + EQUIPMENT_COLOR,
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '10px 14px',
             display: 'flex',
@@ -928,14 +913,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
                     type="button"
                     data-equipment-fuel-type={o.key}
                     onClick={() => toggleArrayValue('fuelType', o.key)}
-                    style={{
-                      ...ghostBtnS,
-                      padding: '5px 10px',
-                      borderRadius: 999,
-                      border: active ? '1px solid var(--brand)' : '1px solid var(--border-strong)',
-                      background: 'white',
-                      color: active ? 'var(--brand)' : 'var(--ink-muted)',
-                    }}
+                    style={{...programPillStyle('equipment', active, {radius: 999}), padding: '5px 10px'}}
                   >
                     {o.label}
                   </button>
@@ -1035,8 +1013,8 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
                 padding: '7px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: EQUIPMENT_COLOR,
-                color: 'white',
+                background: EQUIPMENT_ACCENT,
+                color: getReadableText(EQUIPMENT_ACCENT),
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -1107,7 +1085,7 @@ export default function EquipmentFleetView({sb, equipment, fuelings, fmt, onOpen
                   style={{
                     fontSize: 14,
                     fontWeight: 700,
-                    color: g.color,
+                    color: 'var(--text-primary)',
                     textTransform: 'uppercase',
                     letterSpacing: 0.4,
                   }}

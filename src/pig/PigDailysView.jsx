@@ -1,5 +1,7 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
@@ -461,7 +463,11 @@ const PigDailysHub = ({
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #92400e', color: '#92400e'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: `1px solid ${getProgramColor('pig')}`,
+    color: getProgramColor('pig'),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -504,8 +510,8 @@ const PigDailysHub = ({
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#085041',
-                color: 'white',
+                background: getProgramColor('pig'),
+                color: getReadableText(getProgramColor('pig')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -826,14 +832,7 @@ const PigDailysHub = ({
               navigate('/pig/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
             }
             rowProps={(d) => ({'data-daily-row': d.id})}
-            rowStyle={(d) => {
-              const notable =
-                (d.issues && String(d.issues).trim().length > 2) ||
-                (d.fence_voltage != null && String(d.fence_voltage).trim() !== '' && parseFloat(d.fence_voltage) < 3);
-              if (notable) return {background: '#fef2f2'};
-              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
-              return undefined;
-            }}
+            maxInitialRows={100}
             columns={[
               {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
               {
@@ -907,9 +906,19 @@ const PigDailysHub = ({
                   const issues = d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
                   if (!issues) return <StatusText tone="muted">{'—'}</StatusText>;
                   return (
-                    <StatusText tone="warn" title={issues}>
+                    <span
+                      title={issues}
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        color: 'var(--text-primary)',
+                        maxWidth: 280,
+                      }}
+                    >
                       {issues}
-                    </StatusText>
+                    </span>
                   );
                 },
               },

@@ -14,6 +14,8 @@ import {sortByDailysOrder} from '../lib/dailysOrder.js';
 import {setPublicAssigneeHidden} from '../lib/tasks.js';
 import {loadPublicAssigneeAvailability, savePublicAssigneeAvailability} from '../lib/tasksAdminApi.js';
 import UsersModal from '../auth/UsersModal.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import FeedCostsPanel from '../admin/FeedCostsPanel.jsx';
@@ -336,18 +338,6 @@ export default function WebformsAdminView({
     group_picker: 'Group selector',
     egg_group: 'Egg group pair',
   };
-  const TYPE_COLOR = {
-    text: '#374151',
-    textarea: '#374151',
-    number: '#1d4ed8',
-    yes_no: '#085041',
-    button_toggle: '#1e40af',
-    date: '#92400e',
-    team_picker: '#0369a1',
-    group_picker: '#be185d',
-    egg_group: '#d97706',
-  };
-
   const currentWf = editWfId ? webformsConfig.webforms.find((w) => w.id === editWfId) : null;
 
   function updateWf(updated) {
@@ -467,6 +457,10 @@ export default function WebformsAdminView({
           {id: 'deleted', label: 'Deleted'},
         ].map((t) => {
           const active = adminTab === t.id && !editWfId;
+          // F045: the selected admin tab pill is a program-selected pill — re-tint
+          // to the equipment/slate program accent (admin/equip surfaces) with
+          // auto-contrast text instead of the brand green.
+          const equipFill = getProgramColor('equipment');
           return (
             <button
               key={t.id}
@@ -482,9 +476,9 @@ export default function WebformsAdminView({
                 fontSize: 12,
                 fontWeight: active ? 700 : 500,
                 whiteSpace: 'nowrap',
-                border: active ? '2px solid #085041' : '1px solid #d1d5db',
-                background: active ? '#085041' : 'white',
-                color: active ? 'white' : '#374151',
+                border: active ? 'none' : '1px solid var(--border)',
+                background: active ? equipFill : 'white',
+                color: active ? getReadableText(equipFill) : 'var(--ink-muted)',
               }}
             >
               {t.label}
@@ -784,7 +778,7 @@ export default function WebformsAdminView({
                             onClick={() => deleteSection(si)}
                             style={{
                               fontSize: 11,
-                              color: '#b91c1c',
+                              color: 'var(--danger)',
                               background: 'none',
                               border: 'none',
                               cursor: 'pointer',
@@ -1082,12 +1076,11 @@ export default function WebformsAdminView({
                           <div style={{display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap', alignItems: 'center'}}>
                             <span
                               style={{
+                                // WI-4: field-type is a category label, not a status
+                                // badge — render as plain secondary-ink text, no chip.
                                 fontSize: 10,
-                                padding: '1px 6px',
-                                borderRadius: 10,
-                                background: TYPE_COLOR[f.type] || '#374151',
-                                color: 'white',
-                                fontWeight: 500,
+                                color: 'var(--text-secondary)',
+                                fontWeight: 600,
                               }}
                             >
                               {TYPE_LABELS[f.type] || f.type}
@@ -1173,7 +1166,7 @@ export default function WebformsAdminView({
                                 onClick={() => deleteField(si, fi)}
                                 style={{
                                   fontSize: 11,
-                                  color: '#b91c1c',
+                                  color: 'var(--danger)',
                                   background: 'none',
                                   border: 'none',
                                   cursor: 'pointer',
@@ -1223,14 +1216,14 @@ export default function WebformsAdminView({
                     (s, sec) => s + sec.fields.filter((f) => f.enabled).length,
                     0,
                   );
-                  const tileBg = isAddFeed ? '#fffbeb' : isWeighIns ? '#eff6ff' : 'white';
-                  const tileBorder = isAddFeed
-                    ? '1px solid #fde68a'
-                    : isWeighIns
-                      ? '1px solid #bfdbfe'
-                      : '1px solid #e5e7eb';
-                  const titleColor = isAddFeed ? '#92400e' : isWeighIns ? '#1e40af' : '#111827';
-                  const accent = isAddFeed ? '#92400e' : isWeighIns ? '#1e40af' : '#085041';
+                  // F045: webform cards are no longer color-themed per form.
+                  // White card, gray border, black title; the Edit primary action
+                  // and the live-URL link share one consistent treatment across
+                  // all forms (program = equipment/slate; link = info).
+                  const tileBg = 'var(--bg-card)';
+                  const tileBorder = '1px solid var(--border)';
+                  const titleColor = 'var(--text-primary)';
+                  const accent = getProgramColor('equipment');
                   const iconPrefix = isAddFeed ? '🌾 ' : isWeighIns ? '⚖️ ' : '';
                   const liveHref = isAddFeed ? '/addfeed' : isWeighIns ? '/weighins' : '/dailys';
                   const liveLabel = isAddFeed
@@ -1267,7 +1260,7 @@ export default function WebformsAdminView({
                           <a
                             href={liveHref}
                             target="_blank"
-                            style={{fontSize: 11, color: accent, display: 'block', marginTop: 4}}
+                            style={{fontSize: 11, color: 'var(--info)', display: 'block', marginTop: 4}}
                           >
                             {liveLabel}
                           </a>
@@ -1282,7 +1275,7 @@ export default function WebformsAdminView({
                             borderRadius: 10,
                             border: 'none',
                             background: accent,
-                            color: 'white',
+                            color: getReadableText(accent),
                             fontSize: 12,
                             fontWeight: 600,
                             cursor: 'pointer',

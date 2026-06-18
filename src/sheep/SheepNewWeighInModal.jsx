@@ -5,6 +5,8 @@ import React from 'react';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {LockedTeamMemberField, recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
@@ -120,11 +122,11 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
         {err && (
           <div
             style={{
-              color: '#b91c1c',
+              color: 'var(--danger)',
               fontSize: 12,
               marginBottom: 10,
               padding: '6px 10px',
-              background: '#fef2f2',
+              background: 'var(--danger-soft)',
               borderRadius: 10,
             }}
           >
@@ -148,7 +150,8 @@ const SheepNewWeighInModal = ({onClose, onCreate, authState}) => {
             style={{
               ...recordSaveButton,
               border: 'none',
-              background: busy || !team || !herd ? '#9ca3af' : '#0f766e',
+              background: busy || !team || !herd ? 'var(--ink-faint)' : getProgramColor('sheep'),
+              color: getReadableText(getProgramColor('sheep')),
               fontWeight: 700,
               cursor: busy || !team || !herd ? 'not-allowed' : 'pointer',
             }}

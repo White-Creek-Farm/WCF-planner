@@ -26,6 +26,7 @@ import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
 import {deleteWeighInEntry, deleteWeighInSession} from '../lib/weighInDeleteApi.js';
 import {runMutation, recordFieldChange, recordStatusChange, recordActivityEvent} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
+import {getProgramColor} from '../lib/programColors.js';
 import {
   formatAgeRange,
   formatFeedPerPig,
@@ -1530,6 +1531,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
 
   const isPig = session.species === 'pig';
   const isBroiler = session.species === 'broiler';
+  // CP0 WI-2d: this record page is shared across species; its accent follows the
+  // session's program (cattle maroon / pig blue / sheep green / broiler gold).
+  const accent = getProgramColor(session.species);
   const priors = isPig || isBroiler ? {} : computePriors();
   const curDate = session.date;
   const adgs =
@@ -1648,7 +1652,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                 {formatGroupAdg(pigMetrics.group_adg_lbs_per_day)}
               </span>
-              <span style={{fontSize: 11, fontWeight: 600, color: '#1e40af'}}>
+              <span style={{fontSize: 11, fontWeight: 600, color: accent}}>
                 {formatAvgWeight(pigMetrics.avg_weight_lbs)}
               </span>
             </>
@@ -1692,8 +1696,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             const wkBtnStyle = (active) => ({
               padding: '4px 10px',
               borderRadius: 10,
-              border: '1px solid ' + (active ? '#1e40af' : '#d1d5db'),
-              background: active ? '#1e40af' : 'white',
+              border: '1px solid ' + (active ? accent : '#d1d5db'),
+              background: active ? accent : 'white',
               color: active ? 'white' : '#374151',
               fontSize: 11,
               fontWeight: 600,
@@ -1757,7 +1761,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                         padding: '4px 12px',
                         borderRadius: 10,
                         border: 'none',
-                        background: metaBusy ? '#9ca3af' : '#1e40af',
+                        background: metaBusy ? '#9ca3af' : accent,
                         color: 'white',
                         fontSize: 11,
                         fontWeight: 600,
@@ -2004,7 +2008,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: savingGrid ? '#9ca3af' : '#1e40af',
+                background: savingGrid ? '#9ca3af' : accent,
                 color: 'white',
                 fontSize: 12,
                 fontWeight: 600,
@@ -2113,9 +2117,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                           </td>
                           <td style={td}>
                             {isLocked ? (
-                              <span style={{fontWeight: 600, color: '#1e40af', whiteSpace: 'nowrap'}}>
-                                {e.weight} lb
-                              </span>
+                              <span style={{fontWeight: 600, color: accent, whiteSpace: 'nowrap'}}>{e.weight} lb</span>
                             ) : (
                               <input
                                 type="number"
@@ -2718,7 +2720,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 flexWrap: 'wrap',
               }}
             >
-              <span style={{fontSize: 11, fontWeight: 600, color: '#1e40af'}}>+ Add entry:</span>
+              <span style={{fontSize: 11, fontWeight: 600, color: accent}}>+ Add entry:</span>
               {!isPig && (
                 <>
                   {/* Main workflow: herd-scoped diminishing picker of cows not yet
@@ -2789,7 +2791,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                   padding: '4px 12px',
                   borderRadius: 10,
                   border: 'none',
-                  background: parseFloat(addForm.weight) > 0 ? '#1e40af' : '#d1d5db',
+                  background: parseFloat(addForm.weight) > 0 ? accent : '#d1d5db',
                   color: 'white',
                   fontSize: 11,
                   fontWeight: 600,

@@ -19,6 +19,10 @@ import {
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
 import {recordFieldRowClass, recordFieldLabel, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import StatusText from '../shared/StatusText.jsx';
 import {computeProjectedCount, computeHousingDisplayCount} from '../lib/layerHousing.js';
 import {getHousingCap, computeHousingStats} from './layerBatchStats.js';
 import {recordStatusChange} from '../lib/activityApi.js';
@@ -346,19 +350,7 @@ export default function LayerHousingPage({
           <RecordTitle fontSize={22} margin={0}>
             {'🏠 ' + housing.housing_name}
           </RecordTitle>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 10,
-              background: isActive ? '#d1fae5' : '#f3f4f6',
-              color: isActive ? '#065f46' : '#6b7280',
-              textTransform: 'uppercase',
-            }}
-          >
-            {housing.status}
-          </span>
+          <Badge variant={isActive ? 'ok' : 'neutral'}>{housing.status}</Badge>
           {parentBatch && (
             <button
               type="button"
@@ -422,9 +414,11 @@ export default function LayerHousingPage({
                 }
               >
                 Projected:{' '}
-                <strong style={{color: proj.projected < proj.anchor * 0.9 ? '#b91c1c' : '#92400e'}}>
-                  {proj.projected}
-                </strong>
+                {proj.projected < proj.anchor * 0.9 ? (
+                  <StatusText tone="danger">{proj.projected}</StatusText>
+                ) : (
+                  <strong style={{color: 'var(--text-primary)'}}>{proj.projected}</strong>
+                )}
                 <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>{' (−' + proj.mortSince + ')'}</span>
               </span>
             )}
@@ -434,7 +428,7 @@ export default function LayerHousingPage({
             {util !== null && (
               <span>
                 Utilization:{' '}
-                <strong style={{color: util > 95 ? '#b91c1c' : util > 80 ? '#92400e' : '#065f46'}}>{util + '%'}</strong>
+                <StatusText tone={util > 95 ? 'danger' : util > 80 ? 'warn' : 'ok'}>{util + '%'}</StatusText>
               </span>
             )}
           </div>
@@ -448,12 +442,29 @@ export default function LayerHousingPage({
             }}
           >
             {[
-              ['Total Feed', hs.totalFeed > 0 ? Math.round(hs.totalFeed).toLocaleString() + ' lbs' : '—', '#92400e'],
-              ['Starter', hs.starterFeed > 0 ? Math.round(hs.starterFeed).toLocaleString() + ' lbs' : '—', '#1e40af'],
-              ['Grower', hs.growerFeed > 0 ? Math.round(hs.growerFeed).toLocaleString() + ' lbs' : '—', '#065f46'],
-              ['Layer', hs.layerFeed > 0 ? Math.round(hs.layerFeed).toLocaleString() + ' lbs' : '—', '#78350f'],
-              ['Mortality', hs.totalMort || '0', hs.totalMort > 5 ? '#b91c1c' : '#374151'],
-              ['Eggs', hs.totalEggs > 0 ? hs.totalEggs.toLocaleString() : '—', '#78350f'],
+              [
+                'Total Feed',
+                hs.totalFeed > 0 ? Math.round(hs.totalFeed).toLocaleString() + ' lbs' : '—',
+                'var(--text-primary)',
+              ],
+              [
+                'Starter',
+                hs.starterFeed > 0 ? Math.round(hs.starterFeed).toLocaleString() + ' lbs' : '—',
+                'var(--text-primary)',
+              ],
+              [
+                'Grower',
+                hs.growerFeed > 0 ? Math.round(hs.growerFeed).toLocaleString() + ' lbs' : '—',
+                'var(--text-primary)',
+              ],
+              [
+                'Layer',
+                hs.layerFeed > 0 ? Math.round(hs.layerFeed).toLocaleString() + ' lbs' : '—',
+                'var(--text-primary)',
+              ],
+              // Mortality reads as a loss signal above the threshold; otherwise black.
+              ['Mortality', hs.totalMort || '0', hs.totalMort > 5 ? 'var(--danger)' : 'var(--text-primary)'],
+              ['Eggs', hs.totalEggs > 0 ? hs.totalEggs.toLocaleString() : '—', 'var(--text-primary)'],
             ].map(([label, val, color]) => (
               <div
                 key={label}
@@ -515,9 +526,9 @@ export default function LayerHousingPage({
                   style={{
                     padding: '10px 16px',
                     borderRadius: 10,
-                    border: '1px solid #fca5a5',
-                    background: '#fef2f2',
-                    color: '#b91c1c',
+                    border: '1px solid var(--border)',
+                    background: 'white',
+                    color: 'var(--danger)',
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                     fontSize: 12,
@@ -579,7 +590,7 @@ export default function LayerHousingPage({
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>
                 Edit Housing{' '}
                 <span style={{fontSize: 11, color: 'var(--ink-faint)', fontWeight: 400, marginLeft: 6}}>
                   Auto-saves as you type
@@ -591,7 +602,7 @@ export default function LayerHousingPage({
                 ) : housingPending ? (
                   <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'Unsaved…'}</span>
                 ) : (
-                  <span style={{fontSize: 11, color: '#065f46'}}>{'✓ Saved'}</span>
+                  <span style={{fontSize: 11, color: 'var(--ok-ink)'}}>{'✓ Saved'}</span>
                 )}
                 <button
                   type="button"
@@ -645,9 +656,9 @@ export default function LayerHousingPage({
                       <div
                         style={{
                           fontSize: 11,
-                          color: '#92400e',
-                          background: '#fffbeb',
-                          border: '1px solid #fde68a',
+                          color: 'var(--warn-ink)',
+                          background: 'var(--warn-soft)',
+                          border: '1px solid var(--border)',
                           borderRadius: 10,
                           padding: '6px 10px',
                           marginBottom: 4,
@@ -673,7 +684,7 @@ export default function LayerHousingPage({
                     const newVal = hForm.current_count !== '' ? parseInt(hForm.current_count) : null;
                     if (newVal !== oldVal) {
                       return (
-                        <div style={{fontSize: 10, color: '#065f46', marginTop: 4, fontWeight: 600}}>
+                        <div style={{fontSize: 10, color: 'var(--ok-ink)', marginTop: 4, fontWeight: 600}}>
                           {'Will be stamped: ' + fmt(todayStr())}
                         </div>
                       );
@@ -729,7 +740,7 @@ export default function LayerHousingPage({
                   style={recordTextarea}
                 />
               </div>
-              {err && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600, marginTop: 8}}>{err}</div>}
+              {err && <div style={{color: 'var(--danger)', fontSize: 12, fontWeight: 600, marginTop: 8}}>{err}</div>}
             </div>
           </div>
         </div>

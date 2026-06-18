@@ -30,6 +30,10 @@ import {
   buildSheepBatchComparator,
 } from '../lib/sheepBatchFilters.js';
 import SheepBatchPage from './SheepBatchPage.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 
 const SHEEP_BATCHES_SURFACE_KEY = 'sheep.batches';
 const EXTENDED_LIST_CONTROLS_ENABLED = false;
@@ -421,7 +425,12 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #0f766e', color: '#0f766e'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: 'none',
+    background: getProgramColor('sheep'),
+    color: getReadableText(getProgramColor('sheep')),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -459,7 +468,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
               borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#0f766e',
+              color: 'var(--ink)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -530,8 +539,8 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                   padding: '7px 16px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#0f766e',
-                  color: 'white',
+                  background: getProgramColor('sheep'),
+                  color: getReadableText(getProgramColor('sheep')),
                   fontWeight: 600,
                   fontSize: 12,
                   cursor: 'pointer',
@@ -564,7 +573,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
             >
               <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
               {savedViewsError ? (
-                <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-batches-saved-views-error>
+                <span style={{fontSize: 12, color: 'var(--danger)'}} data-sheep-batches-saved-views-error>
                   Saved views unavailable. Filters still work.
                 </span>
               ) : (
@@ -612,7 +621,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                         data-sheep-batches-saved-view-delete
                         onClick={deleteSelectedView}
                         disabled={savedViewBusy}
-                        style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                        style={{...savedViewGhostBtnS, color: 'var(--danger)', borderColor: 'var(--border)'}}
                       >
                         Delete
                       </button>
@@ -637,7 +646,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 data-sheep-batches-saved-view-form
                 style={{
                   background: 'white',
-                  border: '1px solid #99f6e4',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   padding: '10px 14px',
                   marginBottom: 8,
@@ -739,9 +748,9 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                         style={{
                           padding: '6px 12px',
                           borderRadius: 10,
-                          border: '1px solid ' + (on ? '#0f766e' : 'var(--border-strong)'),
+                          border: '1px solid ' + (on ? getProgramColor('sheep') : 'var(--border-strong)'),
                           background: 'white',
-                          color: on ? '#0f766e' : 'var(--ink-muted)',
+                          color: on ? getProgramColor('sheep') : 'var(--ink-muted)',
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
@@ -1002,7 +1011,7 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#0f766e'}}>New Processing Batch</div>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>New Processing Batch</div>
               <button
                 type="button"
                 onClick={closeForm}
@@ -1071,8 +1080,8 @@ const SheepBatchesHub = ({sb, fmt, Header, authState, showUsers, setShowUsers, a
                   padding: '8px 20px',
                   borderRadius: 10,
                   border: 'none',
-                  background: creating ? '#9ca3af' : '#0f766e',
-                  color: 'white',
+                  background: creating ? 'var(--ink-faint)' : getProgramColor('sheep'),
+                  color: getReadableText(getProgramColor('sheep')),
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: creating ? 'not-allowed' : 'pointer',
@@ -1130,7 +1139,7 @@ function BatchRow({batch, fmt, onOpen}) {
         padding: '10px 14px',
         borderBottom: '1px solid var(--divider)',
         cursor: 'pointer',
-        background: isComplete ? '#fafafa' : 'white',
+        background: isComplete ? 'var(--surface-2)' : 'white',
       }}
     >
       {/* Batch */}
@@ -1149,19 +1158,9 @@ function BatchRow({batch, fmt, onOpen}) {
 
       {/* Status */}
       <span style={{justifySelf: 'start'}}>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: '2px 8px',
-            borderRadius: 10,
-            background: isComplete ? '#374151' : '#0f766e',
-            color: 'white',
-            textTransform: 'uppercase',
-          }}
-        >
+        <Badge variant={isComplete ? 'ok' : 'warn'} style={{textTransform: 'uppercase'}}>
           {batch.status}
-        </span>
+        </Badge>
       </span>
 
       {/* Sheep count */}
@@ -1173,19 +1172,23 @@ function BatchRow({batch, fmt, onOpen}) {
       <span style={{fontSize: 11, color: 'var(--ink-muted)', display: 'flex', gap: 8, flexWrap: 'wrap'}}>
         {batch.planned_process_date ? <span>planned {fmt(batch.planned_process_date)}</span> : <span>—</span>}
         {batch.actual_process_date && (
-          <span style={{color: '#065f46'}}>processed {fmt(batch.actual_process_date)}</span>
+          <span style={{color: 'var(--ok-ink)'}}>processed {fmt(batch.actual_process_date)}</span>
         )}
       </span>
 
       {/* Yield */}
       <span
-        style={{fontSize: 12, color: yieldPct ? '#065f46' : 'var(--ink-faint)', fontVariantNumeric: 'tabular-nums'}}
+        style={{
+          fontSize: 12,
+          color: yieldPct ? 'var(--text-primary)' : 'var(--ink-faint)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
       >
         {yieldPct ? <strong>{yieldPct + '%'}</strong> : '—'}
       </span>
 
       {/* Open */}
-      <span style={{fontSize: 12, color: '#0f766e', fontWeight: 600, textAlign: 'right'}}>{'Open ->'}</span>
+      <span style={{fontSize: 12, color: 'var(--text-primary)', fontWeight: 600, textAlign: 'right'}}>{'Open ->'}</span>
     </div>
   );
 }

@@ -121,6 +121,9 @@
      (Tasks / Notifications / Menu). Inline styles set the resting/active
      background, so the hover needs !important to apply over them. */
   [data-header-action-group="1"] button:hover{background:rgba(255,255,255,.16)!important}
+  /* CP0 Tabs: unselected header sub-nav tabs (no data-subnav-active) take a soft
+     hover wash; the selected program-color pill is excluded. */
+  [data-header-subnav="1"] button:not([data-subnav-active]):hover{background:var(--surface-2)!important}
 
 
     @media print {
@@ -168,32 +171,43 @@
   .btn-another{display:inline-block;padding:10px 28px;border:2px solid var(--green);border-radius:var(--r-md);background:#fff;color:var(--green);font-size:14px;font-weight:600;cursor:pointer}
   .loading-msg{text-align:center;padding:3rem;color:var(--muted);font-size:14px}
   @media(max-width:400px){.grid2{grid-template-columns:1fr}}
-  /* ── Global openable affordance ──
+  /* ── Global openable affordance (CP0 WI-6) ──
      Contract locked by tests/static/openable_hover_affordance_static.test.js;
      keep this block byte-identical across index.html / dailys.html /
      equipment.html.
-       .hoverable-tile — openable div-based card/tile/grid row: lifts on hover
-       (Home parity .lift) with a stronger border + soft shadow, no wash.
-       .hoverable-row  — openable <tr> inside a real <table>: neutral row-hover
-       wash on its cells only (transforms are unreliable on table rows).
-     Hover/focus may only change paint (background/box-shadow/outline/border-
-     color/transform) — never box metrics — so no layout shift. !important lets
-     the lift border / row wash win over the inline styles call sites set; hover
-     is gated behind (hover:hover) so touch devices get the :active state
-     instead of a sticky lift. prefers-reduced-motion drops the lift transform. */
-  .hoverable-tile{cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+       .hoverable-tile — openable div-based card/tile/grid row: lifts 3px on
+       hover/focus (Home parity .lift) with a soft shadow + stronger border.
+       .hoverable-row  — openable <tr> inside a real <table>: raises via a
+       row-hover wash + stronger cell border (transforms/box-shadow are
+       unreliable on table rows, so rows use paint emphasis, not a lift).
+     Both reveal a trailing › chevron (.chev, styled just below this block) and
+     share the same keyboard-focus ring. Hover/focus may only change paint
+     (background/box-shadow/outline/border-color/transform) — never box metrics
+     — so pointing at a row never shifts layout. !important lets the lift/wash
+     win over inline call-site styles; hover is gated behind (hover:hover) so
+     touch devices get the :active state instead of a sticky lift; prefers-
+     reduced-motion drops the lift transform. */
+  .hoverable-tile{cursor:pointer;transition:transform .3s ease,box-shadow .3s ease,border-color .3s ease}
   .hoverable-row{cursor:pointer}
   @media (hover:hover){
-    .hoverable-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:var(--border-strong) !important}
-    .hoverable-row:hover td{background:var(--row-hover) !important}
+    .hoverable-tile:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover);border-color:var(--border-strong) !important}
+    .hoverable-row:hover td{background:var(--row-hover) !important;border-color:var(--border-strong) !important}
   }
   .hoverable-tile:active{transform:none;box-shadow:none}
   .hoverable-row:active td{background:var(--row-hover) !important}
   .hoverable-tile:focus-visible,.hoverable-row:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;background:var(--row-hover) !important}
   @media (prefers-reduced-motion: reduce){
-    .hoverable-tile{transition:box-shadow .16s ease,border-color .16s ease}
+    .hoverable-tile{transition:box-shadow .3s ease,border-color .3s ease}
     .hoverable-tile:hover{transform:none}
   }
+  /* WI-6 trailing chevron — fades + slides in on hover/focus of any openable.
+     Opt-in: a surface adds <span class="chev" aria-hidden="true">›</span> as
+     its last child (DataTable rows reserve a trailing cell). Kept OUTSIDE the
+     guarded affordance block on purpose — opacity is not a paint prop the block
+     allows. */
+  .hoverable-tile .chev,.hoverable-row .chev{margin-left:auto;color:var(--text-faint);line-height:1;opacity:0;transform:translateX(-6px);transition:opacity .3s ease,transform .3s ease;pointer-events:none}
+  .hoverable-tile:hover .chev,.hoverable-tile:focus-visible .chev,.hoverable-row:hover .chev,.hoverable-row:focus-visible .chev{opacity:1;transform:none;color:var(--brand)}
+  @media (prefers-reduced-motion: reduce){.hoverable-tile .chev,.hoverable-row .chev{transition:none}}
 
   /* Authenticated-app mobile overrides. Public webforms set their own
      layout above and intentionally don't carry these data-* hooks, so

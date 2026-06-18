@@ -209,7 +209,7 @@ const NutritionTargetsPanel = ({sb}) => {
                           padding: '8px 10px',
                           textAlign: 'center',
                           fontSize: 10,
-                          color: savingHerd === h ? '#065f46' : 'var(--ink-faint)',
+                          color: savingHerd === h ? 'var(--ok-ink)' : 'var(--ink-faint)',
                           fontWeight: 600,
                         }}
                       >

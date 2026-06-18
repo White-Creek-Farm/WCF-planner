@@ -43,7 +43,10 @@
 import React, {useState} from 'react';
 import {fmt, todayISO} from '../lib/dateUtils.js';
 import {openableProps} from '../shared/openable.js';
-import {S} from '../lib/styles.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {getProgramColor} from '../lib/programColors.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import {
   calcBatchFeedForMonth,
   calcLayerFeedForMonth,
@@ -52,7 +55,6 @@ import {
   calcPoultryStatus,
   getBatchColor,
   breedLabel,
-  BREED_STYLE,
   LAYER_FEED_SCHEDULE,
   LAYER_FEED_PER_DAY,
 } from '../lib/broiler.js';
@@ -425,11 +427,11 @@ export default function BroilerFeedView({
 
   // Top tiles render three stacked per-type rows so each feed type's
   // value scans on its own. The order matches the active card's per-type
-  // row order.
+  // row order. WI-2e: feed-type words are categories, not colors → black labels.
   const TILE_TYPE_ROWS = [
-    {key: 'starter', label: 'Starter', color: '#1d4ed8'},
-    {key: 'grower', label: 'Grower', color: '#085041'},
-    {key: 'layer', label: 'Layer Feed', color: '#78350f'},
+    {key: 'starter', label: 'Starter'},
+    {key: 'grower', label: 'Grower'},
+    {key: 'layer', label: 'Layer Feed'},
   ];
   function renderTileRows(perType, valueColorFn) {
     return TILE_TYPE_ROWS.map((row) => {
@@ -449,7 +451,7 @@ export default function BroilerFeedView({
           <span
             style={{
               fontSize: 11,
-              color: row.color,
+              color: 'var(--text-primary)',
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: 0.3,
@@ -626,13 +628,16 @@ export default function BroilerFeedView({
     if (!md) return null;
     const isActive = ym === activeYM;
     const isActiveSavedCard = isActive && isMonthFullySaved(ym) && !isActiveEditMode;
-    const cardBorder = isActive ? '2px solid #085041' : '1px solid var(--border)';
-    const cardHeaderBg = isActive ? '#ecfdf5' : 'white';
+    // WI-5: ledger card uses a standard 1px gray border (no green 2px accent) and
+    // a plain white header (no green tint). Active state is shown by the pill.
+    const cardBorder = '1px solid var(--border)';
+    const cardHeaderBg = 'white';
 
+    // WI-2e: feed-type words are categories, not colors → black labels.
     const rowDefs = [
-      {key: 'starter', label: 'Starter', orderKey: 'starter', draftKey: 'starter', color: '#1d4ed8'},
-      {key: 'grower', label: 'Grower', orderKey: 'grower', draftKey: 'grower', color: '#085041'},
-      {key: 'layer', label: 'Layer Feed', orderKey: 'layerfeed', draftKey: 'layerfeed', color: '#78350f'},
+      {key: 'starter', label: 'Starter', orderKey: 'starter', draftKey: 'starter'},
+      {key: 'grower', label: 'Grower', orderKey: 'grower', draftKey: 'grower'},
+      {key: 'layer', label: 'Layer Feed', orderKey: 'layerfeed', draftKey: 'layerfeed'},
     ];
 
     return (
@@ -657,18 +662,9 @@ export default function BroilerFeedView({
         >
           <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{ymLabel(ym)}</span>
           {isActive && (
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: '#065f46',
-                background: '#d1fae5',
-                padding: '1px 8px',
-                borderRadius: 10,
-              }}
-            >
+            <Badge variant="ok" style={{borderRadius: 10}}>
               ACTIVE
-            </span>
+            </Badge>
           )}
         </div>
 
@@ -698,12 +694,14 @@ export default function BroilerFeedView({
                   borderTop: '1px solid var(--divider)',
                 }}
               >
-                <div style={{fontSize: 12, fontWeight: 700, color: row.color}}>{row.label}</div>
+                <div style={{fontSize: 12, fontWeight: 700, color: 'var(--text-primary)'}}>{row.label}</div>
                 <div style={{textAlign: 'right'}}>
                   <div style={{fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: 0.5}}>
                     Start
                   </div>
-                  <div style={{fontSize: 13, fontWeight: 600, color: lg && lg.start >= 0 ? 'var(--ink)' : '#b91c1c'}}>
+                  <div
+                    style={{fontSize: 13, fontWeight: 600, color: lg && lg.start >= 0 ? 'var(--ink)' : 'var(--danger)'}}
+                  >
                     {lg ? lg.start.toLocaleString() : '—'}
                   </div>
                 </div>
@@ -766,7 +764,7 @@ export default function BroilerFeedView({
                     style={{
                       fontSize: 14,
                       fontWeight: 700,
-                      color: liveEnd != null ? (liveEnd > 0 ? '#065f46' : '#b91c1c') : 'var(--ink-faint)',
+                      color: liveEnd != null ? (liveEnd > 0 ? 'var(--ok-ink)' : 'var(--danger)') : 'var(--ink-faint)',
                     }}
                   >
                     {liveEnd != null ? liveEnd.toLocaleString() : '—'}
@@ -821,8 +819,9 @@ export default function BroilerFeedView({
                 padding: '8px 18px',
                 borderRadius: 10,
                 border: 'none',
-                background: saveEnabled ? '#085041' : '#9ca3af',
-                color: 'white',
+                // WI-2d: broiler primary action re-tinted to the program accent.
+                background: saveEnabled ? getProgramColor('broiler') : '#9ca3af',
+                color: saveEnabled ? getReadableText(getProgramColor('broiler')) : 'white',
                 fontWeight: 700,
                 fontSize: 13,
                 cursor: saveEnabled ? 'pointer' : 'not-allowed',
@@ -854,26 +853,27 @@ export default function BroilerFeedView({
         {/* 4 top tiles — three per-type rows stacked inside each tile so
             each feed type's number scans on its own. No big totals. */}
         <div data-mobile-2col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10}}>
-          {/* Actual On Hand */}
+          {/* Actual On Hand — on-hand vs short is a genuine good/bad signal. */}
           <div style={tileShellS}>
             <div style={tileLabelS}>Actual On Hand</div>
-            {renderTileRows(actualOnHand, (v) => (v > 0 ? '#065f46' : '#b91c1c'))}
+            {renderTileRows(actualOnHand, (v) => (v > 0 ? 'var(--ok-ink)' : 'var(--danger)'))}
           </div>
 
           {/* Est. tile — active-month end for counted types, else prev-month end */}
           <div style={tileShellS}>
             <div style={tileLabelS}>{estTileLabel}</div>
-            {renderTileRows(estTileValues, (v) => (v > 0 ? '#065f46' : '#b91c1c'))}
+            {renderTileRows(estTileValues, (v) => (v > 0 ? 'var(--ok-ink)' : 'var(--danger)'))}
           </div>
 
-          {/* Order for [active] — amber regardless of value */}
+          {/* Order for [active] — genuine warn-notice panel (rule 3): warn ink on
+              soft warn bg with a standard 1px border. */}
           <div
             data-feed-order-tile="poultry-order"
-            style={{...tileShellS, background: '#fffbeb', border: '2px solid #fde68a'}}
+            style={{...tileShellS, background: 'var(--warn-soft)', border: '1px solid var(--border)'}}
           >
-            <div style={{...tileLabelS, color: '#92400e'}}>{'Order for ' + activeLabel}</div>
-            {renderTileRows(recommendedOrder, () => '#92400e')}
-            <div style={{fontSize: 10, color: '#92400e', opacity: 0.85, marginTop: 3}}>{orderBasisCaption}</div>
+            <div style={{...tileLabelS, color: 'var(--warn-ink)'}}>{'Order for ' + activeLabel}</div>
+            {renderTileRows(recommendedOrder, () => 'var(--warn-ink)')}
+            <div style={{fontSize: 10, color: 'var(--warn-ink)', opacity: 0.85, marginTop: 3}}>{orderBasisCaption}</div>
           </div>
 
           {/* Need Thru [next] */}
@@ -976,8 +976,9 @@ export default function BroilerFeedView({
                 padding: '7px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#085041',
-                color: 'white',
+                // WI-2d: broiler primary action re-tinted to the program accent.
+                background: getProgramColor('broiler'),
+                color: getReadableText(getProgramColor('broiler')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -1002,7 +1003,7 @@ export default function BroilerFeedView({
 
         {/* Monthly cards: one calendar-pinned order month */}
         <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-          <div style={{fontSize: 14, fontWeight: 700, color: '#085041'}}>Monthly Poultry Feed Ledger</div>
+          <div style={{fontSize: 14, fontWeight: 700, color: 'var(--text-primary)'}}>Monthly Poultry Feed Ledger</div>
           {renderMonthCard(activeYM)}
         </div>
 
@@ -1035,28 +1036,24 @@ export default function BroilerFeedView({
                   },
                 },
                 React.createElement('span', {
+                  // WI-5: keep ONE small batch-identity swatch but drop the colored border.
                   style: {
                     display: 'inline-block',
                     width: 12,
                     height: 12,
                     borderRadius: 3 /* radius-allow: 12px legend swatch */,
                     background: C.bg,
-                    border: '1px solid ' + C.bd,
                   },
                 }),
                 React.createElement(
                   'div',
-                  {style: {fontWeight: 600, fontSize: 13, color: '#1a1a1a', minWidth: 100}},
+                  {style: {fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', minWidth: 100}},
                   b.name,
                 ),
+                // WI-2b/WI-4: breed is a category, not a status badge → plain text.
                 React.createElement(
                   'span',
-                  {
-                    style: S.badge(
-                      (BREED_STYLE[b.breed] || BREED_STYLE.CC).bg,
-                      (BREED_STYLE[b.breed] || BREED_STYLE.CC).tx,
-                    ),
-                  },
+                  {style: {fontSize: 12, fontWeight: 600, color: 'var(--text-primary)'}},
                   breedLabel(b.breed),
                 ),
                 React.createElement('span', {style: S.badge('#f3f4f6', '#374151')}, 'Schooner ' + b.schooner),
@@ -1080,8 +1077,8 @@ export default function BroilerFeedView({
                       style: {
                         fontSize: 11,
                         fontWeight: 600,
-                        color: '#085041',
-                        background: '#ecfdf5',
+                        color: 'var(--text-primary)',
+                        background: 'var(--surface-2)',
                         padding: '2px 8px',
                         borderRadius: 10,
                       },
@@ -1109,9 +1106,10 @@ export default function BroilerFeedView({
                   'div',
                   {style: {marginLeft: 'auto', display: 'flex', gap: 20, flexWrap: 'wrap'}},
                   [
-                    {label: 'Starter', proj: starter, act: actStarter, color: '#1d4ed8'},
-                    {label: 'Grower', proj: grower, act: actGrower, color: '#085041'},
-                    {label: 'Total', proj: total, act: actTotal, color: '#1a1a1a'},
+                    // WI-2a: projected/actual feed lbs are raw metrics → black.
+                    {label: 'Starter', proj: starter, act: actStarter},
+                    {label: 'Grower', proj: grower, act: actGrower},
+                    {label: 'Total', proj: total, act: actTotal},
                   ].map(function (col) {
                     var diff = col.act - col.proj;
                     return React.createElement(
@@ -1134,7 +1132,7 @@ export default function BroilerFeedView({
                         {style: {display: 'flex', gap: 6, alignItems: 'baseline', justifyContent: 'center'}},
                         React.createElement(
                           'span',
-                          {style: {fontSize: 13, fontWeight: 700, color: col.color}},
+                          {style: {fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}},
                           col.proj.toLocaleString(),
                         ),
                         React.createElement('span', {style: {fontSize: 10, color: 'var(--ink-faint)'}}, '/'),
@@ -1150,10 +1148,11 @@ export default function BroilerFeedView({
                           col.act > 0 ? col.act.toLocaleString() : '—',
                         ),
                       ),
+                      // The (+/-) delta vs projection is a genuine good/bad signal.
                       col.act > 0 &&
                         React.createElement(
                           'div',
-                          {style: {fontSize: 10, fontWeight: 600, color: diff > 0 ? '#b91c1c' : '#065f46'}},
+                          {style: {fontSize: 10, fontWeight: 600, color: diff > 0 ? 'var(--danger)' : 'var(--ok-ink)'}},
                           (diff > 0 ? '+' : '') + diff.toLocaleString(),
                         ),
                     );
@@ -1231,29 +1230,18 @@ export default function BroilerFeedView({
                         'tr',
                         {
                           key: i,
+                          // WI-2c/WI-5: drop the blue/green phase-tinted row backgrounds.
                           style: {
                             borderTop: '1px solid var(--border)',
-                            background: w.phase === 'starter' ? '#f0f7ff' : '#f0faf5',
+                            background: 'var(--bg-card)',
                           },
                         },
                         React.createElement('td', {style: {padding: '5px 12px', fontWeight: 500}}, 'Week ' + w.week),
+                        // WI-2e/WI-4: feed phase is a category, not a status chip → plain black text.
                         React.createElement(
                           'td',
-                          {style: {padding: '5px 12px'}},
-                          React.createElement(
-                            'span',
-                            {
-                              style: {
-                                padding: '2px 7px',
-                                borderRadius: 999,
-                                fontSize: 10,
-                                fontWeight: 600,
-                                background: w.phase === 'starter' ? '#E6F1FB' : '#EAF3DE',
-                                color: w.phase === 'starter' ? '#185FA5' : '#27500A',
-                              },
-                            },
-                            w.phase === 'starter' ? 'Starter' : 'Grower',
-                          ),
+                          {style: {padding: '5px 12px', color: 'var(--text-primary)', fontWeight: 600, fontSize: 10}},
+                          w.phase === 'starter' ? 'Starter' : 'Grower',
                         ),
                         React.createElement(
                           'td',
@@ -1274,7 +1262,7 @@ export default function BroilerFeedView({
                     }),
                     React.createElement(
                       'tr',
-                      {style: {borderTop: '2px solid #ddd', background: 'var(--surface-2)', fontWeight: 600}},
+                      {style: {borderTop: '1px solid var(--border)', background: 'var(--surface-2)', fontWeight: 600}},
                       React.createElement(
                         'td',
                         {colSpan: 4, style: {padding: '6px 12px', textAlign: 'right', color: 'var(--ink-muted)'}},
@@ -1320,7 +1308,7 @@ export default function BroilerFeedView({
               {style: {padding: '12px 16px', borderBottom: '1px solid var(--border)'}},
               React.createElement(
                 'div',
-                {style: {fontWeight: 600, fontSize: 14, color: '#085041'}},
+                {style: {fontWeight: 600, fontSize: 14, color: 'var(--text-primary)'}},
                 '🐔 Broiler Feed Estimate Per Batch',
               ),
             ),
@@ -1442,7 +1430,9 @@ export default function BroilerFeedView({
               }),
             )}
           >
-            <div style={{fontWeight: 600, fontSize: 14, color: '#78350f'}}>{'🐓 Layer Feed Estimate Per Batch'}</div>
+            <div style={{fontWeight: 600, fontSize: 14, color: 'var(--text-primary)'}}>
+              {'🐓 Layer Feed Estimate Per Batch'}
+            </div>
             <span style={{fontSize: 12, color: 'var(--ink-faint)'}}>
               {collapsedBatches.has('layers') ? '▶ expand' : '▼ collapse'}
             </span>
@@ -1488,13 +1478,16 @@ export default function BroilerFeedView({
                         alignItems: 'center',
                         gap: 10,
                         padding: '10px 16px',
-                        background: '#fffbeb',
+                        background: 'var(--surface-2)',
                         flexWrap: 'wrap',
                       }}
                     >
                       <span style={{fontSize: 14}}>{'🐓'}</span>
-                      <div style={{fontWeight: 600, fontSize: 13, color: '#92400e', minWidth: 100}}>{b.name}</div>
-                      <span style={S.badge('#fef3c7', '#92400e')}>{phase}</span>
+                      <div style={{fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', minWidth: 100}}>
+                        {b.name}
+                      </div>
+                      {/* Feed phase is a category, not a status badge → plain text (WI-2e/WI-4). */}
+                      <span style={{fontSize: 12, fontWeight: 600, color: 'var(--text-primary)'}}>{phase}</span>
                       {startDate && (
                         <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Started: {fmt(startDate)}</span>
                       )}
@@ -1516,7 +1509,7 @@ export default function BroilerFeedView({
                           >
                             Starter
                           </div>
-                          <div style={{fontSize: 15, fontWeight: 700, color: '#1d4ed8'}}>
+                          <div style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>
                             {Math.round(totalStarter).toLocaleString()} lbs
                           </div>
                         </div>
@@ -1531,7 +1524,7 @@ export default function BroilerFeedView({
                           >
                             Grower
                           </div>
-                          <div style={{fontSize: 15, fontWeight: 700, color: '#085041'}}>
+                          <div style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>
                             {Math.round(totalGrover).toLocaleString()} lbs
                           </div>
                         </div>
@@ -1546,7 +1539,7 @@ export default function BroilerFeedView({
                           >
                             Layer / Year
                           </div>
-                          <div style={{fontSize: 15, fontWeight: 700, color: '#78350f'}}>
+                          <div style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>
                             {Math.round(totalLayer).toLocaleString()} lbs
                           </div>
                         </div>

@@ -12,13 +12,8 @@ import {openableProps} from '../shared/openable.js';
 import {sb} from '../lib/supabase.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
-import {
-  calcTimeline,
-  calcBatchFeed,
-  calcBroilerStatsFromDailys,
-  computeBroilerOnFarmCounts,
-  BREED_STYLE,
-} from '../lib/broiler.js';
+import {programDotStyle} from '../lib/programColors.js';
+import {calcTimeline, calcBatchFeed, calcBroilerStatsFromDailys, computeBroilerOnFarmCounts} from '../lib/broiler.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
@@ -155,7 +150,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
         : null;
     const projFeed = histFeedDay ? Math.round(histFeedDay * daysActive) : null;
     const feedPct = projFeed && projFeed > 0 ? Math.round((feedSoFar / projFeed) * 100) : null;
-    const B2 = BREED_STYLE[b.breed] || BREED_STYLE.CC;
     const phaseLabel = inBrooder
       ? live
         ? `Brooder · out ${fmtS(live.brooderOut)}`
@@ -163,7 +157,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
       : live
         ? `Schooner · out ${fmtS(live.schoonerOut)}`
         : 'Schooner';
-    return {b, inBrooder, daysToProc, daysActive, feedSoFar, mortSoFar, mortPct, phaseLabel, B2};
+    return {b, inBrooder, daysToProc, daysActive, feedSoFar, mortSoFar, mortPct, phaseLabel};
   });
 
   // Last 10 processed for trends
@@ -252,7 +246,10 @@ export default function BroilerHomeView({Header, loadUsers}) {
       {label}
     </button>
   );
-  const StatTile = ({label, val, sub, color = '#085041'}) => (
+  // WI-2a: stat/metric numbers are black. These are raw counts/weights/$ totals
+  // (not good/bad signals), so the tile value ignores any ad-hoc accent and
+  // renders in --text-primary.
+  const StatTile = ({label, val, sub}) => (
     <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
       <div
         style={{
@@ -265,23 +262,25 @@ export default function BroilerHomeView({Header, loadUsers}) {
       >
         {label}
       </div>
-      <div style={{fontSize: 24, fontWeight: 700, color, lineHeight: 1}}>{val}</div>
+      <div style={{fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1}}>{val}</div>
       {sub && <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>{sub}</div>}
     </div>
   );
-  const BreedCol = ({label, stats, color, bg}) =>
+  // WI-2c: breed comparison cards drop the tinted background + colored title.
+  // Breed is a category, so the heading is plain --text-primary on white.
+  const BreedCol = ({label, stats}) =>
     stats ? (
       <div
         style={{
           flex: 1,
           minWidth: 220,
-          background: bg,
+          background: 'var(--bg-card)',
           border: '1px solid var(--border)',
           borderRadius: 12,
           padding: '14px 16px',
         }}
       >
-        <div style={{fontSize: 12, fontWeight: 700, color, marginBottom: 10}}>
+        <div style={{fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10}}>
           {label} <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>({stats.count} batches)</span>
         </div>
         {[
@@ -338,7 +337,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
           <StatTile
             label="Birds on Farm"
             val={broilerOnFarmCounts.onFarmBirds.toLocaleString()}
-            color="#085041"
             sub={
               broilerOnFarmCounts.startedBirds > 0 ? broilerOnFarmCounts.startedBirds.toLocaleString() + ' started' : ''
             }
@@ -346,7 +344,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
           <StatTile
             label="Birds Started"
             val={broilerOnFarmCounts.startedBirds.toLocaleString()}
-            color="#a16207"
             sub={broilerOnFarmCounts.mortality > 0 ? broilerOnFarmCounts.mortality.toLocaleString() + ' mortality' : ''}
           />
           {(function () {
@@ -356,7 +353,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
             return React.createElement(StatTile, {
               label: 'Processed Birds ' + currentYear,
               val: yrBirds.toLocaleString(),
-              color: '#374151',
               sub: procBrThisYear.length + ' batch' + (procBrThisYear.length !== 1 ? 'es' : ''),
             });
           })()}
@@ -371,7 +367,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
             return React.createElement(StatTile, {
               label: 'Total Lbs ' + currentYear,
               val: yrTotal > 0 ? Math.round(yrTotal).toLocaleString() + ' lbs' : '\u2014',
-              color: '#065f46',
               sub:
                 yrWhole > 0
                   ? 'Whole: ' +
@@ -393,7 +388,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))', gap: 10}}>
               {activeBatchDetails.map(
-                ({b, inBrooder, daysToProc, daysActive, feedSoFar, mortSoFar, mortPct, phaseLabel, B2}) => (
+                ({b, inBrooder, daysToProc, daysActive, feedSoFar, mortSoFar, mortPct, phaseLabel}) => (
                   <div
                     key={b.id}
                     {...openableProps(() => openBroilerBatch(b))}
@@ -409,16 +404,20 @@ export default function BroilerHomeView({Header, loadUsers}) {
                     <div style={{display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap'}}>
                       <span style={{fontSize: 16}}>{inBrooder ? '🐣' : '🐔'}</span>
                       <strong style={{fontSize: 13, whiteSpace: 'nowrap'}}>{b.name}</strong>
-                      <span style={{...S.badge(B2.bg, B2.tx), whiteSpace: 'nowrap'}}>{b.breed}</span>
+                      {/* Breed is a category, not a status — plain text, not a colored chip (WI-2b/WI-4). */}
+                      <span style={{fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap'}}>
+                        {b.breed}
+                      </span>
                       <span style={{...S.badge('#f3f4f6', '#374151'), whiteSpace: 'nowrap'}}>
                         {'Sch ' + b.schooner}
                       </span>
+                      {/* Current phase (brooder/schooner) — categorical label, not good/bad. */}
                       <span
                         style={{
                           fontSize: 10,
                           fontWeight: 700,
-                          color: inBrooder ? '#065f46' : '#a16207',
-                          background: inBrooder ? '#ecfdf5' : '#fef9c3',
+                          color: 'var(--text-primary)',
+                          background: 'var(--surface-2)',
                           padding: '2px 8px',
                           borderRadius: 10,
                           whiteSpace: 'nowrap',
@@ -440,22 +439,22 @@ export default function BroilerHomeView({Header, loadUsers}) {
                         {l: 'On farm', v: Math.floor(daysActive / 7) + 'w ' + (daysActive % 7) + 'd'},
                         {l: 'Current phase', v: phaseLabel},
                         {l: 'Birds (day 1)', v: dayOne > 0 ? dayOne.toLocaleString() : '\u2014'},
-                        {l: 'On-farm birds', v: stats.projectedBirds.toLocaleString(), green: true},
+                        // WI-2a: on-farm bird count is a raw metric, not a good/bad signal \u2192 black.
+                        {l: 'On-farm birds', v: stats.projectedBirds.toLocaleString()},
                         {
                           l: 'Mortality',
                           v: mortSoFar > 0 ? `${mortSoFar} birds (${mortPct}%)` : '0',
                           warn: mortSoFar > 15,
                         },
                       ];
-                    })().map(({l, v, warn, green}) => (
+                    })().map(({l, v, warn}) => (
                       <div
                         key={l}
                         style={{display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4}}
                       >
                         <span style={{color: 'var(--ink-faint)'}}>{l}</span>
-                        <span style={{fontWeight: 600, color: warn ? '#b91c1c' : green ? '#085041' : 'var(--ink)'}}>
-                          {v}
-                        </span>
+                        {/* Mortality over threshold keeps a danger signal (WI-2a); other values are black. */}
+                        <span style={{fontWeight: 600, color: warn ? 'var(--danger)' : 'var(--ink)'}}>{v}</span>
                       </div>
                     ))}
                     {/* Feed: Projected vs Actual */}
@@ -479,8 +478,9 @@ export default function BroilerHomeView({Header, loadUsers}) {
                           'Feed: Projected / Actual',
                         ),
                         [
-                          {l: 'Starter', proj: pf.starter, act: stats2.starterFeed, color: '#1d4ed8'},
-                          {l: 'Grower', proj: pf.grower, act: stats2.growerFeed, color: '#085041'},
+                          // WI-2e: feed-type words are categories, not colors \u2192 black label.
+                          {l: 'Starter', proj: pf.starter, act: stats2.starterFeed},
+                          {l: 'Grower', proj: pf.grower, act: stats2.growerFeed},
                         ].map(function (f) {
                           var diff = f.act - f.proj;
                           return React.createElement(
@@ -495,7 +495,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                                 marginBottom: 3,
                               },
                             },
-                            React.createElement('span', {style: {color: f.color, fontWeight: 600}}, f.l),
+                            React.createElement('span', {style: {color: 'var(--text-primary)', fontWeight: 600}}, f.l),
                             React.createElement(
                               'div',
                               {style: {display: 'flex', gap: 6, alignItems: 'center'}},
@@ -510,6 +510,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                                 {style: {fontWeight: 700, color: f.act > 0 ? 'var(--ink)' : 'var(--ink-faint)'}},
                                 f.act > 0 ? f.act.toLocaleString() : '\u2014',
                               ),
+                              // The (+/-) delta vs projection is a genuine good/bad signal \u2014 keep semantic ink.
                               f.act > 0 &&
                                 React.createElement(
                                   'span',
@@ -517,7 +518,7 @@ export default function BroilerHomeView({Header, loadUsers}) {
                                     style: {
                                       fontSize: 10,
                                       fontWeight: 600,
-                                      color: diff > 0 ? '#b91c1c' : '#065f46',
+                                      color: diff > 0 ? 'var(--danger)' : 'var(--ok-ink)',
                                       marginLeft: 4,
                                     },
                                   },
@@ -544,8 +545,8 @@ export default function BroilerHomeView({Header, loadUsers}) {
               BREED COMPARISON
             </div>
             <div style={{display: 'flex', gap: 12, flexWrap: 'wrap'}}>
-              <BreedCol label="🐓 Cornish Cross" stats={ccStats} color="#185FA5" bg="#E6F1FB" />
-              <BreedCol label="🐤 White Ranger" stats={wrStats} color="#854F0B" bg="#FAEEDA" />
+              <BreedCol label="🐓 Cornish Cross" stats={ccStats} />
+              <BreedCol label="🐤 White Ranger" stats={wrStats} />
             </div>
           </div>
         )}
@@ -642,7 +643,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
               <StatTile
                 label="Total Feed Cost"
                 val={totalFeedCost > 0 ? '$' + Math.round(totalFeedCost).toLocaleString() : '\u2014'}
-                color="#92400e"
               />
               <StatTile
                 label="Processing Cost"
@@ -652,18 +652,15 @@ export default function BroilerHomeView({Header, loadUsers}) {
                   }, 0);
                   return pc > 0 ? '$' + Math.round(pc).toLocaleString() : '\u2014';
                 })()}
-                color="#374151"
               />
               <StatTile
                 label="Total Cost"
                 val={totalAllCost > 0 ? '$' + Math.round(totalAllCost).toLocaleString() : '\u2014'}
-                color="#7f1d1d"
                 sub="Feed + processing"
               />
               <StatTile
                 label="Avg Cost / Bird"
                 val={totalProc > 0 && totalAllCost > 0 ? '$' + (totalAllCost / totalProc).toFixed(2) : '\u2014'}
-                color="#374151"
               />
               {totalLbsWhole > 0 && (
                 <StatTile
@@ -673,7 +670,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
                     ' lbs' +
                     (wholePct != null ? ' (' + wholePct + '%)' : '')
                   }
-                  color="#065f46"
                 />
               )}
               {totalLbsCuts > 0 && (
@@ -682,7 +678,6 @@ export default function BroilerHomeView({Header, loadUsers}) {
                   val={
                     Math.round(totalLbsCuts).toLocaleString() + ' lbs' + (cutsPct != null ? ' (' + cutsPct + '%)' : '')
                   }
-                  color="#a16207"
                 />
               )}
             </div>

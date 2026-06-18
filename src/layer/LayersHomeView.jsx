@@ -9,6 +9,9 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {openableProps} from '../shared/openable.js';
+import {getProgramColor} from '../lib/programColors.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import {fmt, fmtS, todayISO, addDays, toISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {computeHousingDisplayCount, computeLayerFeedCost} from '../lib/layerHousing.js';
@@ -258,7 +261,7 @@ export default function LayersHomeView({Header, loadUsers}) {
     if (Math.abs(pct) > 200) return null; // cap noise from tiny baselines
     const up = pct >= 0;
     const good = higherIsBetter ? up : !up;
-    const color = Math.abs(pct) < 2 ? '#9ca3af' : good ? '#065f46' : '#b91c1c';
+    const color = Math.abs(pct) < 2 ? 'var(--text-secondary)' : good ? 'var(--ok-ink)' : 'var(--danger)';
     const arrow = Math.abs(pct) < 2 ? '\u2192' : up ? '\u2191' : '\u2193';
     return (
       <span style={{fontSize: 10, color, fontWeight: 600, marginLeft: 4}}>
@@ -291,8 +294,10 @@ export default function LayersHomeView({Header, loadUsers}) {
   const latestEggReport = (allEggDailys || [])[0];
   const dozensOnHand = latestEggReport?.dozens_on_hand || 0;
 
-  const StatTile = ({label, val, sub, color = '#78350f'}) => (
-    <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
+  const StatTile = ({label, val, sub, color = 'var(--text-primary)'}) => (
+    <div
+      style={{background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}
+    >
       <div
         style={{
           fontSize: 11,
@@ -320,24 +325,22 @@ export default function LayersHomeView({Header, loadUsers}) {
             {
               l: 'Starter',
               v: s.starterFeed > 0 ? Math.round(s.starterFeed).toLocaleString() + ' lbs' : '\u2014',
-              color: '#1e40af',
             },
             {
               l: 'Grower',
               v: s.growerFeed > 0 ? Math.round(s.growerFeed).toLocaleString() + ' lbs' : '\u2014',
-              color: '#065f46',
             },
           ]),
-      {l: 'Layer', v: s.layerFeed > 0 ? Math.round(s.layerFeed).toLocaleString() + ' lbs' : '\u2014', color: '#78350f'},
-      {l: 'Feed cost', v: hasFeed ? fmt$0(s.cost) : '\u2014', color: '#92400e'},
-      {l: 'Dozens', v: s.dozens > 0 ? Math.floor(s.dozens).toLocaleString() : '\u2014', color: '#065f46'},
+      {l: 'Layer', v: s.layerFeed > 0 ? Math.round(s.layerFeed).toLocaleString() + ' lbs' : '\u2014'},
+      {l: 'Feed cost', v: hasFeed ? fmt$0(s.cost) : '\u2014'},
+      {l: 'Dozens', v: s.dozens > 0 ? Math.floor(s.dozens).toLocaleString() : '\u2014'},
       {
         l: 'Eggs/hen/day',
         v: s.epd != null ? s.epd.toFixed(2) : '\u2014',
         good: s.epd >= 0.7,
         trend: prev ? trendArrow(s.epd, prev.epd, true) : null,
       },
-      {l: '$/dozen', v: hasFeed ? fmt$(s.costPerDoz) : '\u2014', color: '#065f46'},
+      {l: '$/dozen', v: hasFeed ? fmt$(s.costPerDoz) : '\u2014'},
       {l: 'Mortality', v: s.totalMort || '0', warn: s.totalMort > 10},
       ...(hideHens ? [] : [{l: 'Hens', v: s.hens > 0 ? s.hens.toLocaleString() : '\u2014'}]),
       {
@@ -374,7 +377,7 @@ export default function LayersHomeView({Header, loadUsers}) {
               style={{
                 fontSize: 13,
                 fontWeight: 700,
-                color: it.warn ? '#b91c1c' : it.good ? '#065f46' : it.color || 'var(--ink)',
+                color: it.warn ? 'var(--danger)' : it.good ? 'var(--ok-ink)' : 'var(--text-primary)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -391,7 +394,13 @@ export default function LayersHomeView({Header, loadUsers}) {
 
   const PeriodToggle = ({val, setVal, opts}) => (
     <div
-      style={{display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid #d1d5db', width: 'fit-content'}}
+      style={{
+        display: 'flex',
+        borderRadius: 10,
+        overflow: 'hidden',
+        border: '1px solid var(--border-strong)',
+        width: 'fit-content',
+      }}
     >
       {opts.map(({v, l}) => (
         <button
@@ -399,13 +408,13 @@ export default function LayersHomeView({Header, loadUsers}) {
           onClick={() => setVal(v)}
           style={{
             padding: '6px 14px',
-            border: '1px solid ' + (val === v ? '#085041' : 'var(--border-strong)'),
+            border: '1px solid ' + (val === v ? getProgramColor('layer') : 'var(--border-strong)'),
             fontFamily: 'inherit',
             fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer',
             background: 'white',
-            color: val === v ? '#085041' : 'var(--ink-muted)',
+            color: val === v ? getProgramColor('layer') : 'var(--ink-muted)',
           }}
         >
           {l}
@@ -440,12 +449,11 @@ export default function LayersHomeView({Header, loadUsers}) {
       >
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10}}>
           <StatTile label="Active Flocks" val={activeHousings.length} />
-          <StatTile label="Total Hens" val={totalHens.toLocaleString()} color="#a16207" />
-          <StatTile label="Dozens Last 7 Days" val={Math.floor(totalEggsLast7 / 12).toLocaleString()} color="#78350f" />
+          <StatTile label="Total Hens" val={totalHens.toLocaleString()} />
+          <StatTile label="Dozens Last 7 Days" val={Math.floor(totalEggsLast7 / 12).toLocaleString()} />
           <StatTile
             label="Dozens on Hand"
             val={dozensOnHand || '\u2014'}
-            color="#065f46"
             sub={latestEggReport ? 'as of ' + fmt(latestEggReport.date) : ''}
           />
         </div>
@@ -459,7 +467,7 @@ export default function LayersHomeView({Header, loadUsers}) {
 
         {/* Active batch cards */}
         <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
-          {dashBatches.map(function (batch, bi) {
+          {dashBatches.map(function (batch) {
             const myHousings = (layerHousings || []).filter((h) => h.batch_id === batch.id);
             const lifetimeFrom = lifetimeFromForBatch(batch);
             const cur = computeBatchWindow(batch, lifetimeFrom, today);
@@ -467,19 +475,12 @@ export default function LayersHomeView({Header, loadUsers}) {
             const ageMonths = anchor
               ? +((new Date(today + 'T12:00:00') - new Date(anchor + 'T12:00:00')) / 86400000 / 30.44).toFixed(1)
               : 0;
-            var batchColors = [
-              {bg: '#ecfdf5', bd: '#a7f3d0', tx: '#065f46'},
-              {bg: '#eff6ff', bd: '#bfdbfe', tx: '#1e40af'},
-              {bg: '#fffbeb', bd: '#fde68a', tx: '#92400e'},
-              {bg: '#f5f3ff', bd: '#ddd6fe', tx: '#5b21b6'},
-            ];
-            var bc = batchColors[bi % batchColors.length];
             return (
               <div
                 key={batch.id}
                 {...openableProps(() => setView('layerbatches'))}
                 style={{
-                  background: 'white',
+                  background: 'var(--bg-card)',
                   border: '1px solid var(--border)',
                   borderRadius: 14,
                   overflow: 'hidden',
@@ -489,9 +490,8 @@ export default function LayersHomeView({Header, loadUsers}) {
               >
                 <div
                   style={{
-                    background: 'white',
-                    borderBottom: '1px solid ' + bc.bd,
-                    borderLeft: '3px solid ' + bc.tx,
+                    background: 'var(--bg-card)',
+                    borderBottom: '1px solid var(--border)',
                     padding: '12px 20px',
                     display: 'flex',
                     alignItems: 'center',
@@ -499,22 +499,10 @@ export default function LayersHomeView({Header, loadUsers}) {
                     flexWrap: 'wrap',
                   }}
                 >
-                  <span style={{fontSize: 16, fontWeight: 700, color: bc.tx}}>{batch.name}</span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: 10,
-                      background: '#d1fae5',
-                      color: '#065f46',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Active
-                  </span>
+                  <span style={{fontSize: 16, fontWeight: 700, color: 'var(--text-primary)'}}>{batch.name}</span>
+                  <Badge variant="ok">Active</Badge>
                   {ageMonths > 0 && (
-                    <span style={{fontSize: 11, color: bc.tx, opacity: 0.85}}>{ageMonths} months old</span>
+                    <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{ageMonths} months old</span>
                   )}
                 </div>
                 <div style={{padding: '14px 20px'}}>
@@ -534,63 +522,41 @@ export default function LayersHomeView({Header, loadUsers}) {
                         HOUSINGS
                       </div>
                       <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-                        {(function () {
-                          var batchColors = [
-                            {bg: '#ecfdf5', bd: '#a7f3d0', tx: '#065f46'},
-                            {bg: '#eff6ff', bd: '#bfdbfe', tx: '#1e40af'},
-                            {bg: '#fffbeb', bd: '#fde68a', tx: '#92400e'},
-                            {bg: '#f5f3ff', bd: '#ddd6fe', tx: '#5b21b6'},
-                          ];
-                          var bc = batchColors[bi % batchColors.length];
-                          return myHousings.map((h) => {
-                            const hCur = computeHousingWindow(h, batch, lifetimeFrom, today);
-                            return (
+                        {myHousings.map((h) => {
+                          const hCur = computeHousingWindow(h, batch, lifetimeFrom, today);
+                          return (
+                            <div
+                              key={h.id}
+                              style={{
+                                padding: '10px 12px',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 10,
+                              }}
+                            >
                               <div
-                                key={h.id}
                                 style={{
-                                  padding: '10px 12px',
-                                  background: 'white',
-                                  border: '1px solid ' + bc.bd,
-                                  borderLeft: '3px solid ' + bc.tx,
-                                  borderRadius: 10,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  marginBottom: 8,
+                                  flexWrap: 'wrap',
                                 }}
                               >
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    marginBottom: 8,
-                                    flexWrap: 'wrap',
-                                  }}
-                                >
-                                  <span style={{fontSize: 13, fontWeight: 700, color: bc.tx}}>
-                                    {'\ud83c\udfe0 ' + h.housing_name}
+                                <span style={{fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}}>
+                                  {'\ud83c\udfe0 ' + h.housing_name}
+                                </span>
+                                <Badge variant={h.status === 'active' ? 'ok' : 'neutral'}>{h.status}</Badge>
+                                {hCur.hens > 0 && (
+                                  <span style={{fontSize: 11, color: 'var(--text-primary)', fontWeight: 600}}>
+                                    {hCur.hens.toLocaleString()} hens
                                   </span>
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      fontWeight: 700,
-                                      padding: '1px 7px',
-                                      borderRadius: 10,
-                                      background: h.status === 'active' ? '#d1fae5' : '#f3f4f6',
-                                      color: h.status === 'active' ? '#065f46' : '#6b7280',
-                                      textTransform: 'uppercase',
-                                    }}
-                                  >
-                                    {h.status}
-                                  </span>
-                                  {hCur.hens > 0 && (
-                                    <span style={{fontSize: 11, color: bc.tx, fontWeight: 600}}>
-                                      {hCur.hens.toLocaleString()} hens
-                                    </span>
-                                  )}
-                                </div>
-                                <MetricsGrid s={hCur} hideHens={true} hidePhases={true} />
+                                )}
                               </div>
-                            );
-                          });
-                        })()}
+                              <MetricsGrid s={hCur} hideHens={true} hidePhases={true} />
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -624,8 +590,8 @@ export default function LayersHomeView({Header, loadUsers}) {
                 <div
                   {...openableProps(() => setView('layerbatches'))}
                   style={{
-                    background: 'white',
-                    border: '2px solid #e5d4b1',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
                     borderRadius: 14,
                     padding: '18px 20px',
                     cursor: 'pointer',
@@ -633,20 +599,8 @@ export default function LayersHomeView({Header, loadUsers}) {
                   className="hoverable-tile"
                 >
                   <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap'}}>
-                    <span style={{fontSize: 16, fontWeight: 700, color: '#92400e'}}>Retirement Home</span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: 10,
-                        background: '#fef3c7',
-                        color: '#92400e',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Permanent
-                    </span>
+                    <span style={{fontSize: 16, fontWeight: 700, color: 'var(--text-primary)'}}>Retirement Home</span>
+                    <Badge variant="warn">Permanent</Badge>
                     <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                       {myHousings.length} housing{myHousings.length === 1 ? '' : 's'} {'\u00b7'}{' '}
                       {cur.hens.toLocaleString()} hens

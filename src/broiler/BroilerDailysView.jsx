@@ -1,5 +1,7 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
@@ -456,7 +458,11 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #92400e', color: '#92400e'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: `1px solid ${getProgramColor('broiler')}`,
+    color: getProgramColor('broiler'),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -499,8 +505,8 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#085041',
-                color: 'white',
+                background: getProgramColor('broiler'),
+                color: getReadableText(getProgramColor('broiler')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -826,12 +832,7 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
               navigate('/broiler/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
             }
             rowProps={(d) => ({'data-daily-row': d.id})}
-            rowStyle={(d) => {
-              const notable = parseInt(d.mortality_count) > 0 || (d.comments && String(d.comments).trim().length > 2);
-              if (notable) return {background: '#fef2f2'};
-              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
-              return undefined;
-            }}
+            maxInitialRows={100}
             columns={[
               {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
               {
@@ -914,10 +915,22 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
                 render: (d) => {
                   const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
                   if (!comment) return <StatusText tone="muted">{'—'}</StatusText>;
+                  // CP0 A1/A6: comment text is black (not amber) and clamped to 2
+                  // lines so a long note can't balloon the row; full text on hover.
                   return (
-                    <StatusText tone="warn" title={comment}>
+                    <span
+                      title={comment}
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        color: 'var(--text-primary)',
+                        maxWidth: 280,
+                      }}
+                    >
                       {comment}
-                    </StatusText>
+                    </span>
                   );
                 },
               },

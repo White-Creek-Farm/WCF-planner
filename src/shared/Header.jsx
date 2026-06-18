@@ -26,7 +26,8 @@
 // ============================================================================
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
-import {S} from '../lib/styles.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {getProgramColor} from '../lib/programColors.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 import {resolveNotificationRoute, routeToView} from '../lib/activityRegistry.js';
@@ -190,7 +191,7 @@ const MENU_ITEM_BTN = {
   cursor: 'pointer',
   fontSize: 13,
   textAlign: 'left',
-  color: '#111827',
+  color: 'var(--text-primary)',
   fontFamily: 'inherit',
 };
 
@@ -225,7 +226,7 @@ const ROLE_PREVIEW_SELECT = {
   borderRadius: 10,
   border: '1px solid #d1d5db',
   background: 'white',
-  color: '#111827',
+  color: 'var(--text-primary)',
   fontSize: 12,
   fontFamily: 'inherit',
 };
@@ -416,6 +417,21 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   // with the page's own tabs. equipmentHome keeps its brand pill but no
   // longer triggers the Header sub-nav.
   const inSubnav = inPoultry || inPigs || inLayers || inCattle || inSheep;
+  // CP0 Tabs: the selected sub-nav tab is a filled pill in the PROGRAM color
+  // (the header sub-nav adopts program identity); unselected tabs are plain
+  // text with no border/box. The dark top-bar chrome stays green (above).
+  const navProgram = inPoultry
+    ? 'broiler'
+    : inPigs
+      ? 'pig'
+      : inLayers
+        ? 'layer'
+        : inCattle
+          ? 'cattle'
+          : inSheep
+            ? 'sheep'
+            : null;
+  const navAccent = navProgram ? getProgramColor(navProgram) : '#085041';
   const nb = (active) => ({
     padding: '7px 16px',
     borderRadius: 10,
@@ -424,23 +440,10 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
     fontSize: 12,
     fontWeight: active ? 700 : 500,
     whiteSpace: 'nowrap',
-    border: active ? '2px solid #085041' : '1px solid #d1d5db',
-    background: active ? '#085041' : 'white',
-    color: active ? 'white' : '#374151',
+    border: 'none',
+    background: active ? navAccent : 'transparent',
+    color: active ? getReadableText(navAccent) : 'var(--text-primary)',
   });
-  const ghostBtn = {
-    padding: '7px 12px',
-    borderRadius: 10,
-    border: '1px solid #d1d5db',
-    cursor: 'pointer',
-    fontSize: 12,
-    fontWeight: 500,
-    background: 'white',
-    color: '#6b7280',
-    fontFamily: 'inherit',
-    whiteSpace: 'nowrap',
-  };
-
   // Common navigation reset: every header-driven setView must also close
   // any open broiler/pig form drawers so they don't leak into the next
   // view. Extracted here so the hamburger menu's eight destinations don't
@@ -649,7 +652,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                       gap: 8,
                     }}
                   >
-                    <span style={{fontSize: 13, fontWeight: 700, color: '#111827'}}>Notifications</span>
+                    <span style={{fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}}>Notifications</span>
                     <span style={{fontSize: 11, color: '#6b7280', fontVariantNumeric: 'tabular-nums'}}>
                       {notifUnread > 0 ? `${notifUnread} unread` : 'all read'}
                     </span>
@@ -779,7 +782,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                               style={{
                                 fontSize: 13,
                                 fontWeight: unread ? 700 : 500,
-                                color: '#111827',
+                                color: 'var(--text-primary)',
                                 lineHeight: 1.35,
                               }}
                             >
@@ -1007,7 +1010,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
               flexWrap: 'wrap',
             }}
           >
-            <button onClick={() => go('home')} style={ghostBtn}>
+            <button onClick={() => go('home')} style={nb(false)}>
               ⌂ Home
             </button>
             <div style={{width: 1, height: 20, background: '#e5e7eb', margin: '0 4px'}} />

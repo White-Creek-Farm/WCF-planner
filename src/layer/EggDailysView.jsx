@@ -1,5 +1,7 @@
 // Auto-extracted by Phase 2 Round 2 (verbatim). See MIGRATION_PLAN §6.
 import React from 'react';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
@@ -419,7 +421,11 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #92400e', color: '#92400e'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: `1px solid ${getProgramColor('layer')}`,
+    color: getProgramColor('layer'),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -490,8 +496,8 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#085041',
-                color: 'white',
+                background: getProgramColor('layer'),
+                color: getReadableText(getProgramColor('layer')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -736,12 +742,7 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
             density="comfortable"
             onRowOpen={(d) => navigate('/layer/eggs/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, null)))}
             rowProps={(d) => ({'data-daily-row': d.id})}
-            rowStyle={(d) => {
-              const notable = d.comments && String(d.comments).trim().length > 2;
-              if (notable) return {background: '#fef2f2'};
-              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
-              return undefined;
-            }}
+            maxInitialRows={100}
             columns={[
               {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
               {
@@ -811,9 +812,19 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
                   const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
                   if (!comment) return <StatusText tone="muted">{'—'}</StatusText>;
                   return (
-                    <StatusText tone="warn" title={comment}>
+                    <span
+                      title={comment}
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        color: 'var(--text-primary)',
+                        maxWidth: 280,
+                      }}
+                    >
                       {comment}
-                    </StatusText>
+                    </span>
                   );
                 },
               },

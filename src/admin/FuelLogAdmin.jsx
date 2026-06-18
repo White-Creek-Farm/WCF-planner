@@ -8,6 +8,8 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {openableProps} from '../shared/openable.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import FuelBillsView from './FuelBillsView.jsx';
 import FuelReconcileView from './FuelReconcileView.jsx';
 
@@ -221,9 +223,12 @@ export default function FuelLogAdmin() {
                     marginLeft: 'auto',
                     padding: '6px 14px',
                     borderRadius: 10,
+                    // WI-2d: primary toggle on an admin/equipment surface — single
+                    // re-tinted program (slate) fill in both states; the cancel
+                    // state isn't destructive so it doesn't warrant filled red.
                     border: 'none',
-                    background: newOpen ? '#b91c1c' : '#085041',
-                    color: 'white',
+                    background: getProgramColor('equipment'),
+                    color: getReadableText(getProgramColor('equipment')),
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -300,15 +305,14 @@ export default function FuelLogAdmin() {
                             <td style={{...td, textAlign: 'right', fontWeight: 600}}>
                               {Number(r.gallons).toLocaleString(undefined, {maximumFractionDigits: 1})}
                             </td>
+                            {/* WI-2e/WI-4: fuel type + destination are category
+                                words, not status badges — plain secondary text. */}
                             <td style={td}>
                               <span
                                 style={{
                                   fontSize: 10,
                                   fontWeight: 700,
-                                  padding: '2px 7px',
-                                  borderRadius: 999,
-                                  background: '#eff6ff',
-                                  color: '#1e40af',
+                                  color: 'var(--text-secondary)',
                                   textTransform: 'uppercase',
                                 }}
                               >
@@ -320,10 +324,7 @@ export default function FuelLogAdmin() {
                                 style={{
                                   fontSize: 10,
                                   fontWeight: 700,
-                                  padding: '2px 7px',
-                                  borderRadius: 999,
-                                  background: dm.bg,
-                                  color: dm.color,
+                                  color: 'var(--text-secondary)',
                                   textTransform: 'uppercase',
                                 }}
                               >
@@ -335,7 +336,7 @@ export default function FuelLogAdmin() {
                             <td style={{...td, textAlign: 'right', color: 'var(--ink-muted)'}}>
                               {money(r.cost_per_gal)}
                             </td>
-                            <td style={{...td, textAlign: 'right', color: '#065f46', fontWeight: 600}}>
+                            <td style={{...td, textAlign: 'right', color: 'var(--text-primary)', fontWeight: 600}}>
                               {money(r.total_cost)}
                             </td>
                             <td style={{...td, color: 'var(--ink-faint)', fontSize: 11}}>edit ▸</td>
@@ -380,14 +381,15 @@ function TotalsCard({title, t}) {
         </div>
       </div>
       <div style={{display: 'flex', gap: 8, marginTop: 10, fontSize: 11, color: 'var(--ink-muted)', flexWrap: 'wrap'}}>
+        {/* WI-2a: fuel-type gallon totals are raw counts, not signals — black. */}
         <span>
-          Diesel: <strong style={{color: '#1e40af'}}>{Math.round(t.diesel).toLocaleString()}</strong>
+          Diesel: <strong style={{color: 'var(--text-primary)'}}>{Math.round(t.diesel).toLocaleString()}</strong>
         </span>
         <span>
-          Gasoline: <strong style={{color: '#a16207'}}>{Math.round(t.gasoline).toLocaleString()}</strong>
+          Gasoline: <strong style={{color: 'var(--text-primary)'}}>{Math.round(t.gasoline).toLocaleString()}</strong>
         </span>
         <span>
-          DEF: <strong style={{color: '#92400e'}}>{Math.round(t.def).toLocaleString()}</strong>
+          DEF: <strong style={{color: 'var(--text-primary)'}}>{Math.round(t.def).toLocaleString()}</strong>
         </span>
       </div>
     </div>
@@ -622,9 +624,11 @@ function SupplyEditor({initial, onCancel, onSaved, isNew}) {
               marginLeft: 'auto',
               padding: '6px 12px',
               borderRadius: 10,
-              border: '1px solid #fecaca',
+              // WI-2d: destructive action — danger ink on white with a neutral
+              // border, not a filled/red-tinted button.
+              border: '1px solid var(--border)',
               background: 'white',
-              color: '#b91c1c',
+              color: 'var(--danger)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',

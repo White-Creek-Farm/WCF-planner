@@ -46,6 +46,8 @@
 import React from 'react';
 import {fmt, todayISO} from '../lib/dateUtils.js';
 import {calcBreedingTimeline, pigTransfersForBatch, pigMortalityForBatch} from '../lib/pig.js';
+import {getReadableText} from '../lib/styles.js';
+import {getProgramColor} from '../lib/programColors.js';
 import {pigDailyBurnLbs, pigFeederSubCurrentCount, pigFeederLbsPerDayAtAge} from '../lib/feedPlanner.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
@@ -55,6 +57,8 @@ import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import {calendarOrderYM, recommendedFeedOrder} from '../lib/feedOrderBasis.js';
 
 export default function PigFeedView({
@@ -485,7 +489,7 @@ export default function PigFeedView({
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: feedOnHand != null ? (feedOnHand > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
+                color: feedOnHand != null ? (feedOnHand > 0 ? 'var(--text-primary)' : 'var(--danger)') : '#9ca3af',
                 lineHeight: 1,
               }}
             >
@@ -495,7 +499,13 @@ export default function PigFeedView({
               <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 6}}>{'Count: ' + fmt(inv.date)}</div>
             )}
             {inv && physCountAdjustment != null && physCountAdjustment !== 0 && (
-              <div style={{fontSize: 10, color: physCountAdjustment > 0 ? '#065f46' : '#b91c1c', marginTop: 2}}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: physCountAdjustment > 0 ? 'var(--ok-ink)' : 'var(--danger)',
+                  marginTop: 2,
+                }}
+              >
                 {'Adj ' + (physCountAdjustment > 0 ? '+' : '') + physCountAdjustment.toLocaleString() + ' vs system'}
               </div>
             )}
@@ -508,7 +518,7 @@ export default function PigFeedView({
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: estTileValue != null ? (estTileValue > 0 ? '#065f46' : '#b91c1c') : '#9ca3af',
+                color: estTileValue != null ? (estTileValue > 0 ? 'var(--text-primary)' : 'var(--danger)') : '#9ca3af',
                 lineHeight: 1,
               }}
             >
@@ -522,22 +532,22 @@ export default function PigFeedView({
             data-feed-order-tile="pig-order"
             style={{
               ...tileShellS,
-              background: '#fffbeb',
-              border: '2px solid #fde68a',
+              background: 'var(--warn-soft)',
+              border: '1px solid var(--border)',
             }}
           >
-            <div style={{...tileLabelS, color: '#92400e'}}>{'Order for ' + activeLabel}</div>
+            <div style={{...tileLabelS, color: 'var(--warn-ink)'}}>{'Order for ' + activeLabel}</div>
             <div
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: recommendedOrder != null ? '#92400e' : '#9ca3af',
+                color: recommendedOrder != null ? 'var(--warn-ink)' : '#9ca3af',
                 lineHeight: 1,
               }}
             >
               {recommendedOrder != null ? recommendedOrder.toLocaleString() + ' lbs' : '—'}
             </div>
-            <div style={{fontSize: 10, color: '#92400e', opacity: 0.85, marginTop: 3}}>
+            <div style={{fontSize: 10, color: 'var(--warn-ink)', opacity: 0.85, marginTop: 3}}>
               {hasCurrentCount ? 'vs Actual On Hand' : 'vs End of ' + prevLabel + ' Est.'}
             </div>
           </div>
@@ -630,8 +640,8 @@ export default function PigFeedView({
                 padding: '7px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#085041',
-                color: 'white',
+                background: getProgramColor('pig'),
+                color: getReadableText(getProgramColor('pig')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -654,7 +664,7 @@ export default function PigFeedView({
 
         {/* Monthly cards: active first, then last saved, then older behind a collapse */}
         <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-          <div style={{fontSize: 14, fontWeight: 700, color: '#085041'}}>Monthly Pig Feed Ledger</div>
+          <div style={{fontSize: 14, fontWeight: 700, color: 'var(--text-primary)'}}>Monthly Pig Feed Ledger</div>
           {(() => {
             function renderCard(ym) {
               const md = monthlyData.find((m) => m.ym === ym);
@@ -666,8 +676,8 @@ export default function PigFeedView({
               const projGroups = projectedFeedByGroup(ym);
               const actualGroups = actualFeedByGroup(ym);
               const isActiveSavedCard = isActive && isSaved && !isActiveEditMode;
-              const cardBorder = isActive ? '2px solid #085041' : '1px solid var(--border)';
-              const cardHeaderBg = isActive ? '#ecfdf5' : 'white';
+              const cardBorder = '1px solid var(--border)';
+              const cardHeaderBg = 'white';
               return (
                 <div
                   key={ym}
@@ -689,20 +699,7 @@ export default function PigFeedView({
                     }}
                   >
                     <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{ymLabel(ym)}</span>
-                    {isActive && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: '#065f46',
-                          background: '#d1fae5',
-                          padding: '1px 8px',
-                          borderRadius: 10,
-                        }}
-                      >
-                        ACTIVE
-                      </span>
-                    )}
+                    {isActive && <Badge variant="ok">ACTIVE</Badge>}
                   </div>
 
                   {/* Equation row: Start − Consumed + Ordered = End.
@@ -737,7 +734,7 @@ export default function PigFeedView({
                         style={{
                           fontSize: 16,
                           fontWeight: 600,
-                          color: lg && lg.start >= 0 ? 'var(--ink)' : '#b91c1c',
+                          color: lg && lg.start >= 0 ? 'var(--text-primary)' : 'var(--danger)',
                         }}
                       >
                         {lg ? lg.start.toLocaleString() : '—'}
@@ -824,7 +821,7 @@ export default function PigFeedView({
                                   padding: '5px 10px',
                                   borderRadius: 10,
                                   border: 'none',
-                                  background: saveEnabled ? '#085041' : '#9ca3af',
+                                  background: saveEnabled ? getProgramColor('pig') : '#9ca3af',
                                   color: 'white',
                                   fontSize: 12,
                                   fontWeight: 600,
@@ -884,7 +881,7 @@ export default function PigFeedView({
                         style={{
                           fontSize: 16,
                           fontWeight: 700,
-                          color: lg && lg.end > 0 ? '#065f46' : '#b91c1c',
+                          color: lg && lg.end > 0 ? 'var(--text-primary)' : 'var(--danger)',
                         }}
                       >
                         {lg ? lg.end.toLocaleString() : '—'}
@@ -927,12 +924,12 @@ export default function PigFeedView({
                           </span>
                         )}
                         {dailyVar != null && dailyVar !== 0 && (
-                          <span style={{fontWeight: 600, color: dailyVar > 0 ? '#b91c1c' : '#065f46'}}>
+                          <span style={{fontWeight: 600, color: dailyVar > 0 ? 'var(--danger)' : 'var(--ok-ink)'}}>
                             {(dailyVar > 0 ? '+' : '') + dailyVar.toLocaleString() + '/day'}
                           </span>
                         )}
                         {moVar != null && moVar !== 0 && (
-                          <span style={{fontWeight: 600, color: moVar > 0 ? '#b91c1c' : '#065f46'}}>
+                          <span style={{fontWeight: 600, color: moVar > 0 ? 'var(--danger)' : 'var(--ok-ink)'}}>
                             {(moVar > 0 ? '+' : '') + moVar.toLocaleString() + ' mo' + (md.isCurrent ? ' est.' : '')}
                           </span>
                         )}
@@ -1024,7 +1021,8 @@ export default function PigFeedView({
                                     padding: '4px 10px',
                                     textAlign: 'right',
                                     fontWeight: 600,
-                                    color: gVar == null ? 'var(--ink-faint)' : gVar > 0 ? '#b91c1c' : '#065f46',
+                                    color:
+                                      gVar == null ? 'var(--ink-faint)' : gVar > 0 ? 'var(--danger)' : 'var(--ok-ink)',
                                   }}
                                 >
                                   {gVar == null ? '—' : (gVar > 0 ? '+' : '') + gVar.toLocaleString()}

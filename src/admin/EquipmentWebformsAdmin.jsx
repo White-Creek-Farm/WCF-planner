@@ -16,6 +16,10 @@ import {sb} from '../lib/supabase.js';
 import {openableProps} from '../shared/openable.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {EQUIPMENT_CATEGORIES} from '../lib/equipment.js';
 import EquipmentMaterialsEditor from './EquipmentMaterialsEditor.jsx';
 import {runMutation, recordFieldChange, recordStatusChange} from '../lib/entityMutations.js';
@@ -180,19 +184,10 @@ export default function EquipmentWebformsAdmin() {
                     >
                       <span style={{fontWeight: on ? 700 : 500, color: 'var(--ink)', flex: 1}}>{e.name}</span>
                       {e.status !== 'active' && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 6px',
-                            borderRadius: 999,
-                            background: '#fef3c7',
-                            color: '#92400e',
-                            textTransform: 'uppercase',
-                            fontWeight: 600,
-                          }}
-                        >
+                        // WI-4: non-active lifecycle status → neutral badge.
+                        <Badge variant="neutral" style={{fontSize: 10, padding: '1px 6px', textTransform: 'uppercase'}}>
                           {e.status}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   );
@@ -742,15 +737,15 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
                 borderRadius: 10,
               }}
             >
+              {/* WI-2e/WI-4: material type is a category word, not a status
+                  badge — plain secondary text, no colored chip. */}
               <span
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  padding: '2px 6px',
-                  borderRadius: 999,
                   textAlign: 'center',
-                  background: m.type === 'pdf' ? '#fef3c7' : '#fee2e2',
-                  color: m.type === 'pdf' ? '#92400e' : '#991b1b',
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
                 }}
               >
                 {m.type === 'pdf' ? '📄 PDF' : '▶ VIDEO'}
@@ -780,9 +775,9 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
                 style={{
                   padding: '4px 8px',
                   borderRadius: 10,
-                  border: '1px solid #fecaca',
+                  border: '1px solid var(--border)',
                   background: 'white',
-                  color: '#b91c1c',
+                  color: 'var(--danger)',
                   fontSize: 11,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -795,8 +790,16 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
         </div>
       )}
       <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
-        <div style={{padding: '10px', background: '#fffbeb', borderRadius: 10, border: '1px dashed #fde68a'}}>
-          <div style={{...subTitle, color: '#92400e'}}>Upload PDF</div>
+        {/* WI-5: input panels are neutral, not category-tinted (PDF amber / video red). */}
+        <div
+          style={{
+            padding: '10px',
+            background: 'var(--surface-2)',
+            borderRadius: 10,
+            border: '1px dashed var(--border)',
+          }}
+        >
+          <div style={{...subTitle, color: 'var(--text-primary)'}}>Upload PDF</div>
           <input
             type="file"
             accept="application/pdf"
@@ -807,10 +810,17 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
             }}
             style={{fontSize: 12}}
           />
-          {uploading && <div style={{fontSize: 10, color: '#92400e', marginTop: 4}}>Uploading…</div>}
+          {uploading && <div style={{fontSize: 10, color: 'var(--ink-muted)', marginTop: 4}}>Uploading…</div>}
         </div>
-        <div style={{padding: '10px', background: '#fef2f2', borderRadius: 10, border: '1px dashed #fecaca'}}>
-          <div style={{...subTitle, color: '#991b1b'}}>Add YouTube video</div>
+        <div
+          style={{
+            padding: '10px',
+            background: 'var(--surface-2)',
+            borderRadius: 10,
+            border: '1px dashed var(--border)',
+          }}
+        >
+          <div style={{...subTitle, color: 'var(--text-primary)'}}>Add YouTube video</div>
           <input
             type="text"
             value={newVideoTitle}
@@ -832,9 +842,11 @@ function ManualsEditor({equipment, onReload, onLocalPatch}) {
               style={{
                 padding: '6px 12px',
                 borderRadius: 10,
+                // WI-2d: primary add action on an equipment surface — program
+                // (slate) fill with auto-contrast text; disabled stays gray.
                 border: 'none',
-                background: busy || !newVideoUrl.trim() ? '#9ca3af' : '#991b1b',
-                color: 'white',
+                background: busy || !newVideoUrl.trim() ? '#9ca3af' : getProgramColor('equipment'),
+                color: busy || !newVideoUrl.trim() ? 'white' : getReadableText(getProgramColor('equipment')),
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -984,9 +996,9 @@ function DocumentsEditor({equipment, onReload, onLocalPatch}) {
                 style={{
                   padding: '4px 8px',
                   borderRadius: 10,
-                  border: '1px solid #fecaca',
+                  border: '1px solid var(--border)',
                   background: 'white',
-                  color: '#b91c1c',
+                  color: 'var(--danger)',
                   fontSize: 11,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -1219,9 +1231,9 @@ function EveryFillupEditor({equipment, onReload, onLocalPatch}) {
                 style={{
                   padding: '3px 8px',
                   borderRadius: 10,
-                  border: '1px solid #fecaca',
+                  border: '1px solid var(--border)',
                   background: 'white',
-                  color: '#b91c1c',
+                  color: 'var(--danger)',
                   fontSize: 11,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -1454,9 +1466,9 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                     style={{
                       padding: '3px 8px',
                       borderRadius: 10,
-                      border: '1px solid #fecaca',
+                      border: '1px solid var(--border)',
                       background: 'white',
-                      color: '#b91c1c',
+                      color: 'var(--danger)',
                       fontSize: 11,
                       cursor: 'pointer',
                       fontFamily: 'inherit',
@@ -1573,9 +1585,9 @@ function ServiceIntervalEditor({equipment, onReload, onLocalPatch}) {
                             style={{
                               padding: '3px 8px',
                               borderRadius: 10,
-                              border: '1px solid #fecaca',
+                              border: '1px solid var(--border)',
                               background: 'white',
-                              color: '#b91c1c',
+                              color: 'var(--danger)',
                               fontSize: 11,
                               cursor: 'pointer',
                               fontFamily: 'inherit',
@@ -1910,9 +1922,9 @@ function AttachmentChecklistsEditor({equipment, onReload, onLocalPatch}) {
                           style={{
                             padding: '3px 8px',
                             borderRadius: 10,
-                            border: '1px solid #fecaca',
+                            border: '1px solid var(--border)',
                             background: 'white',
-                            color: '#b91c1c',
+                            color: 'var(--danger)',
                             fontSize: 11,
                             cursor: 'pointer',
                             fontFamily: 'inherit',

@@ -19,6 +19,8 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
 const CATTLE_WEIGHINS_SURFACE_KEY = 'cattle.weighins';
@@ -304,7 +306,11 @@ const CattleWeighInsView = ({
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #1e40af', color: '#1e40af'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: `1px solid ${getProgramColor('cattle')}`,
+    color: getProgramColor('cattle'),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -341,7 +347,7 @@ const CattleWeighInsView = ({
               borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#1e40af',
+              color: 'var(--text-primary)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -605,7 +611,7 @@ const CattleWeighInsView = ({
                         fontWeight: 600,
                         cursor: 'pointer',
                         background: 'white',
-                        color: statusFilter === o.k ? '#1e40af' : 'var(--ink-muted)',
+                        color: statusFilter === o.k ? getProgramColor('cattle') : 'var(--ink-muted)',
                       }}
                     >
                       {o.l}
@@ -659,8 +665,8 @@ const CattleWeighInsView = ({
                 padding: '7px 14px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#1e40af',
-                color: 'white',
+                background: getProgramColor('cattle'),
+                color: getReadableText(getProgramColor('cattle')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',

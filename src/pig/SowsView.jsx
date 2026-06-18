@@ -12,8 +12,9 @@ import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
-import {S} from '../lib/styles.js';
-import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, PIG_GROUPS, PIG_GROUP_COLORS} from '../lib/pig.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, PIG_GROUPS} from '../lib/pig.js';
+import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
 import {recordActivityEvent, recordFieldChange} from '../lib/entityMutations.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -22,6 +23,8 @@ import InlineNotice from '../shared/InlineNotice.jsx';
 import DataTable from '../shared/DataTable.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import StatusText from '../shared/StatusText.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
@@ -383,8 +386,8 @@ export default function SowsView({
                 padding: '4px 10px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#085041',
-                color: 'white',
+                background: getProgramColor('pig'),
+                color: getReadableText(getProgramColor('pig')),
                 cursor: 'pointer',
                 fontSize: 12,
                 whiteSpace: 'nowrap',
@@ -522,7 +525,7 @@ export default function SowsView({
       render: (pig) => {
         const latestWeight = latestBreederWeight(pig);
         return latestWeight ? (
-          <span style={{color: '#065f46', fontWeight: 700}}>{latestWeight + ' lb'}</span>
+          <span style={{color: 'var(--text-primary)', fontWeight: 700}}>{latestWeight + ' lb'}</span>
         ) : (
           <StatusText tone="muted">{'-'}</StatusText>
         );
@@ -547,7 +550,9 @@ export default function SowsView({
         if (!isSow) return <StatusText tone="muted">{'-'}</StatusText>;
         const stats = sowFarrowStats(pig.tag);
         return (
-          <span style={{color: '#065f46', fontWeight: 700}}>{stats.litters + ' / ' + stats.alive + ' alive'}</span>
+          <span style={{color: 'var(--text-primary)', fontWeight: 700}}>
+            {stats.litters + ' / ' + stats.alive + ' alive'}
+          </span>
         );
       },
     },
@@ -581,7 +586,7 @@ export default function SowsView({
             borderRadius: 10,
             border: '1px solid var(--border-strong)',
             background: 'white',
-            color: '#085041',
+            color: 'var(--text-primary)',
             cursor: 'pointer',
             fontSize: 11,
             fontWeight: 600,
@@ -594,7 +599,7 @@ export default function SowsView({
     },
   ];
 
-  function BreedingPigTableSection({title, pigs, color = '#085041', rows = breedingPigSeqRows, muted = false}) {
+  function BreedingPigTableSection({title, pigs, rows = breedingPigSeqRows, muted = false}) {
     if (!pigs || pigs.length === 0) return null;
     return (
       <div
@@ -611,13 +616,15 @@ export default function SowsView({
           style={{
             padding: '10px 14px',
             borderBottom: '1px solid var(--border)',
-            borderLeft: '3px solid ' + color,
             display: 'flex',
             alignItems: 'center',
             gap: 10,
           }}
         >
-          <span style={{fontWeight: 700, fontSize: 13, color}}>{title}</span>
+          <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+            <span style={programDotStyle('pig')} />
+            <span style={{fontWeight: 700, fontSize: 13, color: 'var(--text-primary)'}}>{title}</span>
+          </span>
           <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
             {pigs.length} {pigs.length === 1 ? 'pig' : 'pigs'}
           </span>
@@ -712,7 +719,7 @@ export default function SowsView({
               </div>
               <div style={fieldStyle}>
                 <div style={labelStyle}>Alive Total</div>
-                <div style={{...valueStyle, color: '#065f46'}}>{stats.alive}</div>
+                <div style={valueStyle}>{stats.alive}</div>
               </div>
             </>
           )}
@@ -758,18 +765,7 @@ export default function SowsView({
                           fontSize: 12,
                         }}
                       >
-                        <span
-                          style={{
-                            color: '#b91c1c',
-                            fontWeight: 700,
-                            background: '#fef2f2',
-                            padding: '1px 6px',
-                            borderRadius: 10,
-                            fontSize: 10,
-                          }}
-                        >
-                          MISSED
-                        </span>
+                        <Badge variant="danger">MISSED</Badge>
                         <span style={{color: 'var(--ink-muted)'}}>
                           {cycleLabel(h.cycle, cycleSeqMap) + ' - ' + fmt(h.cycle.exposureStart)}
                         </span>
@@ -796,9 +792,9 @@ export default function SowsView({
                       <span style={{color: 'var(--ink)', fontWeight: 700, minWidth: 90}}>
                         {fmt(h.rec.farrowingDate)}
                       </span>
-                      <span style={{color: '#065f46', fontWeight: 700}}>{alive + ' alive'}</span>
+                      <span style={{color: 'var(--text-primary)', fontWeight: 700}}>{alive + ' alive'}</span>
                       <span style={{color: 'var(--ink-faint)'}}>{born + ' born'}</span>
-                      {dead > 0 && <span style={{color: '#b91c1c'}}>{dead + ' died'}</span>}
+                      {dead > 0 && <span style={{color: 'var(--danger)'}}>{dead + ' died'}</span>}
                       {h.cycle && <span style={{color: 'var(--ink-faint)'}}>{cycleLabel(h.cycle, cycleSeqMap)}</span>}
                       {h.sire && <span style={{color: 'var(--ink-faint)'}}>{h.sire}</span>}
                     </div>
@@ -819,11 +815,11 @@ export default function SowsView({
                 data-breeding-pig-transfer-note={pig.id}
                 style={{
                   padding: '8px 12px',
-                  background: '#f5f3ff',
-                  border: '1px solid #ddd6fe',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   fontSize: 12,
-                  color: '#5b21b6',
+                  color: 'var(--text-primary)',
                   fontWeight: 700,
                 }}
               >
@@ -960,7 +956,7 @@ export default function SowsView({
                       {p.litters} litter{p.litters !== 1 ? 's' : ' '} {'\u00b7'} {p.born} born
                     </span>
                   </div>
-                  <div style={{fontSize: 16, fontWeight: 700, color: '#065f46'}}>{p.alive} alive</div>
+                  <div style={{fontSize: 16, fontWeight: 700, color: 'var(--text-primary)'}}>{p.alive} alive</div>
                 </div>
               ))}
             </div>
@@ -1060,7 +1056,7 @@ export default function SowsView({
                   ),
                   React.createElement(
                     'div',
-                    {style: {fontSize: 16, fontWeight: 700, color: '#065f46'}},
+                    {style: {fontSize: 16, fontWeight: 700, color: 'var(--text-primary)'}},
                     b.alive + ' alive',
                   ),
                 );
@@ -1168,8 +1164,8 @@ export default function SowsView({
                 padding: '7px 18px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#085041',
-                color: 'white',
+                background: getProgramColor('pig'),
+                color: getReadableText(getProgramColor('pig')),
                 cursor: 'pointer',
                 fontSize: 12,
                 fontWeight: 600,
@@ -1361,7 +1357,9 @@ export default function SowsView({
                   </div>
                 </div>
                 {breederForm.birthDate && (
-                  <div style={{marginTop: 8, fontSize: 12, color: '#065f46'}}>Age: {pigAge(breederForm.birthDate)}</div>
+                  <div style={{marginTop: 8, fontSize: 12, color: 'var(--text-secondary)'}}>
+                    Age: {pigAge(breederForm.birthDate)}
+                  </div>
                 )}
                 <div style={{display: 'flex', gap: 8, marginTop: 12}}>
                   <button onClick={saveBreeder} style={{...S.btnPrimary, width: 'auto', padding: '8px 20px'}}>
@@ -1407,13 +1405,11 @@ export default function SowsView({
               );
               return groups.map((grp) => {
                 const pigs = activeSows.filter((p) => (p.group || 'none') === grp);
-                const C = grp !== 'none' ? PIG_GROUP_COLORS[grp] : null;
                 return (
                   <BreedingPigTableSection
                     key={grp}
                     title={grp !== 'none' ? `Group ${grp}` : 'No Group'}
                     pigs={pigs}
-                    color={C ? C.farrowing : '#374151'}
                     rows={breedingPigSeqRows}
                   />
                 );
@@ -1422,7 +1418,7 @@ export default function SowsView({
           </div>
         )}
 
-        <BreedingPigTableSection title="Boars" pigs={activeBoars} color="#1e40af" rows={breedingPigSeqRows} />
+        <BreedingPigTableSection title="Boars" pigs={activeBoars} rows={breedingPigSeqRows} />
 
         {/* Archived */}
         {archivedPigs.length > 0 && (
@@ -1443,13 +1439,7 @@ export default function SowsView({
             </button>
             {showArchived && (
               <div style={{marginTop: 8}}>
-                <BreedingPigTableSection
-                  title="Archived"
-                  pigs={archivedPigs}
-                  color="#6b7280"
-                  rows={breedingPigSeqRows}
-                  muted={true}
-                />
+                <BreedingPigTableSection title="Archived" pigs={archivedPigs} rows={breedingPigSeqRows} muted={true} />
               </div>
             )}
           </div>
@@ -1519,7 +1509,7 @@ export default function SowsView({
               <div style={{padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16}}>
                 {/* SOWS */}
                 <div>
-                  <div style={{fontSize: 13, fontWeight: 700, color: '#085041', marginBottom: 8}}>SOWS</div>
+                  <div style={{fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8}}>SOWS</div>
                   <div style={{fontSize: 11, color: 'var(--ink-muted)', marginBottom: 10}}>
                     Total: <strong style={{color: 'var(--ink)'}}>{Math.round(sowTotal).toLocaleString()} lbs</strong>{' '}
                     from {sowDailys.length} reports
@@ -1536,7 +1526,9 @@ export default function SowsView({
                       }}
                     >
                       <span style={{color: 'var(--ink-muted)'}}>{fmtMonth(ym)}</span>
-                      <span style={{fontWeight: 600, color: '#085041'}}>{Math.round(lbs).toLocaleString()} lbs</span>
+                      <span style={{fontWeight: 600, color: 'var(--text-primary)'}}>
+                        {Math.round(lbs).toLocaleString()} lbs
+                      </span>
                     </div>
                   ))}
                 </div>

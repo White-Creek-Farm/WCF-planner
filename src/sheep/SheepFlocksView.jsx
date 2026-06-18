@@ -20,9 +20,6 @@ import SheepBulkImport from './SheepBulkImport.jsx';
 import SheepAnimalPage from './SheepAnimalPage.jsx';
 import SheepCollapsibleOutcomeSections from './SheepCollapsibleOutcomeSections.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import PlannerIcon from '../components/PlannerIcon.jsx';
-import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
-// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import DataTable from '../shared/DataTable.jsx';
@@ -39,6 +36,8 @@ import {
   buildViewState,
 } from '../lib/savedViewsApi.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
@@ -141,9 +140,9 @@ const chipBaseS = {
 };
 const chipActiveS = {
   ...chipBaseS,
-  border: '1px solid #0f766e',
+  border: '1px solid ' + getProgramColor('sheep'),
   background: 'white',
-  color: '#0f766e',
+  color: getProgramColor('sheep'),
   fontWeight: 600,
 };
 
@@ -203,15 +202,6 @@ const SheepFlocksHub = ({
     deceased: 'Deceased',
     sold: 'Sold',
   };
-  const FLOCK_COLORS = {
-    rams: {bg: '#f0fdfa', tx: '#0f766e', bd: '#5eead4'},
-    ewes: {bg: '#fdf4ff', tx: '#86198f', bd: '#f0abfc'},
-    feeders: {bg: '#fefce8', tx: '#854d0e', bd: '#fde047'},
-    processed: {bg: '#f3f4f6', tx: '#374151', bd: '#d1d5db'},
-    deceased: {bg: '#f9fafb', tx: '#6b7280', bd: '#e5e7eb'},
-    sold: {bg: '#eff6ff', tx: '#1e40af', bd: '#bfdbfe'},
-  };
-
   const EMPTY_SHEEP = {
     tag: '',
     sex: 'ewe',
@@ -787,7 +777,7 @@ const SheepFlocksHub = ({
               fontWeight: 500,
             }}
           >
-            <span style={{fontWeight: 600, color: '#0f766e'}}>{i + 1}.</span>
+            <span style={{fontWeight: 600, color: getProgramColor('sheep')}}>{i + 1}.</span>
             <span>{SHEEP_SORT_KEY_LABELS[rule.key] || rule.key}</span>
             <button
               type="button"
@@ -844,7 +834,7 @@ const SheepFlocksHub = ({
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#b91c1c',
+                color: 'var(--danger)',
                 cursor: 'pointer',
                 fontSize: 14,
                 lineHeight: 1,
@@ -932,7 +922,12 @@ const SheepFlocksHub = ({
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #0f766e', color: '#0f766e'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: 'none',
+    background: getProgramColor('sheep'),
+    color: getReadableText(getProgramColor('sheep')),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -945,9 +940,9 @@ const SheepFlocksHub = ({
     width: 34,
     height: 34,
     borderRadius: 10,
-    border: active ? '1px solid #0f766e' : '1px solid var(--border-strong)',
-    background: active ? '#f0fdfa' : 'white',
-    color: active ? '#0f766e' : 'var(--ink)',
+    border: active ? '1px solid ' + getProgramColor('sheep') : '1px solid var(--border-strong)',
+    background: active ? 'var(--surface-2)' : 'white',
+    color: active ? getProgramColor('sheep') : 'var(--ink)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -985,7 +980,7 @@ const SheepFlocksHub = ({
   }
   // Blacklisted rows keep their soft red wash from the tile era.
   function sheepRowStyle(s) {
-    return s.breeding_blacklist ? {background: '#fecaca'} : undefined;
+    return s.breeding_blacklist ? {background: 'var(--danger-soft)'} : undefined;
   }
   // FLAT mode columns: Flock, Sex, Breed, Age, Weight, Signals.
   const flatColumns = [
@@ -994,21 +989,19 @@ const SheepFlocksHub = ({
       key: 'flock',
       label: 'Flock',
       render: (s) => {
-        const fc = FLOCK_COLORS[s.flock] || FLOCK_COLORS.ewes;
         return (
-          <span
-            style={{
-              fontSize: 11,
-              padding: '2px 8px',
-              borderRadius: 999,
-              background: 'white',
-              color: fc.tx,
-              border: '1px solid ' + fc.bd,
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {FLOCK_LABELS[s.flock]}
+          <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap'}}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                flex: '0 0 8px',
+                borderRadius: '50%',
+                background: 'var(--ink-faint)',
+              }}
+            />
+            <span style={{fontSize: 12, color: 'var(--text-primary)'}}>{FLOCK_LABELS[s.flock]}</span>
           </span>
         );
       },
@@ -1093,7 +1086,7 @@ const SheepFlocksHub = ({
                 borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#085041',
+                color: 'var(--ink)',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -1124,7 +1117,7 @@ const SheepFlocksHub = ({
               >
                 <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
                 {savedViewsError ? (
-                  <span style={{fontSize: 12, color: '#b91c1c'}} data-sheep-saved-views-error>
+                  <span style={{fontSize: 12, color: 'var(--danger)'}} data-sheep-saved-views-error>
                     Saved views unavailable. Filters still work.
                   </span>
                 ) : (
@@ -1172,7 +1165,7 @@ const SheepFlocksHub = ({
                           data-sheep-saved-view-delete
                           onClick={deleteSelectedView}
                           disabled={savedViewBusy}
-                          style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                          style={{...savedViewGhostBtnS, color: 'var(--danger)', borderColor: 'var(--border)'}}
                         >
                           Delete
                         </button>
@@ -1197,7 +1190,7 @@ const SheepFlocksHub = ({
                 data-sheep-saved-view-form
                 style={{
                   background: 'white',
-                  border: '1px solid #99f6e4',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   padding: '10px 14px',
                   marginBottom: 8,
@@ -1429,9 +1422,9 @@ const SheepFlocksHub = ({
                   style={{
                     padding: '7px 14px',
                     borderRadius: 10,
-                    border: '1px solid #0f766e',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#0f766e',
+                    color: 'var(--ink)',
                     fontWeight: 600,
                     fontSize: 12,
                     cursor: 'pointer',
@@ -1447,8 +1440,8 @@ const SheepFlocksHub = ({
                     padding: '7px 16px',
                     borderRadius: 10,
                     border: 'none',
-                    background: '#0f766e',
-                    color: 'white',
+                    background: getProgramColor('sheep'),
+                    color: getReadableText(getProgramColor('sheep')),
                     fontWeight: 600,
                     fontSize: 12,
                     cursor: 'pointer',
@@ -1563,7 +1556,6 @@ const SheepFlocksHub = ({
               <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
                 {FLOCKS.map((f) => {
                   const flockSheep = sorted.filter((s) => s.flock === f);
-                  const fc = FLOCK_COLORS[f];
                   const open = !!expandedFlocks[f];
                   return (
                     <div
@@ -1581,29 +1573,37 @@ const SheepFlocksHub = ({
                         style={{
                           padding: '12px 18px',
                           background: 'white',
-                          borderLeft: '3px solid ' + fc.bd,
-                          borderBottom: open ? '1px solid ' + fc.bd : 'none',
+                          borderBottom: open ? '1px solid var(--divider)' : 'none',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 12,
                           cursor: 'pointer',
                         }}
                       >
-                        <span style={{fontSize: 12, color: fc.tx}}>{open ? '▼' : '▶'}</span>
+                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{open ? '▼' : '▶'}</span>
                         <span
                           style={{
                             fontSize: 15,
                             fontWeight: 700,
-                            color: fc.tx,
+                            color: 'var(--text-primary)',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 6,
                           }}
                         >
-                          <PlannerIcon iconKey={ANIMAL_ICON_KEYS.sheep} size={18} />
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              width: 9,
+                              height: 9,
+                              flex: '0 0 9px',
+                              borderRadius: '50%',
+                              background: 'var(--ink-faint)',
+                            }}
+                          />
                           <span>{FLOCK_LABELS[f]}</span>
                         </span>
-                        <span style={{fontSize: 12, color: fc.tx, opacity: 0.8}}>
+                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                           {flockSheep.length} {flockSheep.length === 1 ? 'sheep' : 'sheep'}
                         </span>
                       </div>
@@ -1633,7 +1633,6 @@ const SheepFlocksHub = ({
                 {/* Outcome flocks shown collapsed at the bottom */}
                 <SheepCollapsibleOutcomeSections
                   sheep={sheep}
-                  FLOCK_COLORS={FLOCK_COLORS}
                   FLOCK_LABELS={FLOCK_LABELS}
                   OUTCOMES={OUTCOMES}
                   fmt={fmt}
@@ -1689,7 +1688,7 @@ const SheepFlocksHub = ({
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#0f766e'}}>Add Sheep</div>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>Add Sheep</div>
               <button
                 onClick={() => {
                   setNotice(null);
@@ -1892,8 +1891,8 @@ const SheepFlocksHub = ({
                   padding: '8px 20px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#0f766e',
-                  color: 'white',
+                  background: getProgramColor('sheep'),
+                  color: getReadableText(getProgramColor('sheep')),
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: saving ? 'not-allowed' : 'pointer',
@@ -2117,7 +2116,11 @@ function SheepFilterPopover({
         <button type="button" onClick={() => clearFilter(filterKey)} style={btnS}>
           Clear
         </button>
-        <button type="button" onClick={onClose} style={{...btnS, borderColor: '#0f766e', color: '#0f766e'}}>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{...btnS, borderColor: getProgramColor('sheep'), color: getProgramColor('sheep')}}
+        >
           Done
         </button>
       </div>
