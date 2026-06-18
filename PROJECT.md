@@ -11,8 +11,8 @@ Last updated: 2026-06-18.
 Current shipped runtime checkpoint: `3e71b28`
 (`fix(pasture): use shared header on map`).
 Production URL: https://wcfplanner.com.
-Latest live bundle verification after `3e71b28` is pending Netlify deploy
-completion.
+Latest verified live bundle (after `3e71b28`, deployed 2026-06-18):
+`assets/main-COjRmwuD.js` / `assets/main-HIRQxNr5.css`.
 
 ---
 
@@ -116,7 +116,7 @@ Design/function invariants that govern cross-surface behavior live in
 ### Latest Shipped Checkpoint
 
 The following work is merged to `main` and pushed. Netlify deploys from `main`;
-latest live-bundle verification is pending where noted above.
+the live bundle is verified in the header above.
 
 - Design-law compliance pass (CP0 A1–A12 + Tabs + WI-6; 2026-06-17 designer
   audit, 53 findings):
@@ -124,11 +124,14 @@ latest live-bundle verification is pending where noted above.
     border gray, 10px radius floor + documented sub-10 allowlist — with the
     `design_token_contract` / `radius_floor` / `openable_hover_affordance` guards
     updated in the same change.
-  - Universal hover affordance: tiles lift 3px/300ms + trailing chevron; table
-    rows raise via shadow + cell-border emphasis (no `<tr>` transform); chevron
-    column added to the shared `DataTable`.
-  - Header sub-nav selected tab → program-color pill (pig blue / broiler gold /
-    layer orange / cattle maroon / sheep green); dark-green top-bar chrome kept.
+  - Universal hover affordance: tiles lift 3px/300ms + trailing chevron. Table
+    rows currently signal via a row-hover wash + cell-border emphasis + the
+    trailing chevron (chevron column added to the shared `DataTable`); rows do
+    NOT yet physically lift — a true row-lift is owner-deferred to the
+    daily-table redesign (Build Queue item 5).
+  - Header sub-nav selected tab → filled program-color PILL (radius 999: pig blue
+    / broiler gold / layer orange / cattle maroon / sheep green); unselected =
+    plain text; dark-green top-bar chrome kept.
   - Site-wide color sweep (all programs): stat numbers → black, species/group/
     herd/flock → dot + black label, card backgrounds + colored borders
     neutralized, status → shared `Badge`, category chips → dot+label/text,
@@ -333,7 +336,7 @@ This is the canonical home for outstanding build/design work.
    - Gate: design mockups/sign-off before build; code plus likely migration/RPC
      push, PROD apply, and deploy gates once scoped.
 
-6. Design-Law Compliance — residual follow-ups
+4. Design-Law Compliance — residual follow-ups
    - Class: `ENH`. The CP0 compliance pass (A1–A12 + Tabs + WI-6; the 2026-06-17
      designer audit, 53 findings, source at
      `C:\Users\Ronni\OneDrive\Desktop\design_handoff_wcf_compliance`) **shipped
@@ -353,7 +356,7 @@ This is the canonical home for outstanding build/design work.
      breeding-record entry point. Scope separately.
    - Gate: code-only.
 
-7. Daily-report tables — complete redesign (DESIGN lead: Ronnie's designer)
+5. Daily-report tables — complete redesign (DESIGN lead: Ronnie's designer)
    - Class: `ENH`/`DECISION`. Owner-directed 2026-06-18: the six daily-report
      LIST tables (broiler/pig/layer/egg/cattle/sheep) get a full visual redesign
      per the designer's mockups — not a tweak of the current `DataTable`.
@@ -390,14 +393,14 @@ Rules:
 | Button height/padding | Ratified; standard button pad `10px 16px` | `design_token_contract_static.test.js` |
 | Save model | Ratified; submit-style vs autosave split | `save_model_contract_static.test.js` |
 | Ordinary text hierarchy | Ratified; Home + parity + CP0 true-black sweep shipped | `homeRedesign.css`, `index.html`, `src/shared/DataTable.css`, `design_token_contract_static.test.js` |
-| Design-law package (CP0) | Ratified 2026-06-16 (CP0-SIGNOFF A1–A12 + Tabs); compliance pass shipped 2026-06-18 | folded into Global Decisions + Design System; residual follow-ups in Build Queue 6 |
+| Design-law package (CP0) | Ratified 2026-06-16 (CP0-SIGNOFF A1–A12 + Tabs); compliance pass shipped 2026-06-18 | folded into Global Decisions + Design System; residual follow-ups in Build Queue 4 |
 | True-black text (CP0 §A1) | Ratified; `--text-primary`/`--ink`/island `--text` = `#000`; `getReadableText` exempt | `design_token_contract_static.test.js`, island/openable guards |
 | One border gray (CP0 §A2) | Ratified; `--border` == `--border-strong` (one defined gray) | `index.html` token layer |
-| Program-color tabs (CP0 Tabs) | Selected tab = filled pill in program color; unselected = plain text; header sub-nav adopts it; top green chrome stays | `Header.jsx` sub-nav + `Tabs.jsx`; no dedicated static guard (Build Queue 6) |
+| Program-color tabs (CP0 Tabs) | Selected tab = filled pill in program color; unselected = plain text; header sub-nav adopts it; top green chrome stays | `Header.jsx` sub-nav + `Tabs.jsx`; no dedicated static guard (Build Queue 4) |
 | Closed badge set (CP0 §A4) | `ok·warn·danger·info·neutral`; ≤1 per row; soft signals = colored text | `Badge.jsx`; broiler/pig/cattle batch static guards assert `<Badge>` adoption |
 | One table system (CP0 §A6) | hairline rows, no zebra, right-aligned numbers, status as text first, whole-row openable | `DataTable.jsx`, `DataTable.css` |
-| Color discipline (CP0 §A12) | program accent only on pill/dot/one-figure/brand-button; closed text-color set; species = dot + black label | enforced by the sweep + `design_token_contract`/`openable_hover` guards; no dedicated grep guard (Build Queue 6) |
-| Universal hover affordance (CP0 WI-6) | clickable surfaces lift 3px/300ms (rows raise via shadow+border, no transform) + trailing chevron, on hover and `:focus-visible` | `openable_hover_affordance_static.test.js` |
+| Color discipline (CP0 §A12) | program accent only on pill/dot/one-figure/brand-button; closed text-color set; species = dot + black label | enforced by the sweep + `design_token_contract`/`openable_hover` guards; no dedicated grep guard (Build Queue 4) |
+| Universal hover affordance (CP0 WI-6) | tiles lift 3px/300ms + trailing chevron; table rows signal via wash + cell-border + chevron (no lift yet — full row-lift deferred to Build Queue 5), on hover and `:focus-visible` | `openable_hover_affordance_static.test.js` |
 
 Locked functional invariants:
 
