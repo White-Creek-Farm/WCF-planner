@@ -8,11 +8,11 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-18.
-Current shipped runtime checkpoint: `3e71b28`
-(`fix(pasture): use shared header on map`).
+Current shipped runtime checkpoint: `7ffb72d`
+(`Merge pasture-map planner-group redesign into main`).
 Production URL: https://wcfplanner.com.
-Latest verified live bundle (after `3e71b28`, deployed 2026-06-18):
-`assets/main-COjRmwuD.js` / `assets/main-HIRQxNr5.css`.
+Latest verified live bundle (after `7ffb72d`, deployed 2026-06-18):
+`assets/main-BVVMjz38.js` / `assets/main-DXIsMnOM.css`.
 
 ---
 
@@ -64,19 +64,26 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source: `main` / `origin/main` contains runtime checkpoint `c666553`
-  (`feat(cattle,sheep): column picker + program-color tool buttons; results
-  always flat`) plus this PROJECT wrap update.
+- Source: `main` / `origin/main` contains runtime checkpoint `7ffb72d`
+  (`Merge pasture-map planner-group redesign into main`). Netlify production
+  deploy is live and serving the bundle listed above.
 - Extra worktrees:
   - `C:\Users\Ronni\WCF-planner` is the standing repo/worktree on current
     `main`.
-  - Prior merged Codex/feature worktrees were pruned during the 2026-06-18 wrap:
-    task notifications, pasture map rebuild, originator task/to-do editing,
-    compact controls, pasture CP2, and the temporary pasture-map completion
-    worktree.
-- Open gates: `tasks-cron` Edge Function deploy is pending for the task
-  notification hotfix. PROD migrations `133` and `134` are applied. No
-  Storage/Vault gate is open.
+  - `C:\Users\Ronni\WCF-planner-pasture-map` is the completed pasture feature
+    worktree on `feature/pasture-map-planner-groups`; it is behind `origin/main`
+    after the no-ff merge and has untracked review screenshots in `p2-shots/`.
+    Treat it as review artifact state, not an active build lane.
+  - `C:\Users\Ronni\WCF-planner-production-events-hotfix` and
+    `C:\Users\Ronni\WCF-planner-weather-rebuild` are completed Codex branches
+    whose work is already merged to `main`.
+- Open gates: migration `135_pasture_map_temp_paddocks.sql` is TEST-applied
+  only and must be explicitly approved before PROD apply. The deployed frontend
+  includes temp-paddock lifecycle UI/API calls that expect the `135` RPCs, so
+  production temp-paddock create/rename/redraw/archive/restore/hard-delete
+  actions may error until that PROD gate closes. `tasks-cron` Edge Function
+  deploy is still pending for the task notification hotfix. No Storage/Vault
+  gate is open.
 - PROD-applied recent migrations include `112` through `116`, `125`, `126`,
   `127`, `128`, `129`, `130`, `131`, `132`, `133`, and `134`. `116` (Pasture
   Map CP1), `125` (Production legacy events), and `126` (breeding-pig Activity
@@ -86,30 +93,30 @@ Design/function invariants that govern cross-surface behavior live in
   `133` (task system generation support and To Do approval notifications) was
   applied to TEST on 2026-06-17 and PROD on 2026-06-18. Migration `134`
   (originator task/to-do edit photos) was applied to PROD on 2026-06-18.
+  Migration `135` (temp-paddock lifecycle RPCs) is present in source and
+  TEST-applied/verified only; it is not PROD-applied.
 - Production legacy import: `Processing Events - ALL.xlsx` parsed 69 rows,
   skipped 0, and upserted 69 rows into `production_legacy_events` on PROD by
   stable `source_key`.
 - Pasture Map PROD state: CP1-CP7 schema/RPC support is present for import,
   draw/edit, move ledger, planned moves, reports, field GPS tracks, line style,
-  and line patterns/defaults. Land areas are created/reviewed through
-  `/pasture-map`; no fake pasture seed data is required. The pasture cockpit
-  redesign is merged to `main` and keeps the existing CP1-CP7 RPC/schema model.
-- Latest validation after the Pasture Map cockpit rebuild: `npm run
-  format:check` green; focused Pasture Map static/unit tests green (79 tests);
-  touched pasture-file lint green; full `npm run lint` exits 0 with existing
-  warnings; `npm run build` green with existing Vite dynamic-import/chunk
-  warnings. Earlier task notification validation remains green as recorded in
-  git history; migration `133` was applied to PROD on 2026-06-18.
+  and line patterns/defaults. The planner-group redesign is merged to `main`
+  and deployed: Map/Plan/Field/Setup/Reports are built around real planner
+  groups, locked counts, current locations, animal-color occupancy, temp areas,
+  and read-only Map inspection. New temp-paddock lifecycle RPCs from migration
+  `135` remain TEST-only until Ronnie approves PROD apply.
+- Latest validation after the Pasture Map planner-group one-shot merge:
+  one-shot branch validation was format/lint/build clean, 115 focused pasture
+  static/unit tests passed, and Playwright `p2_map`, `cp3`, `cp4`, `cp5`, and
+  `setup` passed. After integrating current `origin/main`, CC re-ran focused
+  pasture static tests (94 pass) and `npm run build`; after the no-ff merge to
+  main, pasture static tests (94 pass) and build were re-validated.
 - Latest validation after originator task/to-do editing: focused related static
   tests green (240 tests); `npm run lint` exits 0 with existing warnings; `npm
   run build` green with existing Vite dynamic-import/chunk warnings. Full
   Vitest still has unrelated pre-existing static failures in global activity,
   image file capture inventory, pig batch filters/planned trips, breeding pig
   record links, and pasture radius floor.
-- Latest validation after Pasture Map header polish / planner-group design wrap:
-  Prettier focused check green; focused Pasture Map + Header static tests
-  green (76 tests); `npm run lint` exits 0 with existing warnings; `npm run
-  build` green with existing Vite dynamic-import/chunk warnings.
 - `npm install` was run in the main worktree after Pasture Map dependencies
   landed. It reported npm audit findings (11 vulnerabilities: 1 low, 3
   moderate, 6 high, 1 critical). No audit-fix lane has been scoped.
@@ -119,6 +126,40 @@ Design/function invariants that govern cross-surface behavior live in
 The following work is merged to `main` and pushed. Netlify deploys from `main`;
 the live bundle is verified in the header above.
 
+- Pasture Map planner-group redesign (merge `7ffb72d`, deployed 2026-06-18):
+  - P0 `661068c`: migration `135_pasture_map_temp_paddocks.sql` plus
+    `pastureMapApi` wrappers for temp-paddock lifecycle RPCs. TEST-applied and
+    behaviorally verified; NOT PROD-applied.
+  - P1 `4ca2dd2`: real planner-group roster helper with derived/locked counts
+    for pigs, sheep, and cattle. Canonical move keys are `cattle_herd` herd key,
+    `sheep_flock` flock key, `breeder_pigs` `sow-1`/`sow-2`/`sow-3`/`boars`,
+    and `feeder_pigs` sub-batch id.
+  - P2+ one-shot `3cf334b`: `PastureMapView`/canvas/CSS/offline support
+    redesigned across Map, Plan, Field, Setup, and Reports. Map is read-only and
+    answers where groups are: occupied polygons use animal-type colors and group
+    markers derived from the roster plus latest move ledger. Plan owns move and
+    planned-move recording with flat roster group pickers and locked counts.
+    Field owns phone-first execution/offline queue/confirm planned move/record
+    track -> temp area. Setup owns classification, line style, archive/restore,
+    redraw/rename, and hard-delete UI. Reports carry type/status tags and
+    include archived context.
+  - Existing CP2/CP6/CP7/import Playwright drift remains a separate repair lane;
+    do not mix it into feedback fixes unless Ronnie explicitly re-scopes it.
+- Weather rebuild and follow-ups:
+  - `d7f761a`/`be11e60` rebuilt the Home Weather card around structured
+    Open-Meteo forecast data, an official NWS radar link, a 10-day forecast, and
+    monthly precipitation history for 2026 plus the previous three years.
+    Removed the weak in-app radar and vague narrative/weather-alert panels.
+  - `d282b6a` changed the 10-day forecast wind mph display to sustained daily
+    max wind (`windSpeedMax`), not gusts. Focused weather/static tests,
+    `format:check`, lint, and build passed in the weather worktree before push.
+- Production page:
+  - `3021078` changed Summary to an all-years Program x Year matrix and rebuilt
+    Production Events around planner events plus legacy `production_legacy_events`
+    rows, excluding egg-day records from the event list.
+  - `8b21a20` removed the year picker/top duplicate stat from events, ensured
+    all imported production events show, and links matched broiler processing
+    events to batch record pages when the batch can be deduced.
 - List controls — column pickers, program-color tool buttons, always-flat
   results (2026-06-18):
   - Broiler Batches: rich filtering + single-rule sort + saved views scoped to
@@ -156,11 +197,10 @@ the live bundle is verified in the header above.
     border gray, 10px radius floor + documented sub-10 allowlist — with the
     `design_token_contract` / `radius_floor` / `openable_hover_affordance` guards
     updated in the same change.
-  - Universal hover affordance: tiles lift 3px/300ms + trailing chevron. Table
-    rows currently signal via a row-hover wash + cell-border emphasis + the
-    trailing chevron (chevron column added to the shared `DataTable`); rows do
-    NOT yet physically lift — a true row-lift is owner-deferred to the
-    daily-table redesign (Build Queue item 5).
+  - Universal hover affordance: tile/card openables lift 3px/300ms + trailing
+    chevron. Shared `DataTable` rows use row-hover wash + cell-border emphasis +
+    chevron without transforming `<tr>`. Daily report lists now use div-based
+    `.hoverable-tile` record cards so they get the exact Home-tile lift.
   - Header sub-nav selected tab → filled program-color PILL (radius 999: pig blue
     / broiler gold / layer orange / cattle maroon / sheep green); unselected =
     plain text; dark-green top-bar chrome kept.
@@ -267,17 +307,24 @@ the live bundle is verified in the header above.
     keep the shared saved-view/export/print/filter behavior.
 - Pasture Map:
   - Home shows a Pasture Map button beside Weather above Processing/Admin.
-  - `/pasture-map` renders the redesigned one-page grazing cockpit with
-    View/Map, Plan, Field, Setup, and Reports modes.
-  - The map is the primary surface, with a docked side panel for planning,
-    setup, and reporting workflows.
+  - `/pasture-map` renders the redesigned one-page grazing cockpit with Map,
+    Plan, Field, Setup, and Reports modes.
+  - Map is the primary read-only current-location surface; the side panel is the
+    secondary index/detail surface.
+  - Occupancy visuals are derived from the real planner-group roster and latest
+    `pasture_move_events` by canonical `(animal_type, group_key)`, not from
+    ad-hoc/free-form groups. Occupied polygons fill by animal type and show
+    group markers.
   - Field mode provides phone-first execution controls, offline queue/sync
-    state, GPS track controls, `My Location`, `Fit Farm`, and `Zoom Selected`.
+    state, GPS track/temp-area controls, `My Location`, `Fit Farm`, and
+    `Zoom Selected`.
   - Client parses OnX KML with `@tmcw/togeojson`; Polygons import as reviewable
     areas; LineStrings import as outline candidates and are never auto-closed.
   - Read access starts at `farm_team`; management/admin can import/classify/
-    close/delete and draw/edit geometry. Farm-team users can view, measure,
-    record moves, and create GPS tracks. Light users are excluded.
+    close/delete permanent areas and draw/edit/style permanent geometry.
+    Farm-team users can view/measure, confirm planned moves, and create temp
+    paddocks/tracks through the gated temp lifecycle once migration `135` is
+    PROD-applied. Light users are excluded.
   - Map rendering uses Leaflet with Esri World Imagery as the primary online
     imagery source. Geometry is provider-neutral GeoJSON/PostGIS; Google is not
     the geometry source.
@@ -288,8 +335,8 @@ the live bundle is verified in the header above.
   - Baseline/no-history pastures render solid gray by default; dashed styling is
     reserved for semantic review/problem states or explicit saved line patterns.
   - Migrations `116`, `127`, `128`, `129`, `130`, `131`, and `132` are present on
-    TEST and PROD. Offline imagery cache is not built; vector/cache/queue
-    behavior is present.
+    TEST and PROD. Migration `135` is TEST-only. Offline imagery cache is not
+    built; vector/cache/queue behavior is present.
   - `design_handoff_pasture_map/` is committed as the design reference bundle;
     production code does not import from it.
 
@@ -300,107 +347,83 @@ the live bundle is verified in the header above.
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-1. Parity Residuals
+1. Pasture Map migration `135` PROD apply gate
+   - Class: `DEFECT`/`DB-GATE`.
+   - Scope: apply `supabase-migrations/135_pasture_map_temp_paddocks.sql` to
+     PROD only after Ronnie explicitly approves the exact apply plan.
+   - Why: the deployed Pasture Map frontend includes temp-paddock lifecycle
+     calls, but the required PROD RPCs are not present until migration `135` is
+     applied.
+   - Success criteria: PROD has the narrow temp-paddock lifecycle RPCs; PostgREST
+     schema is reloaded; role/anon rejection and admin/farm-team lifecycle
+     behavior are verified without creating durable farm data beyond named
+     throwaway test rows.
+   - Gate: explicit Ronnie PROD approval. Use `psql` with `ON_ERROR_STOP=1`; do
+     not use PROD `exec_sql`.
+
+2. Pasture Map live review feedback
+   - Class: `ENH`/`DEFECT`.
+   - Scope: after Ronnie tests the live redesigned Pasture Map, implement
+     feedback as scoped follow-up fixes. Keep feedback separate from the CP2/CP6/
+     CP7/import Playwright repair unless Ronnie explicitly combines them.
+   - Success criteria: feedback fixes preserve the one-shot contracts: read-only
+     Map, real roster groups, locked counts, canonical group keys, animal-color
+     occupancy, temp areas as real working areas, and role gates.
+   - Gate: code-only unless a feedback item changes SQL/RLS/RPC/storage.
+
+3. Pasture Playwright lane repair
+   - Class: `DEFECT`.
+   - Scope: repair pre-existing pasture Playwright drift for CP2/CP6/CP7/import:
+     shared-header `.pm-title` removal, boundary tools moved to Setup,
+     `.pm-item` -> `.pm-area-row`, line-style chip text, and KML import count
+     assumptions.
+   - Success criteria: `tests/pasture_map_import.spec.js`,
+     `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp6.spec.js`, and
+     `tests/pasture_map_cp7.spec.js` reflect the shipped redesigned UI and pass
+     against TEST without weakening product assertions.
+   - Gate: code/test-only; no PROD DB work expected.
+
+4. Task notification Edge Function deploy
+   - Class: `DEFECT`/`OPS-GATE`.
+   - Scope: deploy the updated `tasks-cron` Edge Function that generates system
+     tasks from real planner stores and sends To Do approval/originator
+     notifications. Migration `133` is already TEST- and PROD-applied.
+   - Success criteria: deployed function version matches source; scheduled/manual
+     smoke confirms recurring task generation still works and eligible system
+     tasks/notifications are generated once.
+   - Gate: explicit deploy approval; no new migration expected.
+
+5. Parity Residuals
    - Class: `ENH`.
-   - Known small follow-ups from the parity rollout:
-     Home quick-nav tiles need a narrow-phone fix — `.home .tile` is missing
-     `min-width: 0`, which can let quick-nav tiles overflow at `<=375px`.
-   - Resolved by the CP0 compliance pass (2026-06-18): cattle herd-color owner →
-     dot+label, SheepDailysView flock row-badge → dot+label. HomeDashboard admin
-     Last-5-Days + cattle forecast mobile cleanups merged earlier.
+   - Known small follow-up from the parity rollout: Home quick-nav tiles need a
+     narrow-phone fix because `.home .tile` is missing `min-width: 0`, which can
+     let quick-nav tiles overflow at `<=375px`.
    - Scope each separately; do not reopen a full site-wide parity pass without a
-     new audit (the 2026-06-17 designer audit was that audit; see Latest Shipped
-     Checkpoint).
+     new audit.
    - Gate: code-only unless a touched surface needs a guard update.
 
-2. Dependency Audit Lane
+6. Dependency Audit Lane
    - Class: `DEFECT`/`ENH`.
-   - Scope: review `npm audit` findings after the 2026-06-15 dependency install.
-   - Success criteria: identify direct vs transitive vulnerabilities, decide
-     safe upgrades, avoid breaking Vite/React/Supabase/Playwright toolchain.
+   - Scope: review `npm audit` findings after the dependency install.
+   - Success criteria: identify direct vs transitive vulnerabilities, decide safe
+     upgrades, avoid breaking Vite/React/Supabase/Playwright toolchain.
    - Gate: code/dependency lockfile push; no PROD DB work expected.
 
-3. Pasture Map planner-group workflow redesign (DESIGN first)
-   - Class: `ENH`/`DECISION`. Owner direction 2026-06-18: keep the existing
-     Pasture Map layout/aesthetic and do not drop existing features, but redesign
-     organization around real planner groups, current locations, planned moves,
-     field execution, and area lifecycle.
-   - Designer brief: map stays left and data panel right. Rename `View / Map` to
-     `Map`; keep tabs `Map`, `Plan`, `Field`, `Setup`, `Reports`. Everyone can
-     view all tabs; actions are role-gated.
-   - Real group source of truth: no free-form animal-group text fields. Picker
-     order is Pigs (`Sow Group 1`, `Sow Group 2`, `Sow Group 3`, `Boars`, active
-     pig sub-batches with ledger count greater than 0), then Sheep (`Ewes`,
-     `Rams`, `Feeders`), then Cattle (`Mommas`, `Backgrounders`, `Finishers`,
-     `Bulls`). Empty groups are hidden from side panel and pickers. Counts are
-     auto-filled from planner records and locked.
-   - `Map`: default view answers what groups exist and where they are. Right
-     panel starts with `Current Groups` rows showing group, count, and location
-     or `Not placed`; selected area details remain below. Occupied map areas use
-     animal-type color.
-   - `Plan`: future moves and rotation planning. Planned moves use locked group
-     picker plus map destination, no notes/free-text, no manual count. Duplicate
-     same-group/same-date plans warn. Actual move completion matches planned
-     move by group plus destination, not date.
-   - `Field`: field execution, GPS walking/drawing temp paddocks, and confirming
-     planned moves. Light/farm-team can create temp paddocks and confirm planned
-     moves, but cannot create arbitrary animal moves or edit permanent areas.
-     Management/admin can log unplanned moves.
-   - Area lifecycle: every area is designated only as `Pasture`, `Paddock`, or
-     `Temp paddock`. Imported KML shapes require classification before active
-     use and show `Needs classification` in Setup. Farm-team/light can create
-     only temp paddocks; management/admin can create permanent areas.
-   - Temp paddocks are real working areas, visible across Map/Plan/Field/Reports
-     and usable for animals. Default names are `Temp - MM/DD/YY`, `#2`, `#3`,
-     etc. Creator can rename/edit/archive their own temp paddocks; management/
-     admin can rename/edit/archive any area; admin hard-delete remains admin-only.
-   - Archive wording replaces delete for normal removal. Archive is blocked when
-     occupied with `Move animals out of this temp paddock before archiving it.`
-     Archived areas are restorable by management/admin. Hard delete confirmation
-     must warn that text history snapshots remain but map shape is removed.
-   - Filters: status `Active` default (permanent plus active temp), `All`, and
-     `Archived`; type `All`, `Pastures`, `Paddocks`, `Temp`. Reports include
-     archived areas by default and mark history rows with area type/status such
-     as `Permanent`, `Temp`, or `Archived temp`.
-   - Validation/guards target: add static guards for locked group derivation,
-     role gates, no free-form move/planned-move fields, temp naming/archive
-     wording, and area filters; run focused Pasture Map static/unit/Playwright.
-   - Gate: design mockups/sign-off before build; code plus likely migration/RPC
-     push, PROD apply, and deploy gates once scoped.
-
-4. Design-Law Compliance — residual follow-ups
-   - Class: `ENH`. The CP0 compliance pass (A1–A12 + Tabs + WI-6; the 2026-06-17
-     designer audit, 53 findings, source at
-     `C:\Users\Ronni\OneDrive\Desktop\design_handoff_wcf_compliance`) **shipped
-     2026-06-18** — see Latest Shipped Checkpoint. Source of truth for the laws is
+7. Design-Law Compliance residual follow-ups
+   - Class: `ENH`. The CP0 compliance pass (A1-A12 + Tabs + WI-6; the 2026-06-17
+     designer audit) shipped 2026-06-18. Source of truth for the laws is
      `CP0-SIGNOFF.md`, folded into Global Decisions + Design System above. These
-     are the deliberately-deferred tails only:
-   - §5.4 explicit empty-state: the pig/layer dashboard all-dash group cards show
-     `—` rather than a "No data yet" label. They are genuine empties (A9-ok) and
-     A10 says leave the dashboards as-is, so this is low-priority polish.
-   - Optional dedicated static guards for the Tabs + A12 color-discipline laws.
-     Today they are enforced by the sweep + code review + the existing
-     `design_token_contract` / `openable_hover_affordance` guards; there is no
-     per-law grep guard pinning "no program hex as text/bg/border" or
-     "selected tab == program color."
-   - Pre-existing main test debt, unrelated to this lane (still red on `HEAD`):
-     `ActivityLogView` retry, `PigBatchesView` filters/grid, `SowsView`
-     breeding-record entry point. Scope separately.
+     are the deliberately deferred tails only:
+   - Section 5.4 explicit empty-state: pig/layer dashboard all-dash group cards
+     show `--` rather than a "No data yet" label. They are genuine empties
+     (A9-ok) and A10 says leave dashboards as-is, so this is low-priority polish.
+   - Optional dedicated static guards for Tabs + A12 color-discipline laws.
+     Today they are enforced by the sweep + code review + existing
+     `design_token_contract` / `openable_hover_affordance` guards.
+   - Pre-existing main test debt, unrelated to this lane: `ActivityLogView`
+     retry, `PigBatchesView` filters/grid, and `SowsView` breeding-record entry
+     point. Scope separately.
    - Gate: code-only.
-
-5. Daily-report tables — complete redesign (DESIGN lead: Ronnie's designer)
-   - Class: `ENH`/`DECISION`. Owner-directed 2026-06-18: the six daily-report
-     LIST tables (broiler/pig/layer/egg/cattle/sheep) get a full visual redesign
-     per the designer's mockups — not a tweak of the current `DataTable`.
-   - Hard requirement from the owner: a hovered table ROW must **physically lift
-     like the Home-page tiles** (`transform: translateY`), confirmed achievable
-     by the designer's working mockups. This supersedes the interim CP0 §A6
-     "rows raise via shadow/border, no `<tr>` transform" rule for these tables —
-     re-amend A6 + the `openable_hover` guard when this lands (border-collapse
-     and the `.hoverable-row` contract will need revisiting for a real row lift).
-   - Until then: the dailys keep the current shipped treatment (wash + chevron);
-     the interim shadow/z-index row-raise experiment was intentionally NOT shipped.
-   - Gate: code-only; design sign-off from Ronnie/designer before build.
 
 ---
 
@@ -432,7 +455,7 @@ Rules:
 | Closed badge set (CP0 §A4) | `ok·warn·danger·info·neutral`; ≤1 per row; soft signals = colored text | `Badge.jsx`; broiler/pig/cattle batch static guards assert `<Badge>` adoption |
 | One table system (CP0 §A6) | hairline rows, no zebra, right-aligned numbers, status as text first, whole-row openable | `DataTable.jsx`, `DataTable.css` |
 | Color discipline (CP0 §A12) | program accent only on pill/dot/one-figure/brand-button; closed text-color set; species = dot + black label | enforced by the sweep + `design_token_contract`/`openable_hover` guards; no dedicated grep guard (Build Queue 4) |
-| Universal hover affordance (CP0 WI-6) | tiles lift 3px/300ms + trailing chevron; table rows signal via wash + cell-border + chevron (no lift yet — full row-lift deferred to Build Queue 5), on hover and `:focus-visible` | `openable_hover_affordance_static.test.js` |
+| Universal hover affordance (CP0 WI-6) | tile/card openables lift 3px/300ms + trailing chevron; table rows signal via wash + cell-border + chevron without `<tr>` transform; daily record lists use div-based `.hoverable-tile` cards to get the Home-tile lift | `openable_hover_affordance_static.test.js` |
 
 Locked functional invariants:
 
@@ -590,8 +613,9 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all applied migrations through `116`, plus
-`125`, `126`, `127`, `128`, `129`, `130`, `131`, `132`, and `133`. Recent
-load-bearing migrations:
+`125`, `126`, `127`, `128`, `129`, `130`, `131`, `132`, `133`, and `134`.
+Migration `135` is source-present and TEST-applied only; it is not part of PROD
+architecture until Ronnie approves a PROD apply. Recent load-bearing migrations:
 
 - `100` processing batch lifecycle RPCs.
 - `101`-`104` audited delete RPCs and hardening.
@@ -640,12 +664,6 @@ load-bearing migrations:
     intersecting geometry; acreage remains geodesic.
   - PROD-applied on 2026-06-16 with schema reload and structural/PostgREST anon
     permission smokes. No PROD land-area rows were created.
-- `133` task system generation support and To Do approval notifications:
-  - Widens `notifications_type_check` for `todo_completion_submitted`.
-  - Reissues `submit_todo_completion` so non-manager completion submissions
-    notify management/admin while approval and auto-approval still notify the
-    To Do creator.
-  - TEST-applied on 2026-06-17; PROD-applied on 2026-06-18.
 - `128` Pasture Map CP3 move ledger / occupancy / rest:
   - Adds `pasture_move_events`, `pasture_move_impacts`,
     `_land_area_current_geom`, `_pasture_move_summary`, updated
@@ -665,6 +683,23 @@ load-bearing migrations:
     line styling, default field-track styling, and
     `update_land_area_line_style`.
   - Verified TEST and PROD artifacts present on 2026-06-17 by catalog checks.
+- `133` task system generation support and To Do approval notifications:
+  - Widens `notifications_type_check` for `todo_completion_submitted`.
+  - Reissues `submit_todo_completion` so non-manager completion submissions
+    notify management/admin while approval and auto-approval still notify the
+    To Do creator.
+  - TEST-applied on 2026-06-17; PROD-applied on 2026-06-18.
+- `134` originator task/to-do edit photos:
+  - Preserves RPC-only writes, append-only private photo storage, and the shared
+    5-photo total cap.
+  - PROD-applied on 2026-06-18.
+- `135` Pasture Map temp-paddock lifecycle:
+  - Adds narrow SECURITY DEFINER RPCs for real temp paddock create/rename/redraw,
+    archive/restore, and admin hard-delete using `kind='paddock'` plus
+    `permanence='temporary'`; existing permanent-area create/update/delete RPCs
+    remain management/admin locked.
+  - TEST-applied and behaviorally verified; NOT PROD-applied. Production UI
+    calls that depend on these RPCs will fail until the PROD gate closes.
 
 Special migration notes:
 
@@ -966,6 +1001,12 @@ Workflow/worktable entities:
   delta-vs-Podio columns. It also must not display a visible Reconciliation tab,
   Legacy/Audit Review panel, source split, Held out, or Conflict columns.
 - YoY is per program/year, not across programs.
+- Summary is an all-years Program x Year matrix. Production Events show actual
+  processing events only: no egg-day rows, no year picker, and imported legacy
+  rows remain visible even when held out of Summary totals by the Planner-wins
+  coverage rule.
+- Processing events should link to record pages when a matching planner record
+  can be confidently resolved, including broiler batch links by date/count.
 - Light users are excluded by route allowlist and RPC role gate.
 
 ### Pasture Map
@@ -988,15 +1029,23 @@ Workflow/worktable entities:
 - Draw/edit controls use Leaflet-Geoman. Snapping, live area/perimeter measure,
   and client self-intersection warnings are UI requirements; the migration `127`
   RPC validity gates are the database backstop.
-- Access: `farm_team`, `management`, `admin` can read/view/measure; only
-  `management` and `admin` can import/classify/close/delete/draw/edit/style
-  boundaries; `farm_team`, `management`, and `admin` can record pasture moves
-  and create GPS field tracks; `light`, `equipment_tech`, and inactive are
-  excluded.
-- Current Pasture Map includes move ledger, occupancy/rest coloring, planned
-  moves, history/rest/stocking reports, offline vector snapshot/queue, GPS field
-  tracks, and line styling/pattern controls. It does not include offline imagery
-  cache or daily-report wiring.
+- Planner groups are derived, not user-entered. Canonical move/planning keys are:
+  cattle herds -> `animal_type='cattle_herd'`, `group_key=herd`; sheep flocks ->
+  `animal_type='sheep_flock'`, `group_key=flock`; breeder pigs ->
+  `animal_type='breeder_pigs'`, `group_key='sow-1'|'sow-2'|'sow-3'|'boars'`;
+  feeder pigs -> `animal_type='feeder_pigs'`, `group_key=sub.id`.
+- Access: `farm_team`, `management`, `admin` can read/view/measure. Map is
+  read-only inspection for all allowed roles. Management/admin own permanent
+  area import/classify/close/draw/edit/style and unplanned move logging.
+  Farm-team can confirm planned moves and create/edit/archive their own temp
+  paddocks only after migration `135` exists in the target database. `light`,
+  `equipment_tech`, and inactive are excluded.
+- Current Pasture Map includes the real-roster Map/Plan/Field/Setup/Reports
+  redesign, move ledger, animal-color occupancy, planned moves, history/rest/
+  stocking reports, offline vector snapshot/queue, GPS field tracks, and line
+  styling/pattern controls. It does not include offline imagery cache or
+  daily-report wiring. In PROD, temp-paddock lifecycle actions remain blocked by
+  the migration `135` PROD gate until approved/applied.
 - Baseline/no-history pastures render solid by default. Dashed strokes are
   reserved for outline candidates, invalid/retired states, GPS field tracks, or
   explicit saved line patterns.
@@ -1008,6 +1057,9 @@ Workflow/worktable entities:
 
 - Daily reports have dedicated record pages for poultry, layer, egg, pig, cattle,
   and sheep.
+- Daily report list surfaces and Home "Last 5 Days" use shared white
+  `DailyRecordCards` / `.hoverable-tile` record cards, including the Home-tile
+  lift, focus ring, and trailing chevron at every breakpoint.
 - All six open directly editable; no edit-mode toggle.
 - Daily duplicate prevention is DB-backed for poultry/pig/layer/cattle/sheep by
   partial unique indexes (`084`) after cleanup (`085`); egg duplicate prevention
@@ -1252,7 +1304,7 @@ Focused starting points:
 | Record pages | `tests/static/record_page_*.test.js`, per-entity static tests, `tests/*_sequence_nav.spec.js` |
 | Home / dashboard alerts | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js` |
 | Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
-| Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `playwright.pasture.config.js` |
+| Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `playwright.pasture.config.js` |
 | Breeding pigs | `tests/static/breeding_pigs_parity_static.test.js` |
 | Feed planning | `src/lib/feedPlanner.test.js`, `src/lib/feedOrderBasis.test.js`, `tests/static/feed_order_board_static.test.js` |
 | Pig | `src/lib/pig*.test.js`, `src/lib/pigBatchGridMetrics.test.js`, `tests/static/pig_batches_planned_trips_static.test.js`, `tests/static/weighin_session_record_page_static.test.js`, `tests/pig_*.spec.js` |
