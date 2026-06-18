@@ -434,7 +434,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   const navAccent = navProgram ? getProgramColor(navProgram) : '#085041';
   const nb = (active) => ({
     padding: '7px 16px',
-    borderRadius: 10,
+    borderRadius: 999,
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: 12,

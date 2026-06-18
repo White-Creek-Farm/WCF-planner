@@ -77,7 +77,7 @@ export function programDotStyle(key, size = 9) {
  * Tab decision). Selected = solid program fill with auto-contrast text.
  * `radius` defaults to the 10px floor (CP0 §A3).
  */
-export function programPillStyle(key, selected, {radius = 10} = {}) {
+export function programPillStyle(key, selected, {radius = 999} = {}) {
   const fill = getProgramColor(key);
   return {
     padding: '7px 16px',

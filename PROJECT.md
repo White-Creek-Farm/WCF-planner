@@ -312,6 +312,20 @@ This is the canonical home for outstanding build/design work.
      breeding-record entry point. Scope separately.
    - Gate: code-only.
 
+7. Daily-report tables — complete redesign (DESIGN lead: Ronnie's designer)
+   - Class: `ENH`/`DECISION`. Owner-directed 2026-06-18: the six daily-report
+     LIST tables (broiler/pig/layer/egg/cattle/sheep) get a full visual redesign
+     per the designer's mockups — not a tweak of the current `DataTable`.
+   - Hard requirement from the owner: a hovered table ROW must **physically lift
+     like the Home-page tiles** (`transform: translateY`), confirmed achievable
+     by the designer's working mockups. This supersedes the interim CP0 §A6
+     "rows raise via shadow/border, no `<tr>` transform" rule for these tables —
+     re-amend A6 + the `openable_hover` guard when this lands (border-collapse
+     and the `.hoverable-row` contract will need revisiting for a real row lift).
+   - Until then: the dailys keep the current shipped treatment (wash + chevron);
+     the interim shadow/z-index row-raise experiment was intentionally NOT shipped.
+   - Gate: code-only; design sign-off from Ronnie/designer before build.
+
 ---
 
 ## Global Decisions (Constitution)

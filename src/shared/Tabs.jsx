@@ -23,7 +23,7 @@ function pillStyle(selected, program) {
   const fill = program ? getProgramColor(program) : '#085041';
   return {
     padding: '8px 16px',
-    borderRadius: 10,
+    borderRadius: 999,
     border: 'none',
     cursor: 'pointer',
     fontFamily: 'inherit',
