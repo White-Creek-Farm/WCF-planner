@@ -8,10 +8,10 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-18.
-Current shipped runtime checkpoint: `ccacaf3`
-(`Merge task notifications hotfix`), with this `PROJECT.md` docs update on top.
+Current shipped runtime checkpoint: `a140689`
+(`Merge pasture map cockpit rebuild`), with this `PROJECT.md` docs update on top.
 Production URL: https://wcfplanner.com.
-Latest live bundle verification after `ccacaf3` is pending Netlify deploy
+Latest live bundle verification after `a140689` is pending Netlify deploy
 completion.
 
 ---
@@ -65,17 +65,20 @@ Design/function invariants that govern cross-surface behavior live in
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
 - Source: `main` / `origin/main` is the docs update that records runtime
-  checkpoint `ccacaf3`.
+  checkpoint `a140689`.
 - Extra worktrees:
   - `C:\Users\Ronni\WCF-planner` on
     `fix/production-reconciliation-audit-collapse` at `8dfb024`, with CC-owned
     local tracked edits. Do not use it for unrelated merge work.
   - `C:\Users\Ronni\WCF-planner-codex-pasture-map-completion` on `main` at
-    the docs update on top of runtime checkpoint `ccacaf3`, with only untracked
+    the docs update on top of runtime checkpoint `a140689`, with only untracked
     pasture screenshot artifacts.
   - `C:\Users\Ronni\WCF-planner-codex-hotfix-task-notifications` on
     `codex/hotfix-task-notifications` at `6e6fb7a`, pushed to origin and merged
     into `main`.
+  - `C:\Users\Ronni\WCF-planner-codex-pasture-map-rebuild` on
+    `codex/pasture-map-rebuild` at `a3330b2`, pushed to origin and merged into
+    `main`.
   - `C:\Users\Ronni\WCF-planner-codex-compact-controls` on
     `codex/compact-list-controls`.
   - `C:\Users\Ronni\WCF-planner-pasture-cp2` on
@@ -83,8 +86,6 @@ Design/function invariants that govern cross-surface behavior live in
 - Open gates: `tasks-cron` Edge Function deploy is pending for the task
   notification hotfix. PROD migration `133` is applied. No Storage/Vault gate is
   open.
-  Pasture Map designer feedback is pending and should be uploaded at the start
-  of the next session before any pasture-map build prompt is written.
 - Local untracked artifacts in the main worktree:
   `pasture-cp2-shots/`, `pasture-data-mock-shots/`, and
   `pasture-map-shots/`. They are not staged or part of shipped code.
@@ -102,15 +103,14 @@ Design/function invariants that govern cross-surface behavior live in
 - Pasture Map PROD state: CP1-CP7 schema/RPC support is present for import,
   draw/edit, move ledger, planned moves, reports, field GPS tracks, line style,
   and line patterns/defaults. Land areas are created/reviewed through
-  `/pasture-map`; no fake pasture seed data is required.
-- Latest validation after the task notification hotfix: `npm run format:check`
-  green; targeted static task/notification tests green (131 tests);
-  hotfix-touched lint green; `npm run build` green with existing Vite
-  dynamic-import/chunk warnings; authenticated To Do approval Playwright flow
-  green on TEST (5 tests) after applying migration `133` to TEST. PROD migration
-  `133` applied with `psql --single-transaction` and post-apply catalog checks
-  on 2026-06-18. Full lint and full Vitest still report unrelated pre-existing
-  failures in pasture/pig/global activity areas.
+  `/pasture-map`; no fake pasture seed data is required. The pasture cockpit
+  redesign is merged to `main` and keeps the existing CP1-CP7 RPC/schema model.
+- Latest validation after the Pasture Map cockpit rebuild: `npm run
+  format:check` green; focused Pasture Map static/unit tests green (79 tests);
+  touched pasture-file lint green; full `npm run lint` exits 0 with existing
+  warnings; `npm run build` green with existing Vite dynamic-import/chunk
+  warnings. Earlier task notification validation remains green as recorded in
+  git history; migration `133` was applied to PROD on 2026-06-18.
 - `npm install` was run in the main worktree after Pasture Map dependencies
   landed. It reported npm audit findings (11 vulnerabilities: 1 low, 3
   moderate, 6 high, 1 critical). No audit-fix lane has been scoped.
@@ -200,16 +200,20 @@ latest live-bundle verification is pending where noted above.
     keep the shared saved-view/export/print/filter behavior.
 - Pasture Map:
   - Home shows a Pasture Map button beside Weather above Processing/Admin.
-  - `/pasture-map` renders the map/import/draw/edit/measure surface plus move
-    ledger, occupancy/rest display, planned moves, reports, offline vector queue,
-    GPS field tracks, and line-style/pattern controls.
+  - `/pasture-map` renders the redesigned one-page grazing cockpit with
+    View/Map, Plan, Field, Setup, and Reports modes.
+  - The map is the primary surface, with a docked side panel for planning,
+    setup, and reporting workflows.
+  - Field mode provides phone-first execution controls, offline queue/sync
+    state, GPS track controls, `My Location`, `Fit Farm`, and `Zoom Selected`.
   - Client parses OnX KML with `@tmcw/togeojson`; Polygons import as reviewable
     areas; LineStrings import as outline candidates and are never auto-closed.
   - Read access starts at `farm_team`; management/admin can import/classify/
     close/delete and draw/edit geometry. Farm-team users can view, measure,
     record moves, and create GPS tracks. Light users are excluded.
-  - Map rendering uses Leaflet with USGS/NAIP imagery. Geometry is provider-
-    neutral GeoJSON/PostGIS; Google is not the geometry source.
+  - Map rendering uses Leaflet with Esri World Imagery as the primary online
+    imagery source. Geometry is provider-neutral GeoJSON/PostGIS; Google is not
+    the geometry source.
   - Draw/edit uses Leaflet-Geoman with snapping, a measure HUD, client
     self-intersection warnings, and DB-side validity checks.
   - Geometry edits are append-only versions and preserve manual acreage override
@@ -219,6 +223,8 @@ latest live-bundle verification is pending where noted above.
   - Migrations `116`, `127`, `128`, `129`, `130`, `131`, and `132` are present on
     TEST and PROD. Offline imagery cache is not built; vector/cache/queue
     behavior is present.
+  - `design_handoff_pasture_map/` is committed as the design reference bundle;
+    production code does not import from it.
 
 ---
 
@@ -227,47 +233,7 @@ latest live-bundle verification is pending where noted above.
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-1. Pasture Map One-Page Planning/Field Redesign
-   - Class: `DECISION`/`ENH`.
-   - Status: consensus questions are answered; designer feedback is pending and
-     should be uploaded at the start of the next session before CC receives a
-     build prompt.
-   - Primary job: combined pasture tool with grazing planning/rest tracking/
-     rotation decisions as the main purpose.
-   - Primary users: Nick in the office reviewing/planning; farm team in the
-     field executing the plan on phones.
-   - Keep `/pasture-map` as one page, reorganized into clear modes/tabs rather
-     than separate routes. Default must be neutral view/map/select, not the
-     current animal-move entry mode.
-   - Required IA direction: View/Map, Plan, Field, Setup, and Reports. Reports
-     stay available but deeper/collapsed so map + planning stay primary.
-   - Required field direction: offline use is mandatory; the map is not useful
-     without bad-service field execution. Field mode needs large controls,
-     trustworthy queue/sync state, `My Location`, `Fit Farm`, and
-     `Zoom Selected`.
-   - Visual rules: automatic grazing-state colors win; manual line styling must
-     not override the main occupancy/rest/status meaning. Include a collapsible
-     legend for colors/dashes/statuses.
-   - Terminology: rename toolbar `Move` to `Map` or `Pan`; reserve "Move" for
-     animal-move actions. Rename `Track` to `Trace` or `GPS Boundary`; rename
-     `Edit` to `Edit Boundary`.
-   - Imagery/zoom: current USGS/NAIP imagery is not good enough, but Google
-     Earth quality is more than required. Use automatic sharper online imagery
-     when available (likely Esri World Imagery after terms/attribution check),
-     fall back to NAIP/USGS/offline-compatible behavior, no manual basemap
-     switcher, allow over-zoom even if blurry, and prevent blank/broken tile
-     requests. Empirical probe at WCF showed USGS tiles 200 through z16 and 404
-     at z17-z22 while Esri returned tiles through z22.
-   - Validation targets: `tests/static/pasture_map_static.test.js`,
-     `src/lib/pastureGeometry.test.js`, `src/lib/pastureKml.test.js`,
-     pasture Playwright specs relevant to changed workflows, mobile/no-overflow
-     checks, and build. Add/update guards for mode labels, default mode,
-     provider fallback, and no exposed setup/reporting clutter in field mode.
-   - Gate: code-only unless imagery provider work introduces API keys, terms,
-     billing, storage/offline cache, or DB/RPC changes. Any PROD migration,
-     Storage, Vault, or paid provider key remains an explicit Ronnie gate.
-
-2. Parity Residuals
+1. Parity Residuals
    - Class: `ENH`.
    - Known small follow-ups from the parity rollout:
       cattle herd-color owner reconciliation and SheepDailysView flock row-badge
@@ -281,7 +247,7 @@ This is the canonical home for outstanding build/design work.
      new audit.
    - Gate: code-only unless a touched surface needs a guard update.
 
-3. Dependency Audit Lane
+2. Dependency Audit Lane
    - Class: `DEFECT`/`ENH`.
    - Scope: review `npm audit` findings after the 2026-06-15 dependency install.
    - Success criteria: identify direct vs transitive vulnerabilities, decide
@@ -857,9 +823,9 @@ Workflow/worktable entities:
 - Baseline/no-history pastures render solid by default. Dashed strokes are
   reserved for outline candidates, invalid/retired states, GPS field tracks, or
   explicit saved line patterns.
-- The next Pasture Map lane is a UX/product redesign, not foundational schema
-  bring-up. Preserve the shipped provider-neutral geometry/RPC model unless a
-  new Ronnie-approved decision explicitly reopens it.
+- Future Pasture Map lanes should preserve the shipped cockpit IA and the
+  provider-neutral geometry/RPC model unless a new Ronnie-approved decision
+  explicitly reopens either.
 
 ### Daily Reports
 
