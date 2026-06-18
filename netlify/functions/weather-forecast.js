@@ -1,12 +1,12 @@
 // Netlify Function: weather forecast proxy.
 // Open-Meteo GFS/HRRR supplies structured current/hourly/daily fields.
-// NWS supplies official active alerts. No generated rain commentary is returned.
+// Open-Meteo Archive supplies monthly precipitation history.
 
 const DEFAULT_LAT = '30.833938';
 const DEFAULT_LON = '-86.430030';
 const DEFAULT_LABEL = 'WCF';
 const TIMEZONE = 'America/Chicago';
-const NWS_UA = 'WCF Planner weather (https://github.com/byronronniejones-lab/WCF-planner)';
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export async function handler() {
   const lat = process.env.WCF_WEATHER_LAT || DEFAULT_LAT;
@@ -15,7 +15,10 @@ export async function handler() {
   const loc = {lat: parseFloat(lat), lon: parseFloat(lon), label};
 
   try {
-    const [openMeteo, nwsAlerts] = await Promise.all([fetchOpenMeteoForecast(lat, lon), fetchNwsAlerts(lat, lon)]);
+    const [openMeteo, monthlyPrecip] = await Promise.all([
+      fetchOpenMeteoForecast(lat, lon),
+      fetchMonthlyPrecipHistory(lat, lon),
+    ]);
 
     if (!openMeteo) {
       return {statusCode: 502, body: JSON.stringify({error: 'upstream_error', message: 'Forecast provider error'})};
@@ -27,11 +30,32 @@ export async function handler() {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=900, s-maxage=900',
       },
-      body: JSON.stringify(normalize(openMeteo, nwsAlerts, loc)),
+      body: JSON.stringify(normalize(openMeteo, monthlyPrecip, loc)),
     };
   } catch (e) {
     console.error('weather-forecast error:', e);
     return {statusCode: 500, body: JSON.stringify({error: 'internal', message: 'Weather fetch failed'})};
+  }
+}
+
+async function fetchMonthlyPrecipHistory(lat, lon) {
+  try {
+    const currentYear = new Date().getFullYear();
+    const startDate = `${currentYear - 3}-01-01`;
+    const endDate = isoDaysAgo(1);
+    const url =
+      `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}` +
+      `&start_date=${startDate}&end_date=${endDate}&daily=precipitation_sum` +
+      `&precipitation_unit=inch&timezone=${encodeURIComponent(TIMEZONE)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error('Open-Meteo archive error:', res.status, await res.text());
+      return buildMonthlyPrecip(null, currentYear);
+    }
+    return buildMonthlyPrecip(await res.json(), currentYear);
+  } catch (e) {
+    console.error('Open-Meteo archive fetch error:', e);
+    return buildMonthlyPrecip(null, new Date().getFullYear());
   }
 }
 
@@ -81,38 +105,7 @@ async function fetchOpenMeteoForecast(lat, lon) {
   }
 }
 
-async function fetchNwsAlerts(lat, lon) {
-  try {
-    const url = `https://api.weather.gov/alerts/active?point=${encodeURIComponent(`${lat},${lon}`)}`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': NWS_UA,
-        Accept: 'application/geo+json',
-      },
-    });
-    if (!res.ok) return [];
-    const raw = await res.json();
-    return (raw.features || []).slice(0, 6).map((feature) => {
-      const p = feature.properties || {};
-      return {
-        id: p.id || feature.id || '',
-        event: p.event || 'Weather Alert',
-        severity: p.severity || '',
-        urgency: p.urgency || '',
-        certainty: p.certainty || '',
-        headline: p.headline || p.event || 'Weather Alert',
-        effective: p.effective || null,
-        expires: p.expires || null,
-        instruction: p.instruction || '',
-      };
-    });
-  } catch (e) {
-    console.error('NWS alerts fetch error:', e);
-    return [];
-  }
-}
-
-function normalize(raw, alerts, loc) {
+function normalize(raw, monthlyPrecip, loc) {
   const h = raw.hourly || {};
   const hourly = (h.time || []).slice(0, 48).map((time, i) => ({
     time,
@@ -168,17 +161,58 @@ function normalize(raw, alerts, loc) {
     rainWindows,
     dryWindow: buildDryWindow(hourly, Number.isFinite(nowMs) ? nowMs : Date.now()),
     freezeWarning,
-    alerts,
+    monthlyPrecip,
     daily,
     dailySource: 'open-meteo-gfs',
     hourly,
     radarUrl: 'https://radar.weather.gov/',
     sources: {
       forecast: 'Open-Meteo GFS/HRRR',
-      alerts: 'National Weather Service',
       radar: 'National Weather Service',
     },
     fetchedAt: new Date().toISOString(),
+  };
+}
+
+export function buildMonthlyPrecip(raw, currentYear = new Date().getFullYear()) {
+  const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const byYear = new Map(
+    years.map((year) => [
+      year,
+      {
+        year,
+        values: Array(12).fill(null),
+        total: null,
+      },
+    ]),
+  );
+  const times = raw?.daily?.time || [];
+  const precip = raw?.daily?.precipitation_sum || [];
+  for (let i = 0; i < times.length; i++) {
+    const date = String(times[i] || '');
+    const year = Number(date.slice(0, 4));
+    const month = Number(date.slice(5, 7)) - 1;
+    const row = byYear.get(year);
+    const amount = Number(precip[i]);
+    if (!row || month < 0 || month > 11 || !Number.isFinite(amount)) continue;
+    row.values[month] = (row.values[month] || 0) + amount;
+  }
+
+  const rows = years.map((year) => {
+    const row = byYear.get(year);
+    const values = row.values.map((value) => (value == null ? null : round2(value)));
+    const totalRaw = values.reduce((sum, value) => (value == null ? sum : sum + value), 0);
+    const hasData = values.some((value) => value != null);
+    return {
+      year,
+      values,
+      total: hasData ? round2(totalRaw) : null,
+    };
+  });
+  return {
+    unit: 'in',
+    months: MONTH_LABELS,
+    years: rows,
   };
 }
 
@@ -280,4 +314,9 @@ function round1(v) {
 
 function round2(v) {
   return v != null && Number.isFinite(Number(v)) ? Math.round(Number(v) * 100) / 100 : null;
+}
+
+function isoDaysAgo(days) {
+  const d = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
 }

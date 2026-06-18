@@ -11,8 +11,8 @@ function percent(value) {
 
 function inches(value) {
   if (value == null) return '--';
-  if (value === 0) return '0"';
-  return `${Math.round(value * 100) / 100}"`;
+  if (value === 0) return '0';
+  return (Math.round(value * 100) / 100).toFixed(2);
 }
 
 function fmtDay(dateStr) {
@@ -22,14 +22,6 @@ function fmtDay(dateStr) {
   return days[d.getDay()];
 }
 
-function fmtTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const h = d.getHours();
-  const suffix = h >= 12 ? 'p' : 'a';
-  return `${h % 12 || 12}${suffix}`;
-}
-
 function fmtStamp(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -37,31 +29,29 @@ function fmtStamp(iso) {
   return d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
 }
 
-function fmtRange(start, end) {
-  if (!start || !end) return '--';
-  if (start === end) return fmtTime(start);
-  return `${fmtTime(start)}-${fmtTime(end)}`;
-}
-
-function WeatherMetric({label, value}) {
+function MonthlyPrecipTable({monthlyPrecip}) {
+  const months = monthlyPrecip?.months || [];
+  const rows = monthlyPrecip?.years || [];
   return (
-    <div className="wx-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function RainRow({label, window}) {
-  return (
-    <div className="wx-rain-row">
-      <span>{label}</span>
-      <strong>{percent(window?.maxProb)}</strong>
-      <span>{fmtRange(window?.startTime, window?.endTime)}</span>
-      <span>{inches(window?.precipAmount)}</span>
-      <span className={`wx-confidence wx-confidence-${window?.confidence || 'none'}`}>
-        {(window?.confidence || 'none').toUpperCase()}
-      </span>
+    <div className="wx-precip-wrap" data-weather-monthly-precip="1">
+      <div className="wx-precip-table">
+        <div className="wx-precip-row wx-precip-head">
+          <span>Year</span>
+          {months.map((month) => (
+            <span key={month}>{month}</span>
+          ))}
+          <span>Total</span>
+        </div>
+        {rows.map((row) => (
+          <div className="wx-precip-row" key={row.year}>
+            <strong>{row.year}</strong>
+            {row.values.map((value, idx) => (
+              <span key={`${row.year}-${months[idx]}`}>{inches(value)}</span>
+            ))}
+            <strong>{inches(row.total)}</strong>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -95,11 +85,9 @@ export default function HomeWeatherCard() {
   if (loading) return null;
   if (!forecast) return null;
 
-  const {current, today, rainWindows, dryWindow, freezeWarning, daily, alerts = [], sources = {}} = forecast;
+  const {current, today, daily, monthlyPrecip, sources = {}} = forecast;
   if (!current || !today) return null;
 
-  const alertCount = alerts.length;
-  const gust = current.windGust != null ? current.windGust : today.windGustMax;
   const radarUrl = officialRadarUrl(forecast);
 
   return (
@@ -109,25 +97,16 @@ export default function HomeWeatherCard() {
         onClick={() => setExpanded(true)}
         data-weather-card="collapsed"
         className="card weather-card lift"
-        style={{width: '100%', textAlign: 'left', color: 'inherit', flexWrap: 'wrap'}}
+        style={{width: '100%', textAlign: 'left', color: 'inherit', flexWrap: 'nowrap'}}
       >
         <span className="wx-ic" aria-hidden="true">
           {weatherIcon(current.weatherCode)}
         </span>
-        <span className="wx-temp">{round(current.temp)}°</span>
+        <span className="wx-temp">{round(current.temp)}&deg;</span>
         <span className="wx-hilo">
-          H:{round(today.high)}° L:{round(today.low)}°
+          H:{round(today.high)}&deg; L:{round(today.low)}&deg;
         </span>
-        <span className="wx-chip">
-          Wind {round(current.windSpeed)}/{round(gust)}
-        </span>
-        <span className="wx-chip">6h rain {percent(rainWindows?.next6h?.maxProb)}</span>
-        {alertCount > 0 && (
-          <span className="wx-alert-chip">
-            {alertCount} NWS alert{alertCount === 1 ? '' : 's'}
-          </span>
-        )}
-        {freezeWarning && <span className="wx-freeze-chip">Freeze {round(freezeWarning.temp)}°</span>}
+        <span className="wx-rain-pill">Rain {percent(today.precipProb)}</span>
         <svg
           className="go"
           viewBox="0 0 24 24"
@@ -155,12 +134,12 @@ export default function HomeWeatherCard() {
               <div>
                 <div className="wx-modal-title">
                   <span aria-hidden="true">{weatherIcon(current.weatherCode)}</span>
-                  <span>{round(current.temp)}°F</span>
+                  <span>{round(current.temp)}&deg;F</span>
                   <span className="wx-modal-condition">{weatherLabel(current.weatherCode)}</span>
                 </div>
                 <div className="wx-source-line">
-                  Updated {fmtStamp(forecast.fetchedAt)} · {sources.forecast || 'Open-Meteo'} ·{' '}
-                  {sources.alerts || 'NWS'}
+                  Updated {fmtStamp(forecast.fetchedAt)} &middot; {sources.forecast || 'Open-Meteo'} &middot;{' '}
+                  {sources.radar || 'NWS'}
                 </div>
               </div>
               <div className="wx-modal-actions">
@@ -173,61 +152,9 @@ export default function HomeWeatherCard() {
                   aria-label="Close weather"
                   onClick={() => setExpanded(false)}
                 >
-                  ×
+                  &times;
                 </button>
               </div>
-            </div>
-
-            <div className="wx-panel-grid">
-              <section className="wx-panel">
-                <h2>Now</h2>
-                <div className="wx-metric-grid">
-                  <WeatherMetric label="Feels" value={`${round(current.feelsLike)}°`} />
-                  <WeatherMetric label="Humidity" value={percent(current.humidity)} />
-                  <WeatherMetric label="Wind" value={`${round(current.windSpeed)} mph`} />
-                  <WeatherMetric label="Gust" value={`${round(gust)} mph`} />
-                </div>
-              </section>
-
-              <section className="wx-panel" data-weather-rain-structured="1">
-                <h2>Rain</h2>
-                <div className="wx-rain-head">
-                  <span>Window</span>
-                  <span>Max</span>
-                  <span>Time</span>
-                  <span>Amt</span>
-                  <span>Conf</span>
-                </div>
-                <RainRow label="Next 6h" window={rainWindows?.next6h} />
-                <RainRow label="Next 24h" window={rainWindows?.next24h} />
-                <RainRow label="Next 48h" window={rainWindows?.next48h} />
-              </section>
-
-              <section className="wx-panel">
-                <h2>Work</h2>
-                <div className="wx-metric-grid">
-                  <WeatherMetric label="Dry block" value={dryWindow?.hours ? `${dryWindow.hours}h` : '--'} />
-                  <WeatherMetric label="Dry time" value={fmtRange(dryWindow?.startTime, dryWindow?.endTime)} />
-                  <WeatherMetric label="Today rain" value={percent(today.precipProb)} />
-                  <WeatherMetric label="Today amt" value={inches(today.precipAmount)} />
-                </div>
-              </section>
-
-              <section className="wx-panel">
-                <h2>NWS Alerts</h2>
-                {alertCount === 0 ? (
-                  <div className="wx-empty">None active</div>
-                ) : (
-                  <div className="wx-alert-list">
-                    {alerts.slice(0, 3).map((alert) => (
-                      <div className="wx-alert-row" key={alert.id || alert.headline}>
-                        <strong>{alert.event}</strong>
-                        <span>{alert.severity || 'Alert'}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
             </div>
 
             <section className="wx-panel wx-radar-panel">
@@ -241,14 +168,20 @@ export default function HomeWeatherCard() {
             </section>
 
             <section className="wx-panel">
-              <h2>10-Day</h2>
+              <h2>Precip by Month</h2>
+              <div className="wx-source-line">Inches by month: 2026 to date plus the last 3 years</div>
+              <MonthlyPrecipTable monthlyPrecip={monthlyPrecip} />
+            </section>
+
+            <section className="wx-panel">
+              <h2>10-Day Forecast</h2>
               <div className="wx-daily-list">
                 {(daily || []).map((d, i) => (
                   <div className="wx-daily-row" key={d.date}>
                     <span>{i === 0 ? 'Today' : fmtDay(d.date)}</span>
                     <span aria-hidden="true">{weatherIcon(d.weatherCodeMax)}</span>
                     <strong>
-                      {round(d.tempMax)}°/{round(d.tempMin)}°
+                      {round(d.tempMax)}&deg;/{round(d.tempMin)}&deg;
                     </strong>
                     <span>{percent(d.precipProbMax)}</span>
                     <span>{round(d.windGustMax)} mph</span>

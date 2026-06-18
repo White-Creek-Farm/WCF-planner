@@ -1,5 +1,5 @@
 // Weather data fetcher for the Home Weather card.
-// Forecast proxy returns structured Open-Meteo GFS/HRRR fields plus NWS alerts.
+// Forecast proxy returns structured Open-Meteo GFS/HRRR fields plus precipitation history.
 
 const FORECAST_URL = '/.netlify/functions/weather-forecast';
 const CACHE_MS = 15 * 60 * 1000;

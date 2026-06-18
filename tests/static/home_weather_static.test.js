@@ -51,18 +51,22 @@ describe('weather helper functions', () => {
 });
 
 describe('weather forecast proxy', () => {
-  it('uses Open-Meteo GFS/HRRR plus NWS alerts without a Tomorrow.io key gate', () => {
+  it('uses Open-Meteo forecast and archive data without a Tomorrow.io key gate', () => {
     expect(forecastFn).toContain('api.open-meteo.com/v1/gfs');
-    expect(forecastFn).toContain('fetchNwsAlerts');
-    expect(forecastFn).toContain('alerts/active?point=');
+    expect(forecastFn).toContain('archive-api.open-meteo.com');
     expect(forecastFn).toContain('Open-Meteo GFS/HRRR');
     expect(forecastFn).toContain('National Weather Service');
+    expect(forecastFn).not.toContain('fetchNwsAlerts');
+    expect(forecastFn).not.toContain('alerts/active?point=');
     expect(forecastFn).not.toContain('TOMORROW_IO_API_KEY');
     expect(forecastFn).not.toContain('api.tomorrow.io');
   });
 
-  it('returns structured rain windows and no generated rain summary prose', () => {
+  it('returns structured rain windows, monthly precip, and no generated rain summary prose', () => {
     expect(forecastFn).toContain('buildRainWindows');
+    expect(forecastFn).toContain('buildMonthlyPrecip');
+    expect(forecastFn).toContain('archive-api.open-meteo.com');
+    expect(forecastFn).toContain('monthlyPrecip');
     expect(forecastFn).toContain('next6h');
     expect(forecastFn).toContain('next24h');
     expect(forecastFn).toContain('next48h');
@@ -97,19 +101,31 @@ describe('HomeWeatherCard component', () => {
     expect(cardSrc).toMatch(/<button[\s\S]*data-weather-card="collapsed"/);
   });
 
-  it('does not render a narrative rain summary field', () => {
+  it('does not render narrative rain summary or removed operations panels', () => {
     expect(cardSrc).not.toContain('rainSummary');
-    expect(cardSrc).toContain('data-weather-rain-structured="1"');
-    expect(cardSrc).toContain('<RainRow label="Next 6h"');
-    expect(cardSrc).toContain('6h rain');
+    expect(cardSrc).not.toContain('<h2>Now</h2>');
+    expect(cardSrc).not.toContain('<h2>Rain</h2>');
+    expect(cardSrc).not.toContain('<h2>Work</h2>');
+    expect(cardSrc).not.toContain('NWS Alerts');
+    expect(cardSrc).not.toContain('data-weather-rain-structured');
   });
 
-  it('shows source metadata, NWS alerts, structured work values, and official radar link', () => {
-    expect(cardSrc).toContain('NWS Alerts');
+  it('keeps only official radar, monthly precip, and 10-day forecast in the expanded card', () => {
     expect(cardSrc).toContain('Open NWS Radar');
     expect(cardSrc).toContain('officialRadarUrl');
-    expect(cardSrc).toContain('Dry block');
+    expect(cardSrc).toContain('Precip by Month');
+    expect(cardSrc).toContain('data-weather-monthly-precip="1"');
+    expect(cardSrc).toContain('10-Day Forecast');
     expect(cardSrc).toContain('Updated');
+  });
+
+  it('keeps the collapsed weather card compact so the Pasture Map row does not stretch', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'src/dashboard/homeRedesign.css'), 'utf8');
+    expect(cardSrc).toContain("flexWrap: 'nowrap'");
+    expect(cardSrc).not.toContain('wx-chip');
+    expect(cardSrc).not.toContain('wx-alert-chip');
+    expect(css).toContain('height: 66px');
+    expect(css).toContain('.home .field-map-card');
   });
 
   it('soft-fails hidden when no forecast data', () => {

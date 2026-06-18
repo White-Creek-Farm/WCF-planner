@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildDryWindow, buildRainWindows} from '../netlify/functions/weather-forecast.js';
+import {buildDryWindow, buildMonthlyPrecip, buildRainWindows} from '../netlify/functions/weather-forecast.js';
 
 function hour(baseMs, offset, patch = {}) {
   return {
@@ -54,5 +54,28 @@ describe('weather rain windows', () => {
       endTime: hourly[3].time,
       hours: 3,
     });
+  });
+});
+
+describe('weather monthly precip history', () => {
+  it('summarizes 2026 and the previous 3 years by month in inches', () => {
+    const monthly = buildMonthlyPrecip(
+      {
+        daily: {
+          time: ['2023-01-01', '2024-01-01', '2025-02-01', '2026-01-01', '2026-01-02', '2026-06-18'],
+          precipitation_sum: [1.1, 2.2, 3.3, 0.25, 0.75, 4],
+        },
+      },
+      2026,
+    );
+
+    expect(monthly.months).toHaveLength(12);
+    expect(monthly.years.map((row) => row.year)).toEqual([2026, 2025, 2024, 2023]);
+    expect(monthly.years[0].values[0]).toBe(1);
+    expect(monthly.years[0].values[5]).toBe(4);
+    expect(monthly.years[0].total).toBe(5);
+    expect(monthly.years[1].values[1]).toBe(3.3);
+    expect(monthly.years[2].values[0]).toBe(2.2);
+    expect(monthly.years[3].values[0]).toBe(1.1);
   });
 });

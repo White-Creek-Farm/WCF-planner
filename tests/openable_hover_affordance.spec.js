@@ -138,7 +138,6 @@ const FORECAST_FIXTURE = {
   },
   dryWindow: {hours: 6, startTime: '2026-06-11T08:00:00', endTime: '2026-06-11T13:00:00'},
   freezeWarning: null,
-  alerts: [],
   dailySource: 'open-meteo-gfs',
   daily: Array.from({length: 10}, (_, i) => ({
     date: `2026-06-${String(11 + i).padStart(2, '0')}`,
@@ -149,8 +148,17 @@ const FORECAST_FIXTURE = {
     weatherCodeMax: 1101,
     windGustMax: 22,
   })),
+  monthlyPrecip: {
+    unit: 'in',
+    months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    years: [2026, 2025, 2024, 2023].map((year) => ({
+      year,
+      values: Array(12).fill(1.25),
+      total: 15,
+    })),
+  },
   hourly: [],
-  sources: {forecast: 'Open-Meteo GFS/HRRR', alerts: 'National Weather Service', radar: 'National Weather Service'},
+  sources: {forecast: 'Open-Meteo GFS/HRRR', radar: 'National Weather Service'},
   radarUrl: 'https://radar.weather.gov/',
   fetchedAt: '2026-06-11T13:00:00Z',
   location: {lat: 30.84, lon: -86.43, label: 'Farm'},
