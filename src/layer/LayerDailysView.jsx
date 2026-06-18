@@ -13,15 +13,21 @@ import {printRows} from '../lib/printExport.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
-import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import DataTable from '../shared/DataTable.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import StatusText from '../shared/StatusText.jsx';
+import {
+  DailyCardList,
+  feedLbsVal,
+  tagVal,
+  gritVal,
+  countVal,
+  check,
+  mortText,
+  commentText,
+} from '../shared/DailyRecordCards.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 
 import LayerDailyPage from './LayerDailyPage.jsx';
@@ -877,138 +883,30 @@ const LayerDailysHub = ({
           emptyLabel="No layer daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <DataTable
-            surfaceKey="layer-dailys-table"
+          <DailyCardList
+            program="layer"
             rows={filtered}
-            rowKey="id"
-            density="comfortable"
-            onRowOpen={(d) =>
+            fmt={fmt}
+            maxInitialRows={100}
+            onOpen={(d) =>
               navigate('/layer/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
             }
-            rowProps={(d) => ({'data-daily-row': d.id})}
-            maxInitialRows={100}
-            columns={[
-              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
-              {
-                key: 'group',
-                label: 'Group',
-                primary: true,
-                render: (d) => (
-                  <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
-                    <span>{d.batch_label || '—'}</span>
-                    {d.source === 'add_feed_webform' && (
-                      <span title="Add Feed log" aria-label="Add Feed log">
-                        {'🌾'}
-                      </span>
-                    )}
-                    <DailyPhotoChip photos={d.photos} />
-                  </span>
-                ),
+            rowAttrs={(d) => ({'data-daily-row': d.id})}
+            mapRow={(d) => ({
+              name: d.batch_label || '—',
+              team: d.team_member || '—',
+              source: d.source,
+              photos: d.photos,
+              vals: {
+                feed: feedLbsVal(d.feed_lbs),
+                feedTag: d.feed_type ? tagVal(d.feed_type) : '',
+                grit: gritVal(d.grit_lbs),
+                count: countVal(d.layer_count),
               },
-              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
-              {
-                key: 'feed',
-                label: 'Feed',
-                align: 'right',
-                render: (d) => {
-                  const hasFeed = parseFloat(d.feed_lbs) > 0;
-                  if (!hasFeed) return <StatusText tone="muted">no feed</StatusText>;
-                  return (
-                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end'}}>
-                      <span>{parseFloat(d.feed_lbs).toLocaleString() + ' lbs'}</span>
-                      {d.feed_type && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '1px 5px',
-                            borderRadius: 10,
-                            background:
-                              d.feed_type === 'STARTER' ? '#dbeafe' : d.feed_type === 'GROWER' ? '#d1fae5' : '#fef3c7',
-                            color:
-                              d.feed_type === 'STARTER' ? '#1e40af' : d.feed_type === 'GROWER' ? '#065f46' : '#92400e',
-                          }}
-                        >
-                          {d.feed_type}
-                        </span>
-                      )}
-                    </span>
-                  );
-                },
-              },
-              {
-                key: 'grit',
-                label: 'Grit',
-                align: 'right',
-                mobilePriority: false,
-                render: (d) =>
-                  parseFloat(d.grit_lbs) > 0 ? (
-                    parseFloat(d.grit_lbs) + ' lbs'
-                  ) : (
-                    <StatusText tone="muted">no grit</StatusText>
-                  ),
-              },
-              {
-                key: 'count',
-                label: 'Hens',
-                align: 'right',
-                render: (d) =>
-                  parseInt(d.layer_count) > 0 ? String(d.layer_count) : <StatusText tone="muted">no count</StatusText>,
-              },
-              {
-                key: 'checks',
-                label: 'Checks',
-                mobilePriority: false,
-                render: (d) => (
-                  <span style={{display: 'inline-flex', gap: 10, flexWrap: 'wrap'}}>
-                    <StatusText tone={d.group_moved === false ? 'danger' : 'ok'}>
-                      {'Moved ' + (d.group_moved === false ? '✗' : '✓')}
-                    </StatusText>
-                    <StatusText tone={d.waterer_checked === false ? 'danger' : 'ok'}>
-                      {'Waterer ' + (d.waterer_checked === false ? '✗' : '✓')}
-                    </StatusText>
-                  </span>
-                ),
-              },
-              {
-                key: 'mortality',
-                label: 'Mortality',
-                align: 'right',
-                render: (d) => {
-                  const mort = parseInt(d.mortality_count);
-                  if (!(mort > 0)) return <StatusText tone="muted">{'—'}</StatusText>;
-                  const text = '💀 ' + d.mortality_count + (d.mortality_reason ? ' — ' + d.mortality_reason : '');
-                  return (
-                    <StatusText tone="danger" title={text}>
-                      {text}
-                    </StatusText>
-                  );
-                },
-              },
-              {
-                key: 'comments',
-                label: 'Comments',
-                render: (d) => {
-                  const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
-                  if (!comment) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <span
-                      title={comment}
-                      style={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        color: 'var(--text-primary)',
-                        maxWidth: 280,
-                      }}
-                    >
-                      {comment}
-                    </span>
-                  );
-                },
-              },
-            ]}
+              checks: [check('Moved', d.group_moved !== false), check('Waterer', d.waterer_checked !== false)],
+              mort: mortText(d.mortality_count, d.mortality_reason),
+              comment: commentText(d.comments),
+            })}
           />
         )}
         {hasMore && (

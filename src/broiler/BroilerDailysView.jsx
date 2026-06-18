@@ -13,15 +13,12 @@ import {buildBroilerDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
-import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import DataTable from '../shared/DataTable.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import StatusText from '../shared/StatusText.jsx';
+import {DailyCardList, feedLbsVal, tagVal, gritVal, check, mortText, commentText} from '../shared/DailyRecordCards.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import PoultryDailyPage from './PoultryDailyPage.jsx';
@@ -823,118 +820,29 @@ const BroilerDailysHub = ({sb, fmt, Header, authState, batches, pendingEdit, set
           emptyLabel="No broiler daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <DataTable
-            surfaceKey="broiler-dailys-table"
+          <DailyCardList
+            program="broiler"
             rows={filtered}
-            rowKey="id"
-            density="comfortable"
-            onRowOpen={(d) =>
+            fmt={fmt}
+            maxInitialRows={100}
+            onOpen={(d) =>
               navigate('/broiler/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
             }
-            rowProps={(d) => ({'data-daily-row': d.id})}
-            maxInitialRows={100}
-            columns={[
-              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
-              {
-                key: 'batch',
-                label: 'Group',
-                primary: true,
-                render: (d) => (
-                  <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
-                    <span>{d.batch_label || '—'}</span>
-                    {d.source === 'add_feed_webform' && (
-                      <span title="Add Feed log" aria-label="Add Feed log">
-                        {'🌾'}
-                      </span>
-                    )}
-                    <DailyPhotoChip photos={d.photos} />
-                  </span>
-                ),
+            rowAttrs={(d) => ({'data-daily-row': d.id})}
+            mapRow={(d) => ({
+              name: d.batch_label || '—',
+              team: d.team_member || '—',
+              source: d.source,
+              photos: d.photos,
+              vals: {
+                feed: feedLbsVal(d.feed_lbs),
+                feedTag: d.feed_type ? tagVal(d.feed_type) : '',
+                grit: gritVal(d.grit_lbs),
               },
-              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
-              {
-                key: 'feed',
-                label: 'Feed',
-                align: 'right',
-                render: (d) => {
-                  const hasFeed = parseFloat(d.feed_lbs) > 0;
-                  if (!hasFeed) return <StatusText tone="muted">no feed</StatusText>;
-                  return (
-                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end'}}>
-                      <span>{parseFloat(d.feed_lbs).toLocaleString() + ' lbs'}</span>
-                      {d.feed_type && <StatusText tone="muted">{d.feed_type}</StatusText>}
-                    </span>
-                  );
-                },
-              },
-              {
-                key: 'grit',
-                label: 'Grit',
-                align: 'right',
-                mobilePriority: false,
-                render: (d) =>
-                  parseFloat(d.grit_lbs) > 0 ? (
-                    parseFloat(d.grit_lbs).toLocaleString() + ' lbs'
-                  ) : (
-                    <StatusText tone="muted">no grit</StatusText>
-                  ),
-              },
-              {
-                key: 'mortality',
-                label: 'Mortality',
-                align: 'right',
-                render: (d) => {
-                  const n = parseInt(d.mortality_count);
-                  if (!(n > 0)) return <StatusText tone="muted">{'—'}</StatusText>;
-                  const reason = d.mortality_reason ? ' — ' + d.mortality_reason : '';
-                  return (
-                    <StatusText tone="danger" title={n + ' mort.' + reason}>
-                      {n + ' mort.' + reason}
-                    </StatusText>
-                  );
-                },
-              },
-              {
-                key: 'checks',
-                label: 'Checks',
-                mobilePriority: false,
-                render: (d) => (
-                  <span style={{display: 'inline-flex', gap: 10, flexWrap: 'wrap'}}>
-                    <StatusText tone={d.group_moved === false ? 'danger' : 'ok'}>
-                      {'Moved ' + (d.group_moved === false ? '✗' : '✓')}
-                    </StatusText>
-                    <StatusText tone={d.waterer_checked === false ? 'danger' : 'ok'}>
-                      {'Waterer ' + (d.waterer_checked === false ? '✗' : '✓')}
-                    </StatusText>
-                  </span>
-                ),
-              },
-              {
-                key: 'comments',
-                label: 'Comments',
-                render: (d) => {
-                  const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
-                  if (!comment) return <StatusText tone="muted">{'—'}</StatusText>;
-                  // CP0 A1/A6: comment text is black (not amber) and clamped to 2
-                  // lines so a long note can't balloon the row; full text on hover.
-                  return (
-                    <span
-                      title={comment}
-                      style={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        color: 'var(--text-primary)',
-                        maxWidth: 280,
-                      }}
-                    >
-                      {comment}
-                    </span>
-                  );
-                },
-              },
-            ]}
+              checks: [check('Moved', d.group_moved !== false), check('Waterer', d.waterer_checked !== false)],
+              mort: mortText(d.mortality_count, d.mortality_reason),
+              comment: commentText(d.comments),
+            })}
           />
         )}
         {hasMore && (

@@ -12,15 +12,12 @@ import {buildCattleDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
-import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import DataTable from '../shared/DataTable.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import StatusText from '../shared/StatusText.jsx';
+import {DailyCardList, feedListVal, voltageVal, check, mortText, commentText} from '../shared/DailyRecordCards.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import CattleDailyPage from './CattleDailyPage.jsx';
@@ -844,134 +841,30 @@ const CattleDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdi
           emptyLabel="No cattle daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <DataTable
-            surfaceKey="cattle-dailys-table"
+          <DailyCardList
+            program="cattle"
             rows={filtered}
-            rowKey="id"
-            density="comfortable"
-            onRowOpen={(d) => navigate('/cattle/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'herd')))}
-            rowProps={(d) => ({'data-daily-row': d.id})}
+            fmt={fmt}
             maxInitialRows={100}
-            columns={[
-              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
-              {
-                key: 'herd',
-                label: 'Herd',
-                primary: true,
-                render: (d) => {
-                  const hc = HERD_COLORS[d.herd] || HERD_COLORS.mommas;
-                  return (
-                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
-                      <span
-                        style={{width: 9, height: 9, borderRadius: '50%', background: hc.tx, flex: '0 0 9px'}}
-                        aria-hidden="true"
-                      />
-                      <span style={{color: 'var(--text-primary)', fontWeight: 600}}>
-                        {HERD_LABELS[d.herd] || d.herd}
-                      </span>
-                      {d.source === 'add_feed_webform' && (
-                        <span title="Add Feed log" aria-label="Add Feed log">
-                          {'🌾'}
-                        </span>
-                      )}
-                      <DailyPhotoChip photos={d.photos} />
-                    </span>
-                  );
+            onOpen={(d) => navigate('/cattle/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'herd')))}
+            rowAttrs={(d) => ({'data-daily-row': d.id})}
+            mapRow={(d) => {
+              const hc = HERD_COLORS[d.herd] || HERD_COLORS.mommas;
+              return {
+                name: HERD_LABELS[d.herd] || d.herd,
+                dot: hc.tx,
+                team: d.team_member || '—',
+                source: d.source,
+                photos: d.photos,
+                vals: {
+                  feed: feedListVal(d.feeds, d.minerals),
+                  volt: voltageVal(d.fence_voltage),
                 },
-              },
-              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
-              {
-                key: 'voltage',
-                label: 'Voltage',
-                align: 'right',
-                mobilePriority: false,
-                render: (d) => {
-                  const v = d.fence_voltage;
-                  if (v == null || String(v).trim() === '') return <StatusText tone="muted">{'—'}</StatusText>;
-                  const fv = parseFloat(v);
-                  const color = fv < 3 ? '#b91c1c' : fv < 5 ? '#92400e' : '#065f46';
-                  return <span style={{color, fontWeight: 600}}>{'⚡ ' + v + ' kV'}</span>;
-                },
-              },
-              {
-                key: 'water',
-                label: 'Water',
-                mobilePriority: false,
-                render: (d) => (
-                  <StatusText tone={d.water_checked === false ? 'danger' : 'ok'}>
-                    {'Water ' + (d.water_checked === false ? '✗' : '✓')}
-                  </StatusText>
-                ),
-              },
-              {
-                key: 'feeds',
-                label: 'Feeds',
-                mobilePriority: false,
-                render: (d) => {
-                  const feedSummary =
-                    Array.isArray(d.feeds) && d.feeds.length > 0
-                      ? d.feeds
-                          .map(
-                            (f) =>
-                              (f.feed_name || '?') +
-                              (f.qty ? ' ' + f.qty + ' ' + (f.unit || '') + (f.is_creep ? ' 🍼' : '') : ''),
-                          )
-                          .join(', ')
-                      : '';
-                  const mineralSummary =
-                    Array.isArray(d.minerals) && d.minerals.length > 0
-                      ? d.minerals.map((m) => (m.name || '?') + (m.lbs ? ' ' + m.lbs + ' lb' : '')).join(', ')
-                      : '';
-                  if (!feedSummary && !mineralSummary) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <span style={{display: 'inline-flex', flexDirection: 'column', gap: 2}}>
-                      {feedSummary && (
-                        <span style={{fontSize: 11, color: 'var(--text-secondary)'}}>{'🌾 ' + feedSummary}</span>
-                      )}
-                      {mineralSummary && <span style={{fontSize: 11, color: '#6b21a8'}}>{'🧂 ' + mineralSummary}</span>}
-                    </span>
-                  );
-                },
-              },
-              {
-                key: 'mortality',
-                label: 'Mort.',
-                align: 'right',
-                render: (d) => {
-                  const hasMort = parseInt(d.mortality_count) > 0;
-                  if (!hasMort) return <StatusText tone="muted">{'—'}</StatusText>;
-                  const text = '💀 ' + d.mortality_count + (d.mortality_reason ? ' — ' + d.mortality_reason : '');
-                  return (
-                    <StatusText tone="danger" title={text}>
-                      {text}
-                    </StatusText>
-                  );
-                },
-              },
-              {
-                key: 'issues',
-                label: 'Issues',
-                render: (d) => {
-                  const issues = d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
-                  if (!issues) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <span
-                      title={issues}
-                      style={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        color: 'var(--text-primary)',
-                        maxWidth: 280,
-                      }}
-                    >
-                      {issues}
-                    </span>
-                  );
-                },
-              },
-            ]}
+                checks: [check('Water', d.water_checked !== false)],
+                mort: mortText(d.mortality_count, d.mortality_reason),
+                comment: commentText(d.issues),
+              };
+            }}
           />
         )}
         {hasMore && (

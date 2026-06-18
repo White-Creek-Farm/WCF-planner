@@ -12,15 +12,12 @@ import {buildPigDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
-import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import DataTable from '../shared/DataTable.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import StatusText from '../shared/StatusText.jsx';
+import {DailyCardList, feedLbsVal, mutedVal, voltageVal, check, commentText} from '../shared/DailyRecordCards.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import PigDailyPage from './PigDailyPage.jsx';
@@ -437,7 +434,6 @@ const PigDailysHub = ({
   }
 
   const totalFeed = filtered.reduce((s, r) => s + (parseFloat(r.feed_lbs) || 0), 0);
-  const voltColor = (v) => (v == null ? 'var(--ink-faint)' : v < 3 ? '#b91c1c' : v < 5 ? '#92400e' : '#065f46');
   const fi = {
     padding: '6px 10px',
     borderRadius: 10,
@@ -823,106 +819,30 @@ const PigDailysHub = ({
           emptyLabel="No pig daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <DataTable
-            surfaceKey="pig-dailys-table"
+          <DailyCardList
+            program="pig"
             rows={filtered}
-            rowKey="id"
-            density="comfortable"
-            onRowOpen={(d) =>
-              navigate('/pig/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))
-            }
-            rowProps={(d) => ({'data-daily-row': d.id})}
+            fmt={fmt}
             maxInitialRows={100}
-            columns={[
-              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
-              {
-                key: 'batch',
-                label: 'Pig group',
-                primary: true,
-                render: (d) => (
-                  <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
-                    <span>{d.batch_label || '—'}</span>
-                    {d.source === 'add_feed_webform' && (
-                      <span title="Add Feed log" aria-label="Add Feed log">
-                        {'🌾'}
-                      </span>
-                    )}
-                    <DailyPhotoChip photos={d.photos} />
-                  </span>
-                ),
+            onOpen={(d) => navigate('/pig/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'batch_label')))}
+            rowAttrs={(d) => ({'data-daily-row': d.id})}
+            mapRow={(d) => ({
+              name: d.batch_label || '—',
+              team: d.team_member || '—',
+              source: d.source,
+              photos: d.photos,
+              vals: {
+                feed: feedLbsVal(d.feed_lbs),
+                pigs: parseInt(d.pig_count) > 0 ? d.pig_count + ' pigs' : mutedVal('—'),
+                volt: voltageVal(d.fence_voltage),
               },
-              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
-              {
-                key: 'feed',
-                label: 'Feed',
-                align: 'right',
-                render: (d) =>
-                  parseFloat(d.feed_lbs) > 0 ? (
-                    parseFloat(d.feed_lbs).toLocaleString() + ' lbs'
-                  ) : (
-                    <StatusText tone="muted">no feed</StatusText>
-                  ),
-              },
-              {
-                key: 'pigs',
-                label: 'Pigs',
-                align: 'right',
-                render: (d) =>
-                  parseInt(d.pig_count) > 0 ? String(d.pig_count) : <StatusText tone="muted">{'—'}</StatusText>,
-              },
-              {
-                key: 'voltage',
-                label: 'Voltage',
-                align: 'right',
-                mobilePriority: false,
-                render: (d) => {
-                  const v = d.fence_voltage;
-                  if (v == null || String(v).trim() === '') return <StatusText tone="muted">{'—'}</StatusText>;
-                  return <span style={{color: voltColor(parseFloat(v)), fontWeight: 600}}>{v + ' kV'}</span>;
-                },
-              },
-              {
-                key: 'checks',
-                label: 'Checks',
-                mobilePriority: false,
-                render: (d) => (
-                  <span style={{display: 'inline-flex', gap: 10, flexWrap: 'wrap'}}>
-                    <StatusText tone={d.group_moved === false ? 'danger' : 'ok'}>
-                      {'Moved ' + (d.group_moved === false ? '✗' : '✓')}
-                    </StatusText>
-                    <StatusText tone={d.nipple_drinker_working === false ? 'danger' : 'ok'}>
-                      {'Nipple ' + (d.nipple_drinker_working === false ? '✗' : '✓')}
-                    </StatusText>
-                    <StatusText tone={d.fence_walked === false ? 'danger' : 'ok'}>
-                      {'Fence ' + (d.fence_walked === false ? '✗' : '✓')}
-                    </StatusText>
-                  </span>
-                ),
-              },
-              {
-                key: 'issues',
-                label: 'Issues',
-                render: (d) => {
-                  const issues = d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
-                  if (!issues) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <span
-                      title={issues}
-                      style={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        color: 'var(--text-primary)',
-                        maxWidth: 280,
-                      }}
-                    >
-                      {issues}
-                    </span>
-                  );
-                },
-              },
-            ]}
+              checks: [
+                check('Moved', d.group_moved !== false),
+                check('Nipple', d.nipple_drinker_working !== false),
+                check('Fence', d.fence_walked !== false),
+              ],
+              comment: commentText(d.issues),
+            })}
           />
         )}
       </div>

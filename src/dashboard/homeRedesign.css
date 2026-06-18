@@ -1148,6 +1148,7 @@
 /* ---------- Admin "Last 5 Days" frame (inner report tiles kept as-is) ---------- */
 .home .admin-daily {
   padding: 16px 18px;
+  overflow-x: auto;
 }
 .home .day-group + .day-group {
   margin-top: 8px;
@@ -1180,11 +1181,22 @@
 .home .kind-head {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+}
+/* program heading = icon + colored dot + BLACK uppercase label (redesign) */
+.home .kind-head .kind-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+.home .kind-head .kind-name {
+  color: #000;
 }
 
 /* ---------- mobile ---------- */

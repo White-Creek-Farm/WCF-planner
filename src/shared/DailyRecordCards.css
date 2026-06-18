@@ -1,0 +1,312 @@
+/* ===========================================================================
+   DailyRecordCards — daily-report LIST card system (Build Queue item 5)
+   ---------------------------------------------------------------------------
+   White record cards (no zebra), fixed-width columns so fields line up, status
+   as colored text, one mortality badge, one comment note. The physical hover
+   lift + trailing chevron come from the locked global `.hoverable-tile` / `.chev`
+   contract (index.html) — this file only paints the at-rest card and lays out
+   the fixed columns. Exact colors/metrics are from the designer handoff README.
+   =========================================================================== */
+
+.drc-list {
+  font-variant-numeric: tabular-nums;
+}
+
+.drc-group {
+  margin-bottom: 24px;
+}
+.drc-group:last-child {
+  margin-bottom: 0;
+}
+
+.drc-date-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #e6e8eb;
+  margin: 0 2px 12px;
+}
+.drc-date {
+  font-size: 15px;
+  font-weight: 800;
+  color: #000;
+}
+.drc-date-count {
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.drc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---- card ---------------------------------------------------------------- */
+.drc-card {
+  background: #fff;
+  border: 1px solid #e6e8eb;
+  border-radius: 14px;
+  padding: 14px 18px;
+  box-shadow: 0 1px 2px rgba(20, 30, 40, 0.045);
+  outline: none;
+}
+
+.drc-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* name (fixed) — dot + black label; batch IDs get no dot */
+.drc-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 180px;
+  flex: none;
+  min-width: 0;
+}
+.drc-name-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+.drc-feedflag {
+  flex: none;
+  font-size: 13px;
+}
+
+/* team (fixed) — long names wrap INSIDE the chip, never push later columns */
+.drc-team-wrap {
+  width: 104px;
+  flex: none;
+  display: flex;
+}
+.drc-team {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: #f1f3f4;
+  color: #3f3f3f;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  max-width: 104px;
+  overflow-wrap: break-word;
+}
+
+/* value cells (fixed) — a missing value still occupies its column; a long feed
+   string wraps inside the cell and never moves the next column */
+.drc-cell {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.drc-icon {
+  font-size: 13px;
+  flex: none;
+}
+.drc-v,
+.drc-v-muted,
+.drc-v-danger {
+  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.drc-v {
+  color: #000;
+}
+.drc-v-muted {
+  color: #9aa1ab;
+}
+.drc-v-danger {
+  color: #c0452f;
+  font-weight: 700;
+}
+.drc-tag {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #f1f3f4;
+  color: #3f3f3f;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* checks — colored text, never pills */
+.drc-checks {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+}
+.drc-ck-ok {
+  color: #3f7a5b;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.drc-ck-bad {
+  color: #c0452f;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* trailing chevron — opacity/slide come from the global `.hoverable-tile .chev`
+   rule; this only sizes it and pins it to the right edge */
+.drc-card .chev {
+  margin-left: auto;
+  font-size: 22px;
+  flex: none;
+}
+
+/* one mortality badge */
+.drc-mort {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 11px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #fbe7e3;
+  color: #c0452f;
+  font-size: 13px;
+  font-weight: 600;
+  width: fit-content;
+}
+.drc-mort-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c0452f;
+  flex: none;
+}
+
+/* one comment note */
+.drc-comment {
+  display: flex;
+  gap: 9px;
+  margin-top: 9px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  background: #f8f0da;
+  border: 1px solid #ece0bc;
+  color: #000;
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 760px;
+}
+.drc-comment-ic {
+  flex: none;
+  color: #8a6a1e;
+}
+.drc-comment-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- egg summary row ----------------------------------------------------- */
+.drc-egg-total {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 180px;
+  flex: none;
+}
+.drc-egg-total .drc-egg-n {
+  font-size: 19px;
+  font-weight: 800;
+  color: #000;
+}
+.drc-egg-unit {
+  font-size: 13px;
+  color: #6b7280;
+}
+.drc-egg-house {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 150px;
+  flex: none;
+}
+.drc-egg-loc {
+  font-size: 13px;
+  color: #3f3f3f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drc-egg-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: #000;
+}
+.drc-egg-doz {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #f1f3f4;
+  color: #3f3f3f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  flex: none;
+}
+
+/* ---- show more ----------------------------------------------------------- */
+.drc-show-more {
+  display: block;
+  margin: 4px auto 0;
+  padding: 7px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface, #fff);
+  color: var(--text-primary, #000);
+  font-weight: 600;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ---- mobile: drop fixed widths and let the line flow (no overlap/overflow);
+   the fixed-column discipline is a desktop concern) ------------------------- */
+@media (max-width: 640px) {
+  .drc-line {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .drc-name,
+  .drc-egg-total {
+    width: 100%;
+  }
+  .drc-team-wrap,
+  .drc-cell,
+  .drc-egg-house {
+    width: auto !important;
+  }
+  .drc-checks {
+    width: 100%;
+  }
+  .drc-comment {
+    max-width: 100%;
+  }
+}

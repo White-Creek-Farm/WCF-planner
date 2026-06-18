@@ -17,15 +17,12 @@ import {buildSheepDailyExportColumns} from '../lib/dailyReportExports.js';
 import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
 import AdminAddReportModal from '../shared/AdminAddReportModal.jsx';
-import DailyPhotoChip from '../shared/DailyPhotoChip.jsx';
 import DailyPhotoThumbnails from '../shared/DailyPhotoThumbnails.jsx';
 import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import DataTable from '../shared/DataTable.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import StatusText from '../shared/StatusText.jsx';
+import {DailyCardList, feedListVal, voltageVal, check, mortText, commentText} from '../shared/DailyRecordCards.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import SheepDailyPage from './SheepDailyPage.jsx';
@@ -866,140 +863,30 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
           emptyLabel="No sheep daily reports yet"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <DataTable
-            surfaceKey="sheep-dailys-table"
+          <DailyCardList
+            program="sheep"
             rows={filtered}
-            rowKey="id"
-            density="comfortable"
-            onRowOpen={(d) => navigate('/sheep/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'flock')))}
-            rowProps={(d) => ({'data-daily-row': d.id})}
+            fmt={fmt}
             maxInitialRows={100}
-            columns={[
-              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
-              {
-                key: 'flock',
-                label: 'Flock',
-                primary: true,
-                render: (d) => {
-                  const fc = FLOCK_COLORS[d.flock] || FLOCK_COLORS.ewes;
-                  return (
-                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
-                      <span
-                        style={{width: 9, height: 9, borderRadius: '50%', background: fc.tx, flex: '0 0 9px'}}
-                        aria-hidden="true"
-                      />
-                      <span style={{color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap'}}>
-                        {FLOCK_LABELS[d.flock] || d.flock}
-                      </span>
-                      {d.source === 'add_feed_webform' && (
-                        <span title="Add Feed log" aria-label="Add Feed log" style={{flexShrink: 0}}>
-                          {'🌾'}
-                        </span>
-                      )}
-                      <DailyPhotoChip photos={d.photos} />
-                    </span>
-                  );
+            onOpen={(d) => navigate('/sheep/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'flock')))}
+            rowAttrs={(d) => ({'data-daily-row': d.id})}
+            mapRow={(d) => {
+              const fc = FLOCK_COLORS[d.flock] || FLOCK_COLORS.ewes;
+              return {
+                name: FLOCK_LABELS[d.flock] || d.flock,
+                dot: fc.tx,
+                team: d.team_member || '—',
+                source: d.source,
+                photos: d.photos,
+                vals: {
+                  feed: feedListVal(d.feeds, d.minerals),
+                  volt: voltageVal(d.fence_voltage_kv),
                 },
-              },
-              {key: 'team', label: 'Team', mobilePriority: false, render: (d) => d.team_member || '—'},
-              {
-                key: 'voltage',
-                label: 'Voltage',
-                align: 'right',
-                mobilePriority: false,
-                render: (d) => {
-                  if (d.fence_voltage_kv == null) return <StatusText tone="muted">no voltage</StatusText>;
-                  const v = parseFloat(d.fence_voltage_kv);
-                  const tone = v < 3 ? 'danger' : v < 5 ? 'warn' : 'ok';
-                  return <StatusText tone={tone}>{'⚡ ' + d.fence_voltage_kv + ' kV'}</StatusText>;
-                },
-              },
-              {
-                key: 'water',
-                label: 'Water',
-                mobilePriority: false,
-                render: (d) => (
-                  <StatusText tone={d.waterers_working === false ? 'danger' : 'ok'}>
-                    {'Water ' + (d.waterers_working === false ? '✗' : '✓')}
-                  </StatusText>
-                ),
-              },
-              {
-                key: 'feed',
-                label: 'Feed',
-                render: (d) => {
-                  const feedSummary =
-                    Array.isArray(d.feeds) && d.feeds.length > 0
-                      ? d.feeds
-                          .map((f) => (f.feed_name || '?') + (f.qty != null ? ' ' + f.qty + ' ' + (f.unit || '') : ''))
-                          .join(', ')
-                      : '';
-                  if (!feedSummary) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <StatusText tone="muted" title={feedSummary}>
-                      {'🌾 ' + feedSummary}
-                    </StatusText>
-                  );
-                },
-              },
-              {
-                key: 'minerals',
-                label: 'Minerals',
-                mobilePriority: false,
-                render: (d) => {
-                  const mineralSummary =
-                    Array.isArray(d.minerals) && d.minerals.length > 0
-                      ? d.minerals
-                          .map((m) => {
-                            const parts = [m.name || '?'];
-                            if (m.lbs != null) parts.push(m.lbs + ' lb');
-                            return parts.join(' ');
-                          })
-                          .join(', ')
-                      : '';
-                  if (!mineralSummary) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <StatusText tone="muted" title={mineralSummary} style={{color: '#6b21a8'}}>
-                      {'🧂 ' + mineralSummary}
-                    </StatusText>
-                  );
-                },
-              },
-              {
-                key: 'mortality',
-                label: 'Mort.',
-                align: 'right',
-                render: (d) =>
-                  parseInt(d.mortality_count) > 0 ? (
-                    <StatusText tone="danger">{'💀 ' + d.mortality_count}</StatusText>
-                  ) : (
-                    <StatusText tone="muted">{'—'}</StatusText>
-                  ),
-              },
-              {
-                key: 'comments',
-                label: 'Comments',
-                render: (d) => {
-                  const comments = isSentinelComment(d.comments) ? '' : String(d.comments).trim();
-                  if (!comments) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <span
-                      title={comments}
-                      style={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        color: 'var(--text-primary)',
-                        maxWidth: 280,
-                      }}
-                    >
-                      {comments}
-                    </span>
-                  );
-                },
-              },
-            ]}
+                checks: [check('Water', d.waterers_working !== false)],
+                mort: mortText(d.mortality_count, null),
+                comment: isSentinelComment(d.comments) ? null : commentText(d.comments),
+              };
+            }}
           />
         )}
         {hasMore && (

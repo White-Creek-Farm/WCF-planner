@@ -29,6 +29,21 @@ import PlannerIcon from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS, PLANNER_ICON_KEYS} from '../lib/plannerIcons.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {openableProps} from '../shared/openable.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import {
+  DailyRecordCard,
+  EggSummaryCard,
+  feedLbsVal,
+  feedListVal,
+  gritVal,
+  countVal,
+  tagVal,
+  mutedVal,
+  voltageVal,
+  check,
+  mortText,
+  commentText,
+} from '../shared/DailyRecordCards.jsx';
 import HomeWeatherCard from '../weather/HomeWeatherCard.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
@@ -57,6 +72,96 @@ const DAILY_RECORD_ROUTES = {
 function pathForDailyReport(r) {
   const build = DAILY_RECORD_ROUTES[r && r.kind];
   return build ? build(r.id) : null;
+}
+
+// Herd/flock dot + label for the Home "Last 5 Days" feed — same production
+// palette the cattle/sheep list pages use, so a herd's dot is identical on Home
+// and on its program page.
+const HOME_HERD = {
+  labels: {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'},
+  dot: {mommas: '#991b1b', backgrounders: '#9a3412', finishers: '#9f1239', bulls: '#7f1d1d'},
+};
+const HOME_FLOCK = {
+  labels: {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'},
+  dot: {rams: '#0f766e', ewes: '#86198f', feeders: '#854d0e'},
+};
+function homeSheepComment(c) {
+  const t = c == null ? '' : String(c).trim();
+  const low = t.toLowerCase();
+  if (!t || ['none', '0', 'n/a', 'na', '-'].includes(low)) return null;
+  return commentText(t);
+}
+
+// Map a daily record to the shared DailyRecordCard display model. Mirrors each
+// program list view's mapRow so the Home feed and the program pages read the
+// same fields the same way.
+function buildHomeDailyModel(kind, d) {
+  const base = {team: d.team_member || '—', source: d.source, photos: d.photos};
+  if (kind === 'broiler') {
+    return {
+      ...base,
+      name: d.batch_label || '—',
+      vals: {feed: feedLbsVal(d.feed_lbs), feedTag: d.feed_type ? tagVal(d.feed_type) : '', grit: gritVal(d.grit_lbs)},
+      checks: [check('Moved', d.group_moved !== false), check('Waterer', d.waterer_checked !== false)],
+      mort: mortText(d.mortality_count, d.mortality_reason),
+      comment: commentText(d.comments),
+    };
+  }
+  if (kind === 'layer') {
+    return {
+      ...base,
+      name: d.batch_label || '—',
+      vals: {
+        feed: feedLbsVal(d.feed_lbs),
+        feedTag: d.feed_type ? tagVal(d.feed_type) : '',
+        grit: gritVal(d.grit_lbs),
+        count: countVal(d.layer_count),
+      },
+      checks: [check('Moved', d.group_moved !== false), check('Waterer', d.waterer_checked !== false)],
+      mort: mortText(d.mortality_count, d.mortality_reason),
+      comment: commentText(d.comments),
+    };
+  }
+  if (kind === 'pig') {
+    return {
+      ...base,
+      name: d.batch_label || '—',
+      vals: {
+        feed: feedLbsVal(d.feed_lbs),
+        pigs: parseInt(d.pig_count) > 0 ? d.pig_count + ' pigs' : mutedVal('—'),
+        volt: voltageVal(d.fence_voltage),
+      },
+      checks: [
+        check('Moved', d.group_moved !== false),
+        check('Nipple', d.nipple_drinker_working !== false),
+        check('Fence', d.fence_walked !== false),
+      ],
+      comment: commentText(d.issues),
+    };
+  }
+  if (kind === 'cattle') {
+    return {
+      ...base,
+      name: HOME_HERD.labels[d.herd] || d.herd || '—',
+      dot: HOME_HERD.dot[d.herd] || HOME_HERD.dot.mommas,
+      vals: {feed: feedListVal(d.feeds, d.minerals), volt: voltageVal(d.fence_voltage)},
+      checks: [check('Water', d.water_checked !== false)],
+      mort: mortText(d.mortality_count, d.mortality_reason),
+      comment: commentText(d.issues),
+    };
+  }
+  if (kind === 'sheep') {
+    return {
+      ...base,
+      name: HOME_FLOCK.labels[d.flock] || d.flock || '—',
+      dot: HOME_FLOCK.dot[d.flock] || HOME_FLOCK.dot.ewes,
+      vals: {feed: feedListVal(d.feeds, d.minerals), volt: voltageVal(d.fence_voltage_kv)},
+      checks: [check('Water', d.waterers_working !== false)],
+      mort: mortText(d.mortality_count, null),
+      comment: homeSheepComment(d.comments),
+    };
+  }
+  return {...base, name: d.batch_label || '—', vals: {}, checks: []};
 }
 
 // Homepage-redesign inline glyphs (currentColor-driven so the parent class
@@ -993,14 +1098,6 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                   cattle: '#991b1b',
                   sheep: '#0f766e',
                 };
-                const kindBg = {
-                  broiler: '#fef9c3',
-                  pig: '#eff6ff',
-                  layer: '#fffbeb',
-                  egg: '#fefce8',
-                  cattle: '#fef2f2',
-                  sheep: '#f0fdfa',
-                };
                 const kindIconKey = {
                   broiler: ANIMAL_ICON_KEYS.broiler,
                   pig: ANIMAL_ICON_KEYS.pig,
@@ -1009,7 +1106,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                   cattle: ANIMAL_ICON_KEYS.cattle,
                   sheep: ANIMAL_ICON_KEYS.sheep,
                 };
-                return dates.map((date, di) => {
+                return dates.map((date) => {
                   const dayRecs = allRecentReports
                     .filter((r) => r.date === date)
                     .sort((a, b) => (kindOrder[a.kind] ?? 9) - (kindOrder[b.kind] ?? 9));
@@ -1025,736 +1122,57 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                       {kinds.map((kind) => {
                         const typeRecs = dayRecs.filter((r) => r.kind === kind);
                         const color = kindColors[kind] || '#374151';
-                        const bg = kindBg[kind] || '#f9fafb';
                         const heading = (typeRecs[0] && typeRecs[0].label) || kind;
                         return (
                           <div key={kind} className="kind-group">
-                            <div className="kind-head" style={{color: color}}>
+                            <div className="kind-head">
                               <PlannerIcon iconKey={kindIconKey[kind]} size={18} />
-                              <span>{heading.toUpperCase()}</span>
+                              <span className="kind-dot" style={{background: color}} aria-hidden="true" />
+                              <span className="kind-name">{heading.toUpperCase()}</span>
                             </div>
-                            <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-                              {typeRecs.map((r, i) => {
+                            <div className="drc-stack">
+                              {typeRecs.map((r) => {
                                 const d = r.raw || {};
-                                const hasMort = parseInt(d.mortality_count) > 0;
-                                const hasIssue =
-                                  (d.issues && String(d.issues).trim().length > 2) ||
-                                  (d.comments &&
-                                    String(d.comments).trim().length > 2 &&
-                                    String(d.comments).trim() !== '0');
-                                const lowVolt = d.fence_voltage != null && parseFloat(d.fence_voltage) < 3;
-                                const notable = hasMort || hasIssue || lowVolt;
-                                const dateIdx = di;
-                                const shadeBg = dateIdx % 2 === 0 ? 'white' : '#f8fafc';
+                                const open = () => {
+                                  const path = pathForDailyReport(r);
+                                  if (path) navigate(path);
+                                };
+                                const attrs = {'data-daily-report-tile': r.id};
+                                if (kind === 'egg') {
+                                  const total =
+                                    (parseInt(d.group1_count) || 0) +
+                                    (parseInt(d.group2_count) || 0) +
+                                    (parseInt(d.group3_count) || 0) +
+                                    (parseInt(d.group4_count) || 0);
+                                  const breakdown = [
+                                    [d.group1_name, d.group1_count],
+                                    [d.group2_name, d.group2_count],
+                                    [d.group3_name, d.group3_count],
+                                    [d.group4_name, d.group4_count],
+                                  ]
+                                    .filter(([n, c]) => n && parseInt(c) > 0)
+                                    .map(([n, c]) => ({loc: n, n: c}));
+                                  return (
+                                    <EggSummaryCard
+                                      key={r.id}
+                                      total={total}
+                                      team={d.team_member || '—'}
+                                      breakdown={breakdown}
+                                      dozens={parseFloat(d.dozens_on_hand) > 0 ? d.dozens_on_hand + ' doz' : null}
+                                      comment={commentText(d.comments)}
+                                      onOpen={open}
+                                      attrs={attrs}
+                                    />
+                                  );
+                                }
                                 return (
-                                  <div
-                                    key={i}
-                                    data-daily-report-tile={r.id}
-                                    {...openableProps(() => {
-                                      const path = pathForDailyReport(r);
-                                      if (path) navigate(path);
-                                    })}
-                                    style={{
-                                      background: shadeBg,
-                                      borderRadius: 10,
-                                      border: notable ? '1.5px solid #fca5a5' : '1px solid var(--border)',
-                                      padding: '8px 12px',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      gap: 4,
-                                    }}
-                                    className="hoverable-tile"
-                                  >
-                                    {(() => {
-                                      const d = r.raw;
-                                      // Shared chip styles — match the admin daily-report tiles exactly.
-                                      const chipBase = {
-                                        fontSize: 10,
-                                        fontWeight: 600,
-                                        padding: '2px 7px',
-                                        borderRadius: 10,
-                                      };
-                                      const chipYes = (label, ok) => (
-                                        <span
-                                          style={{
-                                            ...chipBase,
-                                            background: ok === false ? '#fef2f2' : '#f0fdf4',
-                                            color: ok === false ? '#b91c1c' : '#065f46',
-                                            border: ok === false ? '1px solid #fecaca' : '1px solid #bbf7d0',
-                                          }}
-                                        >
-                                          {label + ': ' + (ok === false ? 'No' : 'Yes')}
-                                        </span>
-                                      );
-                                      const teamChip = (
-                                        <span
-                                          style={{
-                                            fontSize: 11,
-                                            fontWeight: 600,
-                                            padding: '2px 8px',
-                                            borderRadius: 10,
-                                            background: '#f1f5f9',
-                                            color: '#475569',
-                                            border: '1px solid var(--border)',
-                                            textAlign: 'center',
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                          }}
-                                        >
-                                          {d.team_member || '\u2014'}
-                                        </span>
-                                      );
-                                      const mortChip = (n, reason) => (
-                                        <span
-                                          style={{
-                                            fontSize: 11,
-                                            fontWeight: 600,
-                                            padding: '3px 8px',
-                                            borderRadius: 10,
-                                            background: '#fef2f2',
-                                            color: '#b91c1c',
-                                            border: '1px solid #fecaca',
-                                          }}
-                                        >
-                                          {'\ud83d\udc80 ' + n + ' mort.' + (reason ? ' \u2014 ' + reason : '')}
-                                        </span>
-                                      );
-                                      const commentChip = (txt) => (
-                                        <span
-                                          style={{
-                                            fontSize: 11,
-                                            color: '#92400e',
-                                            padding: '3px 10px',
-                                            background: '#fffbeb',
-                                            border: '1px solid #fde68a',
-                                            borderRadius: 10,
-                                            fontStyle: 'italic',
-                                          }}
-                                        >
-                                          {'\ud83d\udcac ' + txt}
-                                        </span>
-                                      );
-
-                                      if (r.kind === 'broiler') {
-                                        const hasFeed = parseFloat(d.feed_lbs) > 0,
-                                          hasGrit = parseFloat(d.grit_lbs) > 0,
-                                          hasMort = parseInt(d.mortality_count) > 0;
-                                        const comment =
-                                          d.comments && String(d.comments).trim().length > 2
-                                            ? String(d.comments).trim()
-                                            : '';
-                                        return (
-                                          <>
-                                            <div
-                                              className="admin-daily-row"
-                                              style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '110px 90px 150px 90px 1fr',
-                                                alignItems: 'center',
-                                                gap: 12,
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  fontWeight: 700,
-                                                  color: 'var(--text-primary)',
-                                                  fontSize: 13,
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {d.batch_label || '\u2014'}
-                                              </span>
-                                              {teamChip}
-                                              <span
-                                                style={{
-                                                  color: hasFeed ? '#92400e' : '#9ca3af',
-                                                  fontWeight: hasFeed ? 600 : 400,
-                                                  fontSize: 12,
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: 4,
-                                                  overflow: 'hidden',
-                                                  whiteSpace: 'nowrap',
-                                                  textOverflow: 'ellipsis',
-                                                }}
-                                              >
-                                                {hasFeed
-                                                  ? `\ud83c\udf3e ${parseFloat(d.feed_lbs).toLocaleString()} lbs`
-                                                  : 'no feed'}
-                                                {hasFeed && d.feed_type && (
-                                                  <span
-                                                    style={{
-                                                      fontSize: 10,
-                                                      fontWeight: 700,
-                                                      padding: '1px 5px',
-                                                      borderRadius: 10,
-                                                      background: d.feed_type === 'STARTER' ? '#dbeafe' : '#d1fae5',
-                                                      color: d.feed_type === 'STARTER' ? '#1e40af' : '#065f46',
-                                                    }}
-                                                  >
-                                                    {d.feed_type}
-                                                  </span>
-                                                )}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  color: '#374151',
-                                                  fontSize: 12,
-                                                  whiteSpace: 'nowrap',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                }}
-                                              >
-                                                {hasGrit ? `grit ${parseFloat(d.grit_lbs)} lbs` : 'no grit'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 6,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                }}
-                                              >
-                                                {chipYes('Moved', d.group_moved !== false)}
-                                                {chipYes('Waterer', d.waterer_checked !== false)}
-                                              </span>
-                                            </div>
-                                            {(hasMort || comment) && (
-                                              <div
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 8,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                  marginTop: 2,
-                                                }}
-                                              >
-                                                {hasMort && mortChip(d.mortality_count, d.mortality_reason)}
-                                                {comment && commentChip(comment)}
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      }
-                                      if (r.kind === 'layer') {
-                                        const hasFeed = parseFloat(d.feed_lbs) > 0,
-                                          hasGrit = parseFloat(d.grit_lbs) > 0,
-                                          hasCount = parseInt(d.layer_count) > 0,
-                                          hasMort = parseInt(d.mortality_count) > 0;
-                                        const comment =
-                                          d.comments && String(d.comments).trim().length > 2
-                                            ? String(d.comments).trim()
-                                            : '';
-                                        return (
-                                          <>
-                                            <div
-                                              className="admin-daily-row"
-                                              style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '110px 90px 150px 80px 80px 1fr',
-                                                alignItems: 'center',
-                                                gap: 12,
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  fontWeight: 700,
-                                                  color: 'var(--text-primary)',
-                                                  fontSize: 13,
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {d.batch_label || '\u2014'}
-                                              </span>
-                                              {teamChip}
-                                              <span
-                                                style={{
-                                                  color: hasFeed ? '#92400e' : '#9ca3af',
-                                                  fontWeight: hasFeed ? 600 : 400,
-                                                  fontSize: 12,
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  gap: 4,
-                                                  overflow: 'hidden',
-                                                  whiteSpace: 'nowrap',
-                                                  textOverflow: 'ellipsis',
-                                                }}
-                                              >
-                                                {hasFeed
-                                                  ? `\ud83c\udf3e ${parseFloat(d.feed_lbs).toLocaleString()} lbs`
-                                                  : 'no feed'}
-                                                {hasFeed && d.feed_type && (
-                                                  <span
-                                                    style={{
-                                                      fontSize: 10,
-                                                      fontWeight: 700,
-                                                      padding: '1px 5px',
-                                                      borderRadius: 10,
-                                                      background:
-                                                        d.feed_type === 'STARTER'
-                                                          ? '#dbeafe'
-                                                          : d.feed_type === 'GROWER'
-                                                            ? '#d1fae5'
-                                                            : '#fef3c7',
-                                                      color:
-                                                        d.feed_type === 'STARTER'
-                                                          ? '#1e40af'
-                                                          : d.feed_type === 'GROWER'
-                                                            ? '#065f46'
-                                                            : '#92400e',
-                                                    }}
-                                                  >
-                                                    {d.feed_type}
-                                                  </span>
-                                                )}
-                                              </span>
-                                              <span style={{color: '#374151', fontSize: 12, whiteSpace: 'nowrap'}}>
-                                                {hasGrit ? `grit ${d.grit_lbs} lbs` : 'no grit'}
-                                              </span>
-                                              <span style={{color: '#374151', fontSize: 12, whiteSpace: 'nowrap'}}>
-                                                {hasCount ? `\ud83d\udc14 ${d.layer_count} hens` : 'no count'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 6,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                }}
-                                              >
-                                                {chipYes('Moved', d.group_moved !== false)}
-                                                {chipYes('Waterer', d.waterer_checked !== false)}
-                                              </span>
-                                            </div>
-                                            {(hasMort || comment) && (
-                                              <div
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 8,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                  marginTop: 2,
-                                                }}
-                                              >
-                                                {hasMort && mortChip(d.mortality_count, d.mortality_reason)}
-                                                {comment && commentChip(comment)}
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      }
-                                      if (r.kind === 'pig') {
-                                        const hasFeed = parseFloat(d.feed_lbs) > 0,
-                                          hasCount = parseInt(d.pig_count) > 0;
-                                        const hasVolt =
-                                          d.fence_voltage != null && String(d.fence_voltage).trim() !== '';
-                                        const voltColor = (v) => (v < 3 ? '#b91c1c' : v < 5 ? '#92400e' : '#065f46');
-                                        const hasMort = parseInt(d.mortality_count) > 0;
-                                        const issues =
-                                          d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
-                                        return (
-                                          <>
-                                            <div
-                                              className="admin-daily-row"
-                                              style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '110px 90px 130px 80px 80px 1fr',
-                                                alignItems: 'center',
-                                                gap: 12,
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  fontWeight: 700,
-                                                  color: 'var(--text-primary)',
-                                                  fontSize: 13,
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {d.batch_label || '\u2014'}
-                                              </span>
-                                              {teamChip}
-                                              <span
-                                                style={{
-                                                  color: hasFeed ? '#92400e' : '#9ca3af',
-                                                  fontWeight: hasFeed ? 600 : 400,
-                                                  fontSize: 12,
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {hasFeed
-                                                  ? `\ud83c\udf3e ${parseFloat(d.feed_lbs).toLocaleString()} lbs`
-                                                  : 'no feed'}
-                                              </span>
-                                              <span style={{color: '#1e40af', fontSize: 12, whiteSpace: 'nowrap'}}>
-                                                {hasCount ? `\ud83d\udc37 ${d.pig_count} pigs` : 'no count'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  color: hasVolt ? voltColor(parseFloat(d.fence_voltage)) : '#9ca3af',
-                                                  fontWeight: hasVolt ? 600 : 400,
-                                                  fontSize: 12,
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {hasVolt ? `\u26a1 ${d.fence_voltage} kV` : 'no voltage'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 6,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                }}
-                                              >
-                                                {chipYes('Moved', d.group_moved !== false)}
-                                                {chipYes('Nipple', d.nipple_drinker_working !== false)}
-                                                {chipYes('Fence', d.fence_walked !== false)}
-                                              </span>
-                                            </div>
-                                            {(hasMort || issues) && (
-                                              <div
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 8,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                  marginTop: 2,
-                                                }}
-                                              >
-                                                {hasMort && mortChip(d.mortality_count, d.mortality_reason)}
-                                                {issues && commentChip(issues)}
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      }
-                                      if (r.kind === 'egg') {
-                                        const total =
-                                          (parseInt(d.group1_count) || 0) +
-                                          (parseInt(d.group2_count) || 0) +
-                                          (parseInt(d.group3_count) || 0) +
-                                          (parseInt(d.group4_count) || 0);
-                                        const groups = [
-                                          [d.group1_name, d.group1_count],
-                                          [d.group2_name, d.group2_count],
-                                          [d.group3_name, d.group3_count],
-                                          [d.group4_name, d.group4_count],
-                                        ].filter(([n, c]) => n && parseInt(c) > 0);
-                                        const comment =
-                                          d.comments && String(d.comments).trim().length > 2
-                                            ? String(d.comments).trim()
-                                            : '';
-                                        return (
-                                          <>
-                                            <div
-                                              style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}
-                                            >
-                                              <span
-                                                style={{fontWeight: 700, color: '#78350f', fontSize: 13, flexShrink: 0}}
-                                              >
-                                                {'\ud83e\udd5a ' + total + ' eggs'}
-                                              </span>
-                                              {teamChip}
-                                              {groups.map(([n, c]) => (
-                                                <span key={n} style={{color: '#374151', fontSize: 11}}>
-                                                  {n}: <strong>{c}</strong>
-                                                </span>
-                                              ))}
-                                              {parseFloat(d.dozens_on_hand) > 0 && (
-                                                <span style={{color: '#065f46', fontWeight: 600, fontSize: 12}}>
-                                                  {'\ud83d\udce6 ' + d.dozens_on_hand + ' doz'}
-                                                </span>
-                                              )}
-                                            </div>
-                                            {comment && (
-                                              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2}}>
-                                                {commentChip(comment)}
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      }
-                                      if (r.kind === 'cattle') {
-                                        const HERD_LBL = {
-                                          mommas: 'Mommas',
-                                          backgrounders: 'Backgrounders',
-                                          finishers: 'Finishers',
-                                          bulls: 'Bulls',
-                                        };
-                                        const HERD_C = {
-                                          mommas: {bg: '#fef2f2', tx: '#991b1b', bd: '#fca5a5'},
-                                          backgrounders: {bg: '#ffedd5', tx: '#9a3412', bd: '#fdba74'},
-                                          finishers: {bg: '#fff1f2', tx: '#9f1239', bd: '#fda4af'},
-                                          bulls: {bg: '#fee2e2', tx: '#7f1d1d', bd: '#fca5a5'},
-                                        };
-                                        const hc = HERD_C[d.herd] || HERD_C.mommas;
-                                        const feedSummary =
-                                          Array.isArray(d.feeds) && d.feeds.length > 0
-                                            ? d.feeds
-                                                .map(
-                                                  (f) =>
-                                                    (f.feed_name || '?') +
-                                                    (f.qty
-                                                      ? ' ' +
-                                                        f.qty +
-                                                        ' ' +
-                                                        (f.unit || '') +
-                                                        (f.is_creep ? ' \ud83c\udf7c' : '')
-                                                      : ''),
-                                                )
-                                                .join(', ')
-                                            : '';
-                                        const mineralSummary =
-                                          Array.isArray(d.minerals) && d.minerals.length > 0
-                                            ? d.minerals
-                                                .map((m) => (m.name || '?') + (m.lbs ? ' ' + m.lbs + ' lb' : ''))
-                                                .join(', ')
-                                            : '';
-                                        const hasMort = parseInt(d.mortality_count) > 0;
-                                        const issues =
-                                          d.issues && String(d.issues).trim().length > 2 ? String(d.issues).trim() : '';
-                                        const hasVolt =
-                                          d.fence_voltage != null && String(d.fence_voltage).trim() !== '';
-                                        return (
-                                          <>
-                                            <div
-                                              className="admin-daily-row"
-                                              style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '120px 90px 90px 1fr',
-                                                alignItems: 'center',
-                                                gap: 12,
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  padding: '2px 8px',
-                                                  borderRadius: 10,
-                                                  fontSize: 11,
-                                                  fontWeight: 700,
-                                                  background: hc.bg,
-                                                  color: hc.tx,
-                                                  border: '1px solid ' + hc.bd,
-                                                  textAlign: 'center',
-                                                  whiteSpace: 'nowrap',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                }}
-                                              >
-                                                {HERD_LBL[d.herd] || d.herd || '\u2014'}
-                                              </span>
-                                              {teamChip}
-                                              <span
-                                                style={{
-                                                  fontSize: 11,
-                                                  color: hasVolt
-                                                    ? parseFloat(d.fence_voltage) < 3
-                                                      ? '#b91c1c'
-                                                      : parseFloat(d.fence_voltage) < 5
-                                                        ? '#92400e'
-                                                        : '#065f46'
-                                                    : '#9ca3af',
-                                                  fontWeight: 600,
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {hasVolt ? '\u26a1 ' + d.fence_voltage + ' kV' : 'no voltage'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 6,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                }}
-                                              >
-                                                {chipYes('Water', d.water_checked !== false)}
-                                              </span>
-                                            </div>
-                                            {feedSummary && (
-                                              <div style={{fontSize: 11, color: '#92400e'}}>
-                                                {'\ud83c\udf3e ' + feedSummary}
-                                              </div>
-                                            )}
-                                            {mineralSummary && (
-                                              <div style={{fontSize: 11, color: '#6b21a8'}}>
-                                                {'\ud83e\uddc2 ' + mineralSummary}
-                                              </div>
-                                            )}
-                                            {(hasMort || issues) && (
-                                              <div
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 8,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                  marginTop: 2,
-                                                }}
-                                              >
-                                                {hasMort && mortChip(d.mortality_count, d.mortality_reason)}
-                                                {issues && commentChip(issues)}
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      }
-                                      if (r.kind === 'sheep') {
-                                        const FLOCK_LBL = {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'};
-                                        const FLOCK_C = {
-                                          rams: {bg: '#f0fdfa', tx: '#0f766e', bd: '#5eead4'},
-                                          ewes: {bg: '#fdf4ff', tx: '#86198f', bd: '#f0abfc'},
-                                          feeders: {bg: '#fefce8', tx: '#854d0e', bd: '#fde047'},
-                                        };
-                                        const fc = FLOCK_C[d.flock] || FLOCK_C.ewes;
-                                        // Cattle-parity jsonb: feeds[]/minerals[]. Hay bales = hay + bale-unit entries. Alfalfa = any feed with "alfalfa" in its name.
-                                        const feedsArr = Array.isArray(d.feeds) ? d.feeds : [];
-                                        const bales = feedsArr.reduce(
-                                          (s, f) =>
-                                            s +
-                                            (f.category === 'hay' && f.unit === 'bale' ? parseFloat(f.qty) || 0 : 0),
-                                          0,
-                                        );
-                                        // Pellets only — keeps hay-category 'ALFALFA' bales out of the alfalfa-lb chip.
-                                        const alfalfaLbs = feedsArr.reduce((s, f) => {
-                                          const nm = String(f.feed_name || '').toLowerCase();
-                                          return (
-                                            s +
-                                            (f.category === 'pellet' && nm.includes('alfalfa')
-                                              ? parseFloat(f.lbs_as_fed) || 0
-                                              : 0)
-                                          );
-                                        }, 0);
-                                        const hasHay = bales > 0;
-                                        const hasAlfalfa = alfalfaLbs > 0;
-                                        const mineralsArr = Array.isArray(d.minerals) ? d.minerals : [];
-                                        const hasMinerals = mineralsArr.length > 0;
-                                        const hasMort = (d.mortality_count || 0) > 0;
-                                        const rawCmt = d.comments == null ? '' : String(d.comments).trim();
-                                        const cmtLow = rawCmt.toLowerCase();
-                                        const comment =
-                                          rawCmt === '' ||
-                                          cmtLow === 'none' ||
-                                          cmtLow === '0' ||
-                                          cmtLow === 'n/a' ||
-                                          cmtLow === 'na' ||
-                                          cmtLow === '-'
-                                            ? ''
-                                            : rawCmt;
-                                        const hasVolt = d.fence_voltage_kv != null;
-                                        const voltColor = (v) => (v < 2 ? '#b91c1c' : v < 4 ? '#92400e' : '#065f46');
-                                        return (
-                                          <>
-                                            <div
-                                              className="admin-daily-row"
-                                              style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '120px 90px 90px 90px 90px 1fr',
-                                                alignItems: 'center',
-                                                gap: 12,
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  padding: '2px 8px',
-                                                  borderRadius: 10,
-                                                  fontSize: 11,
-                                                  fontWeight: 700,
-                                                  background: fc.bg,
-                                                  color: fc.tx,
-                                                  border: '1px solid ' + fc.bd,
-                                                  textAlign: 'center',
-                                                  whiteSpace: 'nowrap',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                }}
-                                              >
-                                                {FLOCK_LBL[d.flock] || d.flock || '\u2014'}
-                                              </span>
-                                              {teamChip}
-                                              <span
-                                                style={{
-                                                  color: hasHay ? '#92400e' : '#9ca3af',
-                                                  fontWeight: hasHay ? 600 : 400,
-                                                  fontSize: 12,
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {hasHay ? `\ud83c\udf3e ${bales} bales` : 'no hay'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  color: hasAlfalfa ? '#92400e' : '#9ca3af',
-                                                  fontWeight: hasAlfalfa ? 600 : 400,
-                                                  fontSize: 12,
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {hasAlfalfa ? `alfalfa ${Math.round(alfalfaLbs)} lb` : 'no alfalfa'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  color: hasVolt
-                                                    ? voltColor(parseFloat(d.fence_voltage_kv))
-                                                    : '#9ca3af',
-                                                  fontWeight: hasVolt ? 600 : 400,
-                                                  fontSize: 12,
-                                                  whiteSpace: 'nowrap',
-                                                }}
-                                              >
-                                                {hasVolt ? `\u26a1 ${d.fence_voltage_kv} kV` : 'no voltage'}
-                                              </span>
-                                              <span
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 6,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                }}
-                                              >
-                                                {hasMinerals && (
-                                                  <span
-                                                    style={{
-                                                      ...chipBase,
-                                                      background: '#f0fdf4',
-                                                      color: '#065f46',
-                                                      border: '1px solid #bbf7d0',
-                                                    }}
-                                                  >
-                                                    Minerals: Yes
-                                                  </span>
-                                                )}
-                                                {chipYes('Waterers', d.waterers_working !== false)}
-                                              </span>
-                                            </div>
-                                            {(hasMort || comment) && (
-                                              <div
-                                                style={{
-                                                  display: 'flex',
-                                                  gap: 8,
-                                                  flexWrap: 'wrap',
-                                                  alignItems: 'center',
-                                                  marginTop: 2,
-                                                }}
-                                              >
-                                                {hasMort && mortChip(d.mortality_count, null)}
-                                                {comment && commentChip(comment)}
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                  </div>
+                                  <DailyRecordCard
+                                    key={r.id}
+                                    program={kind}
+                                    {...buildHomeDailyModel(kind, d)}
+                                    onOpen={open}
+                                    attrs={attrs}
+                                  />
                                 );
                               })}
                             </div>

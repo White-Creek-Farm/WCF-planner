@@ -209,9 +209,9 @@ test('admin display: photo chip on tile + thumbnails in edit modal (signed URL)'
   // Row chip renders with the count.
   await expect(page.locator('[data-photo-chip="1"][data-photo-count="2"]').first()).toBeVisible({timeout: 10_000});
 
-  // Click the daily row to open the record page (CP2: the list row now renders
-  // through the shared DataTable as a .hoverable-row <tr> carrying data-daily-row).
-  await page.locator('tr[data-daily-row]').first().click();
+  // Click the daily row to open the record page (Build Queue 5: the list row now
+  // renders as a shared DailyRecordCard .hoverable-tile div carrying data-daily-row).
+  await page.locator('[data-daily-row]').first().click();
 
   // Thumbnails render — 2 thumbs.
   await expect(page.locator('[data-photo-thumbnails="1"]')).toBeVisible({timeout: 10_000});

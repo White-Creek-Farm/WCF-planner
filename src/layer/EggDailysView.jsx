@@ -17,9 +17,7 @@ import OperationalListEmptyState from '../shared/OperationalListEmptyState.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import DataTable from '../shared/DataTable.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
-import StatusText from '../shared/StatusText.jsx';
+import {DailyCardList, commentText} from '../shared/DailyRecordCards.jsx';
 import {LockedTeamMemberField} from '../shared/recordPageControls.jsx';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 
@@ -735,100 +733,35 @@ const EggDailysHub = ({sb, fmt, Header, authState, layerGroups, pendingEdit, set
           filteredLabel="No egg reports match the current filters"
         />
         {!loading && !loadError && filtered.length > 0 && (
-          <DataTable
-            surfaceKey="egg-dailys-table"
+          <DailyCardList
+            program="egg"
             rows={filtered}
-            rowKey="id"
-            density="comfortable"
-            onRowOpen={(d) => navigate('/layer/eggs/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, null)))}
-            rowProps={(d) => ({'data-daily-row': d.id})}
+            fmt={fmt}
             maxInitialRows={100}
-            columns={[
-              {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
-              {
-                key: 'eggs',
-                label: 'Eggs',
-                primary: true,
-                align: 'right',
-                render: (d) => {
-                  const total =
-                    (parseInt(d.group1_count) || 0) +
-                    (parseInt(d.group2_count) || 0) +
-                    (parseInt(d.group3_count) || 0) +
-                    (parseInt(d.group4_count) || 0);
-                  return (
-                    <span style={{fontWeight: 700, color: '#78350f', whiteSpace: 'nowrap'}}>
-                      {'🥚 ' + total + ' eggs'}
-                    </span>
-                  );
-                },
-              },
-              {
-                key: 'team',
-                label: 'Team',
-                mobilePriority: false,
-                render: (d) => d.team_member || <StatusText tone="muted">{'—'}</StatusText>,
-              },
-              {
-                key: 'groups',
-                label: 'Groups',
-                render: (d) => {
-                  const groups = [
-                    [d.group1_name, d.group1_count],
-                    [d.group2_name, d.group2_count],
-                    [d.group3_name, d.group3_count],
-                    [d.group4_name, d.group4_count],
-                  ].filter(([n, c]) => n && parseInt(c) > 0);
-                  if (groups.length === 0) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <span style={{display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
-                      {groups.map(([n, c]) => (
-                        <span key={n} style={{color: 'var(--ink)', whiteSpace: 'nowrap'}}>
-                          {n}: <strong>{c}</strong>
-                        </span>
-                      ))}
-                    </span>
-                  );
-                },
-              },
-              {
-                key: 'dozens',
-                label: 'Doz on hand',
-                align: 'right',
-                mobilePriority: false,
-                render: (d) =>
-                  parseFloat(d.dozens_on_hand) > 0 ? (
-                    <span style={{color: '#065f46', fontWeight: 600, whiteSpace: 'nowrap'}}>
-                      {'📦 ' + d.dozens_on_hand}
-                    </span>
-                  ) : (
-                    <StatusText tone="muted">{'—'}</StatusText>
-                  ),
-              },
-              {
-                key: 'comments',
-                label: 'Comments',
-                render: (d) => {
-                  const comment = d.comments && String(d.comments).trim().length > 2 ? String(d.comments).trim() : '';
-                  if (!comment) return <StatusText tone="muted">{'—'}</StatusText>;
-                  return (
-                    <span
-                      title={comment}
-                      style={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        color: 'var(--text-primary)',
-                        maxWidth: 280,
-                      }}
-                    >
-                      {comment}
-                    </span>
-                  );
-                },
-              },
-            ]}
+            onOpen={(d) => navigate('/layer/eggs/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, null)))}
+            rowAttrs={(d) => ({'data-daily-row': d.id})}
+            mapRow={(d) => {
+              const total =
+                (parseInt(d.group1_count) || 0) +
+                (parseInt(d.group2_count) || 0) +
+                (parseInt(d.group3_count) || 0) +
+                (parseInt(d.group4_count) || 0);
+              const breakdown = [
+                [d.group1_name, d.group1_count],
+                [d.group2_name, d.group2_count],
+                [d.group3_name, d.group3_count],
+                [d.group4_name, d.group4_count],
+              ]
+                .filter(([n, c]) => n && parseInt(c) > 0)
+                .map(([n, c]) => ({loc: n, n: c}));
+              return {
+                total,
+                team: d.team_member || '—',
+                breakdown,
+                dozens: parseFloat(d.dozens_on_hand) > 0 ? d.dozens_on_hand + ' doz' : null,
+                comment: commentText(d.comments),
+              };
+            }}
           />
         )}
         {hasMore && (
