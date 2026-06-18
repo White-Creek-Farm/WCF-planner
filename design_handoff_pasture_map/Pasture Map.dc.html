@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:#0f1411;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#D2D6DB;border-radius:999px;border:2px solid transparent;background-clip:padding-box;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  .leaflet-container{font-family:'Hanken Grotesk',system-ui,sans-serif;background:#1a201c;}
+  .leaflet-control-attribution{font-size:10px;background:rgba(255,255,255,.78)!important;color:#6B7280;}
+  .leaflet-bar a{border-radius:8px!important;}
+  .pmlabel{background:rgba(255,255,255,.86);border:1px solid rgba(0,0,0,.06);border-radius:7px;padding:1px 6px;font:700 10.5px/1.3 'Hanken Grotesk';color:#222933;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.12);}
+  .pmnum{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#1C8A5F;color:#fff;font:800 11px 'Hanken Grotesk';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+  .gobtn{transition:transform .12s ease, box-shadow .12s ease, background .12s ease;}
+  .gobtn:hover{transform:translateY(-1px);}
+  .lrow:hover{background:#F1F3F4!important;}
+  .modetab{transition:background .14s ease,color .14s ease,box-shadow .14s ease;}
+  .modetab:not(.on):hover{background:#F1F3F4!important;color:#222933!important;}
+  .rotchip{cursor:grab;transition:transform .1s ease,box-shadow .1s ease;}
+  .rotchip:hover{box-shadow:0 2px 8px rgba(20,30,40,.14);}
+  .rotchip:active{cursor:grabbing;}
+  .rotrow{cursor:grab;}
+  .rotrow:hover{background:#F8F9FA;}
+</style>
+</helmet>
+
+<div style="height:100vh;width:100%;display:flex;flex-direction:column;font-family:'Hanken Grotesk',system-ui,sans-serif;background:#F8F9FA;overflow:hidden;color:#222933;">
+
+  <!-- ===== TOP BAR (green chrome) ===== -->
+  <div style="height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:linear-gradient(102deg, oklch(0.355 0.058 166), oklch(0.435 0.078 170));color:#fff;box-shadow:0 1px 0 rgba(0,0,0,.12);z-index:30;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font:800 13px 'Hanken Grotesk';letter-spacing:.04em;border:1px solid rgba(255,255,255,.22);">WCF</div>
+      <div style="display:flex;flex-direction:column;line-height:1.05;">
+        <span style="font:800 15px 'Hanken Grotesk';letter-spacing:-.01em;">WCF Planner</span>
+        <span style="font:700 10.5px 'Hanken Grotesk';letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.72);">Pasture Map</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div style="display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.13);font:700 12px 'Hanken Grotesk';">
+        <span style="width:7px;height:7px;border-radius:50%;background:#7BE0A6;box-shadow:0 0 0 3px rgba(123,224,166,.25);"></span>
+        Online · Esri imagery
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:4px 10px 4px 4px;border-radius:999px;background:rgba(255,255,255,.13);">
+        <span style="width:28px;height:28px;border-radius:50%;background:#fff;color:#2c6a4e;font:800 12px 'Hanken Grotesk';display:flex;align-items:center;justify-content:center;">NR</span>
+        <div style="display:flex;flex-direction:column;line-height:1.1;">
+          <span style="font:700 12.5px 'Hanken Grotesk';">Nick R.</span>
+          <span style="font:600 10px 'Hanken Grotesk';color:rgba(255,255,255,.7);">Manager</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODE TABS ===== -->
+  <div style="height:52px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#fff;border-bottom:1px solid #E6E8EB;z-index:20;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <button class="modetab gobtn {{ t.cls }}" onClick="{{ t.onClick }}" title="{{ t.hint }}" style="display:flex;align-items:center;gap:8px;border:none;cursor:pointer;padding:8px 16px;border-radius:999px;font:700 13.5px 'Hanken Grotesk';letter-spacing:-.005em;background:{{ t.bg }};color:{{ t.color }};box-shadow:{{ t.shadow }};">
+          <span style="font-size:13px;">{{ t.icon }}</span>{{ t.label }}
+        </button>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span style="font:600 12px 'Hanken Grotesk';color:#9AA1AB;">{{ modeHint }}</span>
+      <span style="font:600 12px 'Hanken Grotesk';color:#9AA1AB;border-left:1px solid #E6E8EB;padding-left:14px;">Last sync 2m ago</span>
+    </div>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:{{ rowDir }};background:#F8F9FA;">
+
+    <!-- MAP WRAPPER (always mounted) -->
+    <div style="flex:1;min-width:0;position:relative;">
+      <div id="cockpit-map" style="position:absolute;inset:0;"></div>
+
+      <!-- add / draw banner -->
+      <sc-if value="{{ mapBannerShow }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:650;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:999px;background:rgba(15,26,20,.94);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.35);font:700 12.5px 'Hanken Grotesk';">
+          <span>{{ mapBannerText }}</span>
+          <sc-if value="{{ drawMode }}" hint-placeholder-val="{{ false }}">
+            <span style="display:flex;gap:7px;">
+              <button class="gobtn" onClick="{{ finishDraw }}" style="border:none;background:#1C8A5F;color:#fff;cursor:pointer;padding:5px 12px;border-radius:999px;font:800 11.5px 'Hanken Grotesk';">Finish</button>
+              <button class="gobtn" onClick="{{ cancelDraw }}" style="border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;cursor:pointer;padding:5px 11px;border-radius:999px;font:800 11.5px 'Hanken Grotesk';">Cancel</button>
+            </span>
+          </sc-if>
+          <sc-if value="{{ addMode }}" hint-placeholder-val="{{ false }}">
+            <button class="gobtn" onClick="{{ addDone }}" style="border:none;background:#1C8A5F;color:#fff;cursor:pointer;padding:5px 12px;border-radius:999px;font:800 11.5px 'Hanken Grotesk';">Done</button>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- top-right map controls -->
+      <div style="position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:7px;z-index:600;">
+        <button class="gobtn" onClick="{{ fitFarm }}" style="display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:10px;border:1px solid #D2D6DB;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);cursor:pointer;font:700 12.5px 'Hanken Grotesk';color:#222933;box-shadow:0 2px 8px rgba(20,30,40,.12);">
+          <span style="font-size:13px;">⤢</span> Fit Farm
+        </button>
+        <button class="gobtn" onClick="{{ zoomSelected }}" style="display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:10px;border:1px solid #D2D6DB;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);cursor:pointer;font:700 12.5px 'Hanken Grotesk';color:{{ zoomSelColor }};box-shadow:0 2px 8px rgba(20,30,40,.12);">
+          <span style="font-size:13px;">◎</span> Zoom Selected
+        </button>
+        <button class="gobtn" onClick="{{ myLocation }}" style="display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:10px;border:1px solid #D2D6DB;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);cursor:pointer;font:700 12.5px 'Hanken Grotesk';color:#222933;box-shadow:0 2px 8px rgba(20,30,40,.12);">
+          <span style="font-size:13px;">📍</span> My Location
+        </button>
+      </div>
+
+      <!-- LEGEND (collapsible) bottom-left -->
+      <div style="position:absolute;left:14px;bottom:24px;width:248px;z-index:600;background:rgba(255,255,255,.97);border:1px solid #D2D6DB;border-radius:14px;box-shadow:0 6px 20px rgba(20,30,40,.16);overflow:hidden;">
+        <button class="gobtn" onClick="{{ toggleLegend }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border:none;background:transparent;cursor:pointer;font:700 12px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#7A828D;">
+          Legend
+          <span style="transform:rotate({{ legendChev }});transition:transform .18s ease;font-size:11px;color:#9AA1AB;">▾</span>
+        </button>
+        <sc-if value="{{ legendOpen }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:2px 13px 13px;display:flex;flex-direction:column;gap:9px;border-top:1px solid #ECEEF0;">
+            <div style="height:7px;"></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:15px;border-radius:4px;background:#2E6FB5;opacity:.85;border:1.5px solid #23578f;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">Occupied · grazing now</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:15px;border-radius:4px;background:#C7920A;opacity:.55;border:1.5px solid #8A6A1E;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">Resting · recovering</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:15px;border-radius:4px;background:#3F9B5B;opacity:.55;border:1.5px solid #2f7a46;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">Ready to graze</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:15px;border-radius:4px;background:#9AA1AB;opacity:.4;border:1.5px dashed #6B7280;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">No history / unknown</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:15px;border-radius:4px;background:rgba(192,69,47,.12);border:1.5px dashed #C0452F;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">Invalid / needs setup</span></div>
+            <div style="height:1px;background:#ECEEF0;margin:2px 0;"></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:15px;border-radius:4px;background:transparent;border:2.5px solid #0f1a14;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">Selected pasture</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#9A3B2E;color:#fff;font:800 8px 'Hanken Grotesk';flex:none;">1</span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">Active group rotation (by species)</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:15px;border-radius:4px;background:#3F9B5B;opacity:.4;border:1.5px dashed #2f7a46;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">Temp paddock (drawn)</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:15px;height:0;border-top:2.5px dashed #16B7C9;"></span><span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">GPS boundary trace</span></div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- SIDE PANEL -->
+    <div style="width:392px;flex:none;height:100%;background:#F8F9FA;border-{{ panelBorderSide }}:1px solid #E6E8EB;display:flex;flex-direction:column;overflow:hidden;z-index:10;box-shadow:{{ panelShadow }};">
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;">
+
+        <!-- ============ VIEW MODE ============ -->
+        <sc-if value="{{ isView }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <div style="font:700 11px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#7A828D;">View · Map</div>
+              <div style="font:750 22px/1.2 'Hanken Grotesk';letter-spacing:-.02em;color:#000;margin-top:3px;">{{ viewTitle }}</div>
+              <div style="font:600 13px 'Hanken Grotesk';color:#6B7280;margin-top:3px;">{{ viewSub }}</div>
+            </div>
+
+            <!-- no selection: farm status summary -->
+            <sc-if value="{{ noSelection }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:14px;">
+                <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:16px;">
+                  <div style="font:700 16px 'Hanken Grotesk';letter-spacing:-.01em;color:#000;">Farm status</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#ECEEF0;border-radius:10px;overflow:hidden;margin-top:13px;">
+                    <sc-for list="{{ statusCounts }}" as="s" hint-placeholder-count="4">
+                      <div style="background:#fff;padding:12px 13px;">
+                        <div style="display:flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:3px;background:{{ s.color }};"></span><span style="font:700 11px 'Hanken Grotesk';letter-spacing:.06em;text-transform:uppercase;color:#7A828D;">{{ s.label }}</span></div>
+                        <div style="font:750 28px/1 'Hanken Grotesk';letter-spacing:-.025em;color:#000;font-variant-numeric:tabular-nums;margin-top:6px;">{{ s.count }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="background:#E7EEF7;border:1px solid #cdddf0;border-radius:14px;padding:14px 15px;display:flex;gap:11px;align-items:flex-start;">
+                  <span style="width:34px;height:34px;flex:none;border-radius:9px;background:#2E6FB5;color:#fff;display:flex;align-items:center;justify-content:center;font:800 14px 'Hanken Grotesk';">●</span>
+                  <div>
+                    <div style="font:700 13.5px 'Hanken Grotesk';color:#1c3e63;">{{ groupCount }} animal groups on rotation</div>
+                    <div style="font:600 12px 'Hanken Grotesk';color:#3a5d82;margin-top:2px;">{{ herdName }} in {{ herdPaddock }} · day {{ herdDay }}/{{ herdOf }}. Open <b>Plan</b> to build moves per group.</div>
+                  </div>
+                </div>
+                <div style="font:600 12.5px 'Hanken Grotesk';color:#9AA1AB;text-align:center;padding:4px;">Select any pasture on the map to inspect it.</div>
+              </div>
+            </sc-if>
+
+            <!-- selection: pasture detail -->
+            <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:14px;">
+                <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);overflow:hidden;">
+                  <div style="height:5px;background:{{ selColor }};"></div>
+                  <div style="padding:15px 16px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                      <div style="font:750 20px 'Hanken Grotesk';letter-spacing:-.02em;color:#000;">{{ selName }}</div>
+                      <span style="font:700 11.5px 'Hanken Grotesk';padding:4px 10px;border-radius:999px;background:{{ selSoft }};color:{{ selInk }};">{{ selStateLabel }}</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:0;margin-top:14px;">
+                      <sc-for list="{{ selRows }}" as="r" hint-placeholder-count="4">
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid #ECEEF0;">
+                          <span style="font:600 12.5px 'Hanken Grotesk';color:#7A828D;">{{ r.k }}</span>
+                          <span style="font:700 13.5px 'Hanken Grotesk';color:#222933;font-variant-numeric:tabular-nums;">{{ r.v }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+                <button class="gobtn" onClick="{{ zoomSelected }}" style="padding:12px;border-radius:10px;border:1px solid #D2D6DB;background:#fff;cursor:pointer;font:700 13.5px 'Hanken Grotesk';color:#222933;box-shadow:0 1px 2px rgba(20,30,40,.045);">◎ Zoom to this pasture</button>
+                <button class="gobtn" onClick="{{ clearSelection }}" style="padding:11px;border-radius:10px;border:none;background:transparent;cursor:pointer;font:700 12.5px 'Hanken Grotesk';color:#6B7280;">Clear selection</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <!-- ============ PLAN MODE ============ -->
+        <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <div style="font:700 11px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#7A828D;">Plan · Grazing cockpit</div>
+              <div style="font:750 22px/1.2 'Hanken Grotesk';letter-spacing:-.02em;color:#000;margin-top:3px;">Move planner</div>
+              <div style="font:600 13px 'Hanken Grotesk';color:#6B7280;margin-top:3px;">Pick a group, then build its rotation. Drag to reorder · tap the map to add a stop.</div>
+            </div>
+
+            <!-- GROUP SWITCHER -->
+            <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:15px 16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font:700 16px 'Hanken Grotesk';letter-spacing:-.01em;color:#000;">Animal groups</div>
+                <span style="font:600 11.5px 'Hanken Grotesk';color:#9AA1AB;">{{ groupCount }} groups</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:13px;margin-top:13px;">
+                <sc-for list="{{ groupSections }}" as="sec" hint-placeholder-count="3">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+                      <span style="width:9px;height:9px;border-radius:3px;background:{{ sec.color }};"></span>
+                      <span style="font:700 10.5px 'Hanken Grotesk';letter-spacing:.08em;text-transform:uppercase;color:#7A828D;">{{ sec.label }}</span>
+                      <span style="font:600 10.5px 'Hanken Grotesk';color:#9AA1AB;">· {{ sec.count }}</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:7px;">
+                      <sc-for list="{{ sec.groups }}" as="g" hint-placeholder-count="2">
+                        <button class="gobtn" onClick="{{ g.onClick }}" style="display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;border:1.5px solid {{ g.border }};background:{{ g.bg }};cursor:pointer;">
+                          <span style="width:22px;height:22px;border-radius:50%;background:{{ g.avBg }};color:#fff;font:800 9.5px 'Hanken Grotesk';display:flex;align-items:center;justify-content:center;flex:none;">{{ g.short }}</span>
+                          <span style="display:flex;flex-direction:column;line-height:1.05;text-align:left;">
+                            <span style="font:700 12.5px 'Hanken Grotesk';color:{{ g.color }};">{{ g.name }}</span>
+                            <span style="font:600 10px 'Hanken Grotesk';color:#9AA1AB;">{{ g.size }}</span>
+                          </span>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- ACTIVE GROUP · NOW -->
+            <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);overflow:hidden;">
+              <div style="height:4px;background:{{ agSpeciesColor }};"></div>
+              <div style="padding:13px 16px;display:flex;align-items:center;gap:11px;border-bottom:1px solid #ECEEF0;">
+                <span style="width:38px;height:38px;flex:none;border-radius:10px;background:{{ agSpeciesColor }};color:#fff;display:flex;align-items:center;justify-content:center;font:800 12px 'Hanken Grotesk';">{{ agShort }}</span>
+                <div style="flex:1;">
+                  <div style="font:700 14px 'Hanken Grotesk';color:#000;">{{ agName }}</div>
+                  <div style="font:600 12px 'Hanken Grotesk';color:#6B7280;">{{ agSpeciesLabel }} · {{ agSize }} · in {{ agNowId }}</div>
+                </div>
+                <span style="font:700 11px 'Hanken Grotesk';padding:4px 9px;border-radius:999px;background:{{ agSpeciesSoft }};color:{{ agSpeciesInk }};">Day {{ agDay }}/{{ agOf }}</span>
+              </div>
+              <div style="padding:11px 16px;display:flex;align-items:center;gap:8px;">
+                <span style="font:600 12.5px 'Hanken Grotesk';color:#6B7280;">{{ agDueText }}</span>
+                <div style="flex:1;height:6px;border-radius:999px;background:#F1F3F4;overflow:hidden;"><div style="height:100%;width:{{ agProgress }};background:{{ agSpeciesColor }};border-radius:999px;"></div></div>
+              </div>
+            </div>
+
+            <!-- NOW -> NEXT -->
+            <div style="background:linear-gradient(180deg,{{ agSpeciesGrad }},#fff 72%);border:1px solid {{ agSpeciesBorder }};border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:15px 16px;">
+              <div style="font:700 11px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:{{ agSpeciesInk }};">Now → next move</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+                <div style="text-align:center;">
+                  <div style="font:600 10.5px 'Hanken Grotesk';color:#7A828D;text-transform:uppercase;letter-spacing:.08em;">Now</div>
+                  <div style="font:750 17px 'Hanken Grotesk';color:#222933;">{{ agNowId }}</div>
+                </div>
+                <span style="font-size:20px;color:{{ agSpeciesColor }};">→</span>
+                <div style="text-align:center;flex:1;">
+                  <div style="font:600 10.5px 'Hanken Grotesk';color:#7A828D;text-transform:uppercase;letter-spacing:.08em;">Next</div>
+                  <div style="font:750 20px 'Hanken Grotesk';color:{{ agSpeciesColor }};letter-spacing:-.01em;">{{ agNextId }}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font:600 10.5px 'Hanken Grotesk';color:#7A828D;text-transform:uppercase;letter-spacing:.08em;">Rested</div>
+                  <div style="font:750 17px 'Hanken Grotesk';color:#222933;font-variant-numeric:tabular-nums;">{{ agNextRest }}</div>
+                </div>
+              </div>
+              <button class="gobtn" onClick="{{ advanceGroup }}" style="width:100%;margin-top:12px;padding:11px;border-radius:10px;border:none;background:{{ agSpeciesColor }};color:#fff;cursor:pointer;font:700 13px 'Hanken Grotesk';box-shadow:0 2px 8px rgba(20,30,40,.18);">Mark {{ agShort }} moved → {{ agNextId }}</button>
+            </div>
+
+            <!-- ROTATION EDITOR -->
+            <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:15px 16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font:700 16px 'Hanken Grotesk';letter-spacing:-.01em;color:#000;">Rotation</div>
+                <div style="display:flex;background:#F1F3F4;border-radius:999px;padding:3px;">
+                  <button class="gobtn" onClick="{{ setChips }}" style="border:none;cursor:pointer;padding:4px 12px;border-radius:999px;font:700 11.5px 'Hanken Grotesk';background:{{ chipsSegBg }};color:{{ chipsSegColor }};box-shadow:{{ chipsSegShadow }};">Chips</button>
+                  <button class="gobtn" onClick="{{ setList }}" style="border:none;cursor:pointer;padding:4px 12px;border-radius:999px;font:700 11.5px 'Hanken Grotesk';background:{{ listSegBg }};color:{{ listSegColor }};box-shadow:{{ listSegShadow }};">List</button>
+                </div>
+              </div>
+
+              <sc-if value="{{ chipsView }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:13px;align-items:center;">
+                  <sc-for list="{{ rotChips }}" as="r" hint-placeholder-count="5">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <div class="rotchip" draggable="true" onDragStart="{{ r.onDragStart }}" onDragOver="{{ r.onDragOver }}" onDrop="{{ r.onDrop }}" onClick="{{ r.onClick }}" style="display:flex;align-items:center;gap:7px;padding:5px 6px 5px 5px;border-radius:999px;border:1.5px solid {{ r.border }};background:{{ r.bg }};">
+                        <span style="width:19px;height:19px;border-radius:50%;background:{{ r.dot }};color:#fff;font:800 9.5px 'Hanken Grotesk';display:flex;align-items:center;justify-content:center;">{{ r.n }}</span>
+                        <span style="font:700 12.5px 'Hanken Grotesk';color:#222933;">{{ r.name }}</span>
+                        <button onClick="{{ r.onRemove }}" style="border:none;background:transparent;cursor:pointer;color:#9AA1AB;font:700 14px 'Hanken Grotesk';line-height:1;padding:0 1px;">×</button>
+                      </div>
+                      <span style="color:#cdd2d8;font-size:12px;">{{ r.arrow }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ listView }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;margin-top:8px;">
+                  <sc-for list="{{ rotRows }}" as="r" hint-placeholder-count="5">
+                    <div class="rotrow" draggable="true" onDragStart="{{ r.onDragStart }}" onDragOver="{{ r.onDragOver }}" onDrop="{{ r.onDrop }}" style="display:flex;align-items:center;gap:10px;padding:9px 5px;border-top:1px solid #ECEEF0;border-radius:8px;">
+                      <span style="color:#cdd2d8;font:700 13px 'Hanken Grotesk';">⋮⋮</span>
+                      <span style="width:21px;height:21px;border-radius:50%;background:{{ r.dot }};color:#fff;font:800 9.5px 'Hanken Grotesk';display:flex;align-items:center;justify-content:center;flex:none;">{{ r.n }}</span>
+                      <div style="flex:1;cursor:pointer;" onClick="{{ r.onClick }}"><div style="font:700 13px 'Hanken Grotesk';color:#222933;">{{ r.name }} <span style="font:800 9px 'Hanken Grotesk';letter-spacing:.06em;color:{{ r.nowInk }};">{{ r.nowTag }}</span></div><div style="font:600 11px 'Hanken Grotesk';color:#9AA1AB;">{{ r.stateLabel }} · {{ r.acres }}</div></div>
+                      <button onClick="{{ r.onRemove }}" style="border:none;background:transparent;cursor:pointer;color:#C0452F;font:700 11.5px 'Hanken Grotesk';">Remove</button>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ hasSuggest }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:9px;margin-top:11px;padding:9px 11px;border-radius:10px;background:#E6F4EC;">
+                  <span style="font:700 11.5px 'Hanken Grotesk';color:#2f7a46;flex:1;">Longest-rested ready: <b>{{ suggestName }}</b> · {{ suggestRest }}</span>
+                  <button class="gobtn" onClick="{{ addSuggest }}" style="border:none;background:#1C8A5F;color:#fff;cursor:pointer;padding:5px 11px;border-radius:999px;font:800 11.5px 'Hanken Grotesk';">+ Add</button>
+                </div>
+              </sc-if>
+
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="gobtn" onClick="{{ toggleAddMode }}" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid {{ addBtnBorder }};background:{{ addBtnBg }};cursor:pointer;font:700 12.5px 'Hanken Grotesk';color:{{ addBtnColor }};">＋ Add from map</button>
+                <button class="gobtn" onClick="{{ startDraw }}" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid {{ drawBtnBorder }};background:{{ drawBtnBg }};cursor:pointer;font:700 12.5px 'Hanken Grotesk';color:{{ drawBtnColor }};">✎ Draw temp paddock</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ============ SETUP MODE ============ -->
+        <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <div style="font:700 11px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#7A828D;">Setup · Manager only</div>
+              <div style="font:750 22px/1.2 'Hanken Grotesk';letter-spacing:-.02em;color:#000;margin-top:3px;">Land &amp; boundaries</div>
+            </div>
+
+            <!-- ANIMAL GROUPS admin -->
+            <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:15px 16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font:700 16px 'Hanken Grotesk';color:#000;letter-spacing:-.01em;">Animal groups</div>
+                <span style="font:600 11.5px 'Hanken Grotesk';color:#9AA1AB;">{{ groupCount }} groups</span>
+              </div>
+              <div style="font:600 12px 'Hanken Grotesk';color:#6B7280;margin-top:2px;">Add, rename, set species &amp; head count. Changes apply across Plan and Field.</div>
+              <div style="display:flex;flex-direction:column;margin-top:8px;">
+                <sc-for list="{{ groupAdminList }}" as="g" hint-placeholder-count="4">
+                  <div style="padding:11px 0;border-top:1px solid #ECEEF0;display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="width:26px;height:26px;flex:none;border-radius:50%;background:{{ g.avBg }};color:#fff;font:800 9.5px 'Hanken Grotesk';display:flex;align-items:center;justify-content:center;">{{ g.short }}</span>
+                      <input value="{{ g.name }}" onChange="{{ g.onName }}" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #D2D6DB;border-radius:8px;font:700 13px 'Hanken Grotesk';color:#222933;background:#fff;">
+                      <button class="gobtn" onClick="{{ g.onRemove }}" title="Remove group" style="flex:none;width:30px;height:30px;border-radius:8px;border:1px solid #f0cabf;background:#FBE7E3;color:#C0452F;cursor:pointer;font:700 16px 'Hanken Grotesk';line-height:1;">×</button>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input value="{{ g.short }}" onChange="{{ g.onShort }}" title="Map code" style="width:52px;flex:none;text-align:center;padding:7px 6px;border:1px solid #D2D6DB;border-radius:8px;font:700 12px 'Hanken Grotesk';color:#222933;background:#fff;text-transform:uppercase;">
+                      <select value="{{ g.species }}" onChange="{{ g.onSpecies }}" style="flex:none;padding:7px 8px;border:1px solid #D2D6DB;border-radius:8px;font:600 12.5px 'Hanken Grotesk';color:#222933;background:#fff;cursor:pointer;">
+                        <option value="cattle">Cattle</option>
+                        <option value="pig">Pigs</option>
+                        <option value="sheep">Sheep</option>
+                      </select>
+                      <input value="{{ g.size }}" onChange="{{ g.onSize }}" placeholder="Head / size" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #D2D6DB;border-radius:8px;font:600 12.5px 'Hanken Grotesk';color:#6B7280;background:#fff;">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:7px;">
+                      <span style="font:600 11.5px 'Hanken Grotesk';color:#7A828D;">Day</span>
+                      <input value="{{ g.day }}" onChange="{{ g.onDay }}" inputMode="numeric" style="width:46px;text-align:center;padding:6px;border:1px solid #D2D6DB;border-radius:8px;font:700 12.5px 'Hanken Grotesk';color:#222933;background:#fff;">
+                      <span style="font:600 11.5px 'Hanken Grotesk';color:#7A828D;">of</span>
+                      <input value="{{ g.of }}" onChange="{{ g.onPlanned }}" inputMode="numeric" style="width:46px;text-align:center;padding:6px;border:1px solid #D2D6DB;border-radius:8px;font:700 12.5px 'Hanken Grotesk';color:#222933;background:#fff;">
+                      <span style="font:600 11.5px 'Hanken Grotesk';color:#9AA1AB;">days in paddock</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <button class="gobtn" onClick="{{ addGroup }}" style="width:100%;margin-top:11px;padding:11px;border-radius:10px;border:1px dashed #1C8A5F;background:#E6F4EC;cursor:pointer;font:700 13px 'Hanken Grotesk';color:#1C8A5F;">＋ Add group</button>
+            </div>
+
+            <!-- PASTURES admin -->
+            <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:15px 16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font:700 16px 'Hanken Grotesk';color:#000;letter-spacing:-.01em;">Pastures</div>
+                <span style="font:600 11.5px 'Hanken Grotesk';color:#9AA1AB;">Rename · set acres</span>
+              </div>
+              <div style="font:600 12px 'Hanken Grotesk';color:#6B7280;margin-top:2px;">Names show on the map, chips and reports. The dot is the current grazing state:</div>
+              <div style="display:flex;flex-wrap:wrap;gap:9px 12px;margin-top:8px;">
+                <span style="display:flex;align-items:center;gap:5px;font:600 10.5px 'Hanken Grotesk';color:#6B7280;"><span style="width:9px;height:9px;border-radius:3px;background:#2E6FB5;"></span>Occupied</span>
+                <span style="display:flex;align-items:center;gap:5px;font:600 10.5px 'Hanken Grotesk';color:#6B7280;"><span style="width:9px;height:9px;border-radius:3px;background:#C7920A;"></span>Resting</span>
+                <span style="display:flex;align-items:center;gap:5px;font:600 10.5px 'Hanken Grotesk';color:#6B7280;"><span style="width:9px;height:9px;border-radius:3px;background:#3F9B5B;"></span>Ready</span>
+                <span style="display:flex;align-items:center;gap:5px;font:600 10.5px 'Hanken Grotesk';color:#6B7280;"><span style="width:9px;height:9px;border-radius:3px;background:#9AA1AB;"></span>No history</span>
+                <span style="display:flex;align-items:center;gap:5px;font:600 10.5px 'Hanken Grotesk';color:#6B7280;"><span style="width:9px;height:9px;border-radius:3px;background:#C0452F;"></span>Invalid</span>
+              </div>
+              <div style="display:flex;flex-direction:column;margin-top:8px;">
+                <sc-for list="{{ pastureAdminList }}" as="p" hint-placeholder-count="6">
+                  <div style="border-top:1px solid #ECEEF0;">
+                    <div style="display:flex;align-items:center;gap:9px;padding:9px 0;">
+                      <span style="width:11px;height:11px;flex:none;border-radius:3px;background:{{ p.dot }};" title="{{ p.stateLabel }}"></span>
+                      <input value="{{ p.name }}" onChange="{{ p.onName }}" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #D2D6DB;border-radius:8px;font:700 13px 'Hanken Grotesk';color:#222933;background:#fff;">
+                      <div style="display:flex;align-items:center;gap:5px;flex:none;">
+                        <input value="{{ p.acres }}" onChange="{{ p.onAcres }}" style="width:52px;text-align:right;padding:7px 8px;border:1px solid #D2D6DB;border-radius:8px;font:600 12.5px 'Hanken Grotesk';color:#222933;background:#fff;">
+                        <span style="font:600 11.5px 'Hanken Grotesk';color:#9AA1AB;">ac</span>
+                      </div>
+                      <button class="gobtn" onClick="{{ p.onToggle }}" title="Edit details" style="flex:none;width:30px;height:30px;border-radius:8px;border:1px solid #D2D6DB;background:#fff;color:#7A828D;cursor:pointer;font:700 11px 'Hanken Grotesk';">{{ p.chev }}</button>
+                    </div>
+                    <sc-if value="{{ p.expanded }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:2px 0 13px;display:flex;flex-direction:column;gap:9px;">
+                        <div style="display:flex;align-items:center;gap:7px;">
+                          <span style="font:700 10.5px 'Hanken Grotesk';letter-spacing:.06em;text-transform:uppercase;color:#7A828D;width:54px;flex:none;">Type</span>
+                          <select value="{{ p.type }}" onChange="{{ p.onType }}" style="flex:1;padding:7px 8px;border:1px solid #D2D6DB;border-radius:8px;font:600 12.5px 'Hanken Grotesk';color:#222933;background:#fff;cursor:pointer;">
+                            <option value="paddock">Paddock</option>
+                            <option value="pasture">Pasture</option>
+                            <option value="temp">Temp paddock</option>
+                          </select>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                          <div style="flex:1;">
+                            <div style="font:700 10.5px 'Hanken Grotesk';letter-spacing:.06em;text-transform:uppercase;color:#7A828D;margin-bottom:4px;">Rest days</div>
+                            <input value="{{ p.rest }}" onChange="{{ p.onRest }}" inputMode="numeric" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid #D2D6DB;border-radius:8px;font:700 12.5px 'Hanken Grotesk';color:#222933;background:#fff;">
+                          </div>
+                          <div style="flex:1;">
+                            <div style="font:700 10.5px 'Hanken Grotesk';letter-spacing:.06em;text-transform:uppercase;color:#7A828D;margin-bottom:4px;">Rest target</div>
+                            <input value="{{ p.target }}" onChange="{{ p.onTarget }}" inputMode="numeric" placeholder="—" style="width:100%;padding:7px 9px;border:1px solid #D2D6DB;border-radius:8px;font:700 12.5px 'Hanken Grotesk';color:#222933;background:#fff;">
+                          </div>
+                        </div>
+                        <div style="display:flex;gap:7px;margin-top:2px;">
+                          <button class="gobtn" onClick="{{ p.onToggleInvalid }}" style="flex:1;padding:9px;border-radius:8px;border:1px solid {{ p.invalidBorder }};background:{{ p.invalidBg }};color:{{ p.invalidColor }};cursor:pointer;font:700 11.5px 'Hanken Grotesk';">{{ p.invalidLabel }}</button>
+                          <button class="gobtn" onClick="{{ p.onRedraw }}" style="flex:1;padding:9px;border-radius:8px;border:1px solid #D2D6DB;background:#fff;color:#222933;cursor:pointer;font:700 11.5px 'Hanken Grotesk';">Redraw</button>
+                        </div>
+                        <button class="gobtn" onClick="{{ p.onDelete }}" style="width:100%;margin-top:1px;padding:10px;border-radius:8px;border:1px solid #f0cabf;background:#FBE7E3;color:#C0452F;cursor:pointer;font:700 12px 'Hanken Grotesk';display:flex;align-items:center;justify-content:center;gap:7px;">🗑 Delete area</button>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:15px 16px;">
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;">
+                <div>
+                  <div style="font:700 16px 'Hanken Grotesk';color:#000;letter-spacing:-.01em;">Classification</div>
+                  <div style="font:600 12px 'Hanken Grotesk';color:#6B7280;margin-top:2px;">{{ classifiedCount }} of 44 land areas classified</div>
+                </div>
+                <div style="font:750 28px/1 'Hanken Grotesk';color:#8A6A1E;font-variant-numeric:tabular-nums;">{{ unclassifiedCount }}<span style="font:700 13px 'Hanken Grotesk';color:#9AA1AB;"> left</span></div>
+              </div>
+              <div style="height:8px;border-radius:999px;background:#F1F3F4;overflow:hidden;margin-top:12px;"><div style="height:100%;width:{{ classifyPct }};background:#C7920A;border-radius:999px;"></div></div>
+              <div style="display:flex;flex-direction:column;margin-top:8px;">
+                <sc-for list="{{ classifyList }}" as="c" hint-placeholder-count="4">
+                  <div class="lrow gobtn" onClick="{{ c.onClick }}" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 6px;border-top:1px solid #ECEEF0;border-radius:8px;">
+                    <span style="width:9px;height:9px;border-radius:3px;background:{{ c.dot }};flex:none;"></span>
+                    <span style="font:700 13px 'Hanken Grotesk';color:#222933;flex:1;">{{ c.name }}</span>
+                    <span style="font:600 11.5px 'Hanken Grotesk';color:{{ c.ink }};">{{ c.status }}</span>
+                    <span style="font:700 11.5px 'Hanken Grotesk';color:{{ c.actionInk }};">{{ c.action }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <button class="gobtn" style="width:100%;margin-top:12px;padding:11px;border-radius:10px;border:1px dashed #D2D6DB;background:#F8F9FA;cursor:pointer;font:700 12.5px 'Hanken Grotesk';color:#6B7280;">View all 40 unclassified</button>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E6E8EB;border-radius:14px;box-shadow:0 1px 2px rgba(20,30,40,.045);padding:15px 16px;">
+              <div style="font:700 16px 'Hanken Grotesk';color:#000;letter-spacing:-.01em;">Boundary tools</div>
+              <div style="font:600 12px 'Hanken Grotesk';color:#6B7280;margin-top:2px;">Renamed for clarity — “Move” is reserved for animal moves.</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:13px;">
+                <sc-for list="{{ tools }}" as="t" hint-placeholder-count="4">
+                  <button class="gobtn" onClick="{{ t.onClick }}" style="display:flex;flex-direction:column;gap:5px;align-items:flex-start;padding:12px;border-radius:10px;border:1px solid #D2D6DB;background:#F8F9FA;cursor:pointer;text-align:left;">
+                    <span style="font-size:16px;">{{ t.icon }}</span>
+                    <span style="font:700 13px 'Hanken Grotesk';color:#222933;">{{ t.label }}</span>
+                    <span style="font:600 10.5px 'Hanken Grotesk';color:#9AA1AB;">{{ t.was }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <button class="gobtn" onClick="{{ importKml }}" style="width:100%;margin-top:10px;padding:12px;border-radius:10px;border:none;background:#1C8A5F;color:#fff;cursor:pointer;font:700 13.5px 'Hanken Grotesk';box-shadow:0 2px 8px rgba(28,138,95,.3);">⬆ Import KML</button>
+            </div>
+
+            <sc-if value="{{ showInvalidBanner }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#FBE7E3;border:1px solid #f0cabf;border-radius:14px;padding:13px 15px;display:flex;gap:10px;align-items:flex-start;">
+              <span style="font-size:15px;color:#C0452F;">⚠</span>
+              <div style="flex:1;"><div style="font:700 13px 'Hanken Grotesk';color:#962f1f;">1 invalid outline — W1</div><div style="font:600 12px 'Hanken Grotesk';color:#a8523f;margin-top:1px;">Self-intersecting boundary. Mark it valid or redraw it before it can be grazed.</div>
+              <button class="gobtn" onClick="{{ markW1Fixed }}" style="margin-top:9px;padding:7px 13px;border-radius:8px;border:none;background:#C0452F;color:#fff;cursor:pointer;font:700 12px 'Hanken Grotesk';">Mark W1 valid</button></div>
+            </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <!-- ============ REPORTS MODE ============ -->
+        <sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:13px;">
+            <div>
+              <div style="font:700 11px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#7A828D;">Reports · Secondary</div>
+              <div style="font:750 22px/1.2 'Hanken Grotesk';letter-spacing:-.02em;color:#000;margin-top:3px;">Grazing reports</div>
+              <div style="font:600 13px 'Hanken Grotesk';color:#6B7280;margin-top:3px;">Kept available but out of the planning flow. Expand any report to open it full-screen.</div>
+            </div>
+            <sc-for list="{{ reports }}" as="r" hint-placeholder-count="3">
+              <div style="border-radius:14px;border:1px solid #E6E8EB;background:#fff;box-shadow:0 1px 2px rgba(20,30,40,.045);overflow:hidden;">
+                <button class="lrow gobtn" onClick="{{ r.onToggle }}" style="width:100%;text-align:left;display:flex;align-items:center;gap:13px;padding:14px 15px;border:none;background:transparent;cursor:pointer;">
+                  <span style="width:38px;height:38px;flex:none;border-radius:10px;background:#F1F3F4;display:flex;align-items:center;justify-content:center;font-size:16px;">{{ r.icon }}</span>
+                  <div style="flex:1;">
+                    <div style="font:700 14px 'Hanken Grotesk';color:#000;">{{ r.title }}</div>
+                    <div style="font:600 12px 'Hanken Grotesk';color:#6B7280;margin-top:1px;">{{ r.desc }}</div>
+                  </div>
+                  <span style="font:600 11.5px 'Hanken Grotesk';color:#9AA1AB;">{{ r.meta }}</span>
+                  <span style="color:#9AA1AB;font-size:11px;">{{ r.chev }}</span>
+                </button>
+                <sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:2px 15px 14px;border-top:1px solid #ECEEF0;">
+                    <div style="display:flex;flex-direction:column;">
+                      <sc-for list="{{ r.rows }}" as="row" hint-placeholder-count="4">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #F1F3F4;">
+                          <span style="font:600 12.5px 'Hanken Grotesk';color:#222933;">{{ row.k }}</span>
+                          <span style="font:700 12.5px 'Hanken Grotesk';color:#6B7280;font-variant-numeric:tabular-nums;white-space:nowrap;">{{ row.v }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FIELD STAGE (overlay) ===== -->
+  <div style="position:fixed;inset:0;top:108px;z-index:900;background:radial-gradient(120% 120% at 50% 0%, #1b2620, #0d1411);display:{{ fieldDisplay }};align-items:center;justify-content:center;gap:48px;padding:28px;">
+
+    <!-- caption -->
+    <div style="max-width:300px;color:#cfe3d8;">
+      <div style="font:700 11px 'Hanken Grotesk';letter-spacing:.12em;text-transform:uppercase;color:#7BE0A6;">Field · Phone-first</div>
+      <div style="font:750 26px/1.2 'Hanken Grotesk';letter-spacing:-.02em;color:#fff;margin-top:8px;">See what’s happening now — per group</div>
+      <div style="font:600 13.5px/1.55 'Hanken Grotesk';color:#9fb4a8;margin-top:12px;">Pick any group to see where it is now and where it goes next. The plan is read-only in the field — record the move when it’s done and it syncs when signal returns.</div>
+      <div style="display:flex;flex-direction:column;gap:9px;margin-top:18px;">
+        <div style="display:flex;align-items:center;gap:9px;font:600 13px 'Hanken Grotesk';color:#cfe3d8;"><span style="width:7px;height:7px;border-radius:50%;background:#7BE0A6;"></span>Now → Next for every group</div>
+        <div style="display:flex;align-items:center;gap:9px;font:600 13px 'Hanken Grotesk';color:#cfe3d8;"><span style="width:7px;height:7px;border-radius:50%;background:#7BE0A6;"></span>One-tap confirm move</div>
+        <div style="display:flex;align-items:center;gap:9px;font:600 13px 'Hanken Grotesk';color:#cfe3d8;"><span style="width:7px;height:7px;border-radius:50%;background:#7BE0A6;"></span>Offline queue with sync status</div>
+      </div>
+      <button class="gobtn" onClick="{{ toggleOffline }}" style="margin-top:20px;padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font:700 12.5px 'Hanken Grotesk';">{{ offlineToggleLabel }}</button>
+    </div>
+
+    <!-- phone -->
+    <div style="width:372px;height:744px;flex:none;border-radius:46px;background:#0a0d0b;padding:11px;box-shadow:0 30px 70px rgba(0,0,0,.55), inset 0 0 0 2px #2a302c;">
+      <div style="position:relative;width:100%;height:100%;border-radius:36px;overflow:hidden;background:#1a201c;">
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:128px;height:26px;background:#0a0d0b;border-radius:0 0 16px 16px;z-index:30;"></div>
+
+        <div id="field-map" style="position:absolute;inset:0;"></div>
+
+        <!-- top status + group selector -->
+        <div style="position:absolute;top:0;left:0;right:0;z-index:20;padding:10px 12px 12px;background:linear-gradient(180deg, rgba(10,13,11,.9), transparent);display:flex;flex-direction:column;gap:9px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:{{ offlinePillBg }};font:800 12px 'Hanken Grotesk';color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+              <span style="width:7px;height:7px;border-radius:50%;background:{{ offlineDot }};"></span>{{ offlineLabel }}
+            </div>
+            <div style="font:700 12px 'Hanken Grotesk';color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);">{{ agName }}</div>
+          </div>
+          <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;margin-top:34px;">
+            <sc-for list="{{ fieldGroups }}" as="g" hint-placeholder-count="4">
+              <button class="gobtn" onClick="{{ g.onClick }}" style="flex:none;display:flex;align-items:center;gap:6px;padding:5px 11px 5px 5px;border-radius:999px;background:{{ g.bg }};border:1.5px solid {{ g.border }};cursor:pointer;">
+                <span style="width:20px;height:20px;border-radius:50%;background:{{ g.avBg }};color:#fff;font:800 9px 'Hanken Grotesk';display:flex;align-items:center;justify-content:center;flex:none;">{{ g.short }}</span>
+                <span style="font:700 11.5px 'Hanken Grotesk';color:{{ g.color }};">{{ g.name }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- bottom plan + controls -->
+        <div style="position:absolute;left:0;right:0;bottom:0;z-index:20;padding:14px 12px 22px;background:linear-gradient(0deg, rgba(10,13,11,.94) 60%, transparent);display:flex;flex-direction:column;gap:10px;">
+
+          <!-- now / next plan card -->
+          <div style="background:rgba(255,255,255,.97);border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35);">
+            <div style="display:flex;align-items:stretch;">
+              <div style="flex:1;padding:11px 14px;">
+                <div style="font:700 9.5px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#9AA1AB;">Now</div>
+                <div style="font:800 19px 'Hanken Grotesk';color:#222933;display:flex;align-items:center;gap:7px;margin-top:2px;"><span style="width:10px;height:10px;border-radius:3px;background:{{ fNowColor }};"></span>{{ fNowId }}</div>
+                <div style="font:600 11px 'Hanken Grotesk';color:#9AA1AB;margin-top:2px;">Day {{ fNowDay }}/{{ fNowOf }} · {{ agName }}</div>
+              </div>
+              <div style="width:1px;background:#ECEEF0;"></div>
+              <div style="flex:1;padding:11px 14px;background:#F8FBF9;">
+                <div style="font:700 9.5px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:{{ agSpeciesInk }};">Next</div>
+                <div style="font:800 19px 'Hanken Grotesk';color:{{ agSpeciesColor }};display:flex;align-items:center;gap:7px;margin-top:2px;"><span style="width:10px;height:10px;border-radius:3px;background:{{ fNextColor }};"></span>{{ fNextId }}</div>
+                <div style="font:600 11px 'Hanken Grotesk';color:#9AA1AB;margin-top:2px;">{{ fNextRest }}</div>
+              </div>
+            </div>
+            <sc-if value="{{ hasThen }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-top:1px solid #ECEEF0;overflow-x:auto;">
+                <span style="font:700 9px 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#9AA1AB;flex:none;">Then</span>
+                <sc-for list="{{ fThen }}" as="t" hint-placeholder-count="3">
+                  <span style="flex:none;display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:#F1F3F4;font:700 11px 'Hanken Grotesk';color:#222933;"><span style="width:7px;height:7px;border-radius:50%;background:{{ t.dot }};"></span>{{ t.name }}</span>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- queue sheet -->
+          <div style="background:rgba(255,255,255,.97);border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35);">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #ECEEF0;">
+              <div style="font:700 12.5px 'Hanken Grotesk';color:#000;">{{ queueTitle }}</div>
+              <button class="gobtn" onClick="{{ syncNow }}" style="border:none;background:{{ syncBg }};color:{{ syncColor }};cursor:pointer;padding:5px 11px;border-radius:999px;font:800 11.5px 'Hanken Grotesk';">{{ syncLabel }}</button>
+            </div>
+            <div style="max-height:92px;overflow-y:auto;">
+              <sc-for list="{{ queue }}" as="q" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid #F1F3F4;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:{{ q.dot }};flex:none;"></span>
+                  <div style="flex:1;"><div style="font:700 12px 'Hanken Grotesk';color:#222933;">{{ q.label }}</div><div style="font:600 10.5px 'Hanken Grotesk';color:#9AA1AB;">{{ q.time }}</div></div>
+                  <span style="font:700 11px 'Hanken Grotesk';color:{{ q.statusColor }};">{{ q.status }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:9px;">
+            <button class="gobtn" onClick="{{ myLocation }}" style="flex:1;height:50px;border-radius:14px;border:none;background:rgba(255,255,255,.16);backdrop-filter:blur(6px);color:#fff;cursor:pointer;font:700 11px 'Hanken Grotesk';display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;"><span style="font-size:16px;">📍</span>My Location</button>
+            <button class="gobtn" onClick="{{ zoomSelected }}" style="flex:1;height:50px;border-radius:14px;border:none;background:rgba(255,255,255,.16);backdrop-filter:blur(6px);color:#fff;cursor:pointer;font:700 11px 'Hanken Grotesk';display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;"><span style="font-size:16px;">◎</span>Zoom Sel.</button>
+            <button class="gobtn" onClick="{{ fitFarm }}" style="flex:1;height:50px;border-radius:14px;border:none;background:rgba(255,255,255,.16);backdrop-filter:blur(6px);color:#fff;cursor:pointer;font:700 11px 'Hanken Grotesk';display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;"><span style="font-size:16px;">⤢</span>Fit Farm</button>
+          </div>
+          <button class="gobtn" onClick="{{ recordMove }}" style="height:56px;border-radius:16px;border:none;background:{{ agSpeciesColor }};color:#fff;cursor:pointer;font:800 15px 'Hanken Grotesk';box-shadow:0 6px 18px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;gap:8px;">＋ {{ recordLabel }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;planLayout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;right&quot;,&quot;left&quot;],&quot;default&quot;:&quot;right&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showRotationPath&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;legendDefaultOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+
+    this.SPECIES = {
+      cattle:{label:'Cattle', color:'#9A3B2E', ink:'#7C3023', soft:'#F4E5E2', grad:'#F6E9E6'},
+      pig:   {label:'Pigs',   color:'#A8418A', ink:'#852F6D', soft:'#F3E3EE', grad:'#F6EAF2'},
+      sheep: {label:'Sheep',  color:'#1E8A8A', ink:'#166A6A', soft:'#DEF0F0', grad:'#E7F4F4'},
+    };
+    this.STATE = {
+      occupied:{label:'Occupied', fill:'#2E6FB5', ink:'#23578f', soft:'#E7EEF7'},
+      resting: {label:'Resting',  fill:'#C7920A', ink:'#8A6A1E', soft:'#F8F0DA'},
+      ready:   {label:'Ready to graze', fill:'#3F9B5B', ink:'#2f7a46', soft:'#E6F4EC'},
+      unknown: {label:'No history', fill:'#9AA1AB', ink:'#6B7280', soft:'#F1F3F4'},
+      invalid: {label:'Invalid', fill:'#C0452F', ink:'#C0452F', soft:'#FBE7E3'},
+    };
+
+    // 8 groups — each carries its own rotation schedule
+    this.GROUPS = [
+      {id:'main',  name:'Main Herd',     species:'cattle', short:'MH', size:'86 cow-calf pairs', day:2, plannedDays:3, rotation:['N4','S2','N3','E1','S1','N1']},
+      {id:'stock', name:'Stockers',      species:'cattle', short:'ST', size:'120 yearlings',     day:1, plannedDays:2, rotation:['E3','E1','N3','N2']},
+      {id:'sowA',  name:'Sow Group A',   species:'pig',    short:'A',  size:'18 sows',           day:4, plannedDays:5, rotation:['N5','N2','N1']},
+      {id:'sowB',  name:'Sow Group B',   species:'pig',    short:'B',  size:'16 sows',           day:2, plannedDays:5, rotation:['S3','S2','S1']},
+      {id:'sowC',  name:'Sow Group C',   species:'pig',    short:'C',  size:'15 sows',           day:3, plannedDays:5, rotation:['E2','E1']},
+      {id:'sowD',  name:'Sow Group D',   species:'pig',    short:'D',  size:'17 sows',           day:1, plannedDays:5, rotation:['E4','E3']},
+      {id:'ewe',   name:'Ewe Flock',     species:'sheep',  short:'EW', size:'140 ewes',          day:5, plannedDays:7, rotation:['S1','N1','N3']},
+      {id:'ram',   name:'Ram & Repl.',   species:'sheep',  short:'RM', size:'45 head',           day:2, plannedDays:6, rotation:['S4','S2']},
+    ];
+
+    // paddocks — occupancy is derived from each group's current (rotation[0])
+    this.PADDOCKS = [
+      {id:'N1', acres:6.2, rest:34, lastGrazed:'May 14'},
+      {id:'N2', acres:5.8, rest:18, target:30, lastGrazed:'May 30'},
+      {id:'N3', acres:7.1, rest:41, lastGrazed:'May 7'},
+      {id:'N4', acres:6.5},
+      {id:'N5', acres:5.2},
+      {id:'E1', acres:8.0, rest:36, lastGrazed:'May 12'},
+      {id:'E2', acres:6.9},
+      {id:'E3', acres:7.4},
+      {id:'E4', acres:5.5},
+      {id:'S1', acres:6.1},
+      {id:'S2', acres:7.7, rest:45, lastGrazed:'May 3'},
+      {id:'S3', acres:6.6},
+      {id:'S4', acres:4.9},
+      {id:'W1', acres:0, invalid:true},
+    ];
+
+    this.PADDOCKS.forEach(p=>{ if(!p.name) p.name = p.id; if(!p.type) p.type = (p.temp ? 'temp' : 'paddock'); });
+
+    const rotations = {};
+    this.GROUPS.forEach(g=>{ rotations[g.id] = g.rotation.slice(); });
+
+    this.state = {
+      mode: 'view',
+      groups: this.GROUPS.map(g=>({id:g.id,name:g.name,species:g.species,short:g.short,size:g.size,day:g.day,plannedDays:g.plannedDays})),
+      selectedId: null,
+      legendOpen: (props && props.legendDefaultOpen !== undefined) ? props.legendDefaultOpen : true,
+      offline: true,
+      queue: [
+        {id:'q1', label:'Main Herd → N4', time:'Today 7:42 AM', synced:false},
+        {id:'q2', label:'Closed gate · S2 lane', time:'Today 7:15 AM', synced:false},
+        {id:'q3', label:'Water check · E1', time:'Yesterday 6:30 PM', synced:true},
+      ],
+      activeGroup: 'main',
+      rotations,
+      addMode: false,
+      drawMode: false,
+      drawCount: 0,
+      listView: false,
+      expandedPasture: null,
+      openReport: null,
+      unclassified: 40,
+      classifyQueue: [
+        {id:'a12', name:'Area 12 — east draw', status:'Unclassified', kind:'classify'},
+        {id:'a19', name:'Area 19 — creek strip', status:'Outline open', kind:'classify'},
+        {id:'a27', name:'Area 27 — north woods', status:'Unclassified', kind:'classify'},
+        {id:'w1',  name:'W1 — west bench', status:'Invalid outline', kind:'invalid'},
+      ],
+    };
+
+    this._drag = null;
+    this._drawPts = [];
+    this._drawPreviewLayers = [];
+    this._tempN = 0;
+    this._redrawTarget = null;
+  }
+
+  get reg(){ return (window.__pm = window.__pm || {layers:{}, fieldLayers:{}, geom:{}}); }
+  get geom(){ return this.reg.geom; }
+  get layers(){ return this.reg.layers; }
+  get fieldLayers(){ return this.reg.fieldLayers; }
+  get cockpitMap(){ return this.reg.cockpit; }
+  set cockpitMap(v){ this.reg.cockpit = v; }
+  get fieldMap(){ return this.reg.field; }
+  set fieldMap(v){ this.reg.field = v; }
+  get farmBounds(){ return this.reg.bounds; }
+  set farmBounds(v){ this.reg.bounds = v; }
+
+  get(id){ return this.PADDOCKS.find(p=>p.id===id); }
+  nameOf(id){ const p=this.get(id); return p ? (p.name||p.id) : id; }
+  get groups(){ return this.state.groups; }
+  groupById(id){ return this.groups.find(g=>g.id===id); }
+  rot(){ return this.state.rotations[this.state.activeGroup] || []; }
+  activeGroupObj(){ return this.groupById(this.state.activeGroup) || this.groups[0]; }
+  occupantOf(id){ return this.groups.find(g=>{ const r=this.state.rotations[g.id]; return r && r[0]===id; }); }
+
+  stateOf(p){
+    if(!p) return 'unknown';
+    if(p.invalid) return 'invalid';
+    if(this.occupantOf(p.id)) return 'occupied';
+    if(p.target != null && p.rest != null && p.rest < p.target) return 'resting';
+    if(p.rest != null) return 'ready';
+    return 'unknown';
+  }
+
+  componentDidMount(){
+    this.reg.live = this;
+    this.buildGeom();
+    this._lastMode = this.state.mode;
+    this._poll = setInterval(()=>this.ensureMaps(), 220);
+    this.ensureMaps();
+  }
+  componentWillUnmount(){ if(this._poll) clearInterval(this._poll); }
+
+  ensureMaps(){
+    if(!window.L) return;
+    if(!this.cockpitMap){
+      const el = document.getElementById('cockpit-map');
+      if(el && !el._leaflet_id){ try{ this.initCockpit(); }catch(e){} }
+    }
+    if(this.state.mode === 'field' && !this.fieldMap){
+      const el = document.getElementById('field-map');
+      if(el && !el._leaflet_id){ try{ this.initField(); }catch(e){} }
+    }
+    if(this._lastMode !== this.state.mode){
+      this._lastMode = this.state.mode;
+      this.updatePaths();
+      const mp = this.activeMap();
+      if(mp){ mp.invalidateSize(); setTimeout(()=>{ try{ mp.invalidateSize(); }catch(e){} }, 120); }
+    }
+  }
+
+  componentDidUpdate(pp, ps){
+    pp = pp || {}; ps = ps || {};
+    if(ps.selectedId !== this.state.selectedId) this.restyleAll();
+    if(ps.rotations !== this.state.rotations || ps.activeGroup !== this.state.activeGroup || ps.mode !== this.state.mode || ps.groups !== this.state.groups){
+      this.restyleAll();
+      this.updatePaths();
+    }
+    if(pp.showRotationPath !== this.props.showRotationPath) this.updatePaths();
+  }
+
+  activeMap(){ return this.state.mode === 'field' ? this.fieldMap : this.cockpitMap; }
+
+  buildGeom(){
+    if(this.geom && Object.keys(this.geom).length) return;
+    let s = 7;
+    const rnd = ()=>{ s = (s*1103515245 + 12345) & 0x7fffffff; return s/0x7fffffff; };
+    const lat0 = 35.5236, lng0 = -86.4492, dLat = 0.00128, dLng = 0.00170, cols = 4;
+    const iLat = dLat*0.10, iLng = dLng*0.10, jL = dLat*0.10, jG = dLng*0.10;
+    this.PADDOCKS.forEach((p, i)=>{
+      const r = Math.floor(i/cols), c = i%cols;
+      const top = lat0 - r*dLat, left = lng0 + c*dLng;
+      const j = ()=> (rnd()-0.5)*jL, g = ()=> (rnd()-0.5)*jG;
+      const ll = [
+        [top - iLat + j(), left + iLng + g()],
+        [top - iLat + j(), left + dLng - iLng + g()],
+        [top - dLat + iLat + j(), left + dLng - iLng + g()],
+        [top - dLat + iLat + j(), left + iLng + g()],
+      ];
+      this.geom[p.id] = { latlngs: ll, center: [top - dLat/2, left + dLng/2] };
+    });
+  }
+
+  esriLayer(){
+    return window.L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxNativeZoom: 18, maxZoom: 21, attribution: 'Esri World Imagery · Maxar' }
+    );
+  }
+
+  styleFor(p, selected){
+    const stt = this.stateOf(p);
+    const m = this.STATE[stt];
+    if(stt === 'invalid') return {color:'#C0452F', weight: selected?3.5:2, fillColor:'#C0452F', fillOpacity:0.12, dashArray:'6,6'};
+    return {
+      color: selected ? '#0f1a14' : m.ink,
+      weight: selected ? 3.5 : (p.type==='pasture' ? 2.5 : 1.5),
+      fillColor: m.fill,
+      fillOpacity: stt==='occupied' ? (selected?0.78:0.68) : (selected?0.66:0.5),
+      dashArray: (p.type==='temp') ? '5,4' : (p.type==='pasture' ? '10,5' : (stt==='unknown' ? '3,5' : null)),
+    };
+  }
+
+  attachPoly(poly, id){
+    const L = window.L;
+    poly.on('click', ev=>{
+      if(!this.reg.live.state.drawMode) L.DomEvent.stop(ev);
+      this.reg.live.onPaddockClick(id, ev.latlng);
+    });
+  }
+
+  drawInto(map, store){
+    const L = window.L;
+    const all = [];
+    this.PADDOCKS.forEach(p=>{
+      const g = this.geom[p.id]; if(!g) return;
+      const poly = L.polygon(g.latlngs, this.styleFor(p, this.state.selectedId===p.id));
+      this.attachPoly(poly, p.id);
+      poly.addTo(map);
+      store[p.id] = poly;
+      g.latlngs.forEach(c=>all.push(c));
+      const icon = L.divIcon({className:'', html:'<div class="pmlabel">'+(p.name||p.id)+'</div>', iconSize:[1,1]});
+      const lm = L.marker(g.center, {icon, interactive:false}); lm.addTo(map);
+      const lstore = (map===this.fieldMap) ? (this.reg.fLabels=this.reg.fLabels||{}) : (this.reg.cLabels=this.reg.cLabels||{});
+      lstore[p.id] = lm;
+    });
+    // GPS trace (in-progress boundary) to the SE, dashed cyan
+    const base = this.geom['S4'].center;
+    const trace = [];
+    for(let k=0;k<14;k++){
+      const t = k/13;
+      trace.push([ base[0] - 0.0009 - Math.sin(t*6)*0.00022, base[1] + 0.0022 + t*0.0026 + Math.cos(t*5)*0.0002 ]);
+    }
+    L.polyline(trace, {color:'#16B7C9', weight:3, dashArray:'2,7', opacity:0.95}).addTo(map);
+    this.farmBounds = L.latLngBounds(all).pad(0.12);
+    map.fitBounds(this.farmBounds);
+  }
+
+  addPaddockLayer(p, map, store){
+    const L = window.L;
+    const g = this.geom[p.id]; if(!g || !map) return;
+    const poly = L.polygon(g.latlngs, this.styleFor(p, false));
+    this.attachPoly(poly, p.id);
+    poly.addTo(map);
+    store[p.id] = poly;
+    const lblHtml = (p.type==='temp') ? '<div class="pmlabel" style="border-style:dashed;border-color:#2f7a46;color:#2f7a46;">'+(p.name||p.id)+'</div>' : '<div class="pmlabel">'+(p.name||p.id)+'</div>';
+    const icon = L.divIcon({className:'', html:lblHtml, iconSize:[1,1]});
+    const lm = L.marker(g.center, {icon, interactive:false}); lm.addTo(map);
+    const lstore = (map===this.fieldMap) ? (this.reg.fLabels=this.reg.fLabels||{}) : (this.reg.cLabels=this.reg.cLabels||{});
+    lstore[p.id] = lm;
+  }
+
+  initCockpit(){
+    const L = window.L;
+    const el = document.getElementById('cockpit-map');
+    if(!el || el._leaflet_id) return;
+    this.cockpitMap = L.map('cockpit-map', { zoomControl:true, attributionControl:true, zoomSnap:0.25 });
+    this.esriLayer().addTo(this.cockpitMap);
+    L.control.scale({imperial:true, metric:false, position:'bottomright'}).addTo(this.cockpitMap);
+    this.cockpitMap.on('click', e=>{ if(this.reg.live.state.drawMode) this.reg.live.addDrawPoint(e.latlng); });
+    this.drawInto(this.cockpitMap, this.layers);
+    this.updatePaths();
+  }
+
+  initField(){
+    const L = window.L;
+    const el = document.getElementById('field-map');
+    if(!el || el._leaflet_id) return;
+    this.fieldMap = L.map('field-map', { zoomControl:false, attributionControl:false, zoomSnap:0.25 });
+    this.esriLayer().addTo(this.fieldMap);
+    this.drawInto(this.fieldMap, this.fieldLayers);
+    setTimeout(()=>{ try{ this.fieldMap.invalidateSize(); this.updatePaths(); }catch(e){} }, 80);
+  }
+
+  restyle(store, map){
+    if(!map) return;
+    this.PADDOCKS.forEach(p=>{
+      const ly = store[p.id];
+      if(ly) ly.setStyle(this.styleFor(p, this.state.selectedId===p.id));
+    });
+  }
+  restyleAll(){ this.restyle(this.layers, this.cockpitMap); this.restyle(this.fieldLayers, this.fieldMap); }
+
+  clearPaths(){
+    (this.reg.rotItems || []).forEach(l=>{ try{ l.remove(); }catch(e){} });
+    this.reg.rotItems = [];
+  }
+  updatePaths(){
+    const L = window.L;
+    this.clearPaths();
+    const map = this.activeMap();
+    if(!map) return;
+    if(this.state.mode !== 'plan' && this.state.mode !== 'field') return;
+    const g = this.activeGroupObj(); if(!g) return;
+    const sp = this.SPECIES[g.species];
+    const ids = this.rot();
+    const show = this.props.showRotationPath !== false;
+    const pts = ids.map(id=> this.geom[id] && this.geom[id].center).filter(Boolean);
+    if(show && pts.length > 1){
+      const line = L.polyline(pts, {color:sp.color, weight:3, dashArray:'1,8', opacity:0.95, lineCap:'round', interactive:false, renderer:L.svg()});
+      line.addTo(map); this.reg.rotItems.push(line);
+    }
+    ids.forEach((id, idx)=>{
+      const gg = this.geom[id]; if(!gg) return;
+      const cur = idx===0;
+      const html = '<div class="pmnum" style="background:'+(cur?sp.color:'#fff')+';color:'+(cur?'#fff':sp.ink)+';border-color:'+sp.color+';">'+(idx+1)+'</div>';
+      const icon = L.divIcon({className:'', html, iconSize:[22,22], iconAnchor:[11,11]});
+      const mk = L.marker(gg.center, {icon, interactive:false, zIndexOffset:600});
+      mk.addTo(map); this.reg.rotItems.push(mk);
+    });
+  }
+
+  // ---- handlers ----
+  setMode(m){ this.setState({mode:m, addMode:false, drawMode:false}); }
+  setActiveGroup(id){ this.setState({activeGroup:id, selectedId:null}); }
+  selectPasture(id){ this.setState({selectedId:id}); if(this.state.mode==='reports') this.setState({mode:'view'}); }
+  clearSelection(){ this.setState({selectedId:null}); }
+  toggleLegend(){ this.setState(s=>({legendOpen:!s.legendOpen})); }
+
+  setRot(arr){ this.setState(s=>({rotations:{...s.rotations, [s.activeGroup]: arr}})); }
+  onDrop(i){
+    const f = this._drag; this._drag = null;
+    if(f == null || f === i) return;
+    const r = [...this.rot()];
+    const [x] = r.splice(f, 1);
+    r.splice(i, 0, x);
+    this.setRot(r);
+  }
+  removeStop(i){ const r=[...this.rot()]; r.splice(i,1); this.setRot(r); }
+  appendStop(id){ const r=this.rot(); if(r.includes(id)) return; this.setRot([...r, id]); }
+  advanceGroup(){
+    const r = this.rot(); if(r.length < 2) return;
+    const g = this.activeGroupObj(); g.day = 1;
+    this.setRot(r.slice(1));
+  }
+
+  toggleAddMode(){ this.setState(s=>({addMode:!s.addMode, drawMode:false})); this.cancelDrawSilently(); }
+  addDone(){ this.setState({addMode:false}); }
+
+  onPaddockClick(id, latlng){
+    const live = this.reg.live;
+    if(live.state.drawMode){ if(latlng) live.addDrawPoint(latlng); return; }
+    if(live.state.addMode){ live.appendStop(id); return; }
+    live.selectPasture(id);
+  }
+
+  startDraw(){ this._drawPts = []; this.setState({drawMode:true, addMode:false, drawCount:0}); }
+  cancelDrawSilently(){
+    this._drawPts = [];
+    (this._drawPreviewLayers||[]).forEach(l=>{ try{ l.remove(); }catch(e){} });
+    this._drawPreviewLayers = [];
+  }
+  cancelDraw(){ this.cancelDrawSilently(); this._redrawTarget=null; this.setState({drawMode:false, drawCount:0}); }
+  addDrawPoint(latlng){
+    this._drawPts.push([latlng.lat, latlng.lng]);
+    this.setState({drawCount:this._drawPts.length});
+    this.renderDrawPreview();
+  }
+  renderDrawPreview(){
+    const L = window.L, map = this.cockpitMap; if(!map) return;
+    (this._drawPreviewLayers||[]).forEach(l=>{ try{ l.remove(); }catch(e){} });
+    this._drawPreviewLayers = [];
+    const pts = this._drawPts;
+    if(pts.length){
+      const pl = L.polyline(pts, {color:'#16B7C9', weight:2.5, dashArray:'4,5'});
+      pl.addTo(map); this._drawPreviewLayers.push(pl);
+      pts.forEach(pt=>{
+        const m = L.circleMarker(pt, {radius:4, color:'#fff', weight:2, fillColor:'#16B7C9', fillOpacity:1});
+        m.addTo(map); this._drawPreviewLayers.push(m);
+      });
+    }
+  }
+  finishDraw(){
+    const pts = this._drawPts;
+    if(pts.length < 3){ return; }
+    const center = [ pts.reduce((a,p)=>a+p[0],0)/pts.length, pts.reduce((a,p)=>a+p[1],0)/pts.length ];
+    if(this._redrawTarget){
+      const id = this._redrawTarget; this._redrawTarget = null;
+      const p = this.get(id);
+      this.geom[id] = { latlngs: pts.slice(), center };
+      this.removePaddockLayers(id);
+      this.addPaddockLayer(p, this.cockpitMap, this.layers);
+      if(this.fieldMap) this.addPaddockLayer(p, this.fieldMap, this.fieldLayers);
+      this.cancelDrawSilently();
+      this.setState({drawMode:false, drawCount:0});
+      this.updatePaths();
+      return;
+    }
+    const id = 'T'+(++this._tempN);
+    this.geom[id] = { latlngs: pts.slice(), center };
+    const p = { id, name:id, acres:3.5, rest:0, temp:true, type:'temp', lastGrazed:'—' };
+    this.PADDOCKS.push(p);
+    this.addPaddockLayer(p, this.cockpitMap, this.layers);
+    if(this.fieldMap) this.addPaddockLayer(p, this.fieldMap, this.fieldLayers);
+    this.cancelDrawSilently();
+    const r = this.rot();
+    this.setState(s=>({drawMode:false, drawCount:0, rotations:{...s.rotations, [s.activeGroup]:[...r, id]}}));
+  }
+
+  fitFarm(){ const m=this.activeMap(); if(m&&this.farmBounds) m.fitBounds(this.farmBounds); }
+  zoomSelected(){
+    const m=this.activeMap(); if(!m) return;
+    const id=this.state.selectedId;
+    const store = this.state.mode==='field'?this.fieldLayers:this.layers;
+    if(id && store[id]) m.fitBounds(store[id].getBounds().pad(0.6));
+    else if(this.farmBounds) m.fitBounds(this.farmBounds);
+  }
+  myLocation(){
+    const L=window.L, m=this.activeMap(); if(!m) return;
+    const c = this.geom['N4'].center;
+    const here = [c[0]-0.0008, c[1]+0.0006];
+    if(this._here){ try{ m.removeLayer(this._here.dot); m.removeLayer(this._here.acc); }catch(e){} }
+    const acc = L.circle(here, {radius:60, color:'#2E6FB5', weight:1, fillColor:'#2E6FB5', fillOpacity:0.12});
+    const dot = L.circleMarker(here, {radius:7, color:'#fff', weight:2.5, fillColor:'#2E6FB5', fillOpacity:1});
+    acc.addTo(m); dot.addTo(m);
+    this._here = {dot, acc};
+    m.setView(here, 17.5);
+  }
+  recordMove(){
+    const g = this.activeGroupObj();
+    const r = this.rot();
+    const next = this.nameOf(r[1] || r[0]);
+    this.setState(s=>({queue:[{id:'q'+Date.now(), label:g.name+' → '+next, time:'Just now', synced:false}, ...s.queue]}));
+  }
+  toggleOffline(){ this.setState(s=>({offline:!s.offline})); }
+  syncNow(){ if(this.state.offline) return; this.setState(s=>({queue:s.queue.map(q=>({...q, synced:true}))})); }
+
+  renameGroup(id,v){ this.setState(s=>({groups:s.groups.map(g=>g.id===id?{...g,name:v}:g)})); }
+  setGroupSize(id,v){ this.setState(s=>({groups:s.groups.map(g=>g.id===id?{...g,size:v}:g)})); }
+  setGroupShort(id,v){ const t=(v||'').toUpperCase().slice(0,3); this.setState(s=>({groups:s.groups.map(g=>g.id===id?{...g,short:t}:g)})); }
+  setGroupSpecies(id,v){ this.setState(s=>({groups:s.groups.map(g=>g.id===id?{...g,species:v}:g)})); }
+  addGroup(){ const id='g'+Date.now(); this.setState(s=>({groups:[...s.groups,{id,name:'New group',species:'cattle',short:'NG',size:'—',day:1,plannedDays:3}],rotations:{...s.rotations,[id]:[]},activeGroup:id})); }
+  removeGroup(id){ this.setState(s=>{ if(s.groups.length<=1) return {}; const groups=s.groups.filter(g=>g.id!==id); const rotations={...s.rotations}; delete rotations[id]; const activeGroup=s.activeGroup===id?groups[0].id:s.activeGroup; return {groups,rotations,activeGroup}; }); }
+  renamePasture(id,v){ const p=this.get(id); if(p){ p.name=v; this.updateLabels(); this.forceUpdate(); } }
+  setPastureAcres(id,v){ const p=this.get(id); if(p){ const n=parseFloat(v); p.acres=(isNaN(n)?v:n); this.forceUpdate(); } }
+  updateLabels(){ const L=window.L; if(!L) return; [this.reg.cLabels, this.reg.fLabels].forEach(store=>{ if(!store) return; this.PADDOCKS.forEach(p=>{ const mk=store[p.id]; if(!mk) return; const html=(p.type==='temp')?'<div class="pmlabel" style="border-style:dashed;border-color:#2f7a46;color:#2f7a46;">'+(p.name||p.id)+'</div>':'<div class="pmlabel">'+(p.name||p.id)+'</div>'; mk.setIcon(L.divIcon({className:'',html,iconSize:[1,1]})); }); }); }
+
+  refresh(){ this.restyleAll(); this.updatePaths(); this.forceUpdate(); }
+  setGroupDay(id,v){ const n=parseInt(v,10); this.setState(s=>({groups:s.groups.map(g=>g.id===id?{...g,day:(isNaN(n)?g.day:Math.max(1,n))}:g)})); }
+  setGroupPlanned(id,v){ const n=parseInt(v,10); this.setState(s=>({groups:s.groups.map(g=>g.id===id?{...g,plannedDays:(isNaN(n)?g.plannedDays:Math.max(1,n))}:g)})); }
+  togglePastureExpand(id){ this.setState(s=>({expandedPasture: s.expandedPasture===id?null:id})); }
+  setPastureRest(id,v){ const p=this.get(id); if(p){ const n=parseInt(v,10); p.rest=(v===''?null:(isNaN(n)?p.rest:n)); this.refresh(); } }
+  setPastureTarget(id,v){ const p=this.get(id); if(p){ const n=parseInt(v,10); p.target=(v===''?null:(isNaN(n)?p.target:n)); this.refresh(); } }
+  setPastureLastGrazed(id,v){ const p=this.get(id); if(p){ p.lastGrazed=v; this.forceUpdate(); } }
+  setPastureType(id,v){ const p=this.get(id); if(p){ p.type=v; p.temp=(v==='temp'); this.updateLabels(); this.refresh(); } }
+  togglePastureInvalid(id){ const p=this.get(id); if(p){ p.invalid=!p.invalid; if(!p.invalid && p.rest==null){ p.rest=20; p.lastGrazed=p.lastGrazed||'recent'; } this.refresh(); } }
+  removePaddockLayers(id){ [['layers','cLabels'],['fieldLayers','fLabels']].forEach(([ls,lb])=>{ const store=this[ls]; const map=(ls==='fieldLayers')?this.fieldMap:this.cockpitMap; if(store && store[id]){ if(map){try{map.removeLayer(store[id])}catch(e){}} delete store[id]; } const lbst=this.reg[lb]; if(lbst && lbst[id]){ if(map){try{map.removeLayer(lbst[id])}catch(e){}} delete lbst[id]; } }); }
+  deletePasture(id){ this.removePaddockLayers(id); delete this.geom[id]; const idx=this.PADDOCKS.findIndex(p=>p.id===id); if(idx>=0) this.PADDOCKS.splice(idx,1); this.setState(s=>{ const rotations={}; Object.keys(s.rotations).forEach(k=>{ rotations[k]=s.rotations[k].filter(x=>x!==id); }); return {rotations, expandedPasture:null, selectedId: s.selectedId===id?null:s.selectedId}; }); this.updatePaths(); }
+  redrawPasture(id){ this._redrawTarget=id; this._drawPts=[]; this.cancelDrawSilently(); this.setState({drawMode:true, addMode:false, drawCount:0, expandedPasture:null}); }
+  classifyItem(id){ this.setState(s=>({classifyQueue:s.classifyQueue.filter(c=>c.id!==id), unclassified:Math.max(0,s.unclassified-1)})); }
+  importKml(){ const t=Date.now(); this.setState(s=>({classifyQueue:[...s.classifyQueue, {id:'k'+t,name:'Imported area '+(s.classifyQueue.length+1),status:'Unclassified',kind:'classify'}, {id:'k'+(t+1),name:'Imported area '+(s.classifyQueue.length+2),status:'Outline open',kind:'classify'}], unclassified:s.unclassified+2})); }
+  toggleReport(id){ this.setState(s=>({openReport: s.openReport===id?null:id})); }
+  exitMapModes(){ this.cancelDrawSilently(); this._redrawTarget=null; this.setState({drawMode:false, addMode:false, drawCount:0}); }
+
+  renderVals(){
+    this.reg.live = this;
+    const S=this.STATE, st=this.state;
+    const sel = st.selectedId ? this.get(st.selectedId) : null;
+
+    // tabs
+    const defs = [
+      {key:'view',   label:'View / Map', icon:'🗺', hint:'Browse & select'},
+      {key:'plan',   label:'Plan',       icon:'◷', hint:'Grazing planning cockpit'},
+      {key:'field',  label:'Field',      icon:'📡', hint:'Phone-first execution'},
+      {key:'setup',  label:'Setup',      icon:'⚙', hint:'Manager / admin tools'},
+      {key:'reports',label:'Reports',    icon:'▤', hint:'Secondary reports'},
+    ];
+    const tabs = defs.map(d=>({
+      label:d.label, icon:d.icon, hint:d.hint,
+      bg: st.mode===d.key ? '#1C8A5F' : 'transparent',
+      color: st.mode===d.key ? '#fff' : '#6B7280',
+      shadow: st.mode===d.key ? '0 2px 8px rgba(28,138,95,.32)' : 'none',
+      cls: st.mode===d.key ? 'on' : '',
+      onClick: ()=>this.setMode(d.key),
+    }));
+    const modeHintMap = {view:'Neutral browse — select a pasture', plan:'Build moves per animal group', field:'Phone-first field execution', setup:'Manager tools — not shown in field', reports:'Reports stay out of the planning flow'};
+
+    // status counts (derived)
+    const cnt = (s)=>this.PADDOCKS.filter(p=>this.stateOf(p)===s).length;
+    const statusCounts = [
+      {label:'Occupied', count:cnt('occupied'), color:S.occupied.fill},
+      {label:'Resting',  count:cnt('resting'),  color:S.resting.fill},
+      {label:'Ready',    count:cnt('ready'),    color:S.ready.fill},
+      {label:'No history',count:cnt('unknown'), color:S.unknown.fill},
+    ];
+
+    // selected rows
+    let selRows=[]; let selStt = sel ? this.stateOf(sel) : null;
+    if(sel){
+      if(selStt==='occupied'){ const occ=this.occupantOf(sel.id); selRows=[{k:'Group',v:occ.name},{k:'Head',v:occ.size},{k:'Day',v:occ.day+' of '+occ.plannedDays},{k:'Acres',v:sel.acres},{k:'Species',v:this.SPECIES[occ.species].label}]; }
+      else if(selStt==='resting') selRows=[{k:'Rest progress',v:sel.rest+' / '+sel.target+' days'},{k:'Acres',v:sel.acres},{k:'Last grazed',v:sel.lastGrazed},{k:'Status',v:'Recovering'}];
+      else if(selStt==='ready') selRows=[{k:'Rested',v:(sel.rest||0)+' days'},{k:'Acres',v:sel.acres},{k:'Last grazed',v:sel.lastGrazed||'—'},{k:'Status',v: sel.temp?'Temp paddock':'Ready to graze'}];
+      else if(selStt==='invalid') selRows=[{k:'Acres',v:'—'},{k:'Issue',v:'Self-intersecting'},{k:'Status',v:'Needs setup'}];
+      else selRows=[{k:'Acres',v:sel.acres},{k:'Grazing history',v:'None on record'},{k:'Status',v:'Unclassified'}];
+    }
+
+    // group switcher sections
+    const order = ['cattle','pig','sheep'];
+    const groupSections = order.filter(sp=>this.groups.some(g=>g.species===sp)).map(sp=>{
+      const s2 = this.SPECIES[sp];
+      const groups = this.groups.filter(g=>g.species===sp).map(g=>{
+        const active = g.id===st.activeGroup;
+        return {
+          short:g.short, name:g.name, size:g.size, avBg:s2.color,
+          bg: active ? s2.soft : '#fff',
+          border: active ? s2.color : '#E6E8EB',
+          color: active ? s2.ink : '#222933',
+          onClick: ()=>this.setActiveGroup(g.id),
+        };
+      });
+      return {label:s2.label, color:s2.color, count:groups.length, groups};
+    });
+
+    // active group
+    const ag = this.activeGroupObj();
+    const agSp = this.SPECIES[ag.species];
+    const agRot = this.rot();
+    const agNowId = agRot[0] ? this.nameOf(agRot[0]) : '—';
+    const agNextId = agRot[1] ? this.nameOf(agRot[1]) : '—';
+    const nextP = agRot[1] ? this.get(agRot[1]) : null;
+    const movesIn = ag.plannedDays - ag.day;
+    const agDueText = movesIn<=0 ? 'Move due now' : ('Move in '+movesIn+'d');
+    const nextRestVal = nextP && nextP.rest != null ? (nextP.rest+'d') : '—';
+
+    // rotation chips
+    const rotChips = agRot.map((id,i)=>{
+      const p=this.get(id); const stt=this.stateOf(p);
+      const now=i===0;
+      return {
+        n:i+1, name:this.nameOf(id), dot:S[stt].fill,
+        bg: now ? agSp.soft : (st.selectedId===id ? '#E6F4EC' : '#fff'),
+        border: now ? agSp.color : '#E6E8EB',
+        arrow: i<agRot.length-1 ? '→' : '',
+        onClick: ()=>this.selectPasture(id),
+        onDragStart: ()=>{ this._drag=i; },
+        onDragOver: (e)=>{ if(e&&e.preventDefault) e.preventDefault(); },
+        onDrop: ()=>this.onDrop(i),
+        onRemove: (e)=>{ if(e&&e.stopPropagation) e.stopPropagation(); this.removeStop(i); },
+      };
+    });
+    const rotRows = agRot.map((id,i)=>{
+      const p=this.get(id); const stt=this.stateOf(p); const m=S[stt];
+      return {
+        n:i+1, name:this.nameOf(id), dot:m.fill, stateLabel:m.label,
+        acres: p.acres ? (p.acres+' ac') : '—',
+        nowTag: i===0 ? 'NOW' : '', nowInk: agSp.ink,
+        onClick: ()=>this.selectPasture(id),
+        onDragStart: ()=>{ this._drag=i; },
+        onDragOver: (e)=>{ if(e&&e.preventDefault) e.preventDefault(); },
+        onDrop: ()=>this.onDrop(i),
+        onRemove: ()=>this.removeStop(i),
+      };
+    });
+
+    // suggestion: longest-rested ready not already in rotation
+    const ready = this.PADDOCKS.filter(p=>this.stateOf(p)==='ready').sort((a,b)=>(b.rest||0)-(a.rest||0));
+    const suggest = ready.find(p=>!agRot.includes(p.id));
+
+    // setup
+    const classifyList = st.classifyQueue.map(c=>{
+      const invalid = c.kind==='invalid';
+      const open = c.status==='Outline open';
+      return {
+        name:c.name, status:c.status,
+        dot: invalid?'#C0452F':(open?'#C7920A':'#9AA1AB'),
+        ink: invalid?'#C0452F':(open?'#8A6A1E':'#9AA1AB'),
+        action: invalid?'Fix ›':'Classify ›', actionInk: invalid?'#C0452F':'#1C8A5F',
+        onClick: invalid ? (()=>{ this.togglePastureInvalid('W1'); this.classifyItem(c.id); this.selectPasture('W1'); }) : (()=>this.classifyItem(c.id)),
+      };
+    });
+    const tools = [
+      {icon:'✋', label:'Map / Pan', was:'was “Move”', onClick:()=>this.exitMapModes()},
+      {icon:'〜', label:'GPS Boundary', was:'was “Track”', onClick:()=>this.startDraw()},
+      {icon:'✎', label:'Edit Boundary', was:'was “Edit”', onClick:()=>{ if(this.state.selectedId) this.redrawPasture(this.state.selectedId); }},
+      {icon:'⊘', label:'Close Outline', was:'finish polygon', onClick:()=>this.finishDraw()},
+    ];
+    const restRows = this.PADDOCKS.filter(p=>{ const ss=this.stateOf(p); return ss==='resting'||ss==='ready'; }).map(p=>{ const ss=this.stateOf(p); return {k:(p.name||p.id), v: ss==='resting'?(p.rest+'/'+p.target+'d resting'):((p.rest!=null?p.rest:0)+'d rested')}; });
+    const stockRows = this.groups.map(g=>({k:g.name, v:g.size}));
+    const logRows = st.queue.map(q=>({k:q.label, v:q.time}));
+    const reportDefs = [
+      {id:'rest', icon:'▤', title:'Rest & recovery history', desc:'Days rested per paddock over time', meta:'12 mo', rows:restRows},
+      {id:'stock', icon:'◔', title:'Stocking rate', desc:'Head per group on rotation', meta:'updated', rows:stockRows},
+      {id:'log', icon:'≡', title:'Grazing days log', desc:'Every recorded move', meta:'all time', rows:logRows},
+    ];
+    const reports = reportDefs.map(r=>({ icon:r.icon, title:r.title, desc:r.desc, meta:r.meta, rows:r.rows, hasRows:r.rows.length>0, open: st.openReport===r.id, chev: st.openReport===r.id?'▴':'▾', onToggle:()=>this.toggleReport(r.id) }));
+
+    // field
+    const offline = st.offline;
+    const pending = st.queue.filter(q=>!q.synced).length;
+    const queue = st.queue.map(q=>({
+      label:q.label, time:q.time,
+      dot: q.synced?'#3F9B5B':'#C7920A',
+      status: q.synced?'Synced':(offline?'Queued':'Syncing…'),
+      statusColor: q.synced?'#2f7a46':'#8A6A1E',
+    }));
+    const fieldGroups = this.groups.map(g=>{
+      const s2=this.SPECIES[g.species]; const active=g.id===st.activeGroup;
+      return {short:g.short, name:g.name, avBg:s2.color,
+        bg: active?'rgba(255,255,255,.96)':'rgba(255,255,255,.1)',
+        border: active? s2.color : 'rgba(255,255,255,.16)',
+        color: active?'#222933':'#fff',
+        onClick: ()=>this.setActiveGroup(g.id)};
+    });
+    const fThen = agRot.slice(2).map(id=>({name:this.nameOf(id), dot:S[this.stateOf(this.get(id))].fill}));
+
+    const main = this.groups[0];
+    const mainNowRaw = (st.rotations[main.id]||[])[0];
+    const mainNow = mainNowRaw ? this.nameOf(mainNowRaw) : '—';
+
+    const groupAdminList = this.groups.map(g=>{ const s2=this.SPECIES[g.species]; return {
+      id:g.id, name:g.name, short:g.short, size:g.size, species:g.species, avBg:s2.color,
+      day:g.day, of:g.plannedDays,
+      onName:(e)=>this.renameGroup(g.id, e.target.value),
+      onShort:(e)=>this.setGroupShort(g.id, e.target.value),
+      onSize:(e)=>this.setGroupSize(g.id, e.target.value),
+      onSpecies:(e)=>this.setGroupSpecies(g.id, e.target.value),
+      onDay:(e)=>this.setGroupDay(g.id, e.target.value),
+      onPlanned:(e)=>this.setGroupPlanned(g.id, e.target.value),
+      onRemove:()=>this.removeGroup(g.id),
+    }; });
+    const pastureAdminList = this.PADDOCKS.map(p=>{ const stt=this.stateOf(p); const expanded=st.expandedPasture===p.id; return {
+      id:p.id, name:p.name||p.id, acres:(p.acres!=null?p.acres:''), dot:S[stt].fill, stateLabel:S[stt].label,
+      type:(p.type||'paddock'), expanded, chev: expanded?'▴':'▾',
+      rest:(p.rest!=null?p.rest:''), target:(p.target!=null?p.target:''), lastGrazed:(p.lastGrazed||''),
+      invalid:!!p.invalid, invalidLabel: p.invalid?'Mark valid':'Mark invalid',
+      invalidBg: p.invalid?'#E6F4EC':'#FBE7E3', invalidBorder: p.invalid?'#bfe3cd':'#f0cabf', invalidColor: p.invalid?'#2f7a46':'#C0452F',
+      onName:(e)=>this.renamePasture(p.id, e.target.value),
+      onAcres:(e)=>this.setPastureAcres(p.id, e.target.value),
+      onToggle:()=>this.togglePastureExpand(p.id),
+      onType:(e)=>this.setPastureType(p.id, e.target.value),
+      onRest:(e)=>this.setPastureRest(p.id, e.target.value),
+      onTarget:(e)=>this.setPastureTarget(p.id, e.target.value),
+      onLastGrazed:(e)=>this.setPastureLastGrazed(p.id, e.target.value),
+      onToggleInvalid:()=>this.togglePastureInvalid(p.id),
+      onRedraw:()=>this.redrawPasture(p.id),
+      onDelete:()=>this.deletePasture(p.id),
+    }; });
+
+    const planLayout = this.props.planLayout || 'right';
+    const panelOnLeft = planLayout==='left';
+
+    return {
+      tabs, modeHint: modeHintMap[st.mode],
+      rowDir: panelOnLeft ? 'row-reverse' : 'row',
+      panelBorderSide: panelOnLeft ? 'right' : 'left',
+      panelShadow: '-8px 0 24px rgba(20,30,40,.04)',
+
+      isView: st.mode==='view', isPlan: st.mode==='plan', isSetup: st.mode==='setup', isReports: st.mode==='reports',
+      fieldDisplay: st.mode==='field' ? 'flex' : 'none',
+
+      legendOpen: st.legendOpen, legendChev: st.legendOpen?'0deg':'-90deg',
+      zoomSelColor: st.selectedId ? '#222933' : '#9AA1AB',
+
+      // map add/draw banner
+      mapBannerShow: st.mode==='plan' && (st.addMode || st.drawMode),
+      addMode: st.addMode, drawMode: st.drawMode,
+      mapBannerText: st.drawMode ? ('Tap the map to drop points · '+st.drawCount+' set') : ('Tap paddocks to add to '+ag.name),
+
+      // view
+      viewTitle: sel ? 'Pasture detail' : 'Whole farm',
+      viewSub: sel ? 'Selected from the map' : '13 active paddocks · 1 needs setup',
+      noSelection: !sel, hasSelection: !!sel,
+      statusCounts,
+      groupCount: this.groups.length,
+      herdName: main.name, herdPaddock: mainNow, herdDay: main.day, herdOf: main.plannedDays,
+      selName: sel?sel.id:'', selColor: sel?S[selStt].fill:'#ccc',
+      selSoft: sel?S[selStt].soft:'#eee', selInk: sel?S[selStt].ink:'#666',
+      selStateLabel: sel?S[selStt].label:'', selRows,
+
+      // plan — group switcher + active group
+      groupSections,
+      agName: ag.name, agShort: ag.short, agSize: ag.size, agDay: ag.day, agOf: ag.plannedDays,
+      agSpeciesLabel: agSp.label, agSpeciesColor: agSp.color, agSpeciesInk: agSp.ink,
+      agSpeciesSoft: agSp.soft, agSpeciesGrad: agSp.grad, agSpeciesBorder: agSp.color,
+      agProgress: Math.min(100, Math.round(ag.day/ag.plannedDays*100))+'%',
+      agDueText, agNowId, agNextId, agNextRest: nextRestVal,
+      advanceGroup: ()=>this.advanceGroup(),
+
+      // rotation editor
+      chipsView: !st.listView, listView: st.listView,
+      chipsSegBg: !st.listView ? '#fff' : 'transparent', chipsSegColor: !st.listView ? '#222933' : '#7A828D', chipsSegShadow: !st.listView ? '0 1px 2px rgba(20,30,40,.12)' : 'none',
+      listSegBg: st.listView ? '#fff' : 'transparent', listSegColor: st.listView ? '#222933' : '#7A828D', listSegShadow: st.listView ? '0 1px 2px rgba(20,30,40,.12)' : 'none',
+      setChips: ()=>this.setState({listView:false}), setList: ()=>this.setState({listView:true}),
+      rotChips, rotRows,
+      hasSuggest: !!suggest, suggestName: suggest?suggest.id:'', suggestRest: suggest?((suggest.rest||0)+'d rested'):'',
+      addSuggest: ()=>{ if(suggest) this.appendStop(suggest.id); },
+      toggleAddMode: ()=>this.toggleAddMode(), addDone: ()=>this.addDone(),
+      startDraw: ()=>this.startDraw(), finishDraw: ()=>this.finishDraw(), cancelDraw: ()=>this.cancelDraw(),
+      addBtnBg: st.addMode ? '#1C8A5F' : '#fff', addBtnBorder: st.addMode ? '#1C8A5F' : '#D2D6DB', addBtnColor: st.addMode ? '#fff' : '#222933',
+      drawBtnBg: st.drawMode ? '#16B7C9' : '#fff', drawBtnBorder: st.drawMode ? '#16B7C9' : '#D2D6DB', drawBtnColor: st.drawMode ? '#fff' : '#222933',
+
+      // setup / reports
+      classifyList, tools, reports,
+      groupAdminList, pastureAdminList,
+      addGroup: ()=>this.addGroup(),
+      classifiedCount: 44 - st.unclassified, unclassifiedCount: st.unclassified,
+      classifyPct: Math.round((44 - st.unclassified)/44*100)+'%',
+      showInvalidBanner: !!(this.get('W1') && this.get('W1').invalid),
+      markW1Fixed: ()=>{ this.togglePastureInvalid('W1'); this.selectPasture('W1'); },
+      importKml: ()=>this.importKml(),
+
+      // field
+      fieldGroups,
+      fNowId: agNowId, fNowDay: ag.day, fNowOf: ag.plannedDays,
+      fNowColor: S[this.stateOf(this.get(agRot[0]))] ? S[this.stateOf(this.get(agRot[0]))].fill : '#9AA1AB',
+      fNextId: agNextId, fNextRest: nextP ? (nextRestVal+' rested') : 'End of rotation',
+      fNextColor: nextP ? S[this.stateOf(nextP)].fill : '#9AA1AB',
+      hasThen: fThen.length>0, fThen,
+      recordLabel: nextP ? ('Confirm move → '+agNextId) : 'Record move',
+
+      offlineToggleLabel: offline ? 'Simulate signal returning ▸' : 'Simulate going offline ▸',
+      offlinePillBg: offline ? '#8A6A1E' : '#2f7a46',
+      offlineDot: offline ? '#F8D77A' : '#7BE0A6',
+      offlineLabel: offline ? 'Offline · '+pending+' queued' : (pending? 'Online · syncing' : 'Online · synced'),
+      queueTitle: offline ? 'Queued offline ('+pending+')' : (pending? 'Syncing ('+pending+')':'All synced'),
+      queue,
+      syncLabel: offline ? 'Waiting' : (pending? 'Sync now':'Done'),
+      syncBg: offline ? '#F1F3F4' : (pending? '#1C8A5F':'#E6F4EC'),
+      syncColor: offline ? '#9AA1AB' : (pending? '#fff':'#2f7a46'),
+
+      // handlers
+      selectPasture:(id)=>this.selectPasture(id), clearSelection:()=>this.clearSelection(),
+      toggleLegend:()=>this.toggleLegend(), fitFarm:()=>this.fitFarm(), zoomSelected:()=>this.zoomSelected(),
+      myLocation:()=>this.myLocation(), recordMove:()=>this.recordMove(),
+      toggleOffline:()=>this.toggleOffline(), syncNow:()=>this.syncNow(),
+    };
+  }
+}
+</script>
+</body>
+</html>

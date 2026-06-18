@@ -16,6 +16,7 @@ const root = resolve(__dirname, '..', '..');
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
 
 const mig = read('supabase-migrations/115_todo_items.sql');
+const mig133 = read('supabase-migrations/133_task_system_generation_and_todo_notifications.sql');
 const todoApi = read('src/lib/todoApi.js');
 const taskCenterView = read('src/tasks/TaskCenterView.jsx');
 const todoListTab = read('src/tasks/TodoListTab.jsx');
@@ -199,6 +200,45 @@ describe('mig 115: notifications and activity gates', () => {
   it('adds the task_summary_runs.total_todo_items audit column', () => {
     expect(mig).toMatch(
       /ALTER TABLE public\.task_summary_runs\s+ADD COLUMN IF NOT EXISTS total_todo_items int NOT NULL DEFAULT 0/,
+    );
+  });
+});
+
+describe('mig 133: manager To Do approval notifications', () => {
+  it('widens notifications_type_check for todo_completion_submitted without dropping existing types', () => {
+    expect(mig133).toMatch(/DROP CONSTRAINT IF EXISTS notifications_type_check/);
+    for (const type of [
+      'task_completed',
+      'mention',
+      'comment_mention',
+      'todo_completion_approved',
+      'todo_completion_rejected',
+      'todo_converted',
+      'todo_completion_submitted',
+    ]) {
+      expect(mig133, type).toContain(`'${type}'`);
+    }
+  });
+
+  it('defines a server-only manager fan-out helper scoped to management/admin', () => {
+    expect(mig133).toMatch(/CREATE OR REPLACE FUNCTION public\._todo_notify_managers/);
+    expect(mig133).toMatch(/SECURITY DEFINER/);
+    expect(mig133).toMatch(/p\.role IN \('management', 'admin'\)/);
+    expect(mig133).toMatch(/p\.id IS DISTINCT FROM p_actor/);
+    expect(mig133).toMatch(/'todo_completion_submitted'/);
+    expect(mig133).toMatch(/task_instance_id, activity_event_id, title, body, created_at/);
+    expect(mig133).toMatch(/REVOKE ALL ON FUNCTION public\._todo_notify_managers\(uuid, text, text, text\)/);
+  });
+
+  it('re-issues submit_todo_completion with manager notification on the pending approval branch only', () => {
+    expect(mig133).toMatch(/CREATE OR REPLACE FUNCTION public\.submit_todo_completion/);
+    expect(mig133).toMatch(/IF v_manager THEN[\s\S]*?status = 'completed'/);
+    expect(mig133).toMatch(/PERFORM public\._todo_notify_creator/);
+    expect(mig133).toMatch(
+      /ELSE[\s\S]*?status = 'pending_approval'[\s\S]*?'todo\.completion_submitted'[\s\S]*?PERFORM public\._todo_notify_managers/,
+    );
+    expect(mig133).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.submit_todo_completion\(text, text, text\[\]\) TO authenticated/,
     );
   });
 });
@@ -393,9 +433,10 @@ describe('activity registry + notification routing', () => {
     expect(registry).toMatch(/route: \(id\) => `\/tasks\/todo\/\$\{encodeURIComponent\(id\)\}`/);
   });
 
-  it('routes the three todo notification types (converted prefers the created Task)', () => {
+  it('routes the four todo notification types (converted prefers the created Task)', () => {
     expect(registry).toMatch(/todo_completion_approved/);
     expect(registry).toMatch(/todo_completion_rejected/);
+    expect(registry).toMatch(/todo_completion_submitted/);
     expect(registry).toMatch(/notification\.type === 'todo_converted' && notification\.task_instance_id/);
   });
 });

@@ -156,13 +156,14 @@ export function getActivityEntityMeta(entityType) {
 }
 
 export function resolveNotificationRoute(notification, eventEntityType, eventEntityId) {
-  // To Do creator notifications (mig 115). Approve/reject route to the item's
+  // To Do notifications. Approval/rejection/submitted route to the item's
   // record page via the activity-event entity columns the server attached;
   // todo_converted prefers the created Task when task_instance_id is set.
   if (
     notification &&
     (notification.type === 'todo_completion_approved' ||
       notification.type === 'todo_completion_rejected' ||
+      notification.type === 'todo_completion_submitted' ||
       notification.type === 'todo_converted')
   ) {
     if (notification.type === 'todo_converted' && notification.task_instance_id) {

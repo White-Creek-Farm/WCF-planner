@@ -28,6 +28,7 @@ import {
 } from '../shared/recordPageControls.jsx';
 import {
   loadTaskInstanceById,
+  loadTaskInstancePhotos,
   loadEligibleProfilesById,
   loadTaskAssignableProfilesById,
   attributionFor,
@@ -38,6 +39,7 @@ import {TASK_CHANGE_EVENT, fireTaskChangeEvent} from '../lib/tasksCenterMutation
 import {fmt, fmtCentralDateTime, todayCentralISO} from '../lib/dateUtils.js';
 import CompleteTaskModal from './CompleteTaskModal.jsx';
 import TaskPhotoLightbox from './TaskPhotoLightbox.jsx';
+import EditTaskDetailsModal from './EditTaskDetailsModal.jsx';
 import EditDueDateModal from './EditDueDateModal.jsx';
 import AssignTaskModal from './AssignTaskModal.jsx';
 import DeleteTaskModal from './DeleteTaskModal.jsx';
@@ -70,8 +72,10 @@ export default function TaskInstancePage({sb, authState, Header}) {
   const [loadError, setLoadError] = React.useState(null);
   const [profiles, setProfiles] = React.useState({});
   const [assignableProfiles, setAssignableProfiles] = React.useState({});
+  const [recordPhotoRows, setRecordPhotoRows] = React.useState([]);
 
   const [completeTarget, setCompleteTarget] = React.useState(null);
+  const [editDetailsTarget, setEditDetailsTarget] = React.useState(null);
   const [editDueTarget, setEditDueTarget] = React.useState(null);
   const [assignTarget, setAssignTarget] = React.useState(null);
   const [deleteTarget, setDeleteTarget] = React.useState(null);
@@ -90,13 +94,16 @@ export default function TaskInstancePage({sb, authState, Header}) {
         loadEligibleProfilesById(sb),
         loadTaskAssignableProfilesById(sb),
       ]);
+      const photoRows = task ? await loadTaskInstancePhotos(sb, recordId).catch(() => []) : [];
       setRecord(task || null);
       setProfiles(profMap || {});
       setAssignableProfiles(assignableMap || {});
+      setRecordPhotoRows(photoRows || []);
     } catch (e) {
       setRecord(null);
       setProfiles({});
       setAssignableProfiles({});
+      setRecordPhotoRows([]);
       setLoadError({
         kind: 'error',
         message: 'Could not load task record. Please refresh the page. (' + ((e && e.message) || e) + ')',
@@ -108,6 +115,7 @@ export default function TaskInstancePage({sb, authState, Header}) {
 
   React.useEffect(() => {
     setRecord(null);
+    setRecordPhotoRows([]);
     setLoading(true);
     setNotice(null);
     setLoadError(null);
@@ -142,6 +150,12 @@ export default function TaskInstancePage({sb, authState, Header}) {
     if (!ti || ti.status !== 'open') return false;
     if (isAdmin) return true;
     return !!(callerProfileId && ti.assignee_profile_id === callerProfileId);
+  }
+
+  function canEditDetails(ti) {
+    if (!ti || ti.status !== 'open') return false;
+    if (isAdmin) return true;
+    return !!(callerProfileId && ti.created_by_profile_id === callerProfileId);
   }
 
   function canAssign(ti) {
@@ -317,8 +331,10 @@ export default function TaskInstancePage({sb, authState, Header}) {
 
             {(() => {
               const photo = photoPresenceFor(record);
-              if (!photo.hasRequest && !photo.hasCompletion) return null;
-              const count = (photo.hasRequest ? 1 : 0) + (photo.hasCompletion ? 1 : 0);
+              const sidecarPaths = new Set((recordPhotoRows || []).map((row) => row && (row.storage_path || row.id)));
+              const sidecarCount = Array.from(sidecarPaths).filter(Boolean).length;
+              const count = sidecarCount || (photo.hasRequest ? 1 : 0) + (photo.hasCompletion ? 1 : 0);
+              if (count <= 0) return null;
               const label = count === 1 ? '1 photo' : count + ' photos';
               return (
                 <div style={{marginTop: 10}}>
@@ -355,6 +371,16 @@ export default function TaskInstancePage({sb, authState, Header}) {
                     style={recordSaveButton}
                   >
                     Complete
+                  </button>
+                )}
+                {canEditDetails(record) && (
+                  <button
+                    type="button"
+                    data-task-edit-details-button="1"
+                    onClick={() => setEditDetailsTarget(record)}
+                    style={recordSecondaryButton}
+                  >
+                    Edit
                   </button>
                 )}
                 {canEditDue(record) && (
@@ -417,6 +443,19 @@ export default function TaskInstancePage({sb, authState, Header}) {
             task: photoTarget,
             isOpen: !!photoTarget,
             onClose: () => setPhotoTarget(null),
+          })}
+          {React.createElement(EditTaskDetailsModal, {
+            sb,
+            task: editDetailsTarget,
+            isOpen: !!editDetailsTarget,
+            profilesById: profiles,
+            assignableProfilesById: assignableProfiles,
+            onClose: () => setEditDetailsTarget(null),
+            onUpdated: () => {
+              setEditDetailsTarget(null);
+              fireTaskChangeEvent();
+              setReloadKey((k) => k + 1);
+            },
           })}
           {React.createElement(EditDueDateModal, {
             sb,

@@ -109,15 +109,23 @@ function uuidLike(): string {
   return crypto.randomUUID().replace(/-/g, '');
 }
 
-function todayPlus3ISO(): string {
-  // UTC date math. Cron fires at 04:00 UTC; "today + 3 days" = 4 anchored
-  // dates ahead of run time when today is the UTC day at run start.
+function utcDatePlusISO(days: number): string {
   const now = new Date();
-  const utc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 3));
+  const utc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days));
   const y = utc.getUTCFullYear();
   const m = utc.getUTCMonth() + 1;
   const d = utc.getUTCDate();
   return `${y}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d}`;
+}
+
+function todayISO(): string {
+  return utcDatePlusISO(0);
+}
+
+function todayPlus3ISO(): string {
+  // UTC date math. Cron fires at 04:00 UTC; "today + 3 days" = 4 anchored
+  // dates ahead of run time when today is the UTC day at run start.
+  return utcDatePlusISO(3);
 }
 
 // Bearer parser tolerant of leading "Bearer " prefix.
@@ -178,6 +186,279 @@ async function writeAuditRow(serviceClient: ReturnType<typeof createClient>, row
 
 // ─── Main handler ────────────────────────────────────────────────────────
 
+// System-rule generation uses real planner stores and the existing
+// generate_system_task_instance RPC. lead_time_days controls when the task is
+// minted; due_date remains the actual farm event date.
+interface SystemRule {
+  id: string;
+  generator_kind: string;
+  lead_time_days: number | string | null;
+}
+
+interface SystemEvent {
+  rule_id: string;
+  due_date: string;
+  source_event_key: string;
+}
+
+const SYSTEM_APP_STORE_KEYS = ['ppp-v4', 'ppp-feeders-v1', 'ppp-breeding-v1', 'ppp-farrowing-v1'];
+const BROODER_DAYS = 14;
+const BROILER_4WK_DAYS = 28;
+const BROILER_6WK_DAYS = 42;
+const PIG_FARROW_START_DAYS = 116;
+const PIG_FARROW_END_DAYS = 160;
+const PIG_FARROW_BUFFER_DAYS = 14;
+const PIG_6MO_DAYS = 180;
+
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : String(n);
+}
+
+function isoDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const s = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  return s;
+}
+
+function addDaysISO(iso: string, days: number): string {
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7));
+  const d = Number(iso.slice(8, 10));
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
+function leadTimeDays(rule: SystemRule): number {
+  const raw = Number(rule && rule.lead_time_days);
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 0;
+}
+
+function asObjectArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item),
+  );
+}
+
+function stringField(row: Record<string, unknown>, key: string): string {
+  const value = row[key];
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function numberField(row: Record<string, unknown>, key: string): number {
+  const n = Number(row[key]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function sourceKeyPart(...values: unknown[]): string {
+  for (const value of values) {
+    if (value == null) continue;
+    const raw = String(value).trim();
+    if (!raw) continue;
+    const safe = raw.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (safe) return safe;
+  }
+  return 'unknown';
+}
+
+function shouldQueueSystemEvent(rule: SystemRule, event: SystemEvent, today: string): boolean {
+  return event.due_date <= addDaysISO(today, leadTimeDays(rule));
+}
+
+function broilerHatchDate(batch: Record<string, unknown>): string | null {
+  return isoDate(batch.hatchDate) || isoDate(batch.hatch_date);
+}
+
+function isBroilerBatchDone(batch: Record<string, unknown>, today: string): boolean {
+  const status = stringField(batch, 'status').toLowerCase();
+  if (status === 'processed') return true;
+  const processingDate = isoDate(batch.processingDate) || isoDate(batch.processing_date);
+  return !!processingDate && processingDate <= today && status !== 'planned';
+}
+
+function hasStampedBroilerWeight(batch: Record<string, unknown>, field: string): boolean {
+  return numberField(batch, field) > 0;
+}
+
+function collectBroilerEvents(rule: SystemRule, batches: Array<Record<string, unknown>>, today: string): SystemEvent[] {
+  const out: SystemEvent[] = [];
+  for (const batch of batches) {
+    if (isBroilerBatchDone(batch, today)) continue;
+    const hatchDate = broilerHatchDate(batch);
+    if (!hatchDate) continue;
+    const batchKey = sourceKeyPart(batch.name, batch.batchName, batch.id);
+    let dueDate: string | null = null;
+    let sourcePrefix = 'broiler';
+
+    if (rule.generator_kind === 'broiler_4wk_weighin') {
+      if (hasStampedBroilerWeight(batch, 'week4Lbs')) continue;
+      dueDate = addDaysISO(hatchDate, BROILER_4WK_DAYS);
+    } else if (rule.generator_kind === 'broiler_6wk_weighin') {
+      if (hasStampedBroilerWeight(batch, 'week6Lbs')) continue;
+      dueDate = addDaysISO(hatchDate, BROILER_6WK_DAYS);
+    } else if (rule.generator_kind === 'clean_brooder') {
+      dueDate = addDaysISO(hatchDate, BROODER_DAYS + 1);
+      sourcePrefix = 'brooder';
+    }
+
+    if (!dueDate) continue;
+    const event = {rule_id: rule.id, due_date: dueDate, source_event_key: `${sourcePrefix}-${batchKey}`};
+    if (shouldQueueSystemEvent(rule, event, today)) out.push(event);
+  }
+  return out;
+}
+
+function isPigBatchDone(row: Record<string, unknown>): boolean {
+  const status = stringField(row, 'status').toLowerCase();
+  return status === 'processed' || status === 'inactive' || status === 'removed';
+}
+
+function firstActualFarrowDate(
+  cycle: Record<string, unknown>,
+  farrowingRecs: Array<Record<string, unknown>>,
+): string | null {
+  const group = stringField(cycle, 'group');
+  const exposureStart = isoDate(cycle.exposureStart);
+  if (!group || !exposureStart) return null;
+  const windowStart = addDaysISO(exposureStart, PIG_FARROW_START_DAYS);
+  const windowEnd = addDaysISO(exposureStart, PIG_FARROW_END_DAYS + PIG_FARROW_BUFFER_DAYS);
+  const dates = farrowingRecs
+    .filter((rec) => stringField(rec, 'group') === group)
+    .map((rec) => isoDate(rec.farrowingDate))
+    .filter((date): date is string => !!date && date >= windowStart && date <= windowEnd)
+    .sort();
+  return dates[0] || null;
+}
+
+function collectPigEvents(
+  rule: SystemRule,
+  feederGroups: Array<Record<string, unknown>>,
+  breedingCycles: Array<Record<string, unknown>>,
+  farrowingRecs: Array<Record<string, unknown>>,
+  today: string,
+): SystemEvent[] {
+  if (rule.generator_kind !== 'pig_6mo_weighin') return [];
+  const out: SystemEvent[] = [];
+  const cyclesById = new Map<string, Record<string, unknown>>();
+  for (const cycle of breedingCycles) {
+    const id = stringField(cycle, 'id');
+    if (id) cyclesById.set(id, cycle);
+  }
+
+  for (const group of feederGroups) {
+    if (isPigBatchDone(group)) continue;
+    const cycleId = stringField(group, 'cycleId');
+    if (!cycleId) continue;
+    const cycle = cyclesById.get(cycleId);
+    if (!cycle) continue;
+    const farrowDate = firstActualFarrowDate(cycle, farrowingRecs);
+    if (!farrowDate) continue;
+    const dueDate = addDaysISO(farrowDate, PIG_6MO_DAYS);
+    const subs = asObjectArray(group.subBatches);
+    const targets = subs.length > 0 ? subs.filter((sub) => !isPigBatchDone(sub)) : [group];
+
+    for (const target of targets) {
+      const targetKey =
+        target === group
+          ? sourceKeyPart(group.batchName, group.id, cycleId)
+          : sourceKeyPart(target.name, target.id, group.batchName, group.id, cycleId);
+      const event = {rule_id: rule.id, due_date: dueDate, source_event_key: `pig-${targetKey}`};
+      if (shouldQueueSystemEvent(rule, event, today)) out.push(event);
+    }
+  }
+  return out;
+}
+
+function collectSystemEvents(rules: SystemRule[], store: Map<string, unknown>, today: string): SystemEvent[] {
+  const batches = asObjectArray(store.get('ppp-v4'));
+  const feederGroups = asObjectArray(store.get('ppp-feeders-v1'));
+  const breedingCycles = asObjectArray(store.get('ppp-breeding-v1'));
+  const farrowingRecs = asObjectArray(store.get('ppp-farrowing-v1'));
+  const events: SystemEvent[] = [];
+
+  for (const rule of rules) {
+    if (
+      rule.generator_kind === 'broiler_4wk_weighin' ||
+      rule.generator_kind === 'broiler_6wk_weighin' ||
+      rule.generator_kind === 'clean_brooder'
+    ) {
+      events.push(...collectBroilerEvents(rule, batches, today));
+    } else if (rule.generator_kind === 'pig_6mo_weighin') {
+      events.push(...collectPigEvents(rule, feederGroups, breedingCycles, farrowingRecs, today));
+    }
+  }
+
+  return events;
+}
+
+async function generateSystemTaskInstances(
+  serviceClient: ReturnType<typeof createClient>,
+  today: string,
+): Promise<{generated: number; skipped: number}> {
+  const {data: rules, error: rulesErr} = await serviceClient
+    .from('task_system_rules')
+    .select('id, generator_kind, lead_time_days')
+    .eq('active', true);
+  if (rulesErr) throw new Error(`select task_system_rules: ${rulesErr.message}`);
+
+  const activeRules = (rules || []) as SystemRule[];
+  if (activeRules.length === 0) return {generated: 0, skipped: 0};
+
+  const {data: storeRows, error: storeErr} = await serviceClient
+    .from('app_store')
+    .select('key, data')
+    .in('key', SYSTEM_APP_STORE_KEYS);
+  if (storeErr) throw new Error(`select app_store system sources: ${storeErr.message}`);
+
+  const store = new Map<string, unknown>();
+  for (const row of storeRows || []) store.set(row.key, row.data);
+
+  const events = collectSystemEvents(activeRules, store, today);
+  if (events.length === 0) return {generated: 0, skipped: 0};
+
+  const ruleIds = Array.from(new Set(events.map((event) => event.rule_id)));
+  const {data: existingRows, error: existingErr} = await serviceClient
+    .from('task_instances')
+    .select('from_system_rule_id, from_system_source_event_key')
+    .in('from_system_rule_id', ruleIds);
+  if (existingErr) throw new Error(`select existing system task_instances: ${existingErr.message}`);
+
+  const existing = new Set(
+    (existingRows || []).map(
+      (row: {from_system_rule_id: string | null; from_system_source_event_key: string | null}) =>
+        `${row.from_system_rule_id || ''}\n${row.from_system_source_event_key || ''}`,
+    ),
+  );
+
+  let generated = 0;
+  let skipped = 0;
+  for (const event of events) {
+    const key = `${event.rule_id}\n${event.source_event_key}`;
+    if (existing.has(key)) {
+      skipped += 1;
+      continue;
+    }
+
+    const {error: rpcErr} = await serviceClient.rpc('generate_system_task_instance', {
+      p_rule_id: event.rule_id,
+      p_due_date: event.due_date,
+      p_source_event_key: event.source_event_key,
+    });
+    if (rpcErr) {
+      throw new Error(
+        `rpc generate_system_task_instance ${event.rule_id}/${event.source_event_key}: ${rpcErr.message}`,
+      );
+    }
+    existing.add(key);
+    generated += 1;
+  }
+
+  return {generated, skipped};
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', {headers: corsHeaders});
@@ -232,6 +513,7 @@ serve(async (req: Request) => {
   }
 
   // Algorithm — generate missing instances for every active template.
+  const runTodayISO = todayISO();
   const throughISO = todayPlus3ISO();
   const cap_exceeded: AuditRow['cap_exceeded'] = [];
   let generated_count = 0;
@@ -280,6 +562,10 @@ serve(async (req: Request) => {
       generated_count += ins;
       skipped_count += missing.length - ins; // race losses + already-existing
     }
+
+    const systemCounts = await generateSystemTaskInstances(svc, runTodayISO);
+    generated_count += systemCounts.generated;
+    skipped_count += systemCounts.skipped;
   } catch (e) {
     errMsg = e instanceof Error ? e.message : String(e);
   }

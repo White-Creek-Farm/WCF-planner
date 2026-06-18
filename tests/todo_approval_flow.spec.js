@@ -40,6 +40,18 @@ async function seedAdminProfile(supabaseAdmin) {
   return adminUser.id;
 }
 
+async function seedSimonProfile(supabaseAdmin) {
+  const {data: u} = await supabaseAdmin.auth.admin.listUsers();
+  const simonUser = (u && u.users ? u.users : []).find(
+    (x) => (x.email || '').toLowerCase() === 'simon.tasks@wcfplanner.test',
+  );
+  if (!simonUser) throw new Error('Simon auth user not found in TEST DB');
+  await supabaseAdmin
+    .from('profiles')
+    .upsert({id: simonUser.id, email: simonUser.email, full_name: 'Simon', role: 'farm_team'}, {onConflict: 'id'});
+  return simonUser.id;
+}
+
 async function seedItems(supabaseAdmin, creatorId, items) {
   const {error} = await supabaseAdmin.from('todo_items').upsert(
     items.map((it, i) => ({
@@ -90,7 +102,8 @@ test('farm_team completion goes pending; admin approves into the collapsed Compl
   await resetDb();
   await clearTodoData(supabaseAdmin);
   const adminId = await seedAdminProfile(supabaseAdmin);
-  await seedItems(supabaseAdmin, adminId, [{id: 'todo-e2e-appr', title: 'Sweep the feed room'}]);
+  const simonId = await seedSimonProfile(supabaseAdmin);
+  await seedItems(supabaseAdmin, simonId, [{id: 'todo-e2e-appr', title: 'Sweep the feed room'}]);
 
   // farm_team submits the completion.
   await signInAsSimon(page);
@@ -120,6 +133,20 @@ test('farm_team completion goes pending; admin approves into the collapsed Compl
     .single();
   expect(pendingRow.status).toBe('pending_approval');
   expect(pendingRow.completion_note).toBe('Swept and restacked the pallets.');
+  expect(pendingRow.completion_submitted_by).toBe(simonId);
+
+  const {data: managerNotifs, error: managerNotifErr} = await supabaseAdmin
+    .from('notifications')
+    .select('id, recipient_profile_id, actor_profile_id, type, activity_event_id, task_instance_id, title, body')
+    .eq('recipient_profile_id', adminId)
+    .eq('actor_profile_id', simonId)
+    .eq('type', 'todo_completion_submitted');
+  if (managerNotifErr) throw new Error('load manager todo notification: ' + managerNotifErr.message);
+  expect(managerNotifs).toHaveLength(1);
+  expect(managerNotifs[0].activity_event_id).toBeTruthy();
+  expect(managerNotifs[0].task_instance_id).toBeNull();
+  expect(managerNotifs[0].title).toContain('submitted a to do for approval');
+  expect(managerNotifs[0].body).toContain('Swept and restacked');
 
   // Admin approves.
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -152,6 +179,18 @@ test('farm_team completion goes pending; admin approves into the collapsed Compl
     .single();
   expect(doneRow.status).toBe('completed');
   expect(doneRow.approved_by).toBeTruthy();
+
+  const {data: creatorNotifs, error: creatorNotifErr} = await supabaseAdmin
+    .from('notifications')
+    .select('id, recipient_profile_id, actor_profile_id, type, activity_event_id, task_instance_id, title, body')
+    .eq('recipient_profile_id', simonId)
+    .eq('actor_profile_id', adminId)
+    .eq('type', 'todo_completion_approved');
+  if (creatorNotifErr) throw new Error('load creator todo notification: ' + creatorNotifErr.message);
+  expect(creatorNotifs).toHaveLength(1);
+  expect(creatorNotifs[0].activity_event_id).toBeTruthy();
+  expect(creatorNotifs[0].task_instance_id).toBeNull();
+  expect(creatorNotifs[0].title).toContain('Sweep the feed room');
 });
 
 test('admin rejects a pending completion with a note; item reopens and Activity keeps the history', async ({

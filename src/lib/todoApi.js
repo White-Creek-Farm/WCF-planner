@@ -249,15 +249,19 @@ export async function createTodoItem(sb, {id, title, description, section, dueDa
   return data;
 }
 
-export async function updateTodoItem(sb, {id, title, description, section, dueDate, clearDueDate}) {
-  const {data, error} = await sb.rpc('update_todo_item', {
+export async function updateTodoItem(sb, {id, title, description, section, dueDate, clearDueDate, photoPaths}) {
+  const args = {
     p_id: id,
     p_title: title ?? null,
     p_description: description ?? null,
     p_section: section ?? null,
     p_due_date: dueDate || null,
     p_clear_due_date: !!clearDueDate,
-  });
+  };
+  if (Array.isArray(photoPaths) && photoPaths.length > 0) {
+    args.p_photo_paths = photoPaths;
+  }
+  const {data, error} = await sb.rpc('update_todo_item', args);
   if (error) throw new Error(`updateTodoItem: ${error.message || String(error)}`);
   return data;
 }
