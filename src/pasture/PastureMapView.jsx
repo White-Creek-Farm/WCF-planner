@@ -466,15 +466,11 @@ function statusLabelForState(state) {
   return 'No history';
 }
 
-export default function PastureMapView({_Header, authState}) {
+export default function PastureMapView({Header, authState}) {
   const role = authState && authState.role;
   const isManager = role === 'management' || role === 'admin';
   const canRecordMoves = role === 'farm_team' || role === 'management' || role === 'admin';
   const canCreateTrack = role === 'farm_team' || role === 'management' || role === 'admin';
-  const userName =
-    (authState &&
-      (authState.name || authState.profile?.name || authState.profile?.full_name || authState.user?.email)) ||
-    'WCF Team';
 
   const [areas, setAreas] = React.useState([]);
   const [moves, setMoves] = React.useState([]);
@@ -2846,6 +2842,7 @@ export default function PastureMapView({_Header, authState}) {
 
   return (
     <div className="pm-cockpit theme-crisp">
+      {Header ? <Header /> : null}
       <input
         ref={fileRef}
         type="file"
@@ -2854,27 +2851,7 @@ export default function PastureMapView({_Header, authState}) {
         className="pm-hidden-input"
         data-pasture-import-input="1"
       />
-      <header className="pm-topbar">
-        <div className="pm-brand">
-          <span>WCF</span>
-          <div>
-            <h1 className="pm-title">WCF Planner</h1>
-            <strong>Pasture Map</strong>
-          </div>
-        </div>
-        <div className="pm-top-status">
-          <span className="pm-online-dot" />
-          Online - Esri imagery
-        </div>
-        <div className="pm-user-pill">
-          <span>{userName.slice(0, 2).toUpperCase()}</span>
-          <div>
-            <strong>{userName}</strong>
-            <em>{role || 'team'}</em>
-          </div>
-        </div>
-      </header>
-      <nav className="pm-tabs">
+      <nav className="pm-tabs" aria-label="Pasture map modes">
         <div>
           {MODE_TABS.map((tab) => (
             <button
@@ -2883,13 +2860,12 @@ export default function PastureMapView({_Header, authState}) {
               className={appMode === tab.id ? 'is-active' : ''}
               onClick={() => switchAppMode(tab.id)}
               title={tab.hint}
+              aria-current={appMode === tab.id ? 'page' : undefined}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <span>{MODE_TABS.find((tab) => tab.id === appMode)?.hint}</span>
-        <span>Last sync 2m ago</span>
       </nav>
       {err && (
         <div className="pm-error" role="alert">

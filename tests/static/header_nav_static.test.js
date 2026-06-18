@@ -15,8 +15,10 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const src = fs.readFileSync(path.join(ROOT, 'src/shared/Header.jsx'), 'utf8');
 
 describe('Header — dark bar shape (post-Notifications-prep)', () => {
-  it('keeps the brand button as the leftmost element', () => {
+  it('keeps the brand as a home link on the leftmost element', () => {
     expect(src).toMatch(/data-header-brand="1"/);
+    expect(src).toMatch(/data-header-brand="1"[\s\S]*?href="\//);
+    expect(src).toMatch(/data-header-brand="1"[\s\S]*?go\('home'\)/);
   });
 
   it('keeps the user-info / save-status block on the dark bar', () => {

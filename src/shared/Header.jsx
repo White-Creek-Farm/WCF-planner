@@ -495,9 +495,13 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
       {ConfirmActionModal}
       {/* ── Dark top bar ── */}
       <div data-header-bar="1" style={S.header}>
-        <button
+        <a
           data-header-brand="1"
-          onClick={() => go('home')}
+          href="/"
+          onClick={(e) => {
+            e.preventDefault();
+            go('home');
+          }}
           style={{
             background: 'none',
             border: 'none',
@@ -506,6 +510,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
             display: 'flex',
             alignItems: 'center',
             gap: 10,
+            textDecoration: 'none',
           }}
         >
           <div style={{fontSize: 18, fontWeight: 700, letterSpacing: '-.4px', color: 'white'}}>WCF Planner</div>
@@ -544,7 +549,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
               EQUIPMENT
             </span>
           )}
-        </button>
+        </a>
         <div data-header-userinfo="1" style={{display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto'}}>
           {saveStatus === 'saving' && <span style={{color: '#a7f3d0', fontWeight: 500, fontSize: 11}}>Saving…</span>}
           {saveStatus === 'saved' && <span style={{color: '#a7f3d0', fontWeight: 500, fontSize: 11}}>✓ Saved</span>}

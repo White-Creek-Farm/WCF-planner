@@ -19,6 +19,7 @@ const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const viewSrc = read('src/pasture/PastureMapView.jsx');
 const canvasSrc = read('src/pasture/PastureMapCanvas.jsx');
+const pastureCss = read('src/pasture/pastureMap.css');
 const apiSrc = read('src/lib/pastureMapApi.js');
 const offlineSrc = read('src/lib/pastureOffline.js');
 const pasturePwConfig = read('playwright.pasture.config.js');
@@ -104,6 +105,23 @@ describe('Migration 116 — CP1 invariants', () => {
 });
 
 describe('Pasture Map view - CP1/CP3 scope boundary', () => {
+  it('uses the shared app Header instead of a pasture-only topbar', () => {
+    expect(viewSrc).toMatch(/export default function PastureMapView\(\{Header, authState\}\)/);
+    expect(viewSrc).toContain('{Header ? <Header /> : null}');
+    expect(viewSrc).not.toContain('className="pm-topbar"');
+    expect(viewSrc).not.toContain('<h1 className="pm-title">WCF Planner</h1>');
+    expect(pastureCss).not.toContain('.pm-topbar');
+  });
+
+  it('keeps top mode tabs black until the selected filled pill turns white-on-black', () => {
+    const tabButtonBlock = pastureCss.match(/\.pm-tabs button \{[\s\S]*?\n\}/)?.[0] || '';
+    const activeTabBlock = pastureCss.match(/\.pm-tabs button\.is-active \{[\s\S]*?\n\}/)?.[0] || '';
+
+    expect(tabButtonBlock).toContain('color: #000;');
+    expect(activeTabBlock).toContain('background: #000;');
+    expect(activeTabBlock).toContain('color: #fff;');
+  });
+
   it('only imports pasture-scoped data modules (no daily report coupling)', () => {
     const libImports = [...viewSrc.matchAll(/import\s[^;]*?from\s+'(\.\.\/lib\/[^']+)'/g)].map((m) => m[1]);
     expect(libImports.length).toBeGreaterThan(0);
