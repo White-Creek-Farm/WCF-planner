@@ -184,7 +184,7 @@ export default function HomeWeatherCard() {
                       {round(d.tempMax)}&deg;/{round(d.tempMin)}&deg;
                     </strong>
                     <span>{percent(d.precipProbMax)}</span>
-                    <span>{round(d.windGustMax)} mph</span>
+                    <span title="Sustained wind">{round(d.windSpeedMax)} mph</span>
                     {d.tempMin != null && d.tempMin <= 33 ? <em>Freeze</em> : <em />}
                   </div>
                 ))}

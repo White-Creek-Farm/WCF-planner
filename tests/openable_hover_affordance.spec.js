@@ -146,6 +146,7 @@ const FORECAST_FIXTURE = {
     precipProbMax: 40,
     precipAmount: 0.08,
     weatherCodeMax: 1101,
+    windSpeedMax: 12,
     windGustMax: 22,
   })),
   monthlyPrecip: {

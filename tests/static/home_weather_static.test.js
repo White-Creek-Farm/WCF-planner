@@ -119,6 +119,12 @@ describe('HomeWeatherCard component', () => {
     expect(cardSrc).toContain('Updated');
   });
 
+  it('shows sustained wind, not gusts, in the 10-day forecast rows', () => {
+    expect(cardSrc).toContain('title="Sustained wind"');
+    expect(cardSrc).toContain('d.windSpeedMax');
+    expect(cardSrc).not.toContain('round(d.windGustMax)} mph');
+  });
+
   it('keeps the collapsed weather card compact so the Pasture Map row does not stretch', () => {
     const css = fs.readFileSync(path.join(ROOT, 'src/dashboard/homeRedesign.css'), 'utf8');
     expect(cardSrc).toContain("flexWrap: 'nowrap'");
