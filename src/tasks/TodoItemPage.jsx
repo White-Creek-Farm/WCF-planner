@@ -29,12 +29,15 @@ import {fmt, fmtCentralDateTime} from '../lib/dateUtils.js';
 import {loadTaskAssignableProfilesById} from '../lib/tasksCenterApi.js';
 import {
   TODO_SECTIONS,
+  MAX_TODO_PHOTOS,
   TODO_CHANGE_EVENT,
   todoSectionLabel,
   isTodoParticipant,
   isTodoManager,
   listTodoItems,
   listTodoMentionableProfiles,
+  remainingTodoPhotoSlots,
+  uploadTodoPhotos,
   updateTodoItem,
   approveTodoCompletion,
   removeTodoItem,
@@ -92,6 +95,7 @@ export default function TodoItemPage({sb, authState, Header}) {
   const [editDescription, setEditDescription] = React.useState('');
   const [editSection, setEditSection] = React.useState('general');
   const [editDueDate, setEditDueDate] = React.useState('');
+  const [editPhotos, setEditPhotos] = React.useState([]);
   const [savingEdit, setSavingEdit] = React.useState(false);
 
   // Inline load with a cancelled flag so a quick navigation between
@@ -199,13 +203,38 @@ export default function TodoItemPage({sb, authState, Header}) {
   const completedItem = item.status === 'completed';
   const canEdit =
     (item.status === 'open' && (canManage || item.created_by === callerId)) || (!completedItem && pending && canManage);
+  const existingTodoPhotos = Array.isArray(item.photos) ? item.photos : [];
+  const existingTodoPhotoCount = existingTodoPhotos.length;
+  const existingOriginationPhotoCount = existingTodoPhotos.filter((p) => p && p.kind === 'origination').length;
+  const remainingEditPhotoSlots = remainingTodoPhotoSlots(existingTodoPhotoCount);
+  const availableEditPhotoSlots = Math.max(0, remainingEditPhotoSlots - editPhotos.length);
+  const editPhotoLimitMessage = `To dos can have up to ${MAX_TODO_PHOTOS} photos total.`;
 
   function startEdit() {
     setEditTitle(item.title || '');
     setEditDescription(item.description || '');
     setEditSection(item.section || 'general');
     setEditDueDate(item.due_date || '');
+    setEditPhotos([]);
     setEditing(true);
+  }
+
+  function stopEdit() {
+    setEditPhotos([]);
+    setEditing(false);
+  }
+
+  function addEditPhotos(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f && f.type && f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    if (availableEditPhotoSlots <= 0) {
+      setNotice({kind: 'error', message: editPhotoLimitMessage});
+      return;
+    }
+    setEditPhotos([...editPhotos, ...files.slice(0, availableEditPhotoSlots)]);
+    if (files.length > availableEditPhotoSlots) {
+      setNotice({kind: 'error', message: editPhotoLimitMessage});
+    }
   }
 
   async function saveEdit() {
@@ -216,6 +245,10 @@ export default function TodoItemPage({sb, authState, Header}) {
     }
     setSavingEdit(true);
     try {
+      const photoPaths = await uploadTodoPhotos(sb, item.id, 'origination', editPhotos, {
+        existingKindCount: existingOriginationPhotoCount,
+        existingTotalCount: existingTodoPhotoCount,
+      });
       await updateTodoItem(sb, {
         id: item.id,
         title: editTitle.trim(),
@@ -223,8 +256,9 @@ export default function TodoItemPage({sb, authState, Header}) {
         section: editSection,
         dueDate: editDueDate || null,
         clearDueDate: !editDueDate && !!item.due_date,
+        photoPaths,
       });
-      setEditing(false);
+      stopEdit();
       fireTodoChangeEvent();
     } catch (e) {
       setNotice({kind: 'error', message: friendlyTodoError(e)});
@@ -351,13 +385,48 @@ export default function TodoItemPage({sb, authState, Header}) {
                 />
               </div>
             </div>
+            <div style={{marginBottom: 12}}>
+              <label style={taskModalFieldLabel}>
+                Add photos ({availableEditPhotoSlots} of {MAX_TODO_PHOTOS} slots left)
+              </label>
+              <input
+                data-todo-edit-field="photos"
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={savingEdit || availableEditPhotoSlots <= 0}
+                onChange={(e) => {
+                  addEditPhotos(e.target.files);
+                  e.target.value = '';
+                }}
+                style={{fontSize: 13, fontFamily: 'inherit', marginBottom: 6}}
+              />
+              {editPhotos.length > 0 ? (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6}}>
+                  {editPhotos.map((f, i) => (
+                    <div
+                      key={i}
+                      style={{display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink)'}}
+                    >
+                      <span style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{f.name}</span>
+                      <button
+                        type="button"
+                        style={{...taskModalGhostButton, padding: '2px 8px', fontSize: 11}}
+                        onClick={() => setEditPhotos(editPhotos.filter((_, j) => j !== i))}
+                        disabled={savingEdit}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>
+                5 photos total per item, shared between listing and completing it.
+              </div>
+            </div>
             <div style={{display: 'flex', justifyContent: 'flex-end', gap: 8}}>
-              <button
-                type="button"
-                style={taskModalGhostButton}
-                onClick={() => setEditing(false)}
-                disabled={savingEdit}
-              >
+              <button type="button" style={taskModalGhostButton} onClick={stopEdit} disabled={savingEdit}>
                 Cancel
               </button>
               <button

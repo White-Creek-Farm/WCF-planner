@@ -11,6 +11,9 @@
 //   - complete_task_instance(p_instance_id, p_completion_note,
 //                            p_completion_photo_paths)                    [T7]
 //   - update_task_instance_due_date(p_instance_id, p_new_due_date)        [T8]
+//   - update_task_instance_details(p_instance_id, p_title, p_description,
+//                                  p_due_date, p_assignee_profile_id,
+//                                  p_creation_photo_paths)                [134]
 //   - assign_task_instance(p_instance_id, p_assignee_profile_id)          [T9]
 //   - delete_task_instance(p_instance_id)                                 [T9]
 // We never write to task_instances, task_instance_photos, or
@@ -136,13 +139,20 @@ async function uploadOnePhoto(sb, bucket, storagePath, dbPath, blobOrFile, helpe
  * and present a single failure message — partial uploads stay in
  * storage but no task row references them.
  */
-export async function uploadTaskCreationPhotos(sb, instanceId, blobs) {
+export async function uploadTaskCreationPhotos(
+  sb,
+  instanceId,
+  blobs,
+  {existingCreationCount = 0, existingPhotoCount = 0} = {},
+) {
   if (!Array.isArray(blobs) || blobs.length === 0) return [];
-  assertTaskPhotoLimit(0, blobs.length, 'uploadTaskCreationPhotos');
+  const creationOffset = normalizedPhotoCount(existingCreationCount);
+  assertTaskPhotoLimit(existingPhotoCount, blobs.length, 'uploadTaskCreationPhotos');
   const out = [];
   for (let i = 0; i < blobs.length; i++) {
-    const storagePath = buildCreationPhotoStoragePath(instanceId, i);
-    const dbPath = buildCreationPhotoDbPath(instanceId, i);
+    const slotIndex = creationOffset + i;
+    const storagePath = buildCreationPhotoStoragePath(instanceId, slotIndex);
+    const dbPath = buildCreationPhotoDbPath(instanceId, slotIndex);
     const result = await uploadOnePhoto(
       sb,
       TASK_REQUEST_PHOTOS_BUCKET,
@@ -283,6 +293,30 @@ export async function updateTaskInstanceDueDateV2(sb, instanceId, newDueDate) {
   });
   if (error) {
     throw new Error(`updateTaskInstanceDueDateV2: ${error.message || String(error)}`);
+  }
+  return data;
+}
+
+/**
+ * Edit an OPEN task's primary details via mig 134. Admins can edit any open
+ * task; a regular caller can edit only tasks they created. Creation photos are
+ * appended to task_instance_photos by the RPC and, when needed, mirrored into
+ * request_photo_path for legacy photo-presence indicators.
+ */
+export async function updateTaskInstanceDetailsV2(
+  sb,
+  {id, title, description, dueDate, assigneeProfileId, creationPhotoPaths},
+) {
+  const {data, error} = await sb.rpc('update_task_instance_details', {
+    p_instance_id: id,
+    p_title: title ?? null,
+    p_description: description ?? null,
+    p_due_date: dueDate || null,
+    p_assignee_profile_id: assigneeProfileId || null,
+    p_creation_photo_paths: Array.isArray(creationPhotoPaths) ? creationPhotoPaths : [],
+  });
+  if (error) {
+    throw new Error(`updateTaskInstanceDetailsV2: ${error.message || String(error)}`);
   }
   return data;
 }
