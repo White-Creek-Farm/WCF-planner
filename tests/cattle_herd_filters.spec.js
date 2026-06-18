@@ -4,23 +4,12 @@ import {test, expect} from './fixtures.js';
 // Cattle Herd filters/sort + organized groups + saved views
 // ============================================================================
 // Locks the post-build contract for the composable filter chips, ordered sort
-// rules, explicit grouped/flat toggle, always-visible organized filter groups,
-// the maternal-issue UI retirement, and surface_key=cattle.herds saved views.
-// The plain-English "smart filter" assistant was removed (PROJECT.md queue).
+// rules, always-visible organized filter groups, the column/display picker, the
+// maternal-issue UI retirement, and surface_key=cattle.herds saved views.
+// Results are ALWAYS a single flat list (the grouped/flat toggle was removed);
+// outcome herds stay browsable in the collapsible sections below the list.
 // Pure module helpers in src/lib/cattleHerdFilters.js are vitest-locked
 // separately.
-//
-// Coverage:
-//   1  default load = grouped view, all 4 active herd tiles visible
-//   2  age sort youngest-first orders newest-birth-date cow first within tile
-//   3  sex=heifer + age >= 18mo compose; same survivors in grouped + flat
-//   4  calved=no in mommas — only the never-calved heifer matches
-//   5  blacklist filter — only blacklisted cow matches
-//   6  grouped/flat toggle parity — same survivors after a filter
-//   7  save a cattle herd view, clear state, re-apply it from the picker
-//   9  maternal-issue absence regression — zero /maternal/i text anywhere
-//  10  breed chip (always-visible Core group) surfaces historical "Heritage
-//      Wagyu" (Codex amend 3)
 // ============================================================================
 
 async function waitForLoaded(page) {
@@ -32,27 +21,22 @@ async function waitForLoaded(page) {
   await expect(page.locator('[data-cattle-match-count]')).not.toHaveText(/^0 /, {timeout: 15_000});
 }
 
+function flatRows(page) {
+  return page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
+}
+
 async function readTagsInOrder(locator) {
   return locator.evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-cow-row-tag') || ''));
 }
 
-async function expandHerd(page, herd) {
-  const tile = page.locator(`[data-herd-tile="${herd}"]`);
-  await expect(tile).toBeVisible();
-  if ((await tile.getAttribute('data-herd-open')) !== '1') {
-    await tile.click();
-  }
-  await expect(tile).toHaveAttribute('data-herd-open', '1');
-}
-
-// Compact-controls model: Saved views / Filters / Sort / View mode each live
+// Compact-controls model: Saved views / Filters / Sort / Columns each live
 // behind a single-open toggle panel (only one open at a time). Helpers below
 // ensure the relevant panel is open before interacting with its controls.
 const TOOL_PANEL_TOGGLE = {
   savedViews: '[data-cattle-herds-saved-views-toggle="1"]',
   filters: '[data-cattle-herds-filters-toggle="1"]',
   sort: '[data-cattle-herds-sort-toggle="1"]',
-  view: '[data-cattle-herds-view-toggle="1"]',
+  columns: '[data-cattle-herds-columns-toggle="1"]',
 };
 
 async function ensureToolPanel(page, name) {
@@ -64,21 +48,6 @@ async function ensureToolPanel(page, name) {
   await expect(btn).toHaveAttribute('aria-expanded', 'true');
 }
 
-async function setViewMode(page, mode) {
-  await ensureToolPanel(page, 'view');
-  await page.locator(`input[data-view-mode="${mode}"]`).click();
-}
-
-async function expectViewMode(page, mode, checked = true) {
-  await ensureToolPanel(page, 'view');
-  const radio = page.locator(`input[data-view-mode="${mode}"]`);
-  if (checked) {
-    await expect(radio).toBeChecked();
-  } else {
-    await expect(radio).not.toBeChecked();
-  }
-}
-
 async function openFilter(page, key) {
   await ensureToolPanel(page, 'filters');
   const chip = page.locator(`[data-filter-chip="${key}"]`);
@@ -87,80 +56,77 @@ async function openFilter(page, key) {
   await expect(page.locator(`[data-filter-popover="${key}"]`)).toBeVisible();
 }
 
+async function pickHerd(page, label) {
+  await openFilter(page, 'herdSet');
+  await page.locator(`[data-filter-popover="herdSet"] >> text=${label}`).click();
+  await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
+}
+
 // --------------------------------------------------------------------------
-// Test 1 — Default load shows grouped view + 4 active herd tiles
+// Test 1 — Default load shows a flat list of the active cattle (no tiles)
 // --------------------------------------------------------------------------
-test('default load: grouped view with 4 active herd tiles', async ({page, cattleHerdFiltersScenario}) => {
+test('default load: flat list of active cattle, outcomes collapsed below', async ({
+  page,
+  cattleHerdFiltersScenario,
+}) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Grouped radio is selected by default (open the View panel to read it).
-  await ensureToolPanel(page, 'view');
-  await expect(page.locator('input[data-view-mode="grouped"]')).toBeChecked();
-  await expect(page.locator('input[data-view-mode="flat"]')).not.toBeChecked();
+  // Single flat list — the grouped/flat toggle is gone.
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
+  await expect(page.locator('[data-cattle-herds-view-toggle="1"]')).toHaveCount(0);
 
-  // 4 active herd tiles render.
-  for (const h of ['mommas', 'backgrounders', 'finishers', 'bulls']) {
-    await expect(page.locator(`[data-herd-tile="${h}"]`)).toBeVisible();
+  // The 10 active cattle (4 active herds) render in one list.
+  await expect(flatRows(page)).toHaveCount(10);
+  const tags = await readTagsInOrder(flatRows(page));
+  for (const t of ['M001', 'M002', 'M003', 'M004', 'M005', 'B201', 'B202', 'B203', 'BL401', 'F301']) {
+    expect(tags).toContain(t);
   }
 
-  // Outcome herds NOT rendered as expanded tiles by default — they live in
-  // the CollapsibleOutcomeSections at the bottom.
-  await expect(page.locator('[data-herd-tile="processed"]')).toHaveCount(0);
-
-  // Ensure data is loaded — Mommas has 5 cows in the seed.
-  const mommasTile = page.locator('[data-herd-tile="mommas"]');
-  await expect(mommasTile).toContainText('5 cows');
+  // Outcome herds are not in the active flat list — they live in the
+  // CollapsibleOutcomeSections below (the seed has one processed cow).
+  await expect(page.getByText('Processed', {exact: false}).first()).toBeVisible();
 });
 
 // --------------------------------------------------------------------------
 // Test 2 — Age sort youngest-first orders newest birth_date first
 // --------------------------------------------------------------------------
-test('age sort youngest-first orders newest birth_date first inside tile', async ({
-  page,
-  cattleHerdFiltersScenario,
-}) => {
+test('age sort youngest-first orders newest birth_date first', async ({page, cattleHerdFiltersScenario}) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Add age sort. Adding a non-tag sort replaces the default Tag sort so
-  // the visible chip order matches the actual primary sort.
+  // Constrain to mommas so the ordering assertion is exact.
+  await pickHerd(page, 'Mommas');
+
+  // Add age sort. Adding a non-tag sort replaces the default Tag sort so the
+  // visible chip order matches the actual primary sort.
   await ensureToolPanel(page, 'sort');
   await page.locator('select[data-sort-add]').selectOption('age');
   const sortRules = page.locator('[data-sort-rule]');
   await expect(sortRules.nth(0)).toHaveAttribute('data-sort-rule', 'age');
   await expect(sortRules).toHaveCount(1);
-  // Default dir is asc = youngest first. Verify chip badge.
   const ageRule = page.locator('[data-sort-rule="age"]');
-  await expect(ageRule).toBeVisible();
   await expect(ageRule).toHaveAttribute('data-sort-dir', 'asc');
-
-  await expandHerd(page, 'mommas');
 
   // Mommas seed: M001 (2020-04), M002 (2021-03), M003 (2024-06 — youngest),
   // M004 (2019-02 — oldest), M005 (2022-08).
   // Youngest-first asc order: M003, M005, M002, M001, M004.
-  const mommasTile = page.locator('[data-herd-tile="mommas"]').locator('..');
-  const cowRows = mommasTile.locator('tr[id^="cow-"]');
-  await expect(cowRows).toHaveCount(5);
-
-  // Read tag via data attribute (sibling spans have no whitespace separator
-  // so textContent regex would concatenate tag with neighbor cells).
-  const tags = await readTagsInOrder(cowRows);
-  expect(tags).toEqual(['M003', 'M005', 'M002', 'M001', 'M004']);
+  await expect(flatRows(page)).toHaveCount(5);
+  expect(await readTagsInOrder(flatRows(page))).toEqual(['M003', 'M005', 'M002', 'M001', 'M004']);
 
   // Flip to desc — oldest first.
-  const dirBtn = ageRule.locator('button').first(); // direction button is the first child <button>
-  await dirBtn.click();
+  await ageRule.locator('button').first().click();
   await expect(ageRule).toHaveAttribute('data-sort-dir', 'desc');
-  const tagsDesc = await readTagsInOrder(cowRows);
-  expect(tagsDesc).toEqual(['M004', 'M001', 'M002', 'M005', 'M003']);
+  expect(await readTagsInOrder(flatRows(page))).toEqual(['M004', 'M001', 'M002', 'M005', 'M003']);
 });
 
 // --------------------------------------------------------------------------
-// Test 3 — sex=heifer + age >= 18mo compose; same survivors in grouped + flat
+// Test 3 — sex=heifer + age >= 18mo compose in the flat list
 // --------------------------------------------------------------------------
-test('sex + age compose; same survivors across grouped and flat modes', async ({page, cattleHerdFiltersScenario}) => {
+test('sex + age compose to the expected survivors', async ({page, cattleHerdFiltersScenario}) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
@@ -174,34 +140,17 @@ test('sex + age compose; same survivors across grouped and flat modes', async ({
   await page.locator('[data-filter-popover="ageMonthsRange"] input[type="number"]').first().fill('18');
   await page.locator('[data-filter-popover="ageMonthsRange"] >> text=Close').click();
 
-  // Survivors per seed: heifers >=18mo
-  //   M003 (~23mo, mommas) ✓
-  //   B201 (~20mo, backgrounders) ✓
-  //   B202 (~21mo, backgrounders) ✓
-  //   B203 (~16mo) ✗
-  // Match-count chip:
+  // Survivors per seed: heifers >=18mo → M003, B201, B202 (B203 ~16mo excluded).
   await expect(page.locator('[data-cattle-match-count]')).toContainText('3');
-
-  // Verify in grouped tiles.
-  await expandHerd(page, 'mommas');
-  await expandHerd(page, 'backgrounders');
-  const groupedRows = page.locator('tr[id^="cow-"][data-cow-row-tag]');
-  const groupedTags = await readTagsInOrder(groupedRows);
-  expect(new Set(groupedTags)).toEqual(new Set(['M003', 'B201', 'B202']));
-
-  // Switch to flat.
-  await setViewMode(page, 'flat');
-  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  const flatRows = page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
-  await expect(flatRows).toHaveCount(3);
-  const flatTags = await readTagsInOrder(flatRows);
-  expect(new Set(flatTags)).toEqual(new Set(['M003', 'B201', 'B202']));
+  await expect(flatRows(page)).toHaveCount(3);
+  expect(new Set(await readTagsInOrder(flatRows(page)))).toEqual(new Set(['M003', 'B201', 'B202']));
 });
 
 // --------------------------------------------------------------------------
 // Test 4 — Sex popover option alignment
 // --------------------------------------------------------------------------
 test('choice filter popovers align controls and labels in clean rows', async ({page, cattleHerdFiltersScenario}) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
@@ -238,34 +187,29 @@ test('choice filter popovers align controls and labels in clean rows', async ({p
 });
 
 // --------------------------------------------------------------------------
-// Test 5 — calved=no in mommas
+// Test 5 — calved=no in mommas surfaces only the never-calved heifer
 // --------------------------------------------------------------------------
 test('calved=no in mommas surfaces only the never-calved heifer', async ({page, cattleHerdFiltersScenario}) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Constrain to mommas explicitly (default already shows active including
-  // mommas, but pinning the chip makes the assertion exact).
-  await openFilter(page, 'herdSet');
-  await page.locator('[data-filter-popover="herdSet"] >> text=Mommas').click();
-  await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
+  await pickHerd(page, 'Mommas');
 
   await openFilter(page, 'calvedStatus');
   await page.locator('[data-filter-popover="calvedStatus"] >> text=Never calved').click();
   await page.locator('[data-filter-popover="calvedStatus"] >> text=Close').click();
 
   await expect(page.locator('[data-cattle-match-count]')).toContainText('1 ');
-
-  await expandHerd(page, 'mommas');
-  const visibleRows = page.locator('[data-herd-tile="mommas"]').locator('..').locator('tr[id^="cow-"]');
-  await expect(visibleRows).toHaveCount(1);
-  await expect(visibleRows.first()).toContainText('#M003');
+  await expect(flatRows(page)).toHaveCount(1);
+  await expect(flatRows(page).first()).toContainText('#M003');
 });
 
 // --------------------------------------------------------------------------
-// Test 5 — blacklist filter
+// Test 6 — blacklist filter surfaces only the blacklisted cow
 // --------------------------------------------------------------------------
 test('blacklist filter surfaces only the blacklisted cow', async ({page, cattleHerdFiltersScenario}) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
@@ -274,57 +218,27 @@ test('blacklist filter surfaces only the blacklisted cow', async ({page, cattleH
   await page.locator('[data-filter-popover="breedingBlacklist"] >> text=Close').click();
 
   await expect(page.locator('[data-cattle-match-count]')).toContainText('1 ');
-
-  // Switch to flat to check the single survivor without expanding tiles.
-  await setViewMode(page, 'flat');
-  const flatRows = page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
-  await expect(flatRows).toHaveCount(1);
-  await expect(flatRows.first()).toContainText('#M004');
+  await expect(flatRows(page)).toHaveCount(1);
+  await expect(flatRows(page).first()).toContainText('#M004');
 });
 
 // --------------------------------------------------------------------------
-// Test 6 — grouped/flat toggle parity
+// Test 7 — save a cattle herd view (filters + sort + columns), clear, re-apply
 // --------------------------------------------------------------------------
-test('grouped/flat toggle yields same filtered survivors', async ({page, cattleHerdFiltersScenario}) => {
-  await page.goto('/cattle/herds');
-  await waitForLoaded(page);
-
-  // Apply herd=backgrounders filter.
-  await openFilter(page, 'herdSet');
-  await page.locator('[data-filter-popover="herdSet"] >> text=Backgrounders').click();
-  await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
-
-  // Grouped: 3 cows under backgrounders tile.
-  await expandHerd(page, 'backgrounders');
-  const groupedRows = page.locator('[data-herd-tile="backgrounders"]').locator('..').locator('tr[id^="cow-"]');
-  await expect(groupedRows).toHaveCount(3);
-
-  // Switch to flat — same 3.
-  await setViewMode(page, 'flat');
-  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
-});
-
-// --------------------------------------------------------------------------
-// Test 7 — save a cattle herd view, clear state, re-apply from the picker
-// --------------------------------------------------------------------------
-test('saves a cattle herd view and re-applies filters/sort/viewMode from the picker', async ({
+test('saves a cattle herd view and re-applies filters/sort/columns from the picker', async ({
   page,
   cattleHerdFiltersScenario,
 }) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Build a distinctive state: backgrounders only (3 cows) + flat view.
-  await openFilter(page, 'herdSet');
-  await page.locator('[data-filter-popover="herdSet"] >> text=Backgrounders').click();
-  await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
-  await setViewMode(page, 'flat');
-  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
+  // Build a distinctive state: backgrounders only (3 cows).
+  await pickHerd(page, 'Backgrounders');
+  await expect(flatRows(page)).toHaveCount(3);
 
   // Save it as a public view.
-  const viewName = 'BG Flat ' + Date.now();
+  const viewName = 'BG ' + Date.now();
   await ensureToolPanel(page, 'savedViews');
   await page.locator('[data-saved-view-save-open]').click();
   await expect(page.locator('[data-saved-view-form]')).toBeVisible();
@@ -337,21 +251,17 @@ test('saves a cattle herd view and re-applies filters/sort/viewMode from the pic
   const optionLabel = viewName + ' · public';
   await expect(page.locator('[data-saved-view-select] option', {hasText: viewName})).toHaveCount(1);
 
-  // Reset to a different state: clear filters + back to grouped.
-  await setViewMode(page, 'grouped');
+  // Reset to a different state: clear filters (back to all active).
   await ensureToolPanel(page, 'filters');
   await page.locator('text=Clear all filters').click();
   await expect(page.locator('[data-cattle-match-count]')).not.toContainText(/^3 /);
-  await expectViewMode(page, 'grouped');
 
   // Re-apply: deselect, then pick the saved view by label. Selecting restores
-  // filters (backgrounders → 3) and viewMode (flat).
+  // the backgrounders filter → 3 cows in the flat list.
   await ensureToolPanel(page, 'savedViews');
   await page.locator('[data-saved-view-select]').selectOption('');
   await page.locator('[data-saved-view-select]').selectOption({label: optionLabel});
-  await expectViewMode(page, 'flat');
-  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
-  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(3);
+  await expect(flatRows(page)).toHaveCount(3);
 
   // Owner controls (update/delete) are available for an owned view.
   await ensureToolPanel(page, 'savedViews');
@@ -360,12 +270,36 @@ test('saves a cattle herd view and re-applies filters/sort/viewMode from the pic
 });
 
 // --------------------------------------------------------------------------
-// Test 9 — maternal-issue UI absence regression
+// Test 8 — column/display picker drives which fields the flat list shows
 // --------------------------------------------------------------------------
-test('maternal-issue text absent from herd view, expanded cow detail, and Add modal', async ({
+test('column picker toggles fields on the flat list and resets to default', async ({
   page,
   cattleHerdFiltersScenario,
 }) => {
+  void cattleHerdFiltersScenario;
+  await page.goto('/cattle/herds');
+  await waitForLoaded(page);
+
+  // Sire Tag is off by default — its header is absent.
+  await expect(page.locator('[data-cattle-flat-list] th', {hasText: 'Sire Tag'})).toHaveCount(0);
+
+  await ensureToolPanel(page, 'columns');
+  await page.locator('[data-cattle-column-toggle="sireTag"]').click();
+  await expect(page.locator('[data-cattle-flat-list] th', {hasText: 'Sire Tag'})).toHaveCount(1);
+
+  // Reset restores the default column set (Sire Tag off again).
+  await page.locator('[data-cattle-columns-reset]').click();
+  await expect(page.locator('[data-cattle-flat-list] th', {hasText: 'Sire Tag'})).toHaveCount(0);
+});
+
+// --------------------------------------------------------------------------
+// Test 9 — maternal-issue UI absence regression
+// --------------------------------------------------------------------------
+test('maternal-issue text absent from herd view, record page, and Add modal', async ({
+  page,
+  cattleHerdFiltersScenario,
+}) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
@@ -373,11 +307,8 @@ test('maternal-issue text absent from herd view, expanded cow detail, and Add mo
   const bodyText = await page.locator('body').innerText();
   expect(bodyText.toLowerCase()).not.toContain('maternal');
 
-  // Cow record page — a cow-row click now routes to the record page (record
-  // extraction). Open one and re-scan.
-  await expandHerd(page, 'mommas');
-  const firstCow = page.locator('[data-herd-tile="mommas"]').locator('..').locator('tr[id^="cow-"]').first();
-  await firstCow.click();
+  // Cow record page — a cow-row click routes to the record page. Open one.
+  await flatRows(page).first().click();
   await expect(page).toHaveURL(/\/cattle\/herds\/.+/);
   const recordText = await page.locator('body').innerText();
   expect(recordText.toLowerCase()).not.toContain('maternal');
@@ -397,10 +328,10 @@ test('breed filter dropdown includes historical "Heritage Wagyu" present on cow 
   page,
   cattleHerdFiltersScenario,
 }) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Breed chip lives in the Filters panel (compact controls).
   await openFilter(page, 'breed');
   const popover = page.locator('[data-filter-popover="breed"]');
   await expect(popover).toContainText('Heritage Wagyu');
@@ -414,19 +345,18 @@ test('No calf since date filters mature cows incl. those that calved before the 
   page,
   cattleHerdFiltersScenario,
 }) => {
+  void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // The non-calving control is a single "No calf since" date — no checkbox.
   await openFilter(page, 'nonCalving');
   await expect(page.locator('[data-cattle-special-filter-checkbox="nonCalvingCows"]')).toHaveCount(0);
   await page.locator('[data-cattle-noncalving-cutoff]').fill('2026-01-01');
   await page.locator('[data-filter-popover="nonCalving"] >> text=Close').click();
 
   // Mature mommas whose last calving is missing or before 2026-01-01:
-  //   M002 (calved 2025-05), M004 (calved 2023-06 — past, before cutoff),
-  //   M005 (calved 2024-09). M001 calved 2026-04 (after cutoff) is excluded;
-  //   M003 heifer is not yet 30 months old.
+  //   M002 (calved 2025-05), M004 (calved 2023-06), M005 (calved 2024-09).
+  //   M001 calved 2026-04 (after cutoff) excluded; M003 heifer not yet 30mo.
   await expect(page.locator('[data-cattle-match-count]')).toContainText('3 cattle match');
 });
 
@@ -438,6 +368,7 @@ test('Unmatched Calves checkbox filters to calves missing a dam', async ({
   supabaseAdmin,
   cattleHerdFiltersScenario,
 }) => {
+  void cattleHerdFiltersScenario;
   // Seed one unmatched calf: no dam, born within the last 4 months.
   const recent = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   await supabaseAdmin.from('cattle').upsert(
@@ -466,7 +397,6 @@ test('Unmatched Calves checkbox filters to calves missing a dam', async ({
   await page.locator('[data-cattle-special-filter-checkbox="unmatchedCalves"]').check();
   await expect(page.locator('[data-cattle-match-count]')).toContainText('1 match');
 
-  await setViewMode(page, 'flat');
-  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]')).toHaveCount(1);
-  await expect(page.locator('[data-cattle-flat-list] tr[id^="cow-"]').first()).toContainText('#UC900');
+  await expect(flatRows(page)).toHaveCount(1);
+  await expect(flatRows(page).first()).toContainText('#UC900');
 });

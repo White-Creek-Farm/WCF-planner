@@ -41,7 +41,6 @@ import {
   deleteSavedView,
   buildViewState,
 } from '../lib/savedViewsApi.js';
-import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {getProgramColor} from '../lib/programColors.js';
 import {getReadableText} from '../lib/styles.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -52,7 +51,6 @@ import DataTable from '../shared/DataTable.jsx';
 import Badge from '../shared/Badge.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import StatusText from '../shared/StatusText.jsx';
-import {openableProps} from '../shared/openable.js';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {runMutation, recordFieldChange} from '../lib/entityMutations.js';
@@ -96,6 +94,36 @@ const HERD_LABELS = {
   deceased: 'Deceased',
   sold: 'Sold',
 };
+
+// Toggleable columns for the cattle list (the column/display picker). `tag` is
+// always shown; the rest can be hidden/shown, and the choice is stored in saved
+// views. Defaults keep today's visible set on.
+const CATTLE_HERD_COLUMNS = [
+  {key: 'herd', label: 'Herd', default: true},
+  {key: 'sex', label: 'Sex', default: true},
+  {key: 'breed', label: 'Breed', default: true},
+  {key: 'origin', label: 'Origin', default: true},
+  {key: 'age', label: 'Age', default: true},
+  {key: 'birthDate', label: 'Birth Date', default: false},
+  {key: 'lastWeight', label: 'Last Weight', default: true},
+  {key: 'lastWeighed', label: 'Last Weighed', default: false},
+  {key: 'lastCalved', label: 'Last Calved', default: true},
+  {key: 'calfCount', label: 'Calf Count', default: true},
+  {key: 'breedingStatus', label: 'Breeding Status', default: false},
+  {key: 'breedingBlacklist', label: 'Breeding Blacklist', default: false},
+  {key: 'damTag', label: 'Dam Tag', default: false},
+  {key: 'sireTag', label: 'Sire Tag', default: false},
+  {key: 'pctWagyu', label: '% Wagyu', default: false},
+  {key: 'registrationNum', label: 'Registration #', default: false},
+  {key: 'purchaseDate', label: 'Purchase Date', default: false},
+  {key: 'purchaseAmount', label: 'Purchase Amount', default: false},
+  {key: 'saleDate', label: 'Sale Date', default: false},
+  {key: 'saleAmount', label: 'Sale Amount', default: false},
+  {key: 'deathDate', label: 'Death Date', default: false},
+  {key: 'deathReason', label: 'Death Reason', default: false},
+  {key: 'recordId', label: 'Record ID', default: false},
+];
+const CATTLE_DEFAULT_COLUMN_KEYS = CATTLE_HERD_COLUMNS.filter((c) => c.default).map((c) => c.key);
 
 const SEX_OPTIONS = [
   {key: 'cow', label: 'Cow'},
@@ -275,11 +303,20 @@ const CattleHerdsHub = ({
   const [loadError, setLoadError] = useState(null);
 
   // Composable filter / sort state.
-  const [viewMode, setViewMode] = usePersistentViewState('cattle.herds.viewMode', 'grouped'); // 'grouped' | 'flat'
   const [filters, setFilters] = usePersistentViewState('cattle.herds.filters', {});
   const [sortRules, setSortRules] = usePersistentViewState('cattle.herds.sortRules', [{key: 'tag', dir: 'asc'}]);
+  // Which columns show in the flat cattle list (the column/display picker),
+  // persisted per surface and stored in saved views. `tag` is always shown.
+  const [visibleColumns, setVisibleColumns] = usePersistentViewState(
+    'cattle.herds.columns',
+    CATTLE_DEFAULT_COLUMN_KEYS,
+  );
+  function toggleColumn(key) {
+    setVisibleColumns((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  }
+  const columnVisible = (key) => key === 'tag' || visibleColumns.includes(key);
   const [openFilter, setOpenFilter] = useState(null); // chip popover state — string key
-  const [openToolPanel, setOpenToolPanel] = useState(null); // savedViews | filters | sort | view
+  const [openToolPanel, setOpenToolPanel] = useState(null); // savedViews | filters | sort | columns
 
   // Saved views (migration 095). Load failures must NOT break the list — they
   // surface as a disabled control + inline message (cold-boot safety).
@@ -298,8 +335,6 @@ const CattleHerdsHub = ({
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
-
-  const [expandedHerds, setExpandedHerds] = useState({});
 
   async function loadAll() {
     setLoading(true);
@@ -399,19 +434,6 @@ const CattleHerdsHub = ({
   }
   // Aggregate herd-tile total uses default for recently-purchased cows without
   // a real weigh-in. Per-cow rows still show "no weigh-in" honestly.
-  const HERD_TILE_DEFAULT_COW_WEIGHT = 1000;
-  const HERD_TILE_ESTIMATE_DAYS = 120;
-  function isHerdTileRecentlyPurchased(cow) {
-    if (!cow || !cow.purchase_date) return false;
-    const ms = Date.now() - new Date(cow.purchase_date + 'T12:00:00Z').getTime();
-    return ms >= 0 && ms <= HERD_TILE_ESTIMATE_DAYS * 86400000;
-  }
-  function effectiveWeight(cow) {
-    const real = lastWeight(cow);
-    if (real != null && real > 0) return real;
-    return isHerdTileRecentlyPurchased(cow) ? HERD_TILE_DEFAULT_COW_WEIGHT : 0;
-  }
-
   // ── filter + sort: pure-helper-driven ─────────────────────────────────────
   // Default behavior matches today's "active" mode: when no herdSet chip is
   // explicitly set, cap the result to active herd keys (UNLESS the user has
@@ -568,7 +590,7 @@ const CattleHerdsHub = ({
     const st = view.view_state || {};
     setFilters(st.filters && typeof st.filters === 'object' ? st.filters : {});
     setSortRules(Array.isArray(st.sortRules) ? st.sortRules : []);
-    setViewMode(st.viewMode === 'flat' ? 'flat' : 'grouped');
+    setVisibleColumns(Array.isArray(st.columns) && st.columns.length > 0 ? st.columns : CATTLE_DEFAULT_COLUMN_KEYS);
     setOpenFilter(null);
     setOpenToolPanel(null);
   }
@@ -595,7 +617,7 @@ const CattleHerdsHub = ({
         surfaceKey: CATTLE_HERDS_SURFACE_KEY,
         name,
         visibility: saveViewVisibility,
-        viewState: buildViewState({filters, sortRules, viewMode}),
+        viewState: {...buildViewState({filters, sortRules, viewMode: 'flat'}), columns: visibleColumns},
       });
       setShowSaveViewForm(false);
       await loadSavedViews();
@@ -611,7 +633,7 @@ const CattleHerdsHub = ({
     setSavedViewBusy(true);
     try {
       await updateSavedView(sb, selectedView.id, {
-        viewState: buildViewState({filters, sortRules, viewMode}),
+        viewState: {...buildViewState({filters, sortRules, viewMode: 'flat'}), columns: visibleColumns},
       });
       await loadSavedViews();
       setNotice({kind: 'success', message: `Updated "${selectedView.name}" to the current filters/sort/view.`});
@@ -1196,23 +1218,24 @@ const CattleHerdsHub = ({
     );
   }
 
-  // Shared cow columns — used by BOTH the flat list and grouped tiles (rendered
-  // through <DataTable>) so the two can't drift again (PROJECT.md row-parity
-  // item). `showHerd` adds the Herd badge column for the flat list; grouped
-  // omits it because rows already sit under a herd tile. Calf count +
-  // last-calved render for FEMALES (cow/heifer) in either mode — herd-
-  // independent, which is the parity fix (previously flat showed neither and
-  // grouped only showed them for the mommas tile). CP3: faux-grid
-  // `.hoverable-tile` rows replaced by the shared <DataTable> (row RENDERING
-  // only — filters/sort/saved-views/CSV/print/grouping logic unchanged).
+  // Cow columns for the always-flat list, rendered through the shared
+  // <DataTable>. The full set is built here; the column/display picker
+  // (columnVisible) decides which actually render. Calf count + last-calved
+  // render for FEMALES (cow/heifer). Rows go through <DataTable>, which owns the
+  // hover/keyboard affordance — this file no longer renders its own faux-grid
+  // rows (filters/sort/saved-views/CSV/print logic unchanged).
   const ellipsisCellS = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     maxWidth: 160,
   };
-  function cowTableColumns(showHerd) {
-    const cols = [
+  function cowTableColumns() {
+    const female = (c) => c.sex === 'cow' || c.sex === 'heifer';
+    const money = (v) => (v != null && v !== '' ? '$' + Number(v).toLocaleString() : '—');
+    const dateCell = (v) => <StatusText tone="muted">{v ? fmt(v) : '—'}</StatusText>;
+    const textCell = (v) => <StatusText tone="muted">{v || '—'}</StatusText>;
+    return [
       {
         key: 'tag',
         label: 'Tag',
@@ -1224,9 +1247,7 @@ const CattleHerdsHub = ({
           </span>
         ),
       },
-    ];
-    if (showHerd) {
-      cols.push({
+      {
         key: 'herd',
         label: 'Herd',
         render: (c) => (
@@ -1234,14 +1255,8 @@ const CattleHerdsHub = ({
             {HERD_LABELS[c.herd]}
           </span>
         ),
-      });
-    }
-    cols.push(
-      {
-        key: 'sex',
-        label: 'Sex',
-        render: (c) => <StatusText tone="muted">{c.sex || '—'}</StatusText>,
       },
+      {key: 'sex', label: 'Sex', render: (c) => <StatusText tone="muted">{c.sex || '—'}</StatusText>},
       {
         key: 'breed',
         label: 'Breed',
@@ -1266,9 +1281,10 @@ const CattleHerdsHub = ({
         align: 'right',
         render: (c) => <StatusText tone="muted">{age(c.birth_date) || '—'}</StatusText>,
       },
+      {key: 'birthDate', label: 'Birth Date', align: 'right', render: (c) => dateCell(c.birth_date)},
       {
         key: 'lastWeight',
-        label: 'Last weight',
+        label: 'Last Weight',
         align: 'right',
         render: (c) => {
           const lw = lastWeight(c);
@@ -1280,27 +1296,90 @@ const CattleHerdsHub = ({
         },
       },
       {
-        key: 'meta',
-        label: 'Calving',
+        key: 'lastWeighed',
+        label: 'Last Weighed',
+        align: 'right',
         render: (c) => {
-          const isFemale = c.sex === 'cow' || c.sex === 'heifer';
-          const lc = isFemale ? lastCalving(c.tag) : null;
-          const cc = isFemale ? calfCount(c.tag) : 0;
-          return (
-            <span style={{display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-              {c.dam_tag && <StatusText tone="muted">{'dam #' + c.dam_tag}</StatusText>}
-              {isFemale && (
-                <span data-calf-count={cc} style={{fontSize: 11, color: 'var(--text-primary)', fontWeight: 600}}>
-                  {'Calves: ' + cc}
-                </span>
-              )}
-              {isFemale && lc && <StatusText tone="muted">{'last calved ' + fmt(lc.calving_date)}</StatusText>}
+          const e = lastWeightEntryFor(c, weighIns);
+          return <StatusText tone="muted">{e?.entered_at ? fmt(String(e.entered_at).slice(0, 10)) : '—'}</StatusText>;
+        },
+      },
+      {
+        key: 'lastCalved',
+        label: 'Last Calved',
+        align: 'right',
+        render: (c) => {
+          const lc = female(c) ? lastCalving(c.tag) : null;
+          return <StatusText tone="muted">{lc?.calving_date ? fmt(lc.calving_date) : '—'}</StatusText>;
+        },
+      },
+      {
+        key: 'calfCount',
+        label: 'Calf Count',
+        align: 'right',
+        render: (c) => {
+          const cc = female(c) ? calfCount(c.tag) : null;
+          return cc == null ? (
+            <StatusText tone="muted">—</StatusText>
+          ) : (
+            <span data-calf-count={cc} style={{fontSize: 12, color: 'var(--text-primary)', fontWeight: 600}}>
+              {cc}
             </span>
           );
         },
       },
-    );
-    return cols;
+      {key: 'breedingStatus', label: 'Breeding Status', render: (c) => textCell(c.breeding_status)},
+      {
+        key: 'breedingBlacklist',
+        label: 'Breeding Blacklist',
+        render: (c) =>
+          c.breeding_blacklist ? <Badge variant="danger">YES</Badge> : <StatusText tone="muted">no</StatusText>,
+      },
+      {
+        key: 'damTag',
+        label: 'Dam Tag',
+        render: (c) => <StatusText tone="muted">{c.dam_tag ? '#' + c.dam_tag : '—'}</StatusText>,
+      },
+      {
+        key: 'sireTag',
+        label: 'Sire Tag',
+        render: (c) => <StatusText tone="muted">{c.sire_tag ? '#' + c.sire_tag : '—'}</StatusText>,
+      },
+      {
+        key: 'pctWagyu',
+        label: '% Wagyu',
+        align: 'right',
+        render: (c) => (
+          <StatusText tone="muted">{c.pct_wagyu != null && c.pct_wagyu !== '' ? c.pct_wagyu + '%' : '—'}</StatusText>
+        ),
+      },
+      {key: 'registrationNum', label: 'Registration #', render: (c) => textCell(c.registration_num)},
+      {key: 'purchaseDate', label: 'Purchase Date', align: 'right', render: (c) => dateCell(c.purchase_date)},
+      {
+        key: 'purchaseAmount',
+        label: 'Purchase Amount',
+        align: 'right',
+        render: (c) => <StatusText tone="muted">{money(c.purchase_amount)}</StatusText>,
+      },
+      {key: 'saleDate', label: 'Sale Date', align: 'right', render: (c) => dateCell(c.sale_date)},
+      {
+        key: 'saleAmount',
+        label: 'Sale Amount',
+        align: 'right',
+        render: (c) => <StatusText tone="muted">{money(c.sale_amount)}</StatusText>,
+      },
+      {key: 'deathDate', label: 'Death Date', align: 'right', render: (c) => dateCell(c.death_date)},
+      {
+        key: 'deathReason',
+        label: 'Death Reason',
+        render: (c) => (
+          <StatusText tone="muted" style={ellipsisCellS}>
+            {c.death_reason || '—'}
+          </StatusText>
+        ),
+      },
+      {key: 'recordId', label: 'Record ID', render: (c) => <StatusText tone="muted">{c.id || '—'}</StatusText>},
+    ].filter((col) => columnVisible(col.key));
   }
 
   // Shared <DataTable> renderer for the cattle list. `navList` is the exact
@@ -1309,13 +1388,13 @@ const CattleHerdsHub = ({
   // hooks (id="cow-<id>", data-cow-row-tag) and the blacklist row tint are
   // preserved via rowProps + rowStyle.
   // eslint-disable-next-line no-unused-vars -- JSX-only use
-  function CattleDataTable({navList, showHerd, surfaceKey}) {
+  function CattleDataTable({navList, surfaceKey}) {
     return (
       <DataTable
         surfaceKey={surfaceKey}
         rowKey="id"
         showRowNumbers
-        columns={cowTableColumns(showHerd)}
+        columns={cowTableColumns()}
         rows={navList}
         onRowOpen={(c) => navigate('/cattle/herds/' + c.id, recordSeqNavOptions(navList))}
         rowProps={(c) => ({id: 'cow-' + c.id, 'data-cow-row-tag': c.tag || ''})}
@@ -1325,7 +1404,6 @@ const CattleHerdsHub = ({
   }
 
   // ── derived UI flags ───────────────────────────────────────────────────────
-  const isFlat = viewMode === 'flat';
   const filterCount = Object.keys(filters).length;
   const search = filters.textSearch || '';
 
@@ -1357,13 +1435,15 @@ const CattleHerdsHub = ({
     color: 'var(--ink)',
     cursor: 'pointer',
   };
+  // Selected tool button = solid program-color fill with a white glyph (matches
+  // the filled program tab in the top nav); unselected = white with dark glyph.
   const toolButtonS = (active = false) => ({
     width: 34,
     height: 34,
     borderRadius: 10,
     border: active ? `1px solid ${CATTLE_ACCENT}` : '1px solid var(--border-strong)',
-    background: active ? '#fff7f7' : 'white',
-    color: active ? CATTLE_ACCENT : 'var(--ink)',
+    background: active ? CATTLE_ACCENT : 'white',
+    color: active ? getReadableText(CATTLE_ACCENT) : 'var(--ink)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1373,6 +1453,18 @@ const CattleHerdsHub = ({
     fontFamily: 'inherit',
     flex: '0 0 auto',
   });
+  const columnsGhostBtnS = {
+    padding: '6px 12px',
+    borderRadius: 10,
+    border: '1px solid var(--border-strong)',
+    background: 'white',
+    color: 'var(--ink)',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
   const toolPanelS = {
     borderTop: '1px solid var(--border)',
     paddingTop: 10,
@@ -1635,53 +1727,106 @@ const CattleHerdsHub = ({
                 >
                   ↕
                 </button>
-                <button
-                  type="button"
-                  data-cattle-herds-view-toggle="1"
-                  aria-label="View mode"
-                  title="View mode"
-                  aria-expanded={openToolPanel === 'view'}
-                  onClick={() => toggleToolPanel('view')}
-                  style={toolButtonS(openToolPanel === 'view')}
-                >
-                  ▦
-                </button>
-                {openToolPanel === 'view' && (
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 12,
-                      color: 'var(--ink)',
-                      border: '1px solid var(--border-strong)',
-                      borderRadius: 10,
-                      padding: '4px 8px',
-                    }}
+                <span style={{position: 'relative', display: 'inline-flex'}}>
+                  <button
+                    type="button"
+                    data-cattle-herds-columns-toggle="1"
+                    aria-label="Columns"
+                    title="Columns shown in the list"
+                    aria-expanded={openToolPanel === 'columns'}
+                    onClick={() => toggleToolPanel('columns')}
+                    style={toolButtonS(openToolPanel === 'columns')}
                   >
-                    <span style={{color: 'var(--ink-muted)', marginRight: 4}}>View</span>
-                    <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                      <input
-                        type="radio"
-                        name="cattleViewMode"
-                        checked={viewMode === 'grouped'}
-                        onChange={() => setViewMode('grouped')}
-                        data-view-mode="grouped"
-                      />
-                      Grouped
-                    </label>
-                    <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                      <input
-                        type="radio"
-                        name="cattleViewMode"
-                        checked={viewMode === 'flat'}
-                        onChange={() => setViewMode('flat')}
-                        data-view-mode="flat"
-                      />
-                      Flat
-                    </label>
-                  </div>
-                )}
+                    ▦
+                  </button>
+                  {openToolPanel === 'columns' && (
+                    <div
+                      data-cattle-herds-columns
+                      style={{
+                        position: 'absolute',
+                        top: 40,
+                        left: 0,
+                        zIndex: 40,
+                        width: 440,
+                        maxWidth: '92vw',
+                        maxHeight: 520,
+                        overflowY: 'auto',
+                        background: 'white',
+                        border: '1px solid var(--border-strong)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 24px rgba(20,30,40,.16)',
+                        padding: '8px 8px 10px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--ink-muted)',
+                          fontWeight: 700,
+                          padding: '4px 6px 8px',
+                          borderBottom: '1px solid var(--border)',
+                          marginBottom: 6,
+                        }}
+                      >
+                        Columns shown ({visibleColumns.length}/{CATTLE_HERD_COLUMNS.length})
+                      </div>
+                      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px'}}>
+                        {CATTLE_HERD_COLUMNS.map((col) => (
+                          <label
+                            key={col.key}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 9,
+                              padding: '6px 8px',
+                              borderRadius: 10,
+                              cursor: 'pointer',
+                              fontSize: 13,
+                              color: 'var(--ink)',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={visibleColumns.includes(col.key)}
+                              onChange={() => toggleColumn(col.key)}
+                              data-cattle-column-toggle={col.key}
+                              style={{flex: '0 0 auto', margin: 0, width: 15, height: 15}}
+                            />
+                            <span>{col.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div
+                        style={{
+                          borderTop: '1px solid var(--border)',
+                          marginTop: 6,
+                          paddingTop: 8,
+                          display: 'flex',
+                          gap: 8,
+                          justifyContent: 'flex-end',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setVisibleColumns(CATTLE_HERD_COLUMNS.map((c) => c.key))}
+                          data-cattle-columns-all
+                          style={columnsGhostBtnS}
+                        >
+                          Show all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVisibleColumns(CATTLE_DEFAULT_COLUMN_KEYS)}
+                          data-cattle-columns-reset
+                          style={columnsGhostBtnS}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </span>
                 <button
                   type="button"
                   data-cattle-herds-export-csv="1"
@@ -1810,8 +1955,8 @@ const CattleHerdsHub = ({
               </div>
             )}
 
-            {/* FLAT MODE */}
-            {!loading && isFlat && cattle.length > 0 && (
+            {/* Flat cattle list (results are always flat) */}
+            {!loading && cattle.length > 0 && (
               <div
                 data-cattle-flat-list
                 style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'}}
@@ -1833,106 +1978,29 @@ const CattleHerdsHub = ({
                     No cattle match the current filter.
                   </div>
                 )}
-                <CattleDataTable navList={sortedFlat} showHerd surfaceKey="cattle-herds-flat" />
+                <CattleDataTable navList={sortedFlat} surfaceKey="cattle-herds-flat" />
               </div>
             )}
 
-            {/* GROUPED MODE — herd tiles */}
-            {!loading && !isFlat && cattle.length > 0 && (
-              <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-                {CATTLE_HERD_KEYS.map((h) => {
-                  // Per-tile sort applies inside the herd group (Codex implementation
-                  // note 2026-05-02). Filter the global filtered list to this herd
-                  // then run the comparator within.
-                  const cmp = buildCattleComparator(sortRules, {
-                    calvingRecs: calvingEvidence,
-                    weighIns,
-                    todayMs: Date.now(),
-                    nonCalvingCutoffDate: filters.nonCalvingCutoffDate,
-                  });
-                  const cows = filtered.filter((c) => c.herd === h).sort(cmp);
-                  const totalWt = cows.reduce((s, c) => s + effectiveWeight(c), 0);
-                  const estCount = cows.filter(
-                    (c) => (lastWeight(c) == null || lastWeight(c) === 0) && isHerdTileRecentlyPurchased(c),
-                  ).length;
-                  const herdOpen = !!expandedHerds[h];
-                  return (
-                    <div
-                      key={h}
-                      style={{
-                        background: 'white',
-                        border: '1px solid var(--border)',
-                        borderRadius: 12,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        {...openableProps(() => setExpandedHerds({...expandedHerds, [h]: !herdOpen}))}
-                        className="hoverable-tile"
-                        data-herd-tile={h}
-                        data-herd-open={herdOpen ? '1' : '0'}
-                        style={{
-                          padding: '12px 18px',
-                          background: 'white',
-                          borderBottom: herdOpen ? '1px solid var(--border)' : 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          flexWrap: 'wrap',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <span style={{fontSize: 12, color: 'var(--text-primary)'}}>{herdOpen ? '▼' : '▶'}</span>
-                        <span style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>
-                          {renderCattleIconLabel(HERD_LABELS[h], {size: 21})}
-                        </span>
-                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
-                          {cows.length} {cows.length === 1 ? 'cow' : 'cows'}
-                        </span>
-                        {totalWt > 0 && (
-                          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
-                            {'· ' + Math.round(totalWt).toLocaleString() + ' lbs total'}
-                          </span>
-                        )}
-                        {estCount > 0 && (
-                          <span style={{fontSize: 11, color: 'var(--warn-ink)', fontStyle: 'italic'}}>
-                            {'(' + estCount + ' est. @ 1,000 lb)'}
-                          </span>
-                        )}
-                      </div>
-                      {herdOpen && cows.length === 0 && (
-                        <div
-                          style={{padding: '1rem 18px', color: 'var(--ink-faint)', fontSize: 12, fontStyle: 'italic'}}
-                        >
-                          {filterCount > 0 ? 'No cows match the current filters.' : 'No cows in this herd yet.'}
-                        </div>
-                      )}
-                      {herdOpen && cows.length > 0 && (
-                        <CattleDataTable navList={cows} showHerd={false} surfaceKey={'cattle-herds-' + h} />
-                      )}
-                    </div>
-                  );
-                })}
-                <CollapsibleOutcomeSections
-                  cattle={cattle}
-                  weighIns={weighIns}
-                  HERD_LABELS={HERD_LABELS}
-                  OUTCOMES={CATTLE_OUTCOME_KEYS}
-                  fmt={fmt}
-                  setStatusFilter={(value) => {
-                    if (!value || value === 'active') return;
-                    if (value === 'all') {
-                      setViewMode('flat');
-                      clearFilter('herdSet');
-                      return;
-                    }
-                    setViewMode('flat');
-                    setFilter('herdSet', [value]);
-                  }}
-                  processingInfo={processingInfo}
-                  onCowClick={(c) => navigate('/cattle/herds/' + c.id)}
-                />
-              </div>
+            {/* Outcome herds (processed / deceased / sold) stay browsable below
+                the flat list; clicking one filters the flat list to it. */}
+            {!loading && cattle.length > 0 && (
+              <CollapsibleOutcomeSections
+                cattle={cattle}
+                weighIns={weighIns}
+                HERD_LABELS={HERD_LABELS}
+                OUTCOMES={CATTLE_OUTCOME_KEYS}
+                fmt={fmt}
+                setStatusFilter={(value) => {
+                  if (!value || value === 'active' || value === 'all') {
+                    clearFilter('herdSet');
+                    return;
+                  }
+                  setFilter('herdSet', [value]);
+                }}
+                processingInfo={processingInfo}
+                onCowClick={(c) => navigate('/cattle/herds/' + c.id)}
+              />
             )}
           </>
         )}

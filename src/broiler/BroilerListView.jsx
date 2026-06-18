@@ -989,7 +989,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         alignItems: 'center',
                         gap: 9,
                         padding: '6px 8px',
-                        borderRadius: 8,
+                        borderRadius: 10,
                         cursor: 'pointer',
                         fontSize: 13,
                         color: 'var(--ink)',

@@ -205,12 +205,15 @@ test('UI: calf herd tile shows dam tag after trigger links it', async ({page, su
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  // Mommas herd renders collapsed by default — click the header to expand.
-  await page.locator('[data-herd-tile="mommas"]').click();
+  // The list is always flat now; enable the Dam Tag column (off by default) to
+  // verify the calf→dam link renders on the calf's row.
+  await page.locator('[data-cattle-herds-columns-toggle="1"]').click();
+  await page.locator('[data-cattle-column-toggle="damTag"]').click();
+  await page.locator('[data-cattle-herds-columns-toggle="1"]').click();
 
   const calfTile = page.locator(`#cow-${CALF_BLANK.id}`).first();
   await expect(calfTile).toBeVisible({timeout: 10_000});
-  await expect(calfTile).toContainText(`dam #${DAM.tag}`);
+  await expect(calfTile).toContainText(`#${DAM.tag}`);
 });
 
 // --------------------------------------------------------------------------
@@ -238,7 +241,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  await page.locator('[data-herd-tile="mommas"]').click();
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible({timeout: 15_000});
 
   const calfRow = page.locator(`#cow-${CALF_BLANK.id}`).first();
   await expect(calfRow).toBeVisible({timeout: 10_000});
@@ -271,7 +274,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is blank', asy
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  await page.locator('[data-herd-tile="mommas"]').click();
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible({timeout: 15_000});
 
   const calfRow = page.locator(`#cow-${CALF_BLANK.id}`).first();
   await expect(calfRow).toBeVisible({timeout: 10_000});
@@ -310,7 +313,7 @@ test('UI: calving record list and form omit born/died entirely', async ({page, s
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  await page.locator('[data-herd-tile="mommas"]').click();
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible({timeout: 15_000});
 
   // Calving list lives on the dam's record page (CowDetail composed there).
   const damRow = page.locator(`#cow-${DAM.id}`).first();
@@ -347,7 +350,7 @@ test('UI: + Add Calving submit writes no auto-comment to the dam timeline', asyn
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  await page.locator('[data-herd-tile="mommas"]').click();
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible({timeout: 15_000});
 
   const damRow = page.locator(`#cow-${DAM.id}`).first();
   await expect(damRow).toBeVisible({timeout: 10_000});

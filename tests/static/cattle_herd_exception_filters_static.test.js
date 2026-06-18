@@ -82,7 +82,8 @@ describe('Cattle herd filters — always-visible organized groups', () => {
     expect(herdsView).toContain('data-cattle-herds-filters-toggle="1"');
     expect(herdsView).toContain('data-cattle-herds-saved-views-toggle="1"');
     expect(herdsView).toContain('data-cattle-herds-sort-toggle="1"');
-    expect(herdsView).toContain('data-cattle-herds-view-toggle="1"');
+    expect(herdsView).toContain('data-cattle-herds-columns-toggle="1"');
+    expect(herdsView).not.toContain('data-cattle-herds-view-toggle="1"');
     expect(herdsView).toContain('data-filter-group');
     expect(herdsView).toContain("label: 'Core'");
     expect(herdsView).toContain("label: 'Calving/Breeding'");
@@ -93,27 +94,35 @@ describe('Cattle herd filters — always-visible organized groups', () => {
   });
 });
 
-describe('Cattle herd rows — flat/grouped parity via shared renderer', () => {
-  // CP3: the faux-grid `.hoverable-tile` CowListRow was replaced by the shared
-  // <DataTable>. Parity is now enforced by one shared columns builder
-  // (cowTableColumns) + one shared renderer (CattleDataTable) used by BOTH the
-  // flat list and the grouped tiles — intent preserved, asserting the new
-  // DataTable structure instead of the retired tile DOM.
-  it('renders both lists through the shared DataTable renderer', () => {
+describe('Cattle herd rows — always-flat list + column picker', () => {
+  // The grouped/flat toggle was removed: results are always a single flat list
+  // rendered through the shared <DataTable> (cowTableColumns + CattleDataTable),
+  // with a column/display picker choosing which fields show.
+  it('renders the flat list through the shared DataTable renderer', () => {
     expect(herdsView).toContain('function cowTableColumns');
     expect(herdsView).toContain('function CattleDataTable');
     expect(herdsView).toContain('<DataTable');
-    // Both the flat list and the grouped tiles render through CattleDataTable.
-    const sharedRendererUses = herdsView.match(/<CattleDataTable/g) || [];
-    expect(sharedRendererUses.length).toBeGreaterThanOrEqual(2);
+    expect(herdsView).toContain('data-cattle-flat-list');
     // The retired faux-grid row component is gone.
     expect(herdsView).not.toContain('function CowListRow');
   });
 
-  it('shows calf count + last calved metadata in the shared row', () => {
+  it('offers every field in the column picker (saved in views), tag always shown', () => {
+    expect(herdsView).toContain('const CATTLE_HERD_COLUMNS');
+    expect(herdsView).toContain('data-cattle-column-toggle');
+    expect(herdsView).toContain('columnVisible');
+    // Picker covers the full field set incl. lineage/finance/calving columns.
+    for (const key of [
+      "key: 'lastCalved'",
+      "key: 'calfCount'",
+      "key: 'sireTag'",
+      "key: 'purchaseAmount'",
+      "key: 'recordId'",
+    ]) {
+      expect(herdsView).toContain(key);
+    }
+    // Calf-count data hook is preserved on the dedicated column.
     expect(herdsView).toContain('data-calf-count');
-    expect(herdsView).toContain("'Calves: '");
-    expect(herdsView).toContain("'last calved '");
   });
 });
 
@@ -131,11 +140,11 @@ describe('Cattle herd saved views (surface_key cattle.herds)', () => {
     expect(herdsView).toContain('data-saved-view-visibility');
   });
 
-  it('saved state captures filters + sortRules + viewMode', () => {
+  it('saved state captures filters + sortRules + shown columns', () => {
     expect(savedViewsApi).toContain('filters');
     expect(savedViewsApi).toContain('sortRules');
-    expect(savedViewsApi).toContain('viewMode');
-    expect(herdsView).toContain('buildViewState({filters, sortRules, viewMode})');
+    expect(herdsView).toContain("buildViewState({filters, sortRules, viewMode: 'flat'})");
+    expect(herdsView).toContain('columns: visibleColumns');
   });
 
   it('saved-view load failures degrade gracefully (cold-boot safety)', () => {

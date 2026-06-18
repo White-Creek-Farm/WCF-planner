@@ -35,13 +35,12 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
   it('navigates to /cattle/herds/<id> on tile click', () => {
     expect(herdsView).toContain("navigate('/cattle/herds/' + c.id");
   });
-  it('passes the visible-order sequence through route state on row click (flat + grouped)', () => {
-    // CP3: both lists now render through the shared CattleDataTable, which
-    // threads its navList prop into recordSeqNavOptions on onRowOpen. Flat hands
-    // sortedFlat; grouped hands the per-herd cows. Both feed RecordSequenceNav.
+  it('passes the visible-order sequence through route state on row click (flat)', () => {
+    // The always-flat list renders through the shared CattleDataTable, which
+    // threads its navList prop (sortedFlat) into recordSeqNavOptions on
+    // onRowOpen so RecordSequenceNav walks the on-screen order.
     expect(herdsView).toContain('recordSeqNavOptions(navList)');
     expect(herdsView).toContain('navList={sortedFlat}');
-    expect(herdsView).toContain('navList={cows}');
     expect(herdsView).toContain("from '../lib/recordSequence.js'");
   });
   it('imports CattleAnimalPage for hub routing', () => {

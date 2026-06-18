@@ -28,13 +28,10 @@ async function waitForCattleLoaded(page) {
   await expect(page.locator('[data-cattle-match-count]')).not.toHaveText(/^0 /, {timeout: 15_000});
 }
 
-async function expandHerd(page, herd) {
-  const tile = page.locator(`[data-herd-tile="${herd}"]`);
-  await expect(tile).toBeVisible();
-  if ((await tile.getAttribute('data-herd-open')) !== '1') {
-    await tile.click();
-  }
-  await expect(tile).toHaveAttribute('data-herd-open', '1');
+async function expandHerd(page) {
+  // Results are always flat now — there is no herd tile to expand; every active
+  // cow renders directly in the flat list. Just wait for the list to settle.
+  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible({timeout: 15_000});
 }
 
 test.describe('Cattle record-page sequence navigation', () => {

@@ -57,23 +57,28 @@ describe('site-wide list controls scope', () => {
       'data-cattle-herds-saved-views-toggle="1"',
       'data-cattle-herds-filters-toggle="1"',
       'data-cattle-herds-sort-toggle="1"',
-      'data-cattle-herds-view-toggle="1"',
+      'data-cattle-herds-columns-toggle="1"',
     ]) {
       expect(cattle).toContain(marker);
     }
     expect(cattle).toContain("openToolPanel === 'savedViews'");
     expect(cattle).toContain("openToolPanel === 'filters'");
+    expect(cattle).toContain("openToolPanel === 'columns'");
+    // The grouped/flat view toggle is gone — results are always flat.
+    expect(cattle).not.toContain('data-cattle-herds-view-toggle="1"');
 
     for (const marker of [
       'data-sheep-flocks-saved-views-toggle="1"',
       'data-sheep-flocks-filters-toggle="1"',
       'data-sheep-flocks-sort-toggle="1"',
-      'data-sheep-flocks-view-toggle="1"',
+      'data-sheep-flocks-columns-toggle="1"',
     ]) {
       expect(sheep).toContain(marker);
     }
     expect(sheep).toContain("openToolPanel === 'savedViews'");
     expect(sheep).toContain("openToolPanel === 'filters'");
+    expect(sheep).toContain("openToolPanel === 'columns'");
+    expect(sheep).not.toContain('data-sheep-flocks-view-toggle="1"');
   });
 
   it('keeps broiler batches behind the same compact icon toggles', () => {

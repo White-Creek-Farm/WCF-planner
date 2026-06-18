@@ -27,20 +27,21 @@ describe('SheepFlocksView - saved views', () => {
     expect(savedViewsApi).toContain("from('app_saved_views')");
   });
 
-  it('captures and reapplies the current sheep filters/sort/view controls', () => {
+  it('captures and reapplies the current sheep filters/sort/columns controls', () => {
     expect(flocksView).toContain('function sheepFlocksViewState()');
-    expect(flocksView).toContain('buildViewState({filters, sortRules, viewMode})');
+    expect(flocksView).toContain('columns: visibleColumns');
     expect(flocksView).toContain('function applySheepSavedView(view)');
     expect(flocksView).toContain('setFilters(st.filters)');
     expect(flocksView).toContain('setSortRules(Array.isArray(st.sortRules)');
-    expect(flocksView).toContain("setViewMode(st.viewMode === 'flat' ? 'flat' : 'grouped')");
+    expect(flocksView).toContain('setVisibleColumns(Array.isArray(st.columns)');
+    // The grouped/flat view mode is gone — results are always flat.
+    expect(flocksView).not.toContain('setViewMode(');
   });
 
   it('keeps backward compatibility for legacy sheep saved views', () => {
     expect(flocksView).toContain('function legacySheepFiltersFromSavedView(st)');
     expect(flocksView).toContain('function legacySheepSortRulesFromSortBy(sortBy)');
     expect(flocksView).toContain("if (typeof st.search === 'string' && st.search.trim()) next.textSearch = st.search");
-    expect(flocksView).toContain("setViewMode(st.statusFilter && st.statusFilter !== 'active' ? 'flat' : 'grouped')");
   });
 
   it('renders select/save/update/delete controls with sheep-specific hooks', () => {
@@ -128,13 +129,14 @@ describe('SheepFlocksView - filter/sort parity with cattle herds', () => {
     expect(flocksView).toContain('data-sheep-flocks-filters-toggle="1"');
     expect(flocksView).toContain('data-sheep-flocks-saved-views-toggle="1"');
     expect(flocksView).toContain('data-sheep-flocks-sort-toggle="1"');
-    expect(flocksView).toContain('data-sheep-flocks-view-toggle="1"');
+    expect(flocksView).toContain('data-sheep-flocks-columns-toggle="1"');
     expect(flocksView).toContain('data-sheep-filter-group={group.key}');
     expect(flocksView).toContain('data-sheep-filter-chip={key}');
     expect(flocksView).toContain('data-sheep-sort-rule={rule.key}');
     expect(flocksView).toContain('data-sheep-sort-add');
-    expect(flocksView).toContain('data-sheep-view-mode="grouped"');
-    expect(flocksView).toContain('data-sheep-view-mode="flat"');
+    // Column/display picker replaces the grouped/flat view toggle.
+    expect(flocksView).toContain('data-sheep-column-toggle={col.key}');
+    expect(flocksView).not.toContain('data-sheep-view-mode=');
   });
 
   it('keeps the cattle-style filter families visible', () => {
@@ -234,11 +236,9 @@ describe('SheepFlocksView — no legacy Activity or inline SheepDetail', () => {
   it('navigates to /sheep/flocks/<id> on tile click', () => {
     expect(flocksView).toContain("navigate('/sheep/flocks/' + s.id");
   });
-  it('passes the visible-order sequence through route state on row click (flat + tile)', () => {
-    // Flat mode hands the sorted order; tile mode hands the per-flock
-    // flockSheep order. Both feed RecordSequenceNav on the record page.
+  it('passes the visible-order sequence through route state on row click (flat)', () => {
+    // The flat list hands the sorted order to RecordSequenceNav on the record page.
     expect(flocksView).toContain('recordSeqNavOptions(sorted)');
-    expect(flocksView).toContain('recordSeqNavOptions(flockSheep)');
     expect(flocksView).toContain("from '../lib/recordSequence.js'");
   });
   it('imports SheepAnimalPage for hub routing', () => {

@@ -14,7 +14,6 @@
 import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import UsersModal from '../auth/UsersModal.jsx';
-import {openableProps} from '../shared/openable.js';
 import SheepBulkImport from './SheepBulkImport.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import SheepAnimalPage from './SheepAnimalPage.jsx';
@@ -55,6 +54,38 @@ import {
   lastLambingRecordFor,
   mergeObservedSheepValues,
 } from '../lib/sheepFlockFilters.js';
+
+// Toggleable columns for the sheep list (the column/display picker). `tag` is
+// always shown; the rest can be hidden/shown, and the choice is stored in saved
+// views. Defaults keep today's visible set on.
+const SHEEP_FLOCK_COLUMNS = [
+  {key: 'flock', label: 'Flock', default: true},
+  {key: 'sex', label: 'Sex', default: true},
+  {key: 'breed', label: 'Breed', default: true},
+  {key: 'origin', label: 'Origin', default: false},
+  {key: 'age', label: 'Age', default: true},
+  {key: 'birthDate', label: 'Birth Date', default: false},
+  {key: 'lastWeight', label: 'Last Weight', default: true},
+  {key: 'lastWeighed', label: 'Last Weighed', default: false},
+  {key: 'lastLambed', label: 'Last Lambed', default: true},
+  {key: 'lambCount', label: 'Lamb Count', default: true},
+  {key: 'breedingStatus', label: 'Breeding Status', default: false},
+  {key: 'breedingBlacklist', label: 'Breeding Blacklist', default: false},
+  {key: 'maternalIssue', label: 'Maternal Issue', default: false},
+  {key: 'damTag', label: 'Dam Tag', default: false},
+  {key: 'damRegNum', label: 'Dam Reg #', default: false},
+  {key: 'sireTag', label: 'Sire Tag', default: false},
+  {key: 'sireRegNum', label: 'Sire Reg #', default: false},
+  {key: 'registrationNum', label: 'Registration #', default: false},
+  {key: 'purchaseDate', label: 'Purchase Date', default: false},
+  {key: 'purchaseAmount', label: 'Purchase Amount', default: false},
+  {key: 'saleDate', label: 'Sale Date', default: false},
+  {key: 'saleAmount', label: 'Sale Amount', default: false},
+  {key: 'deathDate', label: 'Death Date', default: false},
+  {key: 'deathReason', label: 'Death Reason', default: false},
+  {key: 'recordId', label: 'Record ID', default: false},
+];
+const SHEEP_DEFAULT_COLUMN_KEYS = SHEEP_FLOCK_COLUMNS.filter((c) => c.default).map((c) => c.key);
 
 function SheepFlocksRouter(props) {
   const location = useLocation();
@@ -171,9 +202,15 @@ const SheepFlocksHub = ({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  const [viewMode, setViewMode] = usePersistentViewState('sheep.flocks.viewMode', 'grouped');
   const [filters, setFilters] = usePersistentViewState('sheep.flocks.filters', {});
   const [sortRules, setSortRules] = usePersistentViewState('sheep.flocks.sortRules', [{key: 'tag', dir: 'asc'}]);
+  // Which columns show in the flat sheep list (the column/display picker),
+  // persisted per surface and stored in saved views. `tag` is always shown.
+  const [visibleColumns, setVisibleColumns] = usePersistentViewState('sheep.flocks.columns', SHEEP_DEFAULT_COLUMN_KEYS);
+  function toggleColumn(key) {
+    setVisibleColumns((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  }
+  const columnVisible = (key) => key === 'tag' || visibleColumns.includes(key);
   const [openFilter, setOpenFilter] = useState(null);
   const [openToolPanel, setOpenToolPanel] = useState(null);
   const [savedViews, setSavedViews] = useState([]);
@@ -189,7 +226,6 @@ const SheepFlocksHub = ({
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [expandedFlocks, setExpandedFlocks] = useState({});
 
   const FLOCKS = SHEEP_FLOCK_KEYS;
   const OUTCOMES = SHEEP_OUTCOME_KEYS;
@@ -362,7 +398,7 @@ const SheepFlocksHub = ({
     return map[sortBy] || [{key: 'tag', dir: 'asc'}];
   }
   function sheepFlocksViewState() {
-    return buildViewState({filters, sortRules, viewMode});
+    return {...buildViewState({filters, sortRules, viewMode: 'flat'}), columns: visibleColumns};
   }
   function applySheepSavedView(view) {
     if (!view) return;
@@ -370,12 +406,11 @@ const SheepFlocksHub = ({
     if (st.filters && typeof st.filters === 'object') {
       setFilters(st.filters);
       setSortRules(Array.isArray(st.sortRules) ? st.sortRules : [{key: 'tag', dir: 'asc'}]);
-      setViewMode(st.viewMode === 'flat' ? 'flat' : 'grouped');
     } else {
       setFilters(legacySheepFiltersFromSavedView(st));
       setSortRules(legacySheepSortRulesFromSortBy(st.sortBy));
-      setViewMode(st.statusFilter && st.statusFilter !== 'active' ? 'flat' : 'grouped');
     }
+    setVisibleColumns(Array.isArray(st.columns) && st.columns.length > 0 ? st.columns : SHEEP_DEFAULT_COLUMN_KEYS);
     setOpenFilter(null);
     setOpenToolPanel(null);
   }
@@ -869,7 +904,6 @@ const SheepFlocksHub = ({
     );
   }
 
-  const isFlatMode = viewMode === 'flat';
   const filterCount = Object.keys(filters).length;
   const search = filters.textSearch || '';
   const statusFilter = (() => {
@@ -882,13 +916,10 @@ const SheepFlocksHub = ({
   function setStatusFilter(value) {
     if (value === 'active') {
       clearFilter('flockSet');
-      setViewMode('grouped');
     } else if (value === 'all') {
       setFilter('flockSet', [...SHEEP_ALL_FLOCK_KEYS]);
-      setViewMode('flat');
     } else {
       setFilter('flockSet', [value]);
-      setViewMode('flat');
     }
   }
   const sortBy = (() => {
@@ -936,13 +967,15 @@ const SheepFlocksHub = ({
     color: 'var(--ink)',
     cursor: 'pointer',
   };
+  // Selected tool button = solid program-color fill with a white glyph (matches
+  // the filled program tab in the top nav); unselected = white with dark glyph.
   const toolButtonS = (active = false) => ({
     width: 34,
     height: 34,
     borderRadius: 10,
     border: active ? '1px solid ' + getProgramColor('sheep') : '1px solid var(--border-strong)',
-    background: active ? 'var(--surface-2)' : 'white',
-    color: active ? getProgramColor('sheep') : 'var(--ink)',
+    background: active ? getProgramColor('sheep') : 'white',
+    color: active ? getReadableText(getProgramColor('sheep')) : 'var(--ink)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -982,80 +1015,113 @@ const SheepFlocksHub = ({
   function sheepRowStyle(s) {
     return s.breeding_blacklist ? {background: 'var(--danger-soft)'} : undefined;
   }
-  // FLAT mode columns: Flock, Sex, Breed, Age, Weight, Signals.
+  // Flat list columns — the full field set, filtered to the picker's selection.
+  const colFemale = (s) => s.sex === 'ewe';
+  const colMoney = (v) => (v != null && v !== '' ? '$' + Number(v).toLocaleString() : '—');
+  const colDate = (v) => <StatusText tone="muted">{v ? fmt(v) : '—'}</StatusText>;
+  const colText = (v) => <StatusText tone="muted">{v || '—'}</StatusText>;
   const flatColumns = [
     {key: 'tag', label: 'Tag', primary: true, render: renderSheepTag},
     {
       key: 'flock',
       label: 'Flock',
-      render: (s) => {
-        return (
-          <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap'}}>
-            <span
-              style={{
-                display: 'inline-block',
-                width: 8,
-                height: 8,
-                flex: '0 0 8px',
-                borderRadius: '50%',
-                background: 'var(--ink-faint)',
-              }}
-            />
-            <span style={{fontSize: 12, color: 'var(--text-primary)'}}>{FLOCK_LABELS[s.flock]}</span>
-          </span>
-        );
-      },
-    },
-    {key: 'sex', label: 'Sex', render: (s) => s.sex || '—'},
-    {key: 'breed', label: 'Breed', mobilePriority: false, render: (s) => s.breed || '—'},
-    {key: 'age', label: 'Age', render: (s) => age(s.birth_date) || '—'},
-    {key: 'weight', label: 'Last weight', align: 'right', render: renderSheepWeight},
-    {
-      key: 'signals',
-      label: 'Notes',
-      mobilePriority: false,
       render: (s) => (
-        <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-          {s.dam_tag && <StatusText tone="muted">{'dam #' + s.dam_tag}</StatusText>}
-          {s.maternal_issue_flag && <Badge variant="danger">MATERNAL ISSUE</Badge>}
-          {s.breeding_blacklist && <Badge variant="danger">BLACKLIST</Badge>}
+        <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap'}}>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 8,
+              height: 8,
+              flex: '0 0 8px',
+              borderRadius: '50%',
+              background: 'var(--ink-faint)',
+            }}
+          />
+          <span style={{fontSize: 12, color: 'var(--text-primary)'}}>{FLOCK_LABELS[s.flock]}</span>
         </span>
       ),
     },
-  ];
-  // TILE mode columns (per flock): Sex, Breed, Age, Weight, Signals.
-  // `flockKey` drives the ewe-only lamb count / last-lambed signals.
-  function tileColumns(flockKey) {
-    return [
-      {key: 'tag', label: 'Tag', primary: true, render: renderSheepTag},
-      {key: 'sex', label: 'Sex', render: (s) => s.sex || '—'},
-      {key: 'breed', label: 'Breed', mobilePriority: false, render: (s) => s.breed || '—'},
-      {key: 'age', label: 'Age', render: (s) => age(s.birth_date) || '—'},
-      {key: 'weight', label: 'Last weight', align: 'right', render: renderSheepWeight},
-      {
-        key: 'signals',
-        label: 'Notes',
-        mobilePriority: false,
-        render: (s) => {
-          const lc = lambCount(s.tag);
-          const ll = lastLambing(s.tag);
-          return (
-            <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
-              {flockKey === 'ewes' && lc > 0 && (
-                <StatusText tone="ok">{lc + ' ' + (lc === 1 ? 'lamb' : 'lambs')}</StatusText>
-              )}
-              {flockKey === 'ewes' && ll && (
-                <StatusText tone="muted">{'last lambed ' + fmt(ll.lambing_date)}</StatusText>
-              )}
-              {s.maternal_issue_flag && <Badge variant="danger">MATERNAL</Badge>}
-              {s.breeding_blacklist && <Badge variant="danger">BLACKLIST</Badge>}
-            </span>
-          );
-        },
+    {key: 'sex', label: 'Sex', render: (s) => s.sex || '—'},
+    {key: 'breed', label: 'Breed', mobilePriority: false, render: (s) => s.breed || '—'},
+    {key: 'origin', label: 'Origin', render: (s) => colText(s.origin)},
+    {key: 'age', label: 'Age', render: (s) => age(s.birth_date) || '—'},
+    {key: 'birthDate', label: 'Birth Date', align: 'right', render: (s) => colDate(s.birth_date)},
+    {key: 'lastWeight', label: 'Last Weight', align: 'right', render: renderSheepWeight},
+    {
+      key: 'lastWeighed',
+      label: 'Last Weighed',
+      align: 'right',
+      render: (s) => {
+        const e = lastWeightEntry(s);
+        return <StatusText tone="muted">{e?.entered_at ? fmt(String(e.entered_at).slice(0, 10)) : '—'}</StatusText>;
       },
-    ];
-  }
-
+    },
+    {
+      key: 'lastLambed',
+      label: 'Last Lambed',
+      align: 'right',
+      render: (s) => {
+        const ll = colFemale(s) ? lastLambing(s.tag) : null;
+        return <StatusText tone="muted">{ll?.lambing_date ? fmt(ll.lambing_date) : '—'}</StatusText>;
+      },
+    },
+    {
+      key: 'lambCount',
+      label: 'Lamb Count',
+      align: 'right',
+      render: (s) => {
+        const lc = colFemale(s) ? lambCount(s.tag) : null;
+        return lc == null ? (
+          <StatusText tone="muted">—</StatusText>
+        ) : (
+          <span style={{fontSize: 12, color: 'var(--text-primary)', fontWeight: 600}}>{lc}</span>
+        );
+      },
+    },
+    {key: 'breedingStatus', label: 'Breeding Status', render: (s) => colText(s.breeding_status)},
+    {
+      key: 'breedingBlacklist',
+      label: 'Breeding Blacklist',
+      render: (s) =>
+        s.breeding_blacklist ? <Badge variant="danger">YES</Badge> : <StatusText tone="muted">no</StatusText>,
+    },
+    {
+      key: 'maternalIssue',
+      label: 'Maternal Issue',
+      render: (s) =>
+        s.maternal_issue_flag ? <Badge variant="danger">YES</Badge> : <StatusText tone="muted">no</StatusText>,
+    },
+    {
+      key: 'damTag',
+      label: 'Dam Tag',
+      render: (s) => <StatusText tone="muted">{s.dam_tag ? '#' + s.dam_tag : '—'}</StatusText>,
+    },
+    {key: 'damRegNum', label: 'Dam Reg #', render: (s) => colText(s.dam_reg_num)},
+    {
+      key: 'sireTag',
+      label: 'Sire Tag',
+      render: (s) => <StatusText tone="muted">{s.sire_tag ? '#' + s.sire_tag : '—'}</StatusText>,
+    },
+    {key: 'sireRegNum', label: 'Sire Reg #', render: (s) => colText(s.sire_reg_num)},
+    {key: 'registrationNum', label: 'Registration #', render: (s) => colText(s.registration_num)},
+    {key: 'purchaseDate', label: 'Purchase Date', align: 'right', render: (s) => colDate(s.purchase_date)},
+    {
+      key: 'purchaseAmount',
+      label: 'Purchase Amount',
+      align: 'right',
+      render: (s) => <StatusText tone="muted">{colMoney(s.purchase_amount)}</StatusText>,
+    },
+    {key: 'saleDate', label: 'Sale Date', align: 'right', render: (s) => colDate(s.sale_date)},
+    {
+      key: 'saleAmount',
+      label: 'Sale Amount',
+      align: 'right',
+      render: (s) => <StatusText tone="muted">{colMoney(s.sale_amount)}</StatusText>,
+    },
+    {key: 'deathDate', label: 'Death Date', align: 'right', render: (s) => colDate(s.death_date)},
+    {key: 'deathReason', label: 'Death Reason', render: (s) => colText(s.death_reason)},
+    {key: 'recordId', label: 'Record ID', render: (s) => <StatusText tone="muted">{s.id || '—'}</StatusText>},
+  ].filter((col) => columnVisible(col.key));
   return (
     <div style={{minHeight: '100vh', background: 'var(--bg-page)'}}>
       {showUsers && (
@@ -1304,17 +1370,106 @@ const SheepFlocksHub = ({
                 >
                   ↕
                 </button>
-                <button
-                  type="button"
-                  data-sheep-flocks-view-toggle="1"
-                  aria-label="View mode"
-                  aria-pressed={openToolPanel === 'view'}
-                  title="View mode"
-                  onClick={() => toggleToolPanel('view')}
-                  style={toolButtonS(openToolPanel === 'view')}
-                >
-                  ▦
-                </button>
+                <span style={{position: 'relative', display: 'inline-flex'}}>
+                  <button
+                    type="button"
+                    data-sheep-flocks-columns-toggle="1"
+                    aria-label="Columns"
+                    title="Columns shown in the list"
+                    aria-pressed={openToolPanel === 'columns'}
+                    onClick={() => toggleToolPanel('columns')}
+                    style={toolButtonS(openToolPanel === 'columns')}
+                  >
+                    ▦
+                  </button>
+                  {openToolPanel === 'columns' && (
+                    <div
+                      data-sheep-flocks-columns
+                      style={{
+                        position: 'absolute',
+                        top: 40,
+                        left: 0,
+                        zIndex: 40,
+                        width: 440,
+                        maxWidth: '92vw',
+                        maxHeight: 520,
+                        overflowY: 'auto',
+                        background: 'white',
+                        border: '1px solid var(--border-strong)',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 24px rgba(20,30,40,.16)',
+                        padding: '8px 8px 10px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--ink-muted)',
+                          fontWeight: 700,
+                          padding: '4px 6px 8px',
+                          borderBottom: '1px solid var(--border)',
+                          marginBottom: 6,
+                        }}
+                      >
+                        Columns shown ({visibleColumns.length}/{SHEEP_FLOCK_COLUMNS.length})
+                      </div>
+                      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 10px'}}>
+                        {SHEEP_FLOCK_COLUMNS.map((col) => (
+                          <label
+                            key={col.key}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 9,
+                              padding: '6px 8px',
+                              borderRadius: 10,
+                              cursor: 'pointer',
+                              fontSize: 13,
+                              color: 'var(--ink)',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={visibleColumns.includes(col.key)}
+                              onChange={() => toggleColumn(col.key)}
+                              data-sheep-column-toggle={col.key}
+                              style={{flex: '0 0 auto', margin: 0, width: 15, height: 15}}
+                            />
+                            <span>{col.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div
+                        style={{
+                          borderTop: '1px solid var(--border)',
+                          marginTop: 6,
+                          paddingTop: 8,
+                          display: 'flex',
+                          gap: 8,
+                          justifyContent: 'flex-end',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setVisibleColumns(SHEEP_FLOCK_COLUMNS.map((c) => c.key))}
+                          data-sheep-columns-all
+                          style={savedViewGhostBtnS}
+                        >
+                          Show all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVisibleColumns(SHEEP_DEFAULT_COLUMN_KEYS)}
+                          data-sheep-columns-reset
+                          style={savedViewGhostBtnS}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </span>
                 {openToolPanel === 'filters' && (
                   <select
                     value={statusFilter}
@@ -1346,42 +1501,6 @@ const SheepFlocksHub = ({
                     <option value="weight-desc">Weight {'↓'}</option>
                     <option value="weight-asc">Weight {'↑'}</option>
                   </select>
-                )}
-                {openToolPanel === 'view' && (
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 12,
-                      color: 'var(--ink)',
-                      border: '1px solid var(--border-strong)',
-                      borderRadius: 10,
-                      padding: '4px 8px',
-                    }}
-                  >
-                    <span style={{color: 'var(--ink-muted)', marginRight: 4}}>View</span>
-                    <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                      <input
-                        type="radio"
-                        name="sheepFlocksViewMode"
-                        checked={viewMode === 'grouped'}
-                        onChange={() => setViewMode('grouped')}
-                        data-sheep-view-mode="grouped"
-                      />
-                      Grouped
-                    </label>
-                    <label style={{display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                      <input
-                        type="radio"
-                        name="sheepFlocksViewMode"
-                        checked={viewMode === 'flat'}
-                        onChange={() => setViewMode('flat')}
-                        data-sheep-view-mode="flat"
-                      />
-                      Flat
-                    </label>
-                  </div>
                 )}
                 <button
                   type="button"
@@ -1516,7 +1635,7 @@ const SheepFlocksHub = ({
             )}
 
             {/* FLAT MODE — search or non-active filter */}
-            {!loading && isFlatMode && sheep.length > 0 && (
+            {!loading && sheep.length > 0 && (
               <div
                 style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'}}
               >
@@ -1551,95 +1670,17 @@ const SheepFlocksHub = ({
               </div>
             )}
 
-            {/* TILE MODE — default view */}
-            {!loading && !isFlatMode && sheep.length > 0 && (
-              <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-                {FLOCKS.map((f) => {
-                  const flockSheep = sorted.filter((s) => s.flock === f);
-                  const open = !!expandedFlocks[f];
-                  return (
-                    <div
-                      key={f}
-                      style={{
-                        background: 'white',
-                        border: '1px solid var(--border)',
-                        borderRadius: 12,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        {...openableProps(() => setExpandedFlocks({...expandedFlocks, [f]: !open}))}
-                        className="hoverable-tile"
-                        style={{
-                          padding: '12px 18px',
-                          background: 'white',
-                          borderBottom: open ? '1px solid var(--divider)' : 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>{open ? '▼' : '▶'}</span>
-                        <span
-                          style={{
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: 'var(--text-primary)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              width: 9,
-                              height: 9,
-                              flex: '0 0 9px',
-                              borderRadius: '50%',
-                              background: 'var(--ink-faint)',
-                            }}
-                          />
-                          <span>{FLOCK_LABELS[f]}</span>
-                        </span>
-                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
-                          {flockSheep.length} {flockSheep.length === 1 ? 'sheep' : 'sheep'}
-                        </span>
-                      </div>
-                      {open && flockSheep.length === 0 && (
-                        <div
-                          style={{padding: '1rem 18px', color: 'var(--ink-faint)', fontSize: 12, fontStyle: 'italic'}}
-                        >
-                          {filterCount > 0 ? 'No sheep match the current filters.' : 'No sheep in this flock yet.'}
-                        </div>
-                      )}
-                      {open && flockSheep.length > 0 && (
-                        <DataTable
-                          surfaceKey={'sheep-flocks-tile-' + f}
-                          showRowNumbers
-                          rows={flockSheep}
-                          rowKey="id"
-                          density="comfortable"
-                          columns={tileColumns(f)}
-                          rowProps={(s) => ({id: 'sheep-' + s.id, 'data-sheep-flock-row': s.id})}
-                          rowStyle={sheepRowStyle}
-                          onRowOpen={(s) => navigate('/sheep/flocks/' + s.id, recordSeqNavOptions(flockSheep))}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-                {/* Outcome flocks shown collapsed at the bottom */}
-                <SheepCollapsibleOutcomeSections
-                  sheep={sheep}
-                  FLOCK_LABELS={FLOCK_LABELS}
-                  OUTCOMES={OUTCOMES}
-                  fmt={fmt}
-                  setStatusFilter={setStatusFilter}
-                  onSheepClick={(s) => navigate('/sheep/flocks/' + s.id)}
-                />
-              </div>
+            {/* Outcome flocks (processed / deceased / sold) stay browsable below
+                the flat list; clicking one filters the flat list to it. */}
+            {!loading && sheep.length > 0 && (
+              <SheepCollapsibleOutcomeSections
+                sheep={sheep}
+                FLOCK_LABELS={FLOCK_LABELS}
+                OUTCOMES={OUTCOMES}
+                fmt={fmt}
+                setStatusFilter={setStatusFilter}
+                onSheepClick={(s) => navigate('/sheep/flocks/' + s.id)}
+              />
             )}
           </>
         )}

@@ -29,18 +29,21 @@ describe('persistent list view state hotfix', () => {
     expect(hook).toMatch(/return \[value, setPersistentValue\]/);
   });
 
-  it('persists cattle herd filters, sort, and view mode', () => {
+  it('persists cattle herd filters, sort, and shown columns', () => {
     const view = src('src/cattle/CattleHerdsView.jsx');
-    expect(view).toContain("usePersistentViewState('cattle.herds.viewMode'");
+    expect(view).toMatch(/usePersistentViewState\(\s*'cattle\.herds\.columns'/);
     expect(view).toContain("usePersistentViewState('cattle.herds.filters'");
     expect(view).toContain("usePersistentViewState('cattle.herds.sortRules'");
+    // The grouped/flat mode is gone — results are always flat.
+    expect(view).not.toContain("usePersistentViewState('cattle.herds.viewMode'");
   });
 
-  it('persists sheep flock filters, sort, and view mode', () => {
+  it('persists sheep flock filters, sort, and shown columns', () => {
     const view = src('src/sheep/SheepFlocksView.jsx');
-    expect(view).toContain("usePersistentViewState('sheep.flocks.viewMode'");
+    expect(view).toMatch(/usePersistentViewState\(\s*'sheep\.flocks\.columns'/);
     expect(view).toContain("usePersistentViewState('sheep.flocks.filters'");
     expect(view).toContain("usePersistentViewState('sheep.flocks.sortRules'");
+    expect(view).not.toContain("usePersistentViewState('sheep.flocks.viewMode'");
   });
 
   it('persists daily-report scan filters that navigate to records', () => {

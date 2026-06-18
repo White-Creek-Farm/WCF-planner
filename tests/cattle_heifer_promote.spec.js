@@ -103,14 +103,12 @@ test('momma tile shows Calves: SUM(total_born) — twins double-count', async ({
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  // Herd tiles render collapsed by default — click the Mommas header to
-  // expand and reveal cow tiles.
-  await page.locator('[data-herd-tile="mommas"]').click();
-
+  // The list is always flat now; the momma row renders directly with its
+  // Calf Count column (on by default).
   const cowTile = page.locator(`#cow-${MOMMA.id}`).first();
   await expect(cowTile).toBeVisible({timeout: 10_000});
 
-  await expect(cowTile.locator('[data-calf-count]')).toHaveText('Calves: 3');
+  await expect(cowTile.locator('[data-calf-count]')).toHaveText('3');
   await expect(cowTile.locator('[data-calf-count]')).toHaveAttribute('data-calf-count', '3');
 });
 
@@ -125,11 +123,9 @@ test('momma tile shows Calves: 0 when no calving records', async ({page, supabas
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  await page.locator('[data-herd-tile="mommas"]').click();
-
   const cowTile = page.locator(`#cow-cow-zero`).first();
   await expect(cowTile).toBeVisible({timeout: 10_000});
-  await expect(cowTile.locator('[data-calf-count]')).toHaveText('Calves: 0');
+  await expect(cowTile.locator('[data-calf-count]')).toHaveText('0');
 });
 
 // --------------------------------------------------------------------------
