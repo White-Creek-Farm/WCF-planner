@@ -36,7 +36,7 @@ export function rowsToPrintHtml({title, subtitle = '', columns, rows}) {
 <meta charset="utf-8" />
 <title>${escapeHtml(title || 'Print')}</title>
 <style>
-body{font-family:Arial,sans-serif;color:#111827;margin:24px}
+body{font-family:Arial,sans-serif;color:#000;margin:24px}
 h1{font-size:20px;margin:0 0 4px}
 .subtitle{font-size:12px;color:#4b5563;margin:0 0 16px}
 table{width:100%;border-collapse:collapse;font-size:11px}

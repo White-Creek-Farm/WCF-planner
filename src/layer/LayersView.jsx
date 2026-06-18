@@ -1,9 +1,12 @@
 // Phase 2 Round 3 extraction (verbatim).
 import React from 'react';
 import {openableProps} from '../shared/openable.js';
-import {S} from '../lib/styles.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 
 const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatches, layerHousings}) => {
   const {useState, useEffect, useRef} = React;
@@ -180,38 +183,14 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
         <div style={{minWidth: 220, flexShrink: 0}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4}}>
             <div style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{g.name}</div>
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: 10,
-                background: g.status === 'active' ? '#d1fae5' : '#f3f4f6',
-                color: g.status === 'active' ? '#065f46' : '#6b7280',
-                textTransform: 'uppercase',
-              }}
-            >
-              {g.status}
-            </span>
+            <Badge variant={g.status === 'active' ? 'ok' : 'neutral'}>{g.status}</Badge>
           </div>
           {occupyingBatch && (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                background: '#fffbeb',
-                border: '1px solid #fde68a',
-                borderRadius: 10,
-                padding: '2px 8px',
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#92400e',
-                marginBottom: 4,
-              }}
-            >
-              📦 {occupyingBatch.name}
-              {occupyingHousing.current_count ? ' · ' + occupyingHousing.current_count + ' hens' : ''}
+            <div style={{marginBottom: 4}}>
+              <Badge variant="neutral">
+                📦 {occupyingBatch.name}
+                {occupyingHousing.current_count ? ' · ' + occupyingHousing.current_count + ' hens' : ''}
+              </Badge>
             </div>
           )}
           {g.notes && <div style={{fontSize: 11, color: 'var(--ink-muted)'}}>{g.notes}</div>}
@@ -233,9 +212,9 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
           <div style={{borderLeft: '1px solid var(--border)', paddingLeft: 16, flexShrink: 0, fontSize: 11}}>
             <div style={{color: 'var(--ink-muted)', marginBottom: 3}}>Last: {fmt(gDailys[0].date)}</div>
             <div style={{display: 'flex', gap: 8}}>
-              {lastFeed > 0 && <span style={{color: '#92400e', fontWeight: 600}}>🌾 {lastFeed} lbs</span>}
+              {lastFeed > 0 && <span style={{color: 'var(--text-primary)', fontWeight: 600}}>🌾 {lastFeed} lbs</span>}
               {lastCount > 0 && <span style={{color: 'var(--ink)'}}>🐔 {lastCount}</span>}
-              {recentMort > 0 && <span style={{color: '#b91c1c', fontWeight: 600}}>💀 {recentMort}</span>}
+              {recentMort > 0 && <span style={{color: 'var(--danger)', fontWeight: 600}}>💀 {recentMort}</span>}
             </div>
           </div>
         )}
@@ -265,8 +244,8 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
               padding: '7px 18px',
               borderRadius: 10,
               border: 'none',
-              background: '#085041',
-              color: 'white',
+              background: getProgramColor('layer'),
+              color: getReadableText(getProgramColor('layer')),
               cursor: 'pointer',
               fontSize: 12,
               fontWeight: 600,
@@ -347,7 +326,7 @@ const LayersView = ({sb, layerGroups, persistLayerGroups, fmt, Header, layerBatc
               }}
             >
               <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
-                <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>
+                <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>
                   {editId ? 'Edit Layer Group' : 'New Layer Group'}
                 </div>
                 {editId && (

@@ -4,6 +4,8 @@
 // 2026-04-23: sheep flocks tab should match cattle herds tab exactly,
 // with only the fields and data distinct.
 import React from 'react';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {
   recordFieldRowClass,
   recordFieldLabel,
@@ -23,7 +25,6 @@ const SheepDetail = ({
   fmt,
   FLOCKS,
   FLOCK_LABELS,
-  FLOCK_COLORS,
   onEdit,
   onDelete,
   onComment,
@@ -133,9 +134,8 @@ const SheepDetail = ({
   }
 
   const findByTag = (t) => (t && Array.isArray(sheepList) ? sheepList.find((x) => x.tag === t) : null);
-  const accentColor = (FLOCK_COLORS && FLOCK_COLORS[sheep.flock] && FLOCK_COLORS[sheep.flock].tx) || '#0f766e';
   const linkStyle = {
-    color: 'var(--brand)',
+    color: 'var(--info)',
     cursor: 'pointer',
     textDecoration: 'underline',
     background: 'none',
@@ -163,9 +163,9 @@ const SheepDetail = ({
   return (
     <div
       style={{
-        background: '#ffffff',
+        background: 'var(--bg-card)',
         padding: '14px 18px',
-        border: '2px solid ' + accentColor,
+        border: '1px solid var(--border)',
         borderRadius: 10,
         boxShadow: '0 2px 6px rgba(0,0,0,.06)',
         margin: '8px 12px 14px',
@@ -176,8 +176,8 @@ const SheepDetail = ({
           style={{
             marginBottom: 10,
             padding: '6px 10px',
-            background: '#eff6ff',
-            border: '1px solid #bfdbfe',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             display: 'flex',
             alignItems: 'center',
@@ -210,13 +210,13 @@ const SheepDetail = ({
         }}
       >
         <div style={{display: 'flex', alignItems: 'center', gap: 4}}>
-          <span style={{fontSize: 16, fontWeight: 700, color: accentColor}}>{'#'}</span>
+          <span style={{fontSize: 16, fontWeight: 700, color: 'var(--text-primary)'}}>{'#'}</span>
           <input
             type="text"
             defaultValue={sheep.tag || ''}
             onBlur={patchOnBlur('tag', 'text')}
             placeholder="tag"
-            style={{...editInp, width: 90, fontWeight: 700, fontSize: 14, color: accentColor}}
+            style={{...editInp, width: 90, fontWeight: 700, fontSize: 14, color: 'var(--text-primary)'}}
           />
         </div>
         <div>
@@ -445,9 +445,9 @@ const SheepDetail = ({
             onClick={addOldTag}
             style={{
               fontSize: 11,
-              color: 'var(--brand)',
+              color: 'var(--ink)',
               background: 'none',
-              border: '1px dashed #bfdbfe',
+              border: '1px dashed var(--border-strong)',
               borderRadius: 10,
               padding: '3px 10px',
               cursor: 'pointer',
@@ -499,9 +499,9 @@ const SheepDetail = ({
               onClick={() => removeOldTag(ti)}
               style={{
                 background: 'none',
-                border: '1px solid #F09595',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
-                color: '#b91c1c',
+                color: 'var(--danger)',
                 cursor: 'pointer',
                 fontSize: 14,
                 lineHeight: 1,
@@ -528,9 +528,9 @@ const SheepDetail = ({
             maxWidth: '100%',
             boxSizing: 'border-box',
             padding: '6px 12px',
-            background: sheep.breeding_blacklist ? '#991b1b' : '#fee2e2',
-            color: sheep.breeding_blacklist ? 'white' : '#7f1d1d',
-            border: '1px solid ' + (sheep.breeding_blacklist ? '#991b1b' : '#fecaca'),
+            background: sheep.breeding_blacklist ? 'var(--danger)' : 'var(--danger-soft)',
+            color: sheep.breeding_blacklist ? 'white' : 'var(--danger)',
+            border: '1px solid ' + (sheep.breeding_blacklist ? 'var(--danger)' : 'var(--border)'),
             borderRadius: 10,
             cursor: 'pointer',
             fontSize: 13,
@@ -552,7 +552,7 @@ const SheepDetail = ({
               minWidth: 14,
               flex: '0 0 14px',
               boxSizing: 'border-box',
-              accentColor: '#7f1d1d',
+              accentColor: 'var(--danger)',
               cursor: 'pointer',
             }}
           />
@@ -589,7 +589,8 @@ const SheepDetail = ({
               : 0;
           const lifetimeWt = last && first ? Math.round((last.wt - first.wt) * 10) / 10 : 0;
           const lifetimeADG = lifetimeDays > 0 ? Math.round((lifetimeWt / lifetimeDays) * 100) / 100 : null;
-          const colorFor = (v) => (v == null ? '#9ca3af' : v < 0 ? '#b91c1c' : v >= 0.3 ? '#065f46' : '#a16207');
+          const colorFor = (v) =>
+            v == null ? 'var(--ink-faint)' : v < 0 ? 'var(--danger)' : v >= 0.3 ? 'var(--ok-ink)' : 'var(--warn-ink)';
           const fmtSigned = (v, suffix) => (v == null ? '—' : (v > 0 ? '+' : '') + v + (suffix || ''));
 
           const W = 620,
@@ -645,7 +646,7 @@ const SheepDetail = ({
                         fontWeight: 600,
                         cursor: 'pointer',
                         background: 'white',
-                        color: weightView === o.k ? '#0f766e' : 'var(--ink-muted)',
+                        color: weightView === o.k ? getProgramColor('sheep') : 'var(--ink-muted)',
                       }}
                     >
                       {o.l}
@@ -724,8 +725,8 @@ const SheepDetail = ({
                       style={{
                         padding: '8px 12px',
                         fontSize: 11,
-                        background: '#f3f4f6',
-                        borderTop: '2px solid var(--border-strong)',
+                        background: 'var(--surface-2)',
+                        borderTop: '1px solid var(--border-strong)',
                         color: 'var(--ink)',
                         display: 'flex',
                         gap: 10,
@@ -796,7 +797,7 @@ const SheepDetail = ({
                           (padT + chartH) +
                           ' Z'
                         }
-                        fill="#f0fdfa"
+                        fill="var(--surface-2)"
                         opacity="0.8"
                       />
                     )}
@@ -804,7 +805,7 @@ const SheepDetail = ({
                       <path
                         d={linePath}
                         fill="none"
-                        stroke="#0f766e"
+                        stroke={getProgramColor('sheep')}
                         strokeWidth="2"
                         strokeLinejoin="round"
                         strokeLinecap="round"
@@ -816,7 +817,7 @@ const SheepDetail = ({
                           cx={p.x}
                           cy={p.y}
                           r={chartHover && chartHover.idx === p.i ? 5 : 3}
-                          fill="#0f766e"
+                          fill={getProgramColor('sheep')}
                           stroke="white"
                           strokeWidth="1.5"
                         />
@@ -933,9 +934,9 @@ const SheepDetail = ({
                 onClick={() => setShowLambForm(true)}
                 style={{
                   fontSize: 11,
-                  color: '#0f766e',
+                  color: getProgramColor('sheep'),
                   background: 'none',
-                  border: '1px solid #5eead4',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 10,
                   padding: '3px 8px',
                   cursor: 'pointer',
@@ -949,8 +950,8 @@ const SheepDetail = ({
           {showLambForm && (
             <div
               style={{
-                background: '#f0fdfa',
-                border: '1px solid #5eead4',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '10px 12px',
                 marginBottom: 8,
@@ -995,7 +996,7 @@ const SheepDetail = ({
                       alignItems: 'center',
                       gap: 6,
                       fontSize: 11,
-                      color: '#7f1d1d',
+                      color: 'var(--danger)',
                       cursor: 'pointer',
                     }}
                   >
@@ -1035,8 +1036,8 @@ const SheepDetail = ({
                     padding: '10px 16px',
                     borderRadius: 10,
                     border: 'none',
-                    background: '#0f766e',
-                    color: 'white',
+                    background: getProgramColor('sheep'),
+                    color: getReadableText(getProgramColor('sheep')),
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1094,7 +1095,9 @@ const SheepDetail = ({
               >
                 <strong style={{color: 'var(--ink)'}}>{r.lambing_date ? fmt(r.lambing_date) : 'date unknown'}</strong>
                 <span>{(r.total_born || 0) + ' born, ' + (r.deaths || 0) + ' died'}</span>
-                {r.complications_flag && <span style={{color: '#b91c1c', fontWeight: 600}}>{'⚠ complications'}</span>}
+                {r.complications_flag && (
+                  <span style={{color: 'var(--danger)', fontWeight: 600}}>{'⚠ complications'}</span>
+                )}
                 {r.notes && <span style={{color: 'var(--ink-muted)', fontStyle: 'italic'}}>{r.notes}</span>}
                 {onDeleteLambing && (
                   <button
@@ -1103,7 +1106,7 @@ const SheepDetail = ({
                     style={{
                       marginLeft: 'auto',
                       fontSize: 10,
-                      color: '#b91c1c',
+                      color: 'var(--danger)',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
@@ -1141,9 +1144,9 @@ const SheepDetail = ({
                       fontSize: 11,
                       padding: '3px 8px',
                       borderRadius: 10,
-                      border: '1px solid #5eead4',
-                      background: '#f0fdfa',
-                      color: '#0f766e',
+                      border: '1px solid var(--border)',
+                      background: 'white',
+                      color: 'var(--info)',
                       cursor: onNavigateToSheep ? 'pointer' : 'default',
                       fontFamily: 'inherit',
                     }}
@@ -1186,8 +1189,8 @@ const SheepDetail = ({
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: commentText.trim() ? '#0f766e' : '#d1d5db',
-                color: 'white',
+                background: commentText.trim() ? getProgramColor('sheep') : 'var(--border-strong)',
+                color: commentText.trim() ? getReadableText(getProgramColor('sheep')) : 'var(--ink-faint)',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: commentText.trim() ? 'pointer' : 'not-allowed',
@@ -1220,26 +1223,8 @@ const SheepDetail = ({
                           fontWeight: 700,
                           padding: '1px 6px',
                           borderRadius: 999,
-                          background:
-                            c.source === 'weigh_in'
-                              ? '#eff6ff'
-                              : c.source === 'lambing'
-                                ? '#f0fdfa'
-                                : c.source === 'daily_report'
-                                  ? '#ecfdf5'
-                                  : c.source === 'import'
-                                    ? '#fef3c7'
-                                    : '#f3f4f6',
-                          color:
-                            c.source === 'weigh_in'
-                              ? '#1e40af'
-                              : c.source === 'lambing'
-                                ? '#0f766e'
-                                : c.source === 'daily_report'
-                                  ? '#065f46'
-                                  : c.source === 'import'
-                                    ? '#92400e'
-                                    : '#374151',
+                          background: 'var(--surface-2)',
+                          color: 'var(--text-secondary)',
                         }}
                       >
                         {c.source}
@@ -1258,7 +1243,7 @@ const SheepDetail = ({
                           style={{
                             marginLeft: 'auto',
                             fontSize: 10,
-                            color: 'var(--brand)',
+                            color: 'var(--info)',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -1275,7 +1260,7 @@ const SheepDetail = ({
                           onClick={() => onDeleteComment(c.id)}
                           style={{
                             fontSize: 10,
-                            color: '#b91c1c',
+                            color: 'var(--danger)',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -1317,8 +1302,10 @@ const SheepDetail = ({
                               padding: '3px 10px',
                               borderRadius: 10,
                               border: 'none',
-                              background: editingCommentText.trim() ? '#0f766e' : '#d1d5db',
-                              color: 'white',
+                              background: editingCommentText.trim() ? getProgramColor('sheep') : 'var(--border-strong)',
+                              color: editingCommentText.trim()
+                                ? getReadableText(getProgramColor('sheep'))
+                                : 'var(--ink-faint)',
                               fontSize: 10,
                               fontWeight: 600,
                               cursor: editingCommentText.trim() ? 'pointer' : 'not-allowed',
@@ -1362,8 +1349,8 @@ const SheepDetail = ({
             <div
               style={{
                 marginTop: 8,
-                background: '#fecaca',
-                border: '1px solid #f87171',
+                background: 'var(--danger-soft)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
                 padding: '6px 10px',
                 fontSize: 11,
@@ -1378,13 +1365,13 @@ const SheepDetail = ({
                   fontWeight: 700,
                   padding: '1px 6px',
                   borderRadius: 999,
-                  background: '#991b1b',
+                  background: 'var(--danger)',
                   color: 'white',
                 }}
               >
                 BREEDING BLACKLIST
               </span>
-              <span style={{color: '#7f1d1d', fontWeight: 600}}>{'Flagged — do not breed.'}</span>
+              <span style={{color: 'var(--danger)', fontWeight: 600}}>{'Flagged — do not breed.'}</span>
             </div>
           )}
         </div>
@@ -1407,9 +1394,9 @@ const SheepDetail = ({
             style={{
               padding: '6px 12px',
               borderRadius: 10,
-              border: '1px solid #F09595',
+              border: '1px solid var(--border)',
               background: 'white',
-              color: '#b91c1c',
+              color: 'var(--danger)',
               fontSize: 12,
               cursor: 'pointer',
               fontFamily: 'inherit',

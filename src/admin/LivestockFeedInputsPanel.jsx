@@ -7,6 +7,8 @@ import {recordActivityEvent} from '../lib/entityMutations.js';
 import {deleteFeedInput} from '../lib/feedInputDeleteApi.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 
 const FEED_GRID_COLUMNS = '2fr 80px 80px 70px 60px 60px 70px 120px';
 const FEED_ACTIVITY_ENTITY = {
@@ -748,30 +750,20 @@ const LivestockFeedInputsPanel = ({sb}) => {
               >
                 {f.name}
                 {inactive && (
-                  <span
-                    style={{
-                      marginLeft: 6,
-                      fontSize: 10,
-                      padding: '1px 5px',
-                      borderRadius: 999,
-                      background: '#fef2f2',
-                      color: '#b91c1c',
-                      fontWeight: 700,
-                    }}
-                  >
+                  // WI-4: inactive is a lifecycle status → neutral badge, not danger red.
+                  <Badge variant="neutral" style={{marginLeft: 6, fontSize: 10, padding: '1px 5px'}}>
                     INACTIVE
-                  </span>
+                  </Badge>
                 )}
               </span>
+              {/* WI-2e/WI-4: feed category is a category word, not a status
+                  badge — plain secondary text, no colored pill. */}
               <span
                 style={{
                   fontSize: 10,
-                  padding: '1px 6px',
-                  borderRadius: 999,
-                  background: cat.bg,
-                  color: cat.color,
+                  color: 'var(--text-secondary)',
                   fontWeight: 700,
-                  textAlign: 'center',
+                  textAlign: 'left',
                   textTransform: 'uppercase',
                   justifySelf: 'start',
                 }}
@@ -785,7 +777,8 @@ const LivestockFeedInputsPanel = ({sb}) => {
               <span
                 style={{
                   textAlign: 'right',
-                  color: dm != null ? '#065f46' : 'var(--ink-faint)',
+                  // WI-2a: DM weight is a raw metric, not a signal \u2014 black ink.
+                  color: dm != null ? 'var(--text-primary)' : 'var(--ink-faint)',
                   fontWeight: dm != null ? 600 : 400,
                 }}
               >
@@ -800,7 +793,12 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   : '\u2014'}
               </span>
               <span
-                style={{textAlign: 'right', color: lpl ? '#065f46' : 'var(--ink-faint)', fontWeight: lpl ? 600 : 400}}
+                style={{
+                  textAlign: 'right',
+                  // WI-2a: landed $/lb is a raw metric, not a signal \u2014 black ink.
+                  color: lpl ? 'var(--text-primary)' : 'var(--ink-faint)',
+                  fontWeight: lpl ? 600 : 400,
+                }}
               >
                 {lpl != null ? '$' + lpl.toFixed(3) : '\u2014'}
               </span>
@@ -957,7 +955,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
             {!loading && filteredFeeds.length > 0 && (
               <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
                 <div data-feed-inputs-section="active">
-                  <div style={{fontSize: 12, fontWeight: 700, color: '#065f46', marginBottom: 6}}>
+                  <div style={{fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6}}>
                     Active feeds ({activeFeeds.length})
                   </div>
                   {activeFeeds.length > 0 ? (
@@ -1163,7 +1161,8 @@ const LivestockFeedInputsPanel = ({sb}) => {
                         borderRadius: 10,
                         fontSize: 13,
                         fontWeight: 700,
-                        color: dm != null ? '#065f46' : 'var(--ink-faint)',
+                        // WI-2a: computed DM preview is a raw metric \u2014 black ink.
+                        color: dm != null ? 'var(--text-primary)' : 'var(--ink-faint)',
                       }}
                     >
                       {dm != null ? Math.round(dm * 10) / 10 + ' lbs DM' : '\u2014'}
@@ -1231,7 +1230,8 @@ const LivestockFeedInputsPanel = ({sb}) => {
                     borderRadius: 10,
                     fontSize: 13,
                     fontWeight: 700,
-                    color: landedPerLb(form) ? '#065f46' : 'var(--ink-faint)',
+                    // WI-2a: computed landed $/lb preview is a raw metric \u2014 black ink.
+                    color: landedPerLb(form) ? 'var(--text-primary)' : 'var(--ink-faint)',
                   }}
                 >
                   {landedPerLb(form) != null ? '$' + landedPerLb(form).toFixed(4) + ' / lb' : '\u2014'}
@@ -1329,14 +1329,16 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   {showTestForm && testForm && (
                     <div
                       style={{
-                        background: '#f0f7ff',
-                        border: '1px solid #bfdbfe',
+                        // WI-2c: edit sub-panel is white with a gray border, not a
+                        // blue-tinted card; heading text is black.
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
                         borderRadius: 10,
                         padding: '12px 14px',
                         marginBottom: 10,
                       }}
                     >
-                      <div style={{fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 8}}>
+                      <div style={{fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8}}>
                         {editingTestId ? 'Edit Test Result' : 'New Test Result'}
                       </div>
                       <InlineNotice notice={testNotice} onDismiss={() => setTestNotice(null)} />
@@ -1406,7 +1408,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                               : '(optional, max 20 MB)'}
                           </label>
                           {editingTestId && testForm.existingPdfName && (
-                            <div style={{fontSize: 11, color: '#065f46', marginBottom: 4}}>
+                            <div style={{fontSize: 11, color: 'var(--ink-muted)', marginBottom: 4}}>
                               Current: {testForm.existingPdfName}
                             </div>
                           )}
@@ -1504,19 +1506,10 @@ const LivestockFeedInputsPanel = ({sb}) => {
                           {t.effective_date || 'Unknown date'}
                         </span>
                         {isLatest && (
-                          <span
-                            style={{
-                              fontSize: 9,
-                              fontWeight: 700,
-                              color: '#065f46',
-                              background: '#d1fae5',
-                              padding: '1px 6px',
-                              borderRadius: 999,
-                              letterSpacing: 0.4,
-                            }}
-                          >
+                          // WI-4: latest/current is a status → ok badge.
+                          <Badge variant="ok" style={{fontSize: 9, padding: '1px 6px', letterSpacing: 0.4}}>
                             CURRENT
-                          </span>
+                          </Badge>
                         )}
                         {t.moisture_pct != null && (
                           <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>Moist {t.moisture_pct}%</span>
@@ -1560,7 +1553,7 @@ const LivestockFeedInputsPanel = ({sb}) => {
                             onClick={() => deleteTest(t.id, t.pdf_path)}
                             style={{
                               fontSize: 11,
-                              color: '#b91c1c',
+                              color: 'var(--danger)',
                               background: 'none',
                               border: 'none',
                               cursor: 'pointer',
@@ -1667,9 +1660,10 @@ const LivestockFeedInputsPanel = ({sb}) => {
                   style={{
                     padding: '8px 16px',
                     borderRadius: 10,
-                    border: '1px solid #F09595',
+                    // WI-2d: destructive action — danger ink on white, neutral border.
+                    border: '1px solid var(--border)',
                     background: 'white',
-                    color: '#b91c1c',
+                    color: 'var(--danger)',
                     fontSize: 13,
                     cursor: 'pointer',
                     fontFamily: 'inherit',

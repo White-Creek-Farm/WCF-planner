@@ -3,6 +3,7 @@
 // Matches the "Fuel Log" Podio tab's mental model.
 import React from 'react';
 import {stripPodioHtml} from '../lib/equipment.js';
+import {getProgramColor} from '../lib/programColors.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
@@ -249,7 +250,8 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #57534e', color: '#57534e'};
+  const equipmentAccent = getProgramColor('equipment');
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid ' + equipmentAccent, color: equipmentAccent};
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -279,7 +281,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
           <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 600}}>Saved views</span>
           {savedViewsError ? (
             <span
-              style={{fontSize: 12, color: '#b91c1c', display: 'inline-flex', alignItems: 'center', gap: 8}}
+              style={{fontSize: 12, color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: 8}}
               data-equipment-fuel-log-saved-views-error
             >
               Saved views unavailable. Filters still work.
@@ -348,7 +350,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
                     data-equipment-fuel-log-saved-view-delete
                     onClick={deleteSelectedView}
                     disabled={savedViewBusy}
-                    style={{...savedViewGhostBtnS, color: '#b91c1c', borderColor: '#fecaca'}}
+                    style={{...savedViewGhostBtnS, color: 'var(--danger)', borderColor: 'var(--border)'}}
                   >
                     Delete
                   </button>
@@ -356,7 +358,9 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
               )}
               <span style={{flex: 1}} />
               {savedViewNotice && (
-                <span style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? '#065f46' : '#b91c1c'}}>
+                <span
+                  style={{fontSize: 12, color: savedViewNotice.kind === 'success' ? 'var(--ok-ink)' : 'var(--danger)'}}
+                >
                   {savedViewNotice.message}
                 </span>
               )}
@@ -378,7 +382,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
           data-equipment-fuel-log-saved-view-form
           style={{
             background: 'white',
-            border: '1px solid #d6d3d1',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '10px 14px',
             marginBottom: 8,
@@ -542,7 +546,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
         </div>
       )}
 
-      {exportNotice && <div style={{marginBottom: 14, color: '#b91c1c', fontSize: 12}}>{exportNotice}</div>}
+      {exportNotice && <div style={{marginBottom: 14, color: 'var(--danger)', fontSize: 12}}>{exportNotice}</div>}
 
       <div
         style={{
@@ -563,14 +567,14 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
         </div>
         <div>
           <div style={{color: 'var(--ink-faint)', fontSize: 10, textTransform: 'uppercase'}}>Gallons</div>
-          <div style={{fontSize: 18, fontWeight: 700, color: '#1e40af'}}>
+          <div style={{fontSize: 18, fontWeight: 700, color: 'var(--ink)'}}>
             {Math.round(totals.gallons).toLocaleString()}
           </div>
         </div>
         {totals.def_gallons > 0 && (
           <div>
             <div style={{color: 'var(--ink-faint)', fontSize: 10, textTransform: 'uppercase'}}>DEF Gal</div>
-            <div style={{fontSize: 18, fontWeight: 700, color: '#a16207'}}>
+            <div style={{fontSize: 18, fontWeight: 700, color: 'var(--ink)'}}>
               {Math.round(totals.def_gallons).toLocaleString()}
             </div>
           </div>
@@ -578,7 +582,7 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
         {totals.cost > 0 && (
           <div>
             <div style={{color: 'var(--ink-faint)', fontSize: 10, textTransform: 'uppercase'}}>Cost</div>
-            <div style={{fontSize: 18, fontWeight: 700, color: '#065f46'}}>
+            <div style={{fontSize: 18, fontWeight: 700, color: 'var(--ink)'}}>
               ${Math.round(totals.cost).toLocaleString()}
             </div>
           </div>
@@ -654,10 +658,10 @@ export default function EquipmentFuelLogView({sb, authState, equipment, fuelings
                 {eq ? eq.name : f.equipment_id}
               </div>
               <div style={{color: 'var(--ink-muted)'}}>{f.fuel_type || '—'}</div>
-              <div style={{textAlign: 'right', color: '#1e40af', fontWeight: 600}}>
+              <div style={{textAlign: 'right', color: 'var(--ink)', fontWeight: 600}}>
                 {f.gallons ? Math.round(f.gallons * 10) / 10 : '—'}
               </div>
-              <div style={{textAlign: 'right', color: '#a16207', fontWeight: 600}}>
+              <div style={{textAlign: 'right', color: 'var(--ink)', fontWeight: 600}}>
                 {f.def_gallons ? Math.round(f.def_gallons * 10) / 10 : '—'}
               </div>
               <div style={{textAlign: 'right', color: 'var(--ink-muted)'}}>{reading}</div>

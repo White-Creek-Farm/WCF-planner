@@ -13,17 +13,22 @@ import {openableProps} from '../shared/openable.js';
 import {sb} from '../lib/supabase.js';
 import {recordActivityEvent} from '../lib/activityApi.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
-import {S} from '../lib/styles.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {getProgramColor} from '../lib/programColors.js';
 import {
   calcTimeline,
   calcPoultryStatus,
   calcBroilerStatsFromDailys,
-  BREED_STYLE,
-  STATUS_STYLE,
   getBatchColor,
   breedLabel,
   isNearHoliday,
 } from '../lib/broiler.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import StatusText from '../shared/StatusText.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import DataTable from '../shared/DataTable.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {recordSeqNavOptions, labeledSeqItems} from '../lib/recordSequence.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -501,8 +506,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
               padding: '7px 18px',
               borderRadius: 10,
               border: 'none',
-              background: '#085041',
-              color: 'white',
+              // WI-2d: broiler primary action re-tinted to the program accent.
+              background: getProgramColor('broiler'),
+              color: getReadableText(getProgramColor('broiler')),
               cursor: 'pointer',
               fontSize: 12,
               fontWeight: 600,
@@ -831,8 +837,6 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
               {activeRows.map((b, i) => {
                 const C = getBatchColor(b.name);
                 const autoSt = calcPoultryStatus(b);
-                const S2 = STATUS_STYLE[autoSt] || STATUS_STYLE.planned;
-                const B2 = BREED_STYLE[b.breed] || BREED_STYLE.CC;
                 const hw = isNearHoliday(b.hatchDate);
                 const pw = b.processingDate && isNearHoliday(b.processingDate);
                 const live = calcTimeline(b.hatchDate, b.breed, b.processingDate);
@@ -866,9 +870,8 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       />
                       {b.name}
                     </td>
-                    <td style={{padding: '8px 10px'}}>
-                      <span style={S.badge(B2.bg, B2.tx)}>{b.breed}</span>
-                    </td>
+                    {/* Breed is a category, not a status badge → plain text (WI-2b/WI-4). */}
+                    <td style={{padding: '8px 10px', color: 'var(--text-primary)', fontWeight: 600}}>{b.breed}</td>
                     <td style={{padding: '8px 10px', color: 'var(--ink-muted)', whiteSpace: 'nowrap'}}>{b.hatchery}</td>
                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap'}}>
                       {fmt(b.hatchDate)}
@@ -878,6 +881,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                     <td
                       style={{
                         padding: '8px 10px',
+                        // Mortality count is a genuine signal (WI-2a keep): danger when > 0.
                         color:
                           (b.mortalityCumulative || 0) > 0 ||
                           (!/^b-24-/i.test(b.name) &&
@@ -891,8 +895,8 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                                     .trim() === b.name.toLowerCase().trim(),
                               )
                               .reduce((s, d) => s + (parseInt(d.mortality_count) || 0), 0) > 0)
-                            ? '#b91c1c'
-                            : '#9ca3af',
+                            ? 'var(--danger)'
+                            : 'var(--ink-faint)',
                         fontWeight: 600,
                       }}
                     >
@@ -911,9 +915,8 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       })()}
                     </td>
                     <td style={{padding: '8px 10px'}}>{b.brooder}</td>
-                    <td style={{padding: '8px 10px'}}>
-                      <span style={S.badge('#f3f4f6', '#374151')}>{b.schooner}</span>
-                    </td>
+                    {/* Schooner is a category, not a status → plain text (WI-4). */}
+                    <td style={{padding: '8px 10px', color: 'var(--text-primary)'}}>{b.schooner}</td>
                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--ink-muted)'}}>
                       {fmtS(brooderIn) + ' \u2192 ' + fmtS(brooderOut)}
                     </td>
@@ -940,7 +943,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         const w = Math.floor(days / 7),
                           d = days % 7;
                         return (
-                          <span style={{fontWeight: 500, color: '#085041'}}>
+                          <span style={{fontWeight: 500, color: 'var(--text-primary)'}}>
                             {w}w {d}d
                           </span>
                         );
@@ -952,7 +955,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         if (isB24) {
                           const total = (b.brooderFeedLbs || 0) + (b.schoonerFeedLbs || 0);
                           return total > 0 ? (
-                            <span style={{color: '#92400e', fontWeight: 600}}>{total.toLocaleString()} lbs</span>
+                            <span style={{color: 'var(--text-primary)', fontWeight: 600}}>
+                              {total.toLocaleString()} lbs
+                            </span>
                           ) : (
                             <span style={{color: 'var(--ink-faint)'}}>—</span>
                           );
@@ -968,14 +973,17 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         const total = bd.reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
                         if (bd.length === 0) return <span style={{color: 'var(--ink-faint)'}}>—</span>;
                         return (
-                          <span style={{color: '#92400e', fontWeight: 600}}>
+                          <span style={{color: 'var(--text-primary)', fontWeight: 600}}>
                             {Math.round(total).toLocaleString()} lbs
                           </span>
                         );
                       })()}
                     </td>
+                    {/* WI-4: lifecycle status → Badge. active→ok, planned→warn, processed→neutral. */}
                     <td style={{padding: '8px 10px'}}>
-                      <span style={S.badge(S2.bg, S2.tx)}>{autoSt}</span>
+                      <Badge variant={autoSt === 'active' ? 'ok' : autoSt === 'planned' ? 'warn' : 'neutral'}>
+                        {autoSt}
+                      </Badge>
                     </td>
                     <td style={{padding: '8px 10px', whiteSpace: 'nowrap'}}>
                       {isMgmt && (
@@ -1012,7 +1020,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           }}
                           style={{
                             fontSize: 11,
-                            color: '#b91c1c',
+                            color: 'var(--danger)',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -1052,9 +1060,9 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                     style={{
                       fontSize: 11,
                       fontWeight: 600,
-                      color: '#085041',
+                      color: 'var(--text-primary)',
                       background: 'none',
-                      border: '1px solid #085041',
+                      border: '1px solid var(--border)',
                       borderRadius: 10,
                       padding: '3px 10px',
                       cursor: 'pointer',
@@ -1141,7 +1149,6 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                       const totalFeed = starter + grower;
                       const processed = n(b.totalToProcessor);
                       const feedPerBird = processed > 0 && totalFeed > 0 ? (totalFeed / processed).toFixed(1) : null;
-                      const B2 = BREED_STYLE[b.breed] || BREED_STYLE.CC;
                       const sch = (b.schooner || '').toString().trim();
                       const timeOnFarm = (() => {
                         if (!b.hatchDate || !b.processingDate) return null;
@@ -1150,16 +1157,16 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         );
                         return `${Math.floor(days / 7)}w ${days % 7}d`;
                       })();
+                      // WI-2a: all comparison cells are raw metrics → black ink.
                       const cell = (v, opts = {}) => {
-                        const {green, bold} = opts;
-                        const color = green ? '#085041' : 'var(--ink)';
+                        const {bold} = opts;
                         return (
                           <td
                             key={Math.random()}
                             style={{
                               padding: '7px 10px',
                               whiteSpace: 'nowrap',
-                              color: v ? color : 'var(--ink-faint)',
+                              color: v ? 'var(--ink)' : 'var(--ink-faint)',
                               fontWeight: bold || v ? 600 : 400,
                             }}
                           >
@@ -1181,29 +1188,20 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           <td style={{padding: '7px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--ink)'}}>
                             {b.name}
                           </td>
+                          {/* Breed is a category, not a status badge → plain text (WI-2b/WI-4). */}
                           <td style={{padding: '7px 10px'}}>
                             {b.breed ? (
-                              <span style={S.badge(B2.bg, B2.tx)}>{b.breed}</span>
+                              <span style={{color: 'var(--text-primary)', fontWeight: 600}}>{b.breed}</span>
                             ) : (
                               <span style={{color: 'var(--ink-faint)'}}>—</span>
                             )}
                           </td>
                           {cell(b.hatchery || null)}
                           {cell(timeOnFarm)}
+                          {/* Schooner is a category, not a status \u2192 plain text (WI-4). */}
                           <td style={{padding: '7px 10px'}}>
                             {sch ? (
-                              <span
-                                style={{
-                                  padding: '2px 8px',
-                                  borderRadius: 999,
-                                  fontSize: 10,
-                                  fontWeight: 600,
-                                  background: '#fef9c3',
-                                  color: '#854d0e',
-                                }}
-                              >
-                                {sch}
-                              </span>
+                              <span style={{fontSize: 11, fontWeight: 600, color: 'var(--text-primary)'}}>{sch}</span>
                             ) : (
                               <span style={{color: 'var(--ink-faint)'}}>{'\u2014'}</span>
                             )}
@@ -1211,7 +1209,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                           {cell(b.birdCountActual ? parseInt(b.birdCountActual).toLocaleString() : null)}
                           {cell(n(b.week4Lbs) > 0 ? `${n(b.week4Lbs)} lbs` : null)}
                           {cell(n(b.week6Lbs) > 0 ? `${n(b.week6Lbs)} lbs` : null)}
-                          {cell(feedPerBird ? `${feedPerBird} lbs` : null, {green: true})}
+                          {cell(feedPerBird ? `${feedPerBird} lbs` : null)}
                           {cell(starter > 0 ? `${Math.round(starter).toLocaleString()} lbs` : null)}
                           {cell(grower > 0 ? `${Math.round(grower).toLocaleString()} lbs` : null)}
                           {cell(totalFeed > 0 ? `${Math.round(totalFeed).toLocaleString()} lbs` : null, {bold: true})}
@@ -1228,7 +1226,7 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                                 }}
                                 style={{
                                   fontSize: 11,
-                                  color: '#b91c1c',
+                                  color: 'var(--danger)',
                                   background: 'none',
                                   border: 'none',
                                   cursor: 'pointer',
@@ -1254,17 +1252,21 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
           );
         })()}
 
-        {/* Processed batches */}
-        {processedCardRows.length > 0 && (
-          <div style={{marginTop: 20}}>
-            <div
-              style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-faint)', marginBottom: 8, letterSpacing: 0.3}}
-            >
-              PROCESSED ({processedCardRows.length})
-            </div>
-            {processedCardRows.map((b, i) => {
-              const B2 = BREED_STYLE[b.breed] || BREED_STYLE.CC;
-              // B-24-* batches: always use manually entered feed totals (legacy)
+        {/* ── Processed batches ──
+            CP0 WI-3 / F014: the former card-per-row PROCESSED block (bordered
+            cards with cream sub-panels + stat-soup + multiple chips) is now the
+            canonical shared <DataTable> — one clean table for the repeated
+            records. Numbers are black (DataTable's is-num cells), status is a
+            single neutral <Badge>, borders are the DataTable hairlines.
+            onRowOpen reuses the exact same openBatch() drill-in the cards used,
+            so the record-page route + prev/next sequence is unchanged. Per-card
+            feed/grit/cost breakdown, weigh-in weights, and birds-arrived remain
+            on the batch RECORD page (the drill-in) — no data is lost. */}
+        {processedCardRows.length > 0 &&
+          (() => {
+            // Per-batch derived stats (same source logic as the prior cards):
+            // B-24-* uses manually entered feed totals; B-25+ pulls daily reports.
+            const statsFor = (b) => {
               const isB24 = /^b-24-/i.test(b.name);
               const bd = broilerDailys.filter(
                 (d) =>
@@ -1282,72 +1284,139 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                 .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
               const dailyGritLbs = bd.reduce((s, d) => s + (parseFloat(d.grit_lbs) || 0), 0);
               const dailyMortality = bd.reduce((s, d) => s + (parseInt(d.mortality_count) || 0), 0);
-              // Feed source logic: B-24 = manual only; B-25+ = daily reports only
               const starterLbs = isB24 ? b.brooderFeedLbs || 0 : dailyStarterLbs;
               const growerLbs = isB24 ? b.schoonerFeedLbs || 0 : dailyGrowerLbs;
               const gritLbs = isB24 ? b.gritLbs || 0 : dailyGritLbs;
               const mortality = isB24 ? b.mortalityCumulative || 0 : dailyMortality;
               const totalFeed = starterLbs + growerLbs;
-              const starterCost = starterLbs * (b.perLbStarterCost || 0);
-              const growerCost = growerLbs * (b.perLbStandardCost || 0);
-              const feedCost = starterCost + growerCost;
+              const feedCost = starterLbs * (b.perLbStarterCost || 0) + growerLbs * (b.perLbStandardCost || 0);
               const gritCost = gritLbs * (b.perLbGritCost || 0);
               const chickCost = parseFloat(b.chickCost) || 0;
               const totalCost = feedCost + gritCost + (b.processingCost || 0) + chickCost;
               const perBird = b.totalToProcessor > 0 ? totalCost / b.totalToProcessor : 0;
-              const mortalityPct = b.birdCount > 0 ? ((mortality / b.birdCount) * 100).toFixed(1) : 0;
-              return (
-                <div
-                  key={b.id}
-                  {...openableProps(() => openBatch(b, processedCardRows))}
-                  style={{
-                    background: 'white',
-                    border: '1px solid var(--border)',
-                    borderRadius: 10,
-                    marginBottom: 10,
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    opacity: 0.9,
-                  }}
-                  className="hoverable-tile"
-                >
-                  {/* Header row */}
-                  <div
-                    style={{
-                      padding: '10px 14px',
-                      background: 'var(--surface-2)',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '6px 14px',
-                      alignItems: 'center',
-                      borderBottom: '1px solid var(--border)',
-                    }}
-                  >
-                    <strong style={{fontSize: 13, color: 'var(--ink)'}}>{b.name}</strong>
-                    {b.breed && <span style={S.badge(B2.bg, B2.tx)}>{breedLabel(b.breed)}</span>}
-                    {b.hatchery && <span style={{color: 'var(--ink-muted)', fontSize: 12}}>{b.hatchery}</span>}
-                    {b.schooner && (
+              const mortalityPct = b.birdCount > 0 ? ((mortality / b.birdCount) * 100).toFixed(1) : '0';
+              const tofDays =
+                b.hatchDate && b.processingDate
+                  ? Math.round(
+                      (new Date(b.processingDate + 'T12:00:00') - new Date(b.hatchDate + 'T12:00:00')) / 86400000,
+                    )
+                  : null;
+              const timeOnFarm = tofDays != null ? `${Math.floor(tofDays / 7)}w ${tofDays % 7}d` : null;
+              return {totalFeed, mortality, mortalityPct, totalCost, perBird, timeOnFarm};
+            };
+
+            const processedColumns = [
+              {
+                key: 'name',
+                label: 'Batch',
+                primary: true,
+                render: (b) => {
+                  const C = getBatchColor(b.name);
+                  return (
+                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
                       <span
                         style={{
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: '#fef9c3',
-                          color: '#854d0e',
+                          display: 'inline-block',
+                          width: 10,
+                          height: 10,
+                          borderRadius: 2 /* radius-allow: 10px legend swatch */,
+                          background: C.bg,
+                          verticalAlign: 'middle',
                         }}
-                      >
-                        Sch {b.schooner}
-                      </span>
-                    )}
-                    <span style={{marginLeft: 'auto', display: 'flex', gap: 6}}>
+                      />
+                      {b.name}
+                    </span>
+                  );
+                },
+              },
+              // Breed + schooner are categories, not status -> plain text (WI-2b/WI-4).
+              {
+                key: 'breed',
+                label: 'Breed',
+                render: (b) => <StatusText tone="muted">{b.breed ? breedLabel(b.breed) : '—'}</StatusText>,
+              },
+              {
+                key: 'hatchery',
+                label: 'Hatchery',
+                mobilePriority: false,
+                render: (b) => <StatusText tone="muted">{b.hatchery || '—'}</StatusText>,
+              },
+              {
+                key: 'processingDate',
+                label: 'Process Date',
+                render: (b) => <StatusText tone="muted">{b.processingDate ? fmt(b.processingDate) : '—'}</StatusText>,
+              },
+              {
+                key: 'timeOnFarm',
+                label: 'Time on Farm',
+                mobilePriority: false,
+                render: (b) => {
+                  const {timeOnFarm} = statsFor(b);
+                  return <StatusText tone="muted">{timeOnFarm || '—'}</StatusText>;
+                },
+              },
+              {
+                key: 'birdCount',
+                label: 'Birds',
+                align: 'right',
+                render: (b) => (b.birdCount || 0).toLocaleString(),
+              },
+              {
+                key: 'toProcessor',
+                label: 'To Processor',
+                align: 'right',
+                render: (b) => (b.totalToProcessor || 0).toLocaleString(),
+              },
+              {
+                key: 'mortality',
+                label: 'Mortality',
+                align: 'right',
+                render: (b) => {
+                  const {mortality, mortalityPct} = statsFor(b);
+                  const label = `${mortality} (${mortalityPct}%)`;
+                  // Mortality over threshold keeps a danger signal (WI-2a); else black.
+                  return mortality > 20 ? <StatusText tone="danger">{label}</StatusText> : label;
+                },
+              },
+              {
+                key: 'totalFeed',
+                label: 'Total Feed',
+                align: 'right',
+                render: (b) => {
+                  const {totalFeed} = statsFor(b);
+                  return totalFeed > 0 ? `${Math.round(totalFeed).toLocaleString()} lbs` : '—';
+                },
+              },
+              {
+                key: 'perBird',
+                label: 'Per Bird Cost',
+                align: 'right',
+                mobilePriority: false,
+                render: (b) => {
+                  const {perBird} = statsFor(b);
+                  return perBird > 0 ? `$${perBird.toFixed(2)}` : '—';
+                },
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: () => <Badge variant="neutral">processed</Badge>,
+              },
+              {
+                key: 'actions',
+                label: '',
+                mobilePriority: false,
+                render: (b) => (
+                  <span style={{display: 'inline-flex', gap: 8, whiteSpace: 'nowrap'}}>
+                    {isMgmt && (
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           const nb = batches.map((x) => {
                             if (x.id !== b.id) return x;
                             const upd = {...x, status: 'active'};
-                            // Stamp current admin rates if missing (e.g. reactivating a batch that was created blank)
+                            // Stamp current admin rates if missing (e.g. reactivating a blank batch)
                             if (!upd.perLbStarterCost || !upd.perLbStandardCost) {
                               upd.perLbStarterCost = feedCosts.starter || 0;
                               upd.perLbStandardCost = feedCosts.grower || 0;
@@ -1361,191 +1430,66 @@ function BroilerListHub({Header, loadUsers, openAdd, openEdit, persist, del, con
                         }}
                         style={{
                           fontSize: 11,
-                          color: '#085041',
+                          color: 'var(--text-primary)',
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
+                          fontFamily: 'inherit',
                         }}
                       >
                         Reactivate
                       </button>
+                    )}
+                    {isAdmin && (
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           confirmDelete('Delete this batch? This cannot be undone.', () => del(b.id));
                         }}
                         style={{
                           fontSize: 11,
-                          color: '#b91c1c',
+                          color: 'var(--danger)',
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
+                          fontFamily: 'inherit',
                         }}
                       >
                         Delete
                       </button>
-                    </span>
-                  </div>
-                  {/* Stats grid */}
-                  <div
-                    style={{
-                      padding: '10px 14px',
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))',
-                      gap: 8,
-                      fontSize: 11,
-                    }}
-                  >
-                    {(() => {
-                      const tofDays =
-                        b.hatchDate && b.processingDate
-                          ? Math.round(
-                              (new Date(b.processingDate + 'T12:00:00') - new Date(b.hatchDate + 'T12:00:00')) /
-                                86400000,
-                            )
-                          : null;
-                      const tofStr = tofDays != null ? `${Math.floor(tofDays / 7)}w ${tofDays % 7}d` : '—';
-                      const lbsPerBird =
-                        b.totalToProcessor > 0 && totalFeed > 0 ? (totalFeed / b.totalToProcessor).toFixed(1) : null;
-                      return [
-                        {l: 'Hatch Date', v: fmt(b.hatchDate)},
-                        {l: 'Process Date', v: fmt(b.processingDate)},
-                        {l: 'Time on Farm', v: tofStr},
-                        {l: 'Birds Ordered', v: (b.birdCount || 0).toLocaleString()},
-                        {
-                          l: 'Birds Arrived',
-                          v: b.birdCountActual ? parseInt(b.birdCountActual).toLocaleString() : '—',
-                        },
-                        {l: 'To Processor', v: (b.totalToProcessor || 0).toLocaleString()},
-                        {l: 'Mortality', v: `${mortality} (${mortalityPct}%)`, warn: mortality > 20},
-                        {l: 'Lbs / Bird', v: lbsPerBird ? `${lbsPerBird} lbs` : '—'},
-                      ];
-                    })().map(({l, v, warn}) => (
-                      <div key={l} style={{background: 'var(--surface-2)', borderRadius: 10, padding: '6px 8px'}}>
-                        <div
-                          style={{
-                            color: 'var(--ink-faint)',
-                            marginBottom: 2,
-                            fontSize: 10,
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.3,
-                          }}
-                        >
-                          {l}
-                        </div>
-                        <div style={{fontWeight: 700, color: warn ? '#b91c1c' : 'var(--ink)', fontSize: 12}}>
-                          {v || '\u2014'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Feed section */}
-                  {(totalFeed > 0 || gritLbs > 0) && (
-                    <div
-                      style={{
-                        padding: '8px 14px',
-                        borderTop: '1px solid var(--divider)',
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))',
-                        gap: 8,
-                        fontSize: 11,
-                        background: '#fefce8',
-                      }}
-                    >
-                      <div
-                        style={{
-                          gridColumn: '1/-1',
-                          fontSize: 10,
-                          color: isB24 ? '#92400e' : '#085041',
-                          marginBottom: 2,
-                          fontStyle: isB24 ? 'italic' : 'normal',
-                        }}
-                      >
-                        {isB24
-                          ? '📋 Feed & grit from manually entered totals (2024 batch)'
-                          : bd.length > 0
-                            ? `🌾 Feed & grit from ${bd.length} daily report${bd.length !== 1 ? 's' : ''}`
-                            : '⚠ No daily reports found for this batch'}
-                      </div>
-                      {[
-                        {
-                          l: isB24 ? 'Brooder Feed' : 'Starter Feed',
-                          v: starterLbs > 0 ? `${Math.round(starterLbs).toLocaleString()} lbs` : '—',
-                        },
-                        {
-                          l: isB24 ? 'Schooner Feed' : 'Grower Feed',
-                          v: growerLbs > 0 ? `${Math.round(growerLbs).toLocaleString()} lbs` : '—',
-                        },
-                        {l: 'Grit', v: gritLbs > 0 ? `${Math.round(gritLbs).toLocaleString()} lbs` : '—'},
-                        {l: 'Feed Cost', v: feedCost > 0 ? `$${feedCost.toFixed(2)}` : '—'},
-                        {l: 'Grit Cost', v: gritCost > 0 ? `$${gritCost.toFixed(2)}` : '—'},
-                        {l: 'Process Cost', v: b.processingCost > 0 ? `$${(b.processingCost || 0).toFixed(2)}` : '—'},
-                        {l: 'Chick Cost', v: chickCost > 0 ? `$${chickCost.toFixed(2)}` : '—'},
-                        {l: 'Total Cost', v: totalCost > 0 ? `$${totalCost.toFixed(2)}` : '—'},
-                        {l: 'Per Bird Cost', v: perBird > 0 ? `$${perBird.toFixed(2)}` : '—'},
-                      ].map(({l, v}) => (
-                        <div key={l} style={{background: 'rgba(255,255,255,.6)', borderRadius: 10, padding: '6px 8px'}}>
-                          <div
-                            style={{
-                              color: '#92400e',
-                              marginBottom: 2,
-                              fontSize: 10,
-                              textTransform: 'uppercase',
-                              letterSpacing: 0.3,
-                            }}
-                          >
-                            {l}
-                          </div>
-                          <div style={{fontWeight: 700, color: '#78350f', fontSize: 12}}>{v}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* Weights section */}
-                  {(b.avgDressedLbs || b.avgBreastLbs || b.avgThighsLbs || b.week4Lbs || b.week6Lbs) && (
-                    <div
-                      style={{
-                        padding: '8px 14px',
-                        borderTop: '1px solid var(--divider)',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '6px 20px',
-                        fontSize: 11,
-                        color: 'var(--ink-muted)',
-                      }}
-                    >
-                      {b.week4Lbs > 0 && (
-                        <span>
-                          4-wk: <strong>{b.week4Lbs} lbs</strong>
-                        </span>
-                      )}
-                      {b.week6Lbs > 0 && (
-                        <span>
-                          6-wk: <strong>{b.week6Lbs} lbs</strong>
-                        </span>
-                      )}
-                      {b.avgDressedLbs > 0 && (
-                        <span>
-                          Avg dressed: <strong>{b.avgDressedLbs} lbs</strong>
-                        </span>
-                      )}
-                      {b.avgBreastLbs > 0 && (
-                        <span>
-                          Avg breast: <strong>{b.avgBreastLbs} lbs</strong>
-                        </span>
-                      )}
-                      {b.avgThighsLbs > 0 && (
-                        <span>
-                          Avg thighs: <strong>{b.avgThighsLbs} lbs</strong>
-                        </span>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </span>
+                ),
+              },
+            ];
+
+            return (
+              <div style={{marginTop: 20}}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--ink-faint)',
+                    marginBottom: 8,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  PROCESSED ({processedCardRows.length})
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <div style={{...S.card, overflowX: 'auto'}}>
+                  <DataTable
+                    surfaceKey="broiler-processed"
+                    rows={processedCardRows}
+                    rowKey="id"
+                    density="compact"
+                    columns={processedColumns}
+                    onRowOpen={(b) => openBatch(b, processedCardRows)}
+                  />
+                </div>
+              </div>
+            );
+          })()}
       </div>
     </div>
   );

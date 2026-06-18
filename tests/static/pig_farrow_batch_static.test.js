@@ -64,8 +64,11 @@ describe('pigFarrowBatch.js — generated batch shape contract', () => {
 describe('Display — farm-born batches suppress the Gilts/Boars main count', () => {
   it('PigBatchPage gates the Gilts/Boars badges on !g.farmBorn', () => {
     const src = read('src/pig/PigBatchPage.jsx');
-    expect(src).toMatch(/!g\.farmBorn && <span[^>]*>Gilts:/);
-    expect(src).toMatch(/!g\.farmBorn && <span[^>]*>Boars:/);
+    // Prettier wraps `{!g.farmBorn && ( <span>...` across lines; match the gate
+    // -> span across optional whitespace/paren so the guard is formatter-agnostic
+    // but still fails if the !g.farmBorn gate is removed.
+    expect(src).toMatch(/!g\.farmBorn &&\s*\(?\s*<span[^>]*>Gilts:/);
+    expect(src).toMatch(/!g\.farmBorn &&\s*\(?\s*<span[^>]*>Boars:/);
   });
   it('PigBatchesView hub tile started uses batchStartedCount', () => {
     const viewSrc = read('src/pig/PigBatchesView.jsx');

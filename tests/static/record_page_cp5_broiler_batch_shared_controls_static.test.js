@@ -24,15 +24,19 @@ describe('CP5: BatchForm adopts shared record-page controls', () => {
     expect(src).toContain('style={recordControl}');
     expect(src).toContain('style={recordTextarea}');
     expect(src).toContain('style={recordCheckbox}');
-    // Labels migrated, incl. the colored step-card labels (spread + override).
+    // Labels migrated to the shared recordFieldLabel primitive. CP0 A12.1: field
+    // labels are plain (no program-color override), so the prior
+    // {...recordFieldLabel, color:X} spread assertion was retired.
     expect(src).toContain('style={recordFieldLabel}');
-    expect(src).toMatch(/\{\.\.\.recordFieldLabel, color:/);
   });
 
   it('drops the old S.label styling but keeps S for buttons/layout helpers', () => {
     expect(src).not.toContain('S.label');
     // S is still imported + used for existing buttons / field-group helpers.
-    expect(src).toContain("import {S} from '../lib/styles.js'");
+    // CP0 WI-2d: reconciled exact `import {S}` line -> `S` co-imported from
+    // styles.js (sweep added getReadableText for the program-accent chips).
+    // Guard still fails if the S import is dropped.
+    expect(src).toMatch(/import \{[^}]*\bS\b[^}]*\} from '\.\.\/lib\/styles\.js'/);
     expect(src).toMatch(/S\.(btnPrimary|btnGhost|btnDanger|fieldGroup)/);
   });
 

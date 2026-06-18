@@ -33,14 +33,6 @@ const FLOCK_LABELS = {
   deceased: 'Deceased',
   processed: 'Processed',
 };
-const FLOCK_COLORS = {
-  rams: {bg: '#f0fdfa', tx: '#0f766e', bd: '#5eead4'},
-  ewes: {bg: '#fdf4ff', tx: '#86198f', bd: '#f0abfc'},
-  feeders: {bg: '#fefce8', tx: '#854d0e', bd: '#fde047'},
-  sold: {bg: '#f3f4f6', tx: '#6b7280', bd: '#d1d5db'},
-  deceased: {bg: '#f3f4f6', tx: '#6b7280', bd: '#d1d5db'},
-  processed: {bg: '#f3f4f6', tx: '#6b7280', bd: '#d1d5db'},
-};
 const ALL_FLOCKS = ['rams', 'ewes', 'feeders', 'processed', 'deceased', 'sold'];
 const SHEEP_EXCLUDE = ['flock', 'processing_batch_id'];
 const SHEEP_LABELS = {
@@ -371,7 +363,6 @@ export default function SheepAnimalPage({sb, fmt, authState, Header}) {
           fmt={fmt}
           FLOCKS={ALL_FLOCKS}
           FLOCK_LABELS={FLOCK_LABELS}
-          FLOCK_COLORS={FLOCK_COLORS}
           onEdit={() => {}}
           onTransfer={(newFlock) => transferSheep(newFlock)}
           onDelete={authState?.role === 'admin' ? () => deleteSheep() : undefined}

@@ -103,8 +103,14 @@ describe('SheepDetail - breeding blacklist UI matches cattle', () => {
   });
 
   it('uses the cattle red treatment for the flagged callout', () => {
-    expect(sheepDetail).toContain("background: '#991b1b'");
-    expect(sheepDetail).toContain("color: '#7f1d1d'");
+    // CP0 semantic-danger: reconciled hardcoded #991b1b/#7f1d1d -> var(--danger)/var(--danger-soft)
+    // (parity with CowDetail.jsx, which uses the same tokens). Still red, still protective:
+    // the flagged callout must keep its danger badge + danger text + soft danger surface.
+    const callout = sheepDetail.match(/\{sheep\.breeding_blacklist &&[\s\S]*?Flagged — do not breed\.[\s\S]*?<\/div>/);
+    expect(callout, 'expected breeding-blacklist flagged callout').not.toBeNull();
+    expect(callout[0]).toContain("background: 'var(--danger-soft)'");
+    expect(callout[0]).toContain("background: 'var(--danger)'");
+    expect(callout[0]).toContain("color: 'var(--danger)'");
   });
 });
 

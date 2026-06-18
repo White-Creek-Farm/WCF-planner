@@ -186,8 +186,8 @@ export default function FuelReconcileView() {
 
   return (
     <div>
-      <div style={{...card, background: '#f0fdf4', borderColor: '#86efac'}}>
-        <div style={{fontSize: 12, color: '#065f46', lineHeight: 1.5}}>
+      <div style={card}>
+        <div style={{fontSize: 12, color: 'var(--ink-muted)', lineHeight: 1.5}}>
           <strong>How this works:</strong> <strong>Purchased</strong> = supplier bills (Home Oil etc.) grouped by
           delivery month. <strong>Consumed</strong> = per-piece equipment fueling checklists at{' '}
           <code>/equipment/&lt;piece&gt;</code> plus direct non-equipment dispensing at <code>/equipment/supply</code>{' '}
@@ -263,7 +263,9 @@ export default function FuelReconcileView() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        color: m.purchased.diesel ? '#1e40af' : '#9ca3af',
+                        // WI-2a: fuel quantities are raw metrics, not good/bad
+                        // signals — black ink; dashed/zero stays muted gray.
+                        color: m.purchased.diesel ? 'var(--text-primary)' : '#9ca3af',
                         fontWeight: m.purchased.diesel ? 600 : 400,
                       }}
                     >
@@ -276,7 +278,7 @@ export default function FuelReconcileView() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        color: m.purchased.gasoline ? '#a16207' : '#9ca3af',
+                        color: m.purchased.gasoline ? 'var(--text-primary)' : '#9ca3af',
                         fontWeight: m.purchased.gasoline ? 600 : 400,
                       }}
                     >
@@ -289,13 +291,13 @@ export default function FuelReconcileView() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        color: m.purchased.def ? '#92400e' : '#9ca3af',
+                        color: m.purchased.def ? 'var(--text-primary)' : '#9ca3af',
                         fontWeight: m.purchased.def ? 600 : 400,
                       }}
                     >
                       {m.purchased.def ? Math.round(m.purchased.def).toLocaleString() : '—'}
                     </td>
-                    <td style={{...td, textAlign: 'right', color: '#065f46', fontWeight: 600}}>
+                    <td style={{...td, textAlign: 'right', color: 'var(--text-primary)', fontWeight: 600}}>
                       {money(m.purchased.cost)}
                     </td>
                     <td
@@ -305,7 +307,7 @@ export default function FuelReconcileView() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        color: m.consumed.diesel ? '#1e40af' : '#9ca3af',
+                        color: m.consumed.diesel ? 'var(--text-primary)' : '#9ca3af',
                         fontWeight: m.consumed.diesel ? 600 : 400,
                       }}
                     >
@@ -318,7 +320,7 @@ export default function FuelReconcileView() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        color: m.consumed.gasoline ? '#a16207' : '#9ca3af',
+                        color: m.consumed.gasoline ? 'var(--text-primary)' : '#9ca3af',
                         fontWeight: m.consumed.gasoline ? 600 : 400,
                       }}
                     >
@@ -331,7 +333,7 @@ export default function FuelReconcileView() {
                       style={{
                         ...td,
                         textAlign: 'right',
-                        color: m.consumed.def ? '#92400e' : '#9ca3af',
+                        color: m.consumed.def ? 'var(--text-primary)' : '#9ca3af',
                         fontWeight: m.consumed.def ? 600 : 400,
                       }}
                     >

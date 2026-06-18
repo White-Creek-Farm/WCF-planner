@@ -36,7 +36,10 @@ describe('CP6: LayerBatchPage adopts shared record-page controls', () => {
 
   it('drops the old S.label styling but keeps S for buttons/layout helpers', () => {
     expect(src).not.toContain('S.label');
-    expect(src).toContain("import {S} from '../lib/styles.js'");
+    // CP0 primary-button re-tint: reconciled `import {S}` -> `import {S, getReadableText}`
+    // (getReadableText is now co-imported for the program-tinted + Add Housing / Save buttons).
+    // Guard still fails if S is dropped from the styles.js import.
+    expect(src).toMatch(/import \{S(,[^}]*)?\} from '\.\.\/lib\/styles\.js'/);
     expect(src).toContain('S.btnDanger');
   });
 

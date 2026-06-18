@@ -92,7 +92,7 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
     width: '100%',
     boxSizing: 'border-box',
     background: 'white',
-    color: '#111827',
+    color: 'var(--text-primary)',
     outline: 'none',
   };
 
@@ -123,7 +123,7 @@ const AdminNewWeighInModal = ({sb, species, authState, onClose, onCreated}) => {
           style={{
             fontSize: 15,
             fontWeight: 700,
-            color: '#111827',
+            color: 'var(--text-primary)',
             marginBottom: 14,
             display: 'flex',
             alignItems: 'center',

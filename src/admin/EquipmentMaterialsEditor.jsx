@@ -20,6 +20,8 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {openableProps} from '../shared/openable.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 
 const inpS = {
   fontSize: 12,
@@ -363,19 +365,14 @@ export default function EquipmentMaterialsEditor({equipment}) {
                   <span style={{fontSize: 11, color: 'var(--ink-faint)', minWidth: 14}}>{isExpanded ? '▼' : '▶'}</span>
                   <span style={{fontSize: 12, fontWeight: 700, color: 'var(--ink)'}}>{g.label}</span>
                   {g.orphan && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        padding: '1px 6px',
-                        borderRadius: 999,
-                        background: '#fef3c7',
-                        color: '#92400e',
-                        fontWeight: 600,
-                      }}
+                    // WI-4: orphan-data warning is a genuine warn signal → warn badge.
+                    <Badge
+                      variant="warn"
+                      style={{fontSize: 10, padding: '1px 6px'}}
                       title="Materials exist but no matching service interval or attachment on this equipment row."
                     >
                       no matching service
-                    </span>
+                    </Badge>
                   )}
                   <span style={{fontSize: 11, color: 'var(--ink-muted)', marginLeft: 'auto'}}>
                     {g.materials.length} {g.materials.length === 1 ? 'material' : 'materials'}
@@ -478,9 +475,10 @@ function MaterialRow({material, clears, busy, onPatch, onRemove, onUnclear}) {
             style={{
               padding: '3px 8px',
               borderRadius: 10,
-              border: '1px solid #fde68a',
-              background: '#fffbeb',
-              color: '#92400e',
+              // WI-2d: secondary action — neutral outline, not an amber-tinted accent.
+              border: '1px solid var(--border-strong)',
+              background: 'white',
+              color: 'var(--ink)',
               fontSize: 11,
               cursor: 'pointer',
               fontFamily: 'inherit',
@@ -496,9 +494,10 @@ function MaterialRow({material, clears, busy, onPatch, onRemove, onUnclear}) {
           style={{
             padding: '3px 8px',
             borderRadius: 10,
-            border: '1px solid #fecaca',
+            // WI-2d: destructive action — danger ink on white, neutral border.
+            border: '1px solid var(--border)',
             background: 'white',
-            color: '#b91c1c',
+            color: 'var(--danger)',
             fontSize: 11,
             cursor: 'pointer',
             fontFamily: 'inherit',

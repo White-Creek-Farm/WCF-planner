@@ -69,7 +69,7 @@ export default function ManualsCard({equipment}) {
               color: 'var(--ink-faint)',
               fontStyle: 'italic',
               padding: '10px 12px',
-              background: '#fafafa',
+              background: 'var(--surface-2)',
               borderRadius: 10,
               border: '1px dashed var(--border)',
             }}
@@ -97,7 +97,7 @@ export default function ManualsCard({equipment}) {
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  color: '#92400e',
+                  color: 'var(--text-secondary)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.4,
                   marginBottom: 6,
@@ -118,16 +118,16 @@ export default function ManualsCard({equipment}) {
                       gap: 10,
                       padding: '8px 10px',
                       background: 'white',
-                      border: '1px solid #fde68a',
+                      border: '1px solid var(--border)',
                       borderRadius: 10,
                       textDecoration: 'none',
-                      color: '#92400e',
+                      color: 'var(--text-primary)',
                       fontSize: 13,
                     }}
                   >
                     <span style={{fontSize: 16}}>📄</span>
                     <span style={{fontWeight: 600, flex: 1}}>{m.title || 'Untitled PDF'}</span>
-                    <span style={{fontSize: 10, color: '#a16207'}}>Open ↗</span>
+                    <span style={{fontSize: 10, color: 'var(--ink-muted)'}}>Open ↗</span>
                   </a>
                 ))}
               </div>
@@ -139,7 +139,7 @@ export default function ManualsCard({equipment}) {
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  color: '#991b1b',
+                  color: 'var(--text-secondary)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.4,
                   marginBottom: 6,
@@ -160,11 +160,11 @@ export default function ManualsCard({equipment}) {
                       style={{
                         display: 'block',
                         background: 'white',
-                        border: '1px solid #fecaca',
+                        border: '1px solid var(--border)',
                         borderRadius: 10,
                         overflow: 'hidden',
                         textDecoration: 'none',
-                        color: '#991b1b',
+                        color: 'var(--text-primary)',
                       }}
                     >
                       {thumb ? (
@@ -204,7 +204,7 @@ export default function ManualsCard({equipment}) {
                           </div>
                         </div>
                       ) : (
-                        <div style={{padding: '18px 12px', textAlign: 'center', background: '#fafafa'}}>▶</div>
+                        <div style={{padding: '18px 12px', textAlign: 'center', background: 'var(--surface-2)'}}>▶</div>
                       )}
                       <div style={{padding: '8px 10px', fontSize: 12, fontWeight: 600}}>
                         {m.title || 'YouTube video'}

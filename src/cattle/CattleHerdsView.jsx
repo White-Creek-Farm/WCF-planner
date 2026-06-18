@@ -42,6 +42,8 @@ import {
   buildViewState,
 } from '../lib/savedViewsApi.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -93,16 +95,6 @@ const HERD_LABELS = {
   processed: 'Processed',
   deceased: 'Deceased',
   sold: 'Sold',
-};
-
-const HERD_COLORS = {
-  mommas: {bg: '#fef2f2', tx: '#991b1b', bd: '#fca5a5'},
-  backgrounders: {bg: '#ffedd5', tx: '#9a3412', bd: '#fdba74'},
-  finishers: {bg: '#fff1f2', tx: '#9f1239', bd: '#fda4af'},
-  bulls: {bg: '#fee2e2', tx: '#7f1d1d', bd: '#fca5a5'},
-  processed: {bg: '#f3f4f6', tx: '#374151', bd: '#d1d5db'},
-  deceased: {bg: '#f9fafb', tx: '#6b7280', bd: '#e5e7eb'},
-  sold: {bg: '#eff6ff', tx: '#1e40af', bd: '#bfdbfe'},
 };
 
 const SEX_OPTIONS = [
@@ -219,11 +211,15 @@ const chipBaseS = {
   cursor: 'pointer',
   whiteSpace: 'nowrap',
 };
+// CP0 A12: cattle selection accent (filter chips, sort rule #, tool buttons,
+// saved-view button) uses the canonical program color, not the near-duplicate
+// #991b1b, so it matches the maroon nav pill + primary buttons exactly.
+const CATTLE_ACCENT = getProgramColor('cattle');
 const chipActiveS = {
   ...chipBaseS,
-  border: '1px solid #991b1b',
+  border: `1px solid ${CATTLE_ACCENT}`,
   background: 'white',
-  color: '#991b1b',
+  color: CATTLE_ACCENT,
   fontWeight: 600,
 };
 
@@ -1048,9 +1044,9 @@ const CattleHerdsHub = ({
           gap: 6,
           padding: '5px 10px',
           borderRadius: 10,
-          border: checked ? '1px solid #991b1b' : '1px solid var(--border-strong)',
+          border: checked ? `1px solid ${CATTLE_ACCENT}` : '1px solid var(--border-strong)',
           background: checked ? '#fef2f2' : 'white',
-          color: checked ? '#991b1b' : 'var(--ink)',
+          color: checked ? CATTLE_ACCENT : 'var(--ink)',
           fontSize: 12,
           fontWeight: checked ? 600 : 500,
           cursor: 'pointer',
@@ -1108,7 +1104,7 @@ const CattleHerdsHub = ({
               fontWeight: 500,
             }}
           >
-            <span style={{fontWeight: 600, color: '#991b1b'}}>{i + 1}.</span>
+            <span style={{fontWeight: 600, color: CATTLE_ACCENT}}>{i + 1}.</span>
             <span>{SORT_KEY_LABELS[r.key] || r.key}</span>
             <button
               type="button"
@@ -1233,25 +1229,11 @@ const CattleHerdsHub = ({
       cols.push({
         key: 'herd',
         label: 'Herd',
-        render: (c) => {
-          const hc = HERD_COLORS[c.herd] || HERD_COLORS.mommas;
-          return (
-            <span
-              style={{
-                fontSize: 11,
-                padding: '2px 8px',
-                borderRadius: 999,
-                background: 'white',
-                color: hc.tx,
-                border: '1px solid ' + hc.bd,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {HERD_LABELS[c.herd]}
-            </span>
-          );
-        },
+        render: (c) => (
+          <span style={{fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap'}}>
+            {HERD_LABELS[c.herd]}
+          </span>
+        ),
       });
     }
     cols.push(
@@ -1308,7 +1290,7 @@ const CattleHerdsHub = ({
             <span style={{display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
               {c.dam_tag && <StatusText tone="muted">{'dam #' + c.dam_tag}</StatusText>}
               {isFemale && (
-                <span data-calf-count={cc} style={{fontSize: 11, color: '#7f1d1d', fontWeight: 600}}>
+                <span data-calf-count={cc} style={{fontSize: 11, color: 'var(--text-primary)', fontWeight: 600}}>
                   {'Calves: ' + cc}
                 </span>
               )}
@@ -1366,7 +1348,7 @@ const CattleHerdsHub = ({
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #991b1b', color: '#991b1b'};
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: `1px solid ${CATTLE_ACCENT}`, color: CATTLE_ACCENT};
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -1379,9 +1361,9 @@ const CattleHerdsHub = ({
     width: 34,
     height: 34,
     borderRadius: 10,
-    border: active ? '1px solid #991b1b' : '1px solid var(--border-strong)',
+    border: active ? `1px solid ${CATTLE_ACCENT}` : '1px solid var(--border-strong)',
     background: active ? '#fff7f7' : 'white',
-    color: active ? '#991b1b' : 'var(--ink)',
+    color: active ? CATTLE_ACCENT : 'var(--ink)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1433,7 +1415,7 @@ const CattleHerdsHub = ({
                 borderRadius: 10,
                 border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#085041',
+                color: 'var(--text-primary)',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -1735,9 +1717,9 @@ const CattleHerdsHub = ({
                   style={{
                     padding: '7px 14px',
                     borderRadius: 10,
-                    border: '1px solid #991b1b',
+                    border: '1px solid var(--border-strong)',
                     background: 'white',
-                    color: '#991b1b',
+                    color: 'var(--ink)',
                     fontWeight: 600,
                     fontSize: 12,
                     cursor: 'pointer',
@@ -1753,8 +1735,8 @@ const CattleHerdsHub = ({
                     padding: '7px 16px',
                     borderRadius: 10,
                     border: 'none',
-                    background: '#991b1b',
-                    color: 'white',
+                    background: getProgramColor('cattle'),
+                    color: getReadableText(getProgramColor('cattle')),
                     fontWeight: 600,
                     fontSize: 12,
                     cursor: 'pointer',
@@ -1873,7 +1855,6 @@ const CattleHerdsHub = ({
                   const estCount = cows.filter(
                     (c) => (lastWeight(c) == null || lastWeight(c) === 0) && isHerdTileRecentlyPurchased(c),
                   ).length;
-                  const hc = HERD_COLORS[h];
                   const herdOpen = !!expandedHerds[h];
                   return (
                     <div
@@ -1893,8 +1874,7 @@ const CattleHerdsHub = ({
                         style={{
                           padding: '12px 18px',
                           background: 'white',
-                          borderLeft: '3px solid ' + hc.tx,
-                          borderBottom: herdOpen ? '1px solid ' + hc.bd : 'none',
+                          borderBottom: herdOpen ? '1px solid var(--border)' : 'none',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 12,
@@ -1902,20 +1882,20 @@ const CattleHerdsHub = ({
                           cursor: 'pointer',
                         }}
                       >
-                        <span style={{fontSize: 12, color: hc.tx}}>{herdOpen ? '▼' : '▶'}</span>
-                        <span style={{fontSize: 15, fontWeight: 700, color: hc.tx}}>
+                        <span style={{fontSize: 12, color: 'var(--text-primary)'}}>{herdOpen ? '▼' : '▶'}</span>
+                        <span style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>
                           {renderCattleIconLabel(HERD_LABELS[h], {size: 21})}
                         </span>
-                        <span style={{fontSize: 12, color: hc.tx, opacity: 0.8}}>
+                        <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                           {cows.length} {cows.length === 1 ? 'cow' : 'cows'}
                         </span>
                         {totalWt > 0 && (
-                          <span style={{fontSize: 12, color: hc.tx, opacity: 0.8}}>
+                          <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                             {'· ' + Math.round(totalWt).toLocaleString() + ' lbs total'}
                           </span>
                         )}
                         {estCount > 0 && (
-                          <span style={{fontSize: 11, color: hc.tx, opacity: 0.7, fontStyle: 'italic'}}>
+                          <span style={{fontSize: 11, color: 'var(--warn-ink)', fontStyle: 'italic'}}>
                             {'(' + estCount + ' est. @ 1,000 lb)'}
                           </span>
                         )}
@@ -1936,7 +1916,6 @@ const CattleHerdsHub = ({
                 <CollapsibleOutcomeSections
                   cattle={cattle}
                   weighIns={weighIns}
-                  HERD_COLORS={HERD_COLORS}
                   HERD_LABELS={HERD_LABELS}
                   OUTCOMES={CATTLE_OUTCOME_KEYS}
                   fmt={fmt}
@@ -2000,7 +1979,9 @@ const CattleHerdsHub = ({
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#991b1b'}}>{editId ? 'Edit Cow' : 'Add Cow'}</div>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>
+                {editId ? 'Edit Cow' : 'Add Cow'}
+              </div>
               <button
                 onClick={() => {
                   closeCowForm();
@@ -2162,8 +2143,8 @@ const CattleHerdsHub = ({
                         padding: '5px 12px',
                         borderRadius: 10,
                         border: 'none',
-                        background: '#1d4ed8',
-                        color: 'white',
+                        background: getProgramColor('cattle'),
+                        color: getReadableText(getProgramColor('cattle')),
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -2465,8 +2446,8 @@ const CattleHerdsHub = ({
                   padding: '8px 20px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#991b1b',
-                  color: 'white',
+                  background: getProgramColor('cattle'),
+                  color: getReadableText(getProgramColor('cattle')),
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: saving ? 'not-allowed' : 'pointer',
@@ -2482,9 +2463,9 @@ const CattleHerdsHub = ({
                   style={{
                     padding: '8px 16px',
                     borderRadius: 10,
-                    border: '1px solid #F09595',
+                    border: '1px solid var(--border)',
                     background: 'white',
-                    color: '#b91c1c',
+                    color: 'var(--danger)',
                     fontSize: 13,
                     cursor: 'pointer',
                     fontFamily: 'inherit',

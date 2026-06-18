@@ -7,7 +7,7 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-16.
+Last updated: 2026-06-18.
 Current shipped runtime checkpoint: `2014e72`
 (`merge: pasture map CP2 draw edit measure`), pushed to `origin/main`.
 This `PROJECT.md` wrap update is the only local tracked change until Ronnie
@@ -104,6 +104,29 @@ Design/function invariants that govern cross-surface behavior live in
 
 The following work is merged to `main`, pushed, and live unless otherwise noted:
 
+- Design-law compliance pass (CP0 A1–A12 + Tabs + WI-6; 2026-06-17 designer
+  audit, 53 findings) — committed + pushed to `feature/design-law-compliance-cp0`
+  on 2026-06-18; **pending PR + merge to main, not yet live** (prod runtime
+  checkpoint stays `2014e72` until merged):
+  - Tokens + Constitution amended to CP0 — true-black primary text, one defined
+    border gray, 10px radius floor + documented sub-10 allowlist — with the
+    `design_token_contract` / `radius_floor` / `openable_hover_affordance` guards
+    updated in the same change.
+  - Universal hover affordance: tiles lift 3px/300ms + trailing chevron; table
+    rows raise via shadow + cell-border emphasis (no `<tr>` transform); chevron
+    column added to the shared `DataTable`.
+  - Header sub-nav selected tab → program-color pill (pig blue / broiler gold /
+    layer orange / cattle maroon / sheep green); dark-green top-bar chrome kept.
+  - Site-wide color sweep (all programs): stat numbers → black, species/group/
+    herd/flock → dot + black label, card backgrounds + colored borders
+    neutralized, status → shared `Badge`, category chips → dot+label/text,
+    primary actions re-tinted per program; semantic colors (mortality, YoY,
+    warn/danger notices) preserved.
+  - Dailys (×6): status row-fills removed, comments black + 2-line clamp,
+    herd/flock pills → dot+label, `DataTable` windowed render cap (export/print/
+    filters/saved-views unchanged).
+  - Broiler PROCESSED cards → shared `DataTable`; weigh-in list + shared session
+    page program-accented. Pasture Map intentionally untouched.
 - Site-wide Home aesthetic parity rollout:
   - Foundation/global token layer and shared openable hover primitives.
   - Admin, activity, webforms, equipment, Task Center, To Do, cattle, sheep, pig,
@@ -214,8 +237,9 @@ This is the canonical home for outstanding build/design work.
    - Known small follow-ups from the parity rollout:
      HomeDashboard admin Last-5-Days inline block, cattle herd-color owner
      reconciliation, and SheepDailysView flock row-badge residual.
-   - Scope each separately; do not reopen a full site-wide parity pass without a
-     new audit.
+   - Scope each separately. The 2026-06-17 designer compliance audit is the new
+     audit that authorizes the scoped site-wide pass; these residuals are folded
+     into the CP0 Design-Law Compliance Rollout (item 6).
    - Gate: code-only unless a touched surface needs a guard update.
 
 5. Dependency Audit Lane
@@ -224,6 +248,26 @@ This is the canonical home for outstanding build/design work.
    - Success criteria: identify direct vs transitive vulnerabilities, decide
      safe upgrades, avoid breaking Vite/React/Supabase/Playwright toolchain.
    - Gate: code/dependency lockfile push; no PROD DB work expected.
+
+6. Design-Law Compliance — residual follow-ups
+   - Class: `ENH`. The CP0 compliance pass (A1–A12 + Tabs + WI-6; the 2026-06-17
+     designer audit, 53 findings, source at
+     `C:\Users\Ronni\OneDrive\Desktop\design_handoff_wcf_compliance`) **shipped
+     2026-06-18** — see Latest Shipped Checkpoint. Source of truth for the laws is
+     `CP0-SIGNOFF.md`, folded into Global Decisions + Design System above. These
+     are the deliberately-deferred tails only:
+   - §5.4 explicit empty-state: the pig/layer dashboard all-dash group cards show
+     `—` rather than a "No data yet" label. They are genuine empties (A9-ok) and
+     A10 says leave the dashboards as-is, so this is low-priority polish.
+   - Optional dedicated static guards for the Tabs + A12 color-discipline laws.
+     Today they are enforced by the sweep + code review + the existing
+     `design_token_contract` / `openable_hover_affordance` guards; there is no
+     per-law grep guard pinning "no program hex as text/bg/border" or
+     "selected tab == program color."
+   - Pre-existing main test debt, unrelated to this lane (still red on `HEAD`):
+     `ActivityLogView` retry, `PigBatchesView` filters/grid, `SowsView`
+     breeding-record entry point. Scope separately.
+   - Gate: code-only.
 
 ---
 
@@ -243,11 +287,19 @@ Rules:
 | Decision | Status | Evidence |
 | --- | --- | --- |
 | Font scale | Ratified; shared-token enforcement active, residual legacy drift only by scoped lane | `design_token_contract_static.test.js`, `record_page_shell_static.test.js` |
-| Button corners | Ratified; `7`/`8` retired | `design_token_contract_static.test.js` |
+| Radius floor (CP0 §A3) | Ratified; 10px floor, `4`–`9` retired on real UI, sub-10 allowlist via `radius-allow` | `radius_floor_static.test.js`, `design_token_contract_static.test.js` |
 | Confirm/Delete stacking | Ratified; top destructive overlay tier | `design_token_contract_static.test.js`, `shared_ui_extraction_contract_static.test.js` |
 | Button height/padding | Ratified; standard button pad `10px 16px` | `design_token_contract_static.test.js` |
 | Save model | Ratified; submit-style vs autosave split | `save_model_contract_static.test.js` |
 | Ordinary text hierarchy | Ratified; Home and parity rollout shipped | `homeRedesign.css`, parity commits through `669fefc` |
+| Design-law package (CP0) | Ratified 2026-06-16 (CP0-SIGNOFF A1–A12 + Tabs); compliance pass shipped 2026-06-18 | folded into Global Decisions + Design System; residual follow-ups in Build Queue 6 |
+| True-black text (CP0 §A1) | Ratified; `--text-primary`/`--ink`/island `--text` = `#000`; `getReadableText` exempt | `design_token_contract_static.test.js`, island/openable guards |
+| One border gray (CP0 §A2) | Ratified; `--border` == `--border-strong` (one defined gray) | `index.html` token layer |
+| Program-color tabs (CP0 Tabs) | Selected tab = filled pill in program color; unselected = plain text; header sub-nav adopts it; top green chrome stays | `Header.jsx` sub-nav + `Tabs.jsx`; no dedicated static guard (Build Queue 6) |
+| Closed badge set (CP0 §A4) | `ok·warn·danger·info·neutral`; ≤1 per row; soft signals = colored text | `Badge.jsx`; broiler/pig/cattle batch static guards assert `<Badge>` adoption |
+| One table system (CP0 §A6) | hairline rows, no zebra, right-aligned numbers, status as text first, whole-row openable | `DataTable.jsx`, `DataTable.css` |
+| Color discipline (CP0 §A12) | program accent only on pill/dot/one-figure/brand-button; closed text-color set; species = dot + black label | enforced by the sweep + `design_token_contract`/`openable_hover` guards; no dedicated grep guard (Build Queue 6) |
+| Universal hover affordance (CP0 WI-6) | clickable surfaces lift 3px/300ms (rows raise via shadow+border, no transform) + trailing chevron, on hover and `:focus-visible` | `openable_hover_affordance_static.test.js` |
 
 Locked functional invariants:
 
@@ -286,6 +338,12 @@ unless Ronnie changes the contract:
   React app tokens.
 - The homepage redesign remains scoped under `.home.theme-crisp`; do not move
   Home-specific non-canonical micro-values globally without an amendment.
+- The public `#webform-container` island adopts the CP0 §A3 10px radius floor on
+  the app `:root` (`index.html`/`dailys.html`/`equipment.html` aligned 2026-06-17);
+  the island's own `--wf-r-*` corner radii are pending the CP5 forms pass.
+- CP0 §A12.1 permitted-uses are extended (2026-06-17) so the primary/brand button
+  re-tints to the program color via `--brand` on each program's page wrapper; this
+  is ratified, not palette drift.
 - `getReadableText()` in `src/lib/styles.js` returns infrastructure contrast
   colors for arbitrary colored backgrounds; this is not palette drift.
 
@@ -564,18 +622,36 @@ Append-only upload expectations:
   and text inside approved semantic pastel blocks.
 - A text-color cleanup must be typography-only unless the build explicitly says
   it is redesigning the affected block's background.
+- CP0 §A12 program-accent discipline: the locked program palette (pig `#2B4C9B`,
+  broiler `#C7920A`, layer `#D2601A`, cattle `#8E3328`, sheep `#4CA035`,
+  equip/admin `#6B7280`) may appear ONLY on (a) the selected nav/tab pill, (b) a
+  small dot in mixed lists, (c) optionally one headline figure, and (d) the
+  primary/brand button via per-program `--brand` re-tint. (d) is a ratified
+  extension of A12.1's permitted-uses list, decided 2026-06-17. Program color is
+  never general body text, stat numbers, card backgrounds, left-border accents,
+  or a status-color override. Species/group/herd/breed names render as dot +
+  black label, not colored text. The dark-green top-bar chrome stays green.
 
 ### Spacing And Controls
 
 - Standard button pad is `10px 16px`.
 - Standard button vertical pad is `10px`.
-- Inputs/selects/textareas use radius `6`, border `1px #d1d5db`, pad `8px 11px`,
-  and brand focus treatment.
+- Inputs/selects/textareas use radius `10` (`--radius-sm`, CP0 §A3), border
+  `1px var(--border-strong)`, pad `8px 11px`, and brand focus treatment.
 
 ### Radius
 
-- Canonical radius tokens are `4`, `6`, `10`, `14`, `999`, and `'50%'`.
-- The values `7` and `8` are retired.
+- CP0 §A3: 10px is the floor for real UI controls. Canonical radius tokens are
+  `10`, `12`, `14`, `999` (pill), and `'50%'` (circle). The values `4`–`9` are
+  retired on real UI.
+- Genuinely decorative sub-components (legend swatches, accent/LED bars, progress
+  bars, dividers, inline-code chips, small color dots) keep a sub-10 radius ONLY
+  on a line tagged with the `radius-allow` marker; the floor guard fails any
+  untagged sub-10 radius.
+- Scope exemptions: the `.home` island (`homeRedesign.css`) keeps `9/12/18`; the
+  public `#webform-container` island radius is pending the CP5 forms pass.
+- Guards: `radius_floor_static.test.js` (floor + allowlist) and
+  `design_token_contract_static.test.js` (canonical set on locked primitives).
 
 ### Stacking And Elevation
 

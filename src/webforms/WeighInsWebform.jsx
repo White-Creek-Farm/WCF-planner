@@ -30,6 +30,7 @@ import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon, {PlannerIconLabel} from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
+import {programDotStyle} from '../lib/programColors.js';
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import DeleteModal from '../shared/DeleteModal.jsx';
@@ -1562,36 +1563,31 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
             {
               key: 'cattle',
               iconKey: ANIMAL_ICON_KEYS.cattle,
-              color: '#991b1b',
-              bg: '#fef2f2',
               label: 'Cattle',
               desc: 'Per-cow weigh-in with session autosave',
             },
             {
               key: 'sheep',
               iconKey: ANIMAL_ICON_KEYS.sheep,
-              color: '#0f766e',
-              bg: '#f0fdfa',
               label: 'Sheep',
               desc: 'Per-sheep weigh-in with session autosave',
             },
             {
               key: 'pig',
               iconKey: ANIMAL_ICON_KEYS.pig,
-              color: '#1e40af',
-              bg: '#eff6ff',
               label: 'Pig',
               desc: 'Feeder batch \u2014 weigh several pigs at once',
             },
             {
               key: 'broiler',
               iconKey: ANIMAL_ICON_KEYS.broiler,
-              color: '#a16207',
-              bg: '#fef9c3',
               label: 'Broiler',
               desc: '4-week or 6-week weighings, ~15 birds',
             },
           ].map((s) => (
+            // F049: species cards are white with a gray border. Identity is shown
+            // by the species icon + a small program dot beside the black title \u2014
+            // no colored headings, desc text, chevron, or tinted border.
             <div
               key={s.key}
               {...openableProps(() => {
@@ -1609,15 +1605,27 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
-                border: '1px solid ' + s.color + '33',
+                border: '1px solid var(--border)',
               }}
             >
               <PlannerIcon iconKey={s.iconKey} size={32} />
               <div style={{flex: 1}}>
-                <div style={{fontSize: 16, fontWeight: 700, color: s.color}}>{s.label}</div>
-                <div style={{fontSize: 12, color: s.color, opacity: 0.8}}>{s.desc}</div>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <span style={programDotStyle(s.key)} />
+                  {s.label}
+                </div>
+                <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>{s.desc}</div>
               </div>
-              <div style={{color: s.color, fontSize: 18}}>{'\u203a'}</div>
+              <div style={{color: 'var(--ink-faint)', fontSize: 18}}>{'\u203a'}</div>
             </div>
           ))}
           <div style={{textAlign: 'center', marginTop: 16}}>
@@ -2006,12 +2014,15 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                         setPriorTagInput('');
                       }}
                       style={{
+                        // WI-2d: these three tag-mode triggers share one neutral
+                        // secondary style — dashed gray border, black ink — instead
+                        // of ad-hoc per-mode green/blue/amber.
                         flex: '1 1 120px',
                         padding: 8,
                         borderRadius: 10,
-                        border: '1px dashed #047857',
+                        border: '1px dashed var(--border-strong)',
                         background: 'transparent',
-                        color: '#065f46',
+                        color: 'var(--ink)',
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -2040,9 +2051,9 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                         flex: '1 1 120px',
                         padding: 8,
                         borderRadius: 10,
-                        border: '1px dashed #1d4ed8',
+                        border: '1px dashed var(--border-strong)',
                         background: 'transparent',
-                        color: '#1e40af',
+                        color: 'var(--ink)',
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: tagInput ? 'pointer' : 'not-allowed',
@@ -2064,9 +2075,9 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                         flex: '1 1 120px',
                         padding: 8,
                         borderRadius: 10,
-                        border: '1px dashed #b45309',
+                        border: '1px dashed var(--border-strong)',
                         background: 'transparent',
-                        color: '#92400e',
+                        color: 'var(--ink)',
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -2085,14 +2096,14 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     padding: 10,
                     background: 'white',
                     borderRadius: 10,
+                    // WI-2c: drop the colored left-border accent; uniform gray border.
                     border: '1px solid var(--border)',
-                    borderLeft: '3px solid #047857',
                   }}
                 >
                   <div
                     style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}
                   >
-                    <div style={{fontSize: 11, fontWeight: 700, color: '#065f46'}}>
+                    <div style={{fontSize: 11, fontWeight: 700, color: 'var(--text-primary)'}}>
                       {'\u2795 New Cow'}
                       <span style={{fontWeight: 400, color: 'var(--ink)'}}>
                         {' \u00b7 will be created in ' + (cattleHerd || 'this herd')}
@@ -2185,14 +2196,14 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     padding: 10,
                     background: 'white',
                     borderRadius: 10,
+                    // WI-2c: drop the colored left-border accent; uniform gray border.
                     border: '1px solid var(--border)',
-                    borderLeft: '3px solid #1e40af',
                   }}
                 >
                   <div
                     style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}
                   >
-                    <div style={{fontSize: 11, fontWeight: 700, color: '#1e40af'}}>
+                    <div style={{fontSize: 11, fontWeight: 700, color: 'var(--text-primary)'}}>
                       {'\u21bb Swap Tag'}
                       <span style={{fontWeight: 400, color: 'var(--ink)'}}>
                         {' \u00b7 swap a known cow\u2019s tag on the spot'}
@@ -2256,14 +2267,14 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     padding: 10,
                     background: 'white',
                     borderRadius: 10,
+                    // WI-2c: drop the colored left-border accent; uniform gray border.
                     border: '1px solid var(--border)',
-                    borderLeft: '3px solid #b45309',
                   }}
                 >
                   <div
                     style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}
                   >
-                    <div style={{fontSize: 11, fontWeight: 700, color: '#92400e'}}>
+                    <div style={{fontSize: 11, fontWeight: 700, color: 'var(--text-primary)'}}>
                       {'\u26a0\ufe0f Missing Tag'}
                       <span style={{fontWeight: 400, color: 'var(--ink)'}}>
                         {' \u00b7 reconcile later if cow is unknown now'}
@@ -3221,11 +3232,13 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
                     {unflagged.map((e) => renderRow(e, false))}
                   </div>
                   {showProcessorBtn && flagged.length > 0 && (
-                    <div style={{...cardS, border: '2px solid #fecaca', background: '#fef2f2'}}>
-                      <div style={{fontSize: 12, fontWeight: 700, color: '#991b1b', marginBottom: 4}}>
+                    // WI-5: genuine danger notice — standardized to danger tokens
+                    // with a 1px gray border (no 2px colored ledger border).
+                    <div style={{...cardS, border: '1px solid var(--border)', background: 'var(--danger-soft)'}}>
+                      <div style={{fontSize: 12, fontWeight: 700, color: 'var(--danger)', marginBottom: 4}}>
                         {'🚩 Going to processor (' + flagged.length + ')'}
                       </div>
-                      <div style={{fontSize: 11, color: '#991b1b', marginBottom: 8}}>
+                      <div style={{fontSize: 11, color: 'var(--danger)', marginBottom: 8}}>
                         {'These ' +
                           (isFeeders ? 'sheep' : 'cows') +
                           ' will be attached to a processing batch and moved to the Processed ' +
@@ -3240,15 +3253,17 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
             })()}
 
           {species === 'cattle' && pendingReconciles.length > 0 && (
-            <div style={{...cardS, border: '2px solid #f59e0b', background: '#fffbeb'}}>
-              <div style={{fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6}}>
+            // WI-5: genuine warn notice (unmatched/missing tags) \u2014 standardized to
+            // warn tokens with a 1px gray border.
+            <div style={{...cardS, border: '1px solid var(--border)', background: 'var(--warn-soft)'}}>
+              <div style={{fontSize: 13, fontWeight: 700, color: 'var(--warn-ink)', marginBottom: 6}}>
                 {'\u26a0\ufe0f ' +
                   pendingReconciles.length +
                   ' ' +
                   (pendingReconciles.length === 1 ? 'missing tag' : 'missing tags') +
                   ' to reconcile'}
               </div>
-              <div style={{fontSize: 11, color: '#92400e', marginBottom: 10}}>
+              <div style={{fontSize: 11, color: 'var(--warn-ink)', marginBottom: 10}}>
                 Pick which cow each new tag belongs to. Pool narrows as more cows get weighed.
               </div>
               {pendingReconciles.map((e) => (

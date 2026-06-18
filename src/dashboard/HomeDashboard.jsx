@@ -1159,7 +1159,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                               <span
                                                 style={{
                                                   fontWeight: 700,
-                                                  color: '#111827',
+                                                  color: 'var(--text-primary)',
                                                   fontSize: 13,
                                                   overflow: 'hidden',
                                                   textOverflow: 'ellipsis',
@@ -1263,7 +1263,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                               <span
                                                 style={{
                                                   fontWeight: 700,
-                                                  color: '#111827',
+                                                  color: 'var(--text-primary)',
                                                   fontSize: 13,
                                                   overflow: 'hidden',
                                                   textOverflow: 'ellipsis',
@@ -1372,7 +1372,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                                               <span
                                                 style={{
                                                   fontWeight: 700,
-                                                  color: '#111827',
+                                                  color: 'var(--text-primary)',
                                                   fontSize: 13,
                                                   overflow: 'hidden',
                                                   textOverflow: 'ellipsis',

@@ -27,6 +27,8 @@ import {
   computeRankMatchedPigEntryADG,
 } from '../lib/pigForecast.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 
 const WEIGHIN_SESSION_SURFACE_KEYS = {pig: 'pig.weighins', broiler: 'broiler.weighins'};
 const VALID_WEIGHIN_STATUS_FILTERS = new Set(['all', 'draft', 'complete']);
@@ -47,6 +49,9 @@ const LivestockWeighInsView = ({
   species,
 }) => {
   const navigate = useNavigate();
+  // CP0 WI-2d: this weigh-in list is shared across species; its accent + primary
+  // action button re-tint to the current program color (pig blue / broiler gold).
+  const progColor = getProgramColor(species);
   const {useState, useEffect} = React;
   const [sessions, setSessions] = useState([]);
   const [entries, setEntries] = useState({});
@@ -341,7 +346,7 @@ const LivestockWeighInsView = ({
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #1e40af', color: '#1e40af'};
+  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: `1px solid ${progColor}`, color: progColor};
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -378,7 +383,7 @@ const LivestockWeighInsView = ({
               borderRadius: 10,
               border: '1px solid var(--border-strong)',
               background: 'white',
-              color: '#1e40af',
+              color: 'var(--text-primary)',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -591,7 +596,7 @@ const LivestockWeighInsView = ({
                         fontWeight: 600,
                         cursor: 'pointer',
                         background: 'white',
-                        color: statusFilter === o.k ? '#1e40af' : 'var(--ink-muted)',
+                        color: statusFilter === o.k ? progColor : 'var(--ink-muted)',
                       }}
                     >
                       {o.l}
@@ -644,8 +649,8 @@ const LivestockWeighInsView = ({
                 padding: '7px 14px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#1e40af',
-                color: 'white',
+                background: progColor,
+                color: getReadableText(progColor),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',

@@ -64,15 +64,18 @@ describe('Global openable affordance - HTML entry contract', () => {
     expect(block).toContain('.hoverable-row{cursor:pointer}');
   });
 
-  it('hover is gated behind (hover:hover): tiles lift + shadow + stronger border (no wash), row cells wash', () => {
+  it('hover is gated behind (hover:hover): tiles lift 3px + shadow + border, row cells wash + border emphasis', () => {
     expect(block).toContain('@media (hover:hover){');
-    // Home-parity .lift: cards/tiles rise with a soft shadow + darker border and
-    // NO background wash (the green wash was retired in the parity rollout).
+    // CP0 WI-6: cards/tiles rise 3px over 300ms with a soft shadow + darker
+    // border and NO background wash (the green wash was retired in the parity rollout).
     expect(block).toContain(
-      '.hoverable-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:var(--border-strong) !important}',
+      '.hoverable-tile:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover);border-color:var(--border-strong) !important}',
     );
-    // Dense rows stay flat and take the neutral row-hover wash on their cells.
-    expect(block).toContain('.hoverable-row:hover td{background:var(--row-hover) !important}');
+    // Dense rows stay flat (no transform/shadow on <tr>) and raise via the
+    // neutral row-hover wash + a stronger cell border on their cells.
+    expect(block).toContain(
+      '.hoverable-row:hover td{background:var(--row-hover) !important;border-color:var(--border-strong) !important}',
+    );
   });
 
   it('keyboard users get the same affordance via :focus-visible (brand ring + row wash)', () => {

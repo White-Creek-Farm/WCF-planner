@@ -1,6 +1,7 @@
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
 import {openableProps} from '../shared/openable.js';
+import {getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -19,7 +20,11 @@ import {
   RecordTitle,
 } from '../shared/RecordPageShell.jsx';
 /* eslint-enable no-unused-vars */
-import {S} from '../lib/styles.js';
+import {S, getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import StatusText from '../shared/StatusText.jsx';
 import {recordFieldRowClass, recordFieldLabel, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
 import {toISO, addDays} from '../lib/dateUtils.js';
 import {BROODERS, SCHOONERS, BROODER_CLEANOUT, SCHOONER_CLEANOUT, overlaps} from '../lib/broiler.js';
@@ -492,25 +497,35 @@ export default function LayerBatchPage({
     const feedPerHen = orig > 0 ? s.totalFeed / orig : null;
     const costPerHen = feedCost != null && orig > 0 ? feedCost / orig : null;
     perfTiles = [
-      {l: 'Batch Age', v: batchAgeStr, c: '#78350f'},
-      {l: 'Days in Housing', v: daysInHousing > 0 ? daysInHousing + ' days' : '—', c: 'var(--ink)'},
+      {l: 'Batch Age', v: batchAgeStr, c: 'var(--text-primary)'},
+      {l: 'Days in Housing', v: daysInHousing > 0 ? daysInHousing + ' days' : '—', c: 'var(--text-primary)'},
       {
         l: 'Original → Current',
         v: orig > 0 ? orig.toLocaleString() + ' → ' + currentHens.toLocaleString() : '—',
-        c: '#78350f',
+        c: 'var(--text-primary)',
       },
       {
         l: 'Dozens / Hen (lifetime)',
         v: eggsPerHen != null ? (eggsPerHen / 12).toFixed(1) + ' doz' : '—',
-        c: '#78350f',
+        c: 'var(--text-primary)',
       },
       {
         l: 'Eggs / Hen / Day (housing)',
         v: eggsPerHenPerDay != null ? eggsPerHenPerDay.toFixed(3) : '—',
-        c: eggsPerHenPerDay != null && eggsPerHenPerDay >= 0.7 ? '#065f46' : '#b45309',
+        // Production-rate signal: at/above target reads ok, below reads warn.
+        c:
+          eggsPerHenPerDay == null
+            ? 'var(--text-primary)'
+            : eggsPerHenPerDay >= 0.7
+              ? 'var(--ok-ink)'
+              : 'var(--warn-ink)',
       },
-      {l: 'Feed / Hen (lifetime)', v: feedPerHen != null ? feedPerHen.toFixed(1) + ' lbs' : '—', c: '#92400e'},
-      {l: 'Cost / Hen (lifetime)', v: costPerHen != null ? fmt$(costPerHen) : '—', c: '#065f46'},
+      {
+        l: 'Feed / Hen (lifetime)',
+        v: feedPerHen != null ? feedPerHen.toFixed(1) + ' lbs' : '—',
+        c: 'var(--text-primary)',
+      },
+      {l: 'Cost / Hen (lifetime)', v: costPerHen != null ? fmt$(costPerHen) : '—', c: 'var(--text-primary)'},
     ];
   }
 
@@ -525,19 +540,9 @@ export default function LayerBatchPage({
           <RecordTitle fontSize={22} margin={0}>
             {batch.name}
           </RecordTitle>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 10,
-              background: batch.status === 'active' ? '#d1fae5' : '#f3f4f6',
-              color: batch.status === 'active' ? '#065f46' : '#6b7280',
-              textTransform: 'uppercase',
-            }}
-          >
+          <Badge variant={isRetHome ? 'warn' : batch.status === 'active' ? 'ok' : 'neutral'}>
             {isRetHome ? 'Permanent' : batch.status}
-          </span>
+          </Badge>
           {(batch.brooder_entry_date || batch.arrival_date) &&
             (() => {
               const anchor = batch.brooder_entry_date || batch.arrival_date;
@@ -578,7 +583,7 @@ export default function LayerBatchPage({
               marginBottom: 12,
               borderRadius: 10,
               overflow: 'hidden',
-              border: '1px solid #d1d5db',
+              border: '1px solid var(--border-strong)',
               width: 'fit-content',
             }}
           >
@@ -593,13 +598,13 @@ export default function LayerBatchPage({
                 onClick={() => setRetHomePeriod(v)}
                 style={{
                   padding: '7px 16px',
-                  border: 'none',
+                  border: '1px solid ' + (retHomePeriod === v ? getProgramColor('layer') : 'var(--border-strong)'),
                   fontFamily: 'inherit',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  background: retHomePeriod === v ? '#085041' : 'white',
-                  color: retHomePeriod === v ? 'white' : '#6b7280',
+                  background: 'white',
+                  color: retHomePeriod === v ? getProgramColor('layer') : 'var(--ink-muted)',
                 }}
               >
                 {l}
@@ -620,7 +625,7 @@ export default function LayerBatchPage({
             [
               'Total Feed' + (isRetHome ? ' (' + periodLabel + ')' : ''),
               s.totalFeed > 0 ? Math.round(s.totalFeed).toLocaleString() + ' lbs' : '—',
-              '#92400e',
+              'var(--text-primary)',
             ],
             ...(isRetHome
               ? []
@@ -628,7 +633,8 @@ export default function LayerBatchPage({
                   [
                     'Starter Feed',
                     s.starterFeed > 0 ? Math.round(s.starterFeed).toLocaleString() + ' lbs' : '—',
-                    s.starterFeed >= 1400 ? '#b91c1c' : '#1e40af',
+                    // Excessive starter feed flags a problem; otherwise a raw stat.
+                    s.starterFeed >= 1400 ? 'var(--danger)' : 'var(--text-primary)',
                   ],
                 ]),
             ...(isRetHome
@@ -637,20 +643,33 @@ export default function LayerBatchPage({
                   [
                     'Grower Feed',
                     s.growerFeed > 0 ? Math.round(s.growerFeed).toLocaleString() + ' lbs' : '—',
-                    '#065f46',
+                    'var(--text-primary)',
                   ],
                 ]),
-            ['Layer Feed', s.layerFeed > 0 ? Math.round(s.layerFeed).toLocaleString() + ' lbs' : '—', '#78350f'],
+            [
+              'Layer Feed',
+              s.layerFeed > 0 ? Math.round(s.layerFeed).toLocaleString() + ' lbs' : '—',
+              'var(--text-primary)',
+            ],
             [
               'Mortality' + (isRetHome ? ' (' + periodLabel + ')' : ''),
               s.totalMort || '0',
-              s.totalMort > 10 ? '#b91c1c' : '#374151',
+              // Mortality reads as a loss signal above the threshold; otherwise black.
+              s.totalMort > 10 ? 'var(--danger)' : 'var(--text-primary)',
             ],
             ...(isRetHome
               ? []
-              : [['Total Dozens', s.totalEggs > 0 ? Math.floor(s.totalEggs / 12).toLocaleString() : '—', '#065f46']]),
-            ...(isRetHome ? [] : [['Feed Cost', feedCost != null ? fmt$(feedCost) : '—', '#92400e']]),
-            ...(isRetHome ? [] : [['Cost / Dozen', costPerDoz != null ? fmt$(costPerDoz) : '—', '#065f46']]),
+              : [
+                  [
+                    'Total Dozens',
+                    s.totalEggs > 0 ? Math.floor(s.totalEggs / 12).toLocaleString() : '—',
+                    'var(--text-primary)',
+                  ],
+                ]),
+            ...(isRetHome ? [] : [['Feed Cost', feedCost != null ? fmt$(feedCost) : '—', 'var(--text-primary)']]),
+            ...(isRetHome
+              ? []
+              : [['Cost / Dozen', costPerDoz != null ? fmt$(costPerDoz) : '—', 'var(--text-primary)']]),
           ].map(([l, v, c]) => (
             <div
               key={l}
@@ -748,9 +767,9 @@ export default function LayerBatchPage({
                   name: batch.brooder_name,
                   entry: batch.brooder_entry_date,
                   exit: batch.brooder_exit_date,
-                  color: '#dbeafe',
-                  border: '#93c5fd',
-                  text: '#1e40af',
+                  color: 'var(--bg-card)',
+                  border: 'var(--border)',
+                  text: 'var(--text-primary)',
                 },
                 {
                   label: 'Schooner',
@@ -758,9 +777,9 @@ export default function LayerBatchPage({
                   name: batch.schooner_name,
                   entry: batch.schooner_entry_date,
                   exit: batch.schooner_exit_date,
-                  color: '#d1fae5',
-                  border: '#6ee7b7',
-                  text: '#065f46',
+                  color: 'var(--bg-card)',
+                  border: 'var(--border)',
+                  text: 'var(--text-primary)',
                 },
                 {
                   label: 'Housing',
@@ -772,9 +791,9 @@ export default function LayerBatchPage({
                       .join(', ') || '—',
                   entry: batchHousings[0]?.start_date,
                   exit: null,
-                  color: '#fef3c7',
-                  border: '#fde68a',
-                  text: '#92400e',
+                  color: 'var(--bg-card)',
+                  border: 'var(--border)',
+                  text: 'var(--text-primary)',
                 },
               ].map((phase, i) => (
                 <React.Fragment key={phase.label}>
@@ -847,8 +866,8 @@ export default function LayerBatchPage({
                   padding: '5px 14px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#085041',
-                  color: 'white',
+                  background: getProgramColor('layer'),
+                  color: getReadableText(getProgramColor('layer')),
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -881,7 +900,7 @@ export default function LayerBatchPage({
                   className="hoverable-tile"
                   style={{
                     background: 'white',
-                    border: h.status === 'active' ? '1px solid #fde68a' : '1px solid var(--border)',
+                    border: '1px solid var(--border)',
                     borderRadius: 10,
                     padding: '14px 18px',
                     display: 'flex',
@@ -893,19 +912,7 @@ export default function LayerBatchPage({
                   <div style={{flex: 1}}>
                     <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap'}}>
                       <span style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)'}}>{'🏠 ' + h.housing_name}</span>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: '2px 7px',
-                          borderRadius: 10,
-                          background: h.status === 'active' ? '#d1fae5' : '#f3f4f6',
-                          color: h.status === 'active' ? '#065f46' : '#6b7280',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {h.status}
-                      </span>
+                      <Badge variant={h.status === 'active' ? 'ok' : 'neutral'}>{h.status}</Badge>
                       {h.start_date && (
                         <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>from {fmt(h.start_date)}</span>
                       )}
@@ -921,9 +928,11 @@ export default function LayerBatchPage({
                       {proj && proj.anchorDate && proj.mortSince > 0 && (
                         <span>
                           Projected:{' '}
-                          <strong style={{color: proj.projected < proj.anchor * 0.9 ? '#b91c1c' : '#92400e'}}>
-                            {proj.projected}
-                          </strong>
+                          {proj.projected < proj.anchor * 0.9 ? (
+                            <StatusText tone="danger">{proj.projected}</StatusText>
+                          ) : (
+                            <strong style={{color: 'var(--text-primary)'}}>{proj.projected}</strong>
+                          )}
                         </span>
                       )}
                       <span>
@@ -932,9 +941,7 @@ export default function LayerBatchPage({
                       {util !== null && (
                         <span>
                           Utilization:{' '}
-                          <strong style={{color: util > 95 ? '#b91c1c' : util > 80 ? '#92400e' : '#065f46'}}>
-                            {util + '%'}
-                          </strong>
+                          <StatusText tone={util > 95 ? 'danger' : util > 80 ? 'warn' : 'ok'}>{util + '%'}</StatusText>
                         </span>
                       )}
                       <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
@@ -1016,7 +1023,7 @@ export default function LayerBatchPage({
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>Add Housing</div>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>Add Housing</div>
               <button
                 type="button"
                 onClick={() => setShowAddHousing(false)}
@@ -1070,7 +1077,9 @@ export default function LayerBatchPage({
               >
                 Saves a housing shell and opens its record page. Fill in count, status, and notes there.
               </div>
-              {addHousingErr && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600}}>{addHousingErr}</div>}
+              {addHousingErr && (
+                <div style={{color: 'var(--danger)', fontSize: 12, fontWeight: 600}}>{addHousingErr}</div>
+              )}
             </div>
             <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}>
               <button
@@ -1082,8 +1091,8 @@ export default function LayerBatchPage({
                   padding: '8px 18px',
                   borderRadius: 10,
                   border: 'none',
-                  background: addHousingBusy || !addHousingName ? '#9ca3af' : '#085041',
-                  color: 'white',
+                  background: addHousingBusy || !addHousingName ? '#9ca3af' : getProgramColor('layer'),
+                  color: addHousingBusy || !addHousingName ? 'white' : getReadableText(getProgramColor('layer')),
                   fontWeight: 600,
                   fontSize: 13,
                   cursor: addHousingBusy || !addHousingName ? 'not-allowed' : 'pointer',
@@ -1153,7 +1162,7 @@ export default function LayerBatchPage({
                 alignItems: 'center',
               }}
             >
-              <div style={{fontSize: 15, fontWeight: 600, color: '#78350f'}}>
+              <div style={{fontSize: 15, fontWeight: 600, color: 'var(--text-primary)'}}>
                 Edit Layer Batch{' '}
                 <span style={{fontSize: 11, color: 'var(--ink-faint)', fontWeight: 400, marginLeft: 6}}>
                   Auto-saves as you type
@@ -1165,7 +1174,7 @@ export default function LayerBatchPage({
                 ) : batchPending ? (
                   <span style={{fontSize: 11, color: 'var(--ink-faint)'}}>{'Unsaved…'}</span>
                 ) : (
-                  <span style={{fontSize: 11, color: '#065f46'}}>{'✓ Saved'}</span>
+                  <span style={{fontSize: 11, color: 'var(--ok-ink)'}}>{'✓ Saved'}</span>
                 )}
                 <button
                   type="button"
@@ -1535,8 +1544,8 @@ export default function LayerBatchPage({
                         fontSize: 11,
                         padding: '4px 8px',
                         borderRadius: 10,
-                        background: warn ? '#fef2f2' : '#ecfdf5',
-                        color: warn ? '#b91c1c' : '#065f46',
+                        background: warn ? 'var(--warn-soft)' : 'var(--ok-soft)',
+                        color: warn ? 'var(--warn-ink)' : 'var(--ok-ink)',
                         fontWeight: 600,
                       }}
                     >
@@ -1557,7 +1566,7 @@ export default function LayerBatchPage({
                   />
                 </div>
               </div>
-              {err && <div style={{color: '#b91c1c', fontSize: 12, fontWeight: 600}}>{err}</div>}
+              {err && <div style={{color: 'var(--danger)', fontSize: 12, fontWeight: 600}}>{err}</div>}
             </div>
             {!isRetHome && (
               <div style={{padding: '12px 20px', borderTop: '1px solid var(--border)'}}>

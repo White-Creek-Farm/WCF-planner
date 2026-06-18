@@ -10,7 +10,8 @@ import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {recordActivityEvent} from '../lib/activityApi.js';
 import {fmtS} from '../lib/dateUtils.js';
-import {S} from '../lib/styles.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {getProgramColor} from '../lib/programColors.js';
 import {
   calcBreedingTimeline,
   calcCycleStatus,
@@ -34,6 +35,8 @@ import {
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon from '../components/PlannerIcon.jsx';
 import {useNavigate, useLocation} from 'react-router-dom';
@@ -244,7 +247,6 @@ export default function PigBatchesView({
   const navigateSeq = (id) => navigate('/pig/batches/' + encodeURIComponent(id), recordSeqNavOptions(recordSeq));
   const goToHub = () => navigate('/pig/batches');
 
-  const statusColors = {active: {bg: '#085041', tx: 'white'}, processed: {bg: '#4b5563', tx: 'white'}};
   const cycleSeqMap = buildCycleSeqMap(breedingCycles);
   const pigBatchExportRows = visiblePigBatches.map((group) => {
     const cycle = (breedingCycles || []).find((c) => c && c.id === group.cycleId);
@@ -705,19 +707,10 @@ export default function PigBatchesView({
   }
 
   function renderPigBatchTile(g, rowsForSequence) {
-    const sc = statusColors[g.status] || statusColors.active;
     const metrics =
       pigBatchMetricsById[g.id] ||
       buildPigBatchGridMetrics(g, {breeders, dailysForName, tripSourceSummary: processingTrips.tripSourceSummary});
-    return (
-      <PigBatchHubTile
-        key={g.id}
-        group={g}
-        metrics={metrics}
-        statusColor={sc}
-        onOpen={() => goToBatch(g.id, rowsForSequence)}
-      />
-    );
+    return <PigBatchHubTile key={g.id} group={g} metrics={metrics} onOpen={() => goToBatch(g.id, rowsForSequence)} />;
   }
 
   // Best-effort pig.batch status.changed Activity (entity_id = group.id).
@@ -939,20 +932,7 @@ export default function PigBatchesView({
                   : '— Projection unavailable'}
               </span>
             )}
-            {!adgEditing && globalAdgRow && globalAdgRow.manualValue != null && (
-              <span
-                style={{
-                  fontSize: 10,
-                  color: '#92400e',
-                  background: '#fef3c7',
-                  padding: '2px 8px',
-                  borderRadius: 10,
-                  fontWeight: 600,
-                }}
-              >
-                MANUAL
-              </span>
-            )}
+            {!adgEditing && globalAdgRow && globalAdgRow.manualValue != null && <Badge variant="warn">MANUAL</Badge>}
             {!adgEditing && isManager && (
               <button
                 onClick={() => {
@@ -1008,9 +988,9 @@ export default function PigBatchesView({
                     fontSize: 11,
                     padding: '4px 12px',
                     borderRadius: 10,
-                    border: '1px solid #085041',
-                    background: '#085041',
-                    color: 'white',
+                    border: '1px solid ' + getProgramColor('pig'),
+                    background: getProgramColor('pig'),
+                    color: getReadableText(getProgramColor('pig')),
                     cursor: adgSaving ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
                   }}
@@ -1141,8 +1121,8 @@ export default function PigBatchesView({
                   padding: '7px 18px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#085041',
-                  color: 'white',
+                  background: getProgramColor('pig'),
+                  color: getReadableText(getProgramColor('pig')),
                   cursor: 'pointer',
                   fontSize: 12,
                   fontWeight: 600,
@@ -1470,11 +1450,9 @@ export default function PigBatchesView({
                                     style={{
                                       fontSize: 11,
                                       padding: '3px 8px',
-                                      borderRadius: 10,
-                                      background: isBoars ? '#dbeafe' : '#d1fae5',
-                                      color: isBoars ? '#1e40af' : '#065f46',
                                       textAlign: 'center',
                                       fontWeight: 600,
+                                      color: 'var(--text-primary)',
                                     }}
                                   >
                                     {sex}
@@ -1490,10 +1468,10 @@ export default function PigBatchesView({
                             })}
                           </div>
                           <div style={{display: 'flex', gap: 14, marginTop: 8, fontSize: 11}}>
-                            <span style={{color: okG ? '#065f46' : '#b91c1c', fontWeight: 600}}>
+                            <span style={{color: okG ? 'var(--ok-ink)' : 'var(--danger)', fontWeight: 600}}>
                               Gilts: {sumG} / {tgtG} {okG ? '✓' : '⚠'}
                             </span>
-                            <span style={{color: okB ? '#1e40af' : '#b91c1c', fontWeight: 600}}>
+                            <span style={{color: okB ? 'var(--ok-ink)' : 'var(--danger)', fontWeight: 600}}>
                               Boars: {sumB} / {tgtB} {okB ? '✓' : '⚠'}
                             </span>
                           </div>
@@ -1502,9 +1480,9 @@ export default function PigBatchesView({
                               style={{
                                 marginTop: 6,
                                 fontSize: 11,
-                                color: '#b91c1c',
-                                background: '#fef2f2',
-                                border: '1px solid #fecaca',
+                                color: 'var(--danger)',
+                                background: 'var(--danger-soft)',
+                                border: '1px solid var(--border)',
                                 borderRadius: 10,
                                 padding: '5px 9px',
                               }}
@@ -1569,12 +1547,12 @@ export default function PigBatchesView({
                     <div
                       style={{
                         gridColumn: '1/-1',
-                        background: '#ecfdf5',
-                        border: '1px solid #a7f3d0',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
                         borderRadius: 10,
                         padding: '8px 12px',
                         fontSize: 12,
-                        color: '#085041',
+                        color: 'var(--text-primary)',
                       }}
                     >
                       <strong>Age range today:</strong> {calcAgeRange(feederForm.cycleId).text}
@@ -1877,9 +1855,9 @@ export default function PigBatchesView({
                   style={{
                     padding: '6px 12px',
                     borderRadius: 10,
-                    border: '1px solid #085041',
-                    background: '#085041',
-                    color: 'white',
+                    border: '1px solid ' + getProgramColor('pig'),
+                    background: getProgramColor('pig'),
+                    color: getReadableText(getProgramColor('pig')),
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',

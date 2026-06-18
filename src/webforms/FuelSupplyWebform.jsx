@@ -200,8 +200,11 @@ export default function FuelSupplyWebform({onBack, sessionSubmitter}) {
       </div>
 
       <div style={{maxWidth: 560, margin: '0 auto', padding: '16px'}}>
-        <div style={{...cardS, background: '#fffbeb', borderColor: '#fde68a'}}>
-          <div style={{fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 6}}>⚠ When to use this form</div>
+        {/* WI-5: genuine warn-notice panel — standardized warn ink on warn-soft, neutral border. */}
+        <div style={{...cardS, background: 'var(--warn-soft)', borderColor: 'var(--border)'}}>
+          <div style={{fontSize: 12, fontWeight: 700, color: 'var(--warn-ink)', marginBottom: 6}}>
+            ⚠ When to use this form
+          </div>
           <div style={{fontSize: 12, color: '#78716c', lineHeight: 1.5}}>
             Use this form when there is <strong>no fueling checklist</strong> for what is being filled with fuel — e.g.
             gas can fills, farm truck top-offs, generators, chainsaws.

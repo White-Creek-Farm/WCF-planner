@@ -2,7 +2,8 @@
 // of equipment. Supports photo uploads into the
 // 'equipment-maintenance-docs' Storage bucket.
 import React from 'react';
-import {EQUIPMENT_COLOR} from '../lib/equipment.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {newClientSubmissionId} from '../lib/clientSubmissionId.js';
 import {imageAltText} from '../lib/imageAlt.js';
 import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
@@ -154,7 +155,7 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
             alignItems: 'center',
           }}
         >
-          <div style={{fontSize: 15, fontWeight: 700, color: EQUIPMENT_COLOR}}>
+          <div style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>
             {existing ? 'Edit Maintenance Event' : 'Add Maintenance Event'}
           </div>
           <button
@@ -258,9 +259,9 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
                       width: 20,
                       height: 20,
                       borderRadius: '50%',
-                      border: 'none',
-                      background: '#b91c1c',
-                      color: 'white',
+                      border: '1px solid var(--border)',
+                      background: 'white',
+                      color: 'var(--danger)',
                       cursor: 'pointer',
                       fontSize: 12,
                       lineHeight: 1,
@@ -288,10 +289,11 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
             <div
               style={{
                 gridColumn: '1/-1',
-                color: '#b91c1c',
+                color: 'var(--danger)',
                 fontSize: 12,
                 padding: '6px 10px',
-                background: '#fef2f2',
+                background: 'var(--danger-soft)',
+                border: '1px solid var(--border)',
                 borderRadius: 10,
               }}
             >
@@ -323,7 +325,8 @@ export default function EquipmentMaintenanceModal({sb, equipment, existing, auth
             style={{
               ...recordSaveButton,
               border: 'none',
-              background: saving || uploading ? '#9ca3af' : EQUIPMENT_COLOR,
+              background: saving || uploading ? 'var(--border-strong)' : getProgramColor('equipment'),
+              color: getReadableText(getProgramColor('equipment')),
               cursor: saving || uploading ? 'not-allowed' : 'pointer',
             }}
           >

@@ -134,12 +134,15 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                   >
                     Month
                   </th>
+                  {/* WI-2b: species column headers carry an emoji/icon as their
+                      identity marker; the label text itself is black, not a
+                      per-program color. */}
                   <th
                     style={{
                       padding: '10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#a16207',
+                      color: 'var(--text-primary)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -152,7 +155,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       padding: '10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#78350f',
+                      color: 'var(--text-primary)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -165,7 +168,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       padding: '10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#1e40af',
+                      color: 'var(--text-primary)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -178,7 +181,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       padding: '10px',
                       textAlign: 'right',
                       fontWeight: 700,
-                      color: '#991b1b',
+                      color: 'var(--text-primary)',
                       fontSize: 11,
                       textTransform: 'uppercase',
                       letterSpacing: 0.5,
@@ -210,11 +213,13 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                     <td style={{padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--ink)'}}>
                       {fmtMonth(r.month)}
                     </td>
+                    {/* WI-2a: feed-cost figures are raw money totals, not a
+                        good/bad signal — render black; zero stays muted. */}
                     <td
                       style={{
                         padding: '8px 10px',
                         textAlign: 'right',
-                        color: r.broiler > 0 ? '#a16207' : 'var(--ink-faint)',
+                        color: r.broiler > 0 ? 'var(--text-primary)' : 'var(--ink-faint)',
                       }}
                     >
                       {fmtCost(r.broiler)}
@@ -223,7 +228,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       style={{
                         padding: '8px 10px',
                         textAlign: 'right',
-                        color: r.layer > 0 ? '#78350f' : 'var(--ink-faint)',
+                        color: r.layer > 0 ? 'var(--text-primary)' : 'var(--ink-faint)',
                       }}
                     >
                       {fmtCost(r.layer)}
@@ -232,7 +237,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       style={{
                         padding: '8px 10px',
                         textAlign: 'right',
-                        color: r.pig > 0 ? '#1e40af' : 'var(--ink-faint)',
+                        color: r.pig > 0 ? 'var(--text-primary)' : 'var(--ink-faint)',
                       }}
                     >
                       {fmtCost(r.pig)}
@@ -241,7 +246,7 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                       style={{
                         padding: '8px 10px',
                         textAlign: 'right',
-                        color: r.cattle > 0 ? '#991b1b' : 'var(--ink-faint)',
+                        color: r.cattle > 0 ? 'var(--text-primary)' : 'var(--ink-faint)',
                       }}
                     >
                       {fmtCost(r.cattle)}
@@ -251,20 +256,20 @@ const FeedCostByMonthPanel = ({sb, feedCosts}) => {
                     </td>
                   </tr>
                 ))}
-                <tr style={{borderTop: '2px solid #111827', background: '#f3f4f6'}}>
+                <tr style={{borderTop: '2px solid var(--text-primary)', background: '#f3f4f6'}}>
                   <td style={{padding: '10px', textAlign: 'left', fontWeight: 700, color: 'var(--ink)', fontSize: 12}}>
                     All-time total
                   </td>
-                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: '#a16207'}}>
+                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)'}}>
                     {fmtCost(totals.broiler)}
                   </td>
-                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: '#78350f'}}>
+                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)'}}>
                     {fmtCost(totals.layer)}
                   </td>
-                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: '#1e40af'}}>
+                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)'}}>
                     {fmtCost(totals.pig)}
                   </td>
-                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: '#991b1b'}}>
+                  <td style={{padding: '10px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)'}}>
                     {fmtCost(totals.cattle)}
                   </td>
                   <td style={{padding: '10px', textAlign: 'right', fontWeight: 800, color: 'var(--ink)', fontSize: 13}}>

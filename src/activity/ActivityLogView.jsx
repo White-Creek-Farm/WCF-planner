@@ -9,6 +9,8 @@ import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
 import {buildActivityLogExportColumns} from '../lib/operationalExportColumns.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 
 const ENTITY_TYPE_LABELS = {
   'task.instance': 'Task',
@@ -315,9 +317,11 @@ export default function ActivityLogView({Header}) {
                 marginBottom: 12,
                 padding: '6px 14px',
                 borderRadius: 10,
-                border: '1px solid #b91c1c',
-                background: '#b91c1c',
-                color: 'white',
+                // WI-2d: this is the page's primary recovery action; re-tint to
+                // the program (equipment/slate) accent instead of a filled red.
+                border: 'none',
+                background: getProgramColor('equipment'),
+                color: getReadableText(getProgramColor('equipment')),
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -401,10 +405,10 @@ export default function ActivityLogView({Header}) {
                       style: {
                         fontSize: 10,
                         fontWeight: 700,
-                        padding: '1px 6px',
-                        borderRadius: 999,
-                        background: '#ecfdf5',
-                        color: '#065f46',
+                        // F046: event-type is a category label, not a status badge.
+                        // Render as plain secondary-ink text; reserve danger ink only
+                        // for destructive events (deleted/removed) so they stand out.
+                        color: r.event_type === 'record.deleted' ? 'var(--danger)' : 'var(--text-secondary)',
                         textTransform: 'uppercase',
                       },
                     },
@@ -438,7 +442,9 @@ export default function ActivityLogView({Header}) {
                   r.mentioned_profile_names.length > 0 &&
                   React.createElement(
                     'div',
-                    {style: {fontSize: 11, color: '#2563eb', marginTop: 2}},
+                    // WI-2d: @-mentions are emphasis text, not a nav link — drop the
+                    // ad-hoc blue for secondary ink.
+                    {style: {fontSize: 11, color: 'var(--text-secondary)', marginTop: 2}},
                     '@' + r.mentioned_profile_names.filter(Boolean).join(' @'),
                   ),
               ),

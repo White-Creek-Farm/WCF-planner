@@ -13,7 +13,8 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {fmt, toISO, addDays} from '../lib/dateUtils.js';
-import {S} from '../lib/styles.js';
+import {S, getReadableText} from '../lib/styles.js';
+import {getProgramColor} from '../lib/programColors.js';
 import {recordControl, recordTextarea, recordFieldLabel, recordCheckbox} from '../shared/recordPageControls.jsx';
 import {
   BROODERS,
@@ -283,8 +284,17 @@ export default function BatchForm({
                 );
               })()}
             {/* Step 1 — Processing date + hatch suggestions */}
-            <div style={{background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, padding: '10px 14px'}}>
-              <div style={{color: '#083d30', fontWeight: 600, fontSize: 12, marginBottom: 8}}>
+            {/* WI-2c/WI-5: step panels use the white card surface + standard border;
+                step copy is plain black, not a green/blue theme. */}
+            <div
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '10px 14px',
+              }}
+            >
+              <div style={{color: 'var(--text-primary)', fontWeight: 600, fontSize: 12, marginBottom: 8}}>
                 Step 1 — Enter your target processing date
               </div>
               <div
@@ -292,7 +302,10 @@ export default function BatchForm({
                 style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8}}
               >
                 <div>
-                  <label style={{...recordFieldLabel, color: '#085041'}}>Breed</label>
+                  {/* CP0 A12.1: field labels are plain (no program color) on the shared
+                      recordFieldLabel primitive; program accent is reserved for the
+                      date-mode selected pill below. */}
+                  <label style={recordFieldLabel}>Breed</label>
                   <select style={recordControl} value={form.breed} onChange={(e) => upd('breed', e.target.value)}>
                     <option value="CC">Cornish Cross {'\u2014'} 7 weeks</option>
                     <option value="WR">White Ranger {'\u2014'} 8 weeks</option>
@@ -317,9 +330,9 @@ export default function BatchForm({
                         marginTop: 5,
                         padding: '3px 9px',
                         borderRadius: 10,
-                        border: '1px solid ' + (showLegacy ? '#92400e' : 'var(--border-strong)'),
+                        border: '1px solid var(--border-strong)',
                         background: 'white',
-                        color: showLegacy ? '#92400e' : 'var(--ink-muted)',
+                        color: showLegacy ? 'var(--text-primary)' : 'var(--ink-muted)',
                         fontSize: 10,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -331,15 +344,16 @@ export default function BatchForm({
                   )}
                 </div>
                 <div>
-                  <label style={{...recordFieldLabel, color: '#085041'}}>Processing date</label>
+                  <label style={recordFieldLabel}>Processing date</label>
                   <input
                     style={recordControl}
                     type="date"
                     value={form.processingDate}
                     onChange={(e) => upd('processingDate', e.target.value)}
                   />
+                  {/* Holiday proximity is a genuine warn signal \u2014 keep warn ink. */}
                   {procWarn && (
-                    <div style={{fontSize: 11, color: '#92400e', marginTop: 3}}>
+                    <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 3}}>
                       {'\u26a0 Within 1 day of a major holiday'}
                     </div>
                   )}
@@ -348,56 +362,72 @@ export default function BatchForm({
 
               {/* Hatch suggestions — hidden once a hatch date is locked in. */}
               {targetHatch && !form.hatchDate && (
-                <div style={{borderTop: '1px solid #97C459', paddingTop: 8}}>
-                  <div style={{fontSize: 11, color: '#085041', marginBottom: 5, fontWeight: 600}}>
+                <div style={{borderTop: '1px solid var(--border)', paddingTop: 8}}>
+                  <div style={{fontSize: 11, color: 'var(--text-primary)', marginBottom: 5, fontWeight: 600}}>
                     Suggested hatch dates to check with hatchery (target: {fmt(targetHatch)}):
                   </div>
                   <div style={{display: 'flex', gap: 5, flexWrap: 'wrap'}}>
-                    {hatchSuggestions.map((s) => (
-                      <button
-                        key={s.iso}
-                        onClick={() => upd('hatchDate', s.iso)}
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: 10,
-                          fontSize: 11,
-                          cursor: 'pointer',
-                          fontWeight: 500,
-                          border: '1px solid #085041',
-                          background: form.hatchDate === s.iso ? '#085041' : s.offset === 0 ? '#1D9E75' : '#EAF3DE',
-                          color: form.hatchDate === s.iso ? 'white' : s.offset === 0 ? 'white' : '#3B6D11',
-                        }}
-                      >
-                        {s.day} {s.label}
-                        {s.offset === 0
-                          ? ' (exact)'
-                          : s.offset < 0
-                            ? ` (${Math.abs(s.offset)}d early)`
-                            : ` (${s.offset}d late)`}
-                      </button>
-                    ))}
+                    {hatchSuggestions.map((s) => {
+                      // WI-2d: selected suggestion uses the broiler program accent;
+                      // unselected are neutral ghost chips (no green palette).
+                      const selected = form.hatchDate === s.iso;
+                      return (
+                        <button
+                          key={s.iso}
+                          onClick={() => upd('hatchDate', s.iso)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 10,
+                            fontSize: 11,
+                            cursor: 'pointer',
+                            fontWeight: 500,
+                            border: '1px solid var(--border-strong)',
+                            background: selected ? getProgramColor('broiler') : 'white',
+                            color: selected ? getReadableText(getProgramColor('broiler')) : 'var(--text-primary)',
+                          }}
+                        >
+                          {s.day} {s.label}
+                          {s.offset === 0
+                            ? ' (exact)'
+                            : s.offset < 0
+                              ? ` (${Math.abs(s.offset)}d early)`
+                              : ` (${s.offset}d late)`}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div style={{fontSize: 11, color: '#5a8a3a', marginTop: 5}}>
+                  <div style={{fontSize: 11, color: 'var(--ink-muted)', marginTop: 5}}>
                     Click a date or type one below once confirmed with hatchery
                   </div>
                 </div>
               )}
             </div>
             {/* Step 2 — Hatch date confirmed + full timeline */}
-            <div style={{background: '#f0f7ff', border: '1px solid #B5D4F4', borderRadius: 10, padding: '10px 14px'}}>
-              <div style={{color: '#1d4ed8', fontWeight: 600, fontSize: 12, marginBottom: 8}}>
+            {/* WI-2c/WI-5: white card surface + standard border; copy is plain black. */}
+            <div
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '10px 14px',
+              }}
+            >
+              <div style={{color: 'var(--text-primary)', fontWeight: 600, fontSize: 12, marginBottom: 8}}>
                 Step 2 — Confirm hatch date with hatchery
               </div>
               <div>
-                <label style={{...recordFieldLabel, color: '#1d4ed8'}}>Confirmed hatch date</label>
+                <label style={recordFieldLabel}>Confirmed hatch date</label>
                 <input
                   style={recordControl}
                   type="date"
                   value={form.hatchDate}
                   onChange={(e) => upd('hatchDate', e.target.value)}
                 />
+                {/* Holiday proximity is a genuine warn signal — keep warn ink. */}
                 {hatchWarn && (
-                  <div style={{fontSize: 11, color: '#92400e', marginTop: 3}}>⚠ Within 1 day of a major holiday</div>
+                  <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 3}}>
+                    ⚠ Within 1 day of a major holiday
+                  </div>
                 )}
               </div>
               {tl && (
@@ -405,13 +435,13 @@ export default function BatchForm({
                   data-mobile-1col="1"
                   style={{
                     marginTop: 8,
-                    borderTop: '1px solid #B5D4F4',
+                    borderTop: '1px solid var(--border)',
                     paddingTop: 8,
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr',
                     gap: '3px 12px',
                     fontSize: 12,
-                    color: '#1d4ed8',
+                    color: 'var(--text-primary)',
                   }}
                 >
                   <div>
@@ -612,7 +642,8 @@ export default function BatchForm({
                           borderRadius: 10,
                           fontSize: 13,
                           fontWeight: 600,
-                          color: stats.mortality > 0 ? '#b91c1c' : 'var(--ink-faint)',
+                          // Mortality > 0 is a genuine danger signal (WI-2a keep).
+                          color: stats.mortality > 0 ? 'var(--danger)' : 'var(--ink-faint)',
                         }}
                       >
                         {stats.mortality.toLocaleString()}
@@ -748,7 +779,8 @@ export default function BatchForm({
                         borderRadius: 10,
                         fontSize: 13,
                         fontWeight: 600,
-                        color: val > 0 ? '#085041' : 'var(--ink-faint)',
+                        // WI-2a: feed lbs is a raw metric, not a good/bad signal \u2192 black.
+                        color: val > 0 ? 'var(--text-primary)' : 'var(--ink-faint)',
                       }}
                     >
                       {val > 0 ? val.toLocaleString() + suffix : '\u2014'}
@@ -858,10 +890,11 @@ export default function BatchForm({
                       borderRadius: 10,
                       fontSize: 13,
                       fontWeight: 600,
+                      // WI-2a: feed-per-bird is a raw metric, not a good/bad signal → black.
                       color: (() => {
                         const tf = (parseFloat(form.brooderFeedLbs) || 0) + (parseFloat(form.schoonerFeedLbs) || 0);
                         const p = parseFloat(form.totalToProcessor) || 0;
-                        return tf > 0 && p > 0 ? '#085041' : 'var(--ink-faint)';
+                        return tf > 0 && p > 0 ? 'var(--text-primary)' : 'var(--ink-faint)';
                       })(),
                     }}
                   >
@@ -1289,7 +1322,8 @@ export default function BatchForm({
                       }
                       style={{
                         fontSize: 11,
-                        color: '#b91c1c',
+                        // WI-2d: destructive action → danger ink on a plain button (not filled red).
+                        color: 'var(--danger)',
                         background: 'none',
                         border: 'none',
                         cursor: 'pointer',

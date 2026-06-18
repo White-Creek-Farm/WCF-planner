@@ -17,9 +17,11 @@ import {
   cycleLabel,
   PIG_GROUPS,
   PIG_GROUP_COLORS,
-  PIG_GROUP_TEXT,
   getReadableText,
 } from '../lib/pig.js';
+import {programDotStyle, getProgramColor} from '../lib/programColors.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
@@ -230,8 +232,15 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
             </div>
             <div style={{padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10}}>
               {/* Boar names (per cycle) */}
-              <div style={{background: '#f0f7ff', border: '1px solid #B5D4F4', borderRadius: 10, padding: '10px 14px'}}>
-                <div style={{fontSize: 12, fontWeight: 600, color: '#1d4ed8', marginBottom: 8}}>
+              <div
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                }}
+              >
+                <div style={{fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8}}>
                   Boar names for this cycle
                 </div>
                 <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
@@ -303,12 +312,12 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                   return (
                     <div
                       style={{
-                        background: '#fffbeb',
-                        border: '1px solid #fde68a',
+                        background: 'var(--warn-soft)',
+                        border: '1px solid var(--border)',
                         borderRadius: 10,
                         padding: '8px 12px',
                         fontSize: 12,
-                        color: '#92400e',
+                        color: 'var(--warn-ink)',
                       }}
                     >
                       No sows assigned to Group {breedForm.group} yet. Go to the <strong>Breeding Pigs</strong> tab and
@@ -319,12 +328,12 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                 return (
                   <div
                     style={{
-                      background: '#eff6ff',
-                      border: '1px solid #bfdbfe',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
                       borderRadius: 10,
                       padding: '8px 12px',
                       fontSize: 12,
-                      color: '#1d4ed8',
+                      color: 'var(--text-primary)',
                     }}
                   >
                     <strong>{pool.length} sows</strong> currently in Group {breedForm.group}. Click a chip's × to
@@ -472,12 +481,12 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
               })()}
               <div
                 style={{
-                  background: '#ecfdf5',
-                  border: '1px solid #a7f3d0',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   padding: '8px 12px',
                   fontSize: 12,
-                  color: '#065f46',
+                  color: 'var(--text-primary)',
                 }}
               >
                 <strong>
@@ -515,12 +524,12 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                   return (
                     <div
                       style={{
-                        background: '#ecfdf5',
-                        border: '1px solid #a7f3d0',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
                         borderRadius: 10,
                         padding: '10px 14px',
                         fontSize: 12,
-                        color: '#085041',
+                        color: 'var(--text-primary)',
                       }}
                     >
                       <div style={{fontWeight: 600, marginBottom: 6}}>Calculated timeline</div>
@@ -653,8 +662,8 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
               padding: '5px 14px',
               borderRadius: 10,
               border: 'none',
-              background: '#085041',
-              color: 'white',
+              background: getProgramColor('pig'),
+              color: getReadableText(getProgramColor('pig')),
               cursor: 'pointer',
               fontSize: 12,
               fontWeight: 600,
@@ -1006,7 +1015,6 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
               .slice()
               .sort((a, b) => (b.exposureStart || '').localeCompare(a.exposureStart || ''))
               .map((c) => {
-                const C = PIG_GROUP_COLORS[c.group];
                 const tl = calcBreedingTimeline(c.exposureStart) || c;
                 const openEdit = () => {
                   const baseB1 = (c.boar1Tags || '').split(',').join('\n').split(', ').join('\n');
@@ -1037,7 +1045,6 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                     style={{
                       background: 'white',
                       border: '1px solid var(--border)',
-                      borderLeft: `3px solid ${C.farrowing}`,
                       borderRadius: 10,
                       padding: '10px 14px',
                       fontSize: 12,
@@ -1053,7 +1060,10 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                         marginBottom: 6,
                       }}
                     >
-                      <strong>{cycleLabel(c, cycleSeqMap)}</strong>
+                      <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                        <span style={programDotStyle('pig')} />
+                        <strong>{cycleLabel(c, cycleSeqMap)}</strong>
+                      </span>
                       <span style={{color: 'var(--ink-muted)'}}>{c.sowCount || '?'} sows total</span>
                       <span style={{color: 'var(--ink-muted)'}}>
                         Sows in with Boars: {fmt(tl.boarStart)} {'\u2192'} {fmt(tl.boarEnd)}
@@ -1065,18 +1075,17 @@ export default function BreedingView({Header, loadUsers, persistBreeding, breedA
                         Farrowing: {fmt(tl.farrowingStart)} {'\u2192'} {fmt(tl.farrowingEnd)}
                       </span>
                       <span style={{color: 'var(--ink-muted)'}}>Grow-out ends: {fmt(tl.growEnd)}</span>
-                      <span
-                        style={S.badge(
+                      <Badge
+                        variant={
                           calcCycleStatus(c) === 'completed'
-                            ? '#4b5563'
+                            ? 'neutral'
                             : calcCycleStatus(c) === 'active'
-                              ? '#085041'
-                              : '#374151',
-                          'white',
-                        )}
+                              ? 'ok'
+                              : 'warn'
+                        }
                       >
                         {c.status}
-                      </span>
+                      </Badge>
                     </div>
                     <div
                       style={{

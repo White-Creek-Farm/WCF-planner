@@ -8,6 +8,7 @@ import PlannerIcon from '../components/PlannerIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
+import {getProgramColor} from '../lib/programColors.js';
 const SheepHomeView = ({
   sb,
   fmt,
@@ -30,7 +31,6 @@ const SheepHomeView = ({
   const [period, setPeriod] = useState(30);
   const FLOCKS = ['rams', 'ewes', 'feeders'];
   const FLOCK_LABELS = {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'};
-  const FLOCK_COLORS = {rams: '#0f766e', ewes: '#86198f', feeders: '#854d0e'};
   const SEX_DEFAULT_WEIGHT = {ewe: 150, ram: 225, wether: 80};
   const ESTIMATE_WINDOW_DAYS = 120;
   const cutoff120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
@@ -177,7 +177,7 @@ const SheepHomeView = ({
     if (Math.abs(pct) > 200) return null;
     const up = pct >= 0;
     const good = higherIsBetter ? up : !up;
-    const color = Math.abs(pct) < 2 ? '#9ca3af' : good ? '#065f46' : '#b91c1c';
+    const color = Math.abs(pct) < 2 ? 'var(--ink-faint)' : good ? 'var(--ok-ink)' : 'var(--danger)';
     const arrow = Math.abs(pct) < 2 ? '\u2192' : up ? '\u2191' : '\u2193';
     return (
       <span style={{fontSize: 10, color, fontWeight: 600, marginLeft: 4}}>
@@ -193,7 +193,7 @@ const SheepHomeView = ({
   const cur = computeWindow(periodFromISO, todayISOstr);
   const prev = computeWindow(prevFromISO, prevToISO);
 
-  const StatTile = ({label, val, sub, color = '#0f766e'}) => (
+  const StatTile = ({label, val, sub, color = 'var(--text-primary)'}) => (
     <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px'}}>
       <div
         style={{
@@ -237,7 +237,7 @@ const SheepHomeView = ({
             fontWeight: 600,
             cursor: 'pointer',
             background: 'white',
-            color: period === v ? '#0f766e' : 'var(--ink-muted)',
+            color: period === v ? getProgramColor('sheep') : 'var(--ink-muted)',
           }}
         >
           {l}
@@ -282,9 +282,9 @@ const SheepHomeView = ({
               style={{
                 padding: '7px 14px',
                 borderRadius: 10,
-                border: '1px solid #991b1b',
+                border: '1px solid var(--border-strong)',
                 background: 'white',
-                color: '#991b1b',
+                color: 'var(--ink)',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 fontSize: 12,
@@ -306,9 +306,9 @@ const SheepHomeView = ({
             <StatTile
               label="Mortality 30d"
               val={totalMort30.toString()}
-              color={totalMort30 > 0 ? '#b91c1c' : 'var(--ink)'}
+              color={totalMort30 > 0 ? 'var(--danger)' : 'var(--text-primary)'}
             />
-            <StatTile label="Reports 30d" val={totalReports30.toString()} color="var(--ink)" />
+            <StatTile label="Reports 30d" val={totalReports30.toString()} color="var(--text-primary)" />
           </div>
         )}
 
@@ -325,8 +325,7 @@ const SheepHomeView = ({
                 {...openableProps(() => setView('sheepbatches'))}
                 style={{
                   background: 'white',
-                  border: '1px solid #5eead4',
-                  borderLeft: '4px solid #0f766e',
+                  border: '1px solid var(--border)',
                   borderRadius: 12,
                   padding: '14px 16px',
                   cursor: 'pointer',
@@ -334,7 +333,7 @@ const SheepHomeView = ({
                 className="hoverable-tile"
               >
                 <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
-                  <span style={{fontSize: 14, fontWeight: 700, color: '#0f766e'}}>Processing Batches</span>
+                  <span style={{fontSize: 14, fontWeight: 700, color: 'var(--text-primary)'}}>Processing Batches</span>
                   <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                     {batchCounts.total} {batchCounts.total === 1 ? 'batch' : 'batches'}
                   </span>
@@ -375,11 +374,13 @@ const SheepHomeView = ({
                           width: 8,
                           height: 8,
                           borderRadius: '50%',
-                          background: FLOCK_COLORS[f],
+                          background: 'var(--ink-faint)',
                           flexShrink: 0,
                         }}
                       />
-                      <span style={{fontSize: 14, fontWeight: 700, color: 'var(--ink)'}}>{FLOCK_LABELS[f]}</span>
+                      <span style={{fontSize: 14, fontWeight: 700, color: 'var(--text-primary)'}}>
+                        {FLOCK_LABELS[f]}
+                      </span>
                       <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
                         {flockSheep.length} {flockSheep.length === 1 ? 'sheep' : 'sheep'}
                       </span>
@@ -388,7 +389,7 @@ const SheepHomeView = ({
                       Live wt: <strong>{lw > 0 ? Math.round(lw).toLocaleString() + ' lbs' : '\u2014'}</strong>
                     </div>
                     {est > 0 && (
-                      <div style={{fontSize: 11, color: '#92400e', marginTop: 2}}>
+                      <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 2}}>
                         {est + ' est. (no weigh-in yet)'}
                       </div>
                     )}
@@ -412,7 +413,6 @@ const SheepHomeView = ({
                 style={{
                   background: 'white',
                   borderBottom: '1px solid var(--divider)',
-                  borderLeft: '4px solid #0f766e',
                   padding: '12px 20px',
                   display: 'flex',
                   alignItems: 'center',
@@ -424,7 +424,7 @@ const SheepHomeView = ({
                   style={{
                     fontSize: 16,
                     fontWeight: 700,
-                    color: '#0f766e',
+                    color: 'var(--text-primary)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 8,
@@ -456,11 +456,11 @@ const SheepHomeView = ({
                       trend: trendArrow(cur.fenceAvg, prev.fenceAvg, true),
                       color:
                         cur.fenceAvg >= 4
-                          ? '#065f46'
+                          ? 'var(--ok-ink)'
                           : cur.fenceAvg >= 2
-                            ? '#92400e'
+                            ? 'var(--warn-ink)'
                             : cur.fenceAvg != null
-                              ? '#b91c1c'
+                              ? 'var(--danger)'
                               : null,
                     },
                     {l: 'Waterers OK', v: cur.watersPct != null ? Math.round(cur.watersPct) + '%' : '\u2014'},
@@ -493,7 +493,7 @@ const SheepHomeView = ({
                         style={{
                           fontSize: 13,
                           fontWeight: 700,
-                          color: it.warn ? '#b91c1c' : it.color || 'var(--ink)',
+                          color: it.warn ? 'var(--danger)' : it.color || 'var(--text-primary)',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',

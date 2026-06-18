@@ -5,6 +5,8 @@
 // Card tile shows feed / mineral summary lines. Comments that are just
 // "None" / "none" / "0" / "n/a" no longer render as a pill badge.
 import React from 'react';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions, dailySeqItems} from '../lib/recordSequence.js';
 import {S} from '../lib/styles.js';
@@ -480,7 +482,11 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
   };
-  const savedViewPrimaryBtnS = {...savedViewGhostBtnS, border: '1px solid #0f766e', color: '#0f766e'};
+  const savedViewPrimaryBtnS = {
+    ...savedViewGhostBtnS,
+    border: `1px solid ${getProgramColor('sheep')}`,
+    color: getProgramColor('sheep'),
+  };
   const savedViewRadioLabelS = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -548,8 +554,8 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                 padding: '10px 16px',
                 borderRadius: 10,
                 border: 'none',
-                background: '#0f766e',
-                color: 'white',
+                background: getProgramColor('sheep'),
+                color: getReadableText(getProgramColor('sheep')),
                 fontWeight: 600,
                 fontSize: 12,
                 cursor: 'pointer',
@@ -867,14 +873,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
             density="comfortable"
             onRowOpen={(d) => navigate('/sheep/dailys/' + d.id, recordSeqNavOptions(dailySeqItems(filtered, 'flock')))}
             rowProps={(d) => ({'data-daily-row': d.id})}
-            rowStyle={(d) => {
-              const hasMort = parseInt(d.mortality_count) > 0;
-              const comments = isSentinelComment(d.comments) ? '' : String(d.comments).trim();
-              const notable = hasMort || comments;
-              if (notable) return {background: '#fef2f2'};
-              if (d.source === 'add_feed_webform') return {background: '#fffbeb'};
-              return undefined;
-            }}
+            maxInitialRows={100}
             columns={[
               {key: 'date', label: 'Date', render: (d) => fmt(d.date)},
               {
@@ -886,34 +885,14 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                   return (
                     <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, overflow: 'hidden'}}>
                       <span
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: fc.bg,
-                          color: fc.tx,
-                          border: '1px solid ' + fc.bd,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
+                        style={{width: 9, height: 9, borderRadius: '50%', background: fc.tx, flex: '0 0 9px'}}
+                        aria-hidden="true"
+                      />
+                      <span style={{color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap'}}>
                         {FLOCK_LABELS[d.flock] || d.flock}
                       </span>
                       {d.source === 'add_feed_webform' && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '1px 6px',
-                            borderRadius: 10,
-                            background: '#fef3c7',
-                            color: '#92400e',
-                            border: '1px solid #fde68a',
-                            flexShrink: 0,
-                          }}
-                          title="Add Feed log"
-                          aria-label="Add Feed log"
-                        >
+                        <span title="Add Feed log" aria-label="Add Feed log" style={{flexShrink: 0}}>
                           {'🌾'}
                         </span>
                       )}
@@ -957,7 +936,7 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                       : '';
                   if (!feedSummary) return <StatusText tone="muted">{'—'}</StatusText>;
                   return (
-                    <StatusText tone="muted" title={feedSummary} style={{color: '#92400e'}}>
+                    <StatusText tone="muted" title={feedSummary}>
                       {'🌾 ' + feedSummary}
                     </StatusText>
                   );
@@ -1004,9 +983,19 @@ const SheepDailysHub = ({sb, fmt, Header, authState, pendingEdit, setPendingEdit
                   const comments = isSentinelComment(d.comments) ? '' : String(d.comments).trim();
                   if (!comments) return <StatusText tone="muted">{'—'}</StatusText>;
                   return (
-                    <StatusText tone="warn" title={comments}>
+                    <span
+                      title={comments}
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        color: 'var(--text-primary)',
+                        maxWidth: 280,
+                      }}
+                    >
                       {comments}
-                    </StatusText>
+                    </span>
                   );
                 },
               },

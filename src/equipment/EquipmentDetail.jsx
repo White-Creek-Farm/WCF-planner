@@ -9,7 +9,6 @@ import React from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {openableProps} from '../shared/openable.js';
 import {
-  EQUIPMENT_COLOR,
   WARRANTY_WINDOW_DAYS,
   computeIntervalStatus,
   currentReadingFromFuelings,
@@ -17,6 +16,10 @@ import {
   daysSince,
   stripPodioHtml,
 } from '../lib/equipment.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+import Badge from '../shared/Badge.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import EquipmentMeterStatusPanel from './EquipmentMeterStatusPanel.jsx';
 import EquipmentMaintenanceModal from './EquipmentMaintenanceModal.jsx';
@@ -393,26 +396,14 @@ export default function EquipmentDetail({
     >
       <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
       {/* Header tile */}
-      <div
-        style={{background: 'white', border: '2px solid ' + EQUIPMENT_COLOR, borderRadius: 12, padding: '14px 20px'}}
-      >
+      <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 20px'}}>
         <div style={{display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 10}}>
-          <RecordTitle fontSize={20} margin="0" style={{color: EQUIPMENT_COLOR}}>
+          <RecordTitle fontSize={20} margin="0" style={{color: 'var(--text-primary)'}}>
             {eq.name}
           </RecordTitle>
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '2px 10px',
-              borderRadius: 10,
-              background: eq.status === 'active' ? '#d1fae5' : '#f3f4f6',
-              color: eq.status === 'active' ? '#065f46' : '#374151',
-              textTransform: 'uppercase',
-            }}
-          >
+          <Badge variant={eq.status === 'active' ? 'ok' : 'neutral'} style={{textTransform: 'uppercase'}}>
             {eq.status}
-          </span>
+          </Badge>
           {eq.serial_number && (
             <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
               Serial: <strong>{eq.serial_number}</strong>
@@ -445,9 +436,9 @@ export default function EquipmentDetail({
               marginLeft: 'auto',
               padding: '5px 12px',
               borderRadius: 10,
-              border: '1px solid ' + (eq.status === 'sold' ? '#047857' : '#b45309'),
+              border: '1px solid var(--border)',
               background: 'white',
-              color: eq.status === 'sold' ? '#047857' : '#92400e',
+              color: 'var(--ink)',
               fontSize: 11,
               fontWeight: 600,
               cursor: 'pointer',
@@ -473,19 +464,19 @@ export default function EquipmentDetail({
           {eq.def_tank_gal != null && eq.def_tank_gal > 0 && (
             <StatTile label="DEF tank" value={eq.def_tank_gal + ' gal'} color="var(--ink-muted)" />
           )}
-          <StatTile label="Fuelings" value={sortedFuelings.length.toLocaleString()} color="var(--brand)" />
-          <StatTile label="Total gallons" value={Math.round(totalGallons).toLocaleString()} color="var(--brand)" />
+          <StatTile label="Fuelings" value={sortedFuelings.length.toLocaleString()} color="var(--ink)" />
+          <StatTile label="Total gallons" value={Math.round(totalGallons).toLocaleString()} color="var(--ink)" />
         </div>
         {warrantyExpiresSoon && (
           <div
             style={{
               marginTop: 10,
               padding: '6px 10px',
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
+              background: 'var(--warn-soft)',
+              border: '1px solid var(--border)',
               borderRadius: 10,
               fontSize: 12,
-              color: '#92400e',
+              color: 'var(--warn-ink)',
             }}
           >
             ⚠ Warranty expires in <strong>{-warrantyDays} days</strong> ({fmt(eq.warranty_expiration)}).
@@ -527,9 +518,9 @@ export default function EquipmentDetail({
               .sort((a, b) => a.hours_or_km - b.hours_or_km)
               .map((iv) => {
                 // Two colors only: red for overdue, amber for upcoming.
-                const color = iv.overdue ? '#b91c1c' : '#92400e';
-                const bg = iv.overdue ? '#fef2f2' : '#fffbeb';
-                const bd = iv.overdue ? '#fca5a5' : '#fde68a';
+                const color = iv.overdue ? 'var(--danger)' : 'var(--warn-ink)';
+                const bg = iv.overdue ? 'var(--danger-soft)' : 'var(--warn-soft)';
+                const bd = 'var(--border)';
                 const unitChar = iv.kind.charAt(0);
                 // Show what was last done on this interval, if anything. The
                 // raw reading is when the operator actually did the work; the
@@ -713,11 +704,11 @@ export default function EquipmentDetail({
                     className="hoverable-tile"
                   >
                     <div style={{color: 'var(--ink)'}}>{fmt(f.date)}</div>
-                    <div style={{textAlign: 'right', color: '#1e40af', fontWeight: 600}}>
+                    <div style={{textAlign: 'right', color: 'var(--ink)', fontWeight: 600}}>
                       {f.gallons ? Math.round(f.gallons * 10) / 10 : '—'}
                     </div>
                     {eq.takes_def && (
-                      <div style={{textAlign: 'right', color: '#a16207', fontWeight: 600}}>
+                      <div style={{textAlign: 'right', color: 'var(--ink)', fontWeight: 600}}>
                         {f.def_gallons ? Math.round(f.def_gallons * 10) / 10 : '—'}
                       </div>
                     )}
@@ -745,9 +736,9 @@ export default function EquipmentDetail({
                             borderRadius: 999,
                             fontWeight: 700,
                             letterSpacing: 0.3,
-                            background: c.isFull ? '#dbeafe' : '#fef3c7',
-                            color: c.isFull ? '#1e40af' : '#92400e',
-                            border: '1px solid ' + (c.isFull ? '#bfdbfe' : '#fde68a'),
+                            background: 'var(--surface-2)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border)',
                           }}
                         >
                           {c.label}
@@ -763,9 +754,9 @@ export default function EquipmentDetail({
                             padding: '1px 6px',
                             borderRadius: 999,
                             fontWeight: 700,
-                            background: '#f3f4f6',
-                            color: '#374151',
-                            border: '1px solid #e5e7eb',
+                            background: 'var(--surface-2)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border)',
                           }}
                         >
                           📷 {photoCount}
@@ -813,7 +804,7 @@ export default function EquipmentDetail({
                   {isExp && (
                     <div
                       style={{
-                        background: '#fafafa',
+                        background: 'var(--surface-2)',
                         padding: '12px 14px',
                         borderTop: '1px solid var(--divider)',
                         fontSize: 11,
@@ -930,7 +921,7 @@ export default function EquipmentDetail({
                         if (allFillupItems.length === 0 && orphanTicked.length === 0) return null;
                         return (
                           <div style={{marginBottom: 10}}>
-                            <div style={{fontSize: 11, fontWeight: 700, color: '#065f46', marginBottom: 4}}>
+                            <div style={{fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4}}>
                               Every fuel fill up checklist{' '}
                               <span style={{color: 'var(--ink-muted)', fontWeight: 500, fontSize: 10, marginLeft: 6}}>
                                 {tickedIds.size}/{allFillupItems.length} ticked · click to toggle
@@ -949,9 +940,9 @@ export default function EquipmentDetail({
                                       borderRadius: 10,
                                       fontFamily: 'inherit',
                                       cursor: 'pointer',
-                                      background: ticked ? '#d1fae5' : 'white',
-                                      color: ticked ? '#065f46' : '#9ca3af',
-                                      border: '1px solid ' + (ticked ? '#a7f3d0' : '#e5e7eb'),
+                                      background: ticked ? 'var(--ok-soft)' : 'white',
+                                      color: ticked ? 'var(--ok-ink)' : 'var(--ink-faint)',
+                                      border: '1px solid var(--border)',
                                       textDecoration: ticked ? 'none' : 'line-through',
                                     }}
                                   >
@@ -968,9 +959,9 @@ export default function EquipmentDetail({
                                     fontSize: 10,
                                     padding: '3px 8px',
                                     borderRadius: 10,
-                                    background: '#f3f4f6',
-                                    color: '#6b7280',
-                                    border: '1px dashed #d1d5db',
+                                    background: 'var(--surface-2)',
+                                    color: 'var(--text-secondary)',
+                                    border: '1px dashed var(--border)',
                                   }}
                                 >
                                   ✓ {c.label || c.id} <span style={{fontStyle: 'italic', opacity: 0.7}}>(removed)</span>
@@ -1008,7 +999,7 @@ export default function EquipmentDetail({
                                   marginBottom: 8,
                                   padding: '8px 10px',
                                   background: 'white',
-                                  border: '1px solid ' + (isFull ? '#bfdbfe' : '#fde68a'),
+                                  border: '1px solid var(--border)',
                                   borderRadius: 10,
                                 }}
                               >
@@ -1016,7 +1007,7 @@ export default function EquipmentDetail({
                                   style={{
                                     fontSize: 11,
                                     fontWeight: 700,
-                                    color: isFull ? '#1e40af' : '#92400e',
+                                    color: 'var(--text-primary)',
                                     marginBottom: 4,
                                     display: 'flex',
                                     alignItems: 'center',
@@ -1040,9 +1031,9 @@ export default function EquipmentDetail({
                                       flexShrink: 0,
                                       padding: '2px 8px',
                                       borderRadius: 10,
-                                      border: '1px solid #fecaca',
+                                      border: '1px solid var(--border)',
                                       background: 'white',
-                                      color: '#b91c1c',
+                                      color: 'var(--danger)',
                                       fontSize: 10,
                                       fontFamily: 'inherit',
                                       fontWeight: 600,
@@ -1066,9 +1057,9 @@ export default function EquipmentDetail({
                                             borderRadius: 10,
                                             fontFamily: 'inherit',
                                             cursor: 'pointer',
-                                            background: ticked ? '#eff6ff' : 'white',
-                                            color: ticked ? '#1e40af' : '#9ca3af',
-                                            border: '1px solid ' + (ticked ? '#bfdbfe' : '#fde68a'),
+                                            background: ticked ? 'var(--ok-soft)' : 'white',
+                                            color: ticked ? 'var(--ok-ink)' : 'var(--ink-faint)',
+                                            border: '1px solid var(--border)',
                                             textDecoration: ticked ? 'none' : 'line-through',
                                           }}
                                         >
@@ -1085,9 +1076,9 @@ export default function EquipmentDetail({
                                           fontSize: 10,
                                           padding: '3px 8px',
                                           borderRadius: 10,
-                                          background: '#f3f4f6',
-                                          color: '#6b7280',
-                                          border: '1px dashed #d1d5db',
+                                          background: 'var(--surface-2)',
+                                          color: 'var(--text-secondary)',
+                                          border: '1px dashed var(--border)',
                                         }}
                                       >
                                         ✓ {id} <span style={{fontStyle: 'italic', opacity: 0.7}}>(removed)</span>
@@ -1140,9 +1131,9 @@ export default function EquipmentDetail({
                           style={{
                             padding: '4px 10px',
                             borderRadius: 10,
-                            border: '1px solid #fecaca',
+                            border: '1px solid var(--border)',
                             background: 'white',
-                            color: '#b91c1c',
+                            color: 'var(--danger)',
                             fontSize: 11,
                             cursor: 'pointer',
                             fontFamily: 'inherit',
@@ -1185,8 +1176,8 @@ export default function EquipmentDetail({
               }}
               style={{
                 fontSize: 11,
-                color: 'white',
-                background: EQUIPMENT_COLOR,
+                color: getReadableText(getProgramColor('equipment')),
+                background: getProgramColor('equipment'),
                 border: 'none',
                 borderRadius: 10,
                 padding: '5px 12px',
@@ -1207,7 +1198,7 @@ export default function EquipmentDetail({
                 <div
                   key={m.id}
                   style={{
-                    background: '#fafafa',
+                    background: 'var(--surface-2)',
                     border: '1px solid var(--border)',
                     borderRadius: 10,
                     padding: '10px 14px',
@@ -1220,18 +1211,18 @@ export default function EquipmentDetail({
                         style={{
                           fontSize: 10,
                           fontWeight: 700,
-                          padding: '1px 8px',
-                          borderRadius: 999,
-                          background: '#eff6ff',
-                          color: '#1e40af',
+                          color: 'var(--text-secondary)',
                           textTransform: 'uppercase',
+                          letterSpacing: 0.4,
                         }}
                       >
                         {m.event_type}
                       </span>
                     )}
                     {m.title && <span style={{fontSize: 12, color: 'var(--ink)', fontWeight: 600}}>{m.title}</span>}
-                    {m.cost && <span style={{fontSize: 12, color: '#065f46'}}>${Number(m.cost).toLocaleString()}</span>}
+                    {m.cost && (
+                      <span style={{fontSize: 12, color: 'var(--ink)'}}>${Number(m.cost).toLocaleString()}</span>
+                    )}
                     {m.hours_at_event && (
                       <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>at {Math.round(m.hours_at_event)}h</span>
                     )}
@@ -1276,7 +1267,7 @@ export default function EquipmentDetail({
                         onClick={() => deleteMaintenance(m.id)}
                         style={{
                           fontSize: 11,
-                          color: '#b91c1c',
+                          color: 'var(--danger)',
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',

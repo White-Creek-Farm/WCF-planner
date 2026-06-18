@@ -4,22 +4,13 @@
 import React from 'react';
 import {openableProps} from '../shared/openable.js';
 
-const SheepCollapsibleOutcomeSections = ({
-  sheep,
-  FLOCK_COLORS,
-  FLOCK_LABELS,
-  OUTCOMES,
-  fmt,
-  setStatusFilter,
-  onSheepClick,
-}) => {
+const SheepCollapsibleOutcomeSections = ({sheep, FLOCK_LABELS, OUTCOMES, fmt, setStatusFilter, onSheepClick}) => {
   const [expanded, setExpanded] = React.useState({});
   return (
     <div style={{marginTop: 8}}>
       {OUTCOMES.map((f) => {
         const rows = sheep.filter((s) => s.flock === f);
         if (rows.length === 0) return null;
-        const fc = FLOCK_COLORS[f];
         const isExpanded = expanded[f];
         return (
           <div
@@ -38,16 +29,36 @@ const SheepCollapsibleOutcomeSections = ({
               style={{
                 padding: '10px 16px',
                 background: 'white',
-                borderLeft: '3px solid ' + fc.tx,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
               }}
             >
-              <span style={{fontSize: 11, color: fc.tx}}>{isExpanded ? '▼' : '▶'}</span>
-              <span style={{fontSize: 13, fontWeight: 700, color: fc.tx}}>{FLOCK_LABELS[f]}</span>
-              <span style={{fontSize: 11, color: fc.tx, opacity: 0.7}}>{rows.length}</span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{isExpanded ? '▼' : '▶'}</span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 8,
+                    height: 8,
+                    flex: '0 0 8px',
+                    borderRadius: '50%',
+                    background: 'var(--ink-faint)',
+                  }}
+                />
+                <span>{FLOCK_LABELS[f]}</span>
+              </span>
+              <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>{rows.length}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -56,7 +67,7 @@ const SheepCollapsibleOutcomeSections = ({
                 style={{
                   marginLeft: 'auto',
                   fontSize: 11,
-                  color: fc.tx,
+                  color: 'var(--text-primary)',
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',

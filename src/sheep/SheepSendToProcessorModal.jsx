@@ -12,6 +12,8 @@
 import React from 'react';
 import {createProcessingBatch, attachEntriesToBatch} from '../lib/sheepProcessingBatch.js';
 import {attachSheepToProcessingBatch} from '../lib/processingAttachApi.js';
+import {getProgramColor} from '../lib/programColors.js';
+import {getReadableText} from '../lib/styles.js';
 import {recordSaveButton, recordSecondaryButton} from '../shared/recordPageControls.jsx';
 
 export default function SheepSendToProcessorModal({
@@ -189,9 +191,14 @@ export default function SheepSendToProcessorModal({
                   flex: 1,
                   padding: '7px 10px',
                   borderRadius: 10,
-                  border: '1px solid ' + (mode === 'existing' ? '#0f766e' : '#d1d5db'),
-                  background: mode === 'existing' ? '#0f766e' : 'white',
-                  color: mode === 'existing' ? 'white' : plannedBatches.length === 0 ? '#d1d5db' : '#374151',
+                  border: '1px solid ' + (mode === 'existing' ? getProgramColor('sheep') : 'var(--border-strong)'),
+                  background: mode === 'existing' ? getProgramColor('sheep') : 'white',
+                  color:
+                    mode === 'existing'
+                      ? getReadableText(getProgramColor('sheep'))
+                      : plannedBatches.length === 0
+                        ? 'var(--ink-faint)'
+                        : 'var(--ink)',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: plannedBatches.length === 0 ? 'not-allowed' : 'pointer',
@@ -207,9 +214,9 @@ export default function SheepSendToProcessorModal({
                   flex: 1,
                   padding: '7px 10px',
                   borderRadius: 10,
-                  border: '1px solid ' + (mode === 'new' ? '#0f766e' : '#d1d5db'),
-                  background: mode === 'new' ? '#0f766e' : 'white',
-                  color: mode === 'new' ? 'white' : '#374151',
+                  border: '1px solid ' + (mode === 'new' ? getProgramColor('sheep') : 'var(--border-strong)'),
+                  background: mode === 'new' ? getProgramColor('sheep') : 'white',
+                  color: mode === 'new' ? getReadableText(getProgramColor('sheep')) : 'var(--ink)',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -264,11 +271,11 @@ export default function SheepSendToProcessorModal({
         {err && (
           <div
             style={{
-              color: '#b91c1c',
+              color: 'var(--danger)',
               fontSize: 12,
               marginBottom: 10,
               padding: '6px 10px',
-              background: '#fef2f2',
+              background: 'var(--danger-soft)',
               borderRadius: 10,
             }}
           >
@@ -297,8 +304,9 @@ export default function SheepSendToProcessorModal({
               border: 'none',
               background:
                 busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())
-                  ? '#9ca3af'
-                  : '#0f766e',
+                  ? 'var(--ink-faint)'
+                  : getProgramColor('sheep'),
+              color: getReadableText(getProgramColor('sheep')),
               fontWeight: 700,
               cursor:
                 busy || loading || !canSend || (mode === 'existing' && !batchId) || (mode === 'new' && !newName.trim())

@@ -12,7 +12,6 @@
 // Fail-closed loading order per the Cold-Boot contract: loading -> loadError
 // (user-gated Retry) -> not-found -> record.
 import React from 'react';
-import {EQUIPMENT_COLOR} from '../lib/equipment.js';
 import {imageAltText} from '../lib/imageAlt.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
@@ -95,11 +94,9 @@ export default function EquipmentChecklistEntryPage({
       <RecordBackLink label={'Back to ' + eq.name} onBack={onBack} />
 
       {/* Header tile */}
-      <div
-        style={{background: 'white', border: '2px solid ' + EQUIPMENT_COLOR, borderRadius: 12, padding: '14px 20px'}}
-      >
+      <div style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 20px'}}>
         <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8}}>
-          <RecordTitle fontSize={20} margin="0" style={{color: EQUIPMENT_COLOR}}>
+          <RecordTitle fontSize={20} margin="0" style={{color: 'var(--text-primary)'}}>
             {event.title || 'Service'} — {fmt(event.event_date)}
           </RecordTitle>
           {event.event_type && (
@@ -107,11 +104,9 @@ export default function EquipmentChecklistEntryPage({
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                padding: '1px 8px',
-                borderRadius: 999,
-                background: '#eff6ff',
-                color: '#1e40af',
+                color: 'var(--text-secondary)',
                 textTransform: 'uppercase',
+                letterSpacing: 0.4,
               }}
             >
               {event.event_type}

@@ -173,10 +173,11 @@ describe('PigFeedView — minimal ledger contract', () => {
 
   it('Order for tile keeps amber styling even when recommendation is 0 lbs', () => {
     // Amber background + amber border are not gated on a positive value.
+    // CP0 WI-2c: reconciled '#fffbeb'/'2px solid #fde68a' -> var(--warn-soft)/1px var(--border).
     expect(pigSrc).toMatch(
-      /\{\s*\/\* Order for \[active\][\s\S]*?background: '#fffbeb'[\s\S]*?border: '2px solid #fde68a'/,
+      /\{\s*\/\* Order for \[active\][\s\S]*?background: 'var\(--warn-soft\)'[\s\S]*?border: '1px solid var\(--border\)'/,
     );
-    expect(pigSrc).not.toMatch(/background:\s*recommendedOrder[\s\S]*?'#fffbeb'\s*:\s*'white'/);
+    expect(pigSrc).not.toMatch(/background:\s*recommendedOrder[\s\S]*?'var\(--warn-soft\)'\s*:\s*'white'/);
   });
 
   it('zero-recommendation Save 0 path is enabled with a blank input', () => {
@@ -252,7 +253,8 @@ describe('BroilerFeedView — minimal ledger contract', () => {
     expect(broilerSrc).toMatch(/function renderTileRows\(perType, valueColorFn\)/);
     expect(broilerSrc).toMatch(/renderTileRows\(actualOnHand,/);
     expect(broilerSrc).toMatch(/renderTileRows\(estTileValues,/);
-    expect(broilerSrc).toMatch(/renderTileRows\(recommendedOrder, \(\) => '#92400e'\)/);
+    // CP0 WI-2c: reconciled amber ink '#92400e' -> var(--warn-ink).
+    expect(broilerSrc).toMatch(/renderTileRows\(recommendedOrder, \(\) => 'var\(--warn-ink\)'\)/);
     expect(broilerSrc).toMatch(/renderTileRows\(needThruNext,/);
   });
 
@@ -288,7 +290,10 @@ describe('BroilerFeedView — minimal ledger contract', () => {
 
   it('Order for tile keeps amber styling regardless of recommended total', () => {
     // Amber bg + amber border on the Order-for tile are not gated on a positive value.
-    expect(broilerSrc).toMatch(/Order for \[active\][\s\S]*?background: '#fffbeb'[\s\S]*?border: '2px solid #fde68a'/);
+    // CP0 WI-2c: reconciled '#fffbeb'/'2px solid #fde68a' -> var(--warn-soft)/1px var(--border).
+    expect(broilerSrc).toMatch(
+      /Order for \[active\][\s\S]*?background: 'var\(--warn-soft\)'[\s\S]*?border: '1px solid var\(--border\)'/,
+    );
   });
 
   it('recommended order per type is count-aware via the shared helper (Actual On Hand basis when current-month count)', () => {

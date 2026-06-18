@@ -3,6 +3,7 @@ import {sb} from '../lib/supabase.js';
 import {restoreDailyReport} from '../lib/dailyReportsApi.js';
 import {restoreCattleAnimal} from '../lib/cattleDeleteApi.js';
 import {restoreSheepAnimal} from '../lib/sheepDeleteApi.js';
+import {programDotStyle} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 
@@ -81,15 +82,6 @@ const ANIMAL_CONFIG = {
 };
 
 const RECOVERY_CONFIG = {...TABLE_CONFIG, ...ANIMAL_CONFIG};
-
-const BADGE_COLORS = {
-  Broiler: {bg: '#fef3c7', color: '#92400e'},
-  Layer: {bg: '#dbeafe', color: '#1e40af'},
-  Egg: {bg: '#ede9fe', color: '#5b21b6'},
-  Pig: {bg: '#fce7f3', color: '#9d174d'},
-  Cattle: {bg: '#d1fae5', color: '#065f46'},
-  Sheep: {bg: '#e0f2fe', color: '#075985'},
-};
 
 function fmtDate(d) {
   if (!d) return '';
@@ -216,7 +208,6 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
       {!loading && !loadError && rows.length > 0 && (
         <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
           {rows.map((r) => {
-            const bc = BADGE_COLORS[r.badgeLabel] || {bg: '#f3f4f6', color: '#374151'};
             return (
               <div
                 key={r.entityType + '-' + r.id}
@@ -233,17 +224,21 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
                   fontSize: 13,
                 }}
               >
+                {/* WI-2b: record-kind identity = small program dot + black
+                    label, not a colored badge. */}
                 <span
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
                     fontSize: 10,
                     fontWeight: 700,
-                    padding: '2px 8px',
-                    borderRadius: 999,
-                    background: bc.bg,
-                    color: bc.color,
+                    color: 'var(--text-primary)',
                     textTransform: 'uppercase',
+                    whiteSpace: 'nowrap',
                   }}
                 >
+                  <span style={programDotStyle(String(r.badgeLabel || '').toLowerCase(), 8)} />
                   {r.tableLabel}
                 </span>
                 <span style={{fontWeight: 600, color: 'var(--ink)'}}>{r.date || r.identityLabel || r.id}</span>
@@ -259,9 +254,11 @@ export default function RecentlyDeletedDailyReports({refreshDailys}) {
                   style={{
                     padding: '4px 12px',
                     borderRadius: 10,
-                    border: '1px solid #065f46',
-                    background: '#ecfdf5',
-                    color: '#065f46',
+                    // WI-2d: per-row action — one neutral secondary style, not a
+                    // green-tinted accent.
+                    border: '1px solid var(--border-strong)',
+                    background: 'white',
+                    color: 'var(--ink)',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
