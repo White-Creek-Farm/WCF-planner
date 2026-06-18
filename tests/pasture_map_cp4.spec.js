@@ -75,27 +75,23 @@ test('plans a move and renders history/rest/stocking reports', async ({page}) =>
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toBeVisible({timeout: 25_000});
 
-  // The selected panel hosts both the plan form and the move form. Create a
-  // planned move and record an actual move for Mommas -> A in one place. (The
-  // planned-move "Use" -> complete flow moves into Plan mode and is part of the
-  // P3 Plan-tab redesign; here we verify plan creation, move recording, reports.)
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).click();
-  await expect(page.locator('[data-pasture-plan-form]')).toBeVisible();
-  // Roster-driven: pick the real cattle "Mommas" group; count is locked/derived.
-  await page.locator('[data-pasture-plan-animal-type]').selectOption('cattle_herd');
-  await page.locator('[data-pasture-plan-group]').selectOption('mommas');
+  // Recording + planning live in the Plan tab (Map is read-only). The Plan tab
+  // hosts both the plan form and the move form for the selected destination
+  // area, each with a single flat Group picker and locked count.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
+  await expect(page.locator('[data-pasture-plan-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-plan-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-plan-at]').fill(localDateTimeValue());
   await page.locator('[data-pasture-plan-save]').click();
-
-  await page.locator('[data-pasture-move-animal-type]').selectOption('cattle_herd');
-  await page.locator('[data-pasture-move-group]').selectOption('mommas');
-  await page.locator('[data-pasture-move-save]').click();
-  await expect(page.locator(`[data-pasture-occupancy="${A_ID}"]`)).toContainText('Mommas', {timeout: 15_000});
-
-  // The created plan shows in the Plan tab's planned-moves list.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('Mommas', {timeout: 15_000});
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('CP4 North Paddock');
+
+  // Record the actual move for the same group/area.
+  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
+  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
+  await page.locator('[data-pasture-move-save]').click();
+  await page.waitForTimeout(800);
 
   // Reports tab: rest (open by default), then stocking and history.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();

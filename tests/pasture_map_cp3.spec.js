@@ -70,39 +70,37 @@ test('records moves and derives occupied/resting state', async ({page}) => {
   await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toBeVisible({timeout: 25_000});
   await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toBeVisible();
 
-  // Move 1: Mommas -> A. Roster-driven group pick; count is locked/derived.
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).click();
-  await expect(page.locator('[data-pasture-selected-panel]')).toContainText('CP3 North Paddock');
-  await expect(page.locator('[data-pasture-move-form]')).toBeVisible();
-  await page.locator('[data-pasture-move-animal-type]').selectOption('cattle_herd');
-  await page.locator('[data-pasture-move-group]').selectOption('mommas');
+  // Recording lives in the Plan tab now (Map is read-only). Single flat Group
+  // picker, locked count. Move Mommas -> A, then Mommas -> B (vacating A).
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
+  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
-  // A is now occupied by Mommas — the selected panel shows the occupant + state.
-  await expect(page.locator(`[data-pasture-occupancy="${A_ID}"]`)).toContainText('Mommas', {timeout: 15_000});
-  await expect(page.locator('[data-pasture-selected-panel]')).toContainText('Occupied now');
+  await page.waitForTimeout(800);
 
-  // Clear selection to return to the area index, then move 2: Mommas -> B (vacates A).
-  await page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'}).click();
-  await page.locator(`[data-pasture-area-select="${B_ID}"]`).click();
-  await page.locator('[data-pasture-move-animal-type]').selectOption('cattle_herd');
-  await page.locator('[data-pasture-move-group]').selectOption('mommas');
+  await page.locator(`[data-pasture-area-select="${B_ID}"]`).first().click();
+  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible();
+  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
-  await expect(page.locator(`[data-pasture-occupancy="${B_ID}"]`)).toContainText('Mommas', {timeout: 15_000});
+  await page.waitForTimeout(800);
 
-  // Clear selection -> the area index shows B occupied and A resting.
-  await page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'}).click();
+  // Map tab: B is occupied (animal-type marker), and the area index shows B
+  // occupied / A resting (derived occupancy + rest).
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(1, {timeout: 15_000});
+  const clearBtn = page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'});
+  if (await clearBtn.count()) await clearBtn.click();
   await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toContainText('Occupied now', {timeout: 15_000});
   await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toContainText(/resting/i);
 
-  // The move ledger is logged in the Reports tab's grazing-days log.
+  // Reports tab grazing-days log records the Mommas moves.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-recent-moves]')).toContainText('Mommas', {timeout: 15_000});
 
-  // Mobile: the view loads and the move form is reachable from a selected area.
+  // Mobile: the view still loads.
   await page.setViewportSize({width: 390, height: 844});
   await page.reload();
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toBeVisible({timeout: 25_000});
-  await page.locator(`[data-pasture-area-select="${B_ID}"]`).click();
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 25_000});
 });

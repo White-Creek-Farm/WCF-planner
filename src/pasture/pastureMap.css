@@ -356,6 +356,59 @@
   background: #2e6fb5;
 }
 
+/* P2 Map: occupancy by animal type */
+.state.occ-cattle {
+  background: #9a3b2e;
+}
+.state.occ-sheep {
+  background: #1e8a8a;
+}
+.state.occ-pigs {
+  background: #a8418a;
+}
+
+/* P2 Map: group marker on an occupied polygon */
+.pm-occupant-marker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  background: none;
+  border: none;
+  pointer-events: none;
+}
+.pm-occ-avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.pm-occ-name {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 7px;
+  padding: 1px 6px;
+  font-weight: 700;
+  font-size: 10.5px;
+  color: #222933;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.pm-occ-more {
+  background: #222933;
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-weight: 800;
+  font-size: 9.5px;
+}
+
 .resting,
 .state.resting {
   background: #c7920a;
@@ -1068,6 +1121,167 @@
   margin-right: 7px;
   border-radius: 50%;
   background: var(--species-color);
+}
+
+/* P2 Map tab — Current groups rows + location chips */
+.pm-current-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pm-current-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid #e6e8eb;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.pm-current-row:hover {
+  background: #f8f9fa;
+}
+.pm-current-row.is-active {
+  border-color: var(--species-color);
+  background: color-mix(in oklab, var(--species-color) 8%, #fff);
+}
+.pm-current-row .pm-avatar {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 50%;
+  background: var(--species-color);
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pm-current-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.pm-current-name strong {
+  font-weight: 700;
+  font-size: 13px;
+  color: #222933;
+}
+.pm-current-name em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 11px;
+  color: #9aa1ab;
+}
+.pm-loc-chip {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.pm-loc-chip.placed {
+  background: #eaf1ec;
+  color: #2f7a46;
+}
+.pm-loc-chip.unplaced {
+  background: #f1f3f4;
+  color: #9aa1ab;
+}
+
+/* P2 Area detail designation chips */
+.pm-area-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pm-chip-temp {
+  background: #e6f4ec;
+  color: #2f7a46;
+}
+
+/* One-shot: Setup area tags + lifecycle, Reports tags, Plan conflict, Field dupe */
+.pm-area-tags {
+  display: inline-flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.pm-pasture-edit-row.is-archived {
+  opacity: 0.72;
+}
+.pm-needs-classification {
+  background: #fcf7e8;
+  color: #8a6a1e;
+  border: 1px dashed #c7920a;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-weight: 700;
+  font-size: 11px;
+}
+.pm-hard-delete-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  background: #fbe7e3;
+  border: 1px solid #c0452f;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: #7c3023;
+}
+.pm-report-tag {
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pm-report-tag.permanent {
+  background: #f1f3f4;
+  color: #7a828d;
+}
+.pm-report-tag.temp {
+  background: #e6f4ec;
+  color: #2f7a46;
+}
+.pm-report-tag.archived {
+  background: #eceef0;
+  color: #8a909a;
+}
+.pm-report-tag.deleted {
+  background: #fbe7e3;
+  color: #c0452f;
+}
+.pm-conflict-warn {
+  background: #f8f0da;
+  border: 1px solid #c7920a;
+  color: #8a6a1e;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.pm-field-dupe {
+  background: rgba(248, 240, 218, 0.95);
+  color: #8a6a1e;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  margin: 6px 0;
 }
 
 .pm-group-pills {

@@ -17,6 +17,7 @@ import {
 import {
   createLandArea,
   createLandAreaTrack,
+  createTempLandArea,
   recordPastureMove,
   updatePasturePlannedMoveStatus,
 } from './pastureMapApi.js';
@@ -111,6 +112,7 @@ async function replayPastureOperation(row) {
     return res;
   }
   if (row.record.op === 'create_area') return await createLandArea(row.record.payload);
+  if (row.record.op === 'create_temp_area') return await createTempLandArea(row.record.payload);
   if (row.record.op === 'create_track') return await createLandAreaTrack(row.record.payload);
   throw new Error(`unknown pasture queue operation ${row.record.op}`);
 }

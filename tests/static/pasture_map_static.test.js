@@ -539,13 +539,15 @@ describe('CP5 offline field use wiring', () => {
     expect(offlineSrc).not.toMatch(/tile|NAIP|Imagery|cacheStorage|caches\.open/i);
   });
 
-  it('queues move logging, field-created paddocks, and field tracks', () => {
+  it('queues move logging, field-created paddocks, temp paddocks, and field tracks', () => {
     expect(offlineSrc).toContain("op === 'record_move'");
     expect(offlineSrc).toContain("op === 'create_area'");
+    expect(offlineSrc).toContain("op === 'create_temp_area'");
     expect(offlineSrc).toContain("op === 'create_track'");
     expect(viewSrc).toContain("op: 'record_move'");
     expect(viewSrc).toContain("op: 'create_area'");
-    expect(viewSrc).toContain("op: 'create_track'");
+    // A walked temp paddock queues as create_temp_area; a 2-point trace as create_track.
+    expect(viewSrc).toContain("? 'create_temp_area' : 'create_track'");
     expect(viewSrc).toContain('queued_offline');
   });
 
@@ -690,9 +692,127 @@ describe('P1 planner-group roster wiring', () => {
     expect(viewSrc).toContain('data-pasture-current-groups');
   });
 
-  it('move/plan group pickers are roster-sourced and counts are locked read-only', () => {
-    expect(viewSrc).toContain('rosterGroupsForType');
+  it('move/plan group pickers are a single flat roster list with locked read-only counts', () => {
+    expect(viewSrc).toContain('updateMoveGroup');
+    expect(viewSrc).toContain('updatePlanGroup');
+    expect(viewSrc).toContain('rosterGroupId');
+    // No species pre-selector (grouped/flat collapsed to one flat Group list).
+    expect(viewSrc).not.toContain('rosterGroupsForType');
+    expect(viewSrc).not.toContain('data-pasture-move-animal-type');
+    expect(viewSrc).not.toContain('data-pasture-plan-animal-type');
     expect(viewSrc).toContain('readOnly data-pasture-move-count="1"');
     expect(viewSrc).toContain('readOnly data-pasture-plan-count="1"');
+  });
+});
+
+describe('P2 Map tab', () => {
+  it('renames the View tab to Map', () => {
+    expect(viewSrc).toMatch(/id: 'view', label: 'Map'/);
+    expect(viewSrc).not.toContain("label: 'View / Map'");
+  });
+
+  it('Map panel header uses the roster placed-count copy', () => {
+    expect(viewSrc).toContain('MAP - WHERE THINGS ARE');
+    expect(viewSrc).toContain('groups placed - tap a group or area');
+    expect(viewSrc).toContain('data-pasture-map-header');
+  });
+
+  it('Current groups rows expose group key + location for select/zoom', () => {
+    expect(viewSrc).toContain('data-pasture-current-group');
+    expect(viewSrc).toContain('data-pasture-group-location');
+    expect(viewSrc).toContain('selectGroupAndLocation');
+    // Selecting a placed group zooms; an unplaced one clears the selection.
+    expect(viewSrc).toMatch(/selectGroupAndLocation[\s\S]*?setZoomSignal/);
+  });
+
+  it('Area detail derives the designation and flags temp/archived', () => {
+    expect(viewSrc).toContain('<div className="pm-kicker">Area detail</div>');
+    expect(viewSrc).toContain('designationLabel');
+    expect(viewSrc).toContain("return 'Temp paddock'");
+    expect(viewSrc).toContain('data-pasture-area-detail');
+    expect(viewSrc).toContain('pm-chip-temp');
+  });
+
+  it('Map area detail is read-only; recording lives in Plan and line-style in Setup', () => {
+    const selBody = viewSrc.slice(
+      viewSrc.indexOf('function renderSelectedPanel'),
+      viewSrc.indexOf('function selectGroupAndLocation'),
+    );
+    expect(selBody).not.toContain('renderMoveAndPlanForms');
+    expect(selBody).not.toContain('renderLineStylePanel');
+
+    const planBody = viewSrc.slice(
+      viewSrc.indexOf('function renderPlanPanel'),
+      viewSrc.indexOf('function renderSetupPanel'),
+    );
+    expect(planBody).toContain('renderMoveAndPlanForms()');
+
+    const setupBody = viewSrc.slice(
+      viewSrc.indexOf('function renderSetupPanel'),
+      viewSrc.indexOf('function renderPlannedMoves'),
+    );
+    expect(setupBody).toContain('renderLineStylePanel()');
+  });
+});
+
+describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Field temp / canvas', () => {
+  it('view wires the P0 temp-paddock lifecycle RPCs + occupancy sentinel copy', () => {
+    for (const fn of [
+      'createTempLandArea',
+      'updateTempLandAreaGeometry',
+      'renameTempLandArea',
+      'archiveLandArea',
+      'restoreLandArea',
+      'hardDeleteLandArea',
+    ]) {
+      expect(viewSrc).toContain(fn);
+    }
+    expect(viewSrc).toContain('PM_AREA_OCCUPIED_COPY');
+    expect(viewSrc).toMatch(/PM_AREA_OCCUPIED'.*\?.*PM_AREA_OCCUPIED_COPY/);
+  });
+
+  it('Setup: exactly three designations + archive/restore/admin hard-delete with exact copy, no raw prompts', () => {
+    expect(viewSrc).toContain('classifyDesignation');
+    expect(viewSrc).toContain('>Pasture<');
+    expect(viewSrc).toContain('>Paddock<');
+    expect(viewSrc).toContain('>Temp paddock<');
+    expect(viewSrc).toContain('Archive temp paddock');
+    // JSX text wraps in source; the rendered sentence collapses to the exact copy.
+    expect(viewSrc).toContain('Hard delete this area permanently?');
+    expect(viewSrc).toMatch(/History will keep text snapshots/);
+    expect(viewSrc).toMatch(/the map shape\s+will be removed/);
+    expect(viewSrc).toContain('data-pasture-archive');
+    expect(viewSrc).toContain('data-pasture-restore');
+    expect(viewSrc).toContain('data-pasture-hard-delete');
+    expect(viewSrc).toContain('isAdmin &&');
+    expect(viewSrc).not.toMatch(/window\.(confirm|alert|prompt)\(/);
+  });
+
+  it('Reports: status/type tags incl. Deleted, archived included by default', () => {
+    expect(viewSrc).toContain('reportAreaTag');
+    expect(viewSrc).toContain('incl. archived');
+    expect(viewSrc).toContain('Archived temp');
+    expect(viewSrc).toContain('pm-report-tag deleted');
+  });
+
+  it('Plan: conflict warning when the next area is occupied by another group', () => {
+    expect(viewSrc).toContain('data-pasture-plan-conflict');
+    expect(viewSrc).toContain('is currently occupied by');
+  });
+
+  it('Field: walked track becomes a real temp paddock + same-day duplicate Record-anyway', () => {
+    expect(viewSrc).toContain('closeOutlineToPolygon(trackForm.geometry)');
+    expect(viewSrc).toContain('const asTemp = closed.valid');
+    expect(viewSrc).toContain('fieldMovedToday');
+    expect(viewSrc).toContain('data-pasture-field-dupe');
+    expect(viewSrc).toContain('Record anyway');
+  });
+
+  it('canvas fills occupied polygons by animal type + renders a group marker', () => {
+    expect(canvasSrc).toContain('occupants');
+    expect(canvasSrc).toContain('pm-occupant-marker');
+    expect(canvasSrc).toContain('occupant.color');
+    expect(canvasSrc).toContain('occupant.ink');
+    expect(canvasSrc).toContain('Occupied - Cattle');
   });
 });

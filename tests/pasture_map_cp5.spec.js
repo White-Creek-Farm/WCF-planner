@@ -69,10 +69,11 @@ test('uses cached vectors and queues a move while pasture RPCs are offline', asy
   await expect(page.locator('[data-pasture-offline-panel]')).toBeVisible({timeout: 25_000});
   await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toContainText('CP5 Offline Paddock');
 
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).click();
-  // Roster-driven group pick; count is locked/derived (no manual entry).
-  await page.locator('[data-pasture-move-animal-type]').selectOption('cattle_herd');
-  await page.locator('[data-pasture-move-group]').selectOption('mommas');
+  // Recording lives in the Plan tab now; flat group picker, locked count.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
+  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await expect(page.locator('[data-pasture-offline-queued]')).toContainText('1 queued', {timeout: 15_000});
 

@@ -77,16 +77,20 @@ function hasSavedLineStyle(a) {
 }
 
 function areaState(a) {
+  // Occupancy is NOT decided here: the Map derives it client-side from the P1
+  // roster + move ledger (see styleForArea's occupant branch), not from the
+  // backend current_occupancy_count, so the two cannot disagree on the map.
   if (!a) return 'no_history';
   if (a.status === 'blocked_repair' || a.geometry_status === 'invalid') return 'invalid';
-  if (a.rest_state === 'occupied' || Number(a.current_occupancy_count || 0) > 0) return 'occupied';
   if (a.rest_state === 'resting') return 'resting';
   if (a.rest_state === 'rested' || a.rest_state === 'ready') return 'ready';
   if (a.rest_state === BASELINE_REST_STATE) return BASELINE_REST_STATE;
   return 'no_history';
 }
 
-function styleForArea(a, selected) {
+// Precedence (Codex P2 contract): archived -> outline/invalid -> occupied
+// (animal-type color) -> baseline -> resting -> ready -> no history.
+function styleForArea(a, selected, occupant) {
   if (a.status === 'retired') {
     return applyLineStyle(a, {
       color: '#6B7280',
@@ -101,6 +105,21 @@ function styleForArea(a, selected) {
       ? applyLineStyle(a, {color: '#dc2626', weight: 5, fillColor: '#C0452F', fillOpacity: 0.08})
       : {color: '#dc2626', weight: 5, fillColor: '#C0452F', fillOpacity: 0.08};
     return selected ? {...outline, color: '#0f1a14', weight: 3.5} : outline;
+  }
+  if (a.status === 'blocked_repair' || a.geometry_status === 'invalid') {
+    const inv = applyLineStyle(a, {...STATE_STYLE.invalid});
+    return selected ? {...inv, color: '#0f1a14', weight: 3.5} : inv;
+  }
+  // Occupied: fill in the occupying group's animal-type color (client roster).
+  if (occupant) {
+    let occ = {color: occupant.ink, fillColor: occupant.color, fillOpacity: 0.62, weight: 2};
+    if (a.permanence === 'temporary') occ.dashArray = '6,4';
+    else if (a.kind === 'pasture') {
+      occ.weight = 2.5;
+      occ.dashArray = '10,5';
+    }
+    occ = applyLineStyle(a, occ);
+    return selected ? {...occ, color: '#0f1a14', weight: 3.5} : occ;
   }
   if (a.rest_state === 'baseline') {
     const baseline = applyLineStyle(a, {...STATE_STYLE.baseline, fillOpacity: 0.08});
@@ -182,6 +201,7 @@ function rotationIcon(number, color) {
 
 export default function PastureMapCanvas({
   areas,
+  occupants = {},
   onSelect,
   mode = 'select',
   canWrite = false,
@@ -257,7 +277,9 @@ export default function PastureMapCanvas({
     (areas || []).forEach((a) => {
       const g = areaGeom(a);
       if (!g) return;
-      const style = styleForArea(a, a.id === selectedId);
+      const occList = occupants[a.id] || [];
+      const occ = occList[0] || null;
+      const style = styleForArea(a, a.id === selectedId, occ);
       const lyr = L.geoJSON(
         {type: 'Feature', geometry: g.geometry, properties: {}},
         {style: g.kind === 'line' ? {...style, fill: false} : style},
@@ -265,7 +287,7 @@ export default function PastureMapCanvas({
       lyr.bindTooltip(labelFor(a) + (g.kind === 'line' ? ' (outline)' : ''), {
         direction: 'center',
         className: 'pm-map-label',
-        permanent: !compact && g.kind === 'polygon',
+        permanent: !compact && g.kind === 'polygon' && !occ,
       });
       lyr.on('click', () => {
         if (!['draw', 'edit', 'measure', 'track'].includes(mode) && cbRef.current.onSelect)
@@ -277,6 +299,27 @@ export default function PastureMapCanvas({
         inner = sub;
       });
       areaLayersRef.current.set(a.id, inner);
+
+      // Occupied polygons carry a readable group marker at the centroid so the
+      // map answers "what group is here" at a glance (P2 Map contract).
+      if (occ && g.kind === 'polygon') {
+        const center = layerCenter(inner);
+        if (center) {
+          const more = occList.length > 1 ? `<span class="pm-occ-more">+${occList.length - 1}</span>` : '';
+          const countLabel = occ.count != null ? ` &middot; ${occ.count}` : '';
+          L.marker(center, {
+            interactive: false,
+            keyboard: false,
+            icon: L.divIcon({
+              className: 'pm-occupant-marker',
+              html:
+                `<span class="pm-occ-avatar" style="background:${occ.color}">${occ.short || ''}</span>` +
+                `<span class="pm-occ-name">${occ.name || ''}${countLabel}</span>${more}`,
+              iconSize: [0, 0],
+            }),
+          }).addTo(group);
+        }
+      }
     });
 
     group.addTo(map);
@@ -290,7 +333,7 @@ export default function PastureMapCanvas({
     } catch {
       /* no bounds yet */
     }
-  }, [areas, selectedId, mode, compact]);
+  }, [areas, occupants, selectedId, mode, compact]);
 
   React.useEffect(() => {
     const map = mapRef.current;
@@ -561,7 +604,13 @@ export default function PastureMapCanvas({
           {legendOpen && (
             <div className="pm-legend-body">
               <span>
-                <i className="state occupied" /> Occupied - grazing now
+                <i className="state occ-cattle" /> Occupied - Cattle
+              </span>
+              <span>
+                <i className="state occ-sheep" /> Occupied - Sheep
+              </span>
+              <span>
+                <i className="state occ-pigs" /> Occupied - Pigs
               </span>
               <span>
                 <i className="state resting" /> Resting - recovering
