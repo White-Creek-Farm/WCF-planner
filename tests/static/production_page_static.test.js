@@ -127,11 +127,25 @@ describe('Production multi-year matrix (Summary)', () => {
     expect(pageSrc).toContain('no prior / not recorded that');
   });
 
-  it('the Summary matrix ignores the selected-year drill-in', () => {
+  it('keeps the Summary matrix and Production Events all-years on the page', () => {
     // buildProductionMatrix takes the whole model (all years), not a single year.
     expect(pageSrc).toMatch(/buildProductionMatrix\(model\)/);
-    // Production Events still narrows by the selected year.
-    expect(pageSrc).toMatch(/buildProductionEventsView\(model, \{year: selectedYear\}\)/);
+    expect(pageSrc).toMatch(/buildProductionEventsView\(model\)/);
+    expect(pageSrc).not.toContain('selectedYear');
+    expect(pageSrc).not.toContain('production-year-picker');
+    expect(pageSrc).not.toContain('production-year-card');
+    expect(pageSrc).not.toContain('data-home-grid="production"');
+    expect(pageSrc).toContain('Production Events');
+    expect(pageSrc).toContain('Every processing event recorded across all years.');
+  });
+
+  it('links matched Production Events rows to their record pages', () => {
+    expect(pageSrc).toContain("import {Link} from 'react-router-dom'");
+    expect(pageSrc).toContain('data-production-event-record-link="1"');
+    expect(pageSrc).toContain('row.recordPath');
+    expect(helperSrc).toContain('PLANNER_MATCH_START_DATE');
+    expect(helperSrc).toContain('findUniquePlannerMatch');
+    expect(helperSrc).toContain('/broiler/batches/');
   });
 });
 

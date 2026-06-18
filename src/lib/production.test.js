@@ -164,11 +164,37 @@ describe('production multi-year matrix', () => {
 
 describe('production events view', () => {
   const model = buildProductionModel({
+    batches: [
+      {
+        id: 'hist-b2602',
+        name: 'B-26-02',
+        status: 'processed',
+        processingDate: '2026-01-27',
+        totalToProcessor: 508,
+      },
+      {
+        id: 'hist-b2601',
+        name: 'B-26-01',
+        status: 'processed',
+        processingDate: '2026-01-08',
+        totalToProcessor: 493,
+      },
+      {
+        id: 'hist-b2503',
+        name: 'B-25-03',
+        status: 'processed',
+        processingDate: '2025-06-13',
+        totalToProcessor: 705,
+      },
+    ],
     cattleProcessingBatches: [
       {id: 'c1', name: 'C-26-01', actual_process_date: '2026-04-03', cows_detail: [1, 2, 3, 4]},
     ],
     eggDailys: [{id: 'e1', date: '2026-06-01', group1_count: 24}],
     legacyEvents: [
+      {id: 'L-b2602', event_date: '2026-01-27', program: 'CHICKEN', batch_name: '', quantity: 508},
+      {id: 'L-b2601', event_date: '2026-01-08', program: 'CHICKEN', batch_name: '', quantity: 493},
+      {id: 'L-b2503', event_date: '2025-06-11', program: 'CHICKEN', batch_name: '', quantity: 705},
       // 2026 cattle is covered by Planner -> held out of totals, but must still appear here.
       {id: 'L1', event_date: '2026-04-03', program: 'CATTLE', batch_name: 'C-26-01', quantity: 5},
       // 2024 cattle has no Planner record -> counted backfill.
@@ -185,7 +211,7 @@ describe('production events view', () => {
     expect(view.find((row) => row.quantity === 3)).toBeTruthy();
   });
 
-  it('sorts by date desc and filters by selected year while keeping all that year', () => {
+  it('sorts by date desc and can still filter by year when a caller asks', () => {
     const all = buildProductionEventsView(model, {});
     expect(all[0].date >= all[all.length - 1].date).toBe(true);
     expect(all[0].date.startsWith('2026')).toBe(true);
@@ -193,6 +219,47 @@ describe('production events view', () => {
     const y2024 = buildProductionEventsView(model, {year: '2024'});
     expect(y2024).toHaveLength(1);
     expect(y2024.every((row) => row.date.startsWith('2024'))).toBe(true);
+  });
+
+  it('adds broiler batch names and record links to uniquely matched imported events', () => {
+    const view = buildProductionEventsView(model, {});
+    expect(view.find((row) => row.id === 'legacy:L-b2602')).toMatchObject({
+      batchName: 'B-26-02',
+      recordPath: '/broiler/batches/B-26-02',
+      matchedBatchName: 'B-26-02',
+    });
+    expect(view.find((row) => row.id === 'legacy:L-b2601')).toMatchObject({
+      batchName: 'B-26-01',
+      recordPath: '/broiler/batches/B-26-01',
+      matchedBatchName: 'B-26-01',
+    });
+    expect(view.find((row) => row.id === 'legacy:L-b2503')).toMatchObject({
+      batchName: 'B-25-03',
+      recordPath: '/broiler/batches/B-25-03',
+      matchedBatchName: 'B-25-03',
+    });
+  });
+
+  it('does not link an imported event when the planner match is ambiguous', () => {
+    const ambiguous = buildProductionModel({
+      batches: [
+        {id: 'a', name: 'B-26-A', status: 'processed', processingDate: '2026-05-01', totalToProcessor: 600},
+        {id: 'b', name: 'B-26-B', status: 'processed', processingDate: '2026-05-01', totalToProcessor: 600},
+      ],
+      legacyEvents: [{id: 'L-ambiguous', event_date: '2026-05-01', program: 'CHICKEN', batch_name: '', quantity: 600}],
+    });
+    const row = buildProductionEventsView(ambiguous, {}).find((item) => item.id === 'legacy:L-ambiguous');
+    expect(row.batchName).toBe('');
+    expect(row.recordPath).toBe('');
+  });
+
+  it('shows import-only batch names as text without linking to missing records', () => {
+    const importOnly = buildProductionModel({
+      legacyEvents: [{id: 'L-old', event_date: '2023-02-01', program: 'CHICKEN', batch_name: 'B-23-01', quantity: 500}],
+    });
+    const row = buildProductionEventsView(importOnly, {}).find((item) => item.id === 'legacy:L-old');
+    expect(row.batchName).toBe('B-23-01');
+    expect(row.recordPath).toBe('');
   });
 });
 

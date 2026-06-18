@@ -14,6 +14,8 @@ export const PAGE_PRODUCTION_PROGRAMS = ['cattle', 'broiler', 'pig', 'sheep', 'e
 // Sheep/Lamb, then Eggs last. Production Events reuses it for the program
 // tie-break when two rows share a date.
 export const PRODUCTION_MATRIX_PROGRAM_ORDER = ['broiler', 'pig', 'cattle', 'sheep', 'egg'];
+const PLANNER_MATCH_START_DATE = '2024-01-01';
+const PLANNER_MATCH_DAY_WINDOW = 3;
 
 export const PROGRAM_BY_KEY = Object.fromEntries(PRODUCTION_PROGRAMS.map((program) => [program.key, program]));
 
@@ -491,6 +493,60 @@ export function buildProductionMatrix(model) {
   return {years, latest, rows};
 }
 
+function daysBetweenIso(a, b) {
+  const da = isoDate(a);
+  const db = isoDate(b);
+  if (!da || !db) return Infinity;
+  const ta = Date.parse(`${da}T00:00:00Z`);
+  const tb = Date.parse(`${db}T00:00:00Z`);
+  if (!Number.isFinite(ta) || !Number.isFinite(tb)) return Infinity;
+  return Math.abs(Math.round((ta - tb) / 86400000));
+}
+
+function eventRecordPath(event) {
+  if (!event) return null;
+  if (event.program === 'broiler' && event.batchName) {
+    return `/broiler/batches/${encodeURIComponent(event.batchName)}`;
+  }
+  if (event.program === 'pig' && event.raw && event.raw.group && event.raw.group.id) {
+    return `/pig/batches/${encodeURIComponent(event.raw.group.id)}`;
+  }
+  if (event.program === 'cattle' && event.sourceTable === 'cattle_processing_batches' && event.sourceId) {
+    return `/cattle/batches/${encodeURIComponent(event.sourceId)}`;
+  }
+  if (event.program === 'sheep' && event.sourceTable === 'sheep_processing_batches' && event.sourceId) {
+    return `/sheep/batches/${encodeURIComponent(event.sourceId)}`;
+  }
+  return null;
+}
+
+function findUniquePlannerMatch(event, plannerEvents) {
+  if (!event || event.source !== 'legacy' || event.program === 'egg' || event.date < PLANNER_MATCH_START_DATE) {
+    return null;
+  }
+  const quantity = Number(event.quantity);
+  if (!Number.isFinite(quantity)) return null;
+  const candidates = (plannerEvents || [])
+    .filter((candidate) => {
+      if (!candidate || candidate.program !== event.program || candidate.program === 'egg') return false;
+      if (Number(candidate.quantity) !== quantity) return false;
+      return daysBetweenIso(candidate.date, event.date) <= PLANNER_MATCH_DAY_WINDOW;
+    })
+    .map((candidate) => ({
+      candidate,
+      dayDistance: daysBetweenIso(candidate.date, event.date),
+      batchMatch: event.batchKey && event.batchKey === candidate.batchKey ? 0 : 1,
+    }))
+    .sort((a, b) => a.dayDistance - b.dayDistance || a.batchMatch - b.batchMatch);
+
+  if (candidates.length === 0) return null;
+  const best = candidates[0];
+  const tied = candidates.filter(
+    (item) => item.dayDistance === best.dayDistance && item.batchMatch === best.batchMatch,
+  );
+  return tied.length === 1 ? best.candidate : null;
+}
+
 // Production Events view: the operator-facing event/history log (NOT the totals
 // reconciliation). Shows actual processing events — Planner processing events
 // (eggs excluded; egg-day records are not processing events) plus EVERY imported
@@ -505,14 +561,22 @@ export function buildProductionEventsView(model, {year} = {}) {
   return [...planner, ...legacy]
     .filter((event) => (yearStr ? event.year === yearStr : true))
     .sort((a, b) => b.date.localeCompare(a.date) || (order[a.program] ?? 9) - (order[b.program] ?? 9))
-    .map((event) => ({
-      id: event.id,
-      date: event.date,
-      program: event.program,
-      batchName: event.batchName,
-      quantity: event.quantity,
-      event,
-    }));
+    .map((event) => {
+      const matchedPlannerEvent = findUniquePlannerMatch(event, planner);
+      const batchName = event.batchName || (matchedPlannerEvent && matchedPlannerEvent.batchName) || '';
+      const recordPath =
+        (event.source === 'legacy' ? null : eventRecordPath(event)) || eventRecordPath(matchedPlannerEvent) || '';
+      return {
+        id: event.id,
+        date: event.date,
+        program: event.program,
+        batchName,
+        quantity: event.quantity,
+        recordPath,
+        matchedBatchName: matchedPlannerEvent ? matchedPlannerEvent.batchName : '',
+        event,
+      };
+    });
 }
 
 export function quantityForDisplay(programKey, quantity) {

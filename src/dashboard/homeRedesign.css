@@ -596,29 +596,6 @@
   font-weight: 800;
   letter-spacing: 0;
 }
-.home .production-year-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 750;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.home .production-year-picker select {
-  min-width: 98px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-  padding: 7px 9px;
-}
-.home .production-year-card,
 .home .production-totals-card {
   padding: 18px 22px 20px;
 }
@@ -681,6 +658,17 @@
 .home .production-table td {
   color: var(--text);
   font-weight: 650;
+}
+.home .production-batch-link {
+  color: var(--brand);
+  font-weight: 800;
+  text-decoration: none;
+}
+.home .production-batch-link:hover,
+.home .production-batch-link:focus-visible {
+  color: var(--brand-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .home .production-table td.is-up {
   color: var(--ok-ink);
@@ -1357,7 +1345,6 @@
   .home .production-title h1 {
     font-size: 28px;
   }
-  .home .production-year-card,
   .home .production-panel-card {
     padding: 16px 14px 18px;
   }

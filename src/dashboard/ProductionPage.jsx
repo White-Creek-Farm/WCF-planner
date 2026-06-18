@@ -1,4 +1,5 @@
 import React from 'react';
+import {Link} from 'react-router-dom';
 import './homeRedesign.css';
 import InlineNotice from '../shared/InlineNotice.jsx';
 import {sb} from '../lib/supabase.js';
@@ -13,7 +14,6 @@ import {
   buildProductionEventsView,
   formatEventQuantity,
   formatProductionNumber,
-  totalsForYear,
 } from '../lib/production.js';
 
 const TABS = [
@@ -41,9 +41,6 @@ function ProgramDot({programKey}) {
   return <span className="prod-dot" style={{background: PROGRAM_ACCENT_VAR[programKey]}} aria-hidden="true" />;
 }
 
-// Program × Year matrix: every recorded year at once, with the YoY delta under
-// each year's total. Horizontal scroll on narrow screens keeps every column
-// readable without clipping. The latest year column is emphasized (is-latest).
 function ProductionMatrix({matrix}) {
   const {years, rows} = matrix;
   return (
@@ -113,7 +110,15 @@ function LedgerTable({rows}) {
                   <ProgramDot programKey={row.program} />
                   {programLabel(row.program)}
                 </td>
-                <td>{row.batchName || '--'}</td>
+                <td>
+                  {row.recordPath ? (
+                    <Link className="production-batch-link" to={row.recordPath} data-production-event-record-link="1">
+                      {row.batchName || 'Open record'}
+                    </Link>
+                  ) : (
+                    row.batchName || '--'
+                  )}
+                </td>
                 <td>{formatEventQuantity(row.event)}</td>
               </tr>
             ))
@@ -181,9 +186,7 @@ const LEDGER_COLUMNS = [
 ];
 
 export default function ProductionPage({Header, setView}) {
-  const currentYear = String(new Date().getFullYear());
   const [sources, setSources] = React.useState(null);
-  const [selectedYear, setSelectedYear] = React.useState(currentYear);
   const [tab, setTab] = React.useState('summary');
   const [filters, setFilters] = React.useState({program: 'all', status: 'all', search: ''});
   const [loading, setLoading] = React.useState(true);
@@ -212,21 +215,8 @@ export default function ProductionPage({Header, setView}) {
   }, [load]);
 
   const model = React.useMemo(() => buildProductionModel(sources || {}), [sources]);
-  const years = React.useMemo(() => {
-    const all = new Set(model.years);
-    all.add(currentYear);
-    return [...all].sort();
-  }, [model.years, currentYear]);
-
-  const selectedTotals = totalsForYear(model.events, selectedYear);
-  const yearEvents = model.events.filter((event) => event.year === selectedYear);
-  const processingCount = yearEvents.filter((event) => event.program !== 'egg').length;
-  const eggDayCount = yearEvents.filter((event) => event.program === 'egg').length;
-  // Summary = all-years matrix (ignores the selected-year drill-in). Production
-  // Events = every recorded processing event, narrowed to the selected year by
-  // the picker.
   const matrix = React.useMemo(() => buildProductionMatrix(model), [model]);
-  const eventRows = React.useMemo(() => buildProductionEventsView(model, {year: selectedYear}), [model, selectedYear]);
+  const eventRows = React.useMemo(() => buildProductionEventsView(model), [model]);
 
   const activeRows = eventRows;
   const statusOptions = React.useMemo(() => {
@@ -246,14 +236,14 @@ export default function ProductionPage({Header, setView}) {
         ...matrix.years.map((year) => ({
           key: year,
           header: year,
-          value: (r) => r.cells.find((cell) => cell.year === year)?.totalText ?? '—',
+          value: (r) => r.cells.find((cell) => cell.year === year)?.totalText ?? '--',
         })),
       ];
       downloadCsv(csvFilename('production-summary'), rowsToCsv(columns, matrix.rows));
       return;
     }
-    downloadCsv(csvFilename(`production-events-${selectedYear}`), rowsToCsv(LEDGER_COLUMNS, filteredRows));
-  }, [tab, matrix, filteredRows, selectedYear]);
+    downloadCsv(csvFilename('production-events'), rowsToCsv(LEDGER_COLUMNS, filteredRows));
+  }, [tab, matrix, filteredRows]);
 
   return (
     <div className="home theme-crisp production-page" data-production-loaded={loading ? 'false' : 'true'}>
@@ -266,8 +256,7 @@ export default function ProductionPage({Header, setView}) {
           <span>
             {loading
               ? 'Loading'
-              : `${processingCount.toLocaleString()} processing event${processingCount === 1 ? '' : 's'} · ` +
-                `${eggDayCount.toLocaleString()} egg-day record${eggDayCount === 1 ? '' : 's'} (${selectedYear})`}
+              : `${eventRows.length.toLocaleString()} processing event${eventRows.length === 1 ? '' : 's'}`}
           </span>
         </div>
 
@@ -275,51 +264,12 @@ export default function ProductionPage({Header, setView}) {
           <div>
             <h1>Production</h1>
           </div>
-          <label className="production-year-picker">
-            <span>Year</span>
-            <select
-              value={selectedYear}
-              onChange={(event) => {
-                setSelectedYear(event.target.value);
-                // A status only valid for the old year (e.g. conflict) must not
-                // persist and silently empty the new year's table.
-                setFilters((prev) => ({...prev, status: 'all'}));
-              }}
-            >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
+          <button type="button" className="btn-clear" data-production-retry="1" onClick={load} disabled={loading}>
+            {loadError ? 'Retry' : 'Refresh'}
+          </button>
         </section>
 
         <InlineNotice notice={loadError} onDismiss={() => setLoadError(null)} />
-
-        <section className="card stats production-year-card">
-          <div className="stats-head">
-            <div className="card-label">Production - {selectedYear}</div>
-            <button type="button" className="btn-clear" data-production-retry="1" onClick={load} disabled={loading}>
-              {loadError ? 'Retry' : 'Refresh'}
-            </button>
-          </div>
-          <div className="stat-row" data-home-grid="production">
-            {['broiler', 'egg', 'pig', 'cattle', 'sheep'].map((programKey) => (
-              <div className="stat" key={programKey}>
-                <div className="stat-n">
-                  {selectedTotals.has(programKey)
-                    ? formatProductionNumber(programKey, selectedTotals.get(programKey))
-                    : '--'}
-                </div>
-                <div className="stat-l">
-                  <span className={`sdot sdot-${programKey === 'egg' ? 'layer' : programKey}`} />
-                  {programLabel(programKey)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <div className="production-toolbar">
           <div className="production-tabs" role="tablist" aria-label="Production view">
@@ -332,9 +282,6 @@ export default function ProductionPage({Header, setView}) {
                 className={`production-tab${tab === entry.key ? ' is-active' : ''}`}
                 onClick={() => {
                   setTab(entry.key);
-                  // Status options are per-tab; carrying one over can leave an
-                  // invalid filter that blanks the table. Program/search stay
-                  // since they are valid across tabs.
                   setFilters((prev) => ({...prev, status: 'all'}));
                 }}
               >
@@ -365,10 +312,10 @@ export default function ProductionPage({Header, setView}) {
         ) : (
           <section className="card production-panel-card">
             <div className="stats-head">
-              <div className="card-label">Production Events - {selectedYear}</div>
+              <div className="card-label">Production Events</div>
               <span className="production-rowcount">{filteredRows.length.toLocaleString()} rows</span>
             </div>
-            <p className="production-help">Every processing event recorded for the selected year.</p>
+            <p className="production-help">Every processing event recorded across all years.</p>
             {EXTENDED_LIST_CONTROLS_ENABLED && (
               <FilterBar filters={filters} setFilters={setFilters} statusOptions={statusOptions} />
             )}
