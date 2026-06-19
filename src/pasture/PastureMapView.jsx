@@ -353,6 +353,17 @@ function isTempArea(area) {
 function isArchivedArea(area) {
   return !!area && area.status === 'retired';
 }
+function isOutlineCandidateArea(area) {
+  return !!area && (area.kind === 'outline_candidate' || area.geometry_status === 'outline_candidate');
+}
+// Permanent pasture/paddock use a fixed, non-editable boundary style. Their line
+// style cannot be edited; only temp paddocks and GPS/field outline candidates can.
+function isFixedStyleArea(area) {
+  return !!area && area.permanence !== 'temporary' && (area.kind === 'pasture' || area.kind === 'paddock');
+}
+function canEditLineStyle(area) {
+  return isTempArea(area) || isOutlineCandidateArea(area);
+}
 
 export default function PastureMapView({Header, authState}) {
   const role = authState && authState.role;
@@ -389,6 +400,8 @@ export default function PastureMapView({Header, authState}) {
   const [zoomSignal, setZoomSignal] = React.useState(0);
   const [styleDraft, setStyleDraft] = React.useState(() => styleDraftFromArea(null));
   const [confirmDeleteId, setConfirmDeleteId] = React.useState(null);
+  const [confirmPromoteId, setConfirmPromoteId] = React.useState(null);
+  const [boundaryFilter, setBoundaryFilter] = React.useState({pasture: true, paddock: true, temp: true});
   const [drawIsTemp, setDrawIsTemp] = React.useState(false);
   const [drawForm, setDrawForm] = React.useState(null);
   const [editGeom, setEditGeom] = React.useState(null);
@@ -777,6 +790,17 @@ export default function PastureMapView({Header, authState}) {
     return withBusy(a.id, () =>
       updateLandArea(a.id, {kind: 'paddock', permanence: 'permanent', reviewStatus: 'reviewed'}),
     );
+  }
+  // Promote a temp paddock to a PERMANENT pasture/paddock. Management/admin only
+  // (update_land_area is mgmt/admin gated server-side too). After promotion the
+  // boundary style locks to the fixed permanent style, so this is explicit and
+  // confirmed in the UI rather than a silent designation switch.
+  function promoteTempArea(a, kind) {
+    setConfirmPromoteId(null);
+    return withBusy(a.id, () => updateLandArea(a.id, {kind, permanence: 'permanent', reviewStatus: 'reviewed'}));
+  }
+  function toggleBoundary(category) {
+    setBoundaryFilter((f) => ({...f, [category]: !f[category]}));
   }
   const archiveArea = (a) => withBusy(a.id, () => archiveLandArea(a.id));
   const restoreArea = (a) => withBusy(a.id, () => restoreLandArea(a.id));
@@ -1382,20 +1406,26 @@ export default function PastureMapView({Header, authState}) {
               autoFocus
             />
           </label>
-          <label className="pm-field">
-            <span>Type</span>
-            <select
-              value={drawForm.kind}
-              onChange={(e) => setDrawForm((f) => ({...f, kind: e.target.value}))}
-              data-pasture-drawform-kind="1"
-            >
-              {DRAW_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {KIND_LABEL[k]}
-                </option>
-              ))}
-            </select>
-          </label>
+          {drawIsTemp ? (
+            <span className="pm-drawform-type-note" data-pasture-drawform-temp="1">
+              New area = Temp paddock
+            </span>
+          ) : (
+            <label className="pm-field">
+              <span>Type</span>
+              <select
+                value={drawForm.kind}
+                onChange={(e) => setDrawForm((f) => ({...f, kind: e.target.value}))}
+                data-pasture-drawform-kind="1"
+              >
+                {DRAW_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {KIND_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <span className="pm-drawform-metric">
             {drawForm.metrics && drawForm.metrics.acres != null ? `${drawForm.metrics.acres} ac` : ''}
           </span>
@@ -1697,7 +1727,8 @@ export default function PastureMapView({Header, authState}) {
                   {a.review_status === 'pending_review' && <span className="pm-chip pm-chip-review">Needs review</span>}
                   {a.queued_offline && <span className="pm-chip pm-chip-queued">Queued</span>}
                   {acres != null && <span className="pm-acres">{acres} ac</span>}
-                  {(a.line_color || a.line_weight || a.line_pattern) && (
+                  {/* Fixed permanent boundaries ignore saved line_* -> no editable chip. */}
+                  {!isFixedStyleArea(a) && (a.line_color || a.line_weight || a.line_pattern) && (
                     <span className="pm-line-style-chip" data-pasture-line-style="1">
                       <span
                         aria-hidden="true"
@@ -2307,10 +2338,20 @@ export default function PastureMapView({Header, authState}) {
         {renderTrackPanel()}
         {renderDrawForm()}
         {renderEditBar()}
-        {selectedArea && isManager && (
+        {selectedArea && isManager && canEditLineStyle(selectedArea) && (
           <div className="pm-card" data-pasture-setup-linestyle="1">
             <div className="pm-card-title">Line style - {selectedArea.name}</div>
             {renderLineStylePanel()}
+          </div>
+        )}
+        {selectedArea && isManager && isFixedStyleArea(selectedArea) && (
+          <div className="pm-card" data-pasture-setup-linestyle-locked="1">
+            <div className="pm-card-title">Line style - {selectedArea.name}</div>
+            <p className="pm-style-locked-note">
+              {selectedArea.kind === 'pasture' ? 'Pasture' : 'Paddock'} boundaries use a fixed
+              {selectedArea.kind === 'pasture' ? ' blue' : ' green'} line and cannot be restyled. Only temp paddocks and
+              GPS field tracks have editable line style.
+            </p>
           </div>
         )}
         <div className="pm-card">
@@ -2414,19 +2455,66 @@ export default function PastureMapView({Header, authState}) {
                   </button>
                   {expanded && (
                     <div className="pm-pasture-expanded">
-                      <label className="pm-field">
-                        <span>Designation</span>
-                        <select
-                          value={isTemp ? 'temp' : area.kind === 'pasture' ? 'pasture' : 'paddock'}
-                          disabled={!isManager}
-                          onChange={(e) => classifyDesignation(area, e.target.value)}
-                          data-pasture-designation={area.id}
-                        >
-                          <option value="pasture">Pasture</option>
-                          <option value="paddock">Paddock</option>
-                          <option value="temp">Temp paddock</option>
-                        </select>
-                      </label>
+                      {isTemp ? (
+                        <div className="pm-field" data-pasture-designation={area.id} data-pasture-designation-temp="1">
+                          <span>Designation</span>
+                          <div className="pm-temp-designation">
+                            <span className="pm-chip pm-chip-temp">Temp paddock</span>
+                            {isManager &&
+                              (confirmPromoteId === area.id ? (
+                                <span className="pm-promote-confirm" data-pasture-promote-confirm={area.id}>
+                                  Promote to permanent? The boundary style locks to the fixed permanent style and can no
+                                  longer be edited.
+                                  <button
+                                    type="button"
+                                    className="pm-btn pm-btn-sm pm-btn-primary"
+                                    onClick={() => promoteTempArea(area, 'pasture')}
+                                    data-pasture-promote-pasture={area.id}
+                                  >
+                                    Pasture
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="pm-btn pm-btn-sm pm-btn-primary"
+                                    onClick={() => promoteTempArea(area, 'paddock')}
+                                    data-pasture-promote-paddock={area.id}
+                                  >
+                                    Paddock
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="pm-btn pm-btn-sm"
+                                    onClick={() => setConfirmPromoteId(null)}
+                                  >
+                                    Cancel
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="pm-btn pm-btn-sm"
+                                  onClick={() => setConfirmPromoteId(area.id)}
+                                  data-pasture-promote={area.id}
+                                >
+                                  Promote to permanent
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="pm-field">
+                          <span>Designation</span>
+                          <select
+                            value={area.kind === 'pasture' ? 'pasture' : 'paddock'}
+                            disabled={!isManager}
+                            onChange={(e) => classifyDesignation(area, e.target.value)}
+                            data-pasture-designation={area.id}
+                          >
+                            <option value="pasture">Pasture</option>
+                            <option value="paddock">Paddock</option>
+                          </select>
+                        </label>
+                      )}
                       {area.kind === 'unclassified' && (
                         <div className="pm-needs-classification" data-pasture-needs-classification={area.id}>
                           Needs classification
@@ -2595,13 +2683,15 @@ export default function PastureMapView({Header, authState}) {
               type="button"
               className="pm-tool-btn"
               onClick={() => {
-                setDrawIsTemp(false);
+                // New drawn land is always a TEMP paddock. Permanent pasture/
+                // paddock are created by promoting a temp paddock, not drawn.
+                setDrawIsTemp(true);
                 switchToolMode('draw');
               }}
               data-mode="draw"
             >
-              <strong>Draw Area</strong>
-              <span>new polygon</span>
+              <strong>Draw Temp Paddock</strong>
+              <span>promote later</span>
             </button>
           </div>
           <button type="button" className="pm-import-wide" onClick={() => fileRef.current && fileRef.current.click()}>
@@ -3016,6 +3106,8 @@ export default function PastureMapView({Header, authState}) {
             onToggleLegend: () => setLegendOpen((v) => !v),
             mapBanner,
             zoomSignal,
+            boundaryFilter,
+            onToggleBoundary: toggleBoundary,
           })}
         </section>
         <aside className="pm-side-panel">

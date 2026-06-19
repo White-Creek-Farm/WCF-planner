@@ -109,10 +109,11 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
     [0.3, 0.5],
   ]);
   await expect(page.locator('[data-pasture-drawform]')).toBeVisible({timeout: 8000});
-  // Save disabled until a name is entered.
+  // Save disabled until a name is entered. New drawn land is a TEMP paddock now
+  // (permanent areas come from promotion), so the draw form shows no Type select.
   await expect(page.locator('[data-pasture-drawform-save]')).toBeDisabled();
+  await expect(page.locator('[data-pasture-drawform-temp]')).toBeVisible();
   await page.locator('[data-pasture-drawform-name]').fill('CP2 Test Paddock');
-  await page.locator('[data-pasture-drawform-kind]').selectOption('paddock');
   await page.screenshot({path: path.join(SHOTS, '03-draw-form.png'), fullPage: true});
   await page.locator('[data-pasture-drawform-save]').click();
   await expect(page.locator('[data-pasture-area]')).toHaveCount(11, {timeout: 15_000});

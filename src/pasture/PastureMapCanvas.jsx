@@ -34,6 +34,33 @@ const STATE_STYLE = {
   invalid: {color: '#C0452F', fillColor: '#C0452F', fillOpacity: 0.12, dashArray: '6,6'},
 };
 
+// Fixed boundary strokes by designation (lane: designation/boundary behavior).
+// Permanent pasture/paddock strokes are NOT editable — they are forced here and
+// ignore any saved line_color/line_weight/line_pattern. Only the FILL reflects
+// occupancy/state. Temp paddocks default to white dashed 5px but stay editable
+// (applyLineStyle is layered on top for temp + GPS/field outline candidates).
+const PERMANENT_PASTURE_STROKE = {color: '#1d4ed8', weight: 4}; // high-contrast blue
+const PERMANENT_PADDOCK_STROKE = {color: '#4ade80', weight: 4}; // bright/light green
+const TEMP_PADDOCK_DEFAULT_STROKE = {color: '#ffffff', weight: 5, dashArray: LINE_PATTERN_DASH.dashed};
+
+function isPermanentPasture(a) {
+  return !!a && a.kind === 'pasture' && a.permanence !== 'temporary';
+}
+function isPermanentPaddock(a) {
+  return !!a && a.kind === 'paddock' && a.permanence !== 'temporary';
+}
+function isTempPaddock(a) {
+  return !!a && a.permanence === 'temporary';
+}
+// Which boundary-overlay toggle category an area belongs to (null = always shown:
+// unclassified / outline candidates / GPS field lines are not toggle-managed).
+function boundaryCategory(a) {
+  if (isTempPaddock(a)) return 'temp';
+  if (isPermanentPasture(a)) return 'pasture';
+  if (isPermanentPaddock(a)) return 'paddock';
+  return null;
+}
+
 function cleanLineColor(value) {
   if (typeof value !== 'string') return null;
   const color = value.trim().toLowerCase();
@@ -88,9 +115,47 @@ function areaState(a) {
   return 'no_history';
 }
 
+// Force the designation boundary stroke. Permanent pasture/paddock get a fixed,
+// non-editable stroke (saved line_* is ignored). Temp paddocks get the white
+// dashed 5px default with applyLineStyle layered on so they stay editable. The
+// FILL passed in (occupancy/state) is preserved either way. Returns the style
+// with the correct stroke, or the input untouched for non-designation kinds.
+function withDesignationStroke(a, style) {
+  if (isPermanentPasture(a)) {
+    return {
+      ...style,
+      color: PERMANENT_PASTURE_STROKE.color,
+      weight: PERMANENT_PASTURE_STROKE.weight,
+      dashArray: undefined,
+    };
+  }
+  if (isPermanentPaddock(a)) {
+    return {
+      ...style,
+      color: PERMANENT_PADDOCK_STROKE.color,
+      weight: PERMANENT_PADDOCK_STROKE.weight,
+      dashArray: undefined,
+    };
+  }
+  if (isTempPaddock(a)) {
+    return applyLineStyle(a, {...style, ...TEMP_PADDOCK_DEFAULT_STROKE});
+  }
+  return null;
+}
+
+// Hide an area's boundary stroke (keep its fill + occupant marker) when its
+// boundary-overlay category is toggled off. Leaflet `stroke:false` removes the
+// outline only; the fill polygon and the separate divIcon marker are untouched.
+function applyBoundaryVisibility(a, style, boundaryFilter) {
+  if (!boundaryFilter) return style;
+  const cat = boundaryCategory(a);
+  if (cat && boundaryFilter[cat] === false) return {...style, stroke: false};
+  return style;
+}
+
 // Precedence (Codex P2 contract): archived -> outline/invalid -> occupied
 // (animal-type color) -> baseline -> resting -> ready -> no history.
-function styleForArea(a, selected, occupant) {
+function styleForArea(a, selected, occupant, boundaryFilter) {
   if (a.status === 'retired') {
     return applyLineStyle(a, {
       color: '#6B7280',
@@ -110,35 +175,40 @@ function styleForArea(a, selected, occupant) {
     const inv = applyLineStyle(a, {...STATE_STYLE.invalid});
     return selected ? {...inv, color: '#0f1a14', weight: 3.5} : inv;
   }
-  // Occupied: fill in the occupying group's animal-type color (client roster).
+
+  // Base style = FILL by occupancy/state (the occupancy color must stay visible
+  // regardless of the boundary overlay). Stroke is set by designation below.
+  let next;
   if (occupant) {
-    let occ = {color: occupant.ink, fillColor: occupant.color, fillOpacity: 0.62, weight: 2};
-    if (a.permanence === 'temporary') occ.dashArray = '6,4';
-    else if (a.kind === 'pasture') {
-      occ.weight = 2.5;
-      occ.dashArray = '10,5';
-    }
-    occ = applyLineStyle(a, occ);
-    return selected ? {...occ, color: '#0f1a14', weight: 3.5} : occ;
+    next = {color: occupant.ink, fillColor: occupant.color, fillOpacity: 0.62, weight: 2};
+  } else if (a.rest_state === 'baseline') {
+    next = {...STATE_STYLE.baseline, fillOpacity: 0.08};
+  } else {
+    next = {...STATE_STYLE[areaState(a)]};
   }
-  if (a.rest_state === 'baseline') {
-    const baseline = applyLineStyle(a, {...STATE_STYLE.baseline, fillOpacity: 0.08});
-    return selected ? {...baseline, color: '#0f1a14', weight: 3.5, fillOpacity: 0.78} : baseline;
-  }
-  let next = {...STATE_STYLE[areaState(a)]};
-  if (a.kind === 'pasture') {
-    next.weight = 2.5;
-    next.dashArray = '10,5';
-  } else if (a.kind === 'scratch' || a.kind === 'temp') {
-    next.weight = 2;
-    next.color = '#2f7a46';
-    next.dashArray = '5,4';
+
+  // Designation stroke: fixed for permanent pasture/paddock, editable default
+  // for temp paddocks. Non-designation kinds (unclassified, etc.) keep the
+  // legacy kind-based stroke + optional saved line style.
+  const designation = withDesignationStroke(a, next);
+  if (designation) {
+    next = designation;
   } else {
     next.weight = 1.5;
-    if (areaState(a) !== 'invalid') delete next.dashArray;
+    if (!occupant && areaState(a) !== 'invalid') delete next.dashArray;
+    next = applyLineStyle(a, next);
   }
-  next = applyLineStyle(a, next);
-  if (selected) next = {...next, color: '#0f1a14', weight: 3.5, fillOpacity: Math.max(next.fillOpacity || 0, 0.78)};
+
+  next = applyBoundaryVisibility(a, next, boundaryFilter);
+
+  if (selected)
+    next = {
+      ...next,
+      color: '#0f1a14',
+      weight: 3.5,
+      fillOpacity: Math.max(next.fillOpacity || 0, 0.78),
+      stroke: true,
+    };
   return next;
 }
 
@@ -218,6 +288,8 @@ export default function PastureMapCanvas({
   mapBanner = null,
   compact = false,
   zoomSignal = 0,
+  boundaryFilter = null,
+  onToggleBoundary,
 }) {
   const elRef = React.useRef(null);
   const mapRef = React.useRef(null);
@@ -279,15 +351,17 @@ export default function PastureMapCanvas({
       if (!g) return;
       const occList = occupants[a.id] || [];
       const occ = occList[0] || null;
-      const style = styleForArea(a, a.id === selectedId, occ);
+      const style = styleForArea(a, a.id === selectedId, occ, boundaryFilter);
       const lyr = L.geoJSON(
         {type: 'Feature', geometry: g.geometry, properties: {}},
         {style: g.kind === 'line' ? {...style, fill: false} : style},
       );
+      // Clean default: do NOT permanently label every area. Names show on hover;
+      // occupied areas carry their own always-on group/count marker (below).
       lyr.bindTooltip(labelFor(a) + (g.kind === 'line' ? ' (outline)' : ''), {
         direction: 'center',
         className: 'pm-map-label',
-        permanent: !compact && g.kind === 'polygon' && !occ,
+        permanent: false,
       });
       lyr.on('click', () => {
         if (!['draw', 'edit', 'measure', 'track'].includes(mode) && cbRef.current.onSelect)
@@ -333,7 +407,7 @@ export default function PastureMapCanvas({
     } catch {
       /* no bounds yet */
     }
-  }, [areas, occupants, selectedId, mode, compact]);
+  }, [areas, occupants, selectedId, mode, compact, boundaryFilter]);
 
   React.useEffect(() => {
     const map = mapRef.current;
@@ -595,6 +669,32 @@ export default function PastureMapCanvas({
           </button>
         </div>
       )}
+      {!compact && boundaryFilter && onToggleBoundary && (
+        <div className="pm-boundary-toggle" data-pasture-boundary-toggle="1" role="group" aria-label="Boundary overlay">
+          <span className="pm-boundary-toggle-label">Boundaries</span>
+          {[
+            {key: 'pasture', label: 'Pastures'},
+            {key: 'paddock', label: 'Paddocks'},
+            {key: 'temp', label: 'Temp paddocks'},
+          ].map((b) => {
+            const on = boundaryFilter[b.key] !== false;
+            return (
+              <button
+                key={b.key}
+                type="button"
+                className={'pm-boundary-chip boundary-' + b.key + (on ? ' is-on' : '')}
+                aria-pressed={on}
+                onClick={() => onToggleBoundary(b.key)}
+                data-pasture-boundary={b.key}
+                data-pasture-boundary-on={on ? '1' : '0'}
+              >
+                <i aria-hidden="true" />
+                {b.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {!compact && (
         <div className={'pm-legend' + (legendOpen ? ' is-open' : '')}>
           <button type="button" className="pm-legend-head" onClick={onToggleLegend}>
@@ -625,6 +725,12 @@ export default function PastureMapCanvas({
                 <i className="state invalid" /> Invalid / needs setup
               </span>
               <hr />
+              <span>
+                <i className="state boundary-pasture" /> Pasture boundary
+              </span>
+              <span>
+                <i className="state boundary-paddock" /> Paddock boundary
+              </span>
               <span>
                 <i className="state selected" /> Selected pasture
               </span>

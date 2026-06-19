@@ -494,7 +494,7 @@ describe('CP7 API + UI wiring', () => {
     // A missing move history is not an outline candidate. The baseline/no_history
     // branch must NOT hardcode a dash; dashed is reserved for outline candidates,
     // retired/invalid states, GPS field tracks, and explicit line_pattern='dashed'.
-    const baselineBranch = canvasSrc.match(/rest_state === 'baseline'[\s\S]*?fillOpacity: 0\.08\}\)/);
+    const baselineBranch = canvasSrc.match(/rest_state === 'baseline'\) \{[\s\S]*?fillOpacity: 0\.08\}/);
     expect(baselineBranch).toBeTruthy();
     expect(baselineBranch[0]).not.toContain('dashArray');
     // Explicit saved line_pattern='dashed' still maps to a dash via applyLineStyle.
@@ -775,11 +775,13 @@ describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Fi
     expect(viewSrc).toMatch(/PM_AREA_OCCUPIED'.*\?.*PM_AREA_OCCUPIED_COPY/);
   });
 
-  it('Setup: exactly three designations + archive/restore/admin hard-delete with exact copy, no raw prompts', () => {
+  it('Setup: permanent designation select + temp promotion, archive/restore/admin hard-delete copy, no raw prompts', () => {
     expect(viewSrc).toContain('classifyDesignation');
+    // Permanent areas pick Pasture/Paddock; temp areas are promoted explicitly
+    // (no free "Temp paddock" <option> that could silently demote a permanent area).
     expect(viewSrc).toContain('>Pasture<');
     expect(viewSrc).toContain('>Paddock<');
-    expect(viewSrc).toContain('>Temp paddock<');
+    expect(viewSrc).not.toMatch(/<option value="temp">/);
     expect(viewSrc).toContain('Archive temp paddock');
     // JSX text wraps in source; the rendered sentence collapses to the exact copy.
     expect(viewSrc).toContain('Hard delete this area permanently?');
@@ -818,5 +820,80 @@ describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Fi
     expect(canvasSrc).toContain('occupant.color');
     expect(canvasSrc).toContain('occupant.ink');
     expect(canvasSrc).toContain('Occupied - Cattle');
+  });
+});
+
+describe('Designation boundary styling + promotion + boundary overlay (lane)', () => {
+  it('canvas hardcodes fixed permanent pasture (blue) and paddock (green) 4px strokes', () => {
+    expect(canvasSrc).toContain('PERMANENT_PASTURE_STROKE');
+    expect(canvasSrc).toContain('PERMANENT_PADDOCK_STROKE');
+    expect(canvasSrc).toMatch(/PERMANENT_PASTURE_STROKE = \{color: '#1d4ed8', weight: 4\}/);
+    expect(canvasSrc).toMatch(/PERMANENT_PADDOCK_STROKE = \{color: '#4ade80', weight: 4\}/);
+    // Fixed permanent strokes are forced and ignore saved line styles.
+    expect(canvasSrc).toContain('function isPermanentPasture');
+    expect(canvasSrc).toContain('function isPermanentPaddock');
+    expect(canvasSrc).toContain('function withDesignationStroke');
+  });
+
+  it('canvas keeps temp paddock default white dashed 5px and editable via applyLineStyle', () => {
+    expect(canvasSrc).toContain('TEMP_PADDOCK_DEFAULT_STROKE');
+    expect(canvasSrc).toMatch(/TEMP_PADDOCK_DEFAULT_STROKE = \{color: '#ffffff', weight: 5/);
+    // Temp branch layers the saved line style on top of the white-dashed default.
+    expect(canvasSrc).toMatch(
+      /isTempPaddock\(a\)[\s\S]*?applyLineStyle\(a, \{\.\.\.style, \.\.\.TEMP_PADDOCK_DEFAULT_STROKE\}\)/,
+    );
+  });
+
+  it('canvas boundary overlay hides only strokes (keeps occupancy fill) and labels are hover-only', () => {
+    expect(canvasSrc).toContain('function boundaryCategory');
+    expect(canvasSrc).toContain('function applyBoundaryVisibility');
+    // stroke:false hides the outline while leaving the fill polygon + marker.
+    expect(canvasSrc).toContain('return {...style, stroke: false}');
+    // Clean default: no permanently-on labels for every area.
+    expect(canvasSrc).toContain('permanent: false');
+    expect(canvasSrc).not.toContain('permanent: !compact && g.kind');
+    // boundaryFilter feeds styleForArea + the toggle control exists.
+    expect(canvasSrc).toContain('styleForArea(a, a.id === selectedId, occ, boundaryFilter)');
+    expect(canvasSrc).toContain('data-pasture-boundary-toggle');
+    expect(canvasSrc).toContain('data-pasture-boundary');
+  });
+
+  it('view passes the boundary filter to the canvas and toggles categories', () => {
+    expect(viewSrc).toContain('boundaryFilter');
+    expect(viewSrc).toContain('function toggleBoundary');
+    expect(viewSrc).toContain('onToggleBoundary: toggleBoundary');
+    expect(viewSrc).toMatch(
+      /boundaryFilter, setBoundaryFilter\] = React\.useState\(\{pasture: true, paddock: true, temp: true\}\)/,
+    );
+  });
+
+  it('view gates line-style editing to temp paddocks + GPS field tracks only', () => {
+    expect(viewSrc).toContain('function canEditLineStyle');
+    expect(viewSrc).toContain('function isFixedStyleArea');
+    // Editable line-style card is gated on canEditLineStyle; permanent gets a locked note.
+    expect(viewSrc).toContain('selectedArea && isManager && canEditLineStyle(selectedArea)');
+    expect(viewSrc).toContain('data-pasture-setup-linestyle-locked');
+    expect(viewSrc).toContain('isFixedStyleArea(selectedArea)');
+    // List chip suppressed for fixed-style permanent areas.
+    expect(viewSrc).toContain('!isFixedStyleArea(a) && (a.line_color');
+  });
+
+  it('view creates new drawn land as temp paddocks (permanent comes from promotion)', () => {
+    expect(viewSrc).toContain('Draw Temp Paddock');
+    expect(viewSrc).toMatch(/setDrawIsTemp\(true\);\s*\n\s*switchToolMode\('draw'\)/);
+    // Draw form hides the permanent Type select while drawing a temp paddock.
+    expect(viewSrc).toContain('data-pasture-drawform-temp');
+  });
+
+  it('view promotes temp -> permanent via mgmt/admin update_land_area with explicit confirm', () => {
+    expect(viewSrc).toContain('function promoteTempArea');
+    expect(viewSrc).toMatch(/updateLandArea\(a\.id, \{kind, permanence: 'permanent'/);
+    expect(viewSrc).toContain('data-pasture-promote');
+    expect(viewSrc).toContain('data-pasture-promote-pasture');
+    expect(viewSrc).toContain('data-pasture-promote-paddock');
+    expect(viewSrc).toContain('data-pasture-promote-confirm');
+    // Promotion UI is manager-only and warns the style locks.
+    expect(viewSrc).toMatch(/isManager &&\s*\n\s*\(confirmPromoteId === area\.id/);
+    expect(viewSrc).toContain('boundary style locks to the fixed permanent style');
   });
 });

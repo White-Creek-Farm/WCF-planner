@@ -455,6 +455,120 @@
   border-radius: 0;
 }
 
+.state.boundary-pasture {
+  width: 26px;
+  height: 0;
+  border: none;
+  border-top: 4px solid #1d4ed8;
+  border-radius: 0;
+}
+
+.state.boundary-paddock {
+  width: 26px;
+  height: 0;
+  border: none;
+  border-top: 4px solid #4ade80;
+  border-radius: 0;
+}
+
+/* Boundary-overlay toggle (Pastures / Paddocks / Temp paddocks). Sits below the
+   map controls; toggling a category hides only the boundary strokes, not the
+   occupancy fills or group markers. */
+.pm-boundary-toggle {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--pm-border-strong);
+  box-shadow: 0 2px 8px rgba(20, 30, 40, 0.12);
+}
+
+.pm-boundary-toggle-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pm-text-soft, #5b6770);
+}
+
+.pm-boundary-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid var(--pm-border-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pm-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.pm-boundary-chip.is-on {
+  opacity: 1;
+}
+
+.pm-boundary-chip i {
+  width: 18px;
+  height: 0;
+  border-top: 4px solid #94a3b8;
+}
+
+.pm-boundary-chip.boundary-pasture i {
+  border-top-color: #1d4ed8;
+}
+
+.pm-boundary-chip.boundary-paddock i {
+  border-top-color: #4ade80;
+}
+
+.pm-boundary-chip.boundary-temp i {
+  border-top: 5px dashed #94a3b8;
+}
+
+.pm-boundary-chip.boundary-temp.is-on i {
+  border-top-color: #ffffff;
+  filter: drop-shadow(0 0 1px rgba(15, 26, 20, 0.6));
+}
+
+/* Locked permanent line-style note + temp promotion controls (Setup). */
+.pm-style-locked-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--pm-text-soft, #5b6770);
+}
+
+.pm-temp-designation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pm-promote-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--pm-text);
+}
+
+.pm-drawform-type-note {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pm-text-soft, #5b6770);
+}
+
 .pm-gps-msg,
 .pm-hud {
   position: absolute;

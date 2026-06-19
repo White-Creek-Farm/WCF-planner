@@ -1,11 +1,12 @@
 // Pasture Map CP7 - manager-controlled boundary line style.
-// Seeds one paddock, changes its stroke color/weight/pattern, and verifies the
-// rendered map stroke, the persisted DB values, and the line-style chip.
+// Seeds one TEMP paddock, changes its stroke color/weight/pattern, and verifies
+// the rendered map stroke, the persisted DB values, and the line-style chip.
 //
-// Updated for the planner-group redesign: line-style editing moved into the
-// Setup tab (Map is read-only). Select the area on the read-only Map, switch to
-// Setup to edit its style, then read the line-style chip back on the Map area
-// list.
+// Boundary-style lane: only temp paddocks and GPS field tracks have editable
+// line style (permanent pasture/paddock use a fixed, non-editable stroke). So
+// CP7 seeds a temp paddock (permanence='temporary'). Line-style editing lives in
+// the Setup tab (Map is read-only): select on the read-only Map, switch to Setup
+// to edit, then read the line-style chip back on the Map area list.
 import {test, expect} from '@playwright/test';
 import {getTestAdminClient} from './setup/reset.js';
 
@@ -21,9 +22,9 @@ async function cleanAndSeedPastureTables() {
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 
     INSERT INTO public.land_areas
-      (id, kind, name, status, review_status, geometry_status, baseline_no_history, source)
+      (id, kind, name, permanence, status, review_status, geometry_status, baseline_no_history, source)
     VALUES
-      ('${A_ID}', 'paddock', 'CP7 Styled Paddock', 'active', 'reviewed', 'none', true, 'drawn');
+      ('${A_ID}', 'paddock', 'CP7 Styled Paddock', 'temporary', 'active', 'reviewed', 'none', true, 'drawn');
 
     SELECT public._land_area_add_version(
       '${A_ID}',
