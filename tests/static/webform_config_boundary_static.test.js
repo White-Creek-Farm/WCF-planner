@@ -95,6 +95,18 @@ describe('webform_config boundary', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('broiler batch persist refreshes the public webform mirrors (no broiler_groups/meta drift)', () => {
+    // P2-1 guard: broiler batch create/edit/status/schooner/brooder changes go
+    // through persist(nb). It must call syncWebformConfig with the new batch
+    // list so broiler_groups / broiler_batch_meta / full_config cannot drift
+    // from app_store.ppp-v4 (unlike the historical persist() that only saved).
+    const mainSrc = stripComments(fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8'));
+    const persistBody = mainSrc.match(/function persist\(nb\)\s*\{[^}]*\}/);
+    expect(persistBody, 'persist(nb) function body not found in main.jsx').not.toBeNull();
+    expect(persistBody[0]).toMatch(/sbSave\(\s*['"]ppp-v4['"]\s*,\s*nb\s*\)/);
+    expect(persistBody[0]).toMatch(/syncWebformConfig\(\s*null\s*,\s*null\s*,\s*nb\b/);
+  });
+
   it('keeps the task/team config modules on named constants instead of stray string keys', () => {
     const tasksSrc = fs.readFileSync(path.join(ROOT, 'src/lib/tasks.js'), 'utf8');
     const tasksPublic = fs.readFileSync(path.join(ROOT, 'src/lib/tasksPublicApi.js'), 'utf8');

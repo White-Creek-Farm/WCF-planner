@@ -2621,6 +2621,13 @@ function App() {
 
   function persist(nb) {
     sbSave('ppp-v4', nb);
+    // Broiler batch create/edit/status/schooner/brooder changes must refresh
+    // the public webform_config mirrors (broiler_groups, broiler_batch_meta,
+    // full_config) so the anon weigh-in dropdown + schooner column labels do
+    // not drift from ppp-v4. Mirrors persistFeeders/persistLayerGroups, which
+    // already sync. Pass nb explicitly as batchData to avoid a stale-closure
+    // read of `batches` before its state update lands.
+    syncWebformConfig(null, null, nb, layerGroups, layerHousings);
   }
   function persistBreeding(nb) {
     sbSave('ppp-breeding-v1', nb);
