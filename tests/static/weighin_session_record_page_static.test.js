@@ -1051,6 +1051,21 @@ describe('WeighInSessionPage — broiler record page', () => {
   it('completeSession checks grid save result before marking complete', () => {
     expect(pageSrc).toMatch(/gridOk[\s\S]*?if \(!gridOk\) return/);
   });
+  it('saveBroilerGrid checks batch avg stamp result and surfaces failure', () => {
+    expect(pageSrc).toMatch(
+      /saveBroilerGrid[\s\S]*?const avgStamp = await writeBroilerBatchAvg[\s\S]*?!avgStamp\.ok[\s\S]*?setGridErr[\s\S]*?return false/,
+    );
+  });
+  it('broiler metadata save checks new-week avg stamp result', () => {
+    expect(pageSrc).toMatch(
+      /saveBroilerMetadata[\s\S]*?const r2 = await writeBroilerBatchAvg[\s\S]*?!r2\.ok[\s\S]*?setMetaErr[\s\S]*?return/,
+    );
+  });
+  it('broiler complete checks batch avg stamp result and surfaces failure', () => {
+    expect(pageSrc).toMatch(
+      /completeSession[\s\S]*?const avgStamp = await writeBroilerBatchAvg[\s\S]*?!avgStamp\.ok[\s\S]*?setNotice/,
+    );
+  });
   it('reopenSession checks recompute result and surfaces failure via notice', () => {
     expect(pageSrc).toMatch(/reopenSession[\s\S]*?recomputeBroilerBatchWeekAvg[\s\S]*?!r2\.ok[\s\S]*?setNotice/);
   });

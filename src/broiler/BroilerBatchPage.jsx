@@ -20,6 +20,7 @@ import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
+import {loadBroilerBatchWeekAverages} from '../lib/broiler.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import BatchForm from './BatchForm.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -68,6 +69,7 @@ export default function BroilerBatchPage({
   // the original name). Reset whenever the URL batch name changes so
   // navigating between records via prev/next still works.
   const [pinnedId, setPinnedId] = React.useState(null);
+  const [weighInWeekAverages, setWeighInWeekAverages] = React.useState(null);
   React.useEffect(() => {
     setPinnedId(null);
   }, [batchName]);
@@ -80,10 +82,36 @@ export default function BroilerBatchPage({
     }
     return list.find((b) => (b.name || '') === batchName) || null;
   }, [batches, batchName, pinnedId]);
+  const batchWeightLookupName = batch ? batch.name || '' : '';
 
   React.useEffect(() => {
     if (batch && pinnedId !== batch.id) setPinnedId(batch.id);
   }, [batch, pinnedId]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setWeighInWeekAverages(null);
+    if (!batchWeightLookupName) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    loadBroilerBatchWeekAverages(sb, batchWeightLookupName)
+      .then((result) => {
+        if (cancelled) return;
+        if (result && result.ok) {
+          setWeighInWeekAverages({week4Lbs: result.week4Lbs, week6Lbs: result.week6Lbs});
+          return;
+        }
+        setWeighInWeekAverages(null);
+      })
+      .catch(() => {
+        if (!cancelled) setWeighInWeekAverages(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [batchWeightLookupName]);
 
   // Populate BatchesContext form state from the URL-resolved batch on mount
   // and whenever the URL batch identity changes. Once editId matches the
@@ -213,6 +241,7 @@ export default function BroilerBatchPage({
             parseProcessorXlsx={parseProcessorXlsx}
             confirmDelete={confirmDelete}
             persist={persist}
+            weighInWeekAverages={weighInWeekAverages}
             onClose={handleClose}
             embedded
           />

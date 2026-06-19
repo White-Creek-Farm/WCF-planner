@@ -57,6 +57,14 @@ function broilerWeekWeightLabel(value) {
   return Math.round(parsed * 100) / 100 + ' lbs';
 }
 
+function broilerRecordedWeekWeight(...values) {
+  for (const value of values) {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+}
+
 export default function BatchForm({
   Header,
   loadUsers,
@@ -78,6 +86,7 @@ export default function BatchForm({
   // semi-transparent modal-overlay background so the form sits flush in the
   // record-page layout.
   embedded = false,
+  weighInWeekAverages = null,
 }) {
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {
@@ -105,6 +114,8 @@ export default function BatchForm({
   const hatchSuggestions = suggestHatchDates(targetHatch);
   const hatchWarn = isNearHoliday(form.hatchDate);
   const procWarn = form.processingDate && isNearHoliday(form.processingDate);
+  const week4WeightDisplay = broilerRecordedWeekWeight(weighInWeekAverages?.week4Lbs, form.week4Lbs);
+  const week6WeightDisplay = broilerRecordedWeekWeight(weighInWeekAverages?.week6Lbs, form.week6Lbs);
   // Legacy hatcheries appended only when admin toggles "Show legacy" on a
   // processed batch.
   const hatcheries =
@@ -604,14 +615,14 @@ export default function BatchForm({
                 <div>
                   <label style={recordFieldLabel}>4-Week Weight (lbs)</label>
                   <div data-broiler-week4-weight-readonly="1" style={weighInSourcedValueBox}>
-                    {broilerWeekWeightLabel(form.week4Lbs)}
+                    {broilerWeekWeightLabel(week4WeightDisplay)}
                   </div>
                   <div style={weighInSourcedHint}>Pulled from completed Week 4 weigh-ins.</div>
                 </div>
                 <div>
                   <label style={recordFieldLabel}>6-Week Weight (lbs)</label>
                   <div data-broiler-week6-weight-readonly="1" style={weighInSourcedValueBox}>
-                    {broilerWeekWeightLabel(form.week6Lbs)}
+                    {broilerWeekWeightLabel(week6WeightDisplay)}
                   </div>
                   <div style={weighInSourcedHint}>Pulled from completed Week 6 weigh-ins.</div>
                 </div>

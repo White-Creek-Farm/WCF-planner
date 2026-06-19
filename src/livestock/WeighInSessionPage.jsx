@@ -389,7 +389,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
         .update({notes: gridNote || null})
         .eq('id', session.id);
     }
-    await writeBroilerBatchAvg(sb, session, recs);
+    const avgStamp = await writeBroilerBatchAvg(sb, session, recs);
+    if (!avgStamp.ok) {
+      setSavingGrid(false);
+      setGridErr('Save partly failed (batch avg): ' + avgStamp.message);
+      return false;
+    }
     try {
       await recordActivityEvent(sb, {
         entityType: 'weighin.session',
@@ -441,7 +446,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
         setMetaErr('Save partly failed (entries read): ' + eR.error.message);
         return;
       }
-      await writeBroilerBatchAvg(sb, {...session, broiler_week: newWeek}, (eR && eR.data) || []);
+      const r2 = await writeBroilerBatchAvg(sb, {...session, broiler_week: newWeek}, (eR && eR.data) || []);
+      if (!r2.ok) {
+        setMetaBusy(false);
+        setMetaErr('Save partly failed (new week): ' + r2.message);
+        return;
+      }
     }
     try {
       const parts = [];
@@ -606,7 +616,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             }),
         },
       );
-      await writeBroilerBatchAvg(sb, {...session, status: 'complete'}, freshEntries);
+      const avgStamp = await writeBroilerBatchAvg(sb, {...session, status: 'complete'}, freshEntries);
+      if (!avgStamp.ok) {
+        setNotice({kind: 'error', message: 'Session completed, but batch avg stamp failed: ' + avgStamp.message});
+        await loadAll();
+        return;
+      }
       await loadAll();
       return;
     }

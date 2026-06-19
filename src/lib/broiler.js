@@ -501,11 +501,35 @@ export function calcLayerFeedForMonth(batch, housings, layerDailys, yearMonth) {
 // broiler_week is coerced via Number() so callers that pass a string
 // (e.g. test fixtures, JSON-roundtripped sessions) still gate correctly.
 export async function writeBroilerBatchAvg(sb, sessionRow, sessionEntries) {
-  if (!sb || !sessionRow || sessionRow.species !== 'broiler') return;
-  if (sessionRow.status !== 'complete') return;
+  if (!sb || !sessionRow || sessionRow.species !== 'broiler') return {ok: true};
+  if (sessionRow.status !== 'complete') return {ok: true};
   var weekNum = Number(sessionRow.broiler_week);
-  if (!sessionRow.batch_id || (weekNum !== 4 && weekNum !== 6)) return;
-  if (!sessionEntries || sessionEntries.length === 0) return;
+  if (!sessionRow.batch_id || (weekNum !== 4 && weekNum !== 6)) return {ok: true};
+  if (!sessionEntries || sessionEntries.length === 0) return {ok: true};
+  var avg = calcBroilerSessionAverageLbs(sessionEntries);
+  if (avg == null) return {ok: true};
+  var fieldKey = weekNum === 4 ? 'week4Lbs' : 'week6Lbs';
+  var resp = await sb.from('app_store').select('data').eq('key', 'ppp-v4').maybeSingle();
+  if (resp && resp.error) return {ok: false, message: 'ppp-v4 read failed: ' + resp.error.message};
+  if (!resp || !resp.data || !Array.isArray(resp.data.data)) return {ok: true};
+  var touched = false;
+  var updated = resp.data.data.map(function (b) {
+    if (b && b.name === sessionRow.batch_id) {
+      touched = true;
+      return Object.assign({}, b, {[fieldKey]: avg});
+    }
+    return b;
+  });
+  if (!touched) return {ok: true};
+  var up = await sb
+    .from('app_store')
+    .upsert({key: 'ppp-v4', data: updated, updated_at: new Date().toISOString()}, {onConflict: 'key'});
+  if (up && up.error) return {ok: false, message: 'ppp-v4 upsert failed: ' + up.error.message};
+  return {ok: true};
+}
+
+export function calcBroilerSessionAverageLbs(sessionEntries) {
+  if (!Array.isArray(sessionEntries) || sessionEntries.length === 0) return null;
   var sum = 0,
     n = 0;
   for (var i = 0; i < sessionEntries.length; i++) {
@@ -515,17 +539,43 @@ export async function writeBroilerBatchAvg(sb, sessionRow, sessionEntries) {
       n++;
     }
   }
-  if (n === 0) return;
-  var avg = Math.round((sum / n) * 100) / 100;
-  var fieldKey = weekNum === 4 ? 'week4Lbs' : 'week6Lbs';
-  var resp = await sb.from('app_store').select('data').eq('key', 'ppp-v4').maybeSingle();
-  if (!resp || !resp.data || !Array.isArray(resp.data.data)) return;
-  var updated = resp.data.data.map(function (b) {
-    return b.name === sessionRow.batch_id ? Object.assign({}, b, {[fieldKey]: avg}) : b;
-  });
-  await sb
-    .from('app_store')
-    .upsert({key: 'ppp-v4', data: updated, updated_at: new Date().toISOString()}, {onConflict: 'key'});
+  if (n === 0) return null;
+  return Math.round((sum / n) * 100) / 100;
+}
+
+async function loadLatestBroilerWeekAverage(sb, batchId, week, opts) {
+  if (!sb || !batchId || (week !== 4 && week !== 6)) return {ok: true, averageLbs: null};
+  const excludeSessionId = opts && opts.excludeSessionId ? opts.excludeSessionId : null;
+  let q = sb
+    .from('weigh_in_sessions')
+    .select('id, completed_at')
+    .eq('species', 'broiler')
+    .eq('batch_id', batchId)
+    .eq('broiler_week', week)
+    .eq('status', 'complete');
+  if (excludeSessionId) q = q.neq('id', excludeSessionId);
+  const sR = await q.order('completed_at', {ascending: false}).limit(1);
+  if (sR && sR.error) return {ok: false, message: 'sessions read failed: ' + sR.error.message};
+  const list = (sR && sR.data) || [];
+  if (list.length === 0) return {ok: true, averageLbs: null, sessionId: null};
+
+  const latestId = list[0].id;
+  const eR = await sb.from('weigh_ins').select('weight').eq('session_id', latestId);
+  if (eR && eR.error) return {ok: false, message: 'entries read failed: ' + eR.error.message};
+  return {
+    ok: true,
+    averageLbs: calcBroilerSessionAverageLbs((eR && eR.data) || []),
+    sessionId: latestId,
+  };
+}
+
+export async function loadBroilerBatchWeekAverages(sb, batchId) {
+  if (!sb || !batchId) return {ok: true, week4Lbs: null, week6Lbs: null};
+  const week4 = await loadLatestBroilerWeekAverage(sb, batchId, 4);
+  if (!week4.ok) return {ok: false, message: week4.message, week4Lbs: null, week6Lbs: null};
+  const week6 = await loadLatestBroilerWeekAverage(sb, batchId, 6);
+  if (!week6.ok) return {ok: false, message: week6.message, week4Lbs: week4.averageLbs, week6Lbs: null};
+  return {ok: true, week4Lbs: week4.averageLbs, week6Lbs: week6.averageLbs};
 }
 
 // Recompute the wk*Lbs field on app_store.ppp-v4[batch] for a given
@@ -553,19 +603,10 @@ export async function recomputeBroilerBatchWeekAvg(sb, batchId, week, opts) {
   if (!sb || !batchId || (week !== 4 && week !== 6)) return {ok: true};
   const excludeSessionId = opts && opts.excludeSessionId ? opts.excludeSessionId : null;
   const fieldKey = week === 4 ? 'week4Lbs' : 'week6Lbs';
-  let q = sb
-    .from('weigh_in_sessions')
-    .select('id, completed_at')
-    .eq('species', 'broiler')
-    .eq('batch_id', batchId)
-    .eq('broiler_week', week)
-    .eq('status', 'complete');
-  if (excludeSessionId) q = q.neq('id', excludeSessionId);
-  const sR = await q.order('completed_at', {ascending: false}).limit(1);
-  if (sR && sR.error) return {ok: false, message: 'sessions read failed: ' + sR.error.message};
-  const list = (sR && sR.data) || [];
+  const latest = await loadLatestBroilerWeekAverage(sb, batchId, week, {excludeSessionId});
+  if (!latest.ok) return {ok: false, message: latest.message};
 
-  if (list.length === 0) {
+  if (!latest.sessionId) {
     // No backing session — drop the wk*Lbs key from the batch entirely.
     return await applyPppV4Update(sb, batchId, (next) => {
       delete next[fieldKey];
@@ -573,23 +614,8 @@ export async function recomputeBroilerBatchWeekAvg(sb, batchId, week, opts) {
     });
   }
 
-  // Recompute from the latest OTHER complete session's entries.
-  const latestId = list[0].id;
-  const eR = await sb.from('weigh_ins').select('weight').eq('session_id', latestId);
-  if (eR && eR.error) return {ok: false, message: 'entries read failed: ' + eR.error.message};
-  const entries = (eR && eR.data) || [];
-  let sum = 0,
-    n = 0;
-  for (let i = 0; i < entries.length; i++) {
-    const w = parseFloat(entries[i].weight);
-    if (!isNaN(w) && w > 0) {
-      sum += w;
-      n++;
-    }
-  }
-  if (n === 0) return {ok: true}; // intentional no-op — no usable entries
-  const avg = Math.round((sum / n) * 100) / 100;
-  return await applyPppV4Update(sb, batchId, (next) => Object.assign(next, {[fieldKey]: avg}));
+  if (latest.averageLbs == null) return {ok: true}; // intentional no-op — no usable entries
+  return await applyPppV4Update(sb, batchId, (next) => Object.assign(next, {[fieldKey]: latest.averageLbs}));
 }
 
 // Internal: read ppp-v4, run `mutate` on the matching batch row, upsert.

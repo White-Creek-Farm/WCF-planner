@@ -4,6 +4,9 @@ import {
   shouldAutoActivateBroilerBatch,
   shouldAutoProcessBroilerBatch,
   computeBroilerOnFarmCounts,
+  calcBroilerSessionAverageLbs,
+  loadBroilerBatchWeekAverages,
+  writeBroilerBatchAvg,
   recomputeBroilerBatchWeekAvg,
 } from './broiler.js';
 
@@ -172,6 +175,162 @@ describe('computeBroilerOnFarmCounts', () => {
     expect(counts.startedBirds).toBe(700);
     expect(counts.mortality).toBe(12);
     expect(counts.onFarmBirds).toBe(688);
+  });
+});
+
+describe('broiler session weight averages', () => {
+  it('averages only positive weights and rounds to two decimals', () => {
+    expect(calcBroilerSessionAverageLbs([{weight: 5.755}, {weight: '5.765'}, {weight: 0}, {weight: 'nope'}])).toBe(
+      5.76,
+    );
+    expect(calcBroilerSessionAverageLbs([{weight: 0}, {weight: -1}, {weight: 'nope'}])).toBeNull();
+    expect(calcBroilerSessionAverageLbs([])).toBeNull();
+  });
+
+  it('loads latest completed week 4 and week 6 averages for a batch', async () => {
+    const {sb, calls} = makeSb({
+      sessions: (filters) => ({
+        data: [{id: 'sess-week-' + filters.eq.broiler_week, completed_at: '2026-06-18T16:47:35.178Z'}],
+        error: null,
+      }),
+      weighIns: (filters) => {
+        if (filters.eq.session_id === 'sess-week-4') return {data: [{weight: 1.11}, {weight: 1.23}], error: null};
+        return {data: [{weight: 5.755}, {weight: 5.765}, {weight: 0}], error: null};
+      },
+      appStoreSelect: () => ({data: null, error: null}),
+      appStoreUpsert: () => ({error: null}),
+    });
+
+    const result = await loadBroilerBatchWeekAverages(sb, 'B-26-08');
+
+    expect(result).toEqual({ok: true, week4Lbs: 1.17, week6Lbs: 5.76});
+    expect(calls.sessions.map((c) => c.filters.eq.broiler_week)).toEqual([4, 6]);
+    expect(calls.sessions[0].filters.eq).toMatchObject({
+      species: 'broiler',
+      batch_id: 'B-26-08',
+      status: 'complete',
+    });
+    expect(calls.sessions[0].order).toEqual({col: 'completed_at', opts: {ascending: false}});
+    expect(calls.sessions[0].lim).toBe(1);
+  });
+
+  it('returns nulls for weeks without a backing complete session', async () => {
+    const {sb, calls} = makeSb({
+      sessions: () => ({data: [], error: null}),
+      weighIns: () => {
+        throw new Error('weigh_ins should not be read when no session exists');
+      },
+      appStoreSelect: () => ({data: null, error: null}),
+      appStoreUpsert: () => ({error: null}),
+    });
+
+    await expect(loadBroilerBatchWeekAverages(sb, 'B-26-08')).resolves.toEqual({
+      ok: true,
+      week4Lbs: null,
+      week6Lbs: null,
+    });
+    expect(calls.weighIns).toEqual([]);
+  });
+});
+
+describe('writeBroilerBatchAvg', () => {
+  it('writes the completed broiler session average and returns ok', async () => {
+    let upserted = null;
+    const {sb} = makeSb({
+      sessions: () => ({data: [], error: null}),
+      weighIns: () => ({data: [], error: null}),
+      appStoreSelect: () => ({data: {data: [{name: 'B-1', week6Lbs: 0}, {name: 'B-2'}]}, error: null}),
+      appStoreUpsert: (row) => {
+        upserted = row;
+        return {error: null};
+      },
+    });
+
+    const r = await writeBroilerBatchAvg(
+      sb,
+      {species: 'broiler', status: 'complete', broiler_week: '6', batch_id: 'B-1'},
+      [{weight: 5.755}, {weight: '5.765'}, {weight: 0}],
+    );
+
+    expect(r).toEqual({ok: true});
+    expect(upserted.data[0].week6Lbs).toBe(5.76);
+    expect(upserted.data[1]).toEqual({name: 'B-2'});
+  });
+
+  it('returns ok and does not read ppp-v4 for true no-data cases', async () => {
+    const {sb, calls} = makeSb({
+      sessions: () => ({data: [], error: null}),
+      weighIns: () => ({data: [], error: null}),
+      appStoreSelect: () => {
+        throw new Error('ppp-v4 should not be read without usable weights');
+      },
+      appStoreUpsert: () => ({error: null}),
+    });
+
+    const r = await writeBroilerBatchAvg(
+      sb,
+      {species: 'broiler', status: 'complete', broiler_week: 4, batch_id: 'B-1'},
+      [{weight: 0}, {weight: -1}, {weight: 'nope'}],
+    );
+
+    expect(r).toEqual({ok: true});
+    expect(calls.appStoreSelect).toEqual([]);
+    expect(calls.appStoreUpsert).toEqual([]);
+  });
+
+  it('returns ok and does not upsert when the batch row is absent', async () => {
+    const {sb, calls} = makeSb({
+      sessions: () => ({data: [], error: null}),
+      weighIns: () => ({data: [], error: null}),
+      appStoreSelect: () => ({data: {data: [{name: 'OTHER'}]}, error: null}),
+      appStoreUpsert: () => ({error: null}),
+    });
+
+    const r = await writeBroilerBatchAvg(
+      sb,
+      {species: 'broiler', status: 'complete', broiler_week: 4, batch_id: 'B-1'},
+      [{weight: 1.5}],
+    );
+
+    expect(r).toEqual({ok: true});
+    expect(calls.appStoreUpsert).toEqual([]);
+  });
+
+  it('returns an error when ppp-v4 read fails', async () => {
+    const {sb, calls} = makeSb({
+      sessions: () => ({data: [], error: null}),
+      weighIns: () => ({data: [], error: null}),
+      appStoreSelect: () => ({data: null, error: {message: 'select denied'}}),
+      appStoreUpsert: () => ({error: null}),
+    });
+
+    const r = await writeBroilerBatchAvg(
+      sb,
+      {species: 'broiler', status: 'complete', broiler_week: 4, batch_id: 'B-1'},
+      [{weight: 1.5}],
+    );
+
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/ppp-v4 read failed/);
+    expect(calls.appStoreUpsert).toEqual([]);
+  });
+
+  it('returns an error when ppp-v4 upsert fails', async () => {
+    const {sb} = makeSb({
+      sessions: () => ({data: [], error: null}),
+      weighIns: () => ({data: [], error: null}),
+      appStoreSelect: () => ({data: {data: [{name: 'B-1'}]}, error: null}),
+      appStoreUpsert: () => ({error: {message: 'upsert denied'}}),
+    });
+
+    const r = await writeBroilerBatchAvg(
+      sb,
+      {species: 'broiler', status: 'complete', broiler_week: 4, batch_id: 'B-1'},
+      [{weight: 1.5}],
+    );
+
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/ppp-v4 upsert failed/);
   });
 });
 

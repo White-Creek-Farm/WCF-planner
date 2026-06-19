@@ -100,6 +100,12 @@ describe('BroilerBatchPage — record page structure', () => {
     expect(pageSrc).toContain('location.hash');
     expect(pageSrc).toContain('scrollIntoView');
   });
+  it('loads completed weigh-in averages for the record-page weight display', () => {
+    expect(pageSrc).toContain("import {loadBroilerBatchWeekAverages} from '../lib/broiler.js'");
+    expect(pageSrc).toContain('weighInWeekAverages, setWeighInWeekAverages');
+    expect(pageSrc).toContain('loadBroilerBatchWeekAverages(sb, batchWeightLookupName)');
+    expect(pageSrc).toContain('weighInWeekAverages={weighInWeekAverages}');
+  });
   it('has back link to /broiler/batches', () => {
     expect(pageSrc).toContain("navigate('/broiler/batches')");
     expect(pageSrc).toContain('Back to Broiler Batches');
@@ -319,8 +325,11 @@ describe('BatchForm — embedded mode + record-page overrides', () => {
   it('renders 4-week and 6-week broiler weights as read-only weigh-in sourced values', () => {
     expect(formSrc).toContain('data-broiler-week4-weight-readonly="1"');
     expect(formSrc).toContain('data-broiler-week6-weight-readonly="1"');
-    expect(formSrc).toContain('broilerWeekWeightLabel(form.week4Lbs)');
-    expect(formSrc).toContain('broilerWeekWeightLabel(form.week6Lbs)');
+    expect(formSrc).toContain('weighInWeekAverages = null');
+    expect(formSrc).toContain('broilerRecordedWeekWeight(weighInWeekAverages?.week4Lbs, form.week4Lbs)');
+    expect(formSrc).toContain('broilerRecordedWeekWeight(weighInWeekAverages?.week6Lbs, form.week6Lbs)');
+    expect(formSrc).toContain('broilerWeekWeightLabel(week4WeightDisplay)');
+    expect(formSrc).toContain('broilerWeekWeightLabel(week6WeightDisplay)');
     expect(formSrc).toContain('Pulled from completed Week 4 weigh-ins.');
     expect(formSrc).toContain('Pulled from completed Week 6 weigh-ins.');
     expect(formSrc).not.toContain("upd('week4Lbs'");
