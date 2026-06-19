@@ -138,9 +138,9 @@ describe('Pasture Map view - CP1/CP3 scope boundary', () => {
     ).toBe(true);
   });
 
-  it('exposes import + classify + close-outline actions', () => {
+  it('exposes import + classify + close-into-temp actions', () => {
     expect(viewSrc).toContain('Import OnX KML');
-    expect(viewSrc).toContain('Close outline');
+    expect(viewSrc).toContain('Close into temp paddock');
     expect(viewSrc).toContain('classifyLandArea');
   });
 });
@@ -737,25 +737,22 @@ describe('P2 Map tab', () => {
     expect(viewSrc).toContain('pm-chip-temp');
   });
 
-  it('Map area detail is read-only; recording lives in Plan and line-style in Setup', () => {
+  it('area detail panel stays read-only; recording + line-style live in the contextual modal', () => {
     const selBody = viewSrc.slice(
       viewSrc.indexOf('function renderSelectedPanel'),
       viewSrc.indexOf('function selectGroupAndLocation'),
     );
+    // The selected-area detail panel itself never embeds the move or line-style forms.
     expect(selBody).not.toContain('renderMoveAndPlanForms');
     expect(selBody).not.toContain('renderLineStylePanel');
 
-    const planBody = viewSrc.slice(
-      viewSrc.indexOf('function renderPlanPanel'),
-      viewSrc.indexOf('function renderSetupPanel'),
-    );
-    expect(planBody).toContain('renderMoveAndPlanForms()');
-
-    const setupBody = viewSrc.slice(
-      viewSrc.indexOf('function renderSetupPanel'),
+    // The contextual area modal owns per-area recording + line style.
+    const modalBody = viewSrc.slice(
+      viewSrc.indexOf('function renderAreaModal'),
       viewSrc.indexOf('function renderPlannedMoves'),
     );
-    expect(setupBody).toContain('renderLineStylePanel()');
+    expect(modalBody).toContain('renderMoveAndPlanForms()');
+    expect(modalBody).toContain('renderLineStylePanel()');
   });
 });
 
@@ -871,8 +868,8 @@ describe('Designation boundary styling + promotion + boundary overlay (lane)', (
   it('view gates line-style editing to temp paddocks + GPS field tracks only', () => {
     expect(viewSrc).toContain('function canEditLineStyle');
     expect(viewSrc).toContain('function isFixedStyleArea');
-    // Editable line-style card is gated on canEditLineStyle; permanent gets a locked note.
-    expect(viewSrc).toContain('selectedArea && isManager && canEditLineStyle(selectedArea)');
+    // Editable line-style card (in the area modal) is gated on canEditLineStyle; permanent gets a locked note.
+    expect(viewSrc).toContain('isManager && canEditLineStyle(selectedArea)');
     expect(viewSrc).toContain('data-pasture-setup-linestyle-locked');
     expect(viewSrc).toContain('isFixedStyleArea(selectedArea)');
     // List chip suppressed for fixed-style permanent areas.
@@ -893,8 +890,11 @@ describe('Designation boundary styling + promotion + boundary overlay (lane)', (
     expect(viewSrc).toContain('data-pasture-promote-pasture');
     expect(viewSrc).toContain('data-pasture-promote-paddock');
     expect(viewSrc).toContain('data-pasture-promote-confirm');
-    // Promotion UI is manager-only and warns the style locks.
-    expect(viewSrc).toMatch(/isManager &&\s*\n\s*\(confirmPromoteId === area\.id/);
+    // Promotion lives in the manager-only area manage actions (renderAreaManageActions
+    // returns null unless isManager) and warns the style locks.
+    expect(viewSrc).toMatch(
+      /function renderAreaManageActions\(area\) \{\s*\n\s*if \(!area \|\| !isManager\) return null/,
+    );
     expect(viewSrc).toContain('boundary style locks to the fixed permanent style');
   });
 });
@@ -934,14 +934,56 @@ describe('Pasture Map tweaks #2: default labels / occupancy / dismissal / open o
     expect(viewSrc).toContain('Clear selection');
   });
 
-  it('Setup surfaces open outlines (needs closing) with count, zoom, and close', () => {
-    expect(viewSrc).toContain('function renderOpenOutlines');
-    expect(viewSrc).toContain('{renderOpenOutlines()}');
-    expect(viewSrc).toContain('data-pasture-open-outlines');
-    expect(viewSrc).toContain('data-pasture-open-outline-count');
-    expect(viewSrc).toContain('data-pasture-open-outline-zoom');
-    expect(viewSrc).toContain('data-pasture-open-outline-close');
-    expect(viewSrc).toContain('activeAreas.filter(isOutlineCandidateArea)');
+  it('Setup surfaces a Tracks / Lines section with zoom, close-into-temp, and delete', () => {
+    expect(viewSrc).toContain('function renderTracksLines');
+    expect(viewSrc).toContain('{renderTracksLines()}');
+    expect(viewSrc).toContain('data-pasture-tracks-lines');
+    expect(viewSrc).toContain('data-pasture-tracks-lines-count');
+    expect(viewSrc).toContain('data-pasture-track-line-zoom');
+    expect(viewSrc).toContain('data-pasture-track-line-close');
+    expect(viewSrc).toContain('data-pasture-track-line-delete');
+    expect(viewSrc).toContain('Tracks / Lines');
+    expect(viewSrc).toContain('trackLineAreas');
+  });
+});
+
+describe('Tracks / Lines lane (no-DB option B)', () => {
+  it('Tracks/Lines = outline candidates only, split out of the Area Setup list + destinations', () => {
+    // Draft lines are excluded from Area Setup, move destinations, and rotation seeding.
+    expect(viewSrc).toMatch(/setupAreas = React\.useMemo\([\s\S]*?!isOutlineCandidateArea/);
+    expect(viewSrc).toMatch(
+      /destinationAreas = React\.useMemo\([\s\S]*?activeAreas\.filter\(\(area\) => !isOutlineCandidateArea/,
+    );
+    expect(viewSrc).toContain(
+      'trackLineAreas = React.useMemo(() => activeAreas.filter((area) => isOutlineCandidateArea',
+    );
+    // Rotation seeding + area index use destinationAreas (real grazing areas only).
+    expect(viewSrc).toContain('buildInitialRotation(group, destinationAreas, index)');
+    expect(viewSrc).toContain('destinationAreas.slice(0, limit)');
+    // appendToRotation refuses a draft line as a destination.
+    expect(viewSrc).toContain('isOutlineCandidateArea(areaById.get(areaId))');
+    // Manual move (in the area modal) excludes draft lines.
+    expect(viewSrc).toContain('!isOutlineCandidateArea(selectedArea)');
+  });
+
+  it('Close into temp paddock uses existing RPCs (no Edit, no new SQL) and is mgmt/admin', () => {
+    expect(viewSrc).toContain('async function closeIntoTempPaddock');
+    expect(viewSrc).toMatch(/closeLandAreaOutline\(a\.id, res\.polygon, 'paddock'\)/);
+    expect(viewSrc).toMatch(/updateLandArea\(a\.id, \{permanence: 'temporary'/);
+    // close + delete actions are gated on isManager.
+    expect(viewSrc).toMatch(/onClick=\{\(\) => closeIntoTempPaddock\(a\)\}\s*\n\s*disabled=\{!isManager/);
+    // Edit is intentionally NOT in this lane.
+    expect(viewSrc).not.toContain('data-pasture-track-line-edit');
+  });
+
+  it('canvas hides draft lines on Map by default; Field has a Draft-lines toggle', () => {
+    expect(canvasSrc).toContain(
+      "appMode === 'plan' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId",
+    );
+    expect(canvasSrc).toContain('data-pasture-draftlines-toggle');
+    expect(canvasSrc).toContain("appMode === 'field' && onToggleDraftLines");
+    expect(viewSrc).toContain('draftLinesVisible');
+    expect(viewSrc).toContain('onToggleDraftLines: toggleDraftLines');
   });
 });
 
@@ -966,24 +1008,24 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     expect(viewSrc).toMatch(/saving \? 'Saving\.\.\.' : 'Move'/);
   });
 
-  it('Plan has no area list; manual move is secondary (selection + explicit toggle)', () => {
+  it('Plan owns tools + tracks/lines + classification queue; no area list; manual move is in the modal', () => {
     const planBody = viewSrc.slice(
       viewSrc.indexOf('function renderPlanPanel'),
-      viewSrc.indexOf('function renderOpenOutlines'),
+      viewSrc.indexOf('function renderTracksLines'),
     );
     expect(planBody).not.toContain('renderAreaIndex');
     expect(planBody).not.toContain('data-pasture-plan-destinations');
-    // Manual move only when an area is selected, behind a toggle.
-    expect(planBody).toContain('canRecordMoves && selectedArea');
-    expect(planBody).toContain('data-pasture-manual-move-toggle');
-    expect(planBody).toContain('manualMoveOpen && renderMoveAndPlanForms()');
+    // Plan hosts the relocated tools, tracks/lines, and classification queue.
+    expect(planBody).toContain('renderBoundaryTools()');
+    expect(planBody).toContain('renderTracksLines()');
+    expect(planBody).toContain('renderClassificationQueue()');
+    // Manual move is no longer a Plan-body card; it lives in the contextual modal.
+    expect(planBody).not.toContain('data-pasture-manual-move');
   });
 
-  it('Setup panel is "Area Setup" with read-only acreage and a classification selector', () => {
-    expect(viewSrc).toContain('data-pasture-area-setup');
-    expect(viewSrc).toContain('Area Setup');
+  it('classification + acreage live in the area modal: read-only acreage, classification selector', () => {
     expect(viewSrc).toContain('data-pasture-acres-readonly');
-    // No editable acreage input remains in Setup rows.
+    // No editable acreage input anywhere.
     expect(viewSrc).not.toMatch(/saveAreaPatch\(area, \{manualAcres/);
     expect(viewSrc).not.toContain('clearManual: true');
     // Classification select exposes the unclassified state + Pasture/Paddock.
@@ -995,5 +1037,46 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     expect(viewSrc).toMatch(/legendOpen, setLegendOpen\] = React\.useState\(false\)/);
     // Boundary toggle repositioned below the Leaflet zoom control (no overlap).
     expect(pastureCss).toMatch(/\.pm-boundary-toggle \{[\s\S]*?top: 84px/);
+  });
+});
+
+describe('Plan-centric IA: Setup tab removed, contextual area modal', () => {
+  it('Setup is gone from the tabs and panel routing', () => {
+    const tabsBlock = viewSrc.match(/const MODE_TABS = \[[\s\S]*?\];/)?.[0] || '';
+    expect(tabsBlock).not.toContain("id: 'setup'");
+    expect(tabsBlock).toContain("label: 'Map'");
+    expect(tabsBlock).toContain("label: 'Plan'");
+    expect(viewSrc).not.toContain('function renderSetupPanel');
+    expect(viewSrc).not.toContain("appMode === 'setup'");
+    expect(viewSrc).not.toContain("setAppMode('setup')");
+  });
+
+  it('selecting an area opens a contextual modal (not a Setup tab)', () => {
+    expect(viewSrc).toContain('function renderAreaModal');
+    expect(viewSrc).toContain('{renderAreaModal()}');
+    expect(viewSrc).toContain('data-pasture-area-modal');
+    expect(viewSrc).toContain('data-pasture-area-modal-backdrop');
+    // Backdrop + (existing) clear control dismiss it.
+    expect(viewSrc).toContain('onClick={() => setSelectedId(null)}');
+    expect(viewSrc).toContain('data-pasture-clear-selection');
+    // Map view panel no longer short-circuits to the read-only selected panel.
+    const viewBody = viewSrc.slice(
+      viewSrc.indexOf('function renderViewPanel'),
+      viewSrc.indexOf('function renderGroupSwitcher'),
+    );
+    expect(viewBody).not.toContain('if (selectedArea) return renderSelectedPanel()');
+  });
+
+  it('Plan owns the relocated Boundary tools (collapsible) + manage actions in the modal', () => {
+    expect(viewSrc).toContain('function renderBoundaryTools');
+    expect(viewSrc).toContain('data-pasture-boundary-tools');
+    expect(viewSrc).toContain('data-pasture-boundary-tools-toggle');
+    expect(viewSrc).toContain('function renderClassificationQueue');
+    expect(viewSrc).toContain('data-pasture-classify-queue');
+    expect(viewSrc).toContain('function renderAreaManageActions');
+    expect(viewSrc).toContain('data-pasture-area-manage');
+    // Roster card dropped; no rest-days input survives.
+    expect(viewSrc).not.toContain('Locked roster - counts come from real animal records');
+    expect(viewSrc).not.toContain('<span>Rest days</span>');
   });
 });

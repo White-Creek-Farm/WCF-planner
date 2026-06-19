@@ -47,13 +47,13 @@ test('CP7: manager changes paddock line color, weight, and pattern', async ({pag
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // Select the area on the read-only Map area list.
+  // Select the area on the read-only Map area list -> contextual modal opens.
   const row = page.locator(`[data-pasture-area="${A_ID}"]`).first();
   await expect(row).toContainText('CP7 Styled Paddock', {timeout: 25_000});
   await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
 
-  // Style editing lives in Setup now.
-  await page.locator('.pm-tabs button', {hasText: 'Setup'}).click();
+  // Line-style editing lives in the area modal now.
+  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-style-panel]')).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-style-swatch="2563eb"]').click();
   await page.locator('[data-pasture-style-pattern="dashed"]').click();
@@ -75,12 +75,11 @@ test('CP7: manager changes paddock line color, weight, and pattern', async ({pag
     )
     .toEqual({line_color: '#2563eb', line_weight: 6, line_pattern: 'dashed'});
 
-  // Clear the carried selection (selected areas render with the dark highlight
-  // stroke) so the map shows the area's own line style, and the Map area list
-  // exposes the line-style chip.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  const clearBtn = page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'});
-  if (await clearBtn.count()) await clearBtn.click();
+  // Close the modal (clears the selection); selected areas render with the dark
+  // highlight stroke, so this lets the map show the area's own line style and the
+  // Map area list expose the line-style chip.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
 
   // Map stroke reflects the saved style now that nothing is selected.
   const styledPath = page.locator('.leaflet-overlay-pane path[stroke="#2563eb"]').first();
