@@ -713,11 +713,7 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         <div className="field-tools">
           <button type="button" className="card admin-card field-map-card lift" onClick={() => setView('pastureMap')}>
             <span className="admin-ic field-map-ic">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Z" />
-                <path d="M9 3v15" />
-                <path d="M15 6v15" />
-              </svg>
+              <PlannerIcon iconKey={PLANNER_ICON_KEYS.pastureMap} size={34} />
             </span>
             <span className="admin-title">Pasture Map</span>
             <Chevron className="go" />

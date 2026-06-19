@@ -21,6 +21,7 @@ const mig135 = read('supabase-migrations/135_pasture_map_temp_paddocks.sql');
 const mig135Code = mig135.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
+const plannerIconsSrc = read('src/lib/plannerIcons.js');
 const viewSrc = read('src/pasture/PastureMapView.jsx');
 const canvasSrc = read('src/pasture/PastureMapCanvas.jsx');
 const pastureCss = read('src/pasture/pastureMap.css');
@@ -46,7 +47,10 @@ describe('Pasture Map route + wiring', () => {
     const fieldBlock = homeSrc.slice(homeSrc.indexOf('field-tools'), homeSrc.indexOf('Utility row'));
     expect(fieldBlock).toContain("setView('pastureMap')");
     expect(fieldBlock).toContain('Pasture Map');
+    expect(fieldBlock).toContain('PLANNER_ICON_KEYS.pastureMap');
     expect(fieldBlock).toContain('HomeWeatherCard');
+    expect(plannerIconsSrc).toContain("pastureMap: 'pasture-map'");
+    expect(fs.existsSync(path.join(ROOT, 'public/icons/planner/pasture-map.png'))).toBe(true);
   });
 });
 

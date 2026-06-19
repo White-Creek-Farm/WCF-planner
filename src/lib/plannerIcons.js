@@ -47,6 +47,7 @@ export const PLANNER_ICON_KEYS = {
   wrench: 'wrench',
   admin: 'admin',
   processing: 'processing',
+  pastureMap: 'pasture-map',
 };
 
 const VALID_KEYS = new Set(Object.values(PLANNER_ICON_KEYS));
