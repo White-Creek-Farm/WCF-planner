@@ -542,6 +542,49 @@
   filter: drop-shadow(0 0 1px rgba(15, 26, 20, 0.6));
 }
 
+/* Field-only "Draft lines" visibility toggle (above the legend, clear of the
+   boundary toggle + zoom control). */
+.pm-draftlines-toggle {
+  position: absolute;
+  left: 14px;
+  bottom: 80px;
+  z-index: 600;
+}
+
+/* Tracks / Lines row actions: Close into temp paddock + Delete. */
+.pm-track-line-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Contextual area modal (opened by selecting an area on Map or Plan). */
+.pm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow-y: auto;
+  background: rgba(15, 26, 20, 0.45);
+}
+
+.pm-modal {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 560px) {
+  .pm-modal-backdrop {
+    padding: 12px;
+  }
+}
+
 /* Locked permanent line-style note + temp promotion controls (Setup). */
 .pm-style-locked-note {
   margin: 0;
@@ -685,6 +728,13 @@
 
 .pm-hud[data-hud-valid='false'] {
   outline: 2px solid #ef4444;
+}
+
+/* Measure HUD lifecycle controls (Clear measurement / Done). */
+.pm-hud-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .pm-panel-title {

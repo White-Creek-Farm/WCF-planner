@@ -75,23 +75,28 @@ test('plans a move and renders history/rest/stocking reports', async ({page}) =>
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toBeVisible({timeout: 25_000});
 
-  // Recording + planning live in the Plan tab (Map is read-only). The Plan tab
-  // hosts both the plan form and the move form for the selected destination
-  // area, each with a single flat Group picker and locked count.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  // Selecting an area opens the contextual modal, which carries both the plan
+  // form and the move form (single flat Group picker, locked count).
   await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
   await expect(page.locator('[data-pasture-plan-form]').first()).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-plan-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-plan-at]').fill(localDateTimeValue());
   await page.locator('[data-pasture-plan-save]').click();
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+
+  // Planned moves render in the Plan tab body.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('Mommas', {timeout: 15_000});
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('CP4 North Paddock');
 
-  // Record the actual move for the same group/area.
+  // Record the actual move for the same group/area via the modal.
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
 
   // Reports tab: rest (open by default), then stocking and history.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();

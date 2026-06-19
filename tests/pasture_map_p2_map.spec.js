@@ -67,49 +67,37 @@ test('Map tab: current groups, locations, group->location select, area detail', 
   await expect(mommaRow).toContainText('Not placed');
   await expect(mommaRow.locator('[data-pasture-group-location="none"]')).toBeVisible();
 
-  // Recording lives in the Plan tab now (Map is read-only). Plan no longer shows
-  // a full area list: select the destination on the read-only Map list, then open
-  // the secondary "Manual move / correction" panel in Plan and record Mommas -> A.
+  // Selecting an area opens the contextual modal, which carries the move form.
+  // Record Mommas -> Paddock A from the modal, then close it.
   await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
-  await page.locator('[data-pasture-manual-move-toggle]').click();
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(1000);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
 
-  // Back on the Map: the occupied paddock shows an animal-type group marker, and
-  // the legend reflects animal-type occupancy.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  // The occupant marker is a 0x0 Leaflet divIcon whose pill overflows visibly,
-  // so assert presence (it renders) rather than box-visibility.
+  // On the Map, the occupied paddock shows an animal-type group marker, and the
+  // legend (collapsed by default) reflects animal-type occupancy.
   await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(1, {timeout: 15_000});
-  // Legend is collapsed by default now; expand it to read the occupancy key.
   await page.locator('.pm-legend-head').click();
   await expect(page.locator('.pm-legend-body')).toContainText('Occupied - Cattle');
-
-  // Clear any carried selection to see the Current Groups panel.
-  const clearBtn = page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'});
-  if (await clearBtn.count()) await clearBtn.click();
 
   // The current-group row now shows the location (placed chip -> Paddock A).
   await expect(mommaRow.locator(`[data-pasture-group-location="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await expect(mommaRow).toContainText('P2 Paddock A');
 
-  // Clicking the group selects + zooms its current location -> read-only Area detail.
+  // Clicking the group selects its current location -> modal area detail (read-only).
   await mommaRow.click();
-  await expect(page.locator('[data-pasture-selected-panel]')).toBeVisible();
-  await expect(page.locator(`[data-pasture-area-detail="${A_ID}"]`)).toBeVisible();
+  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible();
   await expect(page.locator('[data-pasture-selected-panel]')).toContainText('Area detail');
   await expect(page.locator(`[data-pasture-area-detail="${A_ID}"]`)).toContainText('Paddock');
-  // Occupancy is still shown read-only; no editing in the Map tab.
   await expect(page.locator(`[data-pasture-occupancy="${A_ID}"]`)).toContainText('Mommas');
-  await expect(page.locator('[data-pasture-move-form]')).toHaveCount(0);
-  await expect(page.locator('[data-pasture-plan-form]')).toHaveCount(0);
-  await expect(page.locator('[data-pasture-style-panel]')).toHaveCount(0);
+  // Acreage is computed read-only in the modal.
+  await expect(page.locator(`[data-pasture-acres-readonly="${A_ID}"]`)).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // Area Detail for the temp paddock reads "Temp paddock" with a Temp chip.
-  await page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'}).click();
   await page.locator(`[data-pasture-area-select="${T_ID}"]`).click();
   await expect(page.locator(`[data-pasture-area-detail="${T_ID}"]`)).toContainText('Temp paddock', {timeout: 15_000});
   await expect(page.locator(`[data-pasture-area-detail="${T_ID}"] .pm-chip-temp`)).toBeVisible();

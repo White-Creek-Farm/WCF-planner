@@ -70,27 +70,26 @@ test('records moves and derives occupied/resting state', async ({page}) => {
   await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toBeVisible({timeout: 25_000});
   await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toBeVisible();
 
-  // Recording lives in the Plan tab now (Map is read-only). Single flat Group
-  // picker, locked count. Move Mommas -> A, then Mommas -> B (vacating A).
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  // Selecting an area opens the contextual modal (which carries the move form).
+  // Move Mommas -> A, then Mommas -> B (vacating A).
   await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
 
   await page.locator(`[data-pasture-area-select="${B_ID}"]`).first().click();
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible();
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
 
-  // Map tab: B is occupied (animal-type marker), and the area index shows B
-  // occupied / A resting (derived occupancy + rest).
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  // Map: B is occupied (animal-type marker); the area index shows B occupied / A resting.
   await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(1, {timeout: 15_000});
-  const clearBtn = page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'});
-  if (await clearBtn.count()) await clearBtn.click();
   await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toContainText('Occupied now', {timeout: 15_000});
   await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toContainText(/resting/i);
 

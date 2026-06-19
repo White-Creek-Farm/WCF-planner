@@ -41,45 +41,44 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.waitForTimeout(2000); // let NAIP tiles paint
   await page.screenshot({path: path.join(SHOTS, '01-empty-desktop.png'), fullPage: true});
 
-  // ── Import preview ── (choosing a KML auto-switches to the Setup tab so the
-  // imported areas can be classified; the preview banner renders above the tabs.)
+  // ── Import preview ── (choosing a KML auto-switches to the Plan tab, which owns
+  // classification + tracks/lines; the preview banner renders above the tabs.)
   await page.locator('[data-pasture-import-input]').setInputFiles(KML_PATH);
   await expect(page.locator('[data-pasture-import-preview]')).toBeVisible();
   await page.screenshot({path: path.join(SHOTS, '02-import-preview-desktop.png'), fullPage: true});
 
-  // ── Import (10 placemarks -> 10 land areas), shown in the Setup pasture editor ──
+  // ── Import: 4 polygons -> unclassified grazing areas, 6 lines -> Tracks / Lines ──
   await page.getByRole('button', {name: /^Import \d+$/}).click();
-  await expect(page.locator('[data-pasture-area]')).toHaveCount(10, {timeout: 25_000});
-  await page.waitForTimeout(2500); // tiles + polygons
-  await page.screenshot({path: path.join(SHOTS, '03-post-import-desktop.png'), fullPage: true});
+  await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('6', {timeout: 25_000});
+  await page.waitForTimeout(1500);
+  await page.screenshot({path: path.join(SHOTS, '03-post-import-plan.png'), fullPage: true});
 
-  // 4 polygons import valid (HUB/SHOP/FP 4/Area...), 6 lines as outline candidates.
-  await expect(page.locator('[data-pasture-area][data-kind="unclassified"]')).toHaveCount(4);
-  await expect(page.locator('[data-pasture-area][data-kind="outline_candidate"]')).toHaveCount(6);
+  // On the Map, the 4 polygons appear as unclassified land areas (lines are draft).
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  await expect(page.locator('.pm-area-row')).toHaveCount(4, {timeout: 15_000});
+  await expect(page.locator('.pm-area-row[data-kind="unclassified"]')).toHaveCount(4);
 
-  // ── Classification + close-outline live in the Setup tab pasture editor ──
-  // Classify a polygon (an unclassified import) as a paddock via the Setup
-  // designation control; the Setup row's data-kind reflects the new kind.
-  const unclassifiedRow = page.locator('[data-pasture-area][data-kind="unclassified"]').first();
-  await expect(unclassifiedRow).toBeVisible({timeout: 15_000});
-  const classifyId = await unclassifiedRow.getAttribute('data-pasture-area');
-  await page.locator(`[data-pasture-expand="${classifyId}"]`).click();
+  // Classify a polygon as a paddock via its contextual modal.
+  const classifyId = await page
+    .locator('.pm-area-row[data-kind="unclassified"]')
+    .first()
+    .getAttribute('data-pasture-area');
+  await page.locator(`[data-pasture-area-select="${classifyId}"]`).click();
+  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
   await page.locator(`[data-pasture-designation="${classifyId}"]`).selectOption('paddock');
   await expect(page.locator(`[data-pasture-area="${classifyId}"]`)).toHaveAttribute('data-kind', 'paddock', {
     timeout: 15_000,
   });
-  // One fewer unclassified import remains.
-  await expect(page.locator('[data-pasture-area][data-kind="unclassified"]')).toHaveCount(3);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.pm-area-row[data-kind="unclassified"]')).toHaveCount(3);
   await page.screenshot({path: path.join(SHOTS, '04-classified-desktop.png'), fullPage: true});
 
-  // Close an outline candidate (a traced line) from its Setup row.
-  const outlineRow = page.locator('[data-pasture-area][data-kind="outline_candidate"]').first();
-  const outlineId = await outlineRow.getAttribute('data-pasture-area');
-  await page.locator(`[data-pasture-expand="${outlineId}"]`).click();
-  await page.locator(`[data-pasture-area="${outlineId}"]`).getByRole('button', {name: 'Close outline'}).click();
-  // That area is no longer an outline candidate -> 5 remain.
-  await expect(page.locator('[data-pasture-area][data-kind="outline_candidate"]')).toHaveCount(5, {timeout: 15_000});
-  await page.waitForTimeout(1500);
+  // Close a draft line into a temp paddock from the Plan Tracks / Lines section.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  const outlineId = await page.locator('[data-pasture-track-line]').first().getAttribute('data-pasture-track-line');
+  await page.locator(`[data-pasture-track-line-close="${outlineId}"]`).click();
+  await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('5', {timeout: 15_000});
+  await page.waitForTimeout(1000);
   await page.screenshot({path: path.join(SHOTS, '05-outline-closed-desktop.png'), fullPage: true});
 
   // ── GPS "you are here" (mocked geolocation; best-effort) ──

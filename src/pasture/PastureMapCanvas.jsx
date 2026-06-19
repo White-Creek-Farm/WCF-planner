@@ -290,6 +290,10 @@ export default function PastureMapCanvas({
   zoomSignal = 0,
   boundaryFilter = null,
   onToggleBoundary,
+  appMode = 'view',
+  draftLinesVisible = false,
+  onToggleDraftLines,
+  onExitTool,
 }) {
   const elRef = React.useRef(null);
   const mapRef = React.useRef(null);
@@ -364,6 +368,13 @@ export default function PastureMapCanvas({
     (areas || []).forEach((a) => {
       const g = areaGeom(a);
       if (!g) return;
+      // Draft lines (GPS tracks / open lines) are hidden on the Map by default.
+      // They render only on Field when the Draft-lines toggle is on, or when the
+      // line itself is the current selection (so Setup zoom-to-track still shows).
+      if (g.kind === 'line') {
+        const showDraft = appMode === 'plan' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId;
+        if (!showDraft) return;
+      }
       const occList = occupants[a.id] || [];
       const occ = occList[0] || null;
       const style = styleForArea(a, a.id === selectedId, occ, boundaryFilter);
@@ -425,7 +436,7 @@ export default function PastureMapCanvas({
     } catch {
       /* no bounds yet */
     }
-  }, [areas, occupants, selectedId, mode, compact, boundaryFilter]);
+  }, [areas, occupants, selectedId, mode, compact, boundaryFilter, appMode, draftLinesVisible]);
 
   React.useEffect(() => {
     const map = mapRef.current;
@@ -608,6 +619,29 @@ export default function PastureMapCanvas({
     }
   }
 
+  // Measurement is transient: clear the drawn shape + HUD and restart drawing so
+  // the user can measure another. Never persists anything.
+  function clearMeasure() {
+    const map = mapRef.current;
+    if (!map) return;
+    if (tempRef.current) {
+      try {
+        map.removeLayer(tempRef.current);
+      } catch {
+        /* already gone */
+      }
+      tempRef.current = null;
+    }
+    setHud(null);
+    if (modeRef.current === 'measure' && map.pm) {
+      try {
+        map.pm.enableDraw('Polygon', {snappable: true, snapDistance: 20, continueDrawing: false});
+      } catch {
+        /* noop */
+      }
+    }
+  }
+
   function locate() {
     const map = mapRef.current;
     if (!map) return;
@@ -640,6 +674,21 @@ export default function PastureMapCanvas({
             <span className="pm-hud-v">{hud.perimeterFt != null ? `${hud.perimeterFt.toLocaleString()} ft` : '-'}</span>
           </div>
           {hud.selfIntersects && <div className="pm-hud-warn">Self-intersecting - fix before saving</div>}
+          {hud.mode === 'measure' && (
+            <div className="pm-hud-actions" data-pasture-measure-actions="1">
+              <button type="button" className="pm-mini-btn" onClick={clearMeasure} data-pasture-measure-clear="1">
+                Clear measurement
+              </button>
+              <button
+                type="button"
+                className="pm-mini-btn is-primary"
+                onClick={() => onExitTool && onExitTool()}
+                data-pasture-measure-done="1"
+              >
+                Done
+              </button>
+            </div>
+          )}
         </div>
       )}
       {!compact && mapBanner && (
@@ -691,6 +740,20 @@ export default function PastureMapCanvas({
               </button>
             );
           })}
+        </div>
+      )}
+      {!compact && appMode === 'field' && onToggleDraftLines && (
+        <div className="pm-draftlines-toggle" data-pasture-draftlines-toggle="1">
+          <button
+            type="button"
+            className={'pm-boundary-chip boundary-temp' + (draftLinesVisible ? ' is-on' : '')}
+            aria-pressed={draftLinesVisible}
+            onClick={onToggleDraftLines}
+            data-pasture-draftlines-on={draftLinesVisible ? '1' : '0'}
+          >
+            <i aria-hidden="true" />
+            Draft lines
+          </button>
         </div>
       )}
       {!compact && (

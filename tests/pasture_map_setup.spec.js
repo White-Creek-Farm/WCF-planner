@@ -37,65 +37,56 @@ test.beforeAll(async () => {
 });
 
 // expandedPasture persists across reloads/tab switches, so only expand the row
-// if its lifecycle actions are not already showing.
-async function expandTemp(page) {
-  const actions = page.locator(`[data-pasture-archive="${T_ID}"], [data-pasture-restore="${T_ID}"]`);
-  if ((await actions.count()) === 0) await page.locator(`[data-pasture-expand="${T_ID}"]`).click();
-  await expect(actions.first()).toBeVisible({timeout: 10_000});
+// Open an area's contextual modal from the Map area list.
+async function openArea(page, areaId) {
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await page.locator(`[data-pasture-area-select="${areaId}"]`).first().click();
+  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
 }
 
-// Record a group move onto an area. Plan no longer has an area list, so select the
-// destination on the read-only Map list, then use the secondary "Manual move /
-// correction" panel in Plan.
+// Record a group move onto an area via its contextual modal (carries the move form).
 async function recordMove(page, areaId, groupLabel) {
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  // Clear any carried selection so the Map area list (not the detail panel) shows.
-  await page.keyboard.press('Escape');
-  await page.locator(`[data-pasture-area-select="${areaId}"]`).first().click();
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
-  if ((await page.locator('[data-pasture-move-form]').count()) === 0)
-    await page.locator('[data-pasture-manual-move-toggle]').click();
+  await openArea(page, areaId);
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: groupLabel});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
 }
 
-test('Setup: temp paddock archive/restore, occupied block, admin hard delete', async ({page}) => {
+test('Temp paddock archive/restore, occupied block, admin hard delete (via area modal)', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await page.locator('.pm-tabs button', {hasText: 'Setup'}).click();
-  const tempRow = page.locator(`[data-pasture-area="${T_ID}"]`);
-  await expect(tempRow).toBeVisible({timeout: 25_000});
-  await expect(tempRow).toContainText('Temp paddock'); // designation chip
 
-  // Archive the temp paddock -> tagged "Archived temp".
-  await expandTemp(page);
+  // Per-area lifecycle lives in the contextual modal now. Archived areas leave the
+  // active Map list, so archive -> restore is exercised within one open modal.
+  await openArea(page, T_ID);
+  await expect(page.locator(`[data-pasture-area-detail="${T_ID}"]`)).toContainText('Temp paddock');
   await expect(page.locator(`[data-pasture-archive="${T_ID}"]`)).toContainText('Archive temp paddock');
   await page.locator(`[data-pasture-archive="${T_ID}"]`).click();
-  await expect(tempRow).toContainText('Archived temp', {timeout: 15_000});
-
-  // Restore it -> active again (no Archived tag).
-  await expandTemp(page);
+  await expect(page.locator(`[data-pasture-area-detail="${T_ID}"]`)).toContainText('Archived temp', {timeout: 15_000});
   await page.locator(`[data-pasture-restore="${T_ID}"]`).click();
-  await expect(tempRow).not.toContainText('Archived temp', {timeout: 15_000});
+  await expect(page.locator(`[data-pasture-area-detail="${T_ID}"]`)).not.toContainText('Archived temp', {
+    timeout: 15_000,
+  });
+  await page.keyboard.press('Escape');
 
   // Occupied-archive block: move Mommas onto the temp paddock, then archiving is
   // blocked with the exact copy.
   await recordMove(page, T_ID, 'Mommas');
-  await page.locator('.pm-tabs button', {hasText: 'Setup'}).click();
-  await expandTemp(page);
+  await openArea(page, T_ID);
   await page.locator(`[data-pasture-archive="${T_ID}"]`).click();
   await expect(page.locator('.pm-error')).toContainText('Move animals out of this temp paddock before archiving it.', {
     timeout: 15_000,
   });
+  await page.keyboard.press('Escape');
 
   // Admin hard delete uses an inline confirm; move the group away first so it is
   // not blocked, then hard-delete and confirm the area leaves the list.
   await recordMove(page, A_ID, 'Mommas');
-  await page.locator('.pm-tabs button', {hasText: 'Setup'}).click();
-  await expandTemp(page);
+  await openArea(page, T_ID);
   await page.locator(`[data-pasture-hard-delete="${T_ID}"]`).click();
   await expect(page.locator(`[data-pasture-hard-delete-confirm="${T_ID}"]`)).toContainText(
     'Hard delete this area permanently?',

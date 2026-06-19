@@ -51,8 +51,9 @@ test('CP6: mobile GPS track saves as an outline candidate', async ({page}) => {
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // GPS boundary tools live in Setup; the tool starts recording on click.
-  await page.locator('.pm-tabs button', {hasText: 'Setup'}).click();
+  // GPS boundary tools live in the Plan tab's collapsible Boundary tools card now.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('[data-pasture-boundary-tools-toggle]').click();
   await page.locator('[data-mode="track"]').click();
   await expect(page.locator('[data-pasture-track-panel]')).toBeVisible();
   await expect(page.locator('[data-pasture-track-stats]')).toContainText('2 pts', {timeout: 10_000});
@@ -60,17 +61,16 @@ test('CP6: mobile GPS track saves as an outline candidate', async ({page}) => {
   await page.locator('[data-pasture-track-name]').fill('Mobile Track Test');
   await page.locator('[data-pasture-track-save]').click();
 
-  // The saved trace appears on the read-only Map area list. Saving selects the
-  // new area, so wait for its detail panel and clear the selection to reveal the
-  // area index (with its line-style chip).
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-selected-panel]')).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-selected-panel]').getByRole('button', {name: 'Clear selection'}).click();
+  // Saving selects the new track -> the contextual modal opens; close it.
+  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
 
-  const row = page.locator('[data-pasture-area]', {hasText: 'Mobile Track Test'}).first();
+  // The 2-point trace is a draft line: it surfaces in the Tracks / Lines section
+  // (Plan), not the Map grazing-area list.
+  const row = page.locator('[data-pasture-track-line]', {hasText: 'Mobile Track Test'}).first();
   await expect(row).toBeVisible({timeout: 15_000});
   await expect(row.locator('.pm-chip-outline_candidate')).toBeVisible();
-  await expect(row.locator('[data-pasture-line-style]')).toContainText('5 px Dashed');
 
   const {data, error} = await getTestAdminClient()
     .from('land_areas')
