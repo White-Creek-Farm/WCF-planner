@@ -1008,6 +1008,27 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     expect(viewSrc).toMatch(/saving \? 'Saving\.\.\.' : 'Move'/);
   });
 
+  it('current placement is derived from the move ledger only, never from the rotation array', () => {
+    // The old bug: top-level `const nowArea`/`const nextArea` read
+    // activeRotation[0]/[1] as the current/next location. Those declarations and
+    // the rotation[1] "next" derivation must be gone.
+    expect(viewSrc).not.toContain('const nowArea =');
+    expect(viewSrc).not.toContain('const nextArea =');
+    expect(viewSrc).not.toMatch(/areaById\.get\(activeRotation\[1\]\)/);
+    // Current area comes from groupLocation (the move ledger); next is derived
+    // relative to actual placement.
+    expect(viewSrc).toContain('const activeCurrentArea = React.useMemo');
+    expect(viewSrc).toContain('const activeNextArea = React.useMemo');
+    expect(viewSrc).toContain('activeCurrentInRotation');
+    // The rotation NOW chip/label is gated on actual placement, not index 0.
+    expect(viewSrc).not.toMatch(/index === 0 \? ' is-now' : ''/);
+    expect(viewSrc).not.toMatch(/index === 0 \? 'NOW - ' : ''/);
+    expect(viewSrc).toContain('const isNow = !!activeCurrentArea && areaId === activeCurrentArea.id');
+    // Move / Confirm record to the derived next destination (first rotation stop
+    // for an unplaced group), not rotation[1].
+    expect(viewSrc).toContain('recordGroupMove(activeGroup, activeNextArea && activeNextArea.id)');
+  });
+
   it('Plan owns tools + tracks/lines + classification queue; no area list; manual move is in the modal', () => {
     const planBody = viewSrc.slice(
       viewSrc.indexOf('function renderPlanPanel'),

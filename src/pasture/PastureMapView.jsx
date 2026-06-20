@@ -578,8 +578,6 @@ export default function PastureMapView({Header, authState}) {
   const activeGroup = groups.find((group) => group.id === activeGroupId) || groups[0] || null;
   const activeSpecies = groupSpeciesStyle(activeGroup);
   const activeRotation = ((activeGroup && rotations[activeGroup.id]) || []).filter((id) => areaById.has(id));
-  const nowArea = areaById.get(activeRotation[0]) || null;
-  const nextArea = areaById.get(activeRotation[1]) || null;
   // Current location per planner group = latest move ledger row by
   // (animal_type, group_key). moves is sorted moved_at DESC, so the first match
   // is the latest; no match -> Not placed (null).
@@ -594,6 +592,27 @@ export default function PastureMapView({Header, authState}) {
     }
     return out;
   }, [groups, moves]);
+  // Derived placement for the active group. CONTRACT: actual current location
+  // comes ONLY from recorded move events (groupLocation), never from the rotation
+  // array. The rotation is a plan, not proof the animals are there.
+  //   - placed + current area is a rotation stop  -> next = the FOLLOWING stop.
+  //   - placed but current area is off-rotation    -> next = rotation[0] (first
+  //     planned target); current copy must not imply it is part of the rotation.
+  //   - not placed                                 -> current = null ("Not placed"),
+  //     next = rotation[0] (the group's first move lands on the first stop).
+  const activeCurrentArea = React.useMemo(() => {
+    const loc = activeGroup ? groupLocation[activeGroup.id] : null;
+    if (!loc || !loc.areaId) return null;
+    return areaById.get(loc.areaId) || {id: loc.areaId, name: loc.areaName};
+  }, [activeGroup, groupLocation, areaById]);
+  const activeCurrentInRotation = !!activeCurrentArea && activeRotation.includes(activeCurrentArea.id);
+  const activeNextArea = React.useMemo(() => {
+    if (activeCurrentInRotation) {
+      const idx = activeRotation.indexOf(activeCurrentArea.id);
+      return areaById.get(activeRotation[idx + 1]) || null;
+    }
+    return areaById.get(activeRotation[0]) || null;
+  }, [activeCurrentInRotation, activeCurrentArea, activeRotation, areaById]);
   // Client-side occupancy for the Map canvas: area id -> occupying roster groups
   // (animal-type color + identity), derived from the SAME (animal_type,
   // group_key) contract as groupLocation. This — not land_areas.current_occupants
@@ -1089,7 +1108,7 @@ export default function PastureMapView({Header, authState}) {
   }
 
   async function savePlan() {
-    const targetId = selectedId || (nextArea && nextArea.id);
+    const targetId = selectedId || (activeNextArea && activeNextArea.id);
     if (!targetId) return setErr('Select an area first, then plan the move.');
     const {groupLabel, groupKey} = resolveGroup(planForm);
     const plannedDate = new Date(planForm.plannedFor);
@@ -2184,10 +2203,12 @@ export default function PastureMapView({Header, authState}) {
             {activeRotation.map((areaId, index) => {
               const area = areaById.get(areaId);
               if (!area) return null;
+              // NOW reflects ACTUAL recorded placement, not index 0.
+              const isNow = !!activeCurrentArea && areaId === activeCurrentArea.id;
               return (
                 <div
                   key={areaId}
-                  className={'pm-rot-chip' + (index === 0 ? ' is-now' : '')}
+                  className={'pm-rot-chip' + (isNow ? ' is-now' : '')}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData('text/plain', String(index))}
                   onDragOver={(e) => e.preventDefault()}
@@ -2212,6 +2233,8 @@ export default function PastureMapView({Header, authState}) {
             {activeRotation.map((areaId, index) => {
               const area = areaById.get(areaId);
               if (!area) return null;
+              // NOW reflects ACTUAL recorded placement, not index 0.
+              const isNow = !!activeCurrentArea && areaId === activeCurrentArea.id;
               return (
                 <div
                   key={areaId}
@@ -2226,7 +2249,7 @@ export default function PastureMapView({Header, authState}) {
                   <div>
                     <strong>{area.name || 'Unnamed'}</strong>
                     <em>
-                      {index === 0 ? 'NOW - ' : ''}
+                      {isNow ? 'NOW - ' : ''}
                       {restCopy(area)} - {area.effective_acres || '-'} ac
                     </em>
                   </div>
@@ -2313,8 +2336,11 @@ export default function PastureMapView({Header, authState}) {
         {renderGroupSwitcher()}
         {(() => {
           const curLoc = groupLocation[activeGroup.id] || null;
-          const currentArea = curLoc ? areaById.get(curLoc.areaId) || {name: curLoc.areaName} : nowArea;
+          // Current area is the recorded placement only (activeCurrentArea); an
+          // unplaced group reads "Not placed" instead of borrowing rotation[0].
+          const currentArea = activeCurrentArea;
           const timeInArea = curLoc ? formatTimeInArea(curLoc.movedAt) : null;
+          const offRotation = !!currentArea && !activeCurrentInRotation;
           const timeCopy = currentArea
             ? timeInArea
               ? `In ${currentArea.name} for ${timeInArea}`
@@ -2338,23 +2364,27 @@ export default function PastureMapView({Header, authState}) {
               <div className="pm-group-move-grid">
                 <div className="pm-group-move-cell">
                   <span>Current area</span>
-                  <strong>{currentArea ? currentArea.name : 'No pasture'}</strong>
-                  <em data-pasture-time-in-area="1">{timeCopy}</em>
+                  <strong>{currentArea ? currentArea.name : 'Not placed'}</strong>
+                  <em data-pasture-time-in-area="1">{offRotation ? `${timeCopy} (off rotation)` : timeCopy}</em>
                 </div>
                 <div className="pm-next-arrow" aria-hidden="true">
                   -&gt;
                 </div>
                 <div className="pm-group-move-cell">
                   <span>Next area</span>
-                  <strong>{nextArea ? nextArea.name : '-'}</strong>
-                  <em>{nextArea && nextArea.rest_days != null ? `${nextArea.rest_days}d rested` : 'Rest unknown'}</em>
+                  <strong>{activeNextArea ? activeNextArea.name : '-'}</strong>
+                  <em>
+                    {activeNextArea && activeNextArea.rest_days != null
+                      ? `${activeNextArea.rest_days}d rested`
+                      : 'Rest unknown'}
+                  </em>
                 </div>
               </div>
               <button
                 type="button"
                 className="pm-btn pm-btn-primary pm-move-btn"
-                onClick={() => recordGroupMove(activeGroup, nextArea && nextArea.id)}
-                disabled={!nextArea || saving || !canRecordMoves}
+                onClick={() => recordGroupMove(activeGroup, activeNextArea && activeNextArea.id)}
+                disabled={!activeNextArea || saving || !canRecordMoves}
                 data-pasture-move="1"
               >
                 {saving ? 'Saving...' : 'Move'}
@@ -2362,10 +2392,10 @@ export default function PastureMapView({Header, authState}) {
             </div>
           );
         })()}
-        {nextArea && (occupantsByArea[nextArea.id] || []).some((o) => o.name !== activeGroup.name) && (
+        {activeNextArea && (occupantsByArea[activeNextArea.id] || []).some((o) => o.name !== activeGroup.name) && (
           <div className="pm-conflict-warn" data-pasture-plan-conflict="1">
-            &#9888; {nextArea.name} is currently occupied by{' '}
-            {(occupantsByArea[nextArea.id].find((o) => o.name !== activeGroup.name) || {}).name}.
+            &#9888; {activeNextArea.name} is currently occupied by{' '}
+            {(occupantsByArea[activeNextArea.id].find((o) => o.name !== activeGroup.name) || {}).name}.
           </div>
         )}
         {renderRotationEditor()}
@@ -3003,8 +3033,11 @@ export default function PastureMapView({Header, authState}) {
           </div>
         </div>
       );
+    // "Then" stops = rotation stops after the next destination, excluding the
+    // group's actual current area (which is the NOW cell, not a future stop).
+    const nextId = activeNextArea && activeNextArea.id;
     const remaining = activeRotation
-      .slice(2)
+      .filter((id) => id !== (activeCurrentArea && activeCurrentArea.id) && id !== nextId)
       .map((id) => areaById.get(id))
       .filter(Boolean);
     // Same-day duplicate guard: has the active group already moved today?
@@ -3075,13 +3108,17 @@ export default function PastureMapView({Header, authState}) {
             <div className="pm-phone-now">
               <div>
                 <span>Now</span>
-                <strong>{nowArea ? nowArea.name : '-'}</strong>
+                <strong>{activeCurrentArea ? activeCurrentArea.name : 'Not placed'}</strong>
                 <em>{activeGroup.name}</em>
               </div>
               <div>
                 <span>Next</span>
-                <strong>{nextArea ? nextArea.name : '-'}</strong>
-                <em>{nextArea && nextArea.rest_days != null ? `${nextArea.rest_days}d rested` : 'rest unknown'}</em>
+                <strong>{activeNextArea ? activeNextArea.name : '-'}</strong>
+                <em>
+                  {activeNextArea && activeNextArea.rest_days != null
+                    ? `${activeNextArea.rest_days}d rested`
+                    : 'rest unknown'}
+                </em>
               </div>
             </div>
             <div className="pm-phone-then">
@@ -3133,12 +3170,14 @@ export default function PastureMapView({Header, authState}) {
                 return;
               }
               setFieldDupeAck(false);
-              recordGroupMove(activeGroup, nextArea && nextArea.id, {offlineOnly: fieldOffline});
+              recordGroupMove(activeGroup, activeNextArea && activeNextArea.id, {offlineOnly: fieldOffline});
             }}
-            disabled={!nextArea || saving}
+            disabled={!activeNextArea || saving}
             data-pasture-field-confirm="1"
           >
-            {fieldMovedToday && fieldDupeAck ? 'Record anyway' : `Confirm move -> ${nextArea ? nextArea.name : 'next'}`}
+            {fieldMovedToday && fieldDupeAck
+              ? 'Record anyway'
+              : `Confirm move -> ${activeNextArea ? activeNextArea.name : 'next'}`}
           </button>
         </div>
       </div>
