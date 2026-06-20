@@ -7,12 +7,13 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-19.
-Current source checkpoint: `1a200ae`
-(`Merge Pasture Map Plan-centric IA + tool-lifecycle lanes into main`).
+Last updated: 2026-06-20.
+Current runtime code checkpoint: `bd19cc0`
+(`feat(pasture): add side-panel inspectors and light read-only map`).
+Current docs checkpoint: this 2026-06-20 wrap, committed on top of `bd19cc0`.
 Production URL: https://wcfplanner.com.
 Netlify auto-deploys from GitHub `main`. This docs wrap verified git state, not
-the final Netlify bundle id for `1a200ae`.
+the final Netlify bundle id for the 2026-06-20 push.
 
 ---
 
@@ -64,10 +65,17 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source: `main` / `origin/main` is `1a200ae`
-  (`Merge Pasture Map Plan-centric IA + tool-lifecycle lanes into main`). The
-  push to `origin/main` is complete; Netlify deploy verification for this exact
-  commit was not available from the local CLI during this docs wrap.
+- Source: `main` now includes runtime code through `bd19cc0`
+  (`feat(pasture): add side-panel inspectors and light read-only map`) plus this
+  docs wrap commit. The 2026-06-20 push carries three pasture/light commits after
+  `a82d24b`: `7a9da4f` (move-ledger source of truth for current/next placement),
+  `3c0fe0a` (Light home report icons plus Pasture Map tile), and `bd19cc0`
+  (Phase 2 side-panel inspectors, roster occupancy reconcile, Light read-only
+  Map access, and migration `136`).
+- Local dirty work: no active code lane remains after the Phase 2 checkpoint.
+  Untracked local artifacts may still include pasture screenshot folders and
+  the pasture-map flowchart HTML/PDF/PNG; do not stage these unless Ronnie
+  explicitly asks.
 - Extra worktrees:
   - `C:\Users\Ronni\WCF-planner` is the standing repo/worktree on current
     `main`; it is the canonical place to inspect `origin/main` state.
@@ -83,34 +91,44 @@ Design/function invariants that govern cross-surface behavior live in
     worktree whose tip is already reachable from `origin/main`; it is not an
     active lane unless Ronnie explicitly reopens it.
 - Open gates: no approved-but-unrun PROD migration, Edge Function deploy,
-  Storage/Vault, or data-repair gate is open as of this wrap. Migration `135`
+  Storage/Vault, or data-repair gate is open as of this wrap. Migration `136`
   is PROD-applied/verified; `tasks-cron` v3 is deployed/smoked; B-26-08 wk6 is
   repaired in PROD.
 - PROD-applied recent migrations include `112` through `116`, `125`, `126`,
-  `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, and `135`. `116` (Pasture
-  Map CP1), `125` (Production legacy events), and `126` (breeding-pig Activity
-  entity) were applied to PROD on 2026-06-15. `127` (Pasture Map draw/edit RPCs)
-  was applied to PROD on 2026-06-16. Pasture Map `128`-`132` artifacts were
-  verified present on TEST and PROD by catalog checks on 2026-06-17. Migration
-  `133` (task system generation support and To Do approval notifications) was
-  applied to TEST on 2026-06-17 and PROD on 2026-06-18. Migration `134`
-  (originator task/to-do edit photos) was applied to PROD on 2026-06-18. Migration
-  `135` (temp-paddock lifecycle RPCs) was PROD-applied and verified before the
-  Pasture Map Plan-centric/tool-lifecycle wrap.
+  `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, `135`, and `136`. `116`
+  (Pasture Map CP1), `125` (Production legacy events), and `126` (breeding-pig
+  Activity entity) were applied to PROD on 2026-06-15. `127` (Pasture Map
+  draw/edit RPCs) was applied to PROD on 2026-06-16. Pasture Map `128`-`132`
+  artifacts were verified present on TEST and PROD by catalog checks on
+  2026-06-17. Migration `133` (task system generation support and To Do
+  approval notifications) was applied to TEST on 2026-06-17 and PROD on
+  2026-06-18. Migration `134` (originator task/to-do edit photos) was applied to
+  PROD on 2026-06-18. Migration `135` (temp-paddock lifecycle RPCs) was
+  PROD-applied and verified before the Pasture Map Plan-centric/tool-lifecycle
+  wrap. Migration `136` (Light read-only Pasture Map read access) was applied to
+  TEST by CC and applied to PROD by Codex on 2026-06-20 with `psql
+  --single-transaction`; PostgREST schema reload was notified.
 - Production legacy import: `Processing Events - ALL.xlsx` parsed 69 rows,
   skipped 0, and upserted 69 rows into `production_legacy_events` on PROD by
   stable `source_key`.
 - Pasture Map PROD state: CP1-CP7 schema/RPC support is present for import,
   draw/edit, move ledger, planned moves, reports, field GPS tracks, line style,
-  line patterns/defaults, and temp-paddock lifecycle. The shipped IA is now
-  Map / Plan / Field / Reports; Setup tab is removed. Plan owns Boundary tools,
-  Tracks / Lines, classification queue, archived-area recovery, and rotation/
-  move planning. Selecting an area opens a contextual modal. Measure is
-  transient and clearable via Clear, Done, Escape, or tool switch.
-- Latest Pasture Map validation after merge `1a200ae`: `format:check` clean;
-  lint 0 errors with 793 existing warnings; build green; static pasture guards
-  111 passed; all 10 pasture Playwright specs passed (`p2_map`, `setup`,
-  `cp2`-`cp7`, `import`, `tweaks2`, 35 tests total).
+  line patterns/defaults, temp-paddock lifecycle, and Light read-only Map reads.
+  The shipped IA is Map / Plan / Field / Reports for farm-team/management/admin;
+  Setup tab is removed. Light users get Map-only, read-only access. Map has no
+  centered area modal and no Land areas list; area selection updates the
+  side-panel inspector, and current-group hover/focus previews the mapped
+  area/name without a click action. Plan owns Boundary tools, Tracks / Lines,
+  classification queue, archived-area recovery, rotation/move planning, and
+  area management. Measure is transient and clearable via Clear, Done, Escape,
+  or tool switch.
+- Latest Pasture Map validation after `bd19cc0`: `npm run format:check` clean;
+  `npm run lint` 0 errors with 791 existing warnings; `npm run build` green;
+  `npm test -- tests/static/pasture_map_static.test.js tests/static/light_user_portal_static.test.js`
+  passed 142 tests; `npx playwright test --config=playwright.pasture.config.js`
+  passed 18 tests. PROD migration `136` verification confirmed only
+  `list_land_areas` and `list_pasture_moves` include the Light read gate; move,
+  planning, and report RPCs remain non-Light.
 - Broiler derived-data drift lane is closed: merge `6b94d37` contains Codex
   `c639311` and CC#2 `6ff36c7`; code is deployed/verified; B-26-08 wk6 PROD
   repair was run through `recomputeBroilerBatchWeekAvg(sb, 'B-26-08', 6)` and
@@ -128,6 +146,22 @@ Design/function invariants that govern cross-surface behavior live in
 The following work is merged to `main` and pushed. Netlify deploys from `main`;
 the current source checkpoint is listed in the header above.
 
+- Pasture Map Phase 1/2 reconciliation and Light read-only Map access
+  (`7a9da4f`, `3c0fe0a`, `bd19cc0`, pushed 2026-06-20):
+  - `7a9da4f`: current/next group placement is derived from the move ledger by
+    canonical roster keys instead of rotation arrays.
+  - `3c0fe0a`: Light home gets the new Daily Reports and View Past Reports
+    image assets plus a Pasture Map tile.
+  - `bd19cc0`: Map/Plan modal flow is replaced by side-panel inspectors; Map
+    has no Land areas list, no centered area modal, no current-group click
+    action, and hover/focus previews only the mapped area/name. Plan owns area
+    management and move/planning controls.
+  - Light users have read-only, Map-only Pasture Map access. Migration `136`
+    widens only `list_land_areas` and `list_pasture_moves` to Light; write,
+    planning, rest, stocking, and history RPCs remain non-Light.
+  - Validation: `format:check` clean; lint 0 errors with 791 existing warnings;
+    build green; focused static tests 142 passed; pasture Playwright config 18
+    passed. Migration `136` is applied and verified on TEST and PROD.
 - Pasture Map Plan-centric IA and tool lifecycle (merge `1a200ae`, pushed
   2026-06-19):
   - `359ac46`: Setup tab removed. Tabs are Map / Plan / Field / Reports. Plan
@@ -345,15 +379,19 @@ the current source checkpoint is listed in the header above.
   - `/pasture-map` renders the redesigned one-page grazing cockpit with Map,
     Plan, Field, and Reports modes. Setup tab is removed.
   - Map is the primary read-only current-location surface. Selecting an area
-    opens a contextual area modal; Map/Pan, explicit zoom actions, Escape, and
-    modal dismissal are the exit paths.
+    updates the right-panel area inspector; there is no centered Map modal and
+    no Land areas list. Map/Pan, explicit zoom actions, Escape, and inspector
+    dismissal are the exit paths.
   - Plan is the working cockpit: move/rotation controls, Boundary tools,
     Tracks / Lines, classification queue, archived-area recovery, and area
     management all live there.
   - Occupancy visuals are derived from the real planner-group roster and latest
     `pasture_move_events` by canonical `(animal_type, group_key)`, not from
     ad-hoc/free-form groups. Occupied polygons fill by animal type and show
-    group markers.
+    group markers. Farm status `Occupied` counts are explained in the Map side
+    panel by the reconciled occupied-area list.
+  - Current-group rows on Map are inspection-only: click does nothing, and
+    hover/focus previews the group's mapped area/name on the map.
   - Field mode provides phone-first execution controls, offline queue/sync
     state, selected group movement, `My Location`, `Fit Farm`, and draft-lines
     visibility when applicable.
@@ -367,7 +405,9 @@ the current source checkpoint is listed in the header above.
     close/delete permanent areas, draw/edit permanent geometry, promote temp
     areas, and manage Tracks / Lines. Farm-team users can view/measure, confirm
     planned moves, and create temp paddocks/tracks through the temp lifecycle.
-    Light users are excluded.
+    Light users have read-only, Map-only access through migration `136`; Plan,
+    Field, Reports, move recording, planning, drawing, and area management stay
+    hidden/denied for Light.
   - Map rendering uses Leaflet with Esri World Imagery as the primary online
     imagery source. Geometry is provider-neutral GeoJSON/PostGIS; Google is not
     the geometry source.
@@ -380,9 +420,9 @@ the current source checkpoint is listed in the header above.
     boundaries are fixed bright green 4px. Temp paddocks default to white dashed
     5px and are style-editable. Only temp paddocks and GPS/field tracks have
     editable line style.
-  - Migrations `116`, `127`, `128`, `129`, `130`, `131`, `132`, and `135` are
-    present on TEST and PROD. Offline imagery cache is not built; vector/cache/
-    queue behavior is present.
+  - Migrations `116`, `127`, `128`, `129`, `130`, `131`, `132`, `135`, and `136`
+    are present on TEST and PROD. Offline imagery cache is not built; vector/
+    cache/queue behavior is present.
   - `design_handoff_pasture_map/` is committed as the design reference bundle;
     production code does not import from it.
 
@@ -409,10 +449,12 @@ This is the canonical home for outstanding build/design work.
 
 2. Pasture Map post-deploy smoke and live-review polish
    - Class: `VERIFY`/`ENH`.
-   - Scope: once Netlify serves `1a200ae`, smoke the live UI: Setup tab absent;
-     Plan owns Boundary tools, Tracks / Lines, classification, and Archived
-     areas; Measure Clear/Done/Escape works; area click opens the modal; Map
-     remains clean with occupancy fills and boundary toggles.
+   - Scope: once Netlify serves the 2026-06-20 push, smoke the live UI: Setup
+     tab absent; Map has no centered modal or Land areas list; group hover
+     previews only; Light sees only Map and can load areas/current groups; Plan
+     owns Boundary tools, Tracks / Lines, classification, and Archived areas;
+     Measure Clear/Done/Escape works; Map remains clean with occupancy fills
+     and boundary toggles.
    - Success criteria: smoke result is recorded in chat/next handoff. Any
      follow-up tweaks are scoped as code-only lanes unless they require SQL/RPC/
      RLS/storage.
@@ -526,8 +568,8 @@ Locked functional invariants:
 These differences are current product/architecture decisions, not parity defects
 unless Ronnie changes the contract:
 
-- Light users are intentionally excluded from `/weighins`, `/production`, and
-  `/pasture-map`.
+- Light users are intentionally excluded from `/weighins` and `/production`.
+  Light users may access `/pasture-map` only as a read-only, Map-only view.
 - Light users may access Cattle Log through the webform/field-journal path.
 - Migration `083` public webform submitter identity stays shelved. Authenticated
   submitter identity is the durable path.
@@ -588,8 +630,8 @@ unless Ronnie changes the contract:
   `/tasks/todo/<id>`.
 - Light portal: contained home for `role=light`, allowed webform/daily
   shortcuts, Tasks, My Submissions/View Past Reports, equipment public hub, fuel
-  supply, Add Feed, legacy pig daily, and Cattle Log. No Production, Pasture Map,
-  or Weigh-ins.
+  supply, Add Feed, legacy pig daily, Cattle Log, and read-only Map-only Pasture
+  Map. No Production or Weigh-ins.
 - Global Activity: `/activity`.
 - Admin/config: `/admin`.
 - Admin runtime observability: `/admin/client-errors`.
@@ -663,8 +705,8 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all applied migrations through `116`, plus
-`125`, `126`, `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, and
-`135`. Recent load-bearing migrations:
+`125`, `126`, `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, `135`, and
+`136`. Recent load-bearing migrations:
 
 - `100` processing batch lifecycle RPCs.
 - `101`-`104` audited delete RPCs and hardening.
@@ -685,7 +727,8 @@ Current PROD architecture includes all applied migrations through `116`, plus
   - PostGIS in `extensions` schema; geometry stored as 4326; acreage via
     `ST_Area(geom::geography)`.
   - Deny-all RLS; access only through SECURITY DEFINER RPCs.
-  - `list_land_areas` read gate: `farm_team`, `management`, `admin`.
+  - `list_land_areas` read gate originally: `farm_team`, `management`, `admin`;
+    migration `136` widens only this read RPC and `list_pasture_moves` to Light.
   - Import/classify/close/delete gates: `management`, `admin`.
   - OnX UUID becomes `source_external_id`; re-import updates, not duplicates.
   - Polygons import as `unclassified`/`pending_review`; LineStrings import as
@@ -749,6 +792,15 @@ Current PROD architecture includes all applied migrations through `116`, plus
     remain management/admin locked.
   - TEST- and PROD-applied/verified. Production temp-paddock lifecycle calls are
     supported.
+- `136` Pasture Map Light read-only Map access:
+  - CREATE OR REPLACEs only `list_land_areas(boolean)` and
+    `list_pasture_moves(int)` to add `light` to those read gates.
+  - Does not widen write, planning, rest, stocking, or history report RPCs.
+  - TEST-applied by CC and PROD-applied by Codex on 2026-06-20 with
+    `psql --single-transaction`; PostgREST schema reload was notified.
+  - PROD verification confirmed the two read RPCs contain the Light gate and
+    `record_pasture_move`, planned-move, rest, stocking, and history RPCs do not
+    contain Light.
 
 Special migration notes:
 
@@ -804,8 +856,9 @@ Append-only upload expectations:
   `129_pasture_map_planning_reports.sql`, `130_pasture_map_field_tracks.sql`,
   `131_pasture_map_line_style.sql`,
   `132_pasture_map_line_patterns_and_defaults.sql`, and
-  `135_pasture_map_temp_paddocks.sql`: Pasture Map schema/RPC lanes through
-  temp-paddock lifecycle.
+  `135_pasture_map_temp_paddocks.sql`, and
+  `136_pasture_map_light_read.sql`: Pasture Map schema/RPC lanes through
+  temp-paddock lifecycle and Light read-only Map access.
 - `scripts/apply_test_mig_127.cjs` through `scripts/apply_test_mig_132.cjs`:
   TEST apply/smoke helpers for the Pasture Map lanes.
 - `src/pig/SowsView.jsx`: breeding-pig grouped tables and record pages.
@@ -856,8 +909,10 @@ Append-only upload expectations:
 - Report/form submission is login-required. The session user is the submitter;
   `owner_profile_id` is stamped server-side and client-supplied profile IDs are
   not trusted.
-- Light allowlist excludes `/production`, `/pasture-map`, `/weighins`, program
-  dashboards, `/fleet`, `/activity`, `/admin`, and client-error review.
+- Light allowlist excludes `/production`, `/weighins`, program dashboards,
+  `/fleet`, `/activity`, `/admin`, and client-error review. `/pasture-map` is
+  allowed for Light only as read-only/Map-only; runtime permission is enforced
+  by RPC/RLS, not only by the client allowlist.
 
 ---
 
@@ -1093,12 +1148,17 @@ Workflow/worktable entities:
   area import/classify/close/draw/edit, Tracks / Lines cleanup, promotion, and
   permanent-area lifecycle actions. Farm-team can confirm planned moves and
   create/edit/archive their own temp paddocks/tracks through migration `135`.
-  `light`, `equipment_tech`, and inactive users are excluded.
+  `equipment_tech` and inactive users are excluded. Light users have read-only,
+  Map-only access through migration `136`; all Plan/Field/Reports and write
+  controls are hidden or disabled for Light, and write/report RPCs still reject
+  Light.
 - Current Pasture Map tabs are Map / Plan / Field / Reports. Setup is removed.
   Map stays clean for selection/current-location inspection; Plan owns Boundary
   tools, Tracks / Lines, classification queue, archived-area recovery, rotation
   planning, move controls, and contextual area management. Field is phone-first
-  execution/offline queue. Reports are separate read/report surfaces.
+  execution/offline queue. Reports are separate read/report surfaces. Light
+  users see only Map unless Ronnie explicitly approves broader pasture tabs for
+  Light.
 - Boundary visibility toggles hide/show pasture, paddock, or temp-paddock
   strokes only. Animal occupancy fills and group markers remain visible. Draft
   lines are hidden on Map by default; Field has a Draft lines toggle; selected
@@ -1112,8 +1172,9 @@ Workflow/worktable entities:
   closed into temp paddocks, but not edited in place.
 - Current Pasture Map includes the real-roster redesign, move ledger,
   animal-color occupancy, planned moves, history/rest/stocking reports, offline
-  vector snapshot/queue, GPS field tracks, line styling/pattern controls, and
-  temp-paddock lifecycle. It does not include offline imagery cache,
+  vector snapshot/queue, GPS field tracks, line styling/pattern controls,
+  temp-paddock lifecycle, side-panel inspectors, Map group hover preview, and
+  Light read-only Map access. It does not include offline imagery cache,
   daily-report wiring, or open-line edit.
 - Future Pasture Map lanes should preserve the shipped Map/Plan/Field/Reports
   IA and the provider-neutral geometry/RPC model unless a new Ronnie-approved
@@ -1276,8 +1337,9 @@ Workflow/worktable entities:
   secrets.
 - Former public forms now use Supabase auth state intentionally for login and
   locked submitter identity.
-- Light is allowed only on contained report/form surfaces; weigh-ins, Production,
-  and Pasture Map remain outside the Light allowlist.
+- Light is allowed only on contained report/form surfaces plus the read-only,
+  Map-only Pasture Map view. Weigh-ins and Production remain outside the Light
+  allowlist.
 - Offline queue IndexedDB ownership is centralized in `src/lib/offlineQueue.js`.
 - Offline RPC replay goes through `useOfflineRpcSubmit` where needed.
 - Ownership stamping is server-side on replay.
@@ -1389,7 +1451,7 @@ Focused starting points:
 | Record pages | `tests/static/record_page_*.test.js`, per-entity static tests, `tests/*_sequence_nav.spec.js` |
 | Home / dashboard alerts | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js` |
 | Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
-| Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_tweaks2.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `playwright.pasture.config.js` |
+| Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_placement.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_tweaks2.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `playwright.pasture.config.js` |
 | Breeding pigs | `tests/static/breeding_pigs_parity_static.test.js` |
 | Feed planning | `src/lib/feedPlanner.test.js`, `src/lib/feedOrderBasis.test.js`, `tests/static/feed_order_board_static.test.js` |
 | Pig | `src/lib/pig*.test.js`, `src/lib/pigBatchGridMetrics.test.js`, `tests/static/pig_batches_planned_trips_static.test.js`, `tests/static/weighin_session_record_page_static.test.js`, `tests/pig_*.spec.js` |
