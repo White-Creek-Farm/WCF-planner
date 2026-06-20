@@ -1758,8 +1758,8 @@ function App() {
   }
 
   // Light-user containment allowlist. A real authenticated Light role (Lane 1
-  // CP1) is a field user limited to the daily-report/forms hub, Add Feed,
-  // the public Equipment fueling/checklist hub + Fuel Supply, and Tasks.
+  // CP1) is a field user limited to the daily-report/forms hub, Pasture Map,
+  // Add Feed, the public Equipment fueling/checklist hub + Fuel Supply, and Tasks.
   // Weigh-ins are intentionally NOT in scope for Light. Everything else
   // (program dashboards, the internal /fleet module, global Activity, Admin,
   // Users, Client Errors) fails closed to the portal. Enforced both at render
@@ -1772,6 +1772,7 @@ function App() {
         'webformhub', // /dailys hub (all daily sub-forms)
         'tasksWebform', // /dailys/tasks
         'addfeed', // /addfeed
+        'pastureMap', // /pasture-map
         'webform', // /webform-pigs legacy standalone pig daily
         'fuelingHub', // /equipment public fueling/checklist hub
         'fuelSupply', // /fuel-supply

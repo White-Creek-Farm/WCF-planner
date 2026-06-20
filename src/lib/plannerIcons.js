@@ -37,6 +37,8 @@ export const PLANNER_ICON_KEYS = {
   fueling: 'fueling',
 
   // Actions
+  dailyReports: 'daily-reports',
+  pastReports: 'past-reports',
   feed: 'feed',
   checkmark: 'checkmark',
   weighins: 'weighins',
@@ -90,6 +92,8 @@ export const EQUIPMENT_CATEGORY_ICON_KEYS = {
 };
 
 export const ACTION_ICON_KEYS = {
+  dailyReports: PLANNER_ICON_KEYS.dailyReports,
+  pastReports: PLANNER_ICON_KEYS.pastReports,
   feed: PLANNER_ICON_KEYS.feed,
   tasks: PLANNER_ICON_KEYS.checkmark,
   fueling: PLANNER_ICON_KEYS.fueling,

@@ -44,7 +44,17 @@ describe('Light role - fail-closed route containment (main.jsx)', () => {
     const allowIdx = main.indexOf('LIGHT_ALLOWED_VIEWS');
     expect(allowIdx, 'LIGHT_ALLOWED_VIEWS defined').toBeGreaterThan(-1);
     const slice = main.slice(allowIdx, allowIdx + 600);
-    for (const v of ['home', 'webformhub', 'tasksWebform', 'addfeed', 'webform', 'fuelingHub', 'fuelSupply', 'tasks']) {
+    for (const v of [
+      'home',
+      'webformhub',
+      'tasksWebform',
+      'addfeed',
+      'pastureMap',
+      'webform',
+      'fuelingHub',
+      'fuelSupply',
+      'tasks',
+    ]) {
       expect(slice, `allowlist contains ${v}`).toContain(`'${v}'`);
     }
     for (const v of [
@@ -169,7 +179,7 @@ describe('Light role - header + portal containment', () => {
   });
 
   it('Light portal exposes the allowed field shortcuts', () => {
-    for (const v of ['webformhub', 'addfeed', 'fuelingHub', 'tasks', 'mySubmissions']) {
+    for (const v of ['webformhub', 'pastureMap', 'addfeed', 'fuelingHub', 'tasks', 'mySubmissions']) {
       expect(portal, `portal tile ${v}`).toContain(`'${v}'`);
     }
     for (const v of ['broilerHome', 'cattleHome', 'equipmentHome', 'activity', 'webforms']) {

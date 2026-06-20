@@ -131,7 +131,13 @@ export default function LightHomePortal({Header}) {
       label: 'Enter Daily Reports',
       desc: 'Broiler, layer, pig, cattle, sheep, eggs',
       view: 'webformhub',
-      iconKey: PLANNER_ICON_KEYS.checkmark,
+      iconKey: ACTION_ICON_KEYS.dailyReports,
+    },
+    {
+      label: 'Pasture Map',
+      desc: 'View fields and animal locations',
+      view: 'pastureMap',
+      iconKey: PLANNER_ICON_KEYS.pastureMap,
     },
     {
       label: 'Add Feed',
@@ -155,7 +161,7 @@ export default function LightHomePortal({Header}) {
       label: 'View Past Reports',
       desc: 'Daily report logs and equipment',
       view: 'mySubmissions',
-      iconKey: ACTION_ICON_KEYS.fueling,
+      iconKey: ACTION_ICON_KEYS.pastReports,
     },
   ];
 
