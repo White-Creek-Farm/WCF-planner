@@ -19,6 +19,9 @@ const mig135 = read('supabase-migrations/135_pasture_map_temp_paddocks.sql');
 // mig 135 with -- line comments stripped, so negative guards check SQL, not the
 // header docs (which legitimately quote the sentinel copy, "light", "temp", etc).
 const mig135Code = mig135.replace(/--[^\n]*/g, '');
+const mig136 = read('supabase-migrations/136_pasture_map_light_read.sql');
+// Code-only (header docs legitimately mention the write RPCs that stay gated).
+const mig136Code = mig136.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -35,12 +38,30 @@ describe('Pasture Map route + wiring', () => {
     expect(PATH_TO_VIEW['/pasture-map']).toBe('pastureMap');
   });
 
-  it('main.jsx imports, allows, renders, and excludes Light from the view', () => {
+  it('main.jsx imports, allows, renders, and includes Light (read-only Map) in the view', () => {
     expect(mainSrc).toContain("import PastureMapView from './pasture/PastureMapView.jsx'");
     expect(mainSrc).toMatch(/VALID_VIEWS\s*=\s*\[[\s\S]*?'pastureMap'/);
     expect(mainSrc).toContain("if (view === 'pastureMap')");
+    // Ronnie-approved product change: Light users get a Pasture Map button with
+    // read-only, Map-only access (gated below + server-side).
     const lightAllowedBlock = mainSrc.match(/const LIGHT_ALLOWED_VIEWS[\s\S]*?new Set\(\[([\s\S]*?)\]\)/)?.[1] || '';
-    expect(lightAllowedBlock).not.toContain("'pastureMap'");
+    expect(lightAllowedBlock).toContain("'pastureMap'");
+  });
+
+  it('Light Pasture Map is Map-only + read-only (tabs hidden, writes role-gated)', () => {
+    expect(viewSrc).toContain("const isLight = role === 'light'");
+    // Only the Map tab renders for Light; Plan/Field/Reports are filtered out.
+    expect(viewSrc).toContain("isLight ? MODE_TABS.filter((tab) => tab.id === 'view') : MODE_TABS");
+    // Mode switching cannot leave Map for Light.
+    expect(viewSrc).toContain("if (isLight && next !== 'view') return");
+    // Planning/report/history RPCs are not fetched for Light.
+    expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPasturePlannedMoves/);
+    expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureRestReport/);
+    expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureStockingReport/);
+    expect(viewSrc).toMatch(/if \(!selectedId \|\| !canViewPlanning\)/);
+    // Every move write is hard-gated on canRecordMoves (Light is not a writer).
+    expect(viewSrc).toMatch(/async function recordGroupMove[\s\S]*?if \(!canRecordMoves\) return;/);
+    expect(viewSrc).toContain('disabled={!activeNextArea || saving || !canRecordMoves}');
   });
 
   it('home page exposes the Pasture Map field button', () => {
@@ -75,6 +96,37 @@ describe('Migration 116 — RLS / SECDEF / access', () => {
       expect(mig).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}\\([^)]*\\) TO authenticated`));
     }
     expect(mig).toContain("v_role NOT IN ('farm_team', 'management', 'admin')");
+  });
+});
+
+describe('Migration 136 — light read-only Pasture Map access', () => {
+  it('widens ONLY the two Map-view read RPCs to include light', () => {
+    // Both read RPCs are replaced with light added to the read gate.
+    for (const fn of ['list_land_areas', 'list_pasture_moves']) {
+      expect(mig136).toContain(`CREATE OR REPLACE FUNCTION public.${fn}`);
+    }
+    const gates = mig136Code.match(/NOT IN \('farm_team', 'management', 'admin', 'light'\)/g) || [];
+    expect(gates.length).toBe(2);
+    // It does NOT define/replace any write or planning/report RPC.
+    for (const fn of [
+      'record_pasture_move',
+      'create_land_area',
+      'update_land_area',
+      'delete_land_area',
+      'archive_land_area',
+      'create_temp_land_area',
+      'update_land_area_style',
+      'create_pasture_planned_move',
+      'list_pasture_planned_moves',
+      'list_pasture_rest_report',
+      'list_pasture_stocking_report',
+      'list_pasture_history_report',
+    ]) {
+      expect(mig136Code).not.toContain(`FUNCTION public.${fn}`);
+    }
+    // No write/grant widening to light beyond execute-to-authenticated (the gate
+    // is the real guard; light is authenticated).
+    expect(mig136Code).not.toMatch(/GRANT[\s\S]*?TO light/i);
   });
 });
 
@@ -503,7 +555,10 @@ describe('CP7 API + UI wiring', () => {
     expect(canvasSrc).toMatch(/outline_candidate[\s\S]*?dashArray: '6,6'/);
   });
 
-  it('view renders manager line-style controls and list chips', () => {
+  it('view renders manager line-style controls', () => {
+    // The Land areas list (and its per-row line-style chip, data-pasture-line-style)
+    // was removed from Map; the line-style editing CONTROLS live in the Plan
+    // Area inspector's Line style section.
     for (const marker of [
       'data-pasture-style-panel',
       'data-pasture-style-color',
@@ -512,7 +567,6 @@ describe('CP7 API + UI wiring', () => {
       'data-pasture-style-weight-number',
       'data-pasture-style-save',
       'data-pasture-style-reset',
-      'data-pasture-line-style',
       'data-pasture-editbar-exit',
     ]) {
       expect(viewSrc).toContain(marker);
@@ -717,16 +771,23 @@ describe('P2 Map tab', () => {
 
   it('Map panel header uses the roster placed-count copy', () => {
     expect(viewSrc).toContain('MAP - WHERE THINGS ARE');
-    expect(viewSrc).toContain('groups placed - tap a group or area');
+    // Map is inspection-only: hover a group to preview, tap an area to inspect.
+    expect(viewSrc).toContain('groups placed - hover a group to preview, tap an area to inspect');
     expect(viewSrc).toContain('data-pasture-map-header');
   });
 
-  it('Current groups rows expose group key + location for select/zoom', () => {
+  it('Map Current-group rows are inspection-only: no click select, hover/focus previews', () => {
     expect(viewSrc).toContain('data-pasture-current-group');
     expect(viewSrc).toContain('data-pasture-group-location');
-    expect(viewSrc).toContain('selectGroupAndLocation');
-    // Selecting a placed group zooms; an unplaced one clears the selection.
-    expect(viewSrc).toMatch(/selectGroupAndLocation[\s\S]*?setZoomSignal/);
+    // Click selection/zoom on group rows is GONE; hover/focus previews instead.
+    expect(viewSrc).not.toContain('selectGroupAndLocation');
+    expect(viewSrc).toContain('function previewGroupArea');
+    expect(viewSrc).toContain('onMouseEnter={() => previewGroupArea(g)}');
+    expect(viewSrc).toContain('onFocus={() => previewGroupArea(g)}');
+    expect(viewSrc).toContain('onMouseLeave={clearGroupPreview}');
+    expect(viewSrc).toContain('onBlur={clearGroupPreview}');
+    // Preview is display-only and must never mutate selection/active group.
+    expect(viewSrc).toMatch(/setPreviewAreaId\(loc && loc\.areaId \? loc\.areaId : null\)/);
   });
 
   it('Area detail derives the designation and flags temp/archived', () => {
@@ -737,22 +798,29 @@ describe('P2 Map tab', () => {
     expect(viewSrc).toContain('pm-chip-temp');
   });
 
-  it('area detail panel stays read-only; recording + line-style live in the contextual modal', () => {
+  it('read-only inspector never embeds forms; the Plan Area inspector owns recording + line style; no modal', () => {
     const selBody = viewSrc.slice(
       viewSrc.indexOf('function renderSelectedPanel'),
-      viewSrc.indexOf('function selectGroupAndLocation'),
+      viewSrc.indexOf('function previewGroupArea'),
     );
-    // The selected-area detail panel itself never embeds the move or line-style forms.
+    // The read-only Area inspector (Map + the facts header in Plan) never embeds
+    // the move or line-style forms.
     expect(selBody).not.toContain('renderMoveAndPlanForms');
     expect(selBody).not.toContain('renderLineStylePanel');
 
-    // The contextual area modal owns per-area recording + line style.
-    const modalBody = viewSrc.slice(
-      viewSrc.indexOf('function renderAreaModal'),
+    // The centered contextual modal is gone entirely.
+    expect(viewSrc).not.toContain('function renderAreaModal');
+    expect(viewSrc).not.toContain('pm-modal-backdrop');
+    expect(viewSrc).not.toContain('data-pasture-area-modal');
+
+    // The Plan-mode side-panel Area inspector owns per-area recording + line style.
+    const inspBody = viewSrc.slice(
+      viewSrc.indexOf('function renderPlanAreaInspector'),
       viewSrc.indexOf('function renderPlannedMoves'),
     );
-    expect(modalBody).toContain('renderMoveAndPlanForms()');
-    expect(modalBody).toContain('renderLineStylePanel()');
+    expect(inspBody).toContain('renderMoveAndPlanForms()');
+    expect(inspBody).toContain('renderLineStylePanel()');
+    expect(inspBody).toContain('data-pasture-plan-inspector');
   });
 });
 
@@ -780,10 +848,12 @@ describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Fi
     expect(viewSrc).toContain('>Paddock<');
     expect(viewSrc).not.toMatch(/<option value="temp">/);
     expect(viewSrc).toContain('Archive temp paddock');
-    // JSX text wraps in source; the rendered sentence collapses to the exact copy.
-    expect(viewSrc).toContain('Hard delete this area permanently?');
-    expect(viewSrc).toMatch(/History will keep text snapshots/);
-    expect(viewSrc).toMatch(/the map shape\s+will be removed/);
+    // Hard delete moved to a deliberate admin-only Danger zone (renderDangerZone),
+    // not adjacent to archive/restore/redraw.
+    expect(viewSrc).toContain('function renderDangerZone');
+    expect(viewSrc).toContain('data-pasture-danger-zone');
+    expect(viewSrc).toMatch(/Permanently hard delete /);
+    expect(viewSrc).toMatch(/History keeps text snapshots/);
     expect(viewSrc).toContain('data-pasture-archive');
     expect(viewSrc).toContain('data-pasture-restore');
     expect(viewSrc).toContain('data-pasture-hard-delete');
@@ -868,12 +938,11 @@ describe('Designation boundary styling + promotion + boundary overlay (lane)', (
   it('view gates line-style editing to temp paddocks + GPS field tracks only', () => {
     expect(viewSrc).toContain('function canEditLineStyle');
     expect(viewSrc).toContain('function isFixedStyleArea');
-    // Editable line-style card (in the area modal) is gated on canEditLineStyle; permanent gets a locked note.
+    // Editable line-style section (Plan inspector) is gated on canEditLineStyle;
+    // permanent fixed-style areas get a small inline locked note instead.
     expect(viewSrc).toContain('isManager && canEditLineStyle(selectedArea)');
     expect(viewSrc).toContain('data-pasture-setup-linestyle-locked');
     expect(viewSrc).toContain('isFixedStyleArea(selectedArea)');
-    // List chip suppressed for fixed-style permanent areas.
-    expect(viewSrc).toContain('!isFixedStyleArea(a) && (a.line_color');
   });
 
   it('view creates new drawn land as temp paddocks (permanent comes from promotion)', () => {
@@ -957,12 +1026,12 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     expect(viewSrc).toContain(
       'trackLineAreas = React.useMemo(() => activeAreas.filter((area) => isOutlineCandidateArea',
     );
-    // Rotation seeding + area index use destinationAreas (real grazing areas only).
+    // Rotation seeding uses destinationAreas (real grazing areas only). The Land
+    // areas list (which also sliced destinationAreas) was removed from Map.
     expect(viewSrc).toContain('buildInitialRotation(group, destinationAreas, index)');
-    expect(viewSrc).toContain('destinationAreas.slice(0, limit)');
     // appendToRotation refuses a draft line as a destination.
     expect(viewSrc).toContain('isOutlineCandidateArea(areaById.get(areaId))');
-    // Manual move (in the area modal) excludes draft lines.
+    // Manual move (in the Plan Area inspector) excludes draft lines.
     expect(viewSrc).toContain('!isOutlineCandidateArea(selectedArea)');
   });
 
@@ -1072,23 +1141,23 @@ describe('Plan-centric IA: Setup tab removed, contextual area modal', () => {
     expect(viewSrc).not.toContain("setAppMode('setup')");
   });
 
-  it('selecting an area opens a contextual modal (not a Setup tab)', () => {
-    expect(viewSrc).toContain('function renderAreaModal');
-    expect(viewSrc).toContain('{renderAreaModal()}');
-    expect(viewSrc).toContain('data-pasture-area-modal');
-    expect(viewSrc).toContain('data-pasture-area-modal-backdrop');
-    // Backdrop + (existing) clear control dismiss it.
+  it('selecting an area opens a side-panel inspector, not a centered modal', () => {
+    // No centered modal / overlay anywhere.
+    expect(viewSrc).not.toContain('function renderAreaModal');
+    expect(viewSrc).not.toContain('{renderAreaModal()}');
+    expect(viewSrc).not.toContain('data-pasture-area-modal');
+    expect(viewSrc).not.toContain('data-pasture-area-modal-backdrop');
+    expect(viewSrc).not.toContain('pm-modal-backdrop');
+    // renderPanel swaps the side panel for the inspector when an area is selected:
+    // Map -> read-only renderSelectedPanel; Plan -> renderPlanAreaInspector.
+    expect(viewSrc).toContain("if (inspecting && appMode === 'view') return renderSelectedPanel()");
+    expect(viewSrc).toContain("if (inspecting && appMode === 'plan') return renderPlanAreaInspector()");
+    // Clearing the selection (Esc / Clear) still dismisses the inspector.
     expect(viewSrc).toContain('onClick={() => setSelectedId(null)}');
     expect(viewSrc).toContain('data-pasture-clear-selection');
-    // Map view panel no longer short-circuits to the read-only selected panel.
-    const viewBody = viewSrc.slice(
-      viewSrc.indexOf('function renderViewPanel'),
-      viewSrc.indexOf('function renderGroupSwitcher'),
-    );
-    expect(viewBody).not.toContain('if (selectedArea) return renderSelectedPanel()');
   });
 
-  it('Plan owns the relocated Boundary tools (collapsible) + manage actions in the modal', () => {
+  it('Plan owns the relocated Boundary tools (collapsible) + manage actions in the inspector', () => {
     expect(viewSrc).toContain('function renderBoundaryTools');
     expect(viewSrc).toContain('data-pasture-boundary-tools');
     expect(viewSrc).toContain('data-pasture-boundary-tools-toggle');

@@ -59,18 +59,29 @@ test.beforeAll(async () => {
   await cleanAndSeedPastureTables();
 });
 
+async function hideMapOverlays(page) {
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
+}
+
 test('uses cached vectors and queues a move while pasture RPCs are offline', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
-  await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toContainText('CP5 Offline Paddock', {timeout: 25_000});
+  // Area polygon renders (the Land areas list was removed).
+  await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
 
   await abortPastureRpcs(page);
   await page.reload();
   await expect(page.locator('[data-pasture-offline-panel]')).toBeVisible({timeout: 25_000});
-  await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toContainText('CP5 Offline Paddock');
+  // Cached vectors still render the polygon offline.
+  await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible();
 
-  // Selecting an area opens the contextual modal (which carries the move form).
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
+  // Record a move via the Plan Area inspector while offline -> it queues.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await hideMapOverlays(page);
+  await page.locator(`.pm-area-${A_ID}`).first().click();
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
@@ -84,6 +95,8 @@ test('uses cached vectors and queues a move while pasture RPCs are offline', asy
   await page.unroute('**/rest/v1/rpc/list_pasture_stocking_report');
   await page.unroute('**/rest/v1/rpc/record_pasture_move');
 
+  // After reconnect + reload, the queued move syncs and the area shows occupied
+  // (the Mommas occupant marker renders on the map).
   await page.reload();
-  await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toContainText('Occupied now', {timeout: 25_000});
+  await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(1, {timeout: 25_000});
 });

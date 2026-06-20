@@ -68,16 +68,29 @@ test.beforeAll(async () => {
   await cleanAndSeedPastureTables();
 });
 
+// Corner map overlays can intercept polygon clicks; hide them (not under test).
+async function hideMapOverlays(page) {
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
+}
+async function clickArea(page, areaId) {
+  await page.locator(`.pm-area-${areaId}`).first().click();
+}
+
 test('plans a move and renders history/rest/stocking reports', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
-  // View loaded (shared header migration removed the old .pm-title topbar).
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toBeVisible({timeout: 25_000});
+  await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
+  await hideMapOverlays(page);
 
-  // Selecting an area opens the contextual modal, which carries both the plan
-  // form and the move form (single flat Group picker, locked count).
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
+  // Plan: selecting an area polygon opens the Plan Area inspector, which carries
+  // both the plan form and the move form (single flat Group picker, locked count).
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await clickArea(page, A_ID);
+  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-plan-form]').first()).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-plan-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-plan-at]').fill(localDateTimeValue());
@@ -85,14 +98,13 @@ test('plans a move and renders history/rest/stocking reports', async ({page}) =>
   await page.waitForTimeout(500);
   await page.keyboard.press('Escape');
 
-  // Planned moves render in the Plan tab body.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  // Deselecting returns to the Plan panel; planned moves render there.
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('Mommas', {timeout: 15_000});
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('CP4 North Paddock');
 
-  // Record the actual move for the same group/area via the modal.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
+  // Record the actual move for the same group/area via the inspector move form.
+  await clickArea(page, A_ID);
+  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);

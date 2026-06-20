@@ -1,6 +1,9 @@
 // Pasture Map CP3 - move ledger / occupancy / rest e2e (NON-resetting). Cleans
 // only the isolated pasture tables, seeds two paddocks through the existing
 // append-only geometry helper, then records moves through the real UI/RPC path.
+// Post-reconciliation: there is no Land areas list and no modal. Areas are
+// selected by clicking their polygon (pm-area-<id>); recording happens in the
+// Plan Area inspector; occupancy/rest are read from the map marker + inspector.
 import {test, expect} from '@playwright/test';
 import {getTestAdminClient} from './setup/reset.js';
 
@@ -58,6 +61,35 @@ async function cleanAndSeedPastureTables() {
   if (error) throw new Error('seed pasture CP3: ' + error.message);
 }
 
+// Corner map overlays (boundary toggle / legend / controls) can sit over a
+// polygon and intercept clicks. They are not under test here, so hide them so
+// the polygon center is always clickable.
+async function hideMapOverlays(page) {
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
+}
+
+// Select an area by clicking its polygon (corner overlays are hidden so the
+// path is not intercepted).
+async function clickArea(page, areaId) {
+  await page.locator(`.pm-area-${areaId}`).first().click();
+}
+
+// Record a Mommas move into an area by clicking its polygon (opens the Plan Area
+// inspector), then using the inspector's move form. No list, no modal.
+async function recordMommasMoveTo(page, areaId) {
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await clickArea(page, areaId);
+  await expect(page.locator(`[data-pasture-plan-inspector="${areaId}"]`)).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
+  await page.locator('[data-pasture-move-save]').click();
+  await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
+}
+
 test.beforeAll(async () => {
   await cleanAndSeedPastureTables();
 });
@@ -65,41 +97,37 @@ test.beforeAll(async () => {
 test('records moves and derives occupied/resting state', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
-  // View loaded (shared header migration removed the old .pm-title topbar).
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toBeVisible({timeout: 25_000});
-  await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toBeVisible();
+  // Area polygons render and are clickable (no side-panel list anymore).
+  await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
+  await expect(page.locator(`.pm-area-${B_ID}`).first()).toBeVisible();
+  await hideMapOverlays(page);
 
-  // Selecting an area opens the contextual modal (which carries the move form).
   // Move Mommas -> A, then Mommas -> B (vacating A).
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
-  await page.waitForTimeout(800);
-  await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await recordMommasMoveTo(page, A_ID);
+  await recordMommasMoveTo(page, B_ID);
 
-  await page.locator(`[data-pasture-area-select="${B_ID}"]`).first().click();
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible();
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
-  await page.waitForTimeout(800);
-  await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
-
-  // Map: B is occupied (animal-type marker); the area index shows B occupied / A resting.
+  // Map: B is occupied (animal-type marker carries the group).
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(1, {timeout: 15_000});
-  await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toContainText('Occupied now', {timeout: 15_000});
-  await expect(page.locator(`[data-pasture-area="${A_ID}"]`)).toContainText(/resting/i);
+  // Farm status explains the occupied area.
+  await expect(page.locator('[data-pasture-occupied-explain]')).toContainText('CP3 South Paddock', {timeout: 15_000});
+
+  // Inspect B (occupied) and A (resting) by clicking their polygons - read-only.
+  await clickArea(page, B_ID);
+  await expect(page.locator(`[data-pasture-rest-state="occupied"]`)).toBeVisible({timeout: 15_000});
+  await page.keyboard.press('Escape');
+  await clickArea(page, A_ID);
+  await expect(page.locator(`[data-pasture-rest-state="resting"]`)).toBeVisible({timeout: 15_000});
+  await page.keyboard.press('Escape');
 
   // Reports tab grazing-days log records the Mommas moves.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-recent-moves]')).toContainText('Mommas', {timeout: 15_000});
 
-  // Mobile: the view still loads.
+  // Mobile: the view still loads and area polygons render.
   await page.setViewportSize({width: 390, height: 844});
   await page.reload();
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await expect(page.locator(`[data-pasture-area="${B_ID}"]`)).toBeVisible({timeout: 25_000});
+  await expect(page.locator(`.pm-area-${B_ID}`).first()).toBeVisible({timeout: 25_000});
 });

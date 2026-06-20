@@ -61,10 +61,10 @@ test('CP6: mobile GPS track saves as an outline candidate', async ({page}) => {
   await page.locator('[data-pasture-track-name]').fill('Mobile Track Test');
   await page.locator('[data-pasture-track-save]').click();
 
-  // Saving selects the new track -> the contextual modal opens; close it.
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  // Saving selects the new track -> the Plan Area inspector opens; clear it.
+  await expect(page.locator('[data-pasture-plan-inspector]')).toBeVisible({timeout: 15_000});
   await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await expect(page.locator('[data-pasture-plan-inspector]')).toHaveCount(0);
 
   // The 2-point trace is a draft line: it surfaces in the Tracks / Lines section
   // (Plan), not the Map grazing-area list.

@@ -2628,3 +2628,119 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Map/Plan reconciliation lane: side-panel Area inspectors (no modal), Current-
+   group hover preview, Occupied explanation, and reconciled-occupant states.
+   ========================================================================== */
+
+/* Map Current-group rows are inspection-only (no click action): a focusable,
+   non-button row whose hover/focus previews the group's current area. */
+.pm-current-row.is-preview-row {
+  cursor: default;
+}
+.pm-current-row.is-preview-row:focus-visible {
+  outline: 2px solid var(--species-color, #1d4ed8);
+  outline-offset: 2px;
+}
+.pm-current-row.is-previewing {
+  border-color: var(--species-color);
+  background: color-mix(in oklab, var(--species-color) 12%, #fff);
+}
+
+/* Map "What is occupied" explanation (replaces the removed Land areas list). */
+.pm-occupied-explain {
+  margin-top: 10px;
+  border-top: 1px solid var(--pm-border, #e6e8eb);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pm-occupied-explain-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--pm-muted, #6b7280);
+}
+.pm-occupied-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.pm-occupied-row > strong {
+  font-weight: 750;
+}
+.pm-occupied-by {
+  color: var(--pm-muted, #6b7280);
+  text-align: right;
+}
+
+/* Reconciled-occupant states on the map markers + inspector pills. */
+.pm-occupant-marker.is-overlap,
+.pm-occupant-marker.is-unmatched {
+  opacity: 0.78;
+}
+.pm-occupant-marker.is-overlap .pm-occ-name,
+.pm-occupant-marker.is-unmatched .pm-occ-name {
+  font-style: italic;
+}
+.pm-occ-tag {
+  background: rgba(75, 85, 99, 0.92);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.pm-occupant-pill.is-unmatched {
+  border-color: #cdd2d9;
+  background: #eef0f2;
+  color: #4b5563;
+}
+.pm-occupant-pill.is-overlap {
+  opacity: 0.85;
+}
+
+/* Plan-mode side-panel Area inspector (replaces the centered modal). */
+.pm-plan-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pm-inspector-section {
+  border: 1px solid var(--pm-border, #e6e8eb);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 12px;
+}
+.pm-inspector-section > summary {
+  cursor: pointer;
+  font-weight: 750;
+  font-size: 13px;
+  padding: 10px 2px;
+  list-style: revert;
+}
+.pm-inspector-section[open] > summary {
+  border-bottom: 1px solid var(--pm-border, #e6e8eb);
+  margin-bottom: 8px;
+}
+.pm-inspector-section > *:last-child {
+  margin-bottom: 12px;
+}
+.pm-inspector-danger > summary {
+  color: #b42318;
+}
+.pm-danger-zone {
+  border-color: #f0c2bb;
+  background: #fdf3f1;
+}
+.pm-danger-note {
+  font-size: 11.5px;
+  color: #8a3528;
+  margin: 4px 0 8px;
+}

@@ -283,6 +283,7 @@ export default function PastureMapCanvas({
   rotationAreaIds = [],
   rotationColor = '#1C8A5F',
   showRotationPath = true,
+  previewAreaId = null,
   legendOpen = true,
   onToggleLegend,
   mapBanner = null,
@@ -303,6 +304,8 @@ export default function PastureMapCanvas({
   const tempRef = React.useRef(null);
   const trackRef = React.useRef(null);
   const rotationRef = React.useRef(null);
+  const previewRef = React.useRef(null);
+  const previewTooltipRef = React.useRef(null);
   const editLayerRef = React.useRef(null);
   const fitSignatureRef = React.useRef('');
   const cbRef = React.useRef({});
@@ -377,7 +380,13 @@ export default function PastureMapCanvas({
       }
       const occList = occupants[a.id] || [];
       const occ = occList[0] || null;
-      const style = styleForArea(a, a.id === selectedId, occ, boundaryFilter);
+      // className keys the SVG path to the area id so polygon click selection is
+      // addressable (Map + Plan inspectors open from clicking the area itself,
+      // not a side-panel list).
+      const style = {
+        ...styleForArea(a, a.id === selectedId, occ, boundaryFilter),
+        className: `pm-area-path pm-area-${a.id}`,
+      };
       const lyr = L.geoJSON(
         {type: 'Feature', geometry: g.geometry, properties: {}},
         {style: g.kind === 'line' ? {...style, fill: false} : style},
@@ -410,14 +419,26 @@ export default function PastureMapCanvas({
         if (center) {
           const more = occList.length > 1 ? `<span class="pm-occ-more">+${occList.length - 1}</span>` : '';
           const countLabel = occ.count != null ? ` &middot; ${occ.count}` : '';
+          // Overlap-only occupancy (the group's real destination is elsewhere) and
+          // roster-unmatched ledger occupants are tagged + muted so they don't read
+          // as a fresh placement / a real roster group.
+          const tag = occ.overlap
+            ? '<span class="pm-occ-tag">overlap</span>'
+            : occ.needsReconciliation
+              ? '<span class="pm-occ-tag">needs roster</span>'
+              : '';
+          const markerCls =
+            'pm-occupant-marker' +
+            (occ.overlap ? ' is-overlap' : '') +
+            (occ.needsReconciliation ? ' is-unmatched' : '');
           L.marker(center, {
             interactive: false,
             keyboard: false,
             icon: L.divIcon({
-              className: 'pm-occupant-marker',
+              className: markerCls,
               html:
                 `<span class="pm-occ-avatar" style="background:${occ.color}">${occ.short || ''}</span>` +
-                `<span class="pm-occ-name">${occ.name || ''}${countLabel}</span>${more}`,
+                `<span class="pm-occ-name">${occ.name || ''}${countLabel}</span>${tag}${more}`,
               iconSize: [0, 0],
             }),
           }).addTo(group);
@@ -488,7 +509,11 @@ export default function PastureMapCanvas({
     if (!centers.length) return;
     const group = L.layerGroup();
     if (centers.length >= 2)
-      L.polyline(centers, {color: rotationColor, weight: 3, opacity: 0.95, dashArray: '1,8'}).addTo(group);
+      // Decorative path: must not intercept clicks meant for the area polygons it
+      // crosses (it runs through their centroids).
+      L.polyline(centers, {color: rotationColor, weight: 3, opacity: 0.95, dashArray: '1,8', interactive: false}).addTo(
+        group,
+      );
     centers.forEach((point, index) => {
       L.marker(point, {icon: rotationIcon(index + 1, rotationColor), interactive: false}).addTo(group);
     });
@@ -501,6 +526,56 @@ export default function PastureMapCanvas({
       }
     };
   }, [areas, rotationAreaIds, rotationColor, selectedId, showRotationPath]);
+
+  // Transient hover/focus preview: highlight a Current-group's CURRENT area on an
+  // amber overlay and surface its name, WITHOUT touching selection. Distinct from
+  // the dark selected-area stroke. Cleared on mouse-leave/blur (previewAreaId null)
+  // or when it coincides with the actual selection.
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (previewRef.current) {
+      previewRef.current.remove();
+      previewRef.current = null;
+    }
+    const prevTip = previewTooltipRef.current;
+    if (prevTip && prevTip.id !== selectedId) {
+      try {
+        prevTip.layer.closeTooltip();
+      } catch {
+        /* tooltip already gone */
+      }
+    }
+    previewTooltipRef.current = null;
+    if (!previewAreaId || previewAreaId === selectedId) return;
+    const layer = areaLayersRef.current.get(previewAreaId);
+    if (!layer) return;
+    let gj;
+    try {
+      gj = layer.toGeoJSON();
+    } catch {
+      gj = null;
+    }
+    if (!gj) return;
+    const overlay = L.geoJSON(gj, {
+      style: {color: '#f59e0b', weight: 4, fillColor: '#fbbf24', fillOpacity: 0.25, dashArray: '4,4'},
+      interactive: false,
+    });
+    overlay.addTo(map);
+    previewRef.current = overlay;
+    try {
+      layer.openTooltip();
+      previewTooltipRef.current = {id: previewAreaId, layer};
+    } catch {
+      /* no tooltip bound */
+    }
+    return () => {
+      if (previewRef.current === overlay) {
+        overlay.remove();
+        previewRef.current = null;
+      }
+    };
+  }, [previewAreaId, selectedId, areas, occupants]);
 
   React.useEffect(() => {
     const map = mapRef.current;

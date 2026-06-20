@@ -51,7 +51,18 @@ test.beforeAll(async () => {
   await cleanAndSeed();
 });
 
-test('Map tab: current groups, locations, group->location select, area detail', async ({page}) => {
+// Hide corner overlays that can intercept polygon clicks (legend kept until its
+// own assertion runs).
+async function hideClickBlockers(page) {
+  await page.addStyleTag({
+    content: '.pm-boundary-toggle,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
+}
+async function clickArea(page, areaId) {
+  await page.locator(`.pm-area-${areaId}`).first().click();
+}
+
+test('Map tab: current groups, hover preview, no-op group click, read-only area inspector', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
@@ -67,15 +78,17 @@ test('Map tab: current groups, locations, group->location select, area detail', 
   await expect(mommaRow).toContainText('Not placed');
   await expect(mommaRow.locator('[data-pasture-group-location="none"]')).toBeVisible();
 
-  // Selecting an area opens the contextual modal, which carries the move form.
-  // Record Mommas -> Paddock A from the modal, then close it.
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  await hideClickBlockers(page);
+
+  // Map has no move form: record Mommas -> Paddock A via the Plan Area inspector.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await clickArea(page, A_ID);
+  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(1000);
   await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
 
   // On the Map, the occupied paddock shows an animal-type group marker, and the
   // legend (collapsed by default) reflects animal-type occupancy.
@@ -87,18 +100,33 @@ test('Map tab: current groups, locations, group->location select, area detail', 
   await expect(mommaRow.locator(`[data-pasture-group-location="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await expect(mommaRow).toContainText('P2 Paddock A');
 
-  // Clicking the group selects its current location -> modal area detail (read-only).
+  // Hover/focus a placed group row PREVIEWS its area on the map (amber overlay),
+  // without selecting anything; mouse-leave clears it.
+  await mommaRow.hover();
+  await expect(page.locator('path[stroke="#f59e0b"]')).toHaveCount(1, {timeout: 5000});
+  await page.locator('[data-pasture-map-header]').hover();
+  await expect(page.locator('path[stroke="#f59e0b"]')).toHaveCount(0);
+
+  // Clicking a Current group row in Map mode does NOTHING (no inspector, no select).
   await mommaRow.click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible();
+  await expect(page.locator('[data-pasture-selected-panel]')).toHaveCount(0);
+  await expect(page.locator('[data-pasture-current-groups="1"]')).toBeVisible();
+
+  // Hide the legend too so it cannot block the eastern polygon, then INSPECT an
+  // area by clicking its polygon -> read-only side-panel inspector (no modal).
+  await page.addStyleTag({content: '.pm-legend{display:none!important}'});
+  await clickArea(page, A_ID);
   await expect(page.locator('[data-pasture-selected-panel]')).toContainText('Area detail');
   await expect(page.locator(`[data-pasture-area-detail="${A_ID}"]`)).toContainText('Paddock');
   await expect(page.locator(`[data-pasture-occupancy="${A_ID}"]`)).toContainText('Mommas');
-  // Acreage is computed read-only in the modal.
   await expect(page.locator(`[data-pasture-acres-readonly="${A_ID}"]`)).toBeVisible();
+  // Map inspector is read-only: no manage / move / danger workflows.
+  await expect(page.locator('[data-pasture-area-manage]')).toHaveCount(0);
+  await expect(page.locator('[data-pasture-move-form]')).toHaveCount(0);
   await page.keyboard.press('Escape');
 
-  // Area Detail for the temp paddock reads "Temp paddock" with a Temp chip.
-  await page.locator(`[data-pasture-area-select="${T_ID}"]`).click();
+  // Area detail for the temp paddock reads "Temp paddock" with a Temp chip.
+  await clickArea(page, T_ID);
   await expect(page.locator(`[data-pasture-area-detail="${T_ID}"]`)).toContainText('Temp paddock', {timeout: 15_000});
   await expect(page.locator(`[data-pasture-area-detail="${T_ID}"] .pm-chip-temp`)).toBeVisible();
 });

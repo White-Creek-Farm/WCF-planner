@@ -41,6 +41,13 @@ async function firstOutlineCandidateId() {
   return data[0].id;
 }
 
+async function hideMapOverlays(page) {
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
+}
+
 async function mapClick(page, box, fx, fy) {
   await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
   await page.waitForTimeout(180);
@@ -132,24 +139,24 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await page.locator('.pm-drawform').getByRole('button', {name: 'Cancel'}).click();
   await expect(page.locator('[data-pasture-drawform]')).toHaveCount(0);
 
-  // ── CP2 edit: select the drawn paddock on the Map -> modal -> Redraw -> edit bar ──
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator(`[data-pasture-area-select="${drawnId}"]`).click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  // ── CP2 edit: select the drawn paddock polygon -> Plan inspector -> Redraw -> edit bar ──
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await hideMapOverlays(page);
+  await page.locator(`.pm-area-${drawnId}`).first().click();
+  await expect(page.locator(`[data-pasture-plan-inspector="${drawnId}"]`)).toBeVisible({timeout: 15_000});
   await page.locator(`[data-pasture-redraw="${drawnId}"]`).click();
   await expect(page.locator('[data-pasture-editbar]')).toBeVisible({timeout: 8000});
   await page.screenshot({path: path.join(SHOTS, '05-edit-bar.png'), fullPage: true});
   await page.locator('[data-pasture-editbar-exit]').click();
   await expect(page.locator('[data-pasture-editbar]')).toHaveCount(0);
-  // Exiting edit re-opens the area modal (selection persists); close it.
+  // Exiting edit re-opens the inspector (selection persists); clear it.
   await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await expect(page.locator(`[data-pasture-plan-inspector="${drawnId}"]`)).toHaveCount(0);
 
   // ── Redraw is disabled for an outline candidate (no polygon yet) ──
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
   const outlineId = await firstOutlineCandidateId();
   await page.locator(`[data-pasture-track-line-zoom="${outlineId}"]`).click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator(`[data-pasture-plan-inspector="${outlineId}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator(`[data-pasture-redraw="${outlineId}"]`)).toBeDisabled();
   await page.keyboard.press('Escape');
 

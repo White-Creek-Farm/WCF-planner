@@ -36,16 +36,22 @@ test.beforeAll(async () => {
   await cleanAndSeed();
 });
 
-// expandedPasture persists across reloads/tab switches, so only expand the row
-// Open an area's contextual modal from the Map area list.
-async function openArea(page, areaId) {
-  await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
-  await page.locator(`[data-pasture-area-select="${areaId}"]`).first().click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+async function hideMapOverlays(page) {
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
 }
 
-// Record a group move onto an area via its contextual modal (carries the move form).
+// Open an area's Plan Area inspector by clicking its polygon (no list, no modal).
+async function openArea(page, areaId) {
+  await page.keyboard.press('Escape');
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator(`.pm-area-${areaId}`).first().click();
+  await expect(page.locator(`[data-pasture-plan-inspector="${areaId}"]`)).toBeVisible({timeout: 15_000});
+}
+
+// Record a group move onto an area via the Plan inspector's move form.
 async function recordMove(page, areaId, groupLabel) {
   await openArea(page, areaId);
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
@@ -55,10 +61,12 @@ async function recordMove(page, areaId, groupLabel) {
   await page.keyboard.press('Escape');
 }
 
-test('Temp paddock archive/restore, occupied block, admin hard delete (via area modal)', async ({page}) => {
+test('Temp paddock archive/restore, occupied block, admin hard delete (via Plan inspector)', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
+  await expect(page.locator(`.pm-area-${T_ID}`).first()).toBeVisible({timeout: 25_000});
+  await hideMapOverlays(page);
 
   // Per-area lifecycle lives in the contextual modal now. Archived areas leave the
   // active Map list, so archive -> restore is exercised within one open modal.
@@ -83,14 +91,14 @@ test('Temp paddock archive/restore, occupied block, admin hard delete (via area 
   });
   await page.keyboard.press('Escape');
 
-  // Admin hard delete uses an inline confirm; move the group away first so it is
-  // not blocked, then hard-delete and confirm the area leaves the list.
+  // Admin hard delete lives in the inspector's admin-only Danger zone (a
+  // disclosure). Move the group away first so it is not blocked, then expand the
+  // Danger zone, hard-delete + confirm, and verify the area's polygon is gone.
   await recordMove(page, A_ID, 'Mommas');
   await openArea(page, T_ID);
+  await page.locator('[data-pasture-inspector-section="danger"] summary').click();
   await page.locator(`[data-pasture-hard-delete="${T_ID}"]`).click();
-  await expect(page.locator(`[data-pasture-hard-delete-confirm="${T_ID}"]`)).toContainText(
-    'Hard delete this area permanently?',
-  );
+  await expect(page.locator(`[data-pasture-hard-delete-confirm="${T_ID}"]`)).toContainText('Permanently hard delete');
   await page.locator(`[data-pasture-hard-delete-yes="${T_ID}"]`).click();
-  await expect(page.locator(`[data-pasture-area="${T_ID}"]`)).toHaveCount(0, {timeout: 15_000});
+  await expect(page.locator(`.pm-area-${T_ID}`)).toHaveCount(0, {timeout: 15_000});
 });

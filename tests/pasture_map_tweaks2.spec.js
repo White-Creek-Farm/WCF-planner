@@ -28,6 +28,17 @@ const TRUNCATE = `
     public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 `;
 
+// Hide corner overlays that can intercept polygon clicks (not under test here).
+async function hideMapOverlays(page) {
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
+}
+async function clickArea(page, areaId) {
+  await page.locator(`.pm-area-${areaId}`).first().click();
+}
+
 async function seedTwoAreas() {
   await exec(`
     ${TRUNCATE}
@@ -42,31 +53,30 @@ async function seedTwoAreas() {
   `);
 }
 
-test('area modal dismissal: X button, Escape, and backdrop click', async ({page}) => {
+test('area inspector dismissal: clear (X) button and Escape; no modal/overlay', async ({page}) => {
   await seedTwoAreas();
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
+  await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
+  await hideMapOverlays(page);
 
-  const modal = page.locator('[data-pasture-area-modal]');
+  // The Map Area inspector replaces the side panel (no centered modal/overlay).
+  const inspector = page.locator('[data-pasture-selected-panel]');
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await expect(page.locator('.pm-modal-backdrop')).toHaveCount(0);
 
-  // X button.
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await expect(modal).toBeVisible();
+  // Clear (X) button dismisses.
+  await clickArea(page, A_ID);
+  await expect(inspector).toBeVisible();
   await page.locator('[data-pasture-clear-selection]').click();
-  await expect(modal).toHaveCount(0);
+  await expect(inspector).toHaveCount(0);
 
-  // Escape key.
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await expect(modal).toBeVisible();
+  // Escape key dismisses.
+  await clickArea(page, A_ID);
+  await expect(inspector).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(modal).toHaveCount(0);
-
-  // Backdrop click (outside the dialog) dismisses.
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await expect(modal).toBeVisible();
-  await page.locator('[data-pasture-area-modal-backdrop]').click({position: {x: 8, y: 8}});
-  await expect(modal).toHaveCount(0);
+  await expect(inspector).toHaveCount(0);
 });
 
 test('Setup Tracks / Lines: lists draft lines, not on Map, closes into a temp paddock', async ({page}) => {
@@ -87,7 +97,7 @@ test('Setup Tracks / Lines: lists draft lines, not on Map, closes into a temp pa
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // Draft line is NOT offered as a grazing area on the Map (no area-select row).
+  // Draft lines are not grazing destinations (the Map Land areas list is gone).
   await expect(page.locator(`[data-pasture-area-select="${OUT_ID}"]`)).toHaveCount(0);
 
   // It lives in the Plan Tracks / Lines section.
@@ -96,11 +106,11 @@ test('Setup Tracks / Lines: lists draft lines, not on Map, closes into a temp pa
   await expect(card).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('1');
   await expect(page.locator(`[data-pasture-track-line="${OUT_ID}"]`)).toBeVisible();
-  // Zoom selects the line (opens its modal); close the modal to use the row's close action.
+  // Zoom selects the line (opens its Plan inspector); dismiss to use the row's close action.
   await page.locator(`[data-pasture-track-line-zoom="${OUT_ID}"]`).click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator(`[data-pasture-plan-inspector="${OUT_ID}"]`)).toBeVisible({timeout: 15_000});
   await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await expect(card).toBeVisible();
 
   // Close into a temp paddock -> leaves the Tracks/Lines surface and becomes a
   // kind=paddock + permanence=temporary area.
@@ -137,13 +147,15 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // Record Mommas -> Paddock A via the contextual modal (carries the move form).
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
+  // Record Mommas -> Paddock A via the Plan rotation Move button (A is the only
+  // destination, so an unplaced Mommas moves there). No polygon click, so the
+  // boundary toggle stays available for the toggle assertion below.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
+  await page.locator('[data-pasture-move]').click();
   await page.waitForTimeout(1000);
   await page.keyboard.press('Escape');
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
 
   // The occupant marker is present on the Map.
   const marker = page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'});
@@ -155,7 +167,7 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   await expect(marker).toHaveCount(1);
 });
 
-test('Plan tab: one combined group/move card, no area list, move in the area modal', async ({page}) => {
+test('Plan tab: one combined group/move card, no area list, move in the area inspector', async ({page}) => {
   await exec(`
     ${TRUNCATE}
     DO $$ DECLARE v_profile uuid; BEGIN
@@ -185,10 +197,11 @@ test('Plan tab: one combined group/move card, no area list, move in the area mod
   await expect(page.locator('[data-pasture-area-select]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-manual-move]')).toHaveCount(0);
 
-  // The move form lives in the area modal, opened by selecting an area on the Map.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  // The move form lives in the Plan Area inspector, opened by selecting an area
+  // polygon (no modal).
+  await hideMapOverlays(page);
+  await clickArea(page, A_ID);
+  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible();
 });
 

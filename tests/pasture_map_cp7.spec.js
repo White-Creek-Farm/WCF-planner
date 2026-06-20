@@ -42,18 +42,25 @@ test.beforeAll(async () => {
   await cleanAndSeedPastureTables();
 });
 
+async function hideMapOverlays(page) {
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+  });
+}
+
 test('CP7: manager changes paddock line color, weight, and pattern', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
+  await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
+  await hideMapOverlays(page);
 
-  // Select the area on the read-only Map area list -> contextual modal opens.
-  const row = page.locator(`[data-pasture-area="${A_ID}"]`).first();
-  await expect(row).toContainText('CP7 Styled Paddock', {timeout: 25_000});
-  await page.locator(`[data-pasture-area-select="${A_ID}"]`).first().click();
-
-  // Line-style editing lives in the area modal now.
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
+  // Line-style editing lives in the Plan Area inspector's Line style section.
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator(`.pm-area-${A_ID}`).first().click();
+  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-setup-linestyle] summary').click();
   await expect(page.locator('[data-pasture-style-panel]')).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-style-swatch="2563eb"]').click();
   await page.locator('[data-pasture-style-pattern="dashed"]').click();
@@ -75,17 +82,13 @@ test('CP7: manager changes paddock line color, weight, and pattern', async ({pag
     )
     .toEqual({line_color: '#2563eb', line_weight: 6, line_pattern: 'dashed'});
 
-  // Close the modal (clears the selection); selected areas render with the dark
-  // highlight stroke, so this lets the map show the area's own line style and the
-  // Map area list expose the line-style chip.
+  // Clear the selection; selected areas render with the dark highlight stroke,
+  // so deselecting lets the map show the area's own saved line style.
   await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toHaveCount(0);
 
   // Map stroke reflects the saved style now that nothing is selected.
   const styledPath = page.locator('.leaflet-overlay-pane path[stroke="#2563eb"]').first();
   await expect(styledPath).toHaveAttribute('stroke-width', '6', {timeout: 15_000});
   await expect(styledPath).toHaveAttribute('stroke-dasharray', '10,8', {timeout: 10_000});
-
-  // Line-style chip shows on the Map area list.
-  await expect(row.locator('[data-pasture-line-style]')).toContainText('6 px Dashed', {timeout: 15_000});
 });

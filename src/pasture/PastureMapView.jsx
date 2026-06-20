@@ -9,7 +9,7 @@
 // ============================================================================
 import React from 'react';
 import PastureMapCanvas from './PastureMapCanvas.jsx';
-import {parseKmlToPlacemarks, parseAcreageNote, closeOutlineToPolygon} from '../lib/pastureKml.js';
+import {parseKmlToPlacemarks, closeOutlineToPolygon} from '../lib/pastureKml.js';
 import {haversineM, lineMetrics} from '../lib/pastureGeometry.js';
 import {
   listLandAreas,
@@ -83,18 +83,56 @@ const LINE_STYLE_PATTERNS = [
   {key: 'dotted', label: 'Dotted', css: 'dotted'},
 ];
 
-const ANIMAL_TYPE_LABEL = {
-  cattle_herd: 'Cattle herd',
-  sheep_flock: 'Sheep flock',
-  breeder_pigs: 'Breeder pigs',
-  feeder_pigs: 'Feeder pigs',
-};
-
 const SPECIES = {
   cattle: {label: 'Cattle', animalType: 'cattle_herd', color: '#9A3B2E', ink: '#7C3023', soft: '#F4E5E2'},
   pig: {label: 'Pigs', animalType: 'breeder_pigs', color: '#A8418A', ink: '#852F6D', soft: '#F3E3EE'},
   sheep: {label: 'Sheep', animalType: 'sheep_flock', color: '#1E8A8A', ink: '#166A6A', soft: '#DEF0F0'},
 };
+
+// Neutral palette for an occupant whose ledger (animal_type, group_key) no longer
+// maps to a derived roster group (renamed/removed group, deleted feeder sub, etc).
+const OCCUPANT_UNMATCHED = {color: '#9AA1AB', ink: '#4B5563'};
+
+// Reconcile an area's server current_occupants (move-ledger occupancy, including
+// overlap impacts) against the derived roster. Roster-matched occupants carry the
+// roster identity + LOCKED roster count + species color; unmatched ledger rows are
+// flagged needsReconciliation and rendered neutrally (never as a fake group). Each
+// occupant keeps its impact_kind so overlap-only occupancy can be shown distinctly.
+function reconcileAreaOccupants(area, rosterByKey) {
+  const list = Array.isArray(area && area.current_occupants) ? area.current_occupants : [];
+  return list.map((o) => {
+    const g = rosterByKey.get(`${o.animal_type}::${o.group_key}`);
+    const overlap = o.impact_kind === 'overlap';
+    if (g) {
+      const sp = SPECIES[g.species] || SPECIES.cattle;
+      return {
+        matched: true,
+        species: g.species,
+        short: g.short,
+        name: g.name,
+        count: g.count,
+        color: sp.color,
+        ink: sp.ink,
+        overlap,
+        animalType: g.animalType,
+        groupKey: g.groupKey,
+      };
+    }
+    return {
+      matched: false,
+      needsReconciliation: true,
+      species: null,
+      short: '?',
+      name: o.group_label || 'Unmatched group',
+      count: o.animal_count != null ? o.animal_count : null,
+      color: OCCUPANT_UNMATCHED.color,
+      ink: OCCUPANT_UNMATCHED.ink,
+      overlap,
+      animalType: o.animal_type,
+      groupKey: o.group_key,
+    };
+  });
+}
 
 const MODE_TABS = [
   {id: 'view', label: 'Map', hint: 'Browse groups & areas - select to inspect'},
@@ -183,10 +221,6 @@ function cleanLinePattern(value) {
 
 function cssLinePattern(value) {
   return LINE_STYLE_PATTERNS.find((p) => p.key === cleanLinePattern(value))?.css || 'solid';
-}
-
-function labelLinePattern(value) {
-  return LINE_STYLE_PATTERNS.find((p) => p.key === cleanLinePattern(value))?.label || 'Solid';
 }
 
 function styleDraftFromArea(area) {
@@ -381,6 +415,12 @@ export default function PastureMapView({Header, authState}) {
   const isAdmin = role === 'admin';
   const canRecordMoves = role === 'farm_team' || role === 'management' || role === 'admin';
   const canCreateTrack = role === 'farm_team' || role === 'management' || role === 'admin';
+  // Light users get READ-ONLY, Map-only access: just view areas, current groups,
+  // and animal locations. Plan / Field / Reports workflows are hidden for Light,
+  // and every write path is role-gated below + server-side. Planning data
+  // (planned moves / reports / history) is not fetched for Light.
+  const isLight = role === 'light';
+  const canViewPlanning = !isLight;
 
   const [areas, setAreas] = React.useState([]);
   const [moves, setMoves] = React.useState([]);
@@ -401,6 +441,9 @@ export default function PastureMapView({Header, authState}) {
   const [appMode, setAppMode] = React.useState('view');
   const [mapMode, setMapMode] = React.useState('select');
   const [selectedId, setSelectedId] = React.useState(null);
+  // Map-mode hover/focus preview of a Current group's current area. Preview is
+  // display-only: it NEVER mutates selectedId or activeGroupId.
+  const [previewAreaId, setPreviewAreaId] = React.useState(null);
   const [legendOpen, setLegendOpen] = React.useState(false);
   const [showRotationPath, setShowRotationPath] = React.useState(true);
   const [listView, setListView] = React.useState(false);
@@ -458,12 +501,16 @@ export default function PastureMapView({Header, authState}) {
     setErr('');
     try {
       await syncPastureQueue();
+      // Light is Map-only: fetch only the area + move data the Map needs, and skip
+      // the planning/report RPCs (which Light is not granted and never displays).
       const [areaRes, moveRes, planRes, restRes, stockingRes] = await Promise.all([
         listLandAreas(false),
         listPastureMoves(75),
-        listPasturePlannedMoves({status: 'planned', limit: 75}),
-        listPastureRestReport(),
-        listPastureStockingReport(),
+        canViewPlanning
+          ? listPasturePlannedMoves({status: 'planned', limit: 75})
+          : Promise.resolve({planned_moves: []}),
+        canViewPlanning ? listPastureRestReport() : Promise.resolve({areas: [], counts: {}}),
+        canViewPlanning ? listPastureStockingReport() : Promise.resolve({areas: []}),
       ]);
       const nextAreas = (areaRes && areaRes.land_areas) || [];
       const nextMoves = (moveRes && moveRes.moves) || [];
@@ -524,7 +571,9 @@ export default function PastureMapView({Header, authState}) {
 
   React.useEffect(() => {
     let alive = true;
-    if (!selectedId) {
+    // History is a Reports-tab read; Light has no Reports tab and is not granted
+    // the history RPC, so never fetch it for Light.
+    if (!selectedId || !canViewPlanning) {
       setHistoryRows([]);
       setHistoryLoading(false);
       return () => {
@@ -545,7 +594,7 @@ export default function PastureMapView({Header, authState}) {
     return () => {
       alive = false;
     };
-  }, [selectedId, moves.length]);
+  }, [selectedId, moves.length, canViewPlanning]);
 
   React.useEffect(() => () => clearTrackWatch(), []);
 
@@ -613,27 +662,35 @@ export default function PastureMapView({Header, authState}) {
     }
     return areaById.get(activeRotation[0]) || null;
   }, [activeCurrentInRotation, activeCurrentArea, activeRotation, areaById]);
-  // Client-side occupancy for the Map canvas: area id -> occupying roster groups
-  // (animal-type color + identity), derived from the SAME (animal_type,
-  // group_key) contract as groupLocation. This — not land_areas.current_occupants
-  // — drives the map's animal-colored fills and group markers.
+  // Roster lookup by the canonical move-ledger identity (animal_type, group_key).
+  const rosterByKey = React.useMemo(() => {
+    const m = new Map();
+    for (const g of groups) m.set(`${g.animalType}::${g.groupKey}`, g);
+    return m;
+  }, [groups]);
+  // Reconciled occupancy for the Map canvas, the Occupied explanation, and the
+  // Area inspector. Source of truth = land_areas.current_occupants (the SAME
+  // move-ledger occupancy Farm status counts, including geometric overlap
+  // impacts), reconciled to the derived roster so identity/counts match the
+  // roster and a stale ledger group_key with no roster match renders in a neutral
+  // "needs roster reconciliation" state instead of as a fake group.
   const occupantsByArea = React.useMemo(() => {
     const out = {};
-    for (const g of groups) {
-      const loc = groupLocation[g.id];
-      if (!loc || !loc.areaId) continue;
-      const sp = SPECIES[g.species] || SPECIES.cattle;
-      (out[loc.areaId] = out[loc.areaId] || []).push({
-        species: g.species,
-        short: g.short,
-        name: g.name,
-        count: g.count,
-        color: sp.color,
-        ink: sp.ink,
-      });
+    for (const a of areas) {
+      const recon = reconcileAreaOccupants(a, rosterByKey);
+      if (recon.length) out[a.id] = recon;
     }
     return out;
-  }, [groups, groupLocation]);
+  }, [areas, rosterByKey]);
+  // Occupied areas Farm status counts, with their reconciled occupants, for the
+  // Map "Occupied" explanation (replaces the removed Land areas list).
+  const occupiedExplain = React.useMemo(
+    () =>
+      activeAreas
+        .filter((a) => grazingState(a) === 'occupied')
+        .map((a) => ({area: a, occupants: occupantsByArea[a.id] || []})),
+    [activeAreas, occupantsByArea],
+  );
   const selectedArea = areas.find((a) => a.id === selectedId) || null;
   const selectedEditable = hasPolygonGeom(selectedArea);
   const selectedDensity = densityCopy(selectedArea);
@@ -748,8 +805,12 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function switchAppMode(next) {
+    // Light is Map-only; never leave the Map tab (defense in depth - the other
+    // tabs are not rendered for Light).
+    if (isLight && next !== 'view') return;
     setAppMode(next);
     setErr('');
+    setPreviewAreaId(null);
     if (next !== 'plan') setAddMode(false);
     // Boundary tools (track/draw/edit) now live in Plan; reset them off any other tab.
     if (next !== 'plan' && mapMode === 'track') resetTrackFlow();
@@ -1323,6 +1384,10 @@ export default function PastureMapView({Header, authState}) {
   }
 
   async function recordGroupMove(group, areaId, {offlineOnly = false} = {}) {
+    // Hard write-gate: only farm_team/management/admin record moves. Light and any
+    // other non-writer can never trigger a move (UI also hides the controls; the
+    // SECDEF RPC rejects non-writers server-side too).
+    if (!canRecordMoves) return;
     if (!group || !areaId) return;
     const area = areaById.get(areaId);
     const movePayload = {
@@ -1782,76 +1847,6 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
-  function renderAreaIndex(limit = 12) {
-    // Real grazing areas only; draft tracks / lines live in the Tracks / Lines section.
-    if (!destinationAreas.length)
-      return (
-        <div className="pm-empty">
-          {isManager
-            ? 'Import an OnX KML export or draw a paddock to get started.'
-            : 'Ask a manager to set up the farm map.'}
-        </div>
-      );
-    return (
-      <ul className="pm-area-list">
-        {destinationAreas.slice(0, limit).map((a) => {
-          const noteAc = parseAcreageNote(a.raw_notes);
-          const acres = a.effective_acres;
-          const mismatch = noteAc != null && acres != null && Math.abs(noteAc - acres) / Math.max(noteAc, 1) > 0.05;
-          const isOutline = a.kind === 'outline_candidate' || a.geometry_status === 'outline_candidate';
-          const busy = busyId === a.id;
-          const isSel = a.id === selectedId;
-          return (
-            <li
-              key={a.id}
-              className={'pm-area-row' + (isSel ? ' is-selected' : '')}
-              data-pasture-area={a.id}
-              data-kind={a.kind}
-            >
-              <button
-                type="button"
-                className="pm-area-main"
-                onClick={() => handleAreaClick(a.id)}
-                data-pasture-area-select={a.id}
-              >
-                <span className="pm-area-name">{a.name || 'Unnamed'}</span>
-                <span className="pm-area-meta">
-                  <span className={'pm-chip pm-chip-' + a.kind}>{KIND_LABEL[a.kind] || a.kind}</span>
-                  {a.review_status === 'pending_review' && <span className="pm-chip pm-chip-review">Needs review</span>}
-                  {a.queued_offline && <span className="pm-chip pm-chip-queued">Queued</span>}
-                  {acres != null && <span className="pm-acres">{acres} ac</span>}
-                  {/* Fixed permanent boundaries ignore saved line_* -> no editable chip. */}
-                  {!isFixedStyleArea(a) && (a.line_color || a.line_weight || a.line_pattern) && (
-                    <span className="pm-line-style-chip" data-pasture-line-style="1">
-                      <span
-                        aria-hidden="true"
-                        style={linePreviewStyle({
-                          lineColor: cleanLineColor(a.line_color) || DEFAULT_LINE_COLOR,
-                          lineWeight: cleanLineWeight(a.line_weight),
-                          linePattern: cleanLinePattern(a.line_pattern),
-                        })}
-                      />
-                      {cleanLineWeight(a.line_weight)} px {labelLinePattern(a.line_pattern)}
-                    </span>
-                  )}
-                  {mismatch && <span className="pm-note-acres">OnX note: {noteAc} ac</span>}
-                  <span
-                    className={'pm-rest-pill pm-rest-' + (a.rest_state || 'baseline')}
-                    data-pasture-rest-state={a.rest_state || 'baseline'}
-                  >
-                    {restCopy(a)}
-                  </span>
-                </span>
-              </button>
-              {/* Per-area management lives in the contextual area modal (open by
-                  selecting the area), not inline in this list. */}
-            </li>
-          );
-        })}
-      </ul>
-    );
-  }
-
   function renderLineStylePanel() {
     if (!selectedArea) return null;
     return (
@@ -1973,18 +1968,31 @@ export default function PastureMapView({Header, authState}) {
             <span className="pm-chip">{isTempArea(selectedArea) ? 'Archived temp' : 'Archived'}</span>
           )}
         </div>
-        {Array.isArray(selectedArea.current_occupants) && selectedArea.current_occupants.length > 0 && (
+        {(occupantsByArea[selectedArea.id] || []).length > 0 && (
           <div className="pm-occupants" data-pasture-occupancy={selectedArea.id}>
-            {selectedArea.current_occupants.map((o) => (
-              <span key={o.move_id + o.group_key} className="pm-occupant-pill">
-                {ANIMAL_TYPE_LABEL[o.animal_type] || o.animal_type}: {o.group_label}
+            {/* Occupant identity + count come from the roster-matched group when
+                available (same source as the map marker + the locked move-form
+                count); unmatched ledger rows and overlap-only occupancy are
+                tagged, never shown as a fresh/real group. */}
+            {(occupantsByArea[selectedArea.id] || []).map((o, i) => (
+              <span
+                key={(o.animalType || '') + (o.groupKey || '') + i}
+                className={
+                  'pm-occupant-pill' + (o.needsReconciliation ? ' is-unmatched' : '') + (o.overlap ? ' is-overlap' : '')
+                }
+                data-pasture-occupant-unmatched={o.needsReconciliation ? '1' : undefined}
+              >
+                {o.name}
+                {o.count != null ? ` · ${o.count}` : ''}
+                {o.overlap ? ' (overlap)' : ''}
+                {o.needsReconciliation ? ' (needs roster)' : ''}
               </span>
             ))}
           </div>
         )}
         <div className="pm-kv">
           <span>State</span>
-          <strong>{restCopy(selectedArea)}</strong>
+          <strong data-pasture-rest-state={selectedArea.rest_state || 'baseline'}>{restCopy(selectedArea)}</strong>
           <span>Acres</span>
           <strong data-pasture-acres-readonly={selectedArea.id}>
             {selectedArea.effective_acres == null ? '-' : `${selectedArea.effective_acres} ac`}
@@ -2018,21 +2026,21 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
-  // Select a planner group and, when it has a current location, select + zoom
-  // that area; otherwise clear the selection (group is Not placed).
-  function selectGroupAndLocation(group) {
-    setActiveGroupFromGroup(group);
+  // Map-mode Current-group hover/focus preview: highlight the group's CURRENT
+  // area on the map (and surface its label) without selecting/zooming/activating.
+  // A Not-placed group highlights nothing. Never mutates selectedId/activeGroupId.
+  function previewGroupArea(group) {
     const loc = groupLocation[group.id];
-    if (loc && loc.areaId) {
-      setSelectedId(loc.areaId);
-      setZoomSignal((n) => n + 1);
-    } else {
-      setSelectedId(null);
-    }
+    setPreviewAreaId(loc && loc.areaId ? loc.areaId : null);
+  }
+  function clearGroupPreview() {
+    setPreviewAreaId(null);
   }
 
-  // Current Groups: roster-backed groups with locked counts and current
-  // location resolved from the move ledger by (animal_type, group_key).
+  // Current Groups (Map): roster-backed groups with locked counts and current
+  // location resolved from the move ledger by (animal_type, group_key). On Map
+  // these rows are inspection-only — clicking does nothing; hover/focus previews
+  // the group's current area on the map.
   function renderCurrentGroups() {
     if (!groups.length) {
       return (
@@ -2061,15 +2069,20 @@ export default function PastureMapView({Header, authState}) {
             <div className="pm-current-rows">
               {sec.groups.map((g) => {
                 const loc = groupLocation[g.id];
-                const isActive = activeGroup && g.id === activeGroup.id;
+                const isPreview = previewAreaId && loc && loc.areaId === previewAreaId;
+                // Focusable, NON-button row: there is no click action, so button
+                // semantics would be wrong. Hover/focus previews only.
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={g.id}
-                    className={'pm-current-row' + (isActive ? ' is-active' : '')}
+                    className={'pm-current-row is-preview-row' + (isPreview ? ' is-previewing' : '')}
                     style={{'--species-color': sec.color}}
-                    onClick={() => selectGroupAndLocation(g)}
+                    tabIndex={0}
                     data-pasture-current-group={g.groupKey}
+                    onMouseEnter={() => previewGroupArea(g)}
+                    onMouseLeave={clearGroupPreview}
+                    onFocus={() => previewGroupArea(g)}
+                    onBlur={clearGroupPreview}
                   >
                     <span className="pm-avatar">{g.short}</span>
                     <span className="pm-current-name">
@@ -2084,7 +2097,7 @@ export default function PastureMapView({Header, authState}) {
                     >
                       {loc ? loc.areaName || 'Placed' : 'Not placed'}
                     </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -2094,9 +2107,39 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
+  // Map "Occupied" explanation: enumerates every area Farm status counts as
+  // occupied (including overlap), with the reconciled occupant(s). Replaces the
+  // removed Land areas list and keeps Occupied=N understandable without it.
+  function renderOccupiedExplain() {
+    if (!occupiedExplain.length) return null;
+    return (
+      <div className="pm-occupied-explain" data-pasture-occupied-explain="1">
+        <div className="pm-occupied-explain-title">What is occupied</div>
+        {occupiedExplain.map(({area, occupants}) => (
+          <div key={area.id} className="pm-occupied-row" data-pasture-occupied-area={area.id}>
+            <strong>{area.name || 'Unnamed'}</strong>
+            <span className="pm-occupied-by">
+              {occupants.length
+                ? occupants
+                    .map(
+                      (o) =>
+                        `${o.name}${o.count != null ? ` ${o.count}` : ''}${o.overlap ? ' (overlap)' : ''}${
+                          o.needsReconciliation ? ' (needs roster)' : ''
+                        }`,
+                    )
+                    .join(', ')
+                : 'Occupied (no current group on record)'}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderViewPanel() {
-    // Selecting an area opens the contextual modal (renderAreaModal); the Map
-    // side panel stays on the current-groups + land-areas overview.
+    // Map is inspection-only. Selecting an area polygon swaps this panel for the
+    // read-only Area inspector (renderSelectedPanel); there is no Land areas list
+    // and no modal. Hover/focus a group row to preview its area on the map.
     return (
       <>
         <div className="pm-panel-title" data-pasture-map-header="1">
@@ -2104,7 +2147,7 @@ export default function PastureMapView({Header, authState}) {
           <h2>Current groups</h2>
           <p>
             {groups.length
-              ? `${groups.filter((g) => groupLocation[g.id]).length} of ${groups.length} groups placed - tap a group or area`
+              ? `${groups.filter((g) => groupLocation[g.id]).length} of ${groups.length} groups placed - hover a group to preview, tap an area to inspect`
               : 'No active planner groups yet'}
           </p>
         </div>
@@ -2125,10 +2168,7 @@ export default function PastureMapView({Header, authState}) {
               <span className="dot no-history" /> No history<strong>{statusCounts.no_history}</strong>
             </div>
           </div>
-        </div>
-        <div className="pm-card">
-          <div className="pm-card-title">Land areas</div>
-          {renderAreaIndex(10)}
+          {renderOccupiedExplain()}
         </div>
       </>
     );
@@ -2760,84 +2800,105 @@ export default function PastureMapView({Header, authState}) {
               {isTemp ? 'Archive temp paddock' : 'Archive'}
             </button>
           )}
-          {isAdmin &&
-            (confirmDeleteId === area.id ? (
-              <span className="pm-hard-delete-confirm" data-pasture-hard-delete-confirm={area.id}>
-                Hard delete this area permanently? History will keep text snapshots, but the map shape will be removed.
-                <button
-                  type="button"
-                  className="pm-btn pm-btn-sm pm-btn-danger"
-                  onClick={() => confirmHardDelete(area)}
-                  data-pasture-hard-delete-yes={area.id}
-                >
-                  Hard delete
-                </button>
-                <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmDeleteId(null)}>
-                  Cancel
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="pm-btn pm-btn-sm pm-btn-danger"
-                onClick={() => setConfirmDeleteId(area.id)}
-                data-pasture-hard-delete={area.id}
-              >
-                Hard delete
-              </button>
-            ))}
+          {/* Hard delete is NOT here - it lives in a deliberate admin-only Danger
+              zone (renderDangerZone), away from normal actions. */}
         </div>
       </div>
     );
   }
 
-  // Contextual area modal: opens when an area is selected (Map or Plan), unless
-  // we're tapping the map to add rotation stops in Plan. Replaces the old Setup
-  // per-row editor + the read-only side panel.
-  function renderAreaModal() {
-    if (!selectedArea) return null;
-    if (addMode && appMode === 'plan') return null;
-    // Step aside during active map-tool operations so the map + transient forms
-    // (draw / edit / measure / track) stay usable.
-    if (['draw', 'edit', 'measure', 'track'].includes(mapMode)) return null;
+  // Admin-only Danger zone: hard delete is intentionally isolated behind its own
+  // disclosure + inline confirm so it is never adjacent to routine area actions.
+  function renderDangerZone(area) {
+    if (!area || !isAdmin) return null;
     return (
-      <div
-        className="pm-modal-backdrop"
-        onClick={() => setSelectedId(null)}
-        data-pasture-area-modal-backdrop="1"
-        role="presentation"
-      >
-        <div
-          className="pm-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Area detail"
-          onClick={(e) => e.stopPropagation()}
-          data-pasture-area-modal="1"
-        >
-          {renderSelectedPanel()}
-          {renderAreaManageActions(selectedArea)}
-          {isManager && canEditLineStyle(selectedArea) && (
-            <div className="pm-card" data-pasture-setup-linestyle="1">
-              <div className="pm-card-title">Line style - {selectedArea.name}</div>
-              {renderLineStylePanel()}
-            </div>
-          )}
-          {isManager && isFixedStyleArea(selectedArea) && (
-            <div className="pm-card" data-pasture-setup-linestyle-locked="1">
-              <p className="pm-style-locked-note">
+      <div className="pm-card pm-danger-zone" data-pasture-danger-zone={area.id}>
+        <div className="pm-card-title">Danger zone</div>
+        <p className="pm-danger-note">
+          Hard delete permanently removes this area's map shape. History keeps text snapshots. This cannot be undone.
+        </p>
+        {confirmDeleteId === area.id ? (
+          <span className="pm-hard-delete-confirm" data-pasture-hard-delete-confirm={area.id}>
+            Permanently hard delete {area.name || 'this area'}?
+            <button
+              type="button"
+              className="pm-btn pm-btn-sm pm-btn-danger"
+              onClick={() => confirmHardDelete(area)}
+              data-pasture-hard-delete-yes={area.id}
+            >
+              Hard delete
+            </button>
+            <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmDeleteId(null)}>
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="pm-btn pm-btn-sm pm-btn-danger"
+            onClick={() => setConfirmDeleteId(area.id)}
+            data-pasture-hard-delete={area.id}
+          >
+            Hard delete
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Plan-mode Area inspector: a right-side, sectioned/disclosed inspector that
+  // REPLACES the old centered modal. Read-only facts on top, then collapsible
+  // action sections (Manage, Line style, Record / plan move, Danger zone). No
+  // overlay, no backdrop, no interaction trap.
+  function renderPlanAreaInspector() {
+    if (!selectedArea) return null;
+    const styleEligible = isManager && canEditLineStyle(selectedArea);
+    const lockedStyle = isManager && isFixedStyleArea(selectedArea);
+    return (
+      <div className="pm-plan-inspector" data-pasture-plan-inspector={selectedArea.id}>
+        {renderSelectedPanel()}
+        {isManager && (
+          <details className="pm-inspector-section" open data-pasture-inspector-section="manage">
+            <summary>Manage area</summary>
+            {renderAreaManageActions(selectedArea)}
+            {/* Locked permanent-style is a small inline note where the style
+                controls would otherwise appear - not a standalone card. */}
+            {lockedStyle && (
+              <p className="pm-style-locked-note" data-pasture-setup-linestyle-locked="1">
                 {selectedArea.kind === 'pasture' ? 'Pasture' : 'Paddock'} boundaries use a fixed
                 {selectedArea.kind === 'pasture' ? ' blue' : ' green'} line and cannot be restyled. Only temp paddocks
                 and GPS field tracks have editable line style.
               </p>
-            </div>
-          )}
-          {canRecordMoves && !isOutlineCandidateArea(selectedArea) && (
-            <div className="pm-card" data-pasture-modal-move="1">
-              {renderMoveAndPlanForms()}
-            </div>
-          )}
-        </div>
+            )}
+          </details>
+        )}
+        {styleEligible && (
+          <details
+            className="pm-inspector-section"
+            data-pasture-inspector-section="linestyle"
+            data-pasture-setup-linestyle="1"
+          >
+            <summary>Line style</summary>
+            {renderLineStylePanel()}
+          </details>
+        )}
+        {canRecordMoves && !isOutlineCandidateArea(selectedArea) && (
+          <details
+            className="pm-inspector-section"
+            open
+            data-pasture-inspector-section="move"
+            data-pasture-modal-move="1"
+          >
+            <summary>Record / plan move</summary>
+            {renderMoveAndPlanForms()}
+          </details>
+        )}
+        {isAdmin && (
+          <details className="pm-inspector-section pm-inspector-danger" data-pasture-inspector-section="danger">
+            <summary>Danger zone</summary>
+            {renderDangerZone(selectedArea)}
+          </details>
+        )}
       </div>
     );
   }
@@ -3016,8 +3077,15 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function renderPanel() {
-    if (appMode === 'plan') return renderPlanPanel();
     if (appMode === 'reports') return renderReportsPanel();
+    // Selecting an area swaps the side panel for the Area inspector (no modal).
+    // Suppressed while tapping the map to add rotation stops (Plan addMode) and
+    // during active map tools so the map + transient tool forms stay usable.
+    const inspecting =
+      selectedArea && !(addMode && appMode === 'plan') && !['draw', 'edit', 'measure', 'track'].includes(mapMode);
+    if (inspecting && appMode === 'view') return renderSelectedPanel();
+    if (inspecting && appMode === 'plan') return renderPlanAreaInspector();
+    if (appMode === 'plan') return renderPlanPanel();
     return renderViewPanel();
   }
 
@@ -3165,6 +3233,7 @@ export default function PastureMapView({Header, authState}) {
             className="pm-confirm-move"
             style={{'--species-color': activeSpecies.color}}
             onClick={() => {
+              if (!canRecordMoves) return;
               if (fieldMovedToday && !fieldDupeAck) {
                 setFieldDupeAck(true);
                 return;
@@ -3172,7 +3241,7 @@ export default function PastureMapView({Header, authState}) {
               setFieldDupeAck(false);
               recordGroupMove(activeGroup, activeNextArea && activeNextArea.id, {offlineOnly: fieldOffline});
             }}
-            disabled={!activeNextArea || saving}
+            disabled={!activeNextArea || saving || !canRecordMoves}
             data-pasture-field-confirm="1"
           >
             {fieldMovedToday && fieldDupeAck
@@ -3197,7 +3266,8 @@ export default function PastureMapView({Header, authState}) {
       />
       <nav className="pm-tabs" aria-label="Pasture map modes">
         <div>
-          {MODE_TABS.map((tab) => (
+          {/* Light is Map-only: Plan / Field / Reports tabs are not rendered. */}
+          {(isLight ? MODE_TABS.filter((tab) => tab.id === 'view') : MODE_TABS).map((tab) => (
             <button
               type="button"
               key={tab.id}
@@ -3235,6 +3305,7 @@ export default function PastureMapView({Header, authState}) {
             rotationAreaIds: appMode === 'plan' || appMode === 'field' ? activeRotation : [],
             rotationColor: activeSpecies.color,
             showRotationPath,
+            previewAreaId: appMode === 'view' ? previewAreaId : null,
             legendOpen,
             onToggleLegend: () => setLegendOpen((v) => !v),
             mapBanner,
@@ -3257,7 +3328,6 @@ export default function PastureMapView({Header, authState}) {
         <span>trackGeometry={'{activeTrackGeometry}'}</span>
       </div>
       {renderFieldOverlay()}
-      {renderAreaModal()}
     </div>
   );
 }

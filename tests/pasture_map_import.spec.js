@@ -37,7 +37,10 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await expect(page.locator('.pm-empty').first()).toBeVisible({timeout: 20_000});
+  // Empty pasture: the map canvas renders with no area polygons (the Land areas
+  // list - and its empty message - was removed from Map).
+  await expect(page.locator('[data-pasture-map-canvas]')).toBeVisible({timeout: 20_000});
+  await expect(page.locator('.pm-area-path')).toHaveCount(0);
   await page.waitForTimeout(2000); // let NAIP tiles paint
   await page.screenshot({path: path.join(SHOTS, '01-empty-desktop.png'), fullPage: true});
 
@@ -53,24 +56,37 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.waitForTimeout(1500);
   await page.screenshot({path: path.join(SHOTS, '03-post-import-plan.png'), fullPage: true});
 
-  // On the Map, the 4 polygons appear as unclassified land areas (lines are draft).
+  // On the Map, the 4 imported polygons render as clickable area paths (the 6
+  // lines are draft geometry, hidden on Map). There is no Land areas list.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('.pm-area-row')).toHaveCount(4, {timeout: 15_000});
-  await expect(page.locator('.pm-area-row[data-kind="unclassified"]')).toHaveCount(4);
+  await expect(page.locator('.pm-area-path')).toHaveCount(4, {timeout: 15_000});
 
-  // Classify a polygon as a paddock via its contextual modal.
-  const classifyId = await page
-    .locator('.pm-area-row[data-kind="unclassified"]')
-    .first()
-    .getAttribute('data-pasture-area');
-  await page.locator(`[data-pasture-area-select="${classifyId}"]`).click();
-  await expect(page.locator('[data-pasture-area-modal]')).toBeVisible({timeout: 15_000});
-  await page.locator(`[data-pasture-designation="${classifyId}"]`).selectOption('paddock');
-  await expect(page.locator(`[data-pasture-area="${classifyId}"]`)).toHaveAttribute('data-kind', 'paddock', {
-    timeout: 15_000,
+  // Classify a polygon as a paddock via its Plan Area inspector (Manage section).
+  const {data: unclassified} = await getTestAdminClient()
+    .from('land_areas')
+    .select('id')
+    .eq('kind', 'unclassified')
+    .limit(1)
+    .single();
+  const classifyId = unclassified.id;
+  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.addStyleTag({
+    content:
+      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
   });
+  await page.locator(`.pm-area-${classifyId}`).first().click();
+  await expect(page.locator(`[data-pasture-plan-inspector="${classifyId}"]`)).toBeVisible({timeout: 15_000});
+  await page.locator(`[data-pasture-designation="${classifyId}"]`).selectOption('paddock');
+  await expect
+    .poll(
+      async () => {
+        const {data} = await getTestAdminClient().from('land_areas').select('kind').eq('id', classifyId).single();
+        return data?.kind;
+      },
+      {timeout: 15_000},
+    )
+    .toBe('paddock');
   await page.keyboard.press('Escape');
-  await expect(page.locator('.pm-area-row[data-kind="unclassified"]')).toHaveCount(3);
   await page.screenshot({path: path.join(SHOTS, '04-classified-desktop.png'), fullPage: true});
 
   // Close a draft line into a temp paddock from the Plan Tracks / Lines section.
@@ -82,6 +98,8 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.screenshot({path: path.join(SHOTS, '05-outline-closed-desktop.png'), fullPage: true});
 
   // ── GPS "you are here" (mocked geolocation; best-effort) ──
+  // Re-show the map controls hidden during the classification polygon click.
+  await page.addStyleTag({content: '.pm-map-controls{display:flex!important}'});
   try {
     await page.context().grantPermissions(['geolocation']);
     await page.context().setGeolocation({latitude: 30.84175, longitude: -86.43686, accuracy: 8});
@@ -96,7 +114,7 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   // ── Mobile ──
   await page.setViewportSize({width: 390, height: 844});
   await page.reload();
-  await expect(page.locator('[data-pasture-area]').first()).toBeVisible({timeout: 25_000});
+  await expect(page.locator('.pm-area-path').first()).toBeVisible({timeout: 25_000});
   await page.waitForTimeout(2500);
   await page.screenshot({path: path.join(SHOTS, '07-post-import-mobile.png'), fullPage: true});
 });
