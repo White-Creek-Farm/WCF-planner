@@ -17,3 +17,31 @@
 
 [functions]
   directory = "netlify/functions"
+
+# ── Security headers (2026-06-22 audit, P2 lane) ────────────────────────────
+# CSP ships in REPORT-ONLY first: it reports violations without blocking, so we
+# can find any missed origin (inline <script> in index.html, third-party fetch,
+# YouTube iframe embeds, etc.) before switching to an enforced
+# Content-Security-Policy. No report-uri/report-to endpoint is configured, so
+# violations surface in each browser's console during smoke, not a collector.
+#
+# Origins allowed: Supabase REST + realtime (pzfujbjtayhkdlxiblwe), ESRI World
+# Imagery tiles (Pasture Map), YouTube thumbnails (img only, not iframes), NWS
+# radar link, blob: workers (pdfjs/xlsx/Leaflet), data:/blob: images, and
+# self-hosted Hanken Grotesk fonts. unpkg/jsdelivr are intentionally NOT script
+# sources — they are stale preconnect leftovers, not app script origins.
+#
+# HSTS: production already serves Strict-Transport-Security: max-age=31536000
+# from a non-repo (Netlify platform/UI) source. We match that value here rather
+# than the audit's cautious 86400 — a lower value would DOWNGRADE live HSTS if
+# netlify.toml overrides the platform header. No preload / no includeSubDomains,
+# matching what is currently live, so deploy cannot weaken transport security.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy-Report-Only = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://pzfujbjtayhkdlxiblwe.supabase.co https://server.arcgisonline.com https://img.youtube.com; connect-src 'self' https://pzfujbjtayhkdlxiblwe.supabase.co wss://pzfujbjtayhkdlxiblwe.supabase.co https://radar.weather.gov; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; upgrade-insecure-requests"
+    Strict-Transport-Security = "max-age=31536000"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), geolocation=(self), microphone=(), payment=(), usb=()"
