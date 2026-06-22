@@ -599,7 +599,12 @@ export default function WebformsAdminView({
                 >
                   <span style={{color: 'var(--ink-muted)'}}>Live URL:</span>
                   <strong style={{color: '#085041'}}>wcfplanner.com/dailys</strong>
-                  <a href="/dailys" target="_blank" style={{color: '#085041', fontSize: 11, marginLeft: 'auto'}}>
+                  <a
+                    href="/dailys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{color: '#085041', fontSize: 11, marginLeft: 'auto'}}
+                  >
                     Open form →
                   </a>
                 </div>
@@ -1260,6 +1265,7 @@ export default function WebformsAdminView({
                           <a
                             href={liveHref}
                             target="_blank"
+                            rel="noopener noreferrer"
                             style={{fontSize: 11, color: 'var(--info)', display: 'block', marginTop: 4}}
                           >
                             {liveLabel}
