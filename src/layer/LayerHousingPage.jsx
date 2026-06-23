@@ -332,6 +332,15 @@ export default function LayerHousingPage({
   const hs = hStatsMap[housing.id] || {};
   const displayCount = computeHousingDisplayCount(housing, rawLayerDailys);
   const proj = computeProjectedCount(housing, rawLayerDailys);
+  // Headline farm count = mortality-adjusted projected hens. computeProjectedCount
+  // already falls back to the latest positive daily count when current_count is a
+  // stale/empty 0, so an active housing (e.g. Eggmobile 3) never surfaces a bare
+  // "Physical: 0" as the meaningful live count. A retired housing with an
+  // intentional newer zero keeps anchor/projected 0 (handled in the helper).
+  const liveHens = proj ? proj.projected : null;
+  const liveHensLow = !!(proj && proj.anchor > 0 && proj.projected < proj.anchor * 0.9);
+  const anchorFromFallback = !!(proj && proj.anchor > 0 && !(housing.current_count > 0));
+  const showAnchorCtx = !!(proj && proj.anchorDate && (proj.mortSince > 0 || anchorFromFallback));
   const cap = getHousingCap(housing.housing_name);
   const util = displayCount && cap ? Math.round((displayCount / cap) * 100) : null;
   const isActive = housing.status === 'active';
@@ -391,35 +400,28 @@ export default function LayerHousingPage({
             style={{display: 'flex', gap: 16, fontSize: 12, color: 'var(--ink)', flexWrap: 'wrap', marginBottom: 10}}
           >
             <span>
-              Physical:{' '}
-              <strong style={{color: 'var(--ink)'}}>
-                {housing.current_count != null ? housing.current_count : '—'}
-              </strong>
-              {housing.current_count_date ? (
-                <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>
-                  {' on ' + fmt(housing.current_count_date)}
-                </span>
-              ) : null}
+              Live hens:{' '}
+              {liveHens == null ? (
+                <strong style={{color: 'var(--ink)'}}>—</strong>
+              ) : liveHensLow ? (
+                <StatusText tone="danger">{liveHens}</StatusText>
+              ) : (
+                <strong style={{color: 'var(--text-primary)'}}>{liveHens}</strong>
+              )}
             </span>
-            {proj && proj.anchorDate && proj.mortSince > 0 && (
+            {showAnchorCtx && (
               <span
+                style={{color: 'var(--ink-muted)'}}
                 title={
-                  'Anchor ' +
+                  'Physical anchor ' +
                   proj.anchor +
-                  ' on ' +
-                  fmt(proj.anchorDate) +
-                  ' minus ' +
-                  proj.mortSince +
-                  ' mortalities since'
+                  (proj.anchorDate ? ' on ' + fmt(proj.anchorDate) : '') +
+                  (proj.mortSince > 0 ? ', minus ' + proj.mortSince + ' mortalities since' : '')
                 }
               >
-                Projected:{' '}
-                {proj.projected < proj.anchor * 0.9 ? (
-                  <StatusText tone="danger">{proj.projected}</StatusText>
-                ) : (
-                  <strong style={{color: 'var(--text-primary)'}}>{proj.projected}</strong>
-                )}
-                <span style={{color: 'var(--ink-faint)', fontWeight: 400}}>{' (−' + proj.mortSince + ')'}</span>
+                anchor <strong style={{color: 'var(--ink)'}}>{proj.anchor}</strong>
+                {proj.mortSince > 0 ? ' (−' + proj.mortSince + ')' : ''}
+                {proj.anchorDate ? ' · ' + fmt(proj.anchorDate) : ''}
               </span>
             )}
             <span>

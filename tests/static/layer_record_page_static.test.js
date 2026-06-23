@@ -350,3 +350,22 @@ describe('Layer cold-boot readiness required metric reads', () => {
     expect(housingPage).toMatch(/<RecordPageLoadError[\s\S]*onRetry=\{loadAll\}/);
   });
 });
+
+describe('Eggmobile 3 / layer housing live-count display (Build Queue item 10)', () => {
+  // Defect: an active housing whose current_count is a stale/empty 0 (e.g. Eggmobile 3
+  // in L-25-01) must not present "Physical: 0" as the meaningful farm count. Both record
+  // surfaces drive the headline hen figure from computeProjectedCount, which falls back to
+  // the latest positive daily count as the anchor and subtracts mortalities since.
+  for (const [name, src] of [
+    ['LayerBatchPage', batchPage],
+    ['LayerHousingPage', housingPage],
+  ]) {
+    it(`${name} surfaces a Live hens figure from computeProjectedCount, not a bare Physical current_count`, () => {
+      expect(src, name).toContain('Live hens:');
+      expect(src, name).toMatch(/const proj = computeProjectedCount/);
+      expect(src, name).toMatch(/liveHens\s*=\s*proj\s*\?\s*proj\.projected/);
+      // the old misleading "Physical: <raw current_count>" headline is gone
+      expect(src, `${name} still renders a bare Physical: current_count headline`).not.toMatch(/Physical:\{' '\}/);
+    });
+  }
+});
