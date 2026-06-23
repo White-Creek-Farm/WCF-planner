@@ -68,4 +68,13 @@ describe('clientErrorsApi + ClientErrorsView', () => {
     expect(viewSrc).toContain("'data-client-errors-retry': 'true'");
     expect(viewSrc).toMatch(/catch \(e\)[\s\S]*?else \{[\s\S]*?setRows\(\[\]\);[\s\S]*?setLoadError\(/);
   });
+  it('renders captured error fields INERTLY — never as raw HTML (stored-XSS guard)', () => {
+    // record_client_error accepts fully client-supplied message/stack/route, so
+    // the admin review surface must render them as escaped React text children,
+    // never via dangerouslySetInnerHTML / innerHTML.
+    expect(viewSrc).not.toMatch(/dangerouslySetInnerHTML/);
+    expect(viewSrc).not.toMatch(/\.innerHTML\b/);
+    // The message cell is a plain React text child (auto-escaped).
+    expect(viewSrc).toMatch(/cellStyle[\s\S]*?\}\s*,\s*r\.message\)/);
+  });
 });
