@@ -12,7 +12,7 @@ import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {area as turfArea} from '@turf/area';
-import {polygonMetrics, ringPerimeterM, SQM_PER_ACRE} from '../lib/pastureGeometry.js';
+import {lineMetrics, polygonMetrics, ringPerimeterM, SQM_PER_ACRE} from '../lib/pastureGeometry.js';
 
 const WCF_CENTER = [30.84175647927683, -86.43686683451689];
 const ESRI_IMAGERY_URL =
@@ -201,12 +201,13 @@ function styleForArea(a, selected, occupant, boundaryFilter) {
 
   next = applyBoundaryVisibility(a, next, boundaryFilter);
 
+  // Selection highlights the area's OWN boundary line (bright outline), not a
+  // bounding box and not a heavy fill - same idea as OnX Hunt.
   if (selected)
     next = {
       ...next,
-      color: '#0f1a14',
-      weight: 3.5,
-      fillOpacity: Math.max(next.fillOpacity || 0, 0.78),
+      color: '#fde047',
+      weight: 4.5,
       stroke: true,
     };
   return next;
@@ -369,7 +370,13 @@ export default function PastureMapCanvas({
       })
       .join('|');
 
-    (areas || []).forEach((a) => {
+    // Render biggest areas first (bottom) so smaller child paddocks sit ON TOP of
+    // their parent pasture and win the click: clicking inside a paddock selects
+    // the paddock; clicking the pasture where no paddock covers it selects the
+    // pasture. Draft lines (no acreage) sort last -> on top.
+    const areaSizeOf = (a) => Number(a.effective_acres ?? a.computed_acres ?? 0);
+    const ordered = [...(areas || [])].sort((a, b) => areaSizeOf(b) - areaSizeOf(a));
+    ordered.forEach((a) => {
       const g = areaGeom(a);
       if (!g) return;
       // Draft lines (GPS tracks / open lines) are hidden on the Map by default.
@@ -616,13 +623,13 @@ export default function PastureMapCanvas({
     const writeMode = mode === 'draw' || mode === 'edit';
     if (writeMode && !canWrite) return;
 
-    if (mode === 'draw' || mode === 'measure') {
+    if (mode === 'draw') {
       map.pm.enableDraw('Polygon', {snappable: true, snapDistance: 20, continueDrawing: false});
       map.on('pm:drawstart', ({workingLayer}) => {
         if (!workingLayer) return;
         const upd = () => {
           const m = liveMetricsFromLayer(workingLayer);
-          if (m) setHud({...m, live: true, mode});
+          if (m) setHud({...m, live: true, mode: 'draw'});
         };
         workingLayer.on('pm:vertexadded', upd);
         workingLayer.on('pm:change', upd);
@@ -631,27 +638,41 @@ export default function PastureMapCanvas({
         const layer = e.layer;
         const gj = layer.toGeoJSON().geometry;
         const metrics = polygonMetrics(gj);
-        if (mode === 'measure') {
-          clearTemp();
-          tempRef.current = layer;
-          if (layer.setStyle) layer.setStyle({color: '#2563eb', weight: 2, dashArray: '6,6', fillOpacity: 0.05});
-          setHud({...metrics, frozen: true, mode: 'measure'});
-          try {
-            map.pm.disableDraw();
-          } catch {
-            /* noop */
-          }
-        } else {
-          clearTemp();
-          tempRef.current = layer;
-          if (layer.setStyle) layer.setStyle({color: '#2f7a46', weight: 3, fillColor: '#3F9B5B', fillOpacity: 0.22});
-          setHud({...metrics, frozen: true, mode: 'draw'});
-          try {
-            map.pm.disableDraw();
-          } catch {
-            /* noop */
-          }
-          cbRef.current.onDrawComplete && cbRef.current.onDrawComplete(gj, metrics);
+        clearTemp();
+        tempRef.current = layer;
+        if (layer.setStyle) layer.setStyle({color: '#2f7a46', weight: 3, fillColor: '#3F9B5B', fillOpacity: 0.22});
+        setHud({...metrics, frozen: true, mode: 'draw'});
+        try {
+          map.pm.disableDraw();
+        } catch {
+          /* noop */
+        }
+        cbRef.current.onDrawComplete && cbRef.current.onDrawComplete(gj, metrics);
+      });
+    } else if (mode === 'measure') {
+      // Measure is a LINE / distance ruler (OnX-style), never an area shape.
+      map.pm.enableDraw('Line', {snappable: true, snapDistance: 20, continueDrawing: false});
+      map.on('pm:drawstart', ({workingLayer}) => {
+        if (!workingLayer) return;
+        const upd = () => {
+          const m = liveMetricsFromLayer(workingLayer);
+          if (m) setHud({distanceFt: m.perimeterFt, points: m.points, live: true, mode: 'measure', isLine: true});
+        };
+        workingLayer.on('pm:vertexadded', upd);
+        workingLayer.on('pm:change', upd);
+      });
+      map.on('pm:create', (e) => {
+        const layer = e.layer;
+        const gj = layer.toGeoJSON().geometry;
+        const m = lineMetrics(gj);
+        clearTemp();
+        tempRef.current = layer;
+        if (layer.setStyle) layer.setStyle({color: '#2563eb', weight: 3, dashArray: '6,6'});
+        setHud({distanceFt: m.distanceFt, points: m.points, frozen: true, mode: 'measure', isLine: true});
+        try {
+          map.pm.disableDraw();
+        } catch {
+          /* noop */
         }
       });
     } else if (mode === 'edit' && editAreaId) {
@@ -711,7 +732,7 @@ export default function PastureMapCanvas({
     setHud(null);
     if (modeRef.current === 'measure' && map.pm) {
       try {
-        map.pm.enableDraw('Polygon', {snappable: true, snapDistance: 20, continueDrawing: false});
+        map.pm.enableDraw('Line', {snappable: true, snapDistance: 20, continueDrawing: false});
       } catch {
         /* noop */
       }
@@ -741,14 +762,25 @@ export default function PastureMapCanvas({
       <div ref={elRef} className="pm-map" data-pasture-map-canvas="1" />
       {hud && (
         <div className="pm-hud" data-pasture-hud="1" data-hud-valid={hud.valid === false ? 'false' : 'true'}>
-          <div className="pm-hud-row">
-            <span className="pm-hud-k">Acres</span>
-            <span className="pm-hud-v">{hud.acres != null ? hud.acres.toLocaleString() : '-'}</span>
-          </div>
-          <div className="pm-hud-row">
-            <span className="pm-hud-k">Perimeter</span>
-            <span className="pm-hud-v">{hud.perimeterFt != null ? `${hud.perimeterFt.toLocaleString()} ft` : '-'}</span>
-          </div>
+          {hud.isLine ? (
+            <div className="pm-hud-row">
+              <span className="pm-hud-k">Distance</span>
+              <span className="pm-hud-v">{hud.distanceFt != null ? `${hud.distanceFt.toLocaleString()} ft` : '-'}</span>
+            </div>
+          ) : (
+            <>
+              <div className="pm-hud-row">
+                <span className="pm-hud-k">Acres</span>
+                <span className="pm-hud-v">{hud.acres != null ? hud.acres.toLocaleString() : '-'}</span>
+              </div>
+              <div className="pm-hud-row">
+                <span className="pm-hud-k">Perimeter</span>
+                <span className="pm-hud-v">
+                  {hud.perimeterFt != null ? `${hud.perimeterFt.toLocaleString()} ft` : '-'}
+                </span>
+              </div>
+            </>
+          )}
           {hud.selfIntersects && <div className="pm-hud-warn">Self-intersecting - fix before saving</div>}
           {hud.mode === 'measure' && (
             <div className="pm-hud-actions" data-pasture-measure-actions="1">

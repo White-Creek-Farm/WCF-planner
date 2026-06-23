@@ -184,3 +184,28 @@ export function computePlannerGroupRoster({
   const groups = sections.flatMap((s) => s.groups);
   return {groups, bySpecies: sections};
 }
+
+// Move destinations for a planner group, derived from the global destination set
+// (real grazing areas, already excluding draft tracks/lines). Feeder pigs live in
+// the permanent pig-pasture paddocks (kind='paddock', designation='feeder_pig'),
+// so prefer those whenever any exist; the parent ~5ac pig pastures are a grouping,
+// not a grazing cell. Graceful fallback: if no feeder-pig paddocks exist (e.g. a
+// dev/test fixture without them), return the full set so behavior doesn't dead-end.
+// All non-feeder groups (cattle/sheep/breeder pigs/boars) use the full set unchanged.
+export function destinationsForGroup(group, destinationAreas) {
+  const all = asArray(destinationAreas);
+  if (group && group.animalType === 'feeder_pigs') {
+    const paddocks = all.filter((a) => a && a.kind === 'paddock' && a.designation === 'feeder_pig');
+    if (paddocks.length) return paddocks;
+  }
+  return all;
+}
+
+// True when an area is a parent pig pasture that already has feeder-pig paddock
+// children. Such a pasture is a container, not a feeder-pig grazing destination.
+export function isPigPastureWithPaddocks(area, destinationAreas) {
+  if (!area || area.kind !== 'pasture') return false;
+  return asArray(destinationAreas).some(
+    (a) => a && a.kind === 'paddock' && a.designation === 'feeder_pig' && a.parent_id === area.id,
+  );
+}

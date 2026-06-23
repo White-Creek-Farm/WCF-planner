@@ -697,9 +697,20 @@
 }
 
 .pm-hud {
+  /* Top-CENTER so the measure/draw readout never collides with the left-side
+     stack (zoom control + BOUNDARIES filter panel) or the right-side controls. */
   top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   min-width: 150px;
   padding: 8px 11px;
+}
+
+/* Selecting an area highlights its own boundary line (see styleForArea); never
+   show the browser's SVG focus box / bounding rectangle around it. */
+.leaflet-interactive:focus,
+.pm-area-path:focus {
+  outline: none;
 }
 
 .pm-hud-row {

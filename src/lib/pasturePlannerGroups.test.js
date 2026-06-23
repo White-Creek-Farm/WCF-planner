@@ -1,5 +1,11 @@
 import {describe, expect, it} from 'vitest';
-import {computePlannerGroupRoster, deriveFeederShort, SPECIES_COLOR} from './pasturePlannerGroups.js';
+import {
+  computePlannerGroupRoster,
+  deriveFeederShort,
+  destinationsForGroup,
+  isPigPastureWithPaddocks,
+  SPECIES_COLOR,
+} from './pasturePlannerGroups.js';
 
 // Minimal builders that match the real row/record shapes the helper reads.
 const cow = (herd, extra = {}) => ({id: `c-${Math.random()}`, herd, ...extra});
@@ -138,5 +144,40 @@ describe('deriveFeederShort', () => {
   it('falls back to letters when no number is present', () => {
     expect(deriveFeederShort('Weaners')).toBe('WE');
     expect(deriveFeederShort('')).toBe('F');
+  });
+});
+
+describe('destinationsForGroup + isPigPastureWithPaddocks (feeder-pig destinations)', () => {
+  const pigPasture = {id: 'la-p4', kind: 'pasture', name: 'Pig Pasture #4', designation: 'feeder_pig'};
+  const padB3 = {id: 'la-pigpad-b3', kind: 'paddock', designation: 'feeder_pig', name: 'B-3', parent_id: 'la-p4'};
+  const padB4 = {id: 'la-pigpad-b4', kind: 'paddock', designation: 'feeder_pig', name: 'B-4', parent_id: 'la-p4'};
+  const cattlePasture = {id: 'la-cp', kind: 'pasture', name: 'North Pasture', designation: 'cattle'};
+  const tempPad = {id: 'la-tmp', kind: 'paddock', permanence: 'temporary', name: 'Temp West'};
+  const feeder = {id: 'pig-feeder-x', animalType: 'feeder_pigs', groupKey: 'x'};
+  const cattle = {id: 'cattle-mommas', animalType: 'cattle_herd', groupKey: 'mommas'};
+
+  const all = [pigPasture, padB3, padB4, cattlePasture, tempPad];
+
+  it('feeder-pig group prefers the feeder-pig paddocks only', () => {
+    const dests = destinationsForGroup(feeder, all);
+    expect(dests).toEqual([padB3, padB4]);
+    expect(dests).not.toContain(pigPasture); // parent pasture is not a feeder destination
+  });
+
+  it('feeder-pig group falls back to the full set when no feeder paddocks exist', () => {
+    const noPads = [pigPasture, cattlePasture, tempPad];
+    expect(destinationsForGroup(feeder, noPads)).toEqual(noPads);
+  });
+
+  it('non-feeder groups (cattle) use the full destination set unchanged', () => {
+    expect(destinationsForGroup(cattle, all)).toEqual(all);
+  });
+
+  it('isPigPastureWithPaddocks flags the parent pig pasture but not paddocks/other pastures', () => {
+    expect(isPigPastureWithPaddocks(pigPasture, all)).toBe(true);
+    expect(isPigPastureWithPaddocks(padB3, all)).toBe(false);
+    expect(isPigPastureWithPaddocks(cattlePasture, all)).toBe(false);
+    // graceful: a pig pasture with no paddock children is still placeable
+    expect(isPigPastureWithPaddocks(pigPasture, [pigPasture, cattlePasture])).toBe(false);
   });
 });

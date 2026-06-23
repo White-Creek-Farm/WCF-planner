@@ -53,7 +53,11 @@ import {
   retryPastureOperation,
   syncPastureQueue,
 } from '../lib/pastureOffline.js';
-import {computePlannerGroupRoster} from '../lib/pasturePlannerGroups.js';
+import {
+  computePlannerGroupRoster,
+  destinationsForGroup,
+  isPigPastureWithPaddocks,
+} from '../lib/pasturePlannerGroups.js';
 import {usePig} from '../contexts/PigContext.jsx';
 import {useCattleHome} from '../contexts/CattleHomeContext.jsx';
 import {useSheepHome} from '../contexts/SheepHomeContext.jsx';
@@ -711,7 +715,11 @@ export default function PastureMapView({Header, authState}) {
       const ids = new Set(destinationAreas.map((area) => area.id));
       groups.forEach((group, index) => {
         const current = (next[group.id] || []).filter((id) => ids.has(id));
-        next[group.id] = current.length ? [...new Set(current)] : buildInitialRotation(group, destinationAreas, index);
+        // Feeder pigs seed from the permanent pig-pasture paddocks (prefer child
+        // paddocks over the parent pasture); other groups use the full set.
+        next[group.id] = current.length
+          ? [...new Set(current)]
+          : buildInitialRotation(group, destinationsForGroup(group, destinationAreas), index);
       });
       return next;
     });
@@ -1352,9 +1360,17 @@ export default function PastureMapView({Header, authState}) {
 
   function appendToRotation(groupId, areaId) {
     if (!areaId) return;
+    const area = areaById.get(areaId);
     // Draft tracks / open lines are not valid grazing destinations.
-    if (isOutlineCandidateArea(areaById.get(areaId))) {
+    if (isOutlineCandidateArea(area)) {
       setErr('Tracks / open lines cannot be a move destination. Close it into a temp paddock first.');
+      return;
+    }
+    // Feeder pigs graze the individual pig-pasture paddocks, not the parent ~5ac
+    // pasture. When that pasture has paddock children, steer to a child paddock.
+    const group = groups.find((g) => g.id === groupId);
+    if (group && group.animalType === 'feeder_pigs' && isPigPastureWithPaddocks(area, destinationAreas)) {
+      setErr(`Feeder pigs go in a specific paddock inside ${area.name}, not the whole pasture. Tap a paddock cell.`);
       return;
     }
     setRotations((prev) => {

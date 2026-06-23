@@ -237,10 +237,11 @@ describe('CP2 API wrappers + draw/edit UI', () => {
   });
 
   it('keeps a completed draw visible while the save form is open', () => {
-    const createHandler = canvasSrc.match(/map\.on\('pm:create'[\s\S]*?cbRef\.current\.onDrawComplete/)?.[0] || '';
-    const drawBranch = createHandler.match(/} else \{[\s\S]*?cbRef\.current\.onDrawComplete/)?.[0] || '';
-    expect(drawBranch).toContain('tempRef.current = layer');
-    expect(drawBranch).not.toContain('map.removeLayer(layer)');
+    // Draw and measure now have separate pm:create handlers; the draw one is the
+    // one that calls onDrawComplete and keeps the layer (tempRef), not removing it.
+    const drawHandler = canvasSrc.match(/map\.on\('pm:create'[\s\S]*?cbRef\.current\.onDrawComplete/)?.[0] || '';
+    expect(drawHandler).toContain('tempRef.current = layer');
+    expect(drawHandler).not.toContain('map.removeLayer(layer)');
   });
 
   it('uses NO raw browser alert/confirm/prompt in the view or canvas', () => {
@@ -1033,11 +1034,11 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     expect(viewSrc).toContain(
       'trackLineAreas = React.useMemo(() => activeAreas.filter((area) => isOutlineCandidateArea',
     );
-    // Rotation seeding uses destinationAreas (real grazing areas only). The Land
-    // areas list (which also sliced destinationAreas) was removed from Map.
-    expect(viewSrc).toContain('buildInitialRotation(group, destinationAreas, index)');
+    // Rotation seeding uses the group's destinations (feeder pigs prefer the
+    // permanent pig-pasture paddocks; others use the full real-grazing-area set).
+    expect(viewSrc).toContain('buildInitialRotation(group, destinationsForGroup(group, destinationAreas), index)');
     // appendToRotation refuses a draft line as a destination.
-    expect(viewSrc).toContain('isOutlineCandidateArea(areaById.get(areaId))');
+    expect(viewSrc).toContain('isOutlineCandidateArea(area)');
     // Manual move (in the Plan Area inspector) excludes draft lines.
     expect(viewSrc).toContain('!isOutlineCandidateArea(selectedArea)');
   });
@@ -1211,5 +1212,29 @@ describe('Tool lifecycle hardening (Measure P0, exits, archived recovery)', () =
     expect(viewSrc).toContain('data-pasture-archived');
     expect(viewSrc).toContain('data-pasture-archived-restore');
     expect(viewSrc).toMatch(/archivedAreas = React\.useMemo\([\s\S]*?status === 'retired'/);
+  });
+});
+
+describe('Feeder-pig destinations prefer the permanent pig-pasture paddocks', () => {
+  it('view derives group destinations via destinationsForGroup and guards the parent pasture', () => {
+    // Helper is imported from the planner-groups lib and used for rotation seeding.
+    expect(viewSrc).toContain('destinationsForGroup');
+    expect(viewSrc).toContain('buildInitialRotation(group, destinationsForGroup(group, destinationAreas), index)');
+    // Add-from-map steers a feeder-pig group off the parent ~5ac pasture to a paddock.
+    expect(viewSrc).toContain('isPigPastureWithPaddocks(area, destinationAreas)');
+    expect(viewSrc).toMatch(/animalType === 'feeder_pigs'/);
+  });
+
+  it('helpers exist in the planner-groups lib (feeder filter + parent guard)', () => {
+    const planner = read('src/lib/pasturePlannerGroups.js');
+    expect(planner).toContain('export function destinationsForGroup');
+    expect(planner).toContain("designation === 'feeder_pig'");
+    expect(planner).toContain('export function isPigPastureWithPaddocks');
+  });
+
+  it('the Map canvas still renders every area (parent pig pastures are NOT removed)', () => {
+    // Areas are sorted for click order but none are filtered out by kind.
+    expect(canvasSrc).toContain('ordered.forEach');
+    expect(canvasSrc).not.toMatch(/areas\.filter\([^)]*kind !== 'pasture'/);
   });
 });
