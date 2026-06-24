@@ -296,6 +296,37 @@ describe('V1 reset — Field stateful GPS location (CP-D)', () => {
   });
 });
 
+describe('V1 reset — review patch fixes (PR #31)', () => {
+  it('1) Field temp paddock draw form is allowed for farm_team/light (canCreateTrack); permanent stays manager-only', () => {
+    expect(viewSrc).toContain('if (!isManager && !(drawIsTemp && canCreateTrack)) return null;');
+  });
+
+  it('2) offline draw replays a temp paddock via create_temp_area, permanent via create_area', () => {
+    expect(viewSrc).toContain("op: 'create_temp_area'");
+    expect(viewSrc).toContain("op: 'create_area'");
+    // the temp branch keys off drawIsTemp (so a farm_team/light offline temp draw
+    // does not replay through the mgmt-only create_area).
+    expect(viewSrc).toMatch(/if \(drawIsTemp\)[\s\S]{0,200}op: 'create_temp_area'/);
+  });
+
+  it('3) migration 140 preserves manual rotation order with ORDER BY elem.ord', () => {
+    expect(mig140).toContain('jsonb_agg(elem.value ORDER BY elem.ord)');
+  });
+
+  it('4) offline imagery never reports a clean save on a partial/failed cache', () => {
+    // putCachedTile reports success/failure
+    expect(imagerySrc).toContain('return true');
+    expect(imagerySrc).toContain('return false');
+    // a tile counts only if BOTH the fetch and the cache write succeed
+    expect(imagerySrc).toContain('res.ok && (await putCachedTile(');
+    // partial when any tile failed; downloaded only when the cache is complete
+    expect(imagerySrc).toContain("state = 'partial'");
+    expect(imagerySrc).toContain("else state = 'downloaded'");
+    // the Field surfaces partial as a warning state
+    expect(viewSrc).toContain("s.state === 'partial'");
+  });
+});
+
 describe('V1 reset — basemaps + offline imagery (CP-F)', () => {
   it('basemap switcher offers satellite/topo/hybrid; offline imagery uses public-domain NAIP', () => {
     expect(canvasSrc).toContain('data-pasture-basemap');
@@ -309,7 +340,7 @@ describe('V1 reset — basemaps + offline imagery (CP-F)', () => {
     expect(imagerySrc).toContain('USGSNAIPImagery');
     expect(imagerySrc).toContain('function downloadFarmImagery');
     expect(imagerySrc).toContain('function getOfflineImageryStatus');
-    expect(imagerySrc).toContain("state: 'failed'");
+    expect(imagerySrc).toContain("state = 'failed'");
     expect(viewSrc).toContain('data-pasture-offline-imagery');
     expect(viewSrc).toContain('data-pasture-imagery-download');
     expect(viewSrc).toContain('function downloadImagery');

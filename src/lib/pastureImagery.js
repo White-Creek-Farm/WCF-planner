@@ -98,13 +98,16 @@ export async function getCachedTile(z, x, y) {
   }
 }
 
+// Returns true only if the tile was actually written, so the download cannot
+// claim a clean save when a cache write (e.g. quota) fails.
 async function putCachedTile(z, x, y, blob) {
   const db = dbPromise();
-  if (!db) return;
+  if (!db) return false;
   try {
     await (await db).put('tiles', blob, tileKey(z, x, y));
+    return true;
   } catch {
-    /* quota / unavailable: the download will report a partial/failed status */
+    return false;
   }
 }
 
@@ -154,23 +157,25 @@ export async function downloadFarmImagery(onProgress) {
   for (const t of tiles) {
     try {
       const res = await fetch(naipTileUrl(t.z, t.x, t.y), {mode: 'cors'});
-      if (!res.ok) {
-        failed += 1;
-      } else {
-        await putCachedTile(t.z, t.x, t.y, await res.blob());
+      // A tile counts as cached ONLY if BOTH the fetch and the cache write succeed.
+      if (res.ok && (await putCachedTile(t.z, t.x, t.y, await res.blob()))) {
         done += 1;
+      } else {
+        failed += 1;
       }
     } catch {
       failed += 1;
     }
     if (onProgress) onProgress({done, total});
   }
-  if (done === 0) {
-    const status = {state: 'failed', count: 0, total, savedAt: isoNow()};
-    writeStatus(status);
-    return status;
-  }
-  const status = {state: 'downloaded', count: done, total, failed, savedAt: isoNow()};
+  // Only a COMPLETE cache (every tile fetched AND written) reports a clean save.
+  // Any fetch/write failure surfaces 'partial' (warning) or 'failed' -- never a
+  // silent 'downloaded'.
+  let state;
+  if (done === 0) state = 'failed';
+  else if (failed > 0 || done < total) state = 'partial';
+  else state = 'downloaded';
+  const status = {state, count: done, total, failed, savedAt: isoNow()};
   writeStatus(status);
   return status;
 }

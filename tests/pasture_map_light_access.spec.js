@@ -98,6 +98,17 @@ async function hideMapOverlays(page) {
   });
 }
 
+async function panMap(page, dx, dy) {
+  const box = await page.locator('.pm-map').boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - dx, cy - dy, {steps: 6});
+  await page.mouse.up();
+  await page.waitForTimeout(160);
+}
+
 test.beforeAll(async () => {
   await ensureLightUser();
   await cleanAndSeedPastureTables();
@@ -139,4 +150,47 @@ test('light sees all four tabs and can record a move (mig 139), but gets no mana
   // Reports: light has read access to the grazing-days log (mig 139 report RPCs).
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-recent-moves]')).toContainText('Mommas', {timeout: 15_000});
+});
+
+test('light can draw + SAVE a Field temp paddock (drawIsTemp form is allowed for canCreateTrack)', async ({page}) => {
+  await page.setViewportSize({width: 1280, height: 900});
+  await loginAsLight(page);
+  await page.goto('/pasture-map', {timeout: 90_000});
+  await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
+
+  // Field "Draw paddock" -> custom drop-point mode (enabled because light has
+  // canCreateTrack).
+  await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
+  await page.locator('[data-pasture-field-draw]').click();
+  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
+
+  // Trace a rough square with center drops, panning the map between each.
+  await page.locator('[data-pasture-drop-point]').click();
+  await panMap(page, 90, 0);
+  await page.locator('[data-pasture-drop-point]').click();
+  await panMap(page, 0, 90);
+  await page.locator('[data-pasture-drop-point]').click();
+  await panMap(page, -90, 0);
+  await page.locator('[data-pasture-drop-point]').click();
+
+  // Save -> the temp paddock draw form now appears for a LIGHT user (the fix:
+  // renderDrawForm was manager-only and silently dropped the form).
+  await page.locator('[data-pasture-drop-save]').click();
+  await expect(page.locator('[data-pasture-drawform]')).toBeVisible({timeout: 10_000});
+  await expect(page.locator('[data-pasture-drawform-temp]')).toBeVisible();
+
+  const NAME = 'Light Field Temp ' + Date.now();
+  await page.locator('[data-pasture-drawform-name]').fill(NAME);
+  await page.locator('[data-pasture-drawform-save]').click();
+
+  // Form closes with no error, and a REAL temp paddock exists server-side
+  // (the light user's UI drove the create_temp_area RPC end to end).
+  await expect(page.locator('[data-pasture-drawform]')).toHaveCount(0, {timeout: 15_000});
+  await expect(page.locator('.pm-error')).toHaveCount(0);
+  const c = getTestAdminClient();
+  const {data, error} = await c.from('land_areas').select('id,name,kind,permanence').eq('name', NAME).limit(1);
+  expect(error).toBeFalsy();
+  expect(data && data.length).toBe(1);
+  expect(data[0].kind).toBe('paddock');
+  expect(data[0].permanence).toBe('temporary');
 });

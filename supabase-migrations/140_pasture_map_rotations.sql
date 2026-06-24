@@ -120,8 +120,10 @@ BEGIN
     RAISE 'PM_VALIDATION: area_ids must be a JSON array';
   END IF;
 
-  -- Re-build the array as a clean array of text ids (drops nulls, preserves order).
-  SELECT coalesce(jsonb_agg(elem.value), '[]'::jsonb)
+  -- Re-build the array as a clean array of text ids (drops nulls). The explicit
+  -- ORDER BY elem.ord is REQUIRED: jsonb_agg without an ORDER BY does not guarantee
+  -- input order, and the rotation path is a manually-ordered sequence of stops.
+  SELECT coalesce(jsonb_agg(elem.value ORDER BY elem.ord), '[]'::jsonb)
   INTO v_clean
   FROM jsonb_array_elements_text(p_area_ids) WITH ORDINALITY AS elem(value, ord)
   WHERE elem.value IS NOT NULL AND length(elem.value) > 0;

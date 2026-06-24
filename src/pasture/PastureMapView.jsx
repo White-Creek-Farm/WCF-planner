@@ -1214,19 +1214,21 @@ export default function PastureMapView({Header, authState}) {
   function renderOfflineImagery() {
     const s = imageryStatus || {state: 'missing'};
     const downloading = s.state === 'downloading';
-    const warn = s.state === 'missing' || s.state === 'stale' || s.state === 'failed';
+    const warn = s.state === 'missing' || s.state === 'stale' || s.state === 'failed' || s.state === 'partial';
     const label =
       s.state === 'downloaded'
         ? `Saved (${s.count || 0} tiles)`
-        : s.state === 'stale'
-          ? 'Saved imagery is stale'
-          : s.state === 'failed'
-            ? 'Download failed - retry'
-            : downloading
-              ? imageryProgress
-                ? `Downloading ${imageryProgress.done}/${imageryProgress.total || '?'}`
-                : 'Downloading...'
-              : 'No offline imagery yet';
+        : s.state === 'partial'
+          ? `Partial save (${s.count || 0}/${s.total || 0}) - retry`
+          : s.state === 'stale'
+            ? 'Saved imagery is stale'
+            : s.state === 'failed'
+              ? 'Download failed - retry'
+              : downloading
+                ? imageryProgress
+                  ? `Downloading ${imageryProgress.done}/${imageryProgress.total || '?'}`
+                  : 'Downloading...'
+                : 'No offline imagery yet';
     return (
       <div className="pm-card" data-pasture-offline-imagery="1">
         <div className="pm-card-head">
@@ -1243,7 +1245,11 @@ export default function PastureMapView({Header, authState}) {
           disabled={downloading}
           data-pasture-imagery-download="1"
         >
-          {downloading ? 'Downloading...' : s.state === 'downloaded' ? 'Re-download' : 'Download farm imagery'}
+          {downloading
+            ? 'Downloading...'
+            : s.state === 'downloaded' || s.state === 'partial'
+              ? 'Re-download'
+              : 'Download farm imagery'}
         </button>
       </div>
     );
@@ -1470,9 +1476,21 @@ export default function PastureMapView({Header, authState}) {
       if (drawIsTemp && activeGroup) appendToRotation(activeGroup.id, areaId);
     } catch (e) {
       if (classifyPastureOfflineError(e) === 'transient') {
-        await enqueuePastureOperation({id: areaId, op: 'create_area', payload: createPayload});
+        // A temp paddock must replay through create_temp_area (the farm_team-capable
+        // P0 RPC), NOT create_area (mgmt/admin) - otherwise a farm_team/light user's
+        // offline temp draw would fail on sync.
+        if (drawIsTemp) {
+          await enqueuePastureOperation({
+            id: areaId,
+            op: 'create_temp_area',
+            payload: {id: areaId, name: createPayload.name, polygon: createPayload.polygon, source: 'drawn'},
+          });
+        } else {
+          await enqueuePastureOperation({id: areaId, op: 'create_area', payload: createPayload});
+        }
         await refreshQueueState();
         setDrawForm(null);
+        setDrawIsTemp(false);
         setMapMode('select');
         setOfflineStatus('New paddock saved on this device and will sync when the connection returns.');
       } else setErr(e.message || 'Could not save the drawn area.');
@@ -1741,7 +1759,10 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function renderDrawForm() {
-    if (!isManager || !drawForm) return null;
+    if (!drawForm) return null;
+    // Temp paddock draw (Field/Plan) is available to farm_team/light (canCreateTrack);
+    // permanent draw/edit stays manager-only.
+    if (!isManager && !(drawIsTemp && canCreateTrack)) return null;
     return (
       <div className="pm-drawform" data-pasture-drawform="1">
         <div className="pm-drawform-row">

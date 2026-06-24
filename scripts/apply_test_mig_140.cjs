@@ -86,31 +86,43 @@ async function ensureLightUser() {
     process.exit(1);
   }
 
-  // upsert: light builds a 2-stop rotation for a smoke group identity.
+  // upsert: light builds a rotation whose stop order is deliberately NOT sorted, to
+  // prove jsonb_agg(... ORDER BY elem.ord) preserves the manual path order.
   const KEY = 'mommas-smoke-140';
+  const ORDER = ['rot-smoke-z', 'rot-smoke-a', 'rot-smoke-m', 'rot-smoke-b'];
   const {data: up, error: upErr} = await authed.rpc('upsert_pasture_rotation', {
     p_animal_type: 'cattle_herd',
     p_group_key: KEY,
-    p_area_ids: ['rot-smoke-a', 'rot-smoke-b'],
+    p_area_ids: ORDER,
   });
   if (upErr) {
     console.error('upsert_pasture_rotation failed:', upErr.message || upErr);
     process.exit(1);
   }
-  if (!up || !Array.isArray(up.area_ids) || up.area_ids.length !== 2) {
-    console.error('unexpected upsert response:', JSON.stringify(up));
+  if (!up || JSON.stringify(up.area_ids) !== JSON.stringify(ORDER)) {
+    console.error(
+      'upsert did not preserve order. expected',
+      JSON.stringify(ORDER),
+      'got',
+      JSON.stringify(up && up.area_ids),
+    );
     process.exit(1);
   }
 
-  // list: the rotation is visible.
+  // list: the rotation is visible AND its stop order round-trips EXACTLY.
   const {data: list1, error: listErr} = await authed.rpc('list_pasture_rotations', {});
   if (listErr) {
     console.error('list_pasture_rotations failed:', listErr.message || listErr);
     process.exit(1);
   }
   const found = (list1.rotations || []).find((r) => r.group_key === KEY && r.animal_type === 'cattle_herd');
-  if (!found || found.area_ids.length !== 2) {
-    console.error('rotation not found in list or wrong length:', JSON.stringify(list1.rotations));
+  if (!found || JSON.stringify(found.area_ids) !== JSON.stringify(ORDER)) {
+    console.error(
+      'list read-back lost order. expected',
+      JSON.stringify(ORDER),
+      'got',
+      JSON.stringify(found && found.area_ids),
+    );
     process.exit(1);
   }
 
@@ -129,5 +141,5 @@ async function ensureLightUser() {
     process.exit(1);
   }
 
-  console.log('mig140 rotation smoke ok: light upsert -> list -> clear roundtrip');
+  console.log('mig140 rotation smoke ok: light upsert -> list -> clear roundtrip (manual order preserved)');
 })();
