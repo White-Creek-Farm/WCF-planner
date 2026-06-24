@@ -61,9 +61,11 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     # The root e2e (test:e2e:ci) excludes the pasture specs (playwright.config.js
-    # testIgnore), so verify stays inside 20 minutes for every PR. The pasture
-    # browser suite runs in the separate path-gated pasture-e2e job below.
-    timeout-minutes: 20
+    # testIgnore); they run in the path-gated pasture-e2e job below. Even so, the
+    # whole-repo e2e suite (serialized, workers=1, single shared DB) needs ~30 min:
+    # a run with pasture ALREADY excluded still hit the old 20-min wall (20m26s on
+    # 2026-06-24), so the budget is raised to 30 (measured — not 45).
+    timeout-minutes: 30
     env:
       # Preserves the assertTestDatabase guard. Tests refuse to run without this.
       WCF_TEST_DATABASE: '1'

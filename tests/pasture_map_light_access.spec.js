@@ -98,15 +98,23 @@ async function hideMapOverlays(page) {
   });
 }
 
-async function panMap(page, dx, dy) {
+// Build a stable, non-self-intersecting paddock WITHOUT drag physics. The Drop
+// point button seeds a vertex at the deterministic map centre (the bbox centre
+// falls in the empty gap between the two seeded paddocks); two tap-to-place corners
+// in the empty band ABOVE the paddocks -- clear of the crosshair and the bottom
+// draw bar -- complete a simple triangle. Fixed screen fractions => identical
+// geometry locally and in CI (the old drag-traced square self-intersected
+// intermittently under CI timing, leaving Save disabled).
+async function dropStableShape(page) {
   const box = await page.locator('.pm-map').boundingBox();
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  await page.mouse.move(cx, cy);
-  await page.mouse.down();
-  await page.mouse.move(cx - dx, cy - dy, {steps: 6});
-  await page.mouse.up();
-  await page.waitForTimeout(160);
+  const tap = async (fx, fy) => {
+    await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+    await page.waitForTimeout(140);
+  };
+  await page.locator('[data-pasture-drop-point]').click();
+  await tap(0.3, 0.22);
+  await tap(0.7, 0.22);
+  await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 10_000});
 }
 
 test.beforeAll(async () => {
@@ -164,14 +172,8 @@ test('light can draw + SAVE a Field temp paddock (drawIsTemp form is allowed for
   await page.locator('[data-pasture-field-draw]').click();
   await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
 
-  // Trace a rough square with center drops, panning the map between each.
-  await page.locator('[data-pasture-drop-point]').click();
-  await panMap(page, 90, 0);
-  await page.locator('[data-pasture-drop-point]').click();
-  await panMap(page, 0, 90);
-  await page.locator('[data-pasture-drop-point]').click();
-  await panMap(page, -90, 0);
-  await page.locator('[data-pasture-drop-point]').click();
+  // Build a stable temp paddock via deterministic tap-to-place (no drag physics).
+  await dropStableShape(page);
 
   // Save -> the temp paddock draw form now appears for a LIGHT user (the fix:
   // renderDrawForm was manager-only and silently dropped the form).
@@ -181,7 +183,11 @@ test('light can draw + SAVE a Field temp paddock (drawIsTemp form is allowed for
 
   const NAME = 'Light Field Temp ' + Date.now();
   await page.locator('[data-pasture-drawform-name]').fill(NAME);
-  await page.locator('[data-pasture-drawform-save]').click();
+  // Wait for Save to ENABLE (proves the polygon is valid / not self-intersecting)
+  // before clicking, instead of racing a disabled button.
+  const saveBtn = page.locator('[data-pasture-drawform-save]');
+  await expect(saveBtn).toBeEnabled({timeout: 10_000});
+  await saveBtn.click();
 
   // Form closes with no error, and a REAL temp paddock exists server-side
   // (the light user's UI drove the create_temp_area RPC end to end).

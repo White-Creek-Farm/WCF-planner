@@ -58,18 +58,24 @@ test('stateful My Location cycles off -> follow -> heading -> off and acquires a
   await expect(page.locator('.pm-gps-msg')).toHaveCount(0);
 });
 
-async function panMap(page, dx, dy) {
+// Build a stable, non-self-intersecting paddock WITHOUT drag physics: the Drop
+// point button seeds a vertex at the deterministic map centre, then two tap-to-place
+// corners complete a simple triangle. Fixed screen fractions => identical geometry
+// locally and in CI (the old drag-traced square self-intersected intermittently
+// under CI timing, leaving Save disabled).
+async function dropStableShape(page) {
   const box = await page.locator('.pm-map').boundingBox();
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  await page.mouse.move(cx, cy);
-  await page.mouse.down();
-  await page.mouse.move(cx - dx, cy - dy, {steps: 6});
-  await page.mouse.up();
-  await page.waitForTimeout(160);
+  const tap = async (fx, fy) => {
+    await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+    await page.waitForTimeout(140);
+  };
+  await page.locator('[data-pasture-drop-point]').click();
+  await tap(0.3, 0.22);
+  await tap(0.7, 0.22);
+  await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 10_000});
 }
 
-test('Drop Point builds a temp paddock in Field (center drops + Save)', async ({page}) => {
+test('Drop Point builds a temp paddock in Field (drop + tap-to-place + Save)', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
@@ -80,16 +86,9 @@ test('Drop Point builds a temp paddock in Field (center drops + Save)', async ({
   await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-drawbar]')).toBeVisible();
 
-  // Drop 4 points AT THE CROSSHAIR (the Drop point button), panning the map under
-  // it between each, to trace a rough square. The live area HUD proves the polygon.
-  await page.locator('[data-pasture-drop-point]').click();
-  await panMap(page, 90, 0);
-  await page.locator('[data-pasture-drop-point]').click();
-  await panMap(page, 0, 90);
-  await page.locator('[data-pasture-drop-point]').click();
-  await panMap(page, -90, 0);
-  await page.locator('[data-pasture-drop-point]').click();
-  await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 10_000});
+  // Drop point (centre) + tap-to-place corners build a stable, non-self-intersecting
+  // shape (deterministic screen points; no drag physics). The live HUD proves it.
+  await dropStableShape(page);
 
   // Save finishes the shape -> the temp paddock draw form opens.
   await page.locator('[data-pasture-drop-save]').click();
