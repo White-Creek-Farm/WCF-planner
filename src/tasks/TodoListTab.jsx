@@ -50,7 +50,7 @@ const CHIP_BASE = {
   borderRadius: 999,
   border: '1px solid var(--border-strong)',
   background: 'white',
-  color: 'var(--ink-muted)',
+  color: '#000000',
   cursor: 'pointer',
   fontSize: 13,
   fontWeight: 600,
@@ -58,9 +58,9 @@ const CHIP_BASE = {
 };
 const CHIP_ACTIVE = {
   ...CHIP_BASE,
-  border: '1px solid var(--brand)',
-  background: 'white',
-  color: 'var(--brand)',
+  border: '1px solid #085041',
+  background: '#085041',
+  color: '#ffffff',
 };
 const SMALL_BTN = {
   padding: '6px 10px',
@@ -677,7 +677,7 @@ export default function TodoListTab({sb, authState}) {
             style={{
               ...(pendingOnly ? CHIP_ACTIVE : CHIP_BASE),
               ...(pendingOnly
-                ? {background: '#b45309', border: '1px solid #b45309'}
+                ? {background: '#b45309', border: '1px solid #b45309', color: '#ffffff'}
                 : {color: '#92400e', border: '1px solid #fde68a', background: '#fffbeb'}),
               marginLeft: 'auto',
             }}

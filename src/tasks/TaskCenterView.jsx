@@ -95,7 +95,7 @@ const MODE_BTN_BASE = {
   borderRadius: 10,
   border: 'none',
   background: 'transparent',
-  color: 'var(--ink)',
+  color: '#000000',
   cursor: 'pointer',
   fontSize: 15,
   fontWeight: 700,
@@ -104,8 +104,8 @@ const MODE_BTN_BASE = {
 };
 const MODE_BTN_ACTIVE = {
   ...MODE_BTN_BASE,
-  background: 'white',
-  color: 'var(--brand)',
+  background: '#085041',
+  color: '#ffffff',
 };
 
 function TasksModeToggle({mode, onChange}) {
