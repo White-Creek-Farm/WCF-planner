@@ -199,6 +199,9 @@ interface SystemEvent {
   rule_id: string;
   due_date: string;
   source_event_key: string;
+  // Human-readable batch/group name appended to the task title so a system
+  // task is identifiable on its own (e.g. "Broiler 4-week weigh-in - B-26-04").
+  entity_label: string;
 }
 
 const SYSTEM_APP_STORE_KEYS = ['ppp-v4', 'ppp-feeders-v1', 'ppp-breeding-v1', 'ppp-farrowing-v1'];
@@ -290,6 +293,8 @@ function collectBroilerEvents(rule: SystemRule, batches: Array<Record<string, un
     const hatchDate = broilerHatchDate(batch);
     if (!hatchDate) continue;
     const batchKey = sourceKeyPart(batch.name, batch.batchName, batch.id);
+    // Display batch name for the task title (e.g. "B-26-04").
+    const entityLabel = stringField(batch, 'name') || stringField(batch, 'batchName') || stringField(batch, 'id');
     let dueDate: string | null = null;
     let sourcePrefix = 'broiler';
 
@@ -305,7 +310,12 @@ function collectBroilerEvents(rule: SystemRule, batches: Array<Record<string, un
     }
 
     if (!dueDate) continue;
-    const event = {rule_id: rule.id, due_date: dueDate, source_event_key: `${sourcePrefix}-${batchKey}`};
+    const event = {
+      rule_id: rule.id,
+      due_date: dueDate,
+      source_event_key: `${sourcePrefix}-${batchKey}`,
+      entity_label: entityLabel,
+    };
     if (shouldQueueSystemEvent(rule, event, today)) out.push(event);
   }
   return out;
@@ -365,7 +375,17 @@ function collectPigEvents(
         target === group
           ? sourceKeyPart(group.batchName, group.id, cycleId)
           : sourceKeyPart(target.name, target.id, group.batchName, group.id, cycleId);
-      const event = {rule_id: rule.id, due_date: dueDate, source_event_key: `pig-${targetKey}`};
+      // Display batch/sub-batch name for the task title (e.g. "P-26-01-A").
+      const entityLabel =
+        target === group
+          ? stringField(group, 'batchName') || stringField(group, 'id')
+          : stringField(target, 'name') || stringField(group, 'batchName') || stringField(group, 'id');
+      const event = {
+        rule_id: rule.id,
+        due_date: dueDate,
+        source_event_key: `pig-${targetKey}`,
+        entity_label: entityLabel,
+      };
       if (shouldQueueSystemEvent(rule, event, today)) out.push(event);
     }
   }
@@ -446,6 +466,7 @@ async function generateSystemTaskInstances(
       p_rule_id: event.rule_id,
       p_due_date: event.due_date,
       p_source_event_key: event.source_event_key,
+      p_entity_label: event.entity_label,
     });
     if (rpcErr) {
       throw new Error(

@@ -21,11 +21,13 @@ describe('tasks-cron system generation', () => {
     expect(cron).toMatch(/from\('app_store'\)[\s\S]*?\.in\('key', SYSTEM_APP_STORE_KEYS\)/);
   });
 
-  it('calls the existing SECURITY DEFINER RPC with rule, due date, and source event key', () => {
+  it('calls the existing SECURITY DEFINER RPC with rule, due date, source event key, and entity label', () => {
     expect(cron).toMatch(/rpc\('generate_system_task_instance', \{/);
     expect(cron).toMatch(/p_rule_id: event\.rule_id/);
     expect(cron).toMatch(/p_due_date: event\.due_date/);
     expect(cron).toMatch(/p_source_event_key: event\.source_event_key/);
+    // Batch/group name passed so the generated title is identifiable on its own.
+    expect(cron).toMatch(/p_entity_label: event\.entity_label/);
   });
 
   it('treats lead_time_days as the generation horizon while preserving the farm event due date', () => {
