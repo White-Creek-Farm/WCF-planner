@@ -208,7 +208,7 @@
 .pm-map-label {
   padding: 1px 6px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 7px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.86);
   color: var(--pm-text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
@@ -341,7 +341,7 @@
   width: 12px;
   height: 12px;
   flex: none;
-  border-radius: 4px;
+  border-radius: 4px; /* radius-allow: 12px status dot/swatch stays a rounded square */
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -393,7 +393,7 @@
 }
 .pm-occ-name {
   background: rgba(255, 255, 255, 0.92);
-  border-radius: 7px;
+  border-radius: 10px;
   padding: 1px 6px;
   font-weight: 700;
   font-size: 10.5px;
@@ -622,7 +622,7 @@
   height: 28px;
   margin-left: 8px;
   border: 1px solid var(--pm-border-strong);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: var(--pm-text);
   cursor: pointer;
@@ -786,7 +786,7 @@
 .pm-editbar,
 .pm-track-panel {
   border: 1px solid var(--pm-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--pm-surface);
   box-shadow: 0 1px 2px rgba(20, 30, 40, 0.045);
 }
@@ -816,7 +816,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--pm-border);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   margin-top: 12px;
 }
@@ -880,7 +880,7 @@
 
 .pm-btn {
   border: 1px solid var(--pm-border-strong);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: var(--pm-text);
   cursor: pointer;
@@ -947,7 +947,7 @@
 .pm-area-row.is-selected {
   margin: 0 -8px;
   padding: 9px 8px;
-  border-radius: 8px;
+  border-radius: 10px;
   outline: 2px solid var(--pm-brand);
 }
 
@@ -1187,7 +1187,7 @@
 
 .pm-same-day {
   border: 1px solid #ead59c;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f8f0da;
   color: #765817;
   padding: 8px 10px;
@@ -1202,7 +1202,7 @@
 
 .pm-use-facts span {
   border: 1px solid var(--pm-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f8fafc;
   color: #334155;
   padding: 7px 8px;
@@ -1278,7 +1278,7 @@
 .pm-pattern,
 .pm-segment button {
   border: 1px solid var(--pm-border-strong);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: var(--pm-text);
   cursor: pointer;
@@ -1328,7 +1328,7 @@
   width: 100%;
   min-width: 0;
   border: 1px solid var(--pm-border-strong);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: var(--pm-text);
   padding: 8px 10px;
@@ -1463,7 +1463,7 @@
   background: #fcf7e8;
   color: #8a6a1e;
   border: 1px dashed #c7920a;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 3px 8px;
   font-weight: 700;
   font-size: 11px;
@@ -1475,7 +1475,7 @@
   gap: 6px;
   background: #fbe7e3;
   border: 1px solid #c0452f;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 6px 8px;
   font-size: 11.5px;
   color: #7c3023;
@@ -1928,7 +1928,7 @@
 .pm-import-wide {
   width: 100%;
   margin-top: 10px;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   padding: 10px;
   font-weight: 850;
@@ -1985,7 +1985,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f8f9fa;
 }
 
@@ -2035,7 +2035,7 @@
 .pm-tool-btn {
   min-height: 68px;
   border: 1px solid var(--pm-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: var(--pm-text);
   cursor: pointer;
@@ -2184,7 +2184,7 @@
 .pm-report-card {
   overflow: hidden;
   border: 1px solid var(--pm-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   margin-bottom: 10px;
 }
@@ -2209,7 +2209,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f1f3f4;
   color: var(--pm-muted);
   font-weight: 850;
@@ -2244,7 +2244,7 @@
 
 .pm-report-metrics span {
   border: 1px solid var(--pm-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f8fafc;
   padding: 7px 8px;
   color: #334155;
@@ -2254,7 +2254,7 @@
 
 .pm-empty {
   border: 1px dashed var(--pm-border-strong);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 20px 14px;
   color: var(--pm-muted);
   text-align: center;
