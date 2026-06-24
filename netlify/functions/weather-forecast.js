@@ -2,11 +2,12 @@
 // Open-Meteo GFS/HRRR supplies structured current/hourly/daily fields.
 // Open-Meteo Archive supplies monthly precipitation history.
 
-const DEFAULT_LAT = '30.833938';
-const DEFAULT_LON = '-86.430030';
+const DEFAULT_LAT = '30.844206';
+const DEFAULT_LON = '-86.436543';
 const DEFAULT_LABEL = 'WCF';
 const TIMEZONE = 'America/Chicago';
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const PRECIP_HISTORY_YEARS = 10;
 
 export async function handler() {
   const lat = process.env.WCF_WEATHER_LAT || DEFAULT_LAT;
@@ -41,7 +42,7 @@ export async function handler() {
 async function fetchMonthlyPrecipHistory(lat, lon) {
   try {
     const currentYear = new Date().getFullYear();
-    const startDate = `${currentYear - 3}-01-01`;
+    const startDate = `${currentYear - (PRECIP_HISTORY_YEARS - 1)}-01-01`;
     const endDate = isoDaysAgo(1);
     const url =
       `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}` +
@@ -175,7 +176,7 @@ function normalize(raw, monthlyPrecip, loc) {
 }
 
 export function buildMonthlyPrecip(raw, currentYear = new Date().getFullYear()) {
-  const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  const years = Array.from({length: PRECIP_HISTORY_YEARS}, (_, idx) => currentYear - idx);
   const byYear = new Map(
     years.map((year) => [
       year,

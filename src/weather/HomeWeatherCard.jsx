@@ -29,6 +29,11 @@ function fmtStamp(iso) {
   return d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
 }
 
+function fmtFarmPoint(location) {
+  if (!location || location.lat == null || location.lon == null) return 'farm point';
+  return `${location.label || 'Farm'} ${Number(location.lat).toFixed(6)}, ${Number(location.lon).toFixed(6)}`;
+}
+
 function MonthlyPrecipTable({monthlyPrecip}) {
   const months = monthlyPrecip?.months || [];
   const rows = monthlyPrecip?.years || [];
@@ -85,7 +90,7 @@ export default function HomeWeatherCard() {
   if (loading) return null;
   if (!forecast) return null;
 
-  const {current, today, daily, monthlyPrecip, sources = {}} = forecast;
+  const {current, today, daily, monthlyPrecip, sources = {}, location} = forecast;
   if (!current || !today) return null;
 
   const radarUrl = officialRadarUrl(forecast);
@@ -169,7 +174,9 @@ export default function HomeWeatherCard() {
 
             <section className="wx-panel">
               <h2>Precip by Month</h2>
-              <div className="wx-source-line">Inches by month: 2026 to date plus the last 3 years</div>
+              <div className="wx-source-line">
+                Inches by month at {fmtFarmPoint(location)}: 2026 to date plus the last 9 years
+              </div>
               <MonthlyPrecipTable monthlyPrecip={monthlyPrecip} />
             </section>
 

@@ -54,6 +54,9 @@ describe('weather forecast proxy', () => {
   it('uses Open-Meteo forecast and archive data without a Tomorrow.io key gate', () => {
     expect(forecastFn).toContain('api.open-meteo.com/v1/gfs');
     expect(forecastFn).toContain('archive-api.open-meteo.com');
+    expect(forecastFn).toContain("const DEFAULT_LAT = '30.844206';");
+    expect(forecastFn).toContain("const DEFAULT_LON = '-86.436543';");
+    expect(forecastFn).toContain('const PRECIP_HISTORY_YEARS = 10;');
     expect(forecastFn).toContain('Open-Meteo GFS/HRRR');
     expect(forecastFn).toContain('National Weather Service');
     expect(forecastFn).not.toContain('fetchNwsAlerts');
@@ -115,6 +118,8 @@ describe('HomeWeatherCard component', () => {
     expect(cardSrc).toContain('officialRadarUrl');
     expect(cardSrc).toContain('Precip by Month');
     expect(cardSrc).toContain('data-weather-monthly-precip="1"');
+    expect(cardSrc).toContain('fmtFarmPoint(location)');
+    expect(cardSrc).toContain('last 9 years');
     expect(cardSrc).toContain('10-Day Forecast');
     expect(cardSrc).toContain('Updated');
   });

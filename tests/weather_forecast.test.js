@@ -58,24 +58,25 @@ describe('weather rain windows', () => {
 });
 
 describe('weather monthly precip history', () => {
-  it('summarizes 2026 and the previous 3 years by month in inches', () => {
+  it('summarizes 2026 and the previous 9 years by month in inches', () => {
     const monthly = buildMonthlyPrecip(
       {
         daily: {
-          time: ['2023-01-01', '2024-01-01', '2025-02-01', '2026-01-01', '2026-01-02', '2026-06-18'],
-          precipitation_sum: [1.1, 2.2, 3.3, 0.25, 0.75, 4],
+          time: ['2017-01-01', '2023-01-01', '2024-01-01', '2025-02-01', '2026-01-01', '2026-01-02', '2026-06-18'],
+          precipitation_sum: [0.8, 1.1, 2.2, 3.3, 0.25, 0.75, 4],
         },
       },
       2026,
     );
 
     expect(monthly.months).toHaveLength(12);
-    expect(monthly.years.map((row) => row.year)).toEqual([2026, 2025, 2024, 2023]);
+    expect(monthly.years.map((row) => row.year)).toEqual([2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017]);
     expect(monthly.years[0].values[0]).toBe(1);
     expect(monthly.years[0].values[5]).toBe(4);
     expect(monthly.years[0].total).toBe(5);
     expect(monthly.years[1].values[1]).toBe(3.3);
     expect(monthly.years[2].values[0]).toBe(2.2);
     expect(monthly.years[3].values[0]).toBe(1.1);
+    expect(monthly.years[9].values[0]).toBe(0.8);
   });
 });
