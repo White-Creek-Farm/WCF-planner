@@ -34,6 +34,7 @@ export const CATTLE_FILTER_DIMENSIONS = Object.freeze([
   'nonCalvingCows',
   'nonCalvingCutoffDate',
   'unmatchedCalves',
+  'accountingSnapshotMonth',
   'textSearch',
 ]);
 

@@ -25,6 +25,7 @@ export const SHEEP_FILTER_DIMENSIONS = Object.freeze([
   'weightRange',
   'breed',
   'origin',
+  'accountingSnapshotMonth',
   'textSearch',
 ]);
 

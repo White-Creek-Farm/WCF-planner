@@ -59,6 +59,12 @@ import {softDeleteCattleAnimal} from '../lib/cattleDeleteApi.js';
 import {deleteCattleCalvingRecord} from '../lib/cattleCalvingApi.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
+import {
+  accountingMonthEndISO,
+  accountingSnapshotMinMonth,
+  accountingSnapshotRows,
+  formatAccountingMonthEnd,
+} from '../lib/accountingMonthEndSnapshot.js';
 
 const CATTLE_EXCLUDE = ['herd', 'processing_batch_id'];
 const CATTLE_LABELS = {
@@ -299,6 +305,7 @@ const CattleHerdsHub = ({
   const [addingOrigin, setAddingOrigin] = useState(false);
   const [newOriginInput, setNewOriginInput] = useState('');
   const [processingBatches, setProcessingBatches] = useState([]);
+  const [cattleTransfers, setCattleTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -340,25 +347,28 @@ const CattleHerdsHub = ({
     setLoading(true);
     setLoadError(null);
     try {
-      const [cR, wAll, calR, brR, orR, pbR] = await Promise.all([
+      const [cR, wAll, calR, brR, orR, pbR, trR] = await Promise.all([
         sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
         loadCattleWeighInsCached(sb, {throwOnError: true}),
         sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
         sb.from('cattle_breeds').select('*').order('label'),
         sb.from('cattle_origins').select('*').order('label'),
         sb.from('cattle_processing_batches').select('id,name,actual_process_date,planned_process_date'),
+        sb.from('cattle_transfers').select('*').order('transferred_at', {ascending: false}),
       ]);
       if (cR.error) throw new Error('cattle: ' + (cR.error.message || cR.error));
       if (calR.error) throw new Error('cattle_calving_records: ' + (calR.error.message || calR.error));
       if (brR.error) throw new Error('cattle_breeds: ' + (brR.error.message || brR.error));
       if (orR.error) throw new Error('cattle_origins: ' + (orR.error.message || orR.error));
       if (pbR.error) throw new Error('cattle_processing_batches: ' + (pbR.error.message || pbR.error));
+      if (trR.error) throw new Error('cattle_transfers: ' + (trR.error.message || trR.error));
       setCattle(cR.data || []);
       setWeighIns(wAll || []);
       setCalvingRecs(calR.data || []);
       setBreedOpts(brR.data || []);
       setOriginOpts(orR.data || []);
       setProcessingBatches(pbR.data || []);
+      setCattleTransfers(trR.data || []);
     } catch (e) {
       setCattle([]);
       setWeighIns([]);
@@ -366,6 +376,7 @@ const CattleHerdsHub = ({
       setBreedOpts([]);
       setOriginOpts([]);
       setProcessingBatches([]);
+      setCattleTransfers([]);
       setLoadError({
         kind: 'error',
         message: 'Could not load cattle herds. Please retry. (' + ((e && e.message) || e) + ')',
@@ -421,6 +432,11 @@ const CattleHerdsHub = ({
     if (y > 0) return y + 'y ' + m + 'm';
     return m + 'm';
   }
+  function rowAge(row) {
+    return row?._accountingSnapshotEndDate
+      ? ageAtDate(row.birth_date, row._accountingSnapshotEndDate)
+      : age(row.birth_date);
+  }
   function processingInfo(cow) {
     if (!cow || cow.herd !== 'processed' || !cow.processing_batch_id) return null;
     const b = processingBatches.find((pb) => pb.id === cow.processing_batch_id);
@@ -447,6 +463,27 @@ const CattleHerdsHub = ({
     [originOpts, cattle],
   );
   const calvingEvidence = useMemo(() => buildCalvingEvidence(cattle, calvingRecs), [cattle, calvingRecs]);
+  const accountingSnapshotMonth = filters.accountingSnapshotMonth || '';
+  const accountingSnapshotEndDate = accountingMonthEndISO(accountingSnapshotMonth);
+  const accountingSnapshotLabel = accountingSnapshotEndDate ? formatAccountingMonthEnd(accountingSnapshotMonth) : '';
+  const accountingSnapshotMinValue = useMemo(() => accountingSnapshotMinMonth(Date.now()), []);
+  const cattleForFilters = useMemo(
+    () =>
+      accountingSnapshotEndDate
+        ? accountingSnapshotRows(
+            cattle,
+            cattleTransfers,
+            {
+              groupField: 'herd',
+              transferEntityIdField: 'cattle_id',
+              transferFromField: 'from_herd',
+              activeGroups: CATTLE_HERD_KEYS,
+            },
+            accountingSnapshotMonth,
+          )
+        : cattle,
+    [cattle, cattleTransfers, accountingSnapshotEndDate, accountingSnapshotMonth],
+  );
 
   const filtered = useMemo(() => {
     const effectiveFilters = {...filters};
@@ -461,8 +498,8 @@ const CattleHerdsHub = ({
       weighIns,
       staleDaysThreshold: STALE_WEIGHT_DAYS_DEFAULT,
     });
-    return cattle.filter(predicate);
-  }, [cattle, filters, calvingEvidence, weighIns]);
+    return cattleForFilters.filter(predicate);
+  }, [cattleForFilters, filters, calvingEvidence, weighIns]);
 
   const sortedFlat = useMemo(() => {
     const cmp = buildCattleComparator(sortRules, {
@@ -476,13 +513,22 @@ const CattleHerdsHub = ({
 
   function cattleHerdExportColumns() {
     const female = (cow) => cow.sex === 'cow' || cow.sex === 'heifer';
-    return [
+    const columns = [
+      ...(accountingSnapshotEndDate
+        ? [
+            {header: 'Snapshot date', value: (c) => c._accountingSnapshotEndDate || accountingSnapshotEndDate},
+            {
+              header: 'Current herd',
+              value: (c) => HERD_LABELS[c._accountingSnapshotOriginalGroup] || c._accountingSnapshotOriginalGroup || '',
+            },
+          ]
+        : []),
       {header: 'Tag', value: (c) => c.tag || ''},
       {header: 'Herd', value: (c) => HERD_LABELS[c.herd] || c.herd || ''},
       {header: 'Sex', value: (c) => c.sex || ''},
       {header: 'Breed', value: (c) => c.breed || ''},
       {header: 'Origin', value: (c) => c.origin || ''},
-      {header: 'Age', value: (c) => age(c.birth_date) || ''},
+      {header: 'Age', value: (c) => rowAge(c) || ''},
       {header: 'Birth date', value: (c) => c.birth_date || ''},
       {header: 'Last weight lbs', value: (c) => lastWeight(c) ?? ''},
       {header: 'Last weighed', value: (c) => lastWeightEntryFor(c, weighIns)?.entered_at || ''},
@@ -501,6 +547,7 @@ const CattleHerdsHub = ({
       {header: 'Death reason', value: (c) => c.death_reason || ''},
       {header: 'Record ID', value: (c) => c.id || ''},
     ];
+    return columns;
   }
 
   function handleExportCsv() {
@@ -513,7 +560,9 @@ const CattleHerdsHub = ({
     const columns = cattleHerdExportColumns();
     const ok = printRows({
       title: 'Cattle Herds',
-      subtitle: sortedFlat.length + ' filtered cattle',
+      subtitle: accountingSnapshotLabel
+        ? sortedFlat.length + ' active cattle at ' + accountingSnapshotLabel
+        : sortedFlat.length + ' filtered cattle',
       columns,
       rows: sortedFlat,
     });
@@ -1279,7 +1328,7 @@ const CattleHerdsHub = ({
         key: 'age',
         label: 'Age',
         align: 'right',
-        render: (c) => <StatusText tone="muted">{age(c.birth_date) || '—'}</StatusText>,
+        render: (c) => <StatusText tone="muted">{rowAge(c) || '—'}</StatusText>,
       },
       {key: 'birthDate', label: 'Birth Date', align: 'right', render: (c) => dateCell(c.birth_date)},
       {
@@ -1694,6 +1743,36 @@ const CattleHerdsHub = ({
                   placeholder="Search by tag, dam, sire, breed, origin..."
                   style={{...inpS, flex: 1, minWidth: 200}}
                 />
+                <label
+                  data-cattle-accounting-snapshot-filter="1"
+                  style={{
+                    display: 'inline-flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    minWidth: 164,
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <span style={lbl}>Accounting snapshot</span>
+                  <input
+                    type="month"
+                    min={accountingSnapshotMinValue}
+                    value={accountingSnapshotMonth}
+                    onChange={(e) => setFilter('accountingSnapshotMonth', e.target.value)}
+                    data-cattle-accounting-snapshot-month="1"
+                    style={{...inpS, padding: '6px 10px'}}
+                  />
+                </label>
+                {accountingSnapshotMonth && (
+                  <button
+                    type="button"
+                    data-cattle-accounting-snapshot-clear="1"
+                    onClick={() => clearFilter('accountingSnapshotMonth')}
+                    style={{...chipBaseS, alignSelf: 'flex-end'}}
+                  >
+                    Clear snapshot
+                  </button>
+                )}
                 <button
                   type="button"
                   data-cattle-herds-saved-views-toggle="1"
@@ -1919,6 +1998,7 @@ const CattleHerdsHub = ({
 
               <div style={{fontSize: 11, color: 'var(--ink-muted)'}} data-cattle-match-count>
                 {sortedFlat.length} {sortedFlat.length === 1 ? 'match' : 'cattle match'}
+                {accountingSnapshotLabel && ' - active at ' + accountingSnapshotLabel}
                 {filterCount > 0 && ' · ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
                 {sortRules.length > 0 && ' · ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
               </div>

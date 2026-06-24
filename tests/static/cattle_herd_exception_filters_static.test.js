@@ -207,7 +207,9 @@ describe('Cattle herd print export', () => {
     expect(herdsView).toContain('function handlePrintRows');
     expect(herdsView).toContain('data-cattle-herds-print="1"');
     expect(herdsView).toContain("title: 'Cattle Herds'");
-    expect(herdsView).toContain("subtitle: sortedFlat.length + ' filtered cattle'");
+    expect(herdsView).toContain('subtitle: accountingSnapshotLabel');
+    expect(herdsView).toContain("sortedFlat.length + ' active cattle at ' + accountingSnapshotLabel");
+    expect(herdsView).toContain("sortedFlat.length + ' filtered cattle'");
     expect(herdsView).toContain('rows: sortedFlat');
     expect(herdsView).not.toContain('rows: cattle');
   });

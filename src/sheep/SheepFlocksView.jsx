@@ -41,6 +41,12 @@ import {loadSheepWeighInsCached} from '../lib/sheepCache.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
 import {
+  accountingMonthEndISO,
+  accountingSnapshotMinMonth,
+  accountingSnapshotRows,
+  formatAccountingMonthEnd,
+} from '../lib/accountingMonthEndSnapshot.js';
+import {
   SHEEP_FLOCK_KEYS,
   SHEEP_OUTCOME_KEYS,
   SHEEP_ALL_FLOCK_KEYS,
@@ -194,6 +200,7 @@ const SheepFlocksHub = ({
   const {useState, useEffect, useMemo} = React;
   const navigate = useNavigate();
   const [sheep, setSheep] = useState([]);
+  const [sheepTransfers, setSheepTransfers] = useState([]);
   const [weighIns, setWeighIns] = useState([]);
   const [lambingRecs, setLambingRecs] = useState([]);
   const [notice, setNotice] = useState(null);
@@ -267,24 +274,28 @@ const SheepFlocksHub = ({
     setLoading(true);
     setLoadError(null);
     try {
-      const [sR, wAll, lR, brR, orR] = await Promise.all([
+      const [sR, wAll, lR, brR, orR, trR] = await Promise.all([
         sb.from('sheep').select('*').is('deleted_at', null).order('tag'),
         loadSheepWeighInsCached(sb, {throwOnError: true}),
         sb.from('sheep_lambing_records').select('*').order('lambing_date', {ascending: false}),
         sb.from('sheep_breeds').select('*').order('label'),
         sb.from('sheep_origins').select('*').order('label'),
+        sb.from('sheep_transfers').select('*').order('transferred_at', {ascending: false}),
       ]);
       if (sR.error) throw new Error('sheep: ' + (sR.error.message || sR.error));
       if (lR.error) throw new Error('sheep_lambing_records: ' + (lR.error.message || lR.error));
       if (brR.error) throw new Error('sheep_breeds: ' + (brR.error.message || brR.error));
       if (orR.error) throw new Error('sheep_origins: ' + (orR.error.message || orR.error));
+      if (trR.error) throw new Error('sheep_transfers: ' + (trR.error.message || trR.error));
       setSheep(sR.data || []);
+      setSheepTransfers(trR.data || []);
       setWeighIns(wAll || []);
       setLambingRecs(lR.data || []);
       setBreedOpts(brR.data || []);
       setOriginOpts(orR.data || []);
     } catch (e) {
       setSheep([]);
+      setSheepTransfers([]);
       setWeighIns([]);
       setLambingRecs([]);
       setBreedOpts([]);
@@ -329,6 +340,22 @@ const SheepFlocksHub = ({
     if (y > 0) return y + 'y ' + m + 'm';
     return m + 'm';
   }
+  function ageAtDate(birth, endDate) {
+    if (!birth || !endDate) return null;
+    const days = Math.floor(
+      (new Date(endDate + 'T12:00:00Z').getTime() - new Date(birth + 'T12:00:00Z').getTime()) / 86400000,
+    );
+    if (days < 0) return null;
+    const y = Math.floor(days / 365);
+    const m = Math.floor((days % 365) / 30);
+    if (y > 0) return y + 'y ' + m + 'm';
+    return m + 'm';
+  }
+  function rowAge(row) {
+    return row?._accountingSnapshotEndDate
+      ? ageAtDate(row.birth_date, row._accountingSnapshotEndDate)
+      : age(row.birth_date);
+  }
   function lastWeight(s) {
     return lastWeightFor(s, weighIns);
   }
@@ -351,6 +378,27 @@ const SheepFlocksHub = ({
     [originOpts, sheep],
   );
   const lambingEvidence = useMemo(() => buildLambingEvidence(sheep, lambingRecs), [sheep, lambingRecs]);
+  const accountingSnapshotMonth = filters.accountingSnapshotMonth || '';
+  const accountingSnapshotEndDate = accountingMonthEndISO(accountingSnapshotMonth);
+  const accountingSnapshotLabel = accountingSnapshotEndDate ? formatAccountingMonthEnd(accountingSnapshotMonth) : '';
+  const accountingSnapshotMinValue = useMemo(() => accountingSnapshotMinMonth(Date.now()), []);
+  const sheepForFilters = useMemo(
+    () =>
+      accountingSnapshotEndDate
+        ? accountingSnapshotRows(
+            sheep,
+            sheepTransfers,
+            {
+              groupField: 'flock',
+              transferEntityIdField: 'sheep_id',
+              transferFromField: 'from_flock',
+              activeGroups: SHEEP_FLOCK_KEYS,
+            },
+            accountingSnapshotMonth,
+          )
+        : sheep,
+    [sheep, sheepTransfers, accountingSnapshotEndDate, accountingSnapshotMonth],
+  );
 
   const filtered = useMemo(() => {
     const effectiveFilters = {...filters};
@@ -364,8 +412,8 @@ const SheepFlocksHub = ({
       lambingRows: lambingEvidence,
       weighIns,
     });
-    return sheep.filter(predicate);
-  }, [sheep, filters, lambingEvidence, weighIns]);
+    return sheepForFilters.filter(predicate);
+  }, [sheepForFilters, filters, lambingEvidence, weighIns]);
 
   const sorted = useMemo(() => {
     const cmp = buildSheepComparator(sortRules, {
@@ -475,13 +523,23 @@ const SheepFlocksHub = ({
   }
   function sheepFlocksExportColumns() {
     const female = (row) => row.sex === 'ewe';
-    return [
+    const columns = [
+      ...(accountingSnapshotEndDate
+        ? [
+            {header: 'Snapshot date', value: (s) => s._accountingSnapshotEndDate || accountingSnapshotEndDate},
+            {
+              header: 'Current flock',
+              value: (s) =>
+                FLOCK_LABELS[s._accountingSnapshotOriginalGroup] || s._accountingSnapshotOriginalGroup || '',
+            },
+          ]
+        : []),
       {header: 'Tag', value: (s) => s.tag || ''},
       {header: 'Flock', value: (s) => FLOCK_LABELS[s.flock] || s.flock || ''},
       {header: 'Sex', value: (s) => s.sex || ''},
       {header: 'Breed', value: (s) => s.breed || ''},
       {header: 'Origin', value: (s) => s.origin || ''},
-      {header: 'Age', value: (s) => age(s.birth_date) || ''},
+      {header: 'Age', value: (s) => rowAge(s) || ''},
       {header: 'Birth date', value: (s) => s.birth_date || ''},
       {header: 'Last weight lbs', value: (s) => lastWeight(s) ?? ''},
       {header: 'Last weighed', value: (s) => lastWeightEntry(s)?.entered_at || ''},
@@ -502,6 +560,7 @@ const SheepFlocksHub = ({
       {header: 'Death reason', value: (s) => s.death_reason || ''},
       {header: 'Record ID', value: (s) => s.id || ''},
     ];
+    return columns;
   }
 
   function handleExportCsv() {
@@ -514,7 +573,9 @@ const SheepFlocksHub = ({
     const columns = sheepFlocksExportColumns();
     const ok = printRows({
       title: 'Sheep Flocks',
-      subtitle: sorted.length + ' filtered sheep',
+      subtitle: accountingSnapshotLabel
+        ? sorted.length + ' active sheep at ' + accountingSnapshotLabel
+        : sorted.length + ' filtered sheep',
       columns,
       rows: sorted,
     });
@@ -1044,7 +1105,7 @@ const SheepFlocksHub = ({
     {key: 'sex', label: 'Sex', render: (s) => s.sex || '—'},
     {key: 'breed', label: 'Breed', mobilePriority: false, render: (s) => s.breed || '—'},
     {key: 'origin', label: 'Origin', render: (s) => colText(s.origin)},
-    {key: 'age', label: 'Age', render: (s) => age(s.birth_date) || '—'},
+    {key: 'age', label: 'Age', render: (s) => rowAge(s) || '—'},
     {key: 'birthDate', label: 'Birth Date', align: 'right', render: (s) => colDate(s.birth_date)},
     {key: 'lastWeight', label: 'Last Weight', align: 'right', render: renderSheepWeight},
     {
@@ -1337,6 +1398,36 @@ const SheepFlocksHub = ({
                   placeholder="Search tag, dam, sire, breed, origin..."
                   style={{...inpS, flex: 1, minWidth: 200}}
                 />
+                <label
+                  data-sheep-accounting-snapshot-filter="1"
+                  style={{
+                    display: 'inline-flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    minWidth: 164,
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <span style={lbl}>Accounting snapshot</span>
+                  <input
+                    type="month"
+                    min={accountingSnapshotMinValue}
+                    value={accountingSnapshotMonth}
+                    onChange={(e) => setFilter('accountingSnapshotMonth', e.target.value)}
+                    data-sheep-accounting-snapshot-month="1"
+                    style={{...inpS, padding: '6px 10px'}}
+                  />
+                </label>
+                {accountingSnapshotMonth && (
+                  <button
+                    type="button"
+                    data-sheep-accounting-snapshot-clear="1"
+                    onClick={() => clearFilter('accountingSnapshotMonth')}
+                    style={{...chipBaseS, alignSelf: 'flex-end'}}
+                  >
+                    Clear snapshot
+                  </button>
+                )}
                 <button
                   type="button"
                   data-sheep-flocks-saved-views-toggle="1"
@@ -1599,6 +1690,7 @@ const SheepFlocksHub = ({
               {openToolPanel === 'sort' && <div style={toolPanelS}>{sortBar()}</div>}
               <div style={{fontSize: 12, color: 'var(--ink-muted)'}}>
                 Showing {sorted.length} of {sheep.length} sheep
+                {accountingSnapshotLabel && ' - active at ' + accountingSnapshotLabel}
                 {filterCount > 0 && ' - ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
                 {sortRules.length > 0 && ' - ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
               </div>

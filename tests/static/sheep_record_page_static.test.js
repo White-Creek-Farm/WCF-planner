@@ -208,7 +208,9 @@ describe('SheepFlocksView - print export', () => {
     expect(flocksView).toContain('function handlePrintRows');
     expect(flocksView).toContain('data-sheep-flocks-print="1"');
     expect(flocksView).toContain("title: 'Sheep Flocks'");
-    expect(flocksView).toContain("subtitle: sorted.length + ' filtered sheep'");
+    expect(flocksView).toContain('subtitle: accountingSnapshotLabel');
+    expect(flocksView).toContain("sorted.length + ' active sheep at ' + accountingSnapshotLabel");
+    expect(flocksView).toContain("sorted.length + ' filtered sheep'");
     expect(flocksView).toContain('rows: sorted');
     expect(flocksView).not.toContain('rows: sheep');
   });
