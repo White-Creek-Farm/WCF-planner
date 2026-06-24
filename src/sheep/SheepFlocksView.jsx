@@ -1400,22 +1400,41 @@ const SheepFlocksHub = ({
                 />
                 <label
                   data-sheep-accounting-snapshot-filter="1"
+                  title="Accounting snapshot month"
                   style={{
                     display: 'inline-flex',
-                    flexDirection: 'column',
-                    gap: 3,
-                    minWidth: 164,
-                    flex: '0 0 auto',
+                    alignItems: 'center',
+                    gap: 8,
+                    height: 36,
+                    minWidth: 210,
+                    flex: '0 1 240px',
+                    padding: '0 10px',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 10,
+                    background: 'white',
+                    boxSizing: 'border-box',
                   }}
                 >
-                  <span style={lbl}>Accounting snapshot</span>
+                  <span style={{fontSize: 11, color: 'var(--ink-muted)', fontWeight: 700, whiteSpace: 'nowrap'}}>
+                    Snapshot
+                  </span>
                   <input
                     type="month"
+                    aria-label="Accounting snapshot month"
                     min={accountingSnapshotMinValue}
                     value={accountingSnapshotMonth}
                     onChange={(e) => setFilter('accountingSnapshotMonth', e.target.value)}
                     data-sheep-accounting-snapshot-month="1"
-                    style={{...inpS, padding: '6px 10px'}}
+                    style={{
+                      flex: '1 1 128px',
+                      minWidth: 126,
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      color: 'var(--ink)',
+                      fontSize: 12,
+                      fontFamily: 'inherit',
+                    }}
                   />
                 </label>
                 {accountingSnapshotMonth && (
@@ -1423,7 +1442,7 @@ const SheepFlocksHub = ({
                     type="button"
                     data-sheep-accounting-snapshot-clear="1"
                     onClick={() => clearFilter('accountingSnapshotMonth')}
-                    style={{...chipBaseS, alignSelf: 'flex-end'}}
+                    style={chipBaseS}
                   >
                     Clear snapshot
                   </button>
