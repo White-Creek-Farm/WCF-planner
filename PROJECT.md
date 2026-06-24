@@ -7,13 +7,12 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-20.
-Current runtime code checkpoint: `bd19cc0`
-(`feat(pasture): add side-panel inspectors and light read-only map`).
-Current docs checkpoint: this 2026-06-20 wrap, committed on top of `bd19cc0`.
+Last updated: 2026-06-24.
+Current runtime code checkpoint: `c1cd81a`
+(`Fix pasture radius floor guard`).
+Current docs checkpoint: this 2026-06-24 wrap.
 Production URL: https://wcfplanner.com.
-Netlify auto-deploys from GitHub `main`. This docs wrap verified git state, not
-the final Netlify bundle id for the 2026-06-20 push.
+Netlify auto-deploys from GitHub `main`.
 
 ---
 
@@ -45,7 +44,7 @@ Rules for editing this file:
   If a contract is aspirational rather than true, move the work to Build Queue
   and state the current guard/inventory honestly.
 - Current State summarizes what is true now, including active local worktree risk
-  when it matters. Latest Shipped Checkpoint summarizes work merged to
+  when it matters. Recent Shipped Checkpoints summarize work merged to
   `origin/main`.
 - Inventory counts, migration state, test names, and owner lists must match the
   source/static guards at the time of edit. Prefer pointing to the guard as the
@@ -65,37 +64,41 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source: `main` now includes runtime code through `bd19cc0`
-  (`feat(pasture): add side-panel inspectors and light read-only map`) plus this
-  docs wrap commit. The 2026-06-20 push carries three pasture/light commits after
-  `a82d24b`: `7a9da4f` (move-ledger source of truth for current/next placement),
-  `3c0fe0a` (Light home report icons plus Pasture Map tile), and `bd19cc0`
-  (Phase 2 side-panel inspectors, roster occupancy reconcile, Light read-only
-  Map access, and migration `136`).
-- Local dirty work: no active code lane remains after the Phase 2 checkpoint.
-  Untracked local artifacts may still include pasture screenshot folders and
-  the pasture-map flowchart HTML/PDF/PNG; do not stage these unless Ronnie
-  explicitly asks.
-- Extra worktrees:
-  - `C:\Users\Ronni\WCF-planner` is the standing repo/worktree on current
-    `main`; it is the canonical place to inspect `origin/main` state.
-  - `C:\Users\Ronni\WCF-planner-pasture-map` is an old completed pasture review
-    worktree on `feature/pasture-map-planner-groups`; its tip is already
-    reachable from `origin/main`, it is behind current main, and it has
-    untracked review screenshots in `p2-shots/`. Treat it as review artifact
-    state, not an active build lane.
-  - `C:\Users\Ronni\WCF-planner-production-events-hotfix` and
-    `C:\Users\Ronni\WCF-planner-weather-rebuild` are completed Codex worktrees
-    whose tips are already reachable from `origin/main`.
-  - `C:\Users\Ronni\WCF-planner-task-record-pages-hotfix` is a completed Codex
-    worktree whose tip is already reachable from `origin/main`; it is not an
-    active lane unless Ronnie explicitly reopens it.
-- Open gates: no approved-but-unrun PROD migration, Edge Function deploy,
-  Storage/Vault, or data-repair gate is open as of this wrap. Migration `136`
-  is PROD-applied/verified; `tasks-cron` v3 is deployed/smoked; B-26-08 wk6 is
-  repaired in PROD.
+- Source: `main` is currently `c1cd81a` after the 2026-06-24 accounting
+  snapshot and CI-radius follow-ups. Latest `main` includes mobile app-shell
+  repair, weather farm-point 10-year precipitation, Daily Report task/To Do
+  copy and filled toggles, Eggmobile 3 layer display, security/dependency
+  hardening, Vite 8 / Vitest 4 / SheetJS 0.20.3 / Node 22, cattle/sheep
+  accounting month-end snapshots, and the pasture CSS radius-floor fix.
+- Active PRs / gates:
+  - PR #31 `feature/pasture-map-v1-reset` is rebased on `c1cd81a`,
+    merge-clean, and locally validated. It introduces migrations `139`-`141`.
+    Merge/deploy should wait for PROD migration apply.
+  - PR #32 `feature/system-task-batch-names` is rebased on `c1cd81a` and
+    locally validated. It introduces migration `142` plus a `tasks-cron` Edge
+    Function deploy. Merge/deploy should wait for PROD migration apply and the
+    function deploy.
+  - This Codex shell currently has no `PROD_DB_URL` and no linked Supabase
+    project, so PROD `psql` applies for `139`-`142` and the `tasks-cron` deploy
+    are blocked on CC/Supabase access, not on code readiness.
+- Local worktree risk:
+  - The standing `C:\Users\Ronni\WCF-planner` worktree is stale/dirty and should
+    not be used for builds until synchronized or pruned.
+  - Old merged worktrees still exist and are candidates for pruning after their
+    branches are confirmed merged/reachable; untracked screenshot/debug folders
+    are disposable local artifacts unless Ronnie asks to keep them.
+- Open production gates:
+  - Apply `139_pasture_map_light_farm_team.sql`,
+    `140_pasture_map_rotations.sql`, and `141_pasture_map_measurements.sql` to
+    PROD with `psql --single-transaction -v ON_ERROR_STOP=1`, then reload
+    PostgREST and verify the new pasture RPC/table contracts.
+  - Apply `142_system_task_titles_include_entity_label.sql` to PROD after
+    `139`-`141`, verify the 4-arg `generate_system_task_instance` signature and
+    open-system-task backfill, then deploy `tasks-cron`.
+  - No Storage/Vault/data-repair gate is currently approved or pending.
 - PROD-applied recent migrations include `112` through `116`, `125`, `126`,
-  `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, `135`, and `136`. `116`
+  `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, `135`, `136`, `137`,
+  and `138`. `116`
   (Pasture Map CP1), `125` (Production legacy events), and `126` (breeding-pig
   Activity entity) were applied to PROD on 2026-06-15. `127` (Pasture Map
   draw/edit RPCs) was applied to PROD on 2026-06-16. Pasture Map `128`-`132`
@@ -107,7 +110,11 @@ Design/function invariants that govern cross-surface behavior live in
   PROD-applied and verified before the Pasture Map Plan-centric/tool-lifecycle
   wrap. Migration `136` (Light read-only Pasture Map read access) was applied to
   TEST by CC and applied to PROD by Codex on 2026-06-20 with `psql
-  --single-transaction`; PostgREST schema reload was notified.
+  --single-transaction`; PostgREST schema reload was notified. Migration `137`
+  (pasture feeder-pig paddock destinations) is in `main` and was applied before
+  the 2026-06-24 wrap. Migration `138` (Tier-1 anon write-boundary drop) is
+  PROD-applied and verified: zero `*_anon_*` policies remain on the targeted
+  write tables; five authenticated `*_auth_all` policies remain.
 - Production legacy import: `Processing Events - ALL.xlsx` parsed 69 rows,
   skipped 0, and upserted 69 rows into `production_legacy_events` on PROD by
   stable `source_key`.
@@ -122,29 +129,58 @@ Design/function invariants that govern cross-surface behavior live in
   classification queue, archived-area recovery, rotation/move planning, and
   area management. Measure is transient and clearable via Clear, Done, Escape,
   or tool switch.
-- Latest Pasture Map validation after `bd19cc0`: `npm run format:check` clean;
-  `npm run lint` 0 errors with 791 existing warnings; `npm run build` green;
-  `npm test -- tests/static/pasture_map_static.test.js tests/static/light_user_portal_static.test.js`
-  passed 142 tests; `npx playwright test --config=playwright.pasture.config.js`
-  passed 18 tests. PROD migration `136` verification confirmed only
-  `list_land_areas` and `list_pasture_moves` include the Light read gate; move,
-  planning, and report RPCs remain non-Light.
+- Latest Pasture Map V1 validation on PR #31 after rebase to `c1cd81a`:
+  `format:check` clean; `lint` 0 errors; `build` green; focused static tests
+  162 passed; `npx playwright test --config=playwright.pasture.config.js`
+  passed 31 tests. PROD migrations `139`-`141` are not yet applied.
 - Broiler derived-data drift lane is closed: merge `6b94d37` contains Codex
   `c639311` and CC#2 `6ff36c7`; code is deployed/verified; B-26-08 wk6 PROD
   repair was run through `recomputeBroilerBatchWeekAvg(sb, 'B-26-08', 6)` and
   verified cached `ppp-v4.week6Lbs=5.76` equals canonical 5.76 from 30 weights.
 - `tasks-cron` Edge Function v3 is active and smoked in PROD. It generates
   recurring tasks, system-task instances, and To Do approval/originator
-  notifications; the smoke created 6 catch-up instances, proved idempotency,
-  and left no rollback needed.
-- `npm install` was run in the main worktree after Pasture Map dependencies
-  landed. It reported npm audit findings (11 vulnerabilities: 1 low, 3
-  moderate, 6 high, 1 critical). No audit-fix lane has been scoped.
+  notifications. PR #32 prepares entity labels for generated system tasks, but
+  that version is not deployed until migration `142` is applied.
+- Dependency hardening is complete: Vite/Vitest/plugin-react majors were
+  upgraded, SheetJS is pinned to the patched 0.20.3 tarball, Node is pinned to
+  22 for Netlify, and `npm audit` is 0 on the hardened lockfile.
 
-### Latest Shipped Checkpoint
+### Recent Shipped Checkpoints
 
-The following work is merged to `main` and pushed. Netlify deploys from `main`;
-the current source checkpoint is listed in the header above.
+The following work is merged to `main` and pushed. Netlify deploys from `main`.
+The current source checkpoint is listed in the header above.
+
+- Accounting snapshot and CI-radius follow-ups (`1369c61`, `7a6ce37`,
+  `f6b103c`, `877b7b5`, `67051e6`, `c1cd81a`, pushed 2026-06-24):
+  - Cattle Herds and Sheep Flocks have accounting snapshot month pickers for
+    completed past month-ends only. Current month and future months are rejected
+    by both the picker and shared snapshot helper.
+  - Snapshot rows represent animals active on the final day of that month based
+    on purchase/birth/created date, sale/death/delete date, and transfer
+    history in farm-local Central time.
+  - On-screen Herd/Flock remains present-time current group; Snapshot
+    Herd/Flock shows month-end basis. CSV/print include both.
+  - Main CI radius-floor failure was closed by raising pasture UI radii to the
+    canonical floor and marking the tiny status swatch carve-out.
+- Daily Report / Task / To Do UI follow-ups (PRs #28-#30, pushed 2026-06-24):
+  - Daily report forms use filled selected Yes/No toggles with black default
+    text and white selected text.
+  - Daily report "Submit a Task or a To Do" copy is corrected.
+  - To Do List page controls use the same selected-toggle fill style.
+- Weather, mobile, layer, and CI fixes (PRs #23-#27, pushed 2026-06-23/24):
+  - Mobile app-shell load hotfix restored production mobile loading.
+  - Weather precipitation uses the farm map point and supports 10-year monthly
+    history.
+  - Eggmobile 3 / layer housing record pages show projected live hens from the
+    physical anchor and mortality history instead of a misleading raw zero.
+  - Six stale CI static guards were updated; remaining main unit blocker was
+    later closed by the pasture radius-floor fix.
+- Security/dependency closure (PRs #17-#22, pushed 2026-06-22/23):
+  - RLS migration `138` was applied to PROD and verified: anon write policies
+    removed from the targeted legacy write tables while authenticated policies
+    remain.
+  - Dependency hardening upgraded the Vite/Vitest toolchain, pinned patched
+    SheetJS 0.20.3, set Netlify Node 22, and reduced `npm audit` to 0.
 
 - Pasture Map Phase 1/2 reconciliation and Light read-only Map access
   (`7a9da4f`, `3c0fe0a`, `bd19cc0`, pushed 2026-06-20):
@@ -433,7 +469,31 @@ the current source checkpoint is listed in the header above.
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-1. Pasture Map open-line Edit fast-follow
+1. Pasture Map V1 reset release gate
+   - Class: `RELEASE`/`DB-GATE`.
+   - Scope: PR #31 is code-complete and locally validated. It rebuilds Pasture
+     Map V1 around read-only Map, group-first Plan, Field tools, saved
+     measurements, basemaps/offline NAIP cache, and pasture-only Light
+     farm-team-level permissions.
+   - Success criteria: apply PROD migrations `139` -> `140` -> `141`, reload
+     PostgREST, merge PR #31, verify Netlify production deploy, and smoke Map /
+     Plan / Field / Reports on live production.
+   - Gate: requires `PROD_DB_URL` / CC Supabase access for `psql
+     --single-transaction -v ON_ERROR_STOP=1`.
+
+2. System-generated task entity-label release gate
+   - Class: `RELEASE`/`DB-GATE`/`EDGE-FUNCTION`.
+   - Scope: PR #32 is code-complete and locally validated. It updates
+     `generate_system_task_instance` to append batch/group names to generated
+     task titles, backfills open system tasks, and updates `tasks-cron` to pass
+     the entity label.
+   - Success criteria: after Pasture Map migrations are applied, apply PROD
+     migration `142`, verify the 4-arg RPC signature and open-system-task
+     backfill, deploy `tasks-cron`, then merge PR #32.
+   - Gate: requires `PROD_DB_URL` / CC Supabase access and Supabase function
+     deploy access.
+
+3. Pasture Map open-line Edit fast-follow
    - Class: `ENH`/`DB-GATE`.
    - Scope: allow editing saved Tracks / Lines LineString geometry. Current
      polygon edit RPCs intentionally reject line geometry; open lines can be
@@ -447,45 +507,29 @@ This is the canonical home for outstanding build/design work.
    - Gate: TEST migration apply inside lane; explicit Ronnie PROD approval for
      the new migration and PostgREST schema reload. No manual PROD JSON edits.
 
-2. Pasture Map post-deploy smoke and live-review polish
+4. Pasture Map post-deploy smoke and live-review polish
    - Class: `VERIFY`/`ENH`.
-   - Scope: once Netlify serves the 2026-06-20 push, smoke the live UI: Setup
-     tab absent; Map has no centered modal or Land areas list; group hover
-     previews only; Light sees only Map and can load areas/current groups; Plan
-     owns Boundary tools, Tracks / Lines, classification, and Archived areas;
-     Measure Clear/Done/Escape works; Map remains clean with occupancy fills
-     and boundary toggles.
+   - Scope: after PR #31 is merged/deployed, smoke the live UI: Map is a clean
+     read-only snapshot with hover/tap popovers; Plan shows group-first manual
+     rotations and paths; Field supports temp paddocks, location heading, drop
+     point, walk tracking, saved measurements, KML import, basemaps, and offline
+     NAIP status; Light can use pasture-only farm-team-level pasture actions.
    - Success criteria: smoke result is recorded in chat/next handoff. Any
      follow-up tweaks are scoped as code-only lanes unless they require SQL/RPC/
      RLS/storage.
    - Gate: no PROD DB gate for smoke; code changes need normal commit/push
      approval.
 
-3. Eggmobile 3 / P2-2 layer display lane
-   - Class: `DEFECT`.
-   - Current known data point: Eggmobile 3 is part of `L-25-01`; the physical
-     anchor currently reads `current_count=0`, but the latest positive daily
-     count was 115 on 2026-04-10 and three mortalities after that imply a
-     projected 112 hens. The UI label "Physical: 0" is misleading if the
-     intended display is projected live birds.
-   - Scope: audit layer housing/current-count display only. Decide whether the
-     fix is display wording, projected-count calculation, stale classification,
-     or a one-time data correction. Do not fold this into broiler/pasture work.
-   - Success criteria: Eggmobile 3 clearly shows the right state for farm use,
-     and tests cover physical anchor vs projected count wording.
-   - Gate: code-only unless the scoped decision requires a PROD data correction,
-     which needs explicit approval.
-
-4. P3 derived-data durability/audit residuals
+5. P3 derived-data durability/audit residuals
    - Class: `DEFECT`/`ENH`.
    - Scope candidates from CC#2 audit: pig mortality/trips durability, cosmetic
      `calcPoultryStatus` cleanup, and orphan system-task detection/cleanup.
      These are not active lanes and should be scoped one at a time.
-   - Success criteria: each sub-lane states source of truth, write path,
-     read path, guard tests, and whether a one-time data repair is needed.
+   - Success criteria: each sub-lane states source of truth, write path, read
+     path, guard tests, and whether a one-time data repair is needed.
    - Gate: depends on sub-lane; data cleanup needs explicit PROD approval.
 
-5. Parity Residuals
+6. Parity Residuals
    - Class: `ENH`.
    - Known small follow-up from the parity rollout: Home quick-nav tiles need a
      narrow-phone fix because `.home .tile` is missing `min-width: 0`, which can
@@ -493,13 +537,6 @@ This is the canonical home for outstanding build/design work.
    - Scope each separately; do not reopen a full site-wide parity pass without a
      new audit.
    - Gate: code-only unless a touched surface needs a guard update.
-
-6. Dependency Audit Lane
-   - Class: `DEFECT`/`ENH`.
-   - Scope: review `npm audit` findings after the dependency install.
-   - Success criteria: identify direct vs transitive vulnerabilities, decide safe
-     upgrades, avoid breaking Vite/React/Supabase/Playwright toolchain.
-   - Gate: code/dependency lockfile push; no PROD DB work expected.
 
 7. Design-Law Compliance residual follow-ups
    - Class: `ENH`. The CP0 compliance pass (A1-A12 + Tabs + WI-6; the 2026-06-17
@@ -705,8 +742,10 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all applied migrations through `116`, plus
-`125`, `126`, `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, `135`, and
-`136`. Recent load-bearing migrations:
+`125`, `126`, `127`, `128`, `129`, `130`, `131`, `132`, `133`, `134`, `135`,
+`136`, `137`, and `138`. Migrations `139`, `140`, `141`, and `142` exist on
+open release branches and are not yet PROD-applied. Recent load-bearing
+migrations:
 
 - `100` processing batch lifecycle RPCs.
 - `101`-`104` audited delete RPCs and hardening.
@@ -801,6 +840,24 @@ Current PROD architecture includes all applied migrations through `116`, plus
   - PROD verification confirmed the two read RPCs contain the Light gate and
     `record_pasture_move`, planned-move, rest, stocking, and history RPCs do not
     contain Light.
+- `137` Pasture feeder-pig paddock destinations:
+  - Adds the feeder-pig paddock destination support used by the current
+    Pasture Map production code.
+  - PROD-applied before the 2026-06-24 wrap.
+- `138` Tier-1 RLS anon write-boundary hardening:
+  - Drops legacy anon/public write policies on targeted daily/weigh-in/comment
+    write tables while preserving authenticated `*_auth_all` policies.
+  - PROD-applied and verified: zero targeted `*_anon_*` policies remain; five
+    authenticated policies remain.
+- `139`-`141` Pasture Map V1 reset (PR #31, PROD pending):
+  - `139_pasture_map_light_farm_team.sql` widens pasture-only Light permissions
+    to the farm-team-level pasture RPC set. It does not widen Light outside
+    Pasture Map.
+  - `140_pasture_map_rotations.sql` adds server-backed manual rotation paths.
+  - `141_pasture_map_measurements.sql` adds saved distance-measurement layers.
+- `142` System task title entity labels (PR #32, PROD pending):
+  - Adds optional `p_entity_label` to `generate_system_task_instance`, backfills
+    open system task titles, and supports the corresponding `tasks-cron` deploy.
 
 Special migration notes:
 
@@ -1279,9 +1336,11 @@ Workflow/worktable entities:
   `ppp-v4.week6Lbs` is 5.76 and matches canonical 5.76 from 30 completed
   weigh-in weights.
 - Layer `current_count` is the physical anchor; projected count subtracts
-  mortalities since anchor. Eggmobile 3 / `L-25-01` has an open display lane:
-  "Physical: 0" is misleading when projected current hens are expected to be
-  112 from latest positive count/mortality history.
+  mortalities since anchor. Layer housing record surfaces now label the
+  displayed count as live hens and use the projected live count when the raw
+  physical anchor is stale/empty but daily-count history provides a valid
+  anchor; Eggmobile 3 / `L-25-01` displays 112 live hens from anchor 115 minus
+  three mortalities.
 - Feed math lives in `src/lib/feedPlanner.js` and `src/lib/feedOrderBasis.js`.
 - Feed-order recommendations use the latest active-month physical count when
   present; otherwise they fall back to previous-month estimate.
@@ -1308,6 +1367,10 @@ Workflow/worktable entities:
   system-task generation and To Do approval/originator notifications; the daily
   cron remains `tasks-cron-daily` at `0 4 * * *` UTC through
   `public.invoke_tasks_cron()`.
+- PR #32 prepares the next `tasks-cron`/RPC contract: system-generated task
+  titles include the batch/group entity label, and existing open system tasks
+  are backfilled by migration `142`. This is not the PROD contract until `142`
+  is applied and the Edge Function is deployed.
 - `task_instance_photos` is canonical. Legacy single-photo columns are display
   fallback only.
 - Task photos are capped at 5 total per task across creation and completion;
