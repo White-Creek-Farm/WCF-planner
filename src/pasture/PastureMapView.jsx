@@ -30,6 +30,13 @@ import {
   listPastureHistoryReport,
   listPastureRestReport,
   listPastureStockingReport,
+  listPastureRotations,
+  upsertPastureRotation,
+  clearPastureRotation,
+  listPastureMeasurements,
+  createPastureMeasurement,
+  deletePastureMeasurement,
+  newPastureMeasurementId,
   createTempLandArea,
   updateTempLandAreaGeometry,
   renameTempLandArea,
@@ -53,11 +60,8 @@ import {
   retryPastureOperation,
   syncPastureQueue,
 } from '../lib/pastureOffline.js';
-import {
-  computePlannerGroupRoster,
-  destinationsForGroup,
-  isPigPastureWithPaddocks,
-} from '../lib/pasturePlannerGroups.js';
+import {computePlannerGroupRoster, isPigPastureWithPaddocks} from '../lib/pasturePlannerGroups.js';
+import {getOfflineImageryStatus, downloadFarmImagery} from '../lib/pastureImagery.js';
 import {usePig} from '../contexts/PigContext.jsx';
 import {useCattleHome} from '../contexts/CattleHomeContext.jsx';
 import {useSheepHome} from '../contexts/SheepHomeContext.jsx';
@@ -260,7 +264,21 @@ function linePreviewStyle({lineColor, lineWeight, linePattern}) {
 }
 
 function initialTrackState() {
-  return {recording: false, points: [], lastAccuracyFt: null, error: '', startedAt: null};
+  return {
+    recording: false,
+    paused: false,
+    points: [],
+    lastAccuracyFt: null,
+    error: '',
+    startedAt: null,
+    activeSeconds: 0,
+  };
+}
+
+// Live recording duration as m:ss.
+function formatTrackDuration(sec) {
+  const s = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
 function trackGeometryFromPoints(points) {
@@ -359,12 +377,6 @@ function groupAnimalType(group) {
   return group.animalType || groupSpeciesStyle(group).animalType || 'cattle_herd';
 }
 
-function buildInitialRotation(group, areas, index) {
-  if (!areas.length) return [];
-  const span = Math.min(Math.max(areas.length, 1), group.species === 'pig' ? 3 : 5);
-  return Array.from({length: Math.min(span, areas.length)}, (_, i) => areas[(index + i) % areas.length].id);
-}
-
 function statusLabelForState(state) {
   if (state === 'occupied') return 'Occupied';
   if (state === 'resting') return 'Resting';
@@ -417,14 +429,20 @@ export default function PastureMapView({Header, authState}) {
   const role = authState && authState.role;
   const isManager = role === 'management' || role === 'admin';
   const isAdmin = role === 'admin';
-  const canRecordMoves = role === 'farm_team' || role === 'management' || role === 'admin';
-  const canCreateTrack = role === 'farm_team' || role === 'management' || role === 'admin';
-  // Light users get READ-ONLY, Map-only access: just view areas, current groups,
-  // and animal locations. Plan / Field / Reports workflows are hidden for Light,
-  // and every write path is role-gated below + server-side. Planning data
-  // (planned moves / reports / history) is not fetched for Light.
-  const isLight = role === 'light';
-  const canViewPlanning = !isLight;
+  // V1 reset: Light has farm_team-level pasture access (pasture-scoped ONLY;
+  // Light stays restricted in every other module). Migration 139 widens the same
+  // farm_team-level pasture RPCs to include 'light' — keep client + DB in lockstep.
+  const canRecordMoves = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light';
+  const canCreateTrack = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light';
+  const canViewPlanning = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light';
+  // Touch devices have no hover: on Map, desktop hovers an area for the readout
+  // and clicking does nothing; touch taps an area to open a read-only popover.
+  // Read once - hover capability is stable for a session.
+  const [isTouch] = React.useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(hover: none)').matches
+      : false,
+  );
 
   const [areas, setAreas] = React.useState([]);
   const [moves, setMoves] = React.useState([]);
@@ -450,6 +468,7 @@ export default function PastureMapView({Header, authState}) {
   const [previewAreaId, setPreviewAreaId] = React.useState(null);
   const [legendOpen, setLegendOpen] = React.useState(false);
   const [showRotationPath, setShowRotationPath] = React.useState(true);
+  const [nextStopOnly, setNextStopOnly] = React.useState(false);
   const [listView, setListView] = React.useState(false);
   const [addMode, setAddMode] = React.useState(false);
   const [expandedPasture, setExpandedPasture] = React.useState(null);
@@ -485,7 +504,11 @@ export default function PastureMapView({Header, authState}) {
   // the leading count back out). Rotation "day count / planned days" was a neutral
   // placeholder and is no longer shown; time-in-paddock comes from the move ledger.
   const groups = React.useMemo(() => roster.groups.map((g) => ({...g, size: `${g.count} ${g.unit}`})), [roster]);
-  const [rotations, setRotations] = React.useState({});
+  const [serverRotations, setServerRotations] = React.useState([]);
+  const [measurements, setMeasurements] = React.useState([]);
+  const [measureForm, setMeasureForm] = React.useState(null);
+  const [imageryStatus, setImageryStatus] = React.useState({state: 'missing'});
+  const [imageryProgress, setImageryProgress] = React.useState(null);
   const [activeGroupId, setActiveGroupId] = React.useState(null);
   const [online, setOnline] = React.useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [fieldLayersOpen, setFieldLayersOpen] = React.useState(false);
@@ -506,7 +529,7 @@ export default function PastureMapView({Header, authState}) {
       await syncPastureQueue();
       // Light is Map-only: fetch only the area + move data the Map needs, and skip
       // the planning/report RPCs (which Light is not granted and never displays).
-      const [areaRes, moveRes, planRes, restRes, stockingRes] = await Promise.all([
+      const [areaRes, moveRes, planRes, restRes, stockingRes, rotRes, measRes] = await Promise.all([
         listLandAreas(false),
         listPastureMoves(75),
         canViewPlanning
@@ -514,21 +537,27 @@ export default function PastureMapView({Header, authState}) {
           : Promise.resolve({planned_moves: []}),
         canViewPlanning ? listPastureRestReport() : Promise.resolve({areas: [], counts: {}}),
         canViewPlanning ? listPastureStockingReport() : Promise.resolve({areas: []}),
+        canViewPlanning ? listPastureRotations() : Promise.resolve({rotations: []}),
+        canViewPlanning ? listPastureMeasurements() : Promise.resolve({measurements: []}),
       ]);
       const nextAreas = (areaRes && areaRes.land_areas) || [];
       const nextMoves = (moveRes && moveRes.moves) || [];
       const nextPlans = (planRes && planRes.planned_moves) || [];
       const nextRest = restRes || {areas: [], counts: {}};
       const nextStocking = stockingRes || {areas: []};
+      const nextRotations = (rotRes && rotRes.rotations) || [];
       setAreas(nextAreas);
       setMoves(nextMoves);
       setPlans(nextPlans);
       setRestReport(nextRest);
       setStockingReport(nextStocking);
+      setServerRotations(nextRotations);
+      setMeasurements((measRes && measRes.measurements) || []);
       cachePastureSnapshot({
         areas: nextAreas,
         moves: nextMoves,
         plans: nextPlans,
+        rotations: nextRotations,
         restReport: nextRest,
         stockingReport: nextStocking,
       });
@@ -540,6 +569,7 @@ export default function PastureMapView({Header, authState}) {
         setAreas(cached.areas || []);
         setMoves(cached.moves || []);
         setPlans(cached.plans || []);
+        setServerRotations(cached.rotations || []);
         setRestReport(cached.restReport || {areas: [], counts: {}});
         setStockingReport(cached.stockingReport || {areas: []});
         setOfflineStatus(
@@ -559,6 +589,10 @@ export default function PastureMapView({Header, authState}) {
   React.useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    setImageryStatus(getOfflineImageryStatus());
   }, []);
 
   React.useEffect(() => {
@@ -601,6 +635,14 @@ export default function PastureMapView({Header, authState}) {
 
   React.useEffect(() => () => clearTrackWatch(), []);
 
+  // Live recording duration: tick activeSeconds each second while recording and
+  // not paused (so the duration freezes on Pause and resumes on Resume).
+  React.useEffect(() => {
+    if (!track.recording || track.paused) return undefined;
+    const id = setInterval(() => setTrack((t) => ({...t, activeSeconds: t.activeSeconds + 1})), 1000);
+    return () => clearInterval(id);
+  }, [track.recording, track.paused]);
+
   const activeAreas = React.useMemo(
     () => areas.filter((area) => area.status !== 'retired' && area.geometry_status !== 'deleted'),
     [areas],
@@ -627,6 +669,26 @@ export default function PastureMapView({Header, authState}) {
     [areas],
   );
   const areaById = React.useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
+  // Server-backed manual rotations: serverRotations is the raw {animal_type,
+  // group_key, area_ids} cache (mig 140); the per-group view is derived and pruned
+  // to areas that still exist (archived/deleted destinations drop out). Edits
+  // update serverRotations optimistically and persist via upsert/clear; no route
+  // is generated client-side.
+  const serverRotationByKey = React.useMemo(() => {
+    const m = new Map();
+    for (const r of serverRotations) {
+      m.set(`${r.animal_type}::${r.group_key}`, Array.isArray(r.area_ids) ? r.area_ids : []);
+    }
+    return m;
+  }, [serverRotations]);
+  const rotations = React.useMemo(() => {
+    const out = {};
+    for (const g of groups) {
+      const ids = serverRotationByKey.get(`${g.animalType}::${g.groupKey || g.id}`) || [];
+      out[g.id] = ids.filter((id) => areaById.has(id));
+    }
+    return out;
+  }, [groups, serverRotationByKey, areaById]);
   const activeGroup = groups.find((group) => group.id === activeGroupId) || groups[0] || null;
   const activeSpecies = groupSpeciesStyle(activeGroup);
   const activeRotation = ((activeGroup && rotations[activeGroup.id]) || []).filter((id) => areaById.has(id));
@@ -665,6 +727,31 @@ export default function PastureMapView({Header, authState}) {
     }
     return areaById.get(activeRotation[0]) || null;
   }, [activeCurrentInRotation, activeCurrentArea, activeRotation, areaById]);
+  // All groups' manual rotation paths for the Plan map: each carries its species
+  // color + short label so overlapping paths stay distinguishable, the active
+  // group is emphasized, and nextAreaId is the group's next planned stop (derived
+  // from actual placement, never index 0 blindly).
+  const rotationPaths = React.useMemo(() => {
+    const out = [];
+    for (const g of groups) {
+      const ids = rotations[g.id] || [];
+      if (!ids.length) continue;
+      const loc = groupLocation[g.id];
+      const currentId = loc && loc.areaId;
+      const inRot = currentId && ids.includes(currentId);
+      const nextAreaId = inRot ? ids[ids.indexOf(currentId) + 1] || ids[0] : ids[0];
+      const spec = groupSpeciesStyle(g);
+      out.push({
+        groupId: g.id,
+        areaIds: ids,
+        color: spec.color,
+        short: g.short,
+        isActive: g.id === activeGroupId,
+        nextAreaId,
+      });
+    }
+    return out;
+  }, [groups, rotations, groupLocation, activeGroupId]);
   // Roster lookup by the canonical move-ledger identity (animal_type, group_key).
   const rosterByKey = React.useMemo(() => {
     const m = new Map();
@@ -708,23 +795,6 @@ export default function PastureMapView({Header, authState}) {
           : null
       : null;
 
-  React.useEffect(() => {
-    setRotations((prev) => {
-      const next = {...prev};
-      // Only real grazing areas can be rotation stops (move destinations).
-      const ids = new Set(destinationAreas.map((area) => area.id));
-      groups.forEach((group, index) => {
-        const current = (next[group.id] || []).filter((id) => ids.has(id));
-        // Feeder pigs seed from the permanent pig-pasture paddocks (prefer child
-        // paddocks over the parent pasture); other groups use the full set.
-        next[group.id] = current.length
-          ? [...new Set(current)]
-          : buildInitialRotation(group, destinationsForGroup(group, destinationAreas), index);
-      });
-      return next;
-    });
-  }, [destinationAreas, groups]);
-
   // Keep the active group pointed at a real roster group (no demo default), and
   // prime the move/plan forms with that group's locked identity + count.
   React.useEffect(() => {
@@ -744,7 +814,7 @@ export default function PastureMapView({Header, authState}) {
   React.useEffect(() => {
     function onKey(e) {
       if (e.key !== 'Escape') return;
-      if (['draw', 'edit', 'measure', 'track'].includes(escStateRef.current.mapMode)) {
+      if (['draw', 'edit', 'measure', 'track', 'droppin'].includes(escStateRef.current.mapMode)) {
         switchToolMode('select');
         return;
       }
@@ -818,9 +888,6 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function switchAppMode(next) {
-    // Light is Map-only; never leave the Map tab (defense in depth - the other
-    // tabs are not rendered for Light).
-    if (isLight && next !== 'view') return;
     setAppMode(next);
     setErr('');
     setPreviewAreaId(null);
@@ -988,6 +1055,45 @@ export default function PastureMapView({Header, authState}) {
     setEditGeom({geometry, metrics});
   }
 
+  // GPS watch callback: append points while recording and NOT paused. Shared by
+  // Start and Resume.
+  function beginTrackWatch() {
+    trackWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lng = Number(pos.coords.longitude);
+        const lat = Number(pos.coords.latitude);
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+        const accuracyFt =
+          Number.isFinite(Number(pos.coords.accuracy)) && Number(pos.coords.accuracy) > 0
+            ? Math.round(Number(pos.coords.accuracy) * 3.28084)
+            : null;
+        setTrack((t) => {
+          // Paused (or stopped): keep the live accuracy but don't grow the track.
+          if (t.paused || !t.recording) return {...t, lastAccuracyFt: accuracyFt};
+          const prev = t.points[t.points.length - 1];
+          if (prev && haversineM([prev.lng, prev.lat], [lng, lat]) < 1.5)
+            return {...t, lastAccuracyFt: accuracyFt, error: ''};
+          return {
+            ...t,
+            points: [...t.points, {lng, lat, accuracyFt, at: new Date().toISOString()}],
+            lastAccuracyFt: accuracyFt,
+            error: '',
+          };
+        });
+      },
+      (geoErr) => {
+        setTrack((t) => ({
+          ...t,
+          recording: false,
+          paused: false,
+          error: geoErr && geoErr.message ? geoErr.message : 'GPS tracking failed.',
+        }));
+        clearTrackWatch();
+      },
+      {enableHighAccuracy: true, maximumAge: 1000, timeout: 15000},
+    );
+  }
+
   function startTrack() {
     if (!canCreateTrack) {
       setErr('Your role cannot create field tracks.');
@@ -1008,38 +1114,22 @@ export default function PastureMapView({Header, authState}) {
     setTrackForm(null);
     setTrack({...initialTrackState(), recording: true, startedAt: new Date().toISOString()});
     setMapMode('track');
-    trackWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const lng = Number(pos.coords.longitude);
-        const lat = Number(pos.coords.latitude);
-        if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
-        const accuracyFt =
-          Number.isFinite(Number(pos.coords.accuracy)) && Number(pos.coords.accuracy) > 0
-            ? Math.round(Number(pos.coords.accuracy) * 3.28084)
-            : null;
-        setTrack((t) => {
-          const prev = t.points[t.points.length - 1];
-          if (prev && haversineM([prev.lng, prev.lat], [lng, lat]) < 1.5)
-            return {...t, recording: true, lastAccuracyFt: accuracyFt, error: ''};
-          return {
-            ...t,
-            recording: true,
-            points: [...t.points, {lng, lat, accuracyFt, at: new Date().toISOString()}],
-            lastAccuracyFt: accuracyFt,
-            error: '',
-          };
-        });
-      },
-      (geoErr) => {
-        setTrack((t) => ({
-          ...t,
-          recording: false,
-          error: geoErr && geoErr.message ? geoErr.message : 'GPS tracking failed.',
-        }));
-        clearTrackWatch();
-      },
-      {enableHighAccuracy: true, maximumAge: 1000, timeout: 15000},
-    );
+    beginTrackWatch();
+  }
+
+  // Pause keeps the watch alive (live accuracy) but stops growing the track and
+  // freezes the duration; Resume continues the SAME track.
+  function pauseTrack() {
+    setTrack((t) => ({...t, paused: true}));
+  }
+
+  function resumeTrack() {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    clearTrackWatch();
+    setTrackForm(null);
+    setTrack((t) => ({...t, recording: true, paused: false, error: ''}));
+    setMapMode('track');
+    beginTrackWatch();
   }
 
   function stopTrack() {
@@ -1047,16 +1137,116 @@ export default function PastureMapView({Header, authState}) {
     const geometry = trackGeometryFromPoints(track.points);
     const metrics = lineMetrics(geometry);
     if (!metrics.valid) {
-      setTrack((t) => ({...t, recording: false, error: 'Track needs at least two GPS points before it can be saved.'}));
+      setTrack((t) => ({
+        ...t,
+        recording: false,
+        paused: false,
+        error: 'Track needs at least two GPS points before it can be saved.',
+      }));
       return;
     }
-    setTrack((t) => ({...t, recording: false, error: ''}));
+    setTrack((t) => ({...t, recording: false, paused: false, error: ''}));
     setTrackForm({geometry, metrics, name: ''});
   }
 
   function cancelTrack() {
     resetTrackFlow();
     setMapMode('select');
+  }
+
+  // Saved distance measurements (CP-E): the canvas hands up the measured line; we
+  // name it and persist. Measurements are layers only - no acreage, destination,
+  // or report effect.
+  function onSaveMeasurement(geometry, distanceFt) {
+    if (!geometry || geometry.type !== 'LineString') return;
+    setMeasureForm({geometry, distanceFt: distanceFt || null, name: ''});
+  }
+
+  async function saveMeasurement() {
+    if (!measureForm || !measureForm.name.trim()) return;
+    const id = newPastureMeasurementId();
+    setSaving(true);
+    setErr('');
+    try {
+      await createPastureMeasurement({
+        id,
+        name: measureForm.name.trim(),
+        geometry: measureForm.geometry,
+        distanceFt: measureForm.distanceFt,
+      });
+      setMeasureForm(null);
+      switchToolMode('select');
+      await reload();
+    } catch (e) {
+      setErr(e.message || 'Could not save the measurement.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMeasurement(id) {
+    setErr('');
+    try {
+      await deletePastureMeasurement(id);
+      await reload();
+    } catch (e) {
+      setErr(e.message || 'Could not delete the measurement.');
+    }
+  }
+
+  // Offline imagery (CP-F): one-tap download of the fixed farm-area satellite cache
+  // (public-domain NAIP, no token). Fails closed to a clear status if the network
+  // is unavailable while downloading.
+  async function downloadImagery() {
+    setImageryStatus({state: 'downloading'});
+    setImageryProgress({done: 0, total: 0});
+    try {
+      const result = await downloadFarmImagery((p) => setImageryProgress(p));
+      setImageryStatus(result);
+    } catch (e) {
+      setImageryStatus({state: 'failed'});
+      setErr(e.message || 'Offline imagery download failed.');
+    } finally {
+      setImageryProgress(null);
+    }
+  }
+
+  function renderOfflineImagery() {
+    const s = imageryStatus || {state: 'missing'};
+    const downloading = s.state === 'downloading';
+    const warn = s.state === 'missing' || s.state === 'stale' || s.state === 'failed';
+    const label =
+      s.state === 'downloaded'
+        ? `Saved (${s.count || 0} tiles)`
+        : s.state === 'stale'
+          ? 'Saved imagery is stale'
+          : s.state === 'failed'
+            ? 'Download failed - retry'
+            : downloading
+              ? imageryProgress
+                ? `Downloading ${imageryProgress.done}/${imageryProgress.total || '?'}`
+                : 'Downloading...'
+              : 'No offline imagery yet';
+    return (
+      <div className="pm-card" data-pasture-offline-imagery="1">
+        <div className="pm-card-head">
+          <div className="pm-card-title">Offline imagery</div>
+          <span className={'pm-imagery-state' + (warn ? ' is-warn' : '')} data-pasture-imagery-state={s.state}>
+            {label}
+          </span>
+        </div>
+        <p className="pm-imagery-note">Satellite for the farm area, cached for no-signal field work (NAIP).</p>
+        <button
+          type="button"
+          className="pm-btn pm-btn-primary"
+          onClick={downloadImagery}
+          disabled={downloading}
+          data-pasture-imagery-download="1"
+        >
+          {downloading ? 'Downloading...' : s.state === 'downloaded' ? 'Re-download' : 'Download farm imagery'}
+        </button>
+      </div>
+    );
   }
 
   async function saveTrack() {
@@ -1358,6 +1548,31 @@ export default function PastureMapView({Header, authState}) {
     if (appMode === 'reports') setAppMode('view');
   }
 
+  // Persist a group's user-built rotation: optimistically update the server cache
+  // (the rotations memo recomputes) then upsert/clear server-side, queueing
+  // offline on a transient failure. Stores exactly what the user ordered.
+  function persistRotation(group, areaIds) {
+    if (!group) return;
+    const animalType = group.animalType;
+    const groupKey = group.groupKey || group.id;
+    setServerRotations((prev) => {
+      const others = prev.filter((r) => !(r.animal_type === animalType && r.group_key === groupKey));
+      return areaIds.length ? [...others, {animal_type: animalType, group_key: groupKey, area_ids: areaIds}] : others;
+    });
+    const payload = {animalType, groupKey, areaIds};
+    const run = areaIds.length ? upsertPastureRotation(payload) : clearPastureRotation({animalType, groupKey});
+    run.catch(async (e) => {
+      if (classifyPastureOfflineError(e) === 'transient') {
+        await enqueuePastureOperation({
+          id: `rot-${animalType}-${groupKey}`,
+          op: areaIds.length ? 'upsert_rotation' : 'clear_rotation',
+          payload,
+        });
+        await refreshQueueState();
+      } else setErr(e.message || 'Could not save the rotation.');
+    });
+  }
+
   function appendToRotation(groupId, areaId) {
     if (!areaId) return;
     const area = areaById.get(areaId);
@@ -1366,44 +1581,31 @@ export default function PastureMapView({Header, authState}) {
       setErr('Tracks / open lines cannot be a move destination. Close it into a temp paddock first.');
       return;
     }
+    const group = groups.find((g) => g.id === groupId);
     // Feeder pigs graze the individual pig-pasture paddocks, not the parent ~5ac
     // pasture. When that pasture has paddock children, steer to a child paddock.
-    const group = groups.find((g) => g.id === groupId);
     if (group && group.animalType === 'feeder_pigs' && isPigPastureWithPaddocks(area, destinationAreas)) {
       setErr(`Feeder pigs go in a specific paddock inside ${area.name}, not the whole pasture. Tap a paddock cell.`);
       return;
     }
-    setRotations((prev) => {
-      const current = prev[groupId] || [];
-      if (current.includes(areaId)) return prev;
-      return {...prev, [groupId]: [...current, areaId]};
-    });
+    const current = rotations[groupId] || [];
+    if (current.includes(areaId)) return;
+    persistRotation(group, [...current, areaId]);
   }
 
   function removeFromRotation(groupId, index) {
-    setRotations((prev) => {
-      const current = [...(prev[groupId] || [])];
-      current.splice(index, 1);
-      return {...prev, [groupId]: current};
-    });
+    const group = groups.find((g) => g.id === groupId);
+    const current = [...(rotations[groupId] || [])];
+    current.splice(index, 1);
+    persistRotation(group, current);
   }
 
   function moveRotationStop(groupId, from, to) {
-    setRotations((prev) => {
-      const current = [...(prev[groupId] || [])];
-      const [item] = current.splice(from, 1);
-      current.splice(to, 0, item);
-      return {...prev, [groupId]: current};
-    });
-  }
-
-  function advanceRotation(groupId, areaId) {
-    setRotations((prev) => {
-      const current = [...(prev[groupId] || [])];
-      const index = current.indexOf(areaId);
-      const rotated = index >= 0 ? [...current.slice(index), ...current.slice(0, index)] : [areaId, ...current];
-      return {...prev, [groupId]: [...new Set(rotated)]};
-    });
+    const group = groups.find((g) => g.id === groupId);
+    const current = [...(rotations[groupId] || [])];
+    const [item] = current.splice(from, 1);
+    current.splice(to, 0, item);
+    persistRotation(group, current);
   }
 
   async function recordGroupMove(group, areaId) {
@@ -1427,14 +1629,12 @@ export default function PastureMapView({Header, authState}) {
     try {
       await recordPastureMove(movePayload);
       await reload();
-      advanceRotation(group.id, areaId);
       setSelectedId(areaId);
     } catch (e) {
       if (classifyPastureOfflineError(e) === 'transient') {
         await enqueuePastureOperation({id: movePayload.moveId, op: 'record_move', payload: movePayload});
         await refreshQueueState();
         setOfflineStatus('Move saved on this device and will sync when the connection returns.');
-        advanceRotation(group.id, areaId);
         setSelectedId(areaId);
       } else setErr(e.message || 'Could not record pasture move.');
     } finally {
@@ -1628,57 +1828,101 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
+  function renderMeasureForm() {
+    if (!measureForm) return null;
+    return (
+      <div className="pm-card pm-measure-form" data-pasture-measure-form="1">
+        <div className="pm-card-title">Save measurement</div>
+        <div className="pm-drawform-row">
+          <label className="pm-field">
+            <span>Name</span>
+            <input
+              type="text"
+              value={measureForm.name}
+              maxLength={200}
+              placeholder="e.g. North fence length"
+              onChange={(e) => setMeasureForm((f) => ({...f, name: e.target.value}))}
+              data-pasture-measure-name="1"
+              autoFocus
+            />
+          </label>
+          <span className="pm-drawform-metric">{formatDistanceFt(measureForm.distanceFt)}</span>
+        </div>
+        <div className="pm-track-actions">
+          <button type="button" className="pm-btn" onClick={() => setMeasureForm(null)} disabled={saving}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="pm-btn pm-btn-primary"
+            onClick={saveMeasurement}
+            disabled={saving || !measureForm.name.trim()}
+            data-pasture-measure-save-confirm="1"
+          >
+            {saving ? 'Saving...' : 'Save measurement'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderMeasurementsList() {
+    if (!measurements.length) return null;
+    return (
+      <div className="pm-card" data-pasture-measurements="1">
+        <div className="pm-card-head">
+          <div className="pm-card-title">Saved measurements</div>
+          <span data-pasture-measurements-count="1">{measurements.length}</span>
+        </div>
+        {measurements.map((mm) => (
+          <div key={mm.id} className="pm-measurement-row" data-pasture-measurement={mm.id}>
+            <strong>{mm.name}</strong>
+            <span>{formatDistanceFt(mm.distance_ft)}</span>
+            <button
+              type="button"
+              className="pm-btn pm-btn-sm"
+              onClick={() => deleteMeasurement(mm.id)}
+              data-pasture-measurement-delete={mm.id}
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderTrackPanel() {
     if (!canCreateTrack || mapMode !== 'track') return null;
+    const liveMetrics = trackForm ? trackForm.metrics : trackMetricsFromPoints(track.points);
+    const trackState = track.recording ? (track.paused ? 'paused' : 'recording') : trackForm ? 'stopped' : 'idle';
     return (
       <div className="pm-track-panel" data-pasture-track-panel="1">
         <div className="pm-track-head">
           <div>
-            <div className="pm-track-title">GPS Boundary</div>
-            <div className="pm-track-sub">
-              {track.recording
+            <div className="pm-track-title">
+              {trackState === 'recording' && <span className="pm-rec-dot" aria-hidden="true" />}
+              Walk paddock
+            </div>
+            <div className="pm-track-sub" data-pasture-track-state={trackState}>
+              {trackState === 'recording'
                 ? 'Recording GPS points'
-                : trackForm
-                  ? 'Ready to save as an outline'
-                  : 'Start GPS, then walk or drive the boundary'}
+                : trackState === 'paused'
+                  ? 'Paused - Resume to keep recording'
+                  : trackState === 'stopped'
+                    ? 'Stopped - Save, Resume, or Cancel'
+                    : 'Start GPS, then walk or drive the boundary'}
             </div>
           </div>
           <div className="pm-track-stats" data-pasture-track-stats="1">
             <span>{trackForm ? trackForm.metrics.points : track.points.length} pts</span>
-            <span>
-              {formatDistanceFt(
-                trackForm ? trackForm.metrics.distanceFt : trackMetricsFromPoints(track.points).distanceFt,
-              ) || '0 ft'}
-            </span>
+            <span>{formatDistanceFt(liveMetrics.distanceFt) || '0 ft'}</span>
+            <span data-pasture-track-duration="1">{formatTrackDuration(track.activeSeconds)}</span>
             {track.lastAccuracyFt != null && <span>GPS +/- {track.lastAccuracyFt.toLocaleString()} ft</span>}
           </div>
         </div>
         {track.error && <div className="pm-track-error">{track.error}</div>}
-        {!trackForm ? (
-          <div className="pm-track-actions">
-            <button
-              type="button"
-              className="pm-btn pm-btn-primary"
-              onClick={startTrack}
-              disabled={track.recording}
-              data-pasture-track-start="1"
-            >
-              {track.recording ? 'Recording...' : track.points.length ? 'Restart track' : 'Start track'}
-            </button>
-            <button
-              type="button"
-              className="pm-btn"
-              onClick={stopTrack}
-              disabled={!track.recording && track.points.length < 2}
-              data-pasture-track-stop="1"
-            >
-              Stop
-            </button>
-            <button type="button" className="pm-btn" onClick={cancelTrack}>
-              Cancel
-            </button>
-          </div>
-        ) : (
+        {trackForm ? (
           <>
             <div className="pm-drawform-row">
               <label className="pm-field">
@@ -1701,6 +1945,15 @@ export default function PastureMapView({Header, authState}) {
               </button>
               <button
                 type="button"
+                className="pm-btn"
+                onClick={resumeTrack}
+                disabled={saving}
+                data-pasture-track-resume="1"
+              >
+                Resume
+              </button>
+              <button
+                type="button"
                 className="pm-btn pm-btn-primary"
                 onClick={saveTrack}
                 disabled={saving || !trackForm.name.trim()}
@@ -1710,6 +1963,38 @@ export default function PastureMapView({Header, authState}) {
               </button>
             </div>
           </>
+        ) : track.recording ? (
+          <div className="pm-track-actions">
+            {track.paused ? (
+              <button
+                type="button"
+                className="pm-btn pm-btn-primary"
+                onClick={resumeTrack}
+                data-pasture-track-resume="1"
+              >
+                Resume
+              </button>
+            ) : (
+              <button type="button" className="pm-btn" onClick={pauseTrack} data-pasture-track-pause="1">
+                Pause
+              </button>
+            )}
+            <button type="button" className="pm-btn" onClick={stopTrack} data-pasture-track-stop="1">
+              Stop
+            </button>
+            <button type="button" className="pm-btn" onClick={cancelTrack}>
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="pm-track-actions">
+            <button type="button" className="pm-btn pm-btn-primary" onClick={startTrack} data-pasture-track-start="1">
+              {track.points.length ? 'Restart track' : 'Start track'}
+            </button>
+            <button type="button" className="pm-btn" onClick={cancelTrack}>
+              Cancel
+            </button>
+          </div>
         )}
       </div>
     );
@@ -2090,6 +2375,11 @@ export default function PastureMapView({Header, authState}) {
                       data-pasture-group-location={loc ? loc.areaId : 'none'}
                     >
                       {loc ? loc.areaName || 'Placed' : 'Not placed'}
+                      {loc && loc.movedAt && (
+                        <em className="pm-loc-time" data-pasture-current-time="1">
+                          {formatTimeInArea(loc.movedAt)}
+                        </em>
+                      )}
                     </span>
                   </div>
                 );
@@ -2130,10 +2420,23 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
+  // Touch-only read-only popover: on Map, tapping an area opens the same read-only
+  // Area detail as a popover over the map (desktop uses the hover readout instead).
+  function renderMapPopover() {
+    if (!selectedArea) return null;
+    return (
+      <div className="pm-map-popover" data-pasture-map-popover="1">
+        {renderSelectedPanel()}
+      </div>
+    );
+  }
+
   function renderViewPanel() {
-    // Map is inspection-only. Selecting an area polygon swaps this panel for the
-    // read-only Area inspector (renderSelectedPanel); there is no Land areas list
-    // and no modal. Hover/focus a group row to preview its area on the map.
+    // Map is read-only "where things are". There is no side inspector and no
+    // management here: desktop hovers an area for the readout; touch taps it for a
+    // read-only popover. Hover/focus a group row to preview its area on the map.
+    const unplacedGroupCount = groups.filter((g) => !groupLocation[g.id]).length;
+    const queuedItemCount = (queueState.queuedCount || 0) + (queueState.stuckCount || 0);
     return (
       <>
         <div className="pm-panel-title" data-pasture-map-header="1">
@@ -2141,7 +2444,7 @@ export default function PastureMapView({Header, authState}) {
           <h2>Current groups</h2>
           <p>
             {groups.length
-              ? `${groups.filter((g) => groupLocation[g.id]).length} of ${groups.length} groups placed - hover a group to preview, tap an area to inspect`
+              ? `${groups.length - unplacedGroupCount} of ${groups.length} groups placed - hover an area or group for details; tap on a phone`
               : 'No active planner groups yet'}
           </p>
         </div>
@@ -2160,6 +2463,12 @@ export default function PastureMapView({Header, authState}) {
             </div>
             <div>
               <span className="dot no-history" /> No history<strong>{statusCounts.no_history}</strong>
+            </div>
+            <div data-pasture-status-unplaced="1">
+              <span className="dot unplaced" /> Unplaced<strong>{unplacedGroupCount}</strong>
+            </div>
+            <div data-pasture-status-queued="1">
+              <span className="dot queued" /> Queued<strong>{queuedItemCount}</strong>
             </div>
           </div>
           {renderOccupiedExplain()}
@@ -2223,6 +2532,14 @@ export default function PastureMapView({Header, authState}) {
               onClick={() => setShowRotationPath((v) => !v)}
             >
               Path
+            </button>
+            <button
+              type="button"
+              className={nextStopOnly ? 'is-active' : ''}
+              onClick={() => setNextStopOnly((v) => !v)}
+              data-pasture-next-stop-only={nextStopOnly ? '1' : '0'}
+            >
+              Next only
             </button>
             <button type="button" className={!listView ? 'is-active' : ''} onClick={() => setListView(false)}>
               Chips
@@ -2539,6 +2856,7 @@ export default function PastureMapView({Header, authState}) {
             the tool grid is collapsed. */}
         {renderTrackPanel()}
         {renderDrawForm()}
+        {renderMeasureForm()}
         {renderEditBar()}
         <div className="pm-card" data-pasture-boundary-tools="1">
           <button
@@ -3063,8 +3381,12 @@ export default function PastureMapView({Header, authState}) {
     // Suppressed while tapping the map to add rotation stops (Plan addMode) and
     // during active map tools so the map + transient tool forms stay usable.
     const inspecting =
-      selectedArea && !(addMode && appMode === 'plan') && !['draw', 'edit', 'measure', 'track'].includes(mapMode);
-    if (inspecting && appMode === 'view') return renderSelectedPanel();
+      selectedArea &&
+      !(addMode && appMode === 'plan') &&
+      !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode);
+    // Map (view) is read-only: the side panel always shows the groups + status
+    // overview. Area inspection happens via hover (desktop) or a tap popover
+    // (touch) over the map itself, never the full side inspector.
     if (inspecting && appMode === 'plan') return renderPlanAreaInspector();
     if (appMode === 'plan') return renderPlanPanel();
     return renderViewPanel();
@@ -3093,6 +3415,9 @@ export default function PastureMapView({Header, authState}) {
         <div className="pm-field-forms">
           {renderTrackPanel()}
           {renderDrawForm()}
+          {renderMeasureForm()}
+          {fieldLayersOpen ? renderMeasurementsList() : null}
+          {fieldLayersOpen ? renderOfflineImagery() : null}
         </div>
         <div className="pm-field-toolbar" data-pasture-field-toolbar="1">
           <button
@@ -3109,10 +3434,10 @@ export default function PastureMapView({Header, authState}) {
           </button>
           <button
             type="button"
-            className={'pm-field-tool is-draw' + (mapMode === 'draw' ? ' is-active' : '')}
+            className={'pm-field-tool is-draw' + (mapMode === 'droppin' ? ' is-active' : '')}
             onClick={() => {
               setDrawIsTemp(true);
-              switchToolMode('draw');
+              switchToolMode('droppin');
             }}
             disabled={!canCreateTrack}
             data-pasture-field-draw="1"
@@ -3162,8 +3487,8 @@ export default function PastureMapView({Header, authState}) {
       />
       <nav className="pm-tabs" aria-label="Pasture map modes">
         <div>
-          {/* Light is Map-only: Plan / Field / Reports tabs are not rendered. */}
-          {(isLight ? MODE_TABS.filter((tab) => tab.id === 'view') : MODE_TABS).map((tab) => (
+          {/* All pasture roles (incl. Light, now farm_team-level) see every tab. */}
+          {MODE_TABS.map((tab) => (
             <button
               type="button"
               key={tab.id}
@@ -3184,7 +3509,7 @@ export default function PastureMapView({Header, authState}) {
       )}
       {renderOfflinePanel()}
       {renderImportPreview()}
-      <main className={'pm-layout' + (appMode === 'field' ? ' is-field' : '')}>
+      <main className={'pm-layout' + (appMode === 'field' ? ' is-field' : '') + (appMode === 'plan' ? ' is-plan' : '')}>
         {/* trackGeometry={activeTrackGeometry} */}
         <section className="pm-map-col">
           {renderPastureMapCanvas({
@@ -3198,8 +3523,8 @@ export default function PastureMapView({Header, authState}) {
             onDrawComplete,
             onEditGeometry,
             trackGeometry: activeTrackGeometry,
-            rotationAreaIds: appMode === 'plan' || appMode === 'field' ? activeRotation : [],
-            rotationColor: activeSpecies.color,
+            rotationPaths: appMode === 'plan' ? rotationPaths : [],
+            nextStopOnly,
             showRotationPath,
             previewAreaId: appMode === 'view' ? previewAreaId : null,
             legendOpen,
@@ -3209,11 +3534,16 @@ export default function PastureMapView({Header, authState}) {
             boundaryFilter,
             onToggleBoundary: toggleBoundary,
             appMode,
+            isTouch,
+            measurements,
+            onSaveMeasurement,
+            online,
             fieldLayersOpen,
             draftLinesVisible,
             onToggleDraftLines: toggleDraftLines,
             onExitTool: () => switchToolMode('select'),
           })}
+          {appMode === 'view' && isTouch && mapMode === 'select' && renderMapPopover()}
           {renderFieldChrome()}
         </section>
         <aside className="pm-side-panel">

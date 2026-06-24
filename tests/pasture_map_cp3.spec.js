@@ -113,13 +113,12 @@ test('records moves and derives occupied/resting state', async ({page}) => {
   // Farm status explains the occupied area.
   await expect(page.locator('[data-pasture-occupied-explain]')).toContainText('CP3 South Paddock', {timeout: 15_000});
 
-  // Inspect B (occupied) and A (resting) by clicking their polygons - read-only.
-  await clickArea(page, B_ID);
-  await expect(page.locator(`[data-pasture-rest-state="occupied"]`)).toBeVisible({timeout: 15_000});
-  await page.keyboard.press('Escape');
-  await clickArea(page, A_ID);
-  await expect(page.locator(`[data-pasture-rest-state="resting"]`)).toBeVisible({timeout: 15_000});
-  await page.keyboard.press('Escape');
+  // Inspect B (occupied) and A (resting) on the Map via HOVER - read-only readout
+  // (V1: the Map no longer opens a click inspector on desktop).
+  await page.locator(`.pm-area-${B_ID}`).first().hover();
+  await expect(page.locator('.pm-area-hover-tip').filter({hasText: 'Occupied'})).toBeVisible({timeout: 15_000});
+  await page.locator(`.pm-area-${A_ID}`).first().hover();
+  await expect(page.locator('.pm-area-hover-tip').filter({hasText: 'Resting'})).toBeVisible({timeout: 15_000});
 
   // Reports tab grazing-days log records the Mommas moves.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();

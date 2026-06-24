@@ -357,3 +357,64 @@ export async function listPastureStockingReport({since = null, until = null} = {
     'list_pasture_stocking_report',
   );
 }
+
+// CP-C (V1 reset) — shared, persisted MANUAL rotations (mig 140). Read + edit are
+// farm_team-level incl. light. area_ids is the user's ordered path; archived /
+// deleted destination ids are filtered out client-side on render.
+export async function listPastureRotations() {
+  return unwrap(await sb.rpc('list_pasture_rotations'), 'list_pasture_rotations');
+}
+
+export async function upsertPastureRotation({animalType, groupKey, areaIds}) {
+  return unwrap(
+    await sb.rpc('upsert_pasture_rotation', {
+      p_animal_type: animalType,
+      p_group_key: groupKey,
+      p_area_ids: areaIds || [],
+    }),
+    'upsert_pasture_rotation',
+  );
+}
+
+export async function clearPastureRotation({animalType, groupKey}) {
+  return unwrap(
+    await sb.rpc('clear_pasture_rotation', {p_animal_type: animalType, p_group_key: groupKey}),
+    'clear_pasture_rotation',
+  );
+}
+
+// CP-E (V1 reset) — saved distance measurements (mig 141). A measurement is a
+// distance LineString layer only: nameable, deletable, optional color, never a
+// land area (no acreage / destination / rest / report). Read + create are
+// farm_team-level incl. light; delete is creator-or-management.
+export function newPastureMeasurementId() {
+  const uuid =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+  return 'meas-' + uuid;
+}
+
+export async function listPastureMeasurements() {
+  return unwrap(await sb.rpc('list_pasture_measurements'), 'list_pasture_measurements');
+}
+
+export async function createPastureMeasurement({id, name, geometry, distanceFt = null, lineColor = null}) {
+  return unwrap(
+    await sb.rpc('create_pasture_measurement', {
+      p_id: id,
+      p_name: name,
+      p_geometry: geometry,
+      p_distance_ft: distanceFt,
+      p_line_color: lineColor,
+    }),
+    'create_pasture_measurement',
+  );
+}
+
+export async function deletePastureMeasurement(id) {
+  return unwrap(await sb.rpc('delete_pasture_measurement', {p_id: id}), 'delete_pasture_measurement');
+}

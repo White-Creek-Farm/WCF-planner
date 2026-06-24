@@ -19,7 +19,7 @@ const SQUARE_B =
 async function cleanAndSeedPastureTables() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_planned_moves, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 
@@ -55,6 +55,12 @@ async function cleanAndSeedPastureTables() {
     DELETE FROM public.cattle WHERE id = '${MOMMA_ID}';
     INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
     VALUES ('${MOMMA_ID}', 'PMPLACE-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);
+
+    -- V1 reset: rotations are user-controlled + persisted (mig 140), no auto-seed.
+    -- Seed the Mommas rotation directly so the unplaced-group "Next = first stop"
+    -- behaviour still holds (first stop = Place North Paddock).
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${A_ID}", "${B_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed pasture placement: ' + error.message);

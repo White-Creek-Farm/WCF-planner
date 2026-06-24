@@ -113,20 +113,22 @@ test('Map tab: current groups, hover preview, no-op group click, read-only area 
   await expect(page.locator('[data-pasture-current-groups="1"]')).toBeVisible();
 
   // Hide the legend too so it cannot block the eastern polygon, then INSPECT an
-  // area by clicking its polygon -> read-only side-panel inspector (no modal).
+  // area on the Map via HOVER -> read-only desktop readout (V1: no click inspect).
   await page.addStyleTag({content: '.pm-legend{display:none!important}'});
+  await page.locator(`.pm-area-${A_ID}`).first().hover();
+  const tip = page.locator('.pm-area-hover-tip');
+  await expect(tip).toBeVisible({timeout: 10_000});
+  await expect(tip).toContainText('Paddock');
+  await expect(tip).toContainText('Mommas');
+  await expect(tip).toContainText('ac');
+  // Desktop Map has no clickable inspector: clicking opens none, and there are no
+  // manage / move / danger workflows on the Map.
   await clickArea(page, A_ID);
-  await expect(page.locator('[data-pasture-selected-panel]')).toContainText('Area detail');
-  await expect(page.locator(`[data-pasture-area-detail="${A_ID}"]`)).toContainText('Paddock');
-  await expect(page.locator(`[data-pasture-occupancy="${A_ID}"]`)).toContainText('Mommas');
-  await expect(page.locator(`[data-pasture-acres-readonly="${A_ID}"]`)).toBeVisible();
-  // Map inspector is read-only: no manage / move / danger workflows.
+  await expect(page.locator('[data-pasture-selected-panel]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-area-manage]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-move-form]')).toHaveCount(0);
-  await page.keyboard.press('Escape');
 
-  // Area detail for the temp paddock reads "Temp paddock" with a Temp chip.
-  await clickArea(page, T_ID);
-  await expect(page.locator(`[data-pasture-area-detail="${T_ID}"]`)).toContainText('Temp paddock', {timeout: 15_000});
-  await expect(page.locator(`[data-pasture-area-detail="${T_ID}"] .pm-chip-temp`)).toBeVisible();
+  // The temp paddock readout reads "Temp paddock".
+  await page.locator(`.pm-area-${T_ID}`).first().hover();
+  await expect(page.locator('.pm-area-hover-tip').filter({hasText: 'Temp paddock'})).toBeVisible({timeout: 15_000});
 });

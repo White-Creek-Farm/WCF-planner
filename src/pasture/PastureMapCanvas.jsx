@@ -13,12 +13,55 @@ import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import {area as turfArea} from '@turf/area';
 import {lineMetrics, polygonMetrics, ringPerimeterM, SQM_PER_ACRE} from '../lib/pastureGeometry.js';
+import {getCachedTile, naipTileUrl} from '../lib/pastureImagery.js';
 
 const WCF_CENTER = [30.84175647927683, -86.43686683451689];
 const ESRI_IMAGERY_URL =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const MAP_MAX_ZOOM = 26;
 const IMAGERY_NATIVE_MAX_ZOOM = 19;
+// Basemap switcher sources (Esri online; online use is fine - only OFFLINE tile
+// CACHING is restricted, which is why offline imagery uses public-domain NAIP).
+const ESRI_TOPO_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
+const ESRI_REFERENCE_URL =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+
+// Offline imagery layer (CP-F): serves the cached NAIP farm tiles when offline,
+// falling back to a live NAIP fetch for any tile not in the cache. Used for the
+// satellite basemap only while the app is offline.
+const OfflineImageryLayer = L.TileLayer.extend({
+  createTile(coords, done) {
+    const tile = document.createElement('img');
+    tile.alt = '';
+    const show = (blob) => {
+      if (!blob) {
+        done(null, tile);
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      tile.onload = () => {
+        URL.revokeObjectURL(url);
+        done(null, tile);
+      };
+      tile.onerror = () => {
+        URL.revokeObjectURL(url);
+        done(null, tile);
+      };
+      tile.src = url;
+    };
+    getCachedTile(coords.z, coords.x, coords.y).then((cached) => {
+      if (cached) {
+        show(cached);
+        return;
+      }
+      fetch(naipTileUrl(coords.z, coords.x, coords.y), {mode: 'cors'})
+        .then((r) => (r.ok ? r.blob() : null))
+        .then(show)
+        .catch(() => show(null));
+    });
+    return tile;
+  },
+});
 const BASELINE_REST_STATE = 'baseline';
 const LINE_PATTERN_DASH = {
   solid: null,
@@ -261,13 +304,80 @@ function layerCenter(layer) {
   return b.getCenter();
 }
 
-function rotationIcon(number, color) {
+// Closed GeoJSON polygon ring from an array of L.LatLng drop-point vertices.
+function dropPolygonGeoJSON(verts) {
+  const ring = verts.map((ll) => [ll.lng, ll.lat]);
+  if (verts.length) ring.push([verts[0].lng, verts[0].lat]);
+  return {type: 'Polygon', coordinates: [ring]};
+}
+
+function rotationIcon(number, color, dim) {
   return L.divIcon({
-    className: 'pm-rotation-marker',
+    className: 'pm-rotation-marker' + (dim ? ' is-dim' : ''),
     html: `<span style="background:${color}">${number}</span>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
+}
+
+// The first stop of a group's rotation carries the group's short label so
+// overlapping paths stay distinguishable; dimmed for non-active groups.
+function rotationLabelIcon(short, color, dim) {
+  return L.divIcon({
+    className: 'pm-rotation-marker pm-rotation-label' + (dim ? ' is-dim' : ''),
+    html: `<span style="background:${color}">${escTip(short || '')}</span>`,
+    iconSize: [30, 24],
+    iconAnchor: [15, 12],
+  });
+}
+
+// Read-only Map hover/tap readout labels.
+const AREA_TIP_KIND = {
+  pasture: 'Pasture',
+  feeder_pig_area: 'Feeder-pig area',
+  section: 'Section',
+  paddock: 'Paddock',
+  unclassified: 'Unclassified',
+  infrastructure: 'Infrastructure',
+  outline_candidate: 'Track / line',
+  scratch: 'Scratch',
+};
+const AREA_TIP_REST = {
+  occupied: 'Occupied now',
+  resting: 'Resting',
+  rested: 'Rested - ready',
+  ready: 'Ready',
+  baseline: 'No grazing history',
+};
+function escTip(s) {
+  return String(s == null ? '' : s).replace(
+    /[&<>"]/g,
+    (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c],
+  );
+}
+function areaShortDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+}
+// Rich read-only readout for an area on the Map (desktop hover / touch tap):
+// name, type, acres, rest state, occupant group(s) + count, and last-moved date.
+function areaHoverTip(a, occList) {
+  const type = a.permanence === 'temporary' ? 'Temp paddock' : AREA_TIP_KIND[a.kind] || 'Area';
+  const acres = a.effective_acres == null ? null : `${a.effective_acres} ac`;
+  const rest = AREA_TIP_REST[a.rest_state] || (a.baseline_no_history ? 'No grazing history' : '');
+  const occ = (occList || [])
+    .map((o) => `${escTip(o.name)}${o.count != null ? ' &middot; ' + o.count : ''}${o.overlap ? ' (overlap)' : ''}`)
+    .join(', ');
+  const last = a.last_touched_at ? `Last moved ${escTip(areaShortDate(a.last_touched_at))}` : 'No history';
+  return (
+    `<span class="pm-tip-name">${escTip(a.name) || 'Unnamed'}</span>` +
+    `<span class="pm-tip-meta">${escTip(type)}${acres ? ' &middot; ' + acres : ''}</span>` +
+    (rest ? `<span class="pm-tip-rest">${escTip(rest)}</span>` : '') +
+    (occ ? `<span class="pm-tip-occ">${occ}</span>` : '') +
+    `<span class="pm-tip-last">${last}</span>`
+  );
 }
 
 export default function PastureMapCanvas({
@@ -281,8 +391,8 @@ export default function PastureMapCanvas({
   onDrawComplete,
   onEditGeometry,
   trackGeometry = null,
-  rotationAreaIds = [],
-  rotationColor = '#1C8A5F',
+  rotationPaths = [],
+  nextStopOnly = false,
   showRotationPath = true,
   previewAreaId = null,
   legendOpen = true,
@@ -297,6 +407,10 @@ export default function PastureMapCanvas({
   draftLinesVisible = false,
   onToggleDraftLines,
   onExitTool,
+  isTouch = false,
+  onSaveMeasurement,
+  measurements = [],
+  online = true,
 }) {
   const elRef = React.useRef(null);
   const mapRef = React.useRef(null);
@@ -319,6 +433,26 @@ export default function PastureMapCanvas({
   const featureClickRef = React.useRef(false);
   const [gpsMsg, setGpsMsg] = React.useState('');
   const [hud, setHud] = React.useState(null);
+  // Stateful GPS location (CP-D): off -> center+follow -> heading cone -> off.
+  const watchRef = React.useRef(null);
+  const followRef = React.useRef(false);
+  const pausedRef = React.useRef(false);
+  const lastFixRef = React.useRef(null);
+  const [locateState, setLocateState] = React.useState('off');
+  const locateStateRef = React.useRef('off');
+  locateStateRef.current = locateState;
+  // Custom Drop Point draw (CP-D): own the in-progress polygon vertices so the
+  // crosshair center-drop + tap-to-place + Undo work without Geoman internals.
+  const dropVertsRef = React.useRef([]);
+  const dropLayerRef = React.useRef(null);
+  const dropClickRef = React.useRef(null);
+  // Saved distance measurements (CP-E): the last measured line geometry + the
+  // rendered layer of persisted measurements.
+  const measureGeomRef = React.useRef(null);
+  const measureLayerRef = React.useRef(null);
+  // Basemap switcher (CP-F): satellite (default) / topo / hybrid.
+  const basemapRef = React.useRef(null);
+  const [basemap, setBasemap] = React.useState('satellite');
 
   React.useEffect(() => {
     if (mapRef.current || !elRef.current) return;
@@ -331,11 +465,6 @@ export default function PastureMapCanvas({
       wheelPxPerZoomLevel: 40,
       zoomControl: !compact,
     });
-    L.tileLayer(ESRI_IMAGERY_URL, {
-      maxZoom: MAP_MAX_ZOOM,
-      maxNativeZoom: IMAGERY_NATIVE_MAX_ZOOM,
-      attribution: 'Esri World Imagery - Maxar',
-    }).addTo(map);
     L.control.scale({imperial: true, metric: false, position: 'bottomright'}).addTo(map);
     if (map.pm) map.pm.setGlobalOptions({snappable: true, snapDistance: 20});
     // Clicking empty map background clears the current selection (but not while
@@ -345,16 +474,73 @@ export default function PastureMapCanvas({
         featureClickRef.current = false;
         return;
       }
-      if (['draw', 'edit', 'measure', 'track'].includes(modeRef.current)) return;
+      if (['draw', 'edit', 'measure', 'track', 'droppin'].includes(modeRef.current)) return;
       if (cbRef.current.onSelect) cbRef.current.onSelect(null);
+    });
+    // Panning pauses GPS follow (the user took manual control); tapping My Location
+    // re-engages it. The map itself never rotates (north-up in v1).
+    map.on('dragstart', () => {
+      followRef.current = false;
+      if (locateStateRef.current !== 'off') pausedRef.current = true;
     });
     mapRef.current = map;
     setTimeout(() => map.invalidateSize(), 50);
     return () => {
+      if (watchRef.current != null && typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchRef.current);
+      }
+      watchRef.current = null;
       map.remove();
       mapRef.current = null;
     };
   }, [compact]);
+
+  // Basemap layer(s) for the active basemap. Re-runs on basemap change and on the
+  // [compact] map rebuild so the tiles always re-attach. Online use of Esri tiles
+  // is fine; OFFLINE imagery uses public-domain NAIP (see pastureImagery).
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (basemapRef.current) {
+      basemapRef.current.forEach((l) => {
+        try {
+          map.removeLayer(l);
+        } catch {
+          /* already gone */
+        }
+      });
+      basemapRef.current = null;
+    }
+    const layers = [];
+    if (basemap === 'topo') {
+      layers.push(L.tileLayer(ESRI_TOPO_URL, {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19, attribution: 'Esri Topo'}));
+    } else if (basemap === 'hybrid') {
+      layers.push(
+        L.tileLayer(ESRI_IMAGERY_URL, {
+          maxZoom: MAP_MAX_ZOOM,
+          maxNativeZoom: IMAGERY_NATIVE_MAX_ZOOM,
+          attribution: 'Esri World Imagery - Maxar',
+        }),
+      );
+      layers.push(L.tileLayer(ESRI_REFERENCE_URL, {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19}));
+    } else if (!online) {
+      // Offline + satellite: serve the cached NAIP farm tiles.
+      layers.push(new OfflineImageryLayer('', {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 17}));
+    } else {
+      layers.push(
+        L.tileLayer(ESRI_IMAGERY_URL, {
+          maxZoom: MAP_MAX_ZOOM,
+          maxNativeZoom: IMAGERY_NATIVE_MAX_ZOOM,
+          attribution: 'Esri World Imagery - Maxar',
+        }),
+      );
+    }
+    layers.forEach((l) => {
+      l.addTo(map);
+      if (l.bringToBack) l.bringToBack();
+    });
+    basemapRef.current = layers;
+  }, [basemap, compact, online]);
 
   React.useEffect(() => {
     const map = mapRef.current;
@@ -402,15 +588,30 @@ export default function PastureMapCanvas({
       // Clean default: do NOT permanently label every area. Names show on hover;
       // occupied areas carry their own always-on group/count marker (below). The
       // currently SELECTED area shows its label permanently.
-      lyr.bindTooltip(labelFor(a) + (g.kind === 'line' ? ' (outline)' : ''), {
-        direction: 'center',
-        className: 'pm-map-label',
-        permanent: a.id === selectedId,
-      });
+      // Map (view) shows a rich read-only hover/tap readout; other modes keep the
+      // plain name label. The SELECTED area always shows its permanent name label.
+      if (appMode === 'view' && g.kind === 'polygon' && a.id !== selectedId) {
+        lyr.bindTooltip(areaHoverTip(a, occList), {
+          direction: 'top',
+          className: 'pm-area-hover-tip',
+          sticky: true,
+          opacity: 1,
+        });
+      } else {
+        lyr.bindTooltip(labelFor(a) + (g.kind === 'line' ? ' (outline)' : ''), {
+          direction: 'center',
+          className: 'pm-map-label',
+          permanent: a.id === selectedId,
+        });
+      }
       lyr.on('click', () => {
+        // Desktop Map is hover-only: clicking an area does nothing (the hover
+        // readout is the inspection). Touch devices tap to open the read-only
+        // popover. Plan/other modes always select.
+        if (appMode === 'view' && !isTouch) return;
         // Flag so the map-background click handler doesn't clear this selection.
         featureClickRef.current = true;
-        if (!['draw', 'edit', 'measure', 'track'].includes(mode) && cbRef.current.onSelect)
+        if (!['draw', 'edit', 'measure', 'track', 'droppin'].includes(mode) && cbRef.current.onSelect)
           cbRef.current.onSelect(a.id);
       });
       lyr.addTo(group);
@@ -465,7 +666,7 @@ export default function PastureMapCanvas({
     } catch {
       /* no bounds yet */
     }
-  }, [areas, occupants, selectedId, mode, compact, boundaryFilter, appMode, draftLinesVisible]);
+  }, [areas, occupants, selectedId, mode, compact, boundaryFilter, appMode, draftLinesVisible, isTouch]);
 
   React.useEffect(() => {
     const map = mapRef.current;
@@ -510,20 +711,40 @@ export default function PastureMapCanvas({
       rotationRef.current.remove();
       rotationRef.current = null;
     }
-    if (!showRotationPath || !rotationAreaIds.length) return;
-    const centers = rotationAreaIds
-      .map((id) => layerCenter(areaLayersRef.current.get(id)))
-      .filter((point) => point && Number.isFinite(point.lat) && Number.isFinite(point.lng));
-    if (!centers.length) return;
+    if (!showRotationPath || !rotationPaths.length) return;
     const group = L.layerGroup();
-    if (centers.length >= 2)
-      // Decorative path: must not intercept clicks meant for the area polygons it
-      // crosses (it runs through their centroids).
-      L.polyline(centers, {color: rotationColor, weight: 3, opacity: 0.95, dashArray: '1,8', interactive: false}).addTo(
-        group,
-      );
-    centers.forEach((point, index) => {
-      L.marker(point, {icon: rotationIcon(index + 1, rotationColor), interactive: false}).addTo(group);
+    // One path per group, in its species color; the active group is emphasized,
+    // others dimmed. Next-stop-only collapses each path to a single labelled dot
+    // at the group's next planned stop so overlapping paths declutter.
+    rotationPaths.forEach((path) => {
+      const color = path.color || '#1C8A5F';
+      const dim = !path.isActive;
+      if (nextStopOnly) {
+        const center = layerCenter(areaLayersRef.current.get(path.nextAreaId));
+        if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
+          L.marker(center, {icon: rotationLabelIcon(path.short, color, dim), interactive: false}).addTo(group);
+        }
+        return;
+      }
+      const centers = (path.areaIds || [])
+        .map((id) => layerCenter(areaLayersRef.current.get(id)))
+        .filter((point) => point && Number.isFinite(point.lat) && Number.isFinite(point.lng));
+      if (!centers.length) return;
+      if (centers.length >= 2) {
+        // Decorative path: must not intercept clicks meant for the area polygons it
+        // crosses (it runs through their centroids).
+        L.polyline(centers, {
+          color,
+          weight: path.isActive ? 3.5 : 2,
+          opacity: path.isActive ? 0.95 : 0.5,
+          dashArray: '1,8',
+          interactive: false,
+        }).addTo(group);
+      }
+      centers.forEach((point, index) => {
+        const icon = index === 0 ? rotationLabelIcon(path.short, color, dim) : rotationIcon(index + 1, color, dim);
+        L.marker(point, {icon, interactive: false}).addTo(group);
+      });
     });
     group.addTo(map);
     rotationRef.current = group;
@@ -533,7 +754,39 @@ export default function PastureMapCanvas({
         rotationRef.current = null;
       }
     };
-  }, [areas, rotationAreaIds, rotationColor, selectedId, showRotationPath]);
+  }, [areas, rotationPaths, nextStopOnly, selectedId, showRotationPath]);
+
+  // Saved distance measurements: a layer of dashed LineStrings with name labels,
+  // shown on Plan + Field and hidden on the read-only Map (a layer, not a grazing
+  // destination).
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (measureLayerRef.current) {
+      measureLayerRef.current.remove();
+      measureLayerRef.current = null;
+    }
+    if (appMode === 'view' || !measurements.length) return;
+    const group = L.layerGroup();
+    measurements.forEach((mm) => {
+      const geom = mm && mm.geometry;
+      if (!geom || geom.type !== 'LineString' || !Array.isArray(geom.coordinates)) return;
+      const latlngs = geom.coordinates
+        .map((c) => (Array.isArray(c) ? [Number(c[1]), Number(c[0])] : null))
+        .filter((p) => p && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+      if (latlngs.length < 2) return;
+      const color =
+        typeof mm.line_color === 'string' && /^#[0-9a-f]{6}$/i.test(mm.line_color) ? mm.line_color : '#7c3aed';
+      L.polyline(latlngs, {color, weight: 3, dashArray: '4,6', interactive: false}).addTo(group);
+      const mid = latlngs[Math.floor(latlngs.length / 2)];
+      L.marker(mid, {
+        interactive: false,
+        icon: L.divIcon({className: 'pm-measure-label', html: escTip(mm.name || ''), iconSize: [0, 0]}),
+      }).addTo(group);
+    });
+    group.addTo(map);
+    measureLayerRef.current = group;
+  }, [measurements, appMode]);
 
   // Transient hover/focus preview: highlight a Current-group's CURRENT area on an
   // amber overlay and surface its name, WITHOUT touching selection. Distinct from
@@ -615,12 +868,21 @@ export default function PastureMapCanvas({
       }
       map.off('pm:create');
       map.off('pm:drawstart');
+      if (dropClickRef.current) {
+        map.off('click', dropClickRef.current);
+        dropClickRef.current = null;
+      }
+      if (dropLayerRef.current) {
+        dropLayerRef.current.remove();
+        dropLayerRef.current = null;
+      }
+      dropVertsRef.current = [];
       clearTemp();
     }
 
     teardown();
     setHud(null);
-    const writeMode = mode === 'draw' || mode === 'edit';
+    const writeMode = mode === 'draw' || mode === 'edit' || mode === 'droppin';
     if (writeMode && !canWrite) return;
 
     if (mode === 'draw') {
@@ -665,6 +927,7 @@ export default function PastureMapCanvas({
         const layer = e.layer;
         const gj = layer.toGeoJSON().geometry;
         const m = lineMetrics(gj);
+        measureGeomRef.current = gj;
         clearTemp();
         tempRef.current = layer;
         if (layer.setStyle) layer.setStyle({color: '#2563eb', weight: 3, dashArray: '6,6'});
@@ -690,6 +953,18 @@ export default function PastureMapCanvas({
         layer.on('pm:edit', onChange);
         onChange();
       }
+    } else if (mode === 'droppin') {
+      // Custom drop-point polygon: vertices come from the Drop point button (map
+      // center) and tap-to-place (map clicks). No Geoman draw is enabled here.
+      dropVertsRef.current = [];
+      renderDropShape();
+      const onMapClick = (e) => {
+        if (!e || !e.latlng) return;
+        dropVertsRef.current = [...dropVertsRef.current, e.latlng];
+        renderDropShape();
+      };
+      map.on('click', onMapClick);
+      dropClickRef.current = onMapClick;
     }
 
     return teardown;
@@ -739,27 +1014,200 @@ export default function PastureMapCanvas({
     }
   }
 
-  function locate() {
+  function renderLocateMarker(headingMode = locateStateRef.current === 'heading') {
+    const map = mapRef.current;
+    const fix = lastFixRef.current;
+    if (!map || !fix) return;
+    if (locateRef.current) locateRef.current.remove();
+    const g = L.layerGroup();
+    if (fix.accuracy) {
+      L.circle(fix.latlng, {radius: fix.accuracy, color: '#3b82f6', weight: 1, fillOpacity: 0.08}).addTo(g);
+    }
+    if (headingMode && fix.heading != null && !Number.isNaN(fix.heading)) {
+      // Heading cone: a rotated arrow showing facing direction. The map stays
+      // north-up (v1 never rotates the map); only the cone rotates.
+      L.marker(fix.latlng, {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: 'pm-gps-cone',
+          html: `<i style="transform:rotate(${Math.round(fix.heading)}deg)"></i>`,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
+        }),
+      }).addTo(g);
+    }
+    L.circleMarker(fix.latlng, {radius: 7, color: '#1d4ed8', fillColor: '#3b82f6', fillOpacity: 1, weight: 2}).addTo(g);
+    g.addTo(map);
+    locateRef.current = g;
+  }
+
+  function stopWatch() {
+    if (watchRef.current != null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchRef.current);
+    }
+    watchRef.current = null;
+  }
+
+  function startWatch() {
     const map = mapRef.current;
     if (!map) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGpsMsg('Location unavailable on this device');
+      return;
+    }
+    if (watchRef.current != null) return;
     setGpsMsg('Locating...');
-    map.locate({setView: true, enableHighAccuracy: true, maxZoom: MAP_MAX_ZOOM, timeout: 15000});
-    map.once('locationfound', (e) => {
-      if (locateRef.current) locateRef.current.remove();
-      const g = L.layerGroup();
-      L.circleMarker(e.latlng, {radius: 7, color: '#1d4ed8', fillColor: '#3b82f6', fillOpacity: 1, weight: 2}).addTo(g);
-      L.circle(e.latlng, {radius: e.accuracy, color: '#3b82f6', weight: 1, fillOpacity: 0.08}).addTo(g);
-      g.addTo(map);
-      locateRef.current = g;
-      const ft = Math.round(e.accuracy * 3.28084);
-      setGpsMsg(ft > 30 ? `GPS accuracy ~${ft} ft - let it settle before tracing` : `GPS accuracy ~${ft} ft`);
+    watchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        lastFixRef.current = {
+          latlng: L.latLng(pos.coords.latitude, pos.coords.longitude),
+          accuracy: pos.coords.accuracy || 0,
+          heading: pos.coords.heading,
+        };
+        renderLocateMarker();
+        if (followRef.current && mapRef.current) {
+          mapRef.current.setView(lastFixRef.current.latlng, Math.max(mapRef.current.getZoom(), 17), {animate: false});
+        }
+        const ft = Math.round((pos.coords.accuracy || 0) * 3.28084);
+        setGpsMsg(ft > 30 ? `GPS ~${ft} ft - let it settle` : `GPS ~${ft} ft`);
+      },
+      () => setGpsMsg('Location unavailable'),
+      {enableHighAccuracy: true, timeout: 15000, maximumAge: 2000},
+    );
+  }
+
+  // Stateful My Location: off -> center+follow -> heading cone -> off. Panning
+  // pauses follow; tapping again re-engages it without advancing the cycle. The
+  // map never rotates (north-up); the 'heading' -> off tap is the north reset.
+  function cycleLocate() {
+    if (locateStateRef.current === 'off') {
+      setLocateState('follow');
+      followRef.current = true;
+      pausedRef.current = false;
+      startWatch();
+    } else if (pausedRef.current) {
+      followRef.current = true;
+      pausedRef.current = false;
+      if (lastFixRef.current && mapRef.current) {
+        mapRef.current.setView(lastFixRef.current.latlng, Math.max(mapRef.current.getZoom(), 17), {animate: false});
+      }
+    } else if (locateStateRef.current === 'follow') {
+      setLocateState('heading');
+      renderLocateMarker(true);
+    } else {
+      setLocateState('off');
+      followRef.current = false;
+      stopWatch();
+      if (locateRef.current) {
+        locateRef.current.remove();
+        locateRef.current = null;
+      }
+      setGpsMsg('');
+    }
+  }
+
+  // Drop Point (custom, Geoman-independent): own the in-progress polygon vertices
+  // so the fixed-center crosshair workflow works reliably. The user pans the map
+  // under the crosshair and taps Drop point to add a vertex at center; tapping the
+  // map (tap-to-place) adds one wherever tapped. Undo pops the last, Save closes
+  // the ring (>=3 pts) and hands it up via onDrawComplete, Cancel discards.
+  function renderDropShape() {
+    const map = mapRef.current;
+    if (!map) return;
+    if (dropLayerRef.current) {
+      dropLayerRef.current.remove();
+      dropLayerRef.current = null;
+    }
+    const verts = dropVertsRef.current;
+    if (!verts.length) {
+      setHud(null);
+      return;
+    }
+    const g = L.layerGroup();
+    if (verts.length >= 3) {
+      L.polygon(verts, {
+        color: '#2f7a46',
+        weight: 3,
+        fillColor: '#3F9B5B',
+        fillOpacity: 0.22,
+        interactive: false,
+      }).addTo(g);
+    } else if (verts.length === 2) {
+      L.polyline(verts, {color: '#2f7a46', weight: 3, interactive: false}).addTo(g);
+    }
+    verts.forEach((ll) => {
+      L.circleMarker(ll, {
+        radius: 5,
+        color: '#0f5132',
+        fillColor: '#ffffff',
+        fillOpacity: 1,
+        weight: 2,
+        interactive: false,
+      }).addTo(g);
     });
-    map.once('locationerror', () => setGpsMsg('Location unavailable'));
+    g.addTo(map);
+    dropLayerRef.current = g;
+    if (verts.length >= 3) {
+      const m = polygonMetrics(dropPolygonGeoJSON(verts));
+      setHud({...m, live: true, mode: 'draw'});
+    } else {
+      setHud({acres: null, perimeterFt: null, live: true, mode: 'draw'});
+    }
+  }
+  function dropPoint() {
+    const map = mapRef.current;
+    if (!map) return;
+    dropVertsRef.current = [...dropVertsRef.current, map.getCenter()];
+    renderDropShape();
+  }
+  function undoPoint() {
+    if (!dropVertsRef.current.length) return;
+    dropVertsRef.current = dropVertsRef.current.slice(0, -1);
+    renderDropShape();
+  }
+  function saveShape() {
+    const verts = dropVertsRef.current;
+    if (verts.length < 3) {
+      setGpsMsg('Drop at least 3 points before saving');
+      return;
+    }
+    const gj = dropPolygonGeoJSON(verts);
+    const metrics = polygonMetrics(gj);
+    // Freeze the HUD; the parent opens the name/save form via onDrawComplete.
+    setHud({...metrics, frozen: true, mode: 'draw'});
+    if (cbRef.current.onDrawComplete) cbRef.current.onDrawComplete(gj, metrics);
+  }
+  function cancelDraw() {
+    if (dropLayerRef.current) {
+      dropLayerRef.current.remove();
+      dropLayerRef.current = null;
+    }
+    dropVertsRef.current = [];
+    setHud(null);
+    if (onExitTool) onExitTool();
   }
 
   return (
     <div className={'pm-map-wrap' + (compact ? ' is-compact' : '') + (appMode === 'field' ? ' is-field' : '')}>
       <div ref={elRef} className="pm-map" data-pasture-map-canvas="1" />
+      {mode === 'droppin' && !compact && <div className="pm-crosshair" aria-hidden="true" data-pasture-crosshair="1" />}
+      {mode === 'droppin' && !compact && canWrite && !(hud && hud.frozen) && (
+        <div className="pm-drawbar" data-pasture-drawbar="1">
+          <button type="button" className="pm-drawbar-btn is-primary" onClick={dropPoint} data-pasture-drop-point="1">
+            Drop point
+          </button>
+          <button type="button" className="pm-drawbar-btn" onClick={undoPoint} data-pasture-drop-undo="1">
+            Undo
+          </button>
+          <button type="button" className="pm-drawbar-btn is-save" onClick={saveShape} data-pasture-drop-save="1">
+            Save
+          </button>
+          <button type="button" className="pm-drawbar-btn" onClick={cancelDraw} data-pasture-drop-cancel="1">
+            Cancel
+          </button>
+        </div>
+      )}
       {hud && (
         <div className="pm-hud" data-pasture-hud="1" data-hud-valid={hud.valid === false ? 'false' : 'true'}>
           {hud.isLine ? (
@@ -787,6 +1235,16 @@ export default function PastureMapCanvas({
               <button type="button" className="pm-mini-btn" onClick={clearMeasure} data-pasture-measure-clear="1">
                 Clear measurement
               </button>
+              {hud.frozen && onSaveMeasurement && (
+                <button
+                  type="button"
+                  className="pm-mini-btn is-save"
+                  onClick={() => onSaveMeasurement(measureGeomRef.current, hud.distanceFt)}
+                  data-pasture-measure-save="1"
+                >
+                  Save
+                </button>
+              )}
               <button
                 type="button"
                 className="pm-mini-btn is-primary"
@@ -819,9 +1277,31 @@ export default function PastureMapCanvas({
           <button type="button" className="pm-map-control" onClick={fitFarm}>
             Fit Farm
           </button>
-          <button type="button" className="pm-map-control" onClick={locate}>
-            My Location
+          <button
+            type="button"
+            className={'pm-map-control pm-locate-btn is-' + locateState}
+            onClick={cycleLocate}
+            data-pasture-locate="1"
+            data-pasture-locate-state={locateState}
+            aria-pressed={locateState !== 'off'}
+          >
+            {locateState === 'off' ? 'My Location' : locateState === 'follow' ? 'Following' : 'Heading'}
           </button>
+        </div>
+      )}
+      {!compact && (
+        <div className="pm-basemap-switch" data-pasture-basemap="1">
+          {['satellite', 'topo', 'hybrid'].map((b) => (
+            <button
+              key={b}
+              type="button"
+              className={'pm-basemap-btn' + (basemap === b ? ' is-active' : '')}
+              onClick={() => setBasemap(b)}
+              data-pasture-basemap-option={b}
+            >
+              {b === 'satellite' ? 'Satellite' : b === 'topo' ? 'Topo' : 'Hybrid'}
+            </button>
+          ))}
         </div>
       )}
       {!compact && boundaryFilter && onToggleBoundary && (appMode !== 'field' || fieldLayersOpen) && (

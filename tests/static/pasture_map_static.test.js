@@ -22,6 +22,13 @@ const mig135Code = mig135.replace(/--[^\n]*/g, '');
 const mig136 = read('supabase-migrations/136_pasture_map_light_read.sql');
 // Code-only (header docs legitimately mention the write RPCs that stay gated).
 const mig136Code = mig136.replace(/--[^\n]*/g, '');
+const mig139 = read('supabase-migrations/139_pasture_map_light_farm_team.sql');
+// Code-only (header docs legitimately enumerate the must-not-widen RPCs).
+const mig139Code = mig139.replace(/--[^\n]*/g, '');
+const mig140 = read('supabase-migrations/140_pasture_map_rotations.sql');
+const mig140Code = mig140.replace(/--[^\n]*/g, '');
+const mig141 = read('supabase-migrations/141_pasture_map_measurements.sql');
+const mig141Code = mig141.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -30,6 +37,7 @@ const canvasSrc = read('src/pasture/PastureMapCanvas.jsx');
 const pastureCss = read('src/pasture/pastureMap.css');
 const apiSrc = read('src/lib/pastureMapApi.js');
 const offlineSrc = read('src/lib/pastureOffline.js');
+const imagerySrc = read('src/lib/pastureImagery.js');
 const pasturePwConfig = read('playwright.pasture.config.js');
 
 describe('Pasture Map route + wiring', () => {
@@ -38,28 +46,39 @@ describe('Pasture Map route + wiring', () => {
     expect(PATH_TO_VIEW['/pasture-map']).toBe('pastureMap');
   });
 
-  it('main.jsx imports, allows, renders, and includes Light (read-only Map) in the view', () => {
+  it('main.jsx imports, allows, renders, and includes Light (farm_team-level pasture) in the view', () => {
     expect(mainSrc).toContain("import PastureMapView from './pasture/PastureMapView.jsx'");
     expect(mainSrc).toMatch(/VALID_VIEWS\s*=\s*\[[\s\S]*?'pastureMap'/);
     expect(mainSrc).toContain("if (view === 'pastureMap')");
-    // Ronnie-approved product change: Light users get a Pasture Map button with
-    // read-only, Map-only access (gated below + server-side).
+    // V1 reset: Light reaches the Pasture Map view (allowlist) and gets
+    // farm_team-level pasture access there (tabs/writes gated below + server-side).
     const lightAllowedBlock = mainSrc.match(/const LIGHT_ALLOWED_VIEWS[\s\S]*?new Set\(\[([\s\S]*?)\]\)/)?.[1] || '';
     expect(lightAllowedBlock).toContain("'pastureMap'");
   });
 
-  it('Light Pasture Map is Map-only + read-only (tabs hidden, writes role-gated)', () => {
-    expect(viewSrc).toContain("const isLight = role === 'light'");
-    // Only the Map tab renders for Light; Plan/Field/Reports are filtered out.
-    expect(viewSrc).toContain("isLight ? MODE_TABS.filter((tab) => tab.id === 'view') : MODE_TABS");
-    // Mode switching cannot leave Map for Light.
-    expect(viewSrc).toContain("if (isLight && next !== 'view') return");
-    // Planning/report/history RPCs are not fetched for Light.
+  it('Light has farm_team-level Pasture Map access (all tabs + writes, V1 reset)', () => {
+    // V1 reset: Light is treated as farm_team for pasture ONLY. The old isLight
+    // Map-only gating is gone; participant predicates include 'light' and are kept
+    // in lockstep with migration 139's DB-gate widening.
+    expect(viewSrc).not.toContain('isLight');
+    expect(viewSrc).toContain(
+      "const canRecordMoves = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light'",
+    );
+    expect(viewSrc).toContain(
+      "const canCreateTrack = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light'",
+    );
+    expect(viewSrc).toContain(
+      "const canViewPlanning = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light'",
+    );
+    // All tabs render for every pasture role (no Light filter, no mode block).
+    expect(viewSrc).toContain('{MODE_TABS.map((tab) => (');
+    expect(viewSrc).not.toContain('MODE_TABS.filter');
+    // Planning/report/history reads now run for all pasture roles (incl. Light).
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPasturePlannedMoves/);
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureRestReport/);
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureStockingReport/);
     expect(viewSrc).toMatch(/if \(!selectedId \|\| !canViewPlanning\)/);
-    // Every move write is hard-gated on canRecordMoves (Light is not a writer).
+    // Move writes stay hard-gated on canRecordMoves (which now includes light).
     expect(viewSrc).toMatch(/async function recordGroupMove[\s\S]*?if \(!canRecordMoves\) return;/);
     expect(viewSrc).toContain('disabled={!activeNextArea || saving || !canRecordMoves}');
   });
@@ -130,6 +149,279 @@ describe('Migration 136 — light read-only Pasture Map access', () => {
   });
 });
 
+describe('Migration 139 — light gets farm_team-level pasture access (V1 reset)', () => {
+  const WIDENED = [
+    'record_pasture_move',
+    'list_pasture_planned_moves',
+    'create_pasture_planned_move',
+    'update_pasture_planned_move_status',
+    'list_pasture_history_report',
+    'list_pasture_rest_report',
+    'list_pasture_stocking_report',
+    'create_land_area_track',
+    'create_temp_land_area',
+    'update_temp_land_area_geometry',
+    'rename_temp_land_area',
+    'archive_land_area',
+    'restore_land_area',
+  ];
+  const MUST_NOT_WIDEN = [
+    'import_land_area_batch',
+    'create_land_area',
+    'update_land_area',
+    'update_land_area_geometry',
+    'close_land_area_outline',
+    'delete_land_area',
+    'update_land_area_line_style',
+    'hard_delete_land_area',
+  ];
+
+  it('widens exactly the 13 farm_team-level pasture RPCs to include light', () => {
+    for (const fn of WIDENED) {
+      expect(mig139).toContain(`CREATE OR REPLACE FUNCTION public.${fn}`);
+    }
+    // Every widened gate now lists light; exactly 13, and no bare 3-role gate
+    // remains in the SQL body.
+    const widened = mig139Code.match(/NOT IN \('farm_team', 'management', 'admin', 'light'\)/g) || [];
+    expect(widened.length).toBe(13);
+    const bare = mig139Code.match(/NOT IN \('farm_team', 'management', 'admin'\)/g) || [];
+    expect(bare.length).toBe(0);
+    // Schema reload so PostgREST picks up the replaced signatures.
+    expect(mig139).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/);
+  });
+
+  it('does NOT widen any management/admin or admin-only RPC, and grants no light role', () => {
+    for (const fn of MUST_NOT_WIDEN) {
+      expect(mig139Code).not.toMatch(new RegExp(`FUNCTION public\\.${fn}\\(`));
+    }
+    // No direct grant to light (the role gate is the guard; light is authenticated).
+    expect(mig139Code).not.toMatch(/GRANT[\s\S]*?TO light/i);
+  });
+});
+
+describe('Migration 140 — shared persisted pasture rotations (V1 reset)', () => {
+  it('creates a deny-all pasture_rotations table keyed by (animal_type, group_key)', () => {
+    expect(mig140).toContain('CREATE TABLE IF NOT EXISTS public.pasture_rotations');
+    expect(mig140).toContain('PRIMARY KEY (animal_type, group_key)');
+    expect(mig140).toContain('ALTER TABLE public.pasture_rotations ENABLE ROW LEVEL SECURITY');
+    expect(mig140).toMatch(/REVOKE ALL ON TABLE public\.pasture_rotations FROM PUBLIC, anon, authenticated/);
+    expect(mig140Code).toContain('FOR ALL USING (false) WITH CHECK (false)');
+  });
+
+  it('exposes list/upsert/clear RPCs gated to farm_team-level incl. light, granted to authenticated only', () => {
+    for (const fn of ['list_pasture_rotations', 'upsert_pasture_rotation', 'clear_pasture_rotation']) {
+      expect(mig140).toContain(`CREATE OR REPLACE FUNCTION public.${fn}`);
+      expect(mig140).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}\\([^)]*\\) TO authenticated`));
+    }
+    expect(mig140).toContain('SECURITY DEFINER');
+    // farm_team-level (incl. light) gate on every rotation RPC; exactly 3.
+    const gates = mig140Code.match(/NOT IN \('farm_team', 'management', 'admin', 'light'\)/g) || [];
+    expect(gates.length).toBe(3);
+    // The role gate is the guard; no direct grant to the light role.
+    expect(mig140Code).not.toMatch(/GRANT[\s\S]*?TO light/i);
+    expect(mig140).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/);
+  });
+});
+
+describe('Migration 141 — saved distance measurements (V1 reset)', () => {
+  it('creates a deny-all pasture_measurements table with list/create/delete RPCs', () => {
+    expect(mig141).toContain('CREATE TABLE IF NOT EXISTS public.pasture_measurements');
+    expect(mig141).toContain('ALTER TABLE public.pasture_measurements ENABLE ROW LEVEL SECURITY');
+    expect(mig141).toMatch(/REVOKE ALL ON TABLE public\.pasture_measurements FROM PUBLIC, anon, authenticated/);
+    for (const fn of ['list_pasture_measurements', 'create_pasture_measurement', 'delete_pasture_measurement']) {
+      expect(mig141).toContain(`CREATE OR REPLACE FUNCTION public.${fn}`);
+      expect(mig141).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}\\([^)]*\\) TO authenticated`));
+    }
+    // Read/create are farm_team-level incl. light; delete is creator-or-management.
+    expect(mig141Code).toContain("v_role NOT IN ('farm_team', 'management', 'admin', 'light')");
+    expect(mig141Code).toContain("v_role NOT IN ('management', 'admin') AND v_owner IS DISTINCT FROM v_caller");
+    // No direct grant to light; geometry is LineString-only.
+    expect(mig141Code).not.toMatch(/GRANT[\s\S]*?TO light/i);
+    expect(mig141).toContain("p_geometry->>'type' <> 'LineString'");
+    expect(mig141).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/);
+  });
+});
+
+describe('V1 reset — saved distance measurements client (CP-E)', () => {
+  it('measure can be saved, listed on a layer, and deleted; never a land area', () => {
+    expect(apiSrc).toContain("sb.rpc('list_pasture_measurements'");
+    expect(apiSrc).toContain("sb.rpc('create_pasture_measurement'");
+    expect(apiSrc).toContain("sb.rpc('delete_pasture_measurement'");
+    expect(viewSrc).toContain('function onSaveMeasurement');
+    expect(viewSrc).toContain('function saveMeasurement');
+    expect(viewSrc).toContain('function deleteMeasurement');
+    expect(viewSrc).toContain('data-pasture-measure-form');
+    expect(viewSrc).toContain('data-pasture-measurements');
+    // Canvas saves the measured line + renders saved measurements as a layer that
+    // is hidden on the read-only Map.
+    expect(canvasSrc).toContain('data-pasture-measure-save');
+    expect(canvasSrc).toContain('measureLayerRef');
+    expect(canvasSrc).toMatch(/if \(appMode === 'view' \|\| !measurements\.length\) return/);
+  });
+});
+
+describe('V1 reset — rotations are server-backed, user-controlled, persisted', () => {
+  it('loads rotations from the server and derives the per-group view (no auto-seed)', () => {
+    expect(viewSrc).toContain('listPastureRotations()');
+    expect(viewSrc).toContain('const [serverRotations, setServerRotations]');
+    expect(viewSrc).toContain('serverRotationByKey');
+    expect(viewSrc).not.toContain('buildInitialRotation');
+    expect(viewSrc).not.toContain('setRotations');
+    expect(viewSrc).not.toContain('advanceRotation');
+  });
+
+  it('persists edits via upsert/clear with offline replay + API wrappers', () => {
+    expect(viewSrc).toContain('function persistRotation');
+    expect(viewSrc).toContain('upsertPastureRotation(payload)');
+    expect(viewSrc).toContain('clearPastureRotation({animalType, groupKey})');
+    expect(viewSrc).toMatch(/op: areaIds\.length \? 'upsert_rotation' : 'clear_rotation'/);
+    expect(offlineSrc).toContain("row.record.op === 'upsert_rotation'");
+    expect(offlineSrc).toContain("row.record.op === 'clear_rotation'");
+    expect(apiSrc).toContain("sb.rpc('list_pasture_rotations'");
+    expect(apiSrc).toContain("sb.rpc('upsert_pasture_rotation'");
+    expect(apiSrc).toContain("sb.rpc('clear_pasture_rotation'");
+  });
+});
+
+describe('V1 reset — Field stateful GPS location (CP-D)', () => {
+  it('My Location is a stateful button (off->follow->heading) via watchPosition; map stays north-up', () => {
+    expect(canvasSrc).toContain('function cycleLocate');
+    expect(canvasSrc).toContain('navigator.geolocation.watchPosition');
+    expect(canvasSrc).toContain('data-pasture-locate-state');
+    expect(canvasSrc).toContain("setLocateState('heading')");
+    expect(canvasSrc).toContain('pm-gps-cone');
+    // Panning pauses follow; the map is NEVER rotated (north-up in v1).
+    expect(canvasSrc).toContain("map.on('dragstart'");
+    expect(canvasSrc).not.toContain('setBearing');
+  });
+});
+
+describe('V1 reset — basemaps + offline imagery (CP-F)', () => {
+  it('basemap switcher offers satellite/topo/hybrid; offline imagery uses public-domain NAIP', () => {
+    expect(canvasSrc).toContain('data-pasture-basemap');
+    expect(canvasSrc).toContain('data-pasture-basemap-option={b}');
+    expect(canvasSrc).toContain('ESRI_TOPO_URL');
+    expect(canvasSrc).toContain('ESRI_REFERENCE_URL');
+    // Offline + satellite serves cached NAIP tiles from IndexedDB.
+    expect(canvasSrc).toContain('OfflineImageryLayer');
+    expect(canvasSrc).toContain('getCachedTile');
+    // Offline imagery is public-domain NAIP (no token); fail-closed download + status.
+    expect(imagerySrc).toContain('USGSNAIPImagery');
+    expect(imagerySrc).toContain('function downloadFarmImagery');
+    expect(imagerySrc).toContain('function getOfflineImageryStatus');
+    expect(imagerySrc).toContain("state: 'failed'");
+    expect(viewSrc).toContain('data-pasture-offline-imagery');
+    expect(viewSrc).toContain('data-pasture-imagery-download');
+    expect(viewSrc).toContain('function downloadImagery');
+  });
+});
+
+describe('V1 reset — Walk tracker Pause/Resume + live duration (CP-D)', () => {
+  it('tracker supports Start/Pause/Resume/Stop with a live duration + recording state', () => {
+    expect(viewSrc).toContain('function pauseTrack');
+    expect(viewSrc).toContain('function resumeTrack');
+    expect(viewSrc).toContain('function beginTrackWatch');
+    expect(viewSrc).toContain('data-pasture-track-pause');
+    expect(viewSrc).toContain('data-pasture-track-resume');
+    expect(viewSrc).toContain('data-pasture-track-duration');
+    expect(viewSrc).toContain('data-pasture-track-state');
+    expect(viewSrc).toContain('activeSeconds');
+    // Paused keeps the watch alive but stops growing the track.
+    expect(viewSrc).toMatch(/if \(t\.paused \|\| !t\.recording\) return/);
+  });
+});
+
+describe('V1 reset — Field Drop Point crosshair (CP-D)', () => {
+  it('custom drop-point draw: crosshair + Drop point / Undo / Save / Cancel bar, no Geoman vertex internals', () => {
+    expect(canvasSrc).toContain('data-pasture-crosshair');
+    expect(canvasSrc).toContain('data-pasture-drop-point');
+    expect(canvasSrc).toContain('data-pasture-drop-save');
+    expect(canvasSrc).toContain('function dropPoint');
+    // Custom drop-point mode owns its vertices (Geoman-independent): Drop point adds
+    // the map center, tap-to-place adds map clicks, Save closes the ring upward.
+    expect(canvasSrc).toContain("mode === 'droppin'");
+    expect(canvasSrc).toContain('function renderDropShape');
+    expect(canvasSrc).toContain('map.getCenter()');
+    expect(canvasSrc).toContain('onDrawComplete(gj, metrics)');
+    // Field "Draw paddock" drives the custom drop-point mode.
+    expect(viewSrc).toContain("switchToolMode('droppin')");
+  });
+});
+
+describe('V1 reset — Plan is a bottom-sheet on phones (touch)', () => {
+  it('layout gets an is-plan class and a touch bottom-sheet treatment', () => {
+    expect(viewSrc).toContain("(appMode === 'plan' ? ' is-plan' : '')");
+    expect(pastureCss).toMatch(/@media \(hover: none\) and \(pointer: coarse\) and \(max-width: 980px\)/);
+    expect(pastureCss).toContain('.pm-layout.is-plan .pm-side-panel');
+  });
+});
+
+describe('V1 reset — Reports are historical/current only, read-only to all pasture users', () => {
+  it('Reports shows rest/stocking/history + recent moves, with NO planned/future moves', () => {
+    const body = viewSrc.slice(viewSrc.indexOf('function renderReportsPanel'), viewSrc.indexOf('function renderPanel'));
+    expect(body).toContain('data-pasture-rest-report');
+    expect(body).toContain('data-pasture-stocking-report');
+    expect(body).toContain('data-pasture-history-report');
+    expect(body).toContain('renderRecentMoves()');
+    // Planned/future moves live in Plan, never in Reports.
+    expect(body).not.toContain('renderPlannedMoves');
+    expect(body).not.toContain('data-pasture-planned-moves');
+    // Light reaches Reports: mig 139 widened the 3 report RPCs and canViewPlanning
+    // includes light (asserted in the mig-139 + Light blocks above).
+  });
+});
+
+describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)', () => {
+  it('view passes all groups paths to the canvas with a next-stop-only toggle', () => {
+    expect(viewSrc).toContain('const rotationPaths = React.useMemo');
+    expect(viewSrc).toContain("rotationPaths: appMode === 'plan' ? rotationPaths : []");
+    expect(viewSrc).toContain('const [nextStopOnly, setNextStopOnly]');
+    expect(viewSrc).toContain('data-pasture-next-stop-only');
+  });
+
+  it('canvas draws one path per group (species color, active emphasis, label, next-only)', () => {
+    expect(canvasSrc).toContain('rotationPaths.forEach');
+    expect(canvasSrc).toContain('function rotationLabelIcon');
+    expect(canvasSrc).toContain('nextStopOnly');
+    expect(canvasSrc).toContain('path.isActive');
+    expect(canvasSrc).not.toContain('rotationAreaIds');
+  });
+});
+
+describe('V1 reset — Map tab is read-only (hover desktop / tap touch, status strip)', () => {
+  it('Map drops the side inspector and routes view to the groups + status panel', () => {
+    expect(viewSrc).not.toContain("if (inspecting && appMode === 'view') return renderSelectedPanel()");
+    expect(viewSrc).toContain('return renderViewPanel();');
+  });
+
+  it('Map area inspection is hover (desktop) / tap popover (touch), never a desktop click', () => {
+    // One-time touch-capability read drives the hover-vs-tap fork.
+    expect(viewSrc).toContain("window.matchMedia('(hover: none)').matches");
+    // Touch-only popover mount over the map.
+    expect(viewSrc).toContain("appMode === 'view' && isTouch && mapMode === 'select' && renderMapPopover()");
+    expect(viewSrc).toContain('function renderMapPopover');
+    expect(viewSrc).toContain('data-pasture-map-popover');
+    // Canvas: desktop Map click is a no-op (hover readout instead); rich hover tip.
+    expect(canvasSrc).toContain("if (appMode === 'view' && !isTouch) return;");
+    expect(canvasSrc).toContain('function areaHoverTip');
+    expect(canvasSrc).toContain('pm-area-hover-tip');
+  });
+
+  it('Map status strip adds Unplaced groups + Queued/unsynced field items', () => {
+    expect(viewSrc).toContain('data-pasture-status-unplaced');
+    expect(viewSrc).toContain('data-pasture-status-queued');
+    expect(viewSrc).toContain('dot unplaced');
+    expect(viewSrc).toContain('dot queued');
+    expect(viewSrc).toMatch(/unplacedGroupCount = groups\.filter\(\(g\) => !groupLocation\[g\.id\]\)\.length/);
+    expect(viewSrc).toMatch(/queuedItemCount = \(queueState\.queuedCount/);
+  });
+
+  it('Map group rows show time-in-paddock for placed groups', () => {
+    expect(viewSrc).toContain('data-pasture-current-time');
+    expect(viewSrc).toMatch(/loc && loc\.movedAt && \(/);
+  });
+});
+
 describe('Migration 116 — CP1 invariants', () => {
   it("kind CHECK includes 'unclassified' and import defaults polygons to it", () => {
     expect(mig).toMatch(/kind IN \([^)]*'unclassified'/);
@@ -186,7 +478,9 @@ describe('Pasture Map view - CP1/CP3 scope boundary', () => {
     const libImports = [...viewSrc.matchAll(/import\s[^;]*?from\s+'(\.\.\/lib\/[^']+)'/g)].map((m) => m[1]);
     expect(libImports.length).toBeGreaterThan(0);
     expect(
-      libImports.every((p) => /pastureMapApi|pastureKml|pastureOffline|pastureGeometry|pasturePlannerGroups/.test(p)),
+      libImports.every((p) =>
+        /pastureMapApi|pastureKml|pastureOffline|pastureGeometry|pasturePlannerGroups|pastureImagery/.test(p),
+      ),
     ).toBe(true);
   });
 
@@ -772,8 +1066,8 @@ describe('P2 Map tab', () => {
 
   it('Map panel header uses the roster placed-count copy', () => {
     expect(viewSrc).toContain('MAP - WHERE THINGS ARE');
-    // Map is inspection-only: hover a group to preview, tap an area to inspect.
-    expect(viewSrc).toContain('groups placed - hover a group to preview, tap an area to inspect');
+    // Map is read-only: hover an area or group for details; tap on a phone.
+    expect(viewSrc).toContain('hover an area or group for details; tap on a phone');
     expect(viewSrc).toContain('data-pasture-map-header');
   });
 
@@ -999,7 +1293,7 @@ describe('Pasture Map tweaks #2: default labels / occupancy / dismissal / open o
     // Feature clicks set the guard flag so they do not also clear.
     expect(canvasSrc).toContain('featureClickRef.current = true');
     // Background click is suppressed while drawing/editing/measuring/tracking.
-    expect(canvasSrc).toMatch(/\['draw', 'edit', 'measure', 'track'\]\.includes\(modeRef\.current\)/);
+    expect(canvasSrc).toMatch(/\['draw', 'edit', 'measure', 'track', 'droppin'\]\.includes\(modeRef\.current\)/);
   });
 
   it('view clears selection on Escape and via an X close button', () => {
@@ -1034,9 +1328,9 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     expect(viewSrc).toContain(
       'trackLineAreas = React.useMemo(() => activeAreas.filter((area) => isOutlineCandidateArea',
     );
-    // Rotation seeding uses the group's destinations (feeder pigs prefer the
-    // permanent pig-pasture paddocks; others use the full real-grazing-area set).
-    expect(viewSrc).toContain('buildInitialRotation(group, destinationsForGroup(group, destinationAreas), index)');
+    // V1 reset: rotations are server-backed + user-controlled (no generated seed).
+    expect(viewSrc).not.toContain('buildInitialRotation');
+    expect(viewSrc).toContain('serverRotationByKey');
     // appendToRotation refuses a draft line as a destination.
     expect(viewSrc).toContain('isOutlineCandidateArea(area)');
     // Manual move (in the Plan Area inspector) excludes draft lines.
@@ -1150,18 +1444,20 @@ describe('Plan-centric IA: Setup tab removed, contextual area modal', () => {
     expect(viewSrc).not.toContain("setAppMode('setup')");
   });
 
-  it('selecting an area opens a side-panel inspector, not a centered modal', () => {
+  it('Map opens no side inspector; Plan opens the side inspector; never a modal', () => {
     // No centered modal / overlay anywhere.
     expect(viewSrc).not.toContain('function renderAreaModal');
     expect(viewSrc).not.toContain('{renderAreaModal()}');
     expect(viewSrc).not.toContain('data-pasture-area-modal');
     expect(viewSrc).not.toContain('data-pasture-area-modal-backdrop');
     expect(viewSrc).not.toContain('pm-modal-backdrop');
-    // renderPanel swaps the side panel for the inspector when an area is selected:
-    // Map -> read-only renderSelectedPanel; Plan -> renderPlanAreaInspector.
-    expect(viewSrc).toContain("if (inspecting && appMode === 'view') return renderSelectedPanel()");
+    // V1 reset: Map (view) is read-only with NO side inspector; Plan keeps it.
+    expect(viewSrc).not.toContain("if (inspecting && appMode === 'view') return renderSelectedPanel()");
     expect(viewSrc).toContain("if (inspecting && appMode === 'plan') return renderPlanAreaInspector()");
-    // Clearing the selection (Esc / Clear) still dismisses the inspector.
+    // The read-only Area detail is reused by the touch popover over the Map.
+    expect(viewSrc).toContain('function renderMapPopover');
+    expect(viewSrc).toContain('data-pasture-map-popover');
+    // Clearing the selection (Esc / Clear) still dismisses the inspector/popover.
     expect(viewSrc).toContain('onClick={() => setSelectedId(null)}');
     expect(viewSrc).toContain('data-pasture-clear-selection');
   });
@@ -1196,7 +1492,7 @@ describe('Tool lifecycle hardening (Measure P0, exits, archived recovery)', () =
 
   it('Escape exits an active map tool (draw/edit/measure/track) before clearing selection', () => {
     expect(viewSrc).toMatch(
-      /\['draw', 'edit', 'measure', 'track'\]\.includes\(escStateRef\.current\.mapMode\)\) \{\s*\n\s*switchToolMode\('select'\)/,
+      /\['draw', 'edit', 'measure', 'track', 'droppin'\]\.includes\(escStateRef\.current\.mapMode\)\) \{\s*\n\s*switchToolMode\('select'\)/,
     );
   });
 
@@ -1216,11 +1512,9 @@ describe('Tool lifecycle hardening (Measure P0, exits, archived recovery)', () =
 });
 
 describe('Feeder-pig destinations prefer the permanent pig-pasture paddocks', () => {
-  it('view derives group destinations via destinationsForGroup and guards the parent pasture', () => {
-    // Helper is imported from the planner-groups lib and used for rotation seeding.
-    expect(viewSrc).toContain('destinationsForGroup');
-    expect(viewSrc).toContain('buildInitialRotation(group, destinationsForGroup(group, destinationAreas), index)');
-    // Add-from-map steers a feeder-pig group off the parent ~5ac pasture to a paddock.
+  it('add-from-map steers a feeder-pig group off the parent ~5ac pasture to a paddock', () => {
+    // V1 reset: no rotation auto-seed; the feeder-pig preference is enforced when a
+    // user adds a stop (appendToRotation refuses the parent pasture that has paddocks).
     expect(viewSrc).toContain('isPigPastureWithPaddocks(area, destinationAreas)');
     expect(viewSrc).toMatch(/animalType === 'feeder_pigs'/);
   });

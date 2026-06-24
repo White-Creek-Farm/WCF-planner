@@ -15,11 +15,13 @@ import {
   retrySubmission,
 } from './offlineQueue.js';
 import {
+  clearPastureRotation,
   createLandArea,
   createLandAreaTrack,
   createTempLandArea,
   recordPastureMove,
   updatePasturePlannedMoveStatus,
+  upsertPastureRotation,
 } from './pastureMapApi.js';
 
 export const PASTURE_OFFLINE_FORM_KIND = 'pasture_map';
@@ -39,6 +41,7 @@ export function cachePastureSnapshot(snapshot) {
         areas: snapshot.areas || [],
         moves: snapshot.moves || [],
         plans: snapshot.plans || [],
+        rotations: snapshot.rotations || [],
         restReport: snapshot.restReport || {areas: [], counts: {}},
         stockingReport: snapshot.stockingReport || {areas: []},
       }),
@@ -61,6 +64,7 @@ export function loadPastureSnapshot() {
       areas: parsed.areas || [],
       moves: parsed.moves || [],
       plans: parsed.plans || [],
+      rotations: parsed.rotations || [],
       restReport: parsed.restReport || {areas: [], counts: {}},
       stockingReport: parsed.stockingReport || {areas: []},
     };
@@ -114,6 +118,8 @@ async function replayPastureOperation(row) {
   if (row.record.op === 'create_area') return await createLandArea(row.record.payload);
   if (row.record.op === 'create_temp_area') return await createTempLandArea(row.record.payload);
   if (row.record.op === 'create_track') return await createLandAreaTrack(row.record.payload);
+  if (row.record.op === 'upsert_rotation') return await upsertPastureRotation(row.record.payload);
+  if (row.record.op === 'clear_rotation') return await clearPastureRotation(row.record.payload);
   throw new Error(`unknown pasture queue operation ${row.record.op}`);
 }
 

@@ -24,7 +24,7 @@ async function exec(sql) {
 }
 
 const TRUNCATE = `
-  TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events,
+  TRUNCATE TABLE public.pasture_rotations, public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events,
     public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 `;
 
@@ -53,30 +53,35 @@ async function seedTwoAreas() {
   `);
 }
 
-test('area inspector dismissal: clear (X) button and Escape; no modal/overlay', async ({page}) => {
-  await seedTwoAreas();
-  await page.setViewportSize({width: 1280, height: 900});
-  await page.goto('/pasture-map', {timeout: 90_000});
-  await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
-  await hideMapOverlays(page);
+// V1 reset: the Map read-only inspector is now the touch popover (desktop is
+// hover-only). Drive this dismissal test in a touch context so the popover opens.
+test.describe('Map touch popover dismissal', () => {
+  test.use({hasTouch: true, isMobile: true});
+  test('area inspector dismissal: clear (X) button and Escape; no modal/overlay', async ({page}) => {
+    await seedTwoAreas();
+    await page.setViewportSize({width: 1280, height: 900});
+    await page.goto('/pasture-map', {timeout: 90_000});
+    await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
+    await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
+    await hideMapOverlays(page);
 
-  // The Map Area inspector replaces the side panel (no centered modal/overlay).
-  const inspector = page.locator('[data-pasture-selected-panel]');
-  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
-  await expect(page.locator('.pm-modal-backdrop')).toHaveCount(0);
+    // The Map Area inspector replaces the side panel (no centered modal/overlay).
+    const inspector = page.locator('[data-pasture-selected-panel]');
+    await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+    await expect(page.locator('.pm-modal-backdrop')).toHaveCount(0);
 
-  // Clear (X) button dismisses.
-  await clickArea(page, A_ID);
-  await expect(inspector).toBeVisible();
-  await page.locator('[data-pasture-clear-selection]').click();
-  await expect(inspector).toHaveCount(0);
+    // Clear (X) button dismisses.
+    await clickArea(page, A_ID);
+    await expect(inspector).toBeVisible();
+    await page.locator('[data-pasture-clear-selection]').click();
+    await expect(inspector).toHaveCount(0);
 
-  // Escape key dismisses.
-  await clickArea(page, A_ID);
-  await expect(inspector).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(inspector).toHaveCount(0);
+    // Escape key dismisses.
+    await clickArea(page, A_ID);
+    await expect(inspector).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(inspector).toHaveCount(0);
+  });
 });
 
 test('Setup Tracks / Lines: lists draft lines, not on Map, closes into a temp paddock', async ({page}) => {
@@ -142,6 +147,9 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
     END $$;
     DELETE FROM public.cattle WHERE id='${MOMMA_ID}';
     INSERT INTO public.cattle (id,tag,sex,herd,breeding_blacklist,old_tags) VALUES ('${MOMMA_ID}','PMTW2-MOMMA','cow','mommas',false,'[]'::jsonb);
+    -- V1 reset: rotations are user-controlled (no auto-seed); seed Mommas -> A so
+    -- the group-move "Next" + Move button are available for this occupancy test.
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids) VALUES ('cattle_herd','mommas','["${A_ID}"]'::jsonb);
   `);
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
