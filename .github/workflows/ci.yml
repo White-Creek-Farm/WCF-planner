@@ -23,11 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     # The whole-repo Playwright e2e suite is serialized against ONE shared Supabase
     # test DB (concurrency group wcf-test-db; truncate/reseed specs cannot run in
-    # parallel), so verify is wall-clock bound. The Pasture Map V1 release pushed
-    # the full job past the old 20-minute limit and the e2e step was cancelled.
-    # Raised to 45 rather than sharding (unsafe with the shared DB) or dropping
-    # repo-wide e2e coverage.
-    timeout-minutes: 45
+    # parallel), so verify is wall-clock bound. The Pasture Map browser specs run in
+    # their own path-gated lane (pasture-e2e.yml, via playwright.pasture.config.js)
+    # and are excluded from this root e2e (playwright.config.js testIgnore), so
+    # verify stays fast for every PR.
+    timeout-minutes: 20
     env:
       # Preserves the assertTestDatabase guard. Tests refuse to run without this.
       WCF_TEST_DATABASE: '1'

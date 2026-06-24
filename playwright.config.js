@@ -29,6 +29,10 @@ for (const [k, v] of Object.entries(env)) {
 export default defineConfig({
   testDir: './tests',
   testMatch: ['**/*.spec.js'],
+  // Pasture Map browser specs run in their OWN focused lane via
+  // playwright.pasture.config.js (CI: pasture-e2e.yml, path-gated). Exclude them
+  // from the root verify e2e so it stays fast and never double-runs them.
+  testIgnore: ['**/pasture_map_*.spec.js'],
   // Specs share the test database via a global truncate-and-reseed strategy.
   // Parallel + sharded specs would race the reset. Keep workers=1 until we
   // adopt a per-worker schema isolation pattern (out of scope for A2).
