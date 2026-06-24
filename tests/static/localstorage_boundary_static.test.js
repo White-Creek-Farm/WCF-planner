@@ -18,6 +18,10 @@ const EXPECTED_LOCAL_STORAGE_OWNERS = new Map([
   // added to the codebase without updating this inventory (the guard's total
   // was stale at 13 vs main's actual 15); reconciled here.
   ['src/lib/pastureOffline.js', 2],
+  // Pasture Map offline imagery status (CP-F): the NAIP farm-cache download status
+  // (missing/downloading/downloaded/stale/partial/failed) persists in localStorage
+  // so the Field can warn when imagery is missing/stale across visits.
+  ['src/lib/pastureImagery.js', 2],
 ]);
 
 const ALLOWED_LITERAL_KEYS = new Set([
@@ -75,7 +79,7 @@ describe('localStorage boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(total).toBe(15);
+    expect(total).toBe(17);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
@@ -106,5 +110,20 @@ describe('localStorage boundary', () => {
     const main = stripComments(fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8'));
     expect(main).toMatch(/localStorage\.key\(i\)/);
     expect(main).toMatch(/k\.startsWith\('wcf-babel-'\)[\s\S]*?localStorage\.removeItem\(k\)/);
+  });
+
+  it('keeps the pasture imagery status localStorage key non-secret and singular', () => {
+    const src = stripComments(fs.readFileSync(path.join(ROOT, 'src/lib/pastureImagery.js'), 'utf8'));
+    const m = src.match(/IMAGERY_STATUS_KEY\s*=\s*(['"])(.*?)\1/);
+    expect(m).toBeTruthy();
+    const key = m[2];
+    expect(key).toBe('wcf-pasture-imagery-status-v1');
+    expect(/(auth|password|secret|service|supabase|token)/i.test(key)).toBe(false);
+    // All imagery localStorage access flows through the IMAGERY_STATUS_KEY constant
+    // (no other literal key in the module), so it is the only imagery status key.
+    const literalKeys = [
+      ...src.matchAll(/localStorage\s*\.\s*(?:getItem|setItem|removeItem)\s*\(\s*['"]([^'"]+)['"]/g),
+    ].map((x) => x[1]);
+    expect(literalKeys).toEqual([]);
   });
 });

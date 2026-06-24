@@ -43,8 +43,11 @@ describe('IndexedDB / offline queue boundary', () => {
       if (idbImportCount) seenIdbImport.push(`${rel}: ${idbImportCount}`);
     }
 
-    expect(seenOpenDb).toEqual(['src/lib/offlineQueue.js: 2']);
-    expect(seenIdbImport).toEqual(['src/lib/offlineQueue.js: 1']);
+    // offlineQueue owns the offline-queue DB; pastureImagery is the intentional
+    // SECOND idb owner (its own imagery-tile DB, asserted below). Sort so the check
+    // is independent of directory-traversal order across platforms.
+    expect(seenOpenDb.sort()).toEqual(['src/lib/offlineQueue.js: 2', 'src/lib/pastureImagery.js: 2'].sort());
+    expect(seenIdbImport.sort()).toEqual(['src/lib/offlineQueue.js: 1', 'src/lib/pastureImagery.js: 1'].sort());
   });
 
   it('keeps direct indexedDB global access out of src runtime', () => {
@@ -64,5 +67,24 @@ describe('IndexedDB / offline queue boundary', () => {
     expect(src).toMatch(/STORE_SUBMISSIONS\s*=\s*'submissions'/);
     expect(src).toMatch(/STORE_PHOTO_BLOBS\s*=\s*'photo_blobs'/);
     expect(src).toMatch(/DB_VERSION\s*=\s*1/);
+  });
+
+  it('keeps pasture imagery on its OWN idb database, with offlineQueue the only offline-queue owner', () => {
+    // The offline-queue DB name is referenced by exactly one runtime source file.
+    const queueOwners = [];
+    for (const file of runtimeSourceFiles()) {
+      const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      if (code.includes('wcf-offline-queue')) queueOwners.push(rel);
+    }
+    expect(queueOwners).toEqual(['src/lib/offlineQueue.js']);
+
+    // Pasture imagery uses a SEPARATE database (own name/version/store) so large
+    // imagery blobs never touch the version-pinned offline-queue schema.
+    const imagery = fs.readFileSync(path.join(ROOT, 'src/lib/pastureImagery.js'), 'utf8');
+    expect(imagery).toMatch(/IMAGERY_DB_NAME\s*=\s*'wcf-pasture-imagery'/);
+    expect(imagery).toMatch(/IMAGERY_DB_VERSION\s*=\s*1/);
+    expect(imagery).toMatch(/createObjectStore\('tiles'\)/);
+    expect(imagery).not.toContain('wcf-offline-queue');
   });
 });

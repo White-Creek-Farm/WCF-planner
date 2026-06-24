@@ -33,12 +33,18 @@ const TILE_SIZE = 256;
 const WEB_MERCATOR_ORIGIN = 20037508.342789244;
 
 function dbPromise() {
-  if (typeof indexedDB === 'undefined') return null;
-  return openDB(IMAGERY_DB_NAME, IMAGERY_DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains('tiles')) db.createObjectStore('tiles');
-    },
-  });
+  // Uses the idb wrapper exclusively (no raw indexedDB global, per the storage
+  // boundary guard). If IndexedDB is unavailable (e.g. SSR/Node), openDB throws or
+  // rejects and every caller falls back gracefully (null db / caught rejection).
+  try {
+    return openDB(IMAGERY_DB_NAME, IMAGERY_DB_VERSION, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains('tiles')) db.createObjectStore('tiles');
+      },
+    });
+  } catch {
+    return null;
+  }
 }
 
 export function tileKey(z, x, y) {
