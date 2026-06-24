@@ -14,19 +14,55 @@ permissions:
 # Supabase project (single-DB, workers=1). Concurrent runs from different PRs
 # would race the truncate-and-reseed reset between specs. Queue rather than
 # cancel — re-pushing to a branch waits its turn instead of cancelling work.
+#
+# verify and pasture-e2e live in THIS one workflow on purpose: they share a single
+# concurrency slot and serialize via `needs` (pasture-e2e runs AFTER verify on the
+# shared DB). Splitting them into two workflows on the same group is NOT possible —
+# GitHub keeps only one PENDING run per concurrency group and cancels the other.
 concurrency:
   group: wcf-test-db
   cancel-in-progress: false
 
 jobs:
+  # DB-free git diff to gate the heavy pasture browser suite. Runs in parallel with
+  # verify (no shared-DB access), so it never lengthens the common path.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      pasture: ${{ steps.filter.outputs.pasture }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect pasture-lane changes
+        id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then A="$PR_BASE"; B="$PR_HEAD"; else A="$PUSH_BEFORE"; B="$PUSH_AFTER"; fi
+          CHANGED="$(git diff --name-only "$A" "$B" 2>/dev/null || true)"
+          if [ -z "$CHANGED" ]; then
+            echo "diff empty/unavailable -> default pasture=true (safe)"
+            echo "pasture=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Changed files:"; echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(src/pasture/|src/lib/pasture|tests/pasture_map_|supabase-migrations/[0-9_]*pasture|playwright\.pasture\.config\.js|\.github/workflows/ci\.yml)'; then
+            echo "pasture=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pasture=false" >> "$GITHUB_OUTPUT"
+          fi
+
   verify:
     runs-on: ubuntu-latest
-    # The whole-repo Playwright e2e suite is serialized against ONE shared Supabase
-    # test DB (concurrency group wcf-test-db; truncate/reseed specs cannot run in
-    # parallel), so verify is wall-clock bound. The Pasture Map browser specs run in
-    # their own path-gated lane (pasture-e2e.yml, via playwright.pasture.config.js)
-    # and are excluded from this root e2e (playwright.config.js testIgnore), so
-    # verify stays fast for every PR.
+    # The root e2e (test:e2e:ci) excludes the pasture specs (playwright.config.js
+    # testIgnore), so verify stays inside 20 minutes for every PR. The pasture
+    # browser suite runs in the separate path-gated pasture-e2e job below.
     timeout-minutes: 20
     env:
       # Preserves the assertTestDatabase guard. Tests refuse to run without this.
@@ -80,7 +116,8 @@ jobs:
         # of the regression floor. Running it inside CI tipped the verify job
         # past the 20-min timeout on 2026-05-23. Run ux_audit manually via
         # `npx playwright test tests/ux_audit.spec.js` when you need fresh
-        # audit screenshots.
+        # audit screenshots. Pasture specs are excluded via playwright.config.js
+        # testIgnore and run in the pasture-e2e job.
         run: npm run test:e2e:ci
 
       - name: Upload Playwright report on failure
@@ -88,6 +125,62 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # The Pasture Map browser specs are heavy (Leaflet/Geoman draw + GPS + offline
+  # flows) and run via the isolated playwright.pasture.config.js. `needs: verify`
+  # serializes them AFTER the root e2e on the shared test DB (no race); the `if`
+  # gate skips them on non-pasture PRs so they never slow the common path.
+  # !cancelled() lets them still run for pasture PRs even if verify failed, for
+  # independent signal — they only need to wait their turn on the DB.
+  pasture-e2e:
+    needs: [changes, verify]
+    if: ${{ !cancelled() && needs.changes.outputs.pasture == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WCF_TEST_DATABASE: '1'
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VITE_TEST_ADMIN_EMAIL: ${{ secrets.VITE_TEST_ADMIN_EMAIL }}
+      VITE_TEST_ADMIN_PASSWORD: ${{ secrets.VITE_TEST_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Pasture Map E2E (isolated config)
+        run: npx playwright test --config playwright.pasture.config.js
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pasture-playwright-report-${{ github.run_id }}
           path: |
             playwright-report/
             test-results/
