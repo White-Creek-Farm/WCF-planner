@@ -20,9 +20,20 @@ import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 import AppSetupModal from './AppSetupModal.jsx';
 import LockedSubmitter from './LockedSubmitter.jsx';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
+import {getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon, {PlannerIconLabel} from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
+
+const DAILY_FORM_PROGRAMS = {
+  broiler: 'broiler',
+  layer: 'layer',
+  egg: 'egg',
+  pig: 'pig',
+  cattle: 'cattle',
+  sheep: 'sheep',
+};
+
 const WebformHub = ({
   sb,
   wfGroups,
@@ -442,10 +453,11 @@ const WebformHub = ({
     width: '100%',
     outline: 'none',
     background: 'white',
-    color: '#111827',
+    color: '#000000',
     boxSizing: 'border-box',
   };
-  const labelStyle = {display: 'block', fontSize: 13, color: '#374151', marginBottom: 5, fontWeight: 500};
+  const labelStyle = {display: 'block', fontSize: 13, color: '#000000', marginBottom: 5, fontWeight: 500};
+  const activeProgramColor = getProgramColor(DAILY_FORM_PROGRAMS[activeForm]);
   const sectionStyle = {
     background: 'white',
     borderRadius: 12,
@@ -458,52 +470,60 @@ const WebformHub = ({
       {[
         {v: true, l: 'Yes'},
         {v: false, l: 'No'},
-      ].map(({v, l}) => (
-        <button
-          key={l}
-          type="button"
-          onClick={() => onChange(v)}
-          style={{
-            flex: 1,
-            padding: '10px 0',
-            border: 'none',
-            fontFamily: 'inherit',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-            background: 'white',
-            color: val === v ? 'var(--brand)' : 'var(--ink-muted)',
-          }}
-        >
-          {l}
-        </button>
-      ))}
+      ].map(({v, l}, i) => {
+        const selected = val === v;
+        return (
+          <React.Fragment key={l}>
+            {i > 0 && <div style={{width: 1, background: 'var(--border-strong)', flexShrink: 0}} />}
+            <button
+              type="button"
+              onClick={() => onChange(v)}
+              style={{
+                flex: 1,
+                padding: '10px 0',
+                border: 'none',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                fontWeight: selected ? 700 : 500,
+                cursor: 'pointer',
+                background: selected ? activeProgramColor : 'white',
+                color: selected ? '#ffffff' : '#000000',
+              }}
+            >
+              {l}
+            </button>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
   const Toggle = ({opts, val, onChange}) => (
     <div style={{display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border-strong)'}}>
-      {opts.map((o, i) => (
-        <React.Fragment key={o}>
-          {i > 0 && <div style={{width: 1, background: 'var(--border-strong)', flexShrink: 0}} />}
-          <button
-            type="button"
-            onClick={() => onChange(val === o ? '' : o)}
-            style={{
-              flex: 1,
-              padding: '9px 0',
-              border: 'none',
-              fontFamily: 'inherit',
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-              background: 'white',
-              color: val === o ? 'var(--brand)' : 'var(--ink-muted)',
-            }}
-          >
-            {o}
-          </button>
-        </React.Fragment>
-      ))}
+      {opts.map((o, i) => {
+        const selected = val === o;
+        return (
+          <React.Fragment key={o}>
+            {i > 0 && <div style={{width: 1, background: 'var(--border-strong)', flexShrink: 0}} />}
+            <button
+              type="button"
+              onClick={() => onChange(val === o ? '' : o)}
+              style={{
+                flex: 1,
+                padding: '9px 0',
+                border: 'none',
+                fontFamily: 'inherit',
+                fontSize: 12,
+                fontWeight: selected ? 700 : 500,
+                cursor: 'pointer',
+                background: selected ? activeProgramColor : 'white',
+                color: selected ? '#ffffff' : '#000000',
+              }}
+            >
+              {o}
+            </button>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 
@@ -1346,11 +1366,12 @@ const WebformHub = ({
     background: 'var(--bg-page)',
     padding: '1rem',
     fontFamily: 'inherit',
+    color: '#000000',
   };
   const logo = (
     <div style={{textAlign: 'center', marginBottom: 20}}>
       <div style={{fontSize: 18, fontWeight: 800, color: '#085041', letterSpacing: -0.3}}>🌾 WCF Planner</div>
-      <div style={{fontSize: 12, color: '#6b7280', marginTop: 2}}>Daily Report</div>
+      <div style={{fontSize: 12, color: '#000000', marginTop: 2}}>Daily Report</div>
     </div>
   );
 
@@ -1612,7 +1633,7 @@ const WebformHub = ({
           >
             <PlannerIcon iconKey="checkmark" size={32} />
             <div style={{flex: 1}}>
-              <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>Submit a Task</div>
+              <div style={{fontSize: 16, fontWeight: 700, color: 'var(--ink)'}}>Submit a Task or a Todo</div>
               <div style={{fontSize: 12, lineHeight: 1.35, color: 'var(--ink-muted)'}}>
                 Use this to assign tasks to a Wcf Planner user when there is a repair needed or anything that shouldn't
                 be forgotten.

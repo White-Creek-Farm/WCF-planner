@@ -17,6 +17,14 @@ import {visiblePublicAssignees} from '../lib/tasks.js';
 import {listEligibleAssignees, loadPublicAssigneeAvailability} from '../lib/tasksPublicApi.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 import {useOfflineRpcSubmit} from '../lib/useOfflineRpcSubmit.js';
+import {
+  TODO_SECTIONS,
+  createTodoItem,
+  fireTodoChangeEvent,
+  friendlyTodoError,
+  generateTodoItemId,
+  uploadTodoPhotos,
+} from '../lib/todoApi.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import StuckSubmissionsModal from './StuckSubmissionsModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -62,9 +70,11 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
 
   const today = React.useMemo(() => todayCentralISO(), []);
 
+  const [submissionType, setSubmissionType] = React.useState('task');
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [dueDate, setDueDate] = React.useState(today);
+  const [todoSection, setTodoSection] = React.useState('general');
   // Login-required form: submitter is locked to the signed-in user (no roster).
   const submittedBy = sessionSubmitter?.name || '';
   const [assignee, setAssignee] = React.useState('');
@@ -72,9 +82,12 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
   const [submitting, setSubmitting] = React.useState(false);
   const [err, setErr] = React.useState('');
   const [doneState, setDoneState] = React.useState('none'); // 'none' | 'synced' | 'queued'
+  const [doneSubmissionType, setDoneSubmissionType] = React.useState('task');
   const [stuckOpen, setStuckOpen] = React.useState(false);
 
   const {submit, stuckRows, retryStuck, discardStuck} = useOfflineRpcSubmit('task_submit');
+  const isTodoMode = submissionType === 'todo';
+  const submissionLabel = isTodoMode ? 'To Do' : 'Task';
 
   const initialStuckShownRef = React.useRef(false);
   React.useEffect(() => {
@@ -97,26 +110,58 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
       });
   }, [sb]);
 
+  function chooseSubmissionType(nextType) {
+    if (nextType !== 'task' && nextType !== 'todo') return;
+    setSubmissionType(nextType);
+    setErr('');
+    if (nextType === 'todo') {
+      setDueDate('');
+      setAssignee('');
+    } else {
+      setDueDate((d) => d || today);
+    }
+  }
+
   async function handleSubmit() {
     if (!title.trim()) {
       setErr('Title is required.');
       return;
     }
-    if (!dueDate) {
+    if (isTodoMode && title.trim().length < 3) {
+      setErr('Title must be at least 3 characters.');
+      return;
+    }
+    if (!isTodoMode && !dueDate) {
       setErr('Due date is required.');
       return;
     }
-    if (!submittedBy) {
+    if (!isTodoMode && !submittedBy) {
       setErr('Submitted by is required.');
       return;
     }
-    if (!assignee) {
+    if (!isTodoMode && !assignee) {
       setErr('Assignee is required.');
       return;
     }
     setErr('');
     setSubmitting(true);
+    setDoneSubmissionType(submissionType);
     try {
+      if (isTodoMode) {
+        const id = generateTodoItemId();
+        const photoPaths = photoFile ? await uploadTodoPhotos(sb, id, 'origination', [photoFile]) : [];
+        await createTodoItem(sb, {
+          id,
+          title: title.trim(),
+          description: description.trim() || null,
+          section: todoSection,
+          dueDate: dueDate || null,
+          photoPaths,
+        });
+        fireTodoChangeEvent();
+        setDoneState('synced');
+        return;
+      }
       const payload = {
         title: title.trim(),
         description: description.trim() || null,
@@ -127,7 +172,8 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
       const result = await submit(payload, {parentId: mintTiInstanceId(), photo: photoFile || null});
       setDoneState(result.state);
     } catch (e) {
-      setErr('Could not submit: ' + (e && e.message ? e.message : String(e)));
+      const msg = isTodoMode ? friendlyTodoError(e) : e && e.message ? e.message : String(e);
+      setErr('Could not submit: ' + msg);
     } finally {
       setSubmitting(false);
     }
@@ -136,8 +182,9 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
   function resetForm() {
     setTitle('');
     setDescription('');
-    setDueDate(today);
+    setDueDate(submissionType === 'todo' ? '' : today);
     setAssignee('');
+    setTodoSection('general');
     setPhotoFile(null);
     setErr('');
     setDoneState('none');
@@ -146,9 +193,11 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
   const logoEl = (
     <div style={{textAlign: 'center', marginBottom: 20}}>
       <div style={{fontSize: 18, fontWeight: 800, color: '#085041', letterSpacing: -0.3}}>{'🌾 WCF Planner'}</div>
-      <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>Submit a Task</div>
+      <div style={{fontSize: 12, color: 'var(--ink)', marginTop: 2}}>Submit a Task or a Todo</div>
     </div>
   );
+
+  const doneLabel = doneSubmissionType === 'todo' ? 'To Do' : 'Task';
 
   if (doneState !== 'none')
     return (
@@ -164,7 +213,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
               marginBottom: 8,
             }}
           >
-            {doneState === 'queued' ? 'Saved on this device' : 'Task submitted!'}
+            {doneState === 'queued' ? 'Saved on this device' : `${doneLabel} submitted!`}
           </div>
           {doneState === 'queued' && (
             <div
@@ -205,7 +254,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
               marginBottom: 10,
             }}
           >
-            Submit Another Task
+            Submit Another {doneLabel}
           </button>
           <button
             onClick={() => {
@@ -258,23 +307,48 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
           </button>
         )}
 
-        <div
-          style={{
-            background: 'white',
-            border: '1px solid var(--border)',
-            borderLeft: '3px solid #085041',
-            borderRadius: 10,
-            fontSize: 12,
-            color: 'var(--ink)',
-            padding: '10px 16px',
-            marginBottom: 16,
-          }}
-        >
-          One-time task. Need a recurring task? Log in to the planner and create it from Tasks Center.
+        <div data-submit-kind-toggle="1" style={cardS}>
+          <label style={lblS}>Submit type</label>
+          <div
+            role="group"
+            aria-label="Submit type"
+            style={{display: 'flex', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border-strong)'}}
+          >
+            {[
+              {key: 'task', label: 'Task'},
+              {key: 'todo', label: 'To Do'},
+            ].map((opt, i) => {
+              const selected = submissionType === opt.key;
+              return (
+                <React.Fragment key={opt.key}>
+                  {i > 0 && <div style={{width: 1, background: 'var(--border-strong)', flexShrink: 0}} />}
+                  <button
+                    type="button"
+                    data-submit-kind={opt.key}
+                    aria-pressed={selected}
+                    onClick={() => chooseSubmissionType(opt.key)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 0',
+                      border: 'none',
+                      fontFamily: 'inherit',
+                      fontSize: 13,
+                      fontWeight: selected ? 700 : 500,
+                      cursor: 'pointer',
+                      background: selected ? '#085041' : 'white',
+                      color: selected ? '#ffffff' : '#000000',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
 
         <div style={cardS}>
-          <label style={lblS}>Task title *</label>
+          <label style={lblS}>{submissionLabel} title *</label>
           <input
             type="text"
             value={title}
@@ -296,30 +370,47 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
         </div>
 
         <div style={cardS}>
-          <label style={lblS}>Due date *</label>
+          <label style={lblS}>Due date{isTodoMode ? ' (optional)' : ' *'}</label>
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inpS} />
         </div>
 
-        <div style={cardS}>
-          <LockedSubmitter name={submittedBy} label="Submitted by *" labelStyle={lblS} />
-        </div>
+        {isTodoMode && (
+          <div style={cardS}>
+            <label style={lblS}>Section</label>
+            <select value={todoSection} onChange={(e) => setTodoSection(e.target.value)} style={inpS}>
+              {TODO_SECTIONS.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        <div style={cardS}>
-          <label style={lblS}>Assign to *</label>
-          <select value={assignee} onChange={(e) => setAssignee(e.target.value)} style={inpS}>
-            <option value="">Select…</option>
-            {assigneeOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name || p.id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
-          {configLoaded && assigneeOptions.length === 0 && (
-            <div style={{fontSize: 11, color: '#92400e', marginTop: 6}}>
-              No eligible assignees available. Ask an admin to enable a planner user for public tasks.
+        {!isTodoMode && (
+          <>
+            <div style={cardS}>
+              <LockedSubmitter name={submittedBy} label="Submitted by *" labelStyle={lblS} />
             </div>
-          )}
-        </div>
+
+            <div style={cardS}>
+              <label style={lblS}>Assign to *</label>
+              <select value={assignee} onChange={(e) => setAssignee(e.target.value)} style={inpS}>
+                <option value="">Select…</option>
+                {assigneeOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name || p.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+              {configLoaded && assigneeOptions.length === 0 && (
+                <div style={{fontSize: 11, color: '#92400e', marginTop: 6}}>
+                  No eligible assignees available. Ask an admin to enable a planner user for public tasks.
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         <div style={cardS}>
           <label style={lblS}>Photo (optional)</label>
@@ -378,7 +469,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
 
         <button
           onClick={handleSubmit}
-          disabled={submitting || !configLoaded}
+          disabled={submitting || (!isTodoMode && !configLoaded)}
           style={{
             width: '100%',
             padding: 14,
@@ -394,7 +485,7 @@ const TasksWebform = ({sb, sessionSubmitter}) => {
             marginBottom: 16,
           }}
         >
-          {submitting ? 'Submitting…' : 'Submit Task'}
+          {submitting ? 'Submitting…' : `Submit ${submissionLabel}`}
         </button>
 
         <div style={{textAlign: 'center', marginTop: 12}}>
