@@ -80,7 +80,7 @@ async function clickArea(page, areaId) {
 // Record a Mommas move into an area by clicking its polygon (opens the Plan Area
 // inspector), then using the inspector's move form. No list, no modal.
 async function recordMommasMoveTo(page, areaId) {
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await clickArea(page, areaId);
   await expect(page.locator(`[data-pasture-plan-inspector="${areaId}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});

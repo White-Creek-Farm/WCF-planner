@@ -50,7 +50,7 @@ async function hideOverlays(page) {
 test.beforeAll(seed);
 
 test.describe('desktop (hover)', () => {
-  test('Map is hover-only: hover shows the readout, clicking opens no side inspector; status strip has Unplaced + Queued', async ({
+  test('Map: hover shows the read-only readout; clicking an area opens the working inspector; status strip has Unplaced + Queued', async ({
     page,
   }) => {
     await page.setViewportSize({width: 1280, height: 900});
@@ -65,13 +65,14 @@ test.describe('desktop (hover)', () => {
     await expect(tip).toBeVisible({timeout: 10_000});
     await expect(tip).toContainText('V1 North Paddock');
 
-    // Desktop click is a no-op: no side inspector, no popover.
+    // Clicking an area now opens the working Area inspector (Plan folded into Map).
     await page.locator(`.pm-area-${A_ID}`).first().click();
-    await expect(page.locator('[data-pasture-selected-panel]')).toHaveCount(0);
+    await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
     await expect(page.locator('[data-pasture-map-popover]')).toHaveCount(0);
 
-    // Right panel = groups + status strip including Unplaced + Queued.
-    await expect(page.locator('[data-pasture-current-groups]')).toBeVisible();
+    // Escape clears the selection -> Current groups overview + status strip return.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-pasture-current-groups]')).toBeVisible({timeout: 10_000});
     await expect(page.locator('[data-pasture-status-unplaced]')).toBeVisible();
     await expect(page.locator('[data-pasture-status-queued]')).toBeVisible();
   });
@@ -80,28 +81,31 @@ test.describe('desktop (hover)', () => {
 test.describe('mobile (touch)', () => {
   test.use({hasTouch: true, isMobile: true, viewport: {width: 390, height: 844}});
 
-  test('Map tap opens a read-only popover (no full inspector), and Clear dismisses it', async ({page}) => {
+  test('Map tap opens the working Area inspector (no read-only popover), and Clear dismisses it', async ({page}) => {
     await page.goto('/pasture-map', {timeout: 90_000});
     await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
     await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
     await hideOverlays(page);
 
-    // Tap the area -> read-only popover over the map with the area detail.
+    // Tap the area -> the working Area inspector opens (the old read-only popover is gone).
     await page.locator(`.pm-area-${A_ID}`).first().click();
-    const pop = page.locator('[data-pasture-map-popover]');
-    await expect(pop).toBeVisible({timeout: 10_000});
-    await expect(pop).toContainText('V1 North Paddock');
-    await expect(pop.locator('[data-pasture-selected-panel]')).toBeVisible();
-
-    // Clear dismisses the popover.
-    await pop.locator('[data-pasture-clear-selection]').click();
+    await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 10_000});
     await expect(page.locator('[data-pasture-map-popover]')).toHaveCount(0);
+    await expect(page.locator('.pm-side-panel')).toContainText('V1 North Paddock');
+
+    // Clear dismisses the inspector.
+    await page.locator('[data-pasture-clear-selection]').first().click();
+    await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toHaveCount(0);
   });
 
-  test('Plan workflow is a bottom-sheet anchored to the lower viewport (touch)', async ({page}) => {
+  test('the selected-area inspector is a bottom-sheet anchored to the lower viewport (touch)', async ({page}) => {
     await page.goto('/pasture-map', {timeout: 90_000});
     await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-    await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+    await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
+    await hideOverlays(page);
+    // Tapping an area opens its inspector, which on touch is a bottom-sheet.
+    await page.locator(`.pm-area-${A_ID}`).first().click();
+    await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
     const panel = page.locator('.pm-side-panel');
     await expect(panel).toBeVisible({timeout: 15_000});
     // Bottom-sheet: the panel starts in the lower part of the viewport (not a

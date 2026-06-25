@@ -80,8 +80,8 @@ test('Map tab: current groups, hover preview, no-op group click, read-only area 
 
   await hideClickBlockers(page);
 
-  // Map has no move form: record Mommas -> Paddock A via the Plan Area inspector.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  // Record Mommas -> Paddock A via the Map Area inspector (Plan folded into Map).
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await clickArea(page, A_ID);
   await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
@@ -107,13 +107,14 @@ test('Map tab: current groups, hover preview, no-op group click, read-only area 
   await page.locator('[data-pasture-map-header]').hover();
   await expect(page.locator('path[stroke="#f59e0b"]')).toHaveCount(0);
 
-  // Clicking a Current group row in Map mode does NOTHING (no inspector, no select).
+  // Clicking a Current group ROW is still inspection-only (only AREA clicks open the
+  // inspector): it does not open the area inspector or select an area.
   await mommaRow.click();
-  await expect(page.locator('[data-pasture-selected-panel]')).toHaveCount(0);
+  await expect(page.locator('[data-pasture-plan-inspector]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-current-groups="1"]')).toBeVisible();
 
-  // Hide the legend too so it cannot block the eastern polygon, then INSPECT an
-  // area on the Map via HOVER -> read-only desktop readout (V1: no click inspect).
+  // Hide the legend too so it cannot block the eastern polygon, then read an area via
+  // HOVER -> desktop readout.
   await page.addStyleTag({content: '.pm-legend{display:none!important}'});
   await page.locator(`.pm-area-${A_ID}`).first().hover();
   const tip = page.locator('.pm-area-hover-tip');
@@ -121,12 +122,12 @@ test('Map tab: current groups, hover preview, no-op group click, read-only area 
   await expect(tip).toContainText('Paddock');
   await expect(tip).toContainText('Mommas');
   await expect(tip).toContainText('ac');
-  // Desktop Map has no clickable inspector: clicking opens none, and there are no
-  // manage / move / danger workflows on the Map.
+  // Clicking an area now opens the working inspector (Plan folded into Map): the area
+  // detail + the move/manage controls are right there.
   await clickArea(page, A_ID);
-  await expect(page.locator('[data-pasture-selected-panel]')).toHaveCount(0);
-  await expect(page.locator('[data-pasture-area-manage]')).toHaveCount(0);
-  await expect(page.locator('[data-pasture-move-form]')).toHaveCount(0);
+  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // The temp paddock readout reads "Temp paddock".
   await page.locator(`.pm-area-${T_ID}`).first().hover();

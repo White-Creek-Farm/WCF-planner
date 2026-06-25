@@ -84,7 +84,7 @@ test('unplaced group reads Not placed, Next is the first rotation stop, and Move
 
   // Plan tab: make Mommas the active group (the default active group may be a
   // pre-existing pig/sheep roster group in the shared TEST DB).
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
 
   // Combined group/move card. Current = Not placed; Next = first rotation stop.

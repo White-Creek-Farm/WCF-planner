@@ -402,38 +402,42 @@ The current source checkpoint is listed in the header above.
     keep the shared saved-view/export/print/filter behavior.
 - Pasture Map:
   - Home shows a Pasture Map button beside Weather above Processing/Admin.
-  - `/pasture-map` renders the redesigned one-page grazing cockpit with Map,
-    Plan, Field, and Reports modes. Setup tab is removed.
-  - Map is the primary read-only current-location surface. Selecting an area
-    updates the right-panel area inspector; there is no centered Map modal and
-    no Land areas list. Map/Pan, explicit zoom actions, Escape, and inspector
+  - `/pasture-map` renders the one-page grazing cockpit with Map, Field, and
+    Reports tabs. Plan is folded into Map; the Setup tab was already removed.
+  - Map is the single working surface (Plan merged in). Desktop hover shows the
+    read-only area readout; clicking/tapping an area opens the working Area
+    inspector. With no area selected the side panel shows the Current groups
+    overview, and the planning cockpit (group switcher, Move + Clear current
+    area, rotation editor, classification queue, Tracks / Lines, archived-area
+    recovery, Boundary tools, area management) is always available below it, so
+    selecting an area never hides the working controls. There is no centered
+    modal and no Land areas list; Map/Pan, explicit zoom, Escape, and inspector
     dismissal are the exit paths.
-  - Plan is the working cockpit: move/rotation controls, Boundary tools,
-    Tracks / Lines, classification queue, archived-area recovery, and area
-    management all live there.
   - Occupancy visuals are derived from the real planner-group roster and latest
     `pasture_move_events` by canonical `(animal_type, group_key)`, not from
     ad-hoc/free-form groups. Occupied polygons fill by animal type and show
     group markers. Farm status `Occupied` counts are explained in the Map side
     panel by the reconciled occupied-area list.
-  - Current-group rows on Map are inspection-only: click does nothing, and
-    hover/focus previews the group's mapped area/name on the map.
+  - Hovering/focusing a Current-group row previews its mapped area/name on the
+    map; clicking/tapping an AREA opens the working inspector. The old read-only
+    touch Map popover is retired.
   - Field mode provides phone-first execution controls, offline queue/sync
     state, selected group movement, `My Location`, `Fit Farm`, and draft-lines
     visibility when applicable.
   - Client parses OnX KML with `@tmcw/togeojson`; Polygons import as reviewable
     areas; LineStrings import as outline candidates and are never auto-closed.
-  - Tracks / Lines are draft LineStrings only. They have no acreage, are hidden
-    from normal Map view by default, are excluded from move destinations and
-    rotation seeding, and can be zoomed/deleted/closed into a temp paddock. Edit
-    for open LineStrings is deferred until a new line-geometry RPC exists.
+  - Tracks / Lines are draft LineStrings only. They have no acreage, are
+    excluded from move destinations and rotation seeding, render on the working
+    Map and on Field (via the Draft-lines toggle), and can be zoomed/deleted/
+    closed into a temp paddock. Edit for open LineStrings is deferred until a new
+    line-geometry RPC exists.
   - Read access starts at `farm_team`; management/admin can import/classify,
     close/delete permanent areas, draw/edit permanent geometry, promote temp
     areas, and manage Tracks / Lines. Farm-team users can view/measure, confirm
-    planned moves, and create temp paddocks/tracks through the temp lifecycle.
-    Light users have read-only, Map-only access through migration `136`; Plan,
-    Field, Reports, move recording, planning, drawing, and area management stay
-    hidden/denied for Light.
+    planned moves, record and Clear moves, and create temp paddocks/tracks
+    through the temp lifecycle. Light is pasture farm-team-level (migration
+    `139`): Light keeps the farm-team working controls on Map and Field and is
+    NOT Map-only/read-only; only management/admin-only actions stay gated.
   - Map rendering uses Leaflet with Esri World Imagery as the primary online
     imagery source. Geometry is provider-neutral GeoJSON/PostGIS; Google is not
     the geometry source.
@@ -559,7 +563,8 @@ These differences are current product/architecture decisions, not parity defects
 unless Ronnie changes the contract:
 
 - Light users are intentionally excluded from `/weighins` and `/production`.
-  Light users may access `/pasture-map` only as a read-only, Map-only view.
+  Light users have pasture farm-team-level access to `/pasture-map` (migration
+  `139`): full Map + Field working controls, not a read-only/Map-only view.
 - Light users may access Cattle Log through the webform/field-journal path.
 - Migration `083` public webform submitter identity stays shelved. Authenticated
   submitter identity is the durable path.
@@ -620,8 +625,9 @@ unless Ronnie changes the contract:
   `/tasks/todo/<id>`.
 - Light portal: contained home for `role=light`, allowed webform/daily
   shortcuts, Tasks, My Submissions/View Past Reports, equipment public hub, fuel
-  supply, Add Feed, legacy pig daily, Cattle Log, and read-only Map-only Pasture
-  Map. No Production or Weigh-ins.
+  supply, Add Feed, legacy pig daily, Cattle Log, and pasture farm-team-level
+  Pasture Map (full Map + Field working controls, migration `139`). No Production
+  or Weigh-ins.
 - Global Activity: `/activity`.
 - Admin/config: `/admin`.
 - Admin runtime observability: `/admin/client-errors`.
@@ -1157,26 +1163,27 @@ Workflow/worktable entities:
   `animal_type='sheep_flock'`, `group_key=flock`; breeder pigs ->
   `animal_type='breeder_pigs'`, `group_key='sow-1'|'sow-2'|'sow-3'|'boars'`;
   feeder pigs -> `animal_type='feeder_pigs'`, `group_key=sub.id`.
-- Access: `farm_team`, `management`, `admin` can read/view/measure. Map is
-  read-only inspection for all allowed roles. Management/admin own permanent
-  area import/classify/close/draw/edit, Tracks / Lines cleanup, promotion, and
-  permanent-area lifecycle actions. Farm-team can confirm planned moves and
+- Access: `farm_team`, `management`, `admin` can read/view/measure and use the
+  Map working controls. Management/admin own permanent area import/classify/
+  close/draw/edit, Tracks / Lines cleanup, promotion, and permanent-area
+  lifecycle actions. Farm-team can record/Clear moves, confirm planned moves, and
   create/edit/archive their own temp paddocks/tracks through migration `135`.
-  `equipment_tech` and inactive users are excluded. Light users have read-only,
-  Map-only access through migration `136`; all Plan/Field/Reports and write
-  controls are hidden or disabled for Light, and write/report RPCs still reject
-  Light.
-- Current Pasture Map tabs are Map / Plan / Field / Reports. Setup is removed.
-  Map stays clean for selection/current-location inspection; Plan owns Boundary
-  tools, Tracks / Lines, classification queue, archived-area recovery, rotation
-  planning, move controls, and contextual area management. Field is phone-first
-  execution/offline queue. Reports are separate read/report surfaces. Light
-  users see only Map unless Ronnie explicitly approves broader pasture tabs for
-  Light.
+  `equipment_tech` and inactive users are excluded. Light is pasture farm-team-
+  level through migration `139`: Light keeps the farm-team Map/Field working
+  controls and is NOT read-only/Map-only; only management/admin-only actions stay
+  gated, and write/report RPCs reject roles outside the granted set.
+- Current Pasture Map tabs are Map / Field / Reports. Plan is folded into Map;
+  Setup was already removed. Map is the single working surface: hover reads,
+  click/tap opens the Area inspector, and the planning cockpit (Move + Clear,
+  rotation editor, Boundary tools, Tracks / Lines, classification queue,
+  archived-area recovery, area management) is always reachable below the Current
+  groups overview. Field is phone-first execution/offline queue. Reports are
+  separate read/report surfaces (per-area grazing records; no map view). Light is
+  pasture farm-team-level on the merged Map and Field.
 - Boundary visibility toggles hide/show pasture, paddock, or temp-paddock
   strokes only. Animal occupancy fills and group markers remain visible. Draft
-  lines are hidden on Map by default; Field has a Draft lines toggle; selected
-  draft lines can be shown for context.
+  lines render on the working Map; Field has a Draft lines toggle; selected draft
+  lines show for context.
 - Permanent pasture stroke is locked blue 4px; permanent paddock stroke is
   locked bright green 4px. Temp paddocks default to white dashed 5px and can be
   restyled. Only temp paddocks and GPS/field tracks have editable line style.

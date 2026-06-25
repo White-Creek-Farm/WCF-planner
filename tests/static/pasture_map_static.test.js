@@ -254,11 +254,11 @@ describe('V1 reset — saved distance measurements client (CP-E)', () => {
     expect(viewSrc).toContain('function deleteMeasurement');
     expect(viewSrc).toContain('data-pasture-measure-form');
     expect(viewSrc).toContain('data-pasture-measurements');
-    // Canvas saves the measured line + renders saved measurements as a layer that
-    // is hidden on the read-only Map.
+    // Canvas saves the measured line + renders saved measurements as a layer on the
+    // working Map + Field (Reports has no canvas).
     expect(canvasSrc).toContain('data-pasture-measure-save');
     expect(canvasSrc).toContain('measureLayerRef');
-    expect(canvasSrc).toMatch(/if \(appMode === 'view' \|\| !measurements\.length\) return/);
+    expect(canvasSrc).toMatch(/if \(!measurements\.length\) return/);
   });
 });
 
@@ -399,9 +399,9 @@ describe('V1 reset — Field Drop Point crosshair (CP-D)', () => {
   });
 });
 
-describe('V1 reset — Plan is a bottom-sheet on phones (touch)', () => {
+describe('Merged Map is a bottom-sheet on phones (touch)', () => {
   it('layout gets an is-plan class and a touch bottom-sheet treatment', () => {
-    expect(viewSrc).toContain("(appMode === 'plan' ? ' is-plan' : '')");
+    expect(viewSrc).toContain("(appMode === 'view' && selectedId ? ' is-plan' : '')");
     expect(pastureCss).toMatch(/@media \(hover: none\) and \(pointer: coarse\) and \(max-width: 980px\)/);
     expect(pastureCss).toContain('.pm-layout.is-plan .pm-side-panel');
   });
@@ -505,7 +505,7 @@ describe('Clear current area (no-destination move; no undo, no migration)', () =
 describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)', () => {
   it('view passes all groups paths to the canvas with a next-stop-only toggle', () => {
     expect(viewSrc).toContain('const rotationPaths = React.useMemo');
-    expect(viewSrc).toContain("rotationPaths: appMode === 'plan' ? rotationPaths : []");
+    expect(viewSrc).toContain("rotationPaths: appMode === 'view' ? rotationPaths : []");
     expect(viewSrc).toContain('const [nextStopOnly, setNextStopOnly]');
     expect(viewSrc).toContain('data-pasture-next-stop-only');
   });
@@ -519,25 +519,24 @@ describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)',
   });
 });
 
-describe('V1 reset — Map tab is read-only (hover desktop / tap touch, status strip)', () => {
-  it('Map drops the side inspector and routes view to the groups + status panel', () => {
-    expect(viewSrc).not.toContain("if (inspecting && appMode === 'view') return renderSelectedPanel()");
-    expect(viewSrc).toContain('return renderViewPanel();');
+describe('Merged Map: hover readout + click-to-inspect working surface', () => {
+  it('Map renders the Current groups overview, then always the planning cockpit', () => {
+    // No selection -> Current groups overview; selection -> Area inspector; the
+    // cockpit (renderPlanPanel) is always rendered so controls never disappear.
+    expect(viewSrc).toContain('{inspecting ? renderPlanAreaInspector() : renderViewPanel()}');
+    expect(viewSrc).toContain('{renderPlanPanel()}');
+    // The old touch-only read-only popover is retired.
+    expect(viewSrc).not.toContain('function renderMapPopover');
+    expect(viewSrc).not.toContain('data-pasture-map-popover');
   });
 
-  it('Map area inspection is hover (desktop) / tap popover (touch), never a desktop click', () => {
-    // One-time touch-capability read drives the hover-vs-tap fork.
-    expect(viewSrc).toContain("window.matchMedia('(hover: none)').matches");
-    // Touch-only popover mount over the map.
-    expect(viewSrc).toContain("appMode === 'view' && isTouch && mapMode === 'select' && renderMapPopover()");
-    expect(viewSrc).toContain('function renderMapPopover');
-    expect(viewSrc).toContain('data-pasture-map-popover');
-    // Canvas: desktop Map click is a no-op (hover readout instead); rich hover tip.
-    expect(canvasSrc).toContain("if (appMode === 'view' && !isTouch) return;");
+  it('Map click opens the inspector; desktop hover keeps the clamped read-only readout', () => {
+    // Canvas: clicking an area selects it (no desktop no-op guard anymore).
+    expect(canvasSrc).not.toContain("if (appMode === 'view' && !isTouch) return;");
     expect(canvasSrc).toContain('function areaHoverTip');
     expect(canvasSrc).toContain('pm-area-hover-tip');
-    // The readout is edge-aware: clamped inside the map container so it cannot clip
-    // off-screen, and wider than the old narrow tooltip.
+    // The readout is still edge-aware: clamped inside the map container so it cannot
+    // clip off-screen, and wider than the old narrow tooltip.
     expect(canvasSrc).toContain('function clampTooltipWithin');
     expect(canvasSrc).toContain("lyr.on('tooltipopen', clampTip)");
     expect(pastureCss).toMatch(/\.pm-area-hover-tip \{[\s\S]*?max-width: min\(300px/);
@@ -1198,8 +1197,8 @@ describe('P2 Map tab', () => {
 
   it('Map panel header uses the roster placed-count copy', () => {
     expect(viewSrc).toContain('MAP - WHERE THINGS ARE');
-    // Map is read-only: hover an area or group for details; tap on a phone.
-    expect(viewSrc).toContain('hover an area or group for details; tap on a phone');
+    // Merged Map: hover reads, click an area to work; tap on a phone.
+    expect(viewSrc).toContain('hover to read, click an area to work; tap on a phone');
     expect(viewSrc).toContain('data-pasture-map-header');
   });
 
@@ -1497,9 +1496,9 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     expect(viewSrc).not.toContain('data-pasture-track-line-edit');
   });
 
-  it('canvas hides draft lines on Map by default; Field has a Draft-lines toggle', () => {
+  it('canvas shows draft lines on the working Map; Field has a Draft-lines toggle', () => {
     expect(canvasSrc).toContain(
-      "appMode === 'plan' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId",
+      "appMode === 'view' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId",
     );
     expect(canvasSrc).toContain('data-pasture-draftlines-toggle');
     // Draft-lines toggle lives behind the Field "Layers" button now.
@@ -1583,31 +1582,33 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
   });
 });
 
-describe('Plan-centric IA: Setup tab removed, contextual area modal', () => {
-  it('Setup is gone from the tabs and panel routing', () => {
+describe('Merged Map IA: tabs are Map / Field / Reports, no modal', () => {
+  it('Setup and Plan are gone from the tabs; tabs are Map / Field / Reports', () => {
     const tabsBlock = viewSrc.match(/const MODE_TABS = \[[\s\S]*?\];/)?.[0] || '';
     expect(tabsBlock).not.toContain("id: 'setup'");
+    expect(tabsBlock).not.toContain("id: 'plan'");
+    expect(tabsBlock).not.toContain("label: 'Plan'");
     expect(tabsBlock).toContain("label: 'Map'");
-    expect(tabsBlock).toContain("label: 'Plan'");
+    expect(tabsBlock).toContain("label: 'Field'");
+    expect(tabsBlock).toContain("label: 'Reports'");
     expect(viewSrc).not.toContain('function renderSetupPanel');
     expect(viewSrc).not.toContain("appMode === 'setup'");
     expect(viewSrc).not.toContain("setAppMode('setup')");
   });
 
-  it('Map opens no side inspector; Plan opens the side inspector; never a modal', () => {
+  it('Map opens the working Area inspector on selection; never a modal', () => {
     // No centered modal / overlay anywhere.
     expect(viewSrc).not.toContain('function renderAreaModal');
     expect(viewSrc).not.toContain('{renderAreaModal()}');
     expect(viewSrc).not.toContain('data-pasture-area-modal');
     expect(viewSrc).not.toContain('data-pasture-area-modal-backdrop');
     expect(viewSrc).not.toContain('pm-modal-backdrop');
-    // V1 reset: Map (view) is read-only with NO side inspector; Plan keeps it.
-    expect(viewSrc).not.toContain("if (inspecting && appMode === 'view') return renderSelectedPanel()");
-    expect(viewSrc).toContain("if (inspecting && appMode === 'plan') return renderPlanAreaInspector()");
-    // The read-only Area detail is reused by the touch popover over the Map.
-    expect(viewSrc).toContain('function renderMapPopover');
-    expect(viewSrc).toContain('data-pasture-map-popover');
-    // Clearing the selection (Esc / Clear) still dismisses the inspector/popover.
+    // Selecting an area opens the working inspector; the cockpit stays below it.
+    expect(viewSrc).toContain('{inspecting ? renderPlanAreaInspector() : renderViewPanel()}');
+    // The old read-only touch popover is retired.
+    expect(viewSrc).not.toContain('function renderMapPopover');
+    expect(viewSrc).not.toContain('data-pasture-map-popover');
+    // Clearing the selection (Esc / Clear) still dismisses the inspector.
     expect(viewSrc).toContain('onClick={() => setSelectedId(null)}');
     expect(viewSrc).toContain('data-pasture-clear-selection');
   });

@@ -60,7 +60,7 @@ test('Reports lists every area (nested) and drills into a per-area grazing recor
   await hideMapOverlays(page);
 
   // Record Mommas -> Paddock 1 via the Plan Area inspector.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator(`.pm-area-${C_ID}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${C_ID}"]`)).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});

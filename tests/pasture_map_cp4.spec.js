@@ -88,7 +88,7 @@ test('plans a move and renders history/rest/stocking reports', async ({page}) =>
 
   // Plan: selecting an area polygon opens the Plan Area inspector, which carries
   // both the plan form and the move form (single flat Group picker, locked count).
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await clickArea(page, A_ID);
   await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-plan-form]').first()).toBeVisible({timeout: 15_000});

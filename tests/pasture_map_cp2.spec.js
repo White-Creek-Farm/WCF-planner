@@ -72,7 +72,7 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
   // Boundary tools live in the Plan tab's collapsible Boundary tools card now.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('[data-pasture-boundary-tools-toggle]').click();
   for (const m of ['move', 'track', 'measure', 'draw', 'edit']) {
     await expect(page.locator(`[data-mode="${m}"]`)).toBeVisible();
@@ -140,7 +140,7 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await expect(page.locator('[data-pasture-drawform]')).toHaveCount(0);
 
   // ── CP2 edit: select the drawn paddock polygon -> Plan inspector -> Redraw -> edit bar ──
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await hideMapOverlays(page);
   await page.locator(`.pm-area-${drawnId}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${drawnId}"]`)).toBeVisible({timeout: 15_000});
@@ -164,7 +164,7 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.reload();
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('[data-pasture-boundary-tools-toggle]').click();
   await page.locator('[data-mode="draw"]').click();
   await page.waitForTimeout(800);

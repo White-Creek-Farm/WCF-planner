@@ -52,7 +52,7 @@ test('CP6: mobile GPS track saves as an outline candidate', async ({page}) => {
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
   // GPS boundary tools live in the Plan tab's collapsible Boundary tools card now.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('[data-pasture-boundary-tools-toggle]').click();
   await page.locator('[data-mode="track"]').click();
   await expect(page.locator('[data-pasture-track-panel]')).toBeVisible();

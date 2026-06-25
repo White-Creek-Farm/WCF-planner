@@ -142,8 +142,9 @@ function reconcileAreaOccupants(area, rosterByKey) {
 }
 
 const MODE_TABS = [
-  {id: 'view', label: 'Map', hint: 'Browse groups & areas - select to inspect'},
-  {id: 'plan', label: 'Plan', hint: 'Moves, boundary tools, area management'},
+  // Map is the single working surface: hover readout + click/tap inspector + all the
+  // planning/boundary/move tools (Plan folded in). Field and Reports stay separate.
+  {id: 'view', label: 'Map', hint: 'Groups, moves, rotation, boundary tools - hover to read, click to work'},
   {id: 'field', label: 'Field', hint: 'Phone-first execution'},
   {id: 'reports', label: 'Reports', hint: 'Reports stay out of the planning flow'},
 ];
@@ -1001,10 +1002,10 @@ export default function PastureMapView({Header, authState}) {
     setErr('');
     setPreviewAreaId(null);
     if (next !== 'reports') setReportAreaId(null);
-    if (next !== 'plan') setAddMode(false);
-    // Boundary tools (track/draw/edit) now live in Plan; reset them off any other tab.
-    if (next !== 'plan' && mapMode === 'track') resetTrackFlow();
-    if (next !== 'plan' && ['draw', 'edit'].includes(mapMode)) setMapMode('select');
+    if (next !== 'view') setAddMode(false);
+    // Boundary tools (track/draw/edit) live on the merged Map; reset them off any other tab.
+    if (next !== 'view' && mapMode === 'track') resetTrackFlow();
+    if (next !== 'view' && ['draw', 'edit'].includes(mapMode)) setMapMode('select');
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
   }
 
@@ -1029,7 +1030,7 @@ export default function PastureMapView({Header, authState}) {
     }
     setErr('');
     setEditGeom(null);
-    setAppMode('plan');
+    setAppMode('view');
     setMapMode('edit');
   }
 
@@ -1051,7 +1052,7 @@ export default function PastureMapView({Header, authState}) {
         polygons: placemarks.filter((p) => !p.is_outline_candidate).length,
         lines: placemarks.filter((p) => p.is_outline_candidate).length,
       });
-      setAppMode('plan');
+      setAppMode('view');
     } catch (e2) {
       setErr('Could not parse that file as KML: ' + (e2.message || e2));
     }
@@ -1158,7 +1159,7 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function onDrawComplete(geometry, metrics) {
-    setDrawForm({geometry, metrics, name: '', kind: appMode === 'plan' ? 'paddock' : 'unclassified'});
+    setDrawForm({geometry, metrics, name: '', kind: appMode === 'view' ? 'paddock' : 'unclassified'});
   }
 
   function onEditGeometry(geometry, metrics) {
@@ -1211,7 +1212,7 @@ export default function PastureMapView({Header, authState}) {
     }
     // GPS Boundary works from both Plan and the Field cockpit; keep the current
     // tab (Field stays Field) rather than yanking the user into Plan.
-    if (appMode !== 'field') setAppMode('plan');
+    if (appMode !== 'field') setAppMode('view');
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setTrack({...initialTrackState(), error: 'GPS is unavailable on this device/browser.'});
       setMapMode('track');
@@ -1532,7 +1533,7 @@ export default function PastureMapView({Header, authState}) {
       animalCount: plan.animal_count == null ? '' : String(plan.animal_count),
       notes: plan.notes || '',
     });
-    setAppMode('plan');
+    setAppMode('view');
     setErr('');
   }
 
@@ -1668,7 +1669,7 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function handleAreaClick(id) {
-    if (addMode && appMode === 'plan' && activeGroup) {
+    if (addMode && appMode === 'view' && activeGroup) {
       appendToRotation(activeGroup.id, id);
       return;
     }
@@ -2590,19 +2591,10 @@ export default function PastureMapView({Header, authState}) {
 
   // Touch-only read-only popover: on Map, tapping an area opens the same read-only
   // Area detail as a popover over the map (desktop uses the hover readout instead).
-  function renderMapPopover() {
-    if (!selectedArea) return null;
-    return (
-      <div className="pm-map-popover" data-pasture-map-popover="1">
-        {renderSelectedPanel()}
-      </div>
-    );
-  }
-
   function renderViewPanel() {
-    // Map is read-only "where things are". There is no side inspector and no
-    // management here: desktop hovers an area for the readout; touch taps it for a
-    // read-only popover. Hover/focus a group row to preview its area on the map.
+    // Merged Map overview "where things are": desktop hovers an area for the readout;
+    // hover/focus a group row to preview its area on the map. Clicking/tapping an area
+    // opens the working Area inspector (and the planning cockpit stays below).
     const unplacedGroupCount = groups.filter((g) => !groupLocation[g.id]).length;
     const queuedItemCount = (queueState.queuedCount || 0) + (queueState.stuckCount || 0);
     return (
@@ -2612,7 +2604,7 @@ export default function PastureMapView({Header, authState}) {
           <h2>Current groups</h2>
           <p>
             {groups.length
-              ? `${groups.length - unplacedGroupCount} of ${groups.length} groups placed - hover an area or group for details; tap on a phone`
+              ? `${groups.length - unplacedGroupCount} of ${groups.length} groups placed - hover to read, click an area to work; tap on a phone`
               : 'No active planner groups yet'}
           </p>
         </div>
@@ -2789,7 +2781,7 @@ export default function PastureMapView({Header, authState}) {
             type="button"
             className={'pm-btn' + (addMode ? ' pm-btn-primary' : '')}
             onClick={() => {
-              setAppMode('plan');
+              setAppMode('view');
               setMapMode('select');
               setAddMode((v) => !v);
             }}
@@ -2800,7 +2792,7 @@ export default function PastureMapView({Header, authState}) {
             type="button"
             className="pm-btn"
             onClick={() => {
-              setAppMode('plan');
+              setAppMode('view');
               setAddMode(false);
               setDrawIsTemp(true);
               switchToolMode('draw');
@@ -3578,19 +3570,19 @@ export default function PastureMapView({Header, authState}) {
     // overlay, not the side panel.
     if (appMode === 'field') return null;
     if (appMode === 'reports') return renderReportsPanel();
-    // Selecting an area swaps the side panel for the Area inspector (no modal).
-    // Suppressed while tapping the map to add rotation stops (Plan addMode) and
-    // during active map tools so the map + transient tool forms stay usable.
-    const inspecting =
-      selectedArea &&
-      !(addMode && appMode === 'plan') &&
-      !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode);
-    // Map (view) is read-only: the side panel always shows the groups + status
-    // overview. Area inspection happens via hover (desktop) or a tap popover
-    // (touch) over the map itself, never the full side inspector.
-    if (inspecting && appMode === 'plan') return renderPlanAreaInspector();
-    if (appMode === 'plan') return renderPlanPanel();
-    return renderViewPanel();
+    // Merged Map: clicking/tapping an area opens the working Area inspector; with no
+    // selection the top shows the Current groups overview. The planning cockpit
+    // (group switcher, move + Clear, rotation editor, boundary/manager tools) is
+    // ALWAYS rendered below so selecting an area never hides the working controls.
+    // Suppressed while tapping the map to add rotation stops (addMode) and during
+    // active map tools so the map + transient tool forms stay usable.
+    const inspecting = selectedArea && !addMode && !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode);
+    return (
+      <>
+        {inspecting ? renderPlanAreaInspector() : renderViewPanel()}
+        {renderPlanPanel()}
+      </>
+    );
   }
 
   // OnX-style Field chrome: the real map is the hero (rendered in pm-map-col);
@@ -3714,7 +3706,9 @@ export default function PastureMapView({Header, authState}) {
         className={
           'pm-layout' +
           (appMode === 'field' ? ' is-field' : '') +
-          (appMode === 'plan' ? ' is-plan' : '') +
+          // Mobile bottom-sheet only when an area is selected (its inspector); with no
+          // selection the Map panel stacks below the map so areas stay tappable.
+          (appMode === 'view' && selectedId ? ' is-plan' : '') +
           (appMode === 'reports' ? ' is-reports' : '')
         }
       >
@@ -3739,7 +3733,7 @@ export default function PastureMapView({Header, authState}) {
                 onDrawComplete,
                 onEditGeometry,
                 trackGeometry: activeTrackGeometry,
-                rotationPaths: appMode === 'plan' ? rotationPaths : [],
+                rotationPaths: appMode === 'view' ? rotationPaths : [],
                 nextStopOnly,
                 showRotationPath,
                 previewAreaId: appMode === 'view' ? previewAreaId : null,
@@ -3759,7 +3753,6 @@ export default function PastureMapView({Header, authState}) {
                 onToggleDraftLines: toggleDraftLines,
                 onExitTool: () => switchToolMode('select'),
               })}
-              {appMode === 'view' && isTouch && mapMode === 'select' && renderMapPopover()}
               {renderFieldChrome()}
             </section>
             <aside className="pm-side-panel">

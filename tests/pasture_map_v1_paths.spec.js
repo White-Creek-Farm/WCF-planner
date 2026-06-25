@@ -60,7 +60,7 @@ test('Plan draws the rotation path; "Next only" collapses it to the next stop', 
 
   // Plan tab: the Mommas 2-stop rotation draws on the map (a labelled first stop
   // marker + a numbered second stop marker).
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
   await expect(page.locator('.pm-rotation-marker')).toHaveCount(2, {timeout: 15_000});
 

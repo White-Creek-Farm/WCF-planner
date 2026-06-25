@@ -122,14 +122,15 @@ test.beforeAll(async () => {
   await cleanAndSeedPastureTables();
 });
 
-test('light sees all four tabs and can record a move (mig 139), but gets no manager boundary tools', async ({page}) => {
+test('light sees all tabs and can record a move (mig 139), but gets no manager boundary tools', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await loginAsLight(page);
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // V1 reset: every tab renders for light (was Map-only before).
-  for (const label of ['Map', 'Plan', 'Field', 'Reports']) {
+  // Every tab renders for light (was Map-only before mig 139; Plan is now folded
+  // into Map, so the tabs are Map / Field / Reports).
+  for (const label of ['Map', 'Field', 'Reports']) {
     await expect(page.locator('.pm-tabs button', {hasText: label})).toBeVisible({timeout: 15_000});
   }
 
@@ -138,7 +139,7 @@ test('light sees all four tabs and can record a move (mig 139), but gets no mana
 
   // Plan: light gets the actionable workspace but NOT the management-only
   // boundary tools (light == farm_team, not manager).
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await expect(page.locator('[data-pasture-boundary-tools-toggle]')).toHaveCount(0);
 
   // Light records a Mommas move via the Plan Area inspector — the server

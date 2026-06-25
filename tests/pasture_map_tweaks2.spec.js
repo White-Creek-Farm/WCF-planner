@@ -53,9 +53,9 @@ async function seedTwoAreas() {
   `);
 }
 
-// V1 reset: the Map read-only inspector is now the touch popover (desktop is
-// hover-only). Drive this dismissal test in a touch context so the popover opens.
-test.describe('Map touch popover dismissal', () => {
+// Merged Map: clicking/tapping an area opens the working Area inspector in the side
+// panel; it dismisses via the X button or Escape (no centered modal/overlay).
+test.describe('Map area inspector dismissal', () => {
   test.use({hasTouch: true, isMobile: true});
   test('area inspector dismissal: clear (X) button and Escape; no modal/overlay', async ({page}) => {
     await seedTwoAreas();
@@ -106,7 +106,7 @@ test('Setup Tracks / Lines: lists draft lines, not on Map, closes into a temp pa
   await expect(page.locator(`[data-pasture-area-select="${OUT_ID}"]`)).toHaveCount(0);
 
   // It lives in the Plan Tracks / Lines section.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   const card = page.locator('[data-pasture-tracks-lines]');
   await expect(card).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('1');
@@ -158,7 +158,7 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   // Record Mommas -> Paddock A via the Plan rotation Move button (A is the only
   // destination, so an unplaced Mommas moves there). No polygon click, so the
   // boundary toggle stays available for the toggle assertion below.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
   await page.locator('[data-pasture-move]').click();
   await page.waitForTimeout(1000);
@@ -190,7 +190,7 @@ test('Plan tab: one combined group/move card, no area list, move in the area ins
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
 
   // One combined group/move card with a plain "Move" button.
   const card = page.locator('[data-pasture-group-move]');
@@ -234,7 +234,7 @@ test('Measure is transient: HUD with Clear + Done, and Escape/Map-Pan dismiss it
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('[data-pasture-boundary-tools-toggle]').click();
 
   // Measure -> draw -> HUD with lifecycle controls.
@@ -286,7 +286,7 @@ test('Archived areas have a recovery surface in Plan', async ({page}) => {
   await expect(page.locator(`[data-pasture-area-select="${A_ID}"]`)).toHaveCount(0);
 
   // It is recoverable from the Plan "Archived areas" section.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await expect(page.locator('[data-pasture-archived]')).toBeVisible({timeout: 15_000});
   await expect(page.locator(`[data-pasture-archived-row="${A_ID}"]`)).toBeVisible();
   await page.locator(`[data-pasture-archived-restore="${A_ID}"]`).click();

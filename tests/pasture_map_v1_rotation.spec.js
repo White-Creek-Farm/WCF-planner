@@ -48,7 +48,7 @@ async function hideOverlays(page) {
 }
 
 async function activateMommas(page) {
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
 }
 

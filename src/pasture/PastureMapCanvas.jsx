@@ -604,11 +604,10 @@ export default function PastureMapCanvas({
     ordered.forEach((a) => {
       const g = areaGeom(a);
       if (!g) return;
-      // Draft lines (GPS tracks / open lines) are hidden on the Map by default.
-      // They render only on Field when the Draft-lines toggle is on, or when the
-      // line itself is the current selection (so Plan/Tracks zoom still shows).
+      // Draft lines (GPS tracks / open lines): shown on the working Map, on Field when
+      // the Draft-lines toggle is on, or when the line itself is the current selection.
       if (g.kind === 'line') {
-        const showDraft = appMode === 'plan' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId;
+        const showDraft = appMode === 'view' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId;
         if (!showDraft) return;
       }
       const occList = occupants[a.id] || [];
@@ -655,10 +654,10 @@ export default function PastureMapCanvas({
         });
       }
       lyr.on('click', () => {
-        // Desktop Map is hover-only: clicking an area does nothing (the hover
-        // readout is the inspection). Touch devices tap to open the read-only
-        // popover. Plan/other modes always select.
-        if (appMode === 'view' && !isTouch) return;
+        // Merged Map: clicking/tapping an area selects it and opens the working
+        // inspector. Desktop hover still shows the read-only readout; the click is the
+        // way into the inspector. Suppressed only while a draw/edit/measure/track tool
+        // is active (those own map clicks).
         // Flag so the map-background click handler doesn't clear this selection.
         featureClickRef.current = true;
         if (!['draw', 'edit', 'measure', 'track', 'droppin'].includes(mode) && cbRef.current.onSelect)
@@ -799,8 +798,8 @@ export default function PastureMapCanvas({
   }, [areas, rotationPaths, nextStopOnly, selectedId, showRotationPath]);
 
   // Saved distance measurements: a layer of dashed LineStrings with name labels,
-  // shown on Plan + Field and hidden on the read-only Map (a layer, not a grazing
-  // destination).
+  // shown on the working Map + Field (a layer, not a grazing destination). Reports has
+  // no canvas, so this only renders on Map/Field anyway.
   React.useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -808,7 +807,7 @@ export default function PastureMapCanvas({
       measureLayerRef.current.remove();
       measureLayerRef.current = null;
     }
-    if (appMode === 'view' || !measurements.length) return;
+    if (!measurements.length) return;
     const group = L.layerGroup();
     measurements.forEach((mm) => {
       const geom = mm && mm.geometry;

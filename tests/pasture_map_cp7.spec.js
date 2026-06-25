@@ -57,7 +57,7 @@ test('CP7: manager changes paddock line color, weight, and pattern', async ({pag
   await hideMapOverlays(page);
 
   // Line-style editing lives in the Plan Area inspector's Line style section.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator(`.pm-area-${A_ID}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-setup-linestyle] summary').click();

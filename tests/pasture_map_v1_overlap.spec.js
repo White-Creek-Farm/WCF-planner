@@ -66,7 +66,7 @@ test('overlap impact does not produce a duplicate occupant marker for the same g
   await hideClickBlockers(page);
 
   // Record Mommas -> Paddock A via the Plan Area inspector (A's centroid is clear of B).
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator(`.pm-area-${A_ID}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});

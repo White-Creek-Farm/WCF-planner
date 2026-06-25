@@ -56,10 +56,10 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.waitForTimeout(1500);
   await page.screenshot({path: path.join(SHOTS, '03-post-import-plan.png'), fullPage: true});
 
-  // On the Map, the 4 imported polygons render as clickable area paths (the 6
-  // lines are draft geometry, hidden on Map). There is no Land areas list.
+  // On the merged Map the 4 imported polygons AND the 6 draft lines render as area
+  // paths (draft lines now show on the working Map). There is no Land areas list.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('.pm-area-path')).toHaveCount(4, {timeout: 15_000});
+  await expect(page.locator('.pm-area-path')).toHaveCount(10, {timeout: 15_000});
 
   // Classify a polygon as a paddock via its Plan Area inspector (Manage section).
   const {data: unclassified} = await getTestAdminClient()
@@ -69,7 +69,7 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
     .limit(1)
     .single();
   const classifyId = unclassified.id;
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.addStyleTag({
     content:
       '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
@@ -90,7 +90,7 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.screenshot({path: path.join(SHOTS, '04-classified-desktop.png'), fullPage: true});
 
   // Close a draft line into a temp paddock from the Plan Tracks / Lines section.
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   const outlineId = await page.locator('[data-pasture-track-line]').first().getAttribute('data-pasture-track-line');
   await page.locator(`[data-pasture-track-line-close="${outlineId}"]`).click();
   await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('5', {timeout: 15_000});

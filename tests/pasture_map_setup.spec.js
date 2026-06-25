@@ -46,7 +46,7 @@ async function hideMapOverlays(page) {
 // Open an area's Plan Area inspector by clicking its polygon (no list, no modal).
 async function openArea(page, areaId) {
   await page.keyboard.press('Escape');
-  await page.locator('.pm-tabs button', {hasText: 'Plan'}).click();
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator(`.pm-area-${areaId}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${areaId}"]`)).toBeVisible({timeout: 15_000});
 }
