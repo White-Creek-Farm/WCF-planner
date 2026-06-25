@@ -9,6 +9,7 @@
 // ============================================================================
 import React from 'react';
 import PastureMapCanvas from './PastureMapCanvas.jsx';
+import PastureAreaModal from './PastureAreaModal.jsx';
 import {parseKmlToPlacemarks, closeOutlineToPolygon} from '../lib/pastureKml.js';
 import {haversineM, lineMetrics} from '../lib/pastureGeometry.js';
 import {
@@ -555,7 +556,6 @@ export default function PastureMapView({Header, authState}) {
   const [styleDraft, setStyleDraft] = React.useState(() => styleDraftFromArea(null));
   const [confirmDeleteId, setConfirmDeleteId] = React.useState(null);
   const [confirmPromoteId, setConfirmPromoteId] = React.useState(null);
-  const [toolsOpen, setToolsOpen] = React.useState(false);
   const [boundaryFilter, setBoundaryFilter] = React.useState({pasture: true, paddock: true, temp: true});
   const [draftLinesVisible, setDraftLinesVisible] = React.useState(false);
   const [drawIsTemp, setDrawIsTemp] = React.useState(false);
@@ -850,43 +850,63 @@ export default function PastureMapView({Header, authState}) {
     [activeAreas, occupantsByArea],
   );
   const selectedArea = areas.find((a) => a.id === selectedId) || null;
+  // Parent-pasture assignment: permanent paddocks live UNDER a permanent pasture
+  // (land_areas.parent_id). Eligible parents are the permanent pastures (never a
+  // temp paddock, never the area itself). update_land_area validates existence,
+  // self-parenting and cycles server-side; this list just scopes the picker.
+  const parentPastureOptions = React.useMemo(
+    () =>
+      activeAreas
+        .filter((a) => a.kind === 'pasture' && a.permanence !== 'temporary')
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    [activeAreas],
+  );
+  // A reviewed PERMANENT paddock must carry a parent pasture. Parentless permanent
+  // paddocks are surfaced in Reports under "Needs pasture assignment" until fixed;
+  // we never auto-backfill a parent.
+  function isPermanentPaddock(a) {
+    return !!a && a.kind === 'paddock' && a.permanence !== 'temporary';
+  }
+  function needsParentAssignment(a) {
+    return isPermanentPaddock(a) && !a.parent_id;
+  }
   // Reports area list: every real area (incl. archived/retired) except draft Tracks /
   // Lines (setupAreas already applies that filter), grouped so pastures and feeder-pig
   // areas carry their child paddocks nested (parent_id), with temp paddocks and
   // everything else in their own sections.
-  const reportSections = React.useMemo(() => {
+  // Reports accordion model: pastures carry their child paddocks (parent_id) so a
+  // pasture row collapses to hide them; permanent paddocks with NO parent are split
+  // out into a "Needs pasture assignment" review group. Archived areas and draft
+  // Tracks / Lines stay reachable in their own collapsed sections (rendered from
+  // archivedAreas / trackLineAreas). Active, non-retired, non-outline only here.
+  const reportGroups = React.useMemo(() => {
     const byName = (a, b) => (a.name || '').localeCompare(b.name || '');
-    const childrenOf = (id) => setupAreas.filter((a) => a.parent_id === id).sort(byName);
+    const active = setupAreas.filter((a) => a.status !== 'retired').sort(byName);
+    const childrenOf = (id) => active.filter((a) => a.parent_id === id);
     const used = new Set();
-    const withChildren = (parents) => {
-      const rows = [];
-      parents.sort(byName).forEach((p) => {
-        if (used.has(p.id)) return;
-        rows.push({area: p, depth: 0});
-        used.add(p.id);
-        childrenOf(p.id).forEach((c) => {
-          if (used.has(c.id)) return;
-          rows.push({area: c, depth: 1});
-          used.add(c.id);
-        });
+    const take = (list) => {
+      const out = [];
+      list.forEach((a) => {
+        if (used.has(a.id)) return;
+        used.add(a.id);
+        out.push(a);
       });
-      return rows;
+      return out;
     };
-    const pastureRows = withChildren(setupAreas.filter((a) => a.kind === 'pasture' && a.permanence !== 'temporary'));
-    const feederRows = withChildren(setupAreas.filter((a) => a.kind === 'feeder_pig_area'));
-    const flat = (list) => {
-      const rows = list.sort(byName).map((a) => ({area: a, depth: 0}));
-      rows.forEach((r) => used.add(r.area.id));
-      return rows;
-    };
-    const tempRows = flat(setupAreas.filter((a) => a.permanence === 'temporary' && !used.has(a.id)));
-    const otherRows = flat(setupAreas.filter((a) => !used.has(a.id)));
-    return [
-      {key: 'pastures', title: 'Pastures & paddocks', rows: pastureRows},
-      {key: 'feeders', title: 'Feeder-pig areas', rows: feederRows},
-      {key: 'temp', title: 'Temp paddocks', rows: tempRows},
-      {key: 'other', title: 'Other areas', rows: otherRows},
-    ].filter((s) => s.rows.length);
+    const withChildren = (parents) =>
+      take(parents).map((p) => {
+        const children = childrenOf(p.id);
+        children.forEach((c) => used.add(c.id));
+        return {area: p, children};
+      });
+    const pastures = withChildren(active.filter((a) => a.kind === 'pasture' && a.permanence !== 'temporary'));
+    const needsPasture = take(
+      active.filter((a) => a.kind === 'paddock' && a.permanence !== 'temporary' && !a.parent_id),
+    );
+    const feeders = withChildren(active.filter((a) => a.kind === 'feeder_pig_area'));
+    const temp = take(active.filter((a) => a.permanence === 'temporary'));
+    const other = take(active);
+    return {pastures, needsPasture, feeders, temp, other};
   }, [setupAreas]);
   const reportArea = reportAreaId ? areaById.get(reportAreaId) || null : null;
   const reportStays = React.useMemo(
@@ -894,7 +914,6 @@ export default function PastureMapView({Header, authState}) {
     [reportArea, reportHistory],
   );
   const reportTotals = React.useMemo(() => grazingRecordTotals(reportStays), [reportStays]);
-  const selectedEditable = hasPolygonGeom(selectedArea);
   const selectedDensity = densityCopy(selectedArea);
   const selectedStyleChanged = lineStyleChanged(selectedArea, styleDraft);
   const selectedStyleBusy = selectedArea && busyId === selectedArea.id;
@@ -1107,9 +1126,39 @@ export default function PastureMapView({Header, authState}) {
       return withBusy(a.id, () =>
         updateLandArea(a.id, {kind: 'paddock', permanence: 'temporary', reviewStatus: 'reviewed'}),
       );
+    // Permanent paddock: it must sit UNDER a parent pasture to be reviewed. When a
+    // parent is already assigned we mark it reviewed; otherwise we classify it but
+    // leave review pending so it surfaces under "Needs pasture assignment" until a
+    // parent is chosen (no auto-backfill).
     return withBusy(a.id, () =>
-      updateLandArea(a.id, {kind: 'paddock', permanence: 'permanent', reviewStatus: 'reviewed'}),
+      updateLandArea(a.id, {
+        kind: 'paddock',
+        permanence: 'permanent',
+        ...(a.parent_id ? {reviewStatus: 'reviewed'} : {}),
+      }),
     );
+  }
+  // Assign / clear the parent pasture for a paddock. update_land_area validates
+  // existence, self-parenting and cycles; an empty selection clears the parent.
+  const assignParent = (a, parentId) => saveAreaPatch(a, parentId ? {parentId} : {clearParent: true});
+  // Mark an area reviewed from the Area modal. A permanent paddock MUST have a
+  // parent pasture first: we block the review (never silently save an orphan
+  // paddock) and surface the reason inline.
+  function saveAreaReview(a) {
+    if (needsParentAssignment(a)) {
+      setErr('Assign a parent pasture before saving this paddock.');
+      return undefined;
+    }
+    return saveAreaPatch(a, {reviewStatus: 'reviewed'});
+  }
+  // Open the Area modal for an area from anywhere (map click, Reports review rows,
+  // classification queue): focus the Map tab in select mode and select it.
+  function openAreaModal(areaId) {
+    setAppMode('view');
+    setMapMode('select');
+    setAddMode(false);
+    setReportAreaId(null);
+    setSelectedId(areaId);
   }
   // Promote a temp paddock to a PERMANENT pasture/paddock. Management/admin only
   // (update_land_area is mgmt/admin gated server-side too). After promotion the
@@ -2908,13 +2957,15 @@ export default function PastureMapView({Header, authState}) {
         )}
         {renderRotationEditor()}
         {plans.length > 0 && renderPlannedMoves()}
-        {/* Manager workflow tools (relocated from the removed Setup tab). Per-area
-            classification / management opens the contextual area modal on select;
-            manual / off-rotation move also lives in that modal. */}
-        {renderTracksLines()}
-        {renderClassificationQueue()}
-        {renderArchivedAreas()}
-        {renderBoundaryTools()}
+        {/* Transient build-tool save forms stay on the Map tab while a tool is
+            active so a redraw (launched from the Area modal) or a drawn temp
+            paddock (launched from the rotation editor) can be saved. Per-area
+            classification / management, Tracks / Lines, the classification queue
+            and archived recovery moved to the Area modal and the Reports tab. */}
+        {renderTrackPanel()}
+        {renderDrawForm()}
+        {renderMeasureForm()}
+        {renderEditBar()}
         {invalidArea && (
           <div className="pm-invalid-banner">
             <strong>1 invalid outline</strong>
@@ -2928,207 +2979,24 @@ export default function PastureMapView({Header, authState}) {
             </button>
           </div>
         )}
-      </>
-    );
-  }
-
-  // Tracks / Lines: GPS tracks + manually drawn OPEN lines. Draft geometry only -
-  // no acreage, never a move destination, not promotable directly. Each row can
-  // be zoomed, closed into a temp paddock (mgmt/admin), or deleted.
-  function renderTracksLines() {
-    const lines = trackLineAreas;
-    if (!lines.length) return null;
-    return (
-      <div className="pm-card pm-tracks-lines" data-pasture-tracks-lines="1">
-        <div className="pm-card-head">
-          <div>
-            <div className="pm-card-title">Tracks / Lines</div>
-            <p>GPS tracks and drawn open lines - draft geometry, not grazing areas yet.</p>
-          </div>
-          <span className="pm-open-outline-count" data-pasture-tracks-lines-count="1">
-            {lines.length}
-          </span>
-        </div>
-        {lines.map((a) => (
-          <div key={a.id} className="pm-open-outline-row" data-pasture-track-line={a.id}>
-            <button
-              type="button"
-              className="pm-open-outline-name"
-              onClick={() => {
-                setSelectedId(a.id);
-                setZoomSignal((n) => n + 1);
-              }}
-              data-pasture-track-line-zoom={a.id}
-            >
-              <span className="pm-chip pm-chip-outline_candidate">Track / line</span>
-              {a.name || 'Unnamed'}
-            </button>
-            <div className="pm-track-line-actions">
-              <button
-                type="button"
-                className="pm-btn pm-btn-sm"
-                onClick={() => closeIntoTempPaddock(a)}
-                disabled={!isManager || busyId === a.id}
-                title="Close into a temp paddock (manager/admin)"
-                data-pasture-track-line-close={a.id}
-              >
-                Close into temp paddock
-              </button>
-              <button
-                type="button"
-                className="pm-btn pm-btn-sm pm-btn-danger"
-                onClick={() => removeArea(a)}
-                disabled={!isManager || busyId === a.id}
-                data-pasture-track-line-delete={a.id}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  // Boundary tools (relocated from the removed Setup tab into Plan). Collapsible
-  // so Plan stays focused on rotation/moves until tools are needed. Draw / track /
-  // edit forms surface here when active.
-  // Archived-area recovery (Plan). Retired areas are off the active lists; restore
-  // them here. Management/admin only (restore RPC enforces it too).
-  function renderArchivedAreas() {
-    if (!isManager || !archivedAreas.length) return null;
-    return (
-      <div className="pm-card" data-pasture-archived="1">
-        <div className="pm-card-title">Archived areas</div>
-        {archivedAreas.map((a) => (
-          <div key={a.id} className="pm-classify-row" data-pasture-archived-row={a.id}>
-            <span>
-              {a.name || 'Unnamed'}
-              {isTempArea(a) ? ' (temp)' : ''}
-            </span>
-            <button
-              type="button"
-              className="pm-btn pm-btn-sm"
-              onClick={() => restoreArea(a)}
-              disabled={busyId === a.id}
-              data-pasture-archived-restore={a.id}
-            >
-              Restore
-            </button>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  function renderBoundaryTools() {
-    if (!isManager) return null;
-    return (
-      <>
-        {/* Transient operation forms always surface in Plan while active, even if
-            the tool grid is collapsed. */}
-        {renderTrackPanel()}
-        {renderDrawForm()}
-        {renderMeasureForm()}
-        {renderEditBar()}
-        <div className="pm-card" data-pasture-boundary-tools="1">
+        {/* Single bottom Import KML entry point (manager-gated, like the import RPC). */}
+        {isManager && (
           <button
             type="button"
-            className="pm-manual-move-toggle"
-            onClick={() => setToolsOpen((v) => !v)}
-            aria-expanded={toolsOpen}
-            data-pasture-boundary-tools-toggle="1"
+            className="pm-import-wide"
+            onClick={() => fileRef.current && fileRef.current.click()}
+            data-pasture-import-kml="1"
           >
-            <span>Boundary tools</span>
-            <span aria-hidden="true">{toolsOpen ? '-' : '+'}</span>
+            Import OnX KML
           </button>
-          {toolsOpen && (
-            <>
-              <div className="pm-tool-grid">
-                <button type="button" className="pm-tool-btn" onClick={() => switchToolMode('select')} data-mode="move">
-                  <strong>Map / Pan</strong>
-                  <span>browse &amp; select</span>
-                </button>
-                <button type="button" className="pm-tool-btn" onClick={startTrack} data-mode="track">
-                  <strong>GPS Boundary</strong>
-                  <span>walk a line</span>
-                </button>
-                <button
-                  type="button"
-                  className="pm-tool-btn"
-                  onClick={startEdit}
-                  disabled={!selectedId || !selectedEditable}
-                  data-mode="edit"
-                >
-                  <strong>Edit Boundary</strong>
-                  <span>reshape selected</span>
-                </button>
-                <button
-                  type="button"
-                  className="pm-tool-btn"
-                  onClick={() => switchToolMode('measure')}
-                  data-mode="measure"
-                >
-                  <strong>Measure</strong>
-                  <span>two-point distance</span>
-                </button>
-                <button
-                  type="button"
-                  className="pm-tool-btn"
-                  onClick={() => {
-                    // New drawn land is always a TEMP paddock; permanent comes from promotion.
-                    setDrawIsTemp(true);
-                    switchToolMode('draw');
-                  }}
-                  data-mode="draw"
-                >
-                  <strong>Draw Temp Paddock</strong>
-                  <span>promote later</span>
-                </button>
-              </div>
-              <button
-                type="button"
-                className="pm-import-wide"
-                onClick={() => fileRef.current && fileRef.current.click()}
-              >
-                Import OnX KML
-              </button>
-            </>
-          )}
-        </div>
+        )}
       </>
     );
   }
 
-  // Compact classification queue (Plan). Rows open the contextual area modal to
-  // classify - no long Setup-style list.
-  function renderClassificationQueue() {
-    if (!isManager || !classifyQueue.length) return null;
-    return (
-      <div className="pm-card" data-pasture-classify-queue="1">
-        <div className="pm-card-title">Needs classification</div>
-        <div className="pm-classify-meter">
-          <span>
-            {Math.max(0, activeAreas.length - classifyQueue.length)} of {activeAreas.length || 0} areas classified
-          </span>
-          <strong>{classifyQueue.length} left</strong>
-        </div>
-        {classifyQueue.slice(0, 8).map((area) => (
-          <div key={area.id} className="pm-classify-row">
-            <span>{area.name || 'Unnamed'}</span>
-            <button
-              type="button"
-              className="pm-btn pm-btn-sm"
-              onClick={() => setSelectedId(area.id)}
-              data-pasture-classify-open={area.id}
-            >
-              Open &gt;
-            </button>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  // Tracks / Lines, the classification queue and archived recovery moved OFF the
+  // Map side panel into the Reports tab (renderReportAreaList) as collapsed review
+  // sections, each opening the Area modal or its management action there.
 
   // Per-area management for the contextual modal (relocated from the Setup
   // pasture-editor row). Classification / promotion / close-outline-into-temp /
@@ -3235,6 +3103,31 @@ export default function PastureMapView({Header, authState}) {
             Needs classification - choose Pasture or Paddock. New land is added as a temp paddock via Draw.
           </div>
         )}
+        {isPermanentPaddock(area) && (
+          <label className="pm-field">
+            <span>Parent pasture</span>
+            <select
+              value={area.parent_id || ''}
+              disabled={!isManager}
+              onChange={(e) => assignParent(area, e.target.value || null)}
+              data-pasture-area-parent-select={area.id}
+            >
+              <option value="">No parent pasture</option>
+              {parentPastureOptions
+                .filter((p) => p.id !== area.id)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name || 'Unnamed pasture'}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        {needsParentAssignment(area) && (
+          <div className="pm-needs-parent" data-pasture-needs-parent={area.id}>
+            Needs pasture assignment - choose the parent pasture this paddock sits in before it can be saved.
+          </div>
+        )}
         <div className="pm-setup-actions">
           <button
             type="button"
@@ -3282,7 +3175,6 @@ export default function PastureMapView({Header, authState}) {
     if (!area || !isAdmin) return null;
     return (
       <div className="pm-card pm-danger-zone" data-pasture-danger-zone={area.id}>
-        <div className="pm-card-title">Danger zone</div>
         <p className="pm-danger-note">
           Hard delete permanently removes this area's map shape. History keeps text snapshots. This cannot be undone.
         </p>
@@ -3315,60 +3207,91 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
-  // Plan-mode Area inspector: a right-side, sectioned/disclosed inspector that
-  // REPLACES the old centered modal. Read-only facts on top, then collapsible
-  // action sections (Manage, Line style, Record / plan move, Danger zone). No
-  // overlay, no backdrop, no interaction trap.
-  function renderPlanAreaInspector() {
+  // Area modal: the SINGLE home for per-area editing. A click/tap on a map area
+  // (canvas onSelect -> selectedId) opens this accessible centered dialog over the
+  // map; the desktop hover readout is independent and stays. Replaces the old
+  // side-panel "Plan area inspector". The inner wrapper keeps the legacy
+  // data-pasture-plan-inspector hook so existing id-addressable assertions resolve;
+  // the dialog/backdrop carry the data-pasture-area-modal selectors. Read-only
+  // facts on top, then Manage / Line style / Record-or-plan move, the admin
+  // hard-delete (no "Danger zone" framing), and a Save footer gated on parent.
+  function renderAreaModal() {
     if (!selectedArea) return null;
     const styleEligible = isManager && canEditLineStyle(selectedArea);
     const lockedStyle = isManager && isFixedStyleArea(selectedArea);
+    const saveBlocked = needsParentAssignment(selectedArea);
     return (
-      <div className="pm-plan-inspector" data-pasture-plan-inspector={selectedArea.id}>
-        {renderSelectedPanel()}
-        {isManager && (
-          <details className="pm-inspector-section" open data-pasture-inspector-section="manage">
-            <summary>Manage area</summary>
-            {renderAreaManageActions(selectedArea)}
-            {/* Locked permanent-style is a small inline note where the style
-                controls would otherwise appear - not a standalone card. */}
-            {lockedStyle && (
-              <p className="pm-style-locked-note" data-pasture-setup-linestyle-locked="1">
-                {selectedArea.kind === 'pasture' ? 'Pasture' : 'Paddock'} boundaries use a fixed
-                {selectedArea.kind === 'pasture' ? ' blue' : ' green'} line and cannot be restyled. Only temp paddocks
-                and GPS field tracks have editable line style.
-              </p>
-            )}
-          </details>
-        )}
-        {styleEligible && (
-          <details
-            className="pm-inspector-section"
-            data-pasture-inspector-section="linestyle"
-            data-pasture-setup-linestyle="1"
-          >
-            <summary>Line style</summary>
-            {renderLineStylePanel()}
-          </details>
-        )}
-        {canRecordMoves && !isOutlineCandidateArea(selectedArea) && (
-          <details
-            className="pm-inspector-section"
-            open
-            data-pasture-inspector-section="move"
-            data-pasture-modal-move="1"
-          >
-            <summary>Record / plan move</summary>
-            {renderMoveAndPlanForms()}
-          </details>
-        )}
-        {isAdmin && (
-          <details className="pm-inspector-section pm-inspector-danger" data-pasture-inspector-section="danger">
-            <summary>Danger zone</summary>
-            {renderDangerZone(selectedArea)}
-          </details>
-        )}
-      </div>
+      <PastureAreaModal
+        areaId={selectedArea.id}
+        title={selectedArea.name || 'Unnamed area'}
+        subtitle={designationLabel(selectedArea)}
+        onClose={() => setSelectedId(null)}
+      >
+        <div className="pm-plan-inspector" data-pasture-plan-inspector={selectedArea.id}>
+          {renderSelectedPanel()}
+          {isManager && (
+            <section className="pm-modal-section" data-pasture-modal-section="manage">
+              <div className="pm-modal-section-label">Manage area</div>
+              {renderAreaManageActions(selectedArea)}
+              {/* Locked permanent-style is a small inline note where the style
+                  controls would otherwise appear - not a standalone card. */}
+              {lockedStyle && (
+                <p className="pm-style-locked-note" data-pasture-setup-linestyle-locked="1">
+                  {selectedArea.kind === 'pasture' ? 'Pasture' : 'Paddock'} boundaries use a fixed
+                  {selectedArea.kind === 'pasture' ? ' blue' : ' green'} line and cannot be restyled. Only temp paddocks
+                  and GPS field tracks have editable line style.
+                </p>
+              )}
+            </section>
+          )}
+          {styleEligible && (
+            <section
+              className="pm-modal-section"
+              data-pasture-modal-section="linestyle"
+              data-pasture-setup-linestyle="1"
+            >
+              <div className="pm-modal-section-label">Line style</div>
+              {renderLineStylePanel()}
+            </section>
+          )}
+          {canRecordMoves && !isOutlineCandidateArea(selectedArea) && (
+            <section className="pm-modal-section" data-pasture-modal-section="move" data-pasture-modal-move="1">
+              {renderMoveAndPlanForms()}
+            </section>
+          )}
+          {isAdmin && (
+            <section className="pm-modal-section pm-modal-section-danger" data-pasture-modal-section="danger">
+              {renderDangerZone(selectedArea)}
+            </section>
+          )}
+          {isManager && (
+            <div className="pm-modal-footer">
+              {saveBlocked && (
+                <span className="pm-modal-foot-note" data-pasture-modal-save-blocked={selectedArea.id}>
+                  Assign a parent pasture to save this paddock.
+                </span>
+              )}
+              <button type="button" className="pm-btn" onClick={() => setSelectedId(null)}>
+                Close
+              </button>
+              <button
+                type="button"
+                className="pm-btn pm-btn-primary"
+                onClick={() => {
+                  const r = saveAreaReview(selectedArea);
+                  // Close only when the review actually went through (not blocked
+                  // by a missing parent pasture).
+                  if (r !== undefined) setSelectedId(null);
+                }}
+                disabled={saveBlocked || selectedStyleBusy}
+                data-pasture-area-modal-save={selectedArea.id}
+              >
+                Save area
+              </button>
+            </div>
+          )}
+        </div>
+      </PastureAreaModal>
     );
   }
 
@@ -3426,12 +3349,47 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function renderReportAreaList() {
+    // Manager review surface: areas still needing classification (outline candidates
+    // live in the Tracks / Lines section instead).
+    const needsClassify = classifyQueue.filter((a) => !isOutlineCandidateArea(a));
+    // A row that opens the area's grazing record (no map; read-only to all roles).
+    const inventoryRow = (area, depth) => {
+      const state = grazingState(area);
+      return (
+        <button
+          type="button"
+          key={area.id}
+          className={'pm-report-area-row depth-' + depth + ' state-' + state}
+          onClick={() => setReportAreaId(area.id)}
+          data-pasture-report-area-row={area.id}
+        >
+          <span className="pm-report-area-name">
+            {area.name || 'Unnamed'} {reportAreaTag(area.id)}
+          </span>
+          <span className="pm-report-area-meta">
+            {designationLabel(area)}
+            {area.effective_acres != null ? ` · ${area.effective_acres} ac` : ''}
+          </span>
+          <span className="pm-report-area-status">
+            <i className="dot" /> {restCopy(area)}
+          </span>
+        </button>
+      );
+    };
+    const hasAny =
+      reportGroups.pastures.length ||
+      reportGroups.needsPasture.length ||
+      reportGroups.feeders.length ||
+      reportGroups.temp.length ||
+      reportGroups.other.length ||
+      trackLineAreas.length ||
+      archivedAreas.length;
     return (
       <>
         <div className="pm-panel-title">
           <span className="pm-kicker">Reports</span>
           <h2>Grazing records by area</h2>
-          <p>Every area and its full grazing history. Select an area to open its record.</p>
+          <p>Pastures collapse to hide their paddocks. Open an area for its full grazing record.</p>
         </div>
         <div className="pm-report-status-strip" data-pasture-report-summary="1">
           <span>
@@ -3448,35 +3406,178 @@ export default function PastureMapView({Header, authState}) {
           </span>
         </div>
         <div className="pm-report-area-list" data-pasture-report-areas="1">
-          {reportSections.map((section) => (
-            <div key={section.key} className="pm-report-area-section">
-              <div className="pm-report-area-section-title">{section.title}</div>
-              {section.rows.map(({area, depth}) => {
-                const state = grazingState(area);
-                return (
-                  <button
-                    type="button"
-                    key={area.id}
-                    className={'pm-report-area-row depth-' + depth + ' state-' + state}
-                    onClick={() => setReportAreaId(area.id)}
-                    data-pasture-report-area-row={area.id}
-                  >
+          {/* Needs pasture assignment: parentless permanent paddocks. Open by default
+              so it is unmissable; managers get an Assign action into the Area modal. */}
+          {reportGroups.needsPasture.length > 0 && (
+            <details className="pm-report-section pm-report-needs" open data-pasture-report-needs-pasture="1">
+              <summary>
+                <span>Needs pasture assignment</span>
+                <span className="pm-report-count">{reportGroups.needsPasture.length}</span>
+              </summary>
+              {reportGroups.needsPasture.map((area) => (
+                <div key={area.id} className="pm-report-review-row" data-pasture-report-needs-row={area.id}>
+                  {inventoryRow(area, 0)}
+                  {isManager && (
+                    <button
+                      type="button"
+                      className="pm-btn pm-btn-sm"
+                      onClick={() => openAreaModal(area.id)}
+                      data-pasture-report-assign-pasture={area.id}
+                    >
+                      Assign pasture
+                    </button>
+                  )}
+                </div>
+              ))}
+            </details>
+          )}
+          {/* Pastures, each collapsed; expanding reveals its child paddocks (parent_id). */}
+          {reportGroups.pastures.length > 0 && (
+            <div className="pm-report-section" data-pasture-report-pastures="1">
+              <div className="pm-report-section-title">Pastures</div>
+              {reportGroups.pastures.map(({area, children}) => (
+                <details key={area.id} className="pm-report-pasture" data-pasture-report-pasture={area.id}>
+                  <summary>
                     <span className="pm-report-area-name">
                       {area.name || 'Unnamed'} {reportAreaTag(area.id)}
                     </span>
                     <span className="pm-report-area-meta">
                       {designationLabel(area)}
                       {area.effective_acres != null ? ` · ${area.effective_acres} ac` : ''}
+                      {children.length ? ` · ${children.length} paddock${children.length === 1 ? '' : 's'}` : ''}
                     </span>
-                    <span className="pm-report-area-status">
-                      <i className="dot" /> {restCopy(area)}
-                    </span>
-                  </button>
-                );
-              })}
+                  </summary>
+                  <div className="pm-report-pasture-body">
+                    {inventoryRow(area, 0)}
+                    {children.map((c) => inventoryRow(c, 1))}
+                    {!children.length && <div className="pm-report-empty">No paddocks under this pasture yet.</div>}
+                  </div>
+                </details>
+              ))}
             </div>
-          ))}
-          {!reportSections.length && <div className="pm-report-empty">No areas yet. Import or draw areas first.</div>}
+          )}
+          {/* Manager review: areas still needing classification (non-outline). */}
+          {isManager && needsClassify.length > 0 && (
+            <details className="pm-report-section" data-pasture-report-needs-classification="1">
+              <summary>
+                <span>Needs classification</span>
+                <span className="pm-report-count">{needsClassify.length}</span>
+              </summary>
+              {needsClassify.map((area) => (
+                <div key={area.id} className="pm-report-review-row">
+                  {inventoryRow(area, 0)}
+                  <button
+                    type="button"
+                    className="pm-btn pm-btn-sm"
+                    onClick={() => openAreaModal(area.id)}
+                    data-pasture-report-classify-open={area.id}
+                  >
+                    Classify
+                  </button>
+                </div>
+              ))}
+            </details>
+          )}
+          {reportGroups.feeders.length > 0 && (
+            <details className="pm-report-section" data-pasture-report-feeders="1">
+              <summary>
+                <span>Feeder-pig areas</span>
+                <span className="pm-report-count">{reportGroups.feeders.length}</span>
+              </summary>
+              {reportGroups.feeders.map(({area, children}) => (
+                <div key={area.id} className="pm-report-pasture-body">
+                  {inventoryRow(area, 0)}
+                  {children.map((c) => inventoryRow(c, 1))}
+                </div>
+              ))}
+            </details>
+          )}
+          {reportGroups.temp.length > 0 && (
+            <details className="pm-report-section" data-pasture-report-temp="1">
+              <summary>
+                <span>Temp paddocks</span>
+                <span className="pm-report-count">{reportGroups.temp.length}</span>
+              </summary>
+              {reportGroups.temp.map((area) => inventoryRow(area, 0))}
+            </details>
+          )}
+          {/* Tracks / Lines: draft geometry. Open the record, or (manager) close into a
+              temp paddock / delete. No map zoom here - Reports renders no map. */}
+          {trackLineAreas.length > 0 && (
+            <details className="pm-report-section" data-pasture-tracks-lines="1">
+              <summary>
+                <span>Tracks / Lines</span>
+                <span className="pm-report-count" data-pasture-tracks-lines-count="1">
+                  {trackLineAreas.length}
+                </span>
+              </summary>
+              {trackLineAreas.map((a) => (
+                <div key={a.id} className="pm-report-review-row" data-pasture-track-line={a.id}>
+                  <span className="pm-report-area-name">
+                    <span className="pm-chip pm-chip-outline_candidate">Track / line</span>
+                    {a.name || 'Unnamed'}
+                  </span>
+                  {isManager && (
+                    <div className="pm-track-line-actions">
+                      <button
+                        type="button"
+                        className="pm-btn pm-btn-sm"
+                        onClick={() => closeIntoTempPaddock(a)}
+                        disabled={busyId === a.id}
+                        data-pasture-track-line-close={a.id}
+                      >
+                        Close into temp paddock
+                      </button>
+                      <button
+                        type="button"
+                        className="pm-btn pm-btn-sm pm-btn-danger"
+                        onClick={() => removeArea(a)}
+                        disabled={busyId === a.id}
+                        data-pasture-track-line-delete={a.id}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </details>
+          )}
+          {/* Archived areas: restore (manager) or open the record. */}
+          {archivedAreas.length > 0 && (
+            <details className="pm-report-section" data-pasture-archived="1">
+              <summary>
+                <span>Archived areas</span>
+                <span className="pm-report-count">{archivedAreas.length}</span>
+              </summary>
+              {archivedAreas.map((a) => (
+                <div key={a.id} className="pm-report-review-row" data-pasture-archived-row={a.id}>
+                  {inventoryRow(a, 0)}
+                  {isManager && (
+                    <button
+                      type="button"
+                      className="pm-btn pm-btn-sm"
+                      onClick={() => restoreArea(a)}
+                      disabled={busyId === a.id}
+                      data-pasture-archived-restore={a.id}
+                    >
+                      Restore
+                    </button>
+                  )}
+                </div>
+              ))}
+            </details>
+          )}
+          {reportGroups.other.length > 0 && (
+            <details className="pm-report-section" data-pasture-report-other="1">
+              <summary>
+                <span>Other areas</span>
+                <span className="pm-report-count">{reportGroups.other.length}</span>
+              </summary>
+              {reportGroups.other.map((area) => inventoryRow(area, 0))}
+            </details>
+          )}
+          {!hasAny && <div className="pm-report-empty">No areas yet. Import or draw areas first.</div>}
         </div>
       </>
     );
@@ -3570,16 +3671,14 @@ export default function PastureMapView({Header, authState}) {
     // overlay, not the side panel.
     if (appMode === 'field') return null;
     if (appMode === 'reports') return renderReportsPanel();
-    // Merged Map: clicking/tapping an area opens the working Area inspector; with no
-    // selection the top shows the Current groups overview. The planning cockpit
-    // (group switcher, move + Clear, rotation editor, boundary/manager tools) is
-    // ALWAYS rendered below so selecting an area never hides the working controls.
-    // Suppressed while tapping the map to add rotation stops (addMode) and during
-    // active map tools so the map + transient tool forms stay usable.
-    const inspecting = selectedArea && !addMode && !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode);
+    // Slim Map side panel = the GROUP / rotation cockpit only: Current groups +
+    // status overview on top, then the planning cockpit (group switcher,
+    // current-group Move/Clear, planned moves, rotation editor, bottom Import KML).
+    // Per-area editing now lives in the Area modal (renderAreaModal), opened by
+    // clicking a map area, so the panel never swaps to an inline inspector.
     return (
       <>
-        {inspecting ? renderPlanAreaInspector() : renderViewPanel()}
+        {renderViewPanel()}
         {renderPlanPanel()}
       </>
     );
@@ -3761,6 +3860,14 @@ export default function PastureMapView({Header, authState}) {
           </>
         )}
       </main>
+      {/* Area modal overlay: clicking/tapping a map area (Map tab) opens it over the
+          map. Gated to the Map tab in select mode - not while a build tool is active
+          (draw/edit/measure/track/droppin) or while tapping to add rotation stops. */}
+      {appMode === 'view' &&
+        selectedArea &&
+        !addMode &&
+        !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode) &&
+        renderAreaModal()}
       <div className="pm-hidden-compat">
         <span data-mode="select" />
         <span data-pasture-style-weight="1" />

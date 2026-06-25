@@ -87,11 +87,11 @@ test.describe('mobile (touch)', () => {
     await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
     await hideOverlays(page);
 
-    // Tap the area -> the working Area inspector opens (the old read-only popover is gone).
+    // Tap the area -> the Area modal opens (the old read-only popover is gone).
     await page.locator(`.pm-area-${A_ID}`).first().click();
     await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 10_000});
     await expect(page.locator('[data-pasture-map-popover]')).toHaveCount(0);
-    await expect(page.locator('.pm-side-panel')).toContainText('V1 North Paddock');
+    await expect(page.locator('[data-pasture-area-modal]')).toContainText('V1 North Paddock');
 
     // Clear dismisses the inspector.
     await page.locator('[data-pasture-clear-selection]').first().click();

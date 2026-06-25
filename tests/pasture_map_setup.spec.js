@@ -91,12 +91,11 @@ test('Temp paddock archive/restore, occupied block, admin hard delete (via Plan 
   });
   await page.keyboard.press('Escape');
 
-  // Admin hard delete lives in the inspector's admin-only Danger zone (a
-  // disclosure). Move the group away first so it is not blocked, then expand the
-  // Danger zone, hard-delete + confirm, and verify the area's polygon is gone.
+  // Admin hard delete renders directly in the Area modal (admin-only, no "Danger
+  // zone" disclosure). Move the group away first so it is not blocked, then
+  // hard-delete + confirm, and verify the area's polygon is gone.
   await recordMove(page, A_ID, 'Mommas');
   await openArea(page, T_ID);
-  await page.locator('[data-pasture-inspector-section="danger"] summary').click();
   await page.locator(`[data-pasture-hard-delete="${T_ID}"]`).click();
   await expect(page.locator(`[data-pasture-hard-delete-confirm="${T_ID}"]`)).toContainText('Permanently hard delete');
   await page.locator(`[data-pasture-hard-delete-yes="${T_ID}"]`).click();

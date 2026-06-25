@@ -3141,3 +3141,235 @@
   outline: 2px solid #fff;
   outline-offset: -2px;
 }
+
+/* ==========================================================================
+   Area modal — per-area editing dialog (replaces the side-panel inspector).
+   Fixed overlay + centered dialog are set inline in PastureAreaModal so they
+   work regardless of CSS load order; these rules style the chrome + body.
+   ========================================================================== */
+.pm-modal-backdrop {
+  font-family: inherit;
+}
+
+.pm-modal-dialog {
+  font-family: inherit;
+  color: var(--pm-text, #222933);
+}
+
+.pm-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--pm-border, #e6e8eb);
+}
+
+.pm-modal-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pm-modal-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.pm-modal-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pm-muted, #6b7280);
+}
+
+.pm-modal-close {
+  flex: none;
+  border: 1px solid var(--pm-border-strong, #d2d6db);
+  background: #fff;
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--pm-muted, #6b7280);
+}
+
+.pm-modal-close:hover {
+  background: var(--pm-surface-2, #f1f3f4);
+}
+
+.pm-modal-body {
+  overflow-y: auto;
+  padding: 14px 18px 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.pm-modal-section {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.pm-modal-section + .pm-modal-section {
+  border-top: 1px solid var(--pm-border, #e6e8eb);
+  padding-top: 12px;
+}
+
+.pm-modal-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pm-muted, #6b7280);
+}
+
+.pm-modal-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 2px;
+  border-top: 1px solid var(--pm-border, #e6e8eb);
+  background: var(--pm-surface, #fff);
+}
+
+.pm-modal-foot-note {
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+/* Parentless permanent paddock callout (Manage area + Reports). */
+.pm-needs-parent {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+
+/* ==========================================================================
+   Reports accordion — pastures collapse to hide their child paddocks; review
+   sections (needs pasture / classification / tracks / archived) are collapsed.
+   ========================================================================== */
+.pm-report-section {
+  border: 1px solid var(--pm-border, #e6e8eb);
+  border-radius: 12px;
+  background: var(--pm-surface, #fff);
+  padding: 6px 10px 10px;
+  margin-bottom: 10px;
+}
+
+.pm-report-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 4px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pm-report-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pm-report-section > summary::before {
+  content: '▸';
+  font-size: 11px;
+  color: var(--pm-muted, #6b7280);
+  margin-right: 4px;
+}
+
+.pm-report-section[open] > summary::before {
+  content: '▾';
+}
+
+.pm-report-section.pm-report-needs {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.pm-report-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 4px 4px;
+}
+
+.pm-report-count {
+  flex: none;
+  min-width: 22px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--pm-muted, #6b7280);
+  background: var(--pm-surface-2, #f1f3f4);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.pm-report-pasture {
+  border: 1px solid var(--pm-border, #e6e8eb);
+  border-radius: 10px;
+  margin: 6px 0;
+  padding: 2px 8px 6px;
+}
+
+.pm-report-pasture > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 2px;
+}
+
+.pm-report-pasture > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pm-report-pasture > summary::before {
+  content: '▸';
+  font-size: 11px;
+  color: var(--pm-muted, #6b7280);
+  margin-right: 6px;
+}
+
+.pm-report-pasture[open] > summary::before {
+  content: '▾';
+}
+
+.pm-report-pasture-body {
+  display: grid;
+  gap: 6px;
+  padding: 4px 0 2px;
+}
+
+.pm-report-review-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.pm-report-review-row > .pm-report-area-row,
+.pm-report-review-row > .pm-report-area-name {
+  flex: 1;
+  min-width: 0;
+}

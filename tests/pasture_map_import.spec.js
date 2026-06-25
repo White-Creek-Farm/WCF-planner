@@ -52,6 +52,8 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
 
   // ── Import: 4 polygons -> unclassified grazing areas, 6 lines -> Tracks / Lines ──
   await page.getByRole('button', {name: /^Import \d+$/}).click();
+  // The 6 draft lines surface in the Reports Tracks / Lines section now.
+  await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('6', {timeout: 25_000});
   await page.waitForTimeout(1500);
   await page.screenshot({path: path.join(SHOTS, '03-post-import-plan.png'), fullPage: true});
@@ -89,8 +91,9 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.keyboard.press('Escape');
   await page.screenshot({path: path.join(SHOTS, '04-classified-desktop.png'), fullPage: true});
 
-  // Close a draft line into a temp paddock from the Plan Tracks / Lines section.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  // Close a draft line into a temp paddock from the Reports Tracks / Lines section.
+  await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
+  await page.locator('[data-pasture-tracks-lines] > summary').click();
   const outlineId = await page.locator('[data-pasture-track-line]').first().getAttribute('data-pasture-track-line');
   await page.locator(`[data-pasture-track-line-close="${outlineId}"]`).click();
   await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('5', {timeout: 15_000});
@@ -98,6 +101,8 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.screenshot({path: path.join(SHOTS, '05-outline-closed-desktop.png'), fullPage: true});
 
   // ── GPS "you are here" (mocked geolocation; best-effort) ──
+  // Back to the Map (the GPS locate control lives on the map canvas).
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   // Re-show the map controls hidden during the classification polygon click.
   await page.addStyleTag({content: '.pm-map-controls{display:flex!important}'});
   try {

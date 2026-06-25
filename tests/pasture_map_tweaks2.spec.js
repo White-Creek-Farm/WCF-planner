@@ -53,11 +53,11 @@ async function seedTwoAreas() {
   `);
 }
 
-// Merged Map: clicking/tapping an area opens the working Area inspector in the side
-// panel; it dismisses via the X button or Escape (no centered modal/overlay).
-test.describe('Map area inspector dismissal', () => {
+// Merged Map: clicking/tapping an area opens the accessible Area modal over the map;
+// it dismisses via the X button or Escape (and via the backdrop).
+test.describe('Map area modal dismissal', () => {
   test.use({hasTouch: true, isMobile: true});
-  test('area inspector dismissal: clear (X) button and Escape; no modal/overlay', async ({page}) => {
+  test('area modal opens on selection and dismisses via the X button and Escape', async ({page}) => {
     await seedTwoAreas();
     await page.setViewportSize({width: 1280, height: 900});
     await page.goto('/pasture-map', {timeout: 90_000});
@@ -65,21 +65,26 @@ test.describe('Map area inspector dismissal', () => {
     await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
     await hideMapOverlays(page);
 
-    // The Map Area inspector replaces the side panel (no centered modal/overlay).
+    // No modal before any selection.
     const inspector = page.locator('[data-pasture-selected-panel]');
     await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
-    await expect(page.locator('.pm-modal-backdrop')).toHaveCount(0);
+
+    // Clicking an area opens the accessible Area modal (role=dialog + backdrop).
+    await clickArea(page, A_ID);
+    await expect(page.locator('[data-pasture-area-modal]')).toBeVisible();
+    await expect(page.locator('.pm-modal-backdrop')).toBeVisible();
+    await expect(inspector).toBeVisible();
 
     // Clear (X) button dismisses.
-    await clickArea(page, A_ID);
-    await expect(inspector).toBeVisible();
     await page.locator('[data-pasture-clear-selection]').click();
+    await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
     await expect(inspector).toHaveCount(0);
 
     // Escape key dismisses.
     await clickArea(page, A_ID);
     await expect(inspector).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
     await expect(inspector).toHaveCount(0);
   });
 });
@@ -105,17 +110,13 @@ test('Setup Tracks / Lines: lists draft lines, not on Map, closes into a temp pa
   // Draft lines are not grazing destinations (the Map Land areas list is gone).
   await expect(page.locator(`[data-pasture-area-select="${OUT_ID}"]`)).toHaveCount(0);
 
-  // It lives in the Plan Tracks / Lines section.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  // It lives in the Reports Tracks / Lines section (relocated off the Map panel).
+  await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   const card = page.locator('[data-pasture-tracks-lines]');
   await expect(card).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('1');
+  await page.locator('[data-pasture-tracks-lines] > summary').click();
   await expect(page.locator(`[data-pasture-track-line="${OUT_ID}"]`)).toBeVisible();
-  // Zoom selects the line (opens its Plan inspector); dismiss to use the row's close action.
-  await page.locator(`[data-pasture-track-line-zoom="${OUT_ID}"]`).click();
-  await expect(page.locator(`[data-pasture-plan-inspector="${OUT_ID}"]`)).toBeVisible({timeout: 15_000});
-  await page.keyboard.press('Escape');
-  await expect(card).toBeVisible();
 
   // Close into a temp paddock -> leaves the Tracks/Lines surface and becomes a
   // kind=paddock + permanence=temporary area.
@@ -234,11 +235,11 @@ test('Measure is transient: HUD with Clear + Done, and Escape/Map-Pan dismiss it
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('[data-pasture-boundary-tools-toggle]').click();
+  // Measure is a Field tool now (the Map boundary-tools grid was removed).
+  await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
 
   // Measure -> draw -> HUD with lifecycle controls.
-  await page.locator('[data-mode="measure"]').click();
+  await page.locator('[data-pasture-field-measure]').click();
   await drawMeasure(page);
   await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 8000});
   await expect(page.locator('[data-pasture-measure-actions]')).toBeVisible();
@@ -254,7 +255,7 @@ test('Measure is transient: HUD with Clear + Done, and Escape/Map-Pan dismiss it
   await expect(page.locator('[data-pasture-hud]')).toHaveCount(0, {timeout: 8000});
 
   // Measure again, then Escape clears/exits.
-  await page.locator('[data-mode="measure"]').click();
+  await page.locator('[data-pasture-field-measure]').click();
   await drawMeasure(page);
   await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 8000});
   await page.keyboard.press('Escape');
@@ -268,7 +269,7 @@ test('Measure is transient: HUD with Clear + Done, and Escape/Map-Pan dismiss it
   expect(count).toBe(2);
 });
 
-test('Archived areas have a recovery surface in Plan', async ({page}) => {
+test('Archived areas have a recovery surface in Reports', async ({page}) => {
   await exec(`
     ${TRUNCATE}
     DO $$ DECLARE v_profile uuid; BEGIN
@@ -285,9 +286,10 @@ test('Archived areas have a recovery surface in Plan', async ({page}) => {
   // Archived area is NOT on the Map active list.
   await expect(page.locator(`[data-pasture-area-select="${A_ID}"]`)).toHaveCount(0);
 
-  // It is recoverable from the Plan "Archived areas" section.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  // It is recoverable from the Reports "Archived areas" section (relocated off the Map).
+  await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-archived]')).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-archived] > summary').click();
   await expect(page.locator(`[data-pasture-archived-row="${A_ID}"]`)).toBeVisible();
   await page.locator(`[data-pasture-archived-restore="${A_ID}"]`).click();
 

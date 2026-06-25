@@ -51,23 +51,20 @@ test('CP6: mobile GPS track saves as an outline candidate', async ({page}) => {
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // GPS boundary tools live in the Plan tab's collapsible Boundary tools card now.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('[data-pasture-boundary-tools-toggle]').click();
-  await page.locator('[data-mode="track"]').click();
+  // GPS boundary (Walk paddock) lives in the Field toolbar now.
+  await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
+  await page.locator('[data-pasture-field-walk]').click();
   await expect(page.locator('[data-pasture-track-panel]')).toBeVisible();
   await expect(page.locator('[data-pasture-track-stats]')).toContainText('2 pts', {timeout: 10_000});
   await page.locator('[data-pasture-track-stop]').click();
   await page.locator('[data-pasture-track-name]').fill('Mobile Track Test');
   await page.locator('[data-pasture-track-save]').click();
+  await page.waitForTimeout(1000);
 
-  // Saving selects the new track -> the Plan Area inspector opens; clear it.
-  await expect(page.locator('[data-pasture-plan-inspector]')).toBeVisible({timeout: 15_000});
-  await page.keyboard.press('Escape');
-  await expect(page.locator('[data-pasture-plan-inspector]')).toHaveCount(0);
-
-  // The 2-point trace is a draft line: it surfaces in the Tracks / Lines section
-  // (Plan), not the Map grazing-area list.
+  // The 2-point trace is a draft line: it surfaces in the Reports Tracks / Lines
+  // section (relocated off the Map side panel), not the Map grazing-area list.
+  await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
+  await page.locator('[data-pasture-tracks-lines] > summary').click();
   const row = page.locator('[data-pasture-track-line]', {hasText: 'Mobile Track Test'}).first();
   await expect(row).toBeVisible({timeout: 15_000});
   await expect(row.locator('.pm-chip-outline_candidate')).toBeVisible();

@@ -33,6 +33,7 @@ const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
 const viewSrc = read('src/pasture/PastureMapView.jsx');
+const modalSrc = read('src/pasture/PastureAreaModal.jsx');
 const canvasSrc = read('src/pasture/PastureMapCanvas.jsx');
 const pastureCss = read('src/pasture/pastureMap.css');
 const apiSrc = read('src/lib/pastureMapApi.js');
@@ -443,8 +444,31 @@ describe('Reports = every-area grazing records, read-only to all pasture users',
     expect(viewSrc).toContain('nx.from_land_area_id === areaId');
     expect(viewSrc).toContain('listPastureHistoryReport({landAreaId: reportAreaId');
     // Grouped list: pastures/feeder areas carry child paddocks (parent_id) nested.
-    expect(viewSrc).toContain('const reportSections = React.useMemo');
+    expect(viewSrc).toContain('const reportGroups = React.useMemo');
     expect(viewSrc).toContain('a.parent_id === id');
+  });
+
+  it('Reports is a collapsible accordion: pastures collapse over child paddocks, with review sections', () => {
+    const body = viewSrc.slice(
+      viewSrc.indexOf('function renderReportAreaList'),
+      viewSrc.indexOf('function renderAreaRecord'),
+    );
+    // Pastures are per-pasture <details> (collapsed by default -> NOT open) that
+    // reveal their child paddocks (parent_id) on expand.
+    expect(body).toContain('data-pasture-report-pasture');
+    expect(body).toMatch(/<details[^>]*className="pm-report-pasture"/);
+    // Parentless permanent paddocks get their own "Needs pasture assignment" section,
+    // open by default, with a manager Assign action into the Area modal.
+    expect(body).toContain('data-pasture-report-needs-pasture');
+    expect(body).toContain('Needs pasture assignment');
+    expect(body).toContain('data-pasture-report-assign-pasture');
+    expect(body).toContain('openAreaModal(area.id)');
+    // Temp paddocks, Tracks / Lines and Archived areas stay reachable as their own
+    // collapsed sections (relocated off the Map side panel). No map is rendered.
+    expect(body).toContain('data-pasture-report-temp');
+    expect(body).toContain('data-pasture-tracks-lines');
+    expect(body).toContain('data-pasture-archived');
+    expect(body).not.toContain('renderPastureMapCanvas');
   });
 
   it('Reports renders NO map: full-width reports surface, canvas only in the non-reports branch', () => {
@@ -519,18 +543,20 @@ describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)',
   });
 });
 
-describe('Merged Map: hover readout + click-to-inspect working surface', () => {
+describe('Merged Map: hover readout + click-to-open Area modal', () => {
   it('Map renders the Current groups overview, then always the planning cockpit', () => {
-    // No selection -> Current groups overview; selection -> Area inspector; the
-    // cockpit (renderPlanPanel) is always rendered so controls never disappear.
-    expect(viewSrc).toContain('{inspecting ? renderPlanAreaInspector() : renderViewPanel()}');
+    // Slim side panel ALWAYS shows the Current groups overview + the planning cockpit
+    // (renderPlanPanel); per-area editing opens in the Area modal (renderAreaModal)
+    // instead of swapping the panel to an inline inspector.
+    expect(viewSrc).toContain('{renderViewPanel()}');
     expect(viewSrc).toContain('{renderPlanPanel()}');
+    expect(viewSrc).not.toContain('renderPlanAreaInspector');
     // The old touch-only read-only popover is retired.
     expect(viewSrc).not.toContain('function renderMapPopover');
     expect(viewSrc).not.toContain('data-pasture-map-popover');
   });
 
-  it('Map click opens the inspector; desktop hover keeps the clamped read-only readout', () => {
+  it('Map click opens the Area modal; desktop hover keeps the clamped read-only readout', () => {
     // Canvas: clicking an area selects it (no desktop no-op guard anymore).
     expect(canvasSrc).not.toContain("if (appMode === 'view' && !isTouch) return;");
     expect(canvasSrc).toContain('function areaHoverTip');
@@ -655,10 +681,16 @@ describe('CP2 API wrappers + draw/edit UI', () => {
     expect(apiSrc).toContain("sb.rpc('update_land_area_geometry'");
   });
 
-  it('view has move/select/draw/edit/measure modes and an in-app name+kind save form', () => {
-    for (const m of ['move', 'select', 'draw', 'edit', 'measure']) {
-      expect(viewSrc).toContain(`data-mode="${m}"`);
-    }
+  it('view supports draw/edit/measure flows and an in-app name+kind save form', () => {
+    // The Map boundary-tools grid is gone; draw/edit/measure are reached via the
+    // rotation editor (Draw temp paddock), the Area modal (Redraw), and the Field
+    // toolbar (Walk / Draw / Measure). The transient save forms still live on Map.
+    expect(viewSrc).toContain('data-pasture-draw-temp');
+    expect(viewSrc).toContain('data-pasture-redraw');
+    expect(viewSrc).toContain('data-pasture-field-measure');
+    expect(viewSrc).toContain("switchToolMode('draw')");
+    expect(viewSrc).toContain("switchToolMode('measure')");
+    expect(viewSrc).toContain('startEdit');
     expect(viewSrc).toContain('data-pasture-drawform-name');
     expect(viewSrc).toContain('data-pasture-drawform-kind');
     expect(viewSrc).toContain('createLandArea');
@@ -679,9 +711,10 @@ describe('CP2 API wrappers + draw/edit UI', () => {
     }
   });
 
-  it('disables Edit for selections without a polygon (outline candidates must be closed first)', () => {
+  it('disables Redraw for selections without a polygon (outline candidates must be closed first)', () => {
     expect(viewSrc).toContain('function hasPolygonGeom');
-    expect(viewSrc).toContain('!selectedEditable');
+    // The Area modal Redraw button is disabled when the area has no polygon geometry.
+    expect(viewSrc).toContain('!hasPolygonGeom(area)');
   });
 });
 
@@ -877,7 +910,7 @@ describe('CP6 API + UI wiring', () => {
 
   it('renders mobile field-track controls and map preview wiring', () => {
     for (const marker of [
-      'data-mode="track"',
+      'data-pasture-field-walk',
       'data-pasture-track-panel',
       'data-pasture-track-start',
       'data-pasture-track-stop',
@@ -1224,29 +1257,38 @@ describe('P2 Map tab', () => {
     expect(viewSrc).toContain('pm-chip-temp');
   });
 
-  it('read-only inspector never embeds forms; the Plan Area inspector owns recording + line style; no modal', () => {
+  it('read-only facts panel never embeds forms; the Area modal owns recording + line style + parent', () => {
     const selBody = viewSrc.slice(
       viewSrc.indexOf('function renderSelectedPanel'),
       viewSrc.indexOf('function previewGroupArea'),
     );
-    // The read-only Area inspector (Map + the facts header in Plan) never embeds
-    // the move or line-style forms.
+    // The read-only Area detail facts panel never embeds the move or line-style forms.
     expect(selBody).not.toContain('renderMoveAndPlanForms');
     expect(selBody).not.toContain('renderLineStylePanel');
 
-    // The centered contextual modal is gone entirely.
-    expect(viewSrc).not.toContain('function renderAreaModal');
-    expect(viewSrc).not.toContain('pm-modal-backdrop');
-    expect(viewSrc).not.toContain('data-pasture-area-modal');
+    // Per-area editing now lives in an accessible centered Area modal (role=dialog,
+    // aria-modal, focus-trapped backdrop) opened by clicking a map area.
+    expect(viewSrc).toContain('function renderAreaModal');
+    expect(viewSrc).toContain('<PastureAreaModal');
+    expect(viewSrc).toContain("import PastureAreaModal from './PastureAreaModal.jsx'");
+    expect(modalSrc).toContain('role="dialog"');
+    expect(modalSrc).toContain('aria-modal="true"');
+    expect(modalSrc).toContain('useModalFocusTrap');
+    expect(modalSrc).toContain('data-pasture-area-modal');
+    expect(modalSrc).toContain('data-pasture-area-modal-backdrop');
+    expect(modalSrc).toContain('pm-modal-backdrop');
+    expect(modalSrc).toContain('data-pasture-area-modal-close');
 
-    // The Plan-mode side-panel Area inspector owns per-area recording + line style.
-    const inspBody = viewSrc.slice(
-      viewSrc.indexOf('function renderPlanAreaInspector'),
+    // The Area modal owns per-area recording + line style + the Save/review action;
+    // the inner wrapper keeps the legacy data-pasture-plan-inspector hook.
+    const modalBody = viewSrc.slice(
+      viewSrc.indexOf('function renderAreaModal'),
       viewSrc.indexOf('function renderPlannedMoves'),
     );
-    expect(inspBody).toContain('renderMoveAndPlanForms()');
-    expect(inspBody).toContain('renderLineStylePanel()');
-    expect(inspBody).toContain('data-pasture-plan-inspector');
+    expect(modalBody).toContain('renderMoveAndPlanForms()');
+    expect(modalBody).toContain('renderLineStylePanel()');
+    expect(modalBody).toContain('data-pasture-plan-inspector');
+    expect(modalBody).toContain('data-pasture-area-modal-save');
   });
 });
 
@@ -1379,7 +1421,8 @@ describe('Designation boundary styling + promotion + boundary overlay (lane)', (
   });
 
   it('view creates new drawn land as temp paddocks (permanent comes from promotion)', () => {
-    expect(viewSrc).toContain('Draw Temp Paddock');
+    // "Draw temp paddock" lives in the rotation editor (the Map boundary-tools grid is gone).
+    expect(viewSrc).toContain('Draw temp paddock');
     expect(viewSrc).toMatch(/setDrawIsTemp\(true\);\s*\n\s*switchToolMode\('draw'\)/);
     // Draw form hides the permanent Type select while drawing a temp paddock.
     expect(viewSrc).toContain('data-pasture-drawform-temp');
@@ -1454,16 +1497,18 @@ describe('Pasture Map tweaks #2: default labels / occupancy / dismissal / open o
     expect(viewSrc).toContain('Clear selection');
   });
 
-  it('Setup surfaces a Tracks / Lines section with zoom, close-into-temp, and delete', () => {
-    expect(viewSrc).toContain('function renderTracksLines');
-    expect(viewSrc).toContain('{renderTracksLines()}');
+  it('Reports surfaces a Tracks / Lines section with close-into-temp and delete (no map zoom)', () => {
+    // Tracks / Lines relocated OFF the Map side panel into the Reports accordion.
     expect(viewSrc).toContain('data-pasture-tracks-lines');
     expect(viewSrc).toContain('data-pasture-tracks-lines-count');
-    expect(viewSrc).toContain('data-pasture-track-line-zoom');
     expect(viewSrc).toContain('data-pasture-track-line-close');
     expect(viewSrc).toContain('data-pasture-track-line-delete');
     expect(viewSrc).toContain('Tracks / Lines');
     expect(viewSrc).toContain('trackLineAreas');
+    // Reports renders no map, so the old map-zoom action is gone, and the standalone
+    // Map-side-panel Tracks/Lines card no longer exists.
+    expect(viewSrc).not.toContain('data-pasture-track-line-zoom');
+    expect(viewSrc).not.toContain('function renderTracksLines');
   });
 });
 
@@ -1490,8 +1535,10 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     expect(viewSrc).toContain('async function closeIntoTempPaddock');
     expect(viewSrc).toMatch(/closeLandAreaOutline\(a\.id, res\.polygon, 'paddock'\)/);
     expect(viewSrc).toMatch(/updateLandArea\(a\.id, \{permanence: 'temporary'/);
-    // close + delete actions are gated on isManager.
-    expect(viewSrc).toMatch(/onClick=\{\(\) => closeIntoTempPaddock\(a\)\}\s*\n\s*disabled=\{!isManager/);
+    // close + delete actions live in the Reports Tracks / Lines section, wrapped in
+    // an isManager && gate.
+    expect(viewSrc).toContain('onClick={() => closeIntoTempPaddock(a)}');
+    expect(viewSrc).toContain('data-pasture-track-line-close');
     // Edit is intentionally NOT in this lane.
     expect(viewSrc).not.toContain('data-pasture-track-line-edit');
   });
@@ -1550,18 +1597,25 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     expect(viewSrc).toContain('recordGroupMove(activeGroup, activeNextArea && activeNextArea.id)');
   });
 
-  it('Plan owns tools + tracks/lines + classification queue; no area list; manual move is in the modal', () => {
+  it('Plan panel is the slim group/rotation cockpit; per-area tools moved to the modal/Reports', () => {
     const planBody = viewSrc.slice(
       viewSrc.indexOf('function renderPlanPanel'),
-      viewSrc.indexOf('function renderTracksLines'),
+      viewSrc.indexOf('function renderAreaManageActions'),
     );
     expect(planBody).not.toContain('renderAreaIndex');
     expect(planBody).not.toContain('data-pasture-plan-destinations');
-    // Plan hosts the relocated tools, tracks/lines, and classification queue.
-    expect(planBody).toContain('renderBoundaryTools()');
-    expect(planBody).toContain('renderTracksLines()');
-    expect(planBody).toContain('renderClassificationQueue()');
-    // Manual move is no longer a Plan-body card; it lives in the contextual modal.
+    // Slim cockpit keeps the group switcher, current-group Move/Clear, rotation
+    // editor, transient tool save forms, and ONE bottom Import KML entry point.
+    expect(planBody).toContain('renderGroupSwitcher()');
+    expect(planBody).toContain('renderRotationEditor()');
+    expect(planBody).toContain('data-pasture-move="1"');
+    expect(planBody).toContain('data-pasture-clear-placement');
+    expect(planBody).toContain('data-pasture-import-kml');
+    // The relocated cards (boundary-tools grid, tracks/lines, classification queue)
+    // are GONE from the side panel. Manual move lives in the Area modal.
+    expect(planBody).not.toContain('renderBoundaryTools()');
+    expect(planBody).not.toContain('renderTracksLines()');
+    expect(planBody).not.toContain('renderClassificationQueue()');
     expect(planBody).not.toContain('data-pasture-manual-move');
   });
 
@@ -1582,7 +1636,7 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
   });
 });
 
-describe('Merged Map IA: tabs are Map / Field / Reports, no modal', () => {
+describe('Merged Map IA: tabs are Map / Field / Reports, with an Area modal', () => {
   it('Setup and Plan are gone from the tabs; tabs are Map / Field / Reports', () => {
     const tabsBlock = viewSrc.match(/const MODE_TABS = \[[\s\S]*?\];/)?.[0] || '';
     expect(tabsBlock).not.toContain("id: 'setup'");
@@ -1596,31 +1650,38 @@ describe('Merged Map IA: tabs are Map / Field / Reports, no modal', () => {
     expect(viewSrc).not.toContain("setAppMode('setup')");
   });
 
-  it('Map opens the working Area inspector on selection; never a modal', () => {
-    // No centered modal / overlay anywhere.
-    expect(viewSrc).not.toContain('function renderAreaModal');
-    expect(viewSrc).not.toContain('{renderAreaModal()}');
-    expect(viewSrc).not.toContain('data-pasture-area-modal');
-    expect(viewSrc).not.toContain('data-pasture-area-modal-backdrop');
-    expect(viewSrc).not.toContain('pm-modal-backdrop');
-    // Selecting an area opens the working inspector; the cockpit stays below it.
-    expect(viewSrc).toContain('{inspecting ? renderPlanAreaInspector() : renderViewPanel()}');
+  it('Map opens the Area modal on selection; the cockpit stays below', () => {
+    // Per-area editing opens an accessible Area modal (renderAreaModal) over the map.
+    expect(viewSrc).toContain('function renderAreaModal');
+    expect(viewSrc).toContain('renderAreaModal()');
+    expect(viewSrc).toContain('<PastureAreaModal');
+    expect(modalSrc).toContain('data-pasture-area-modal');
+    expect(modalSrc).toContain('data-pasture-area-modal-backdrop');
+    expect(modalSrc).toContain('pm-modal-backdrop');
+    // The slim side panel always shows the overview + cockpit (no inline inspector swap).
+    expect(viewSrc).toContain('{renderViewPanel()}');
+    expect(viewSrc).toContain('{renderPlanPanel()}');
+    expect(viewSrc).not.toContain('renderPlanAreaInspector');
     // The old read-only touch popover is retired.
     expect(viewSrc).not.toContain('function renderMapPopover');
     expect(viewSrc).not.toContain('data-pasture-map-popover');
-    // Clearing the selection (Esc / Clear) still dismisses the inspector.
+    // Clearing the selection (Esc / Close) still dismisses the modal.
     expect(viewSrc).toContain('onClick={() => setSelectedId(null)}');
     expect(viewSrc).toContain('data-pasture-clear-selection');
   });
 
-  it('Plan owns the relocated Boundary tools (collapsible) + manage actions in the inspector', () => {
-    expect(viewSrc).toContain('function renderBoundaryTools');
-    expect(viewSrc).toContain('data-pasture-boundary-tools');
-    expect(viewSrc).toContain('data-pasture-boundary-tools-toggle');
-    expect(viewSrc).toContain('function renderClassificationQueue');
-    expect(viewSrc).toContain('data-pasture-classify-queue');
+  it('Per-area Manage actions live in the Area modal; boundary-tools grid + classify queue left the side panel', () => {
+    // Manage actions render inside the modal (via renderAreaManageActions).
     expect(viewSrc).toContain('function renderAreaManageActions');
     expect(viewSrc).toContain('data-pasture-area-manage');
+    // The boundary-tools grid + classification-queue cards are removed from the panel.
+    expect(viewSrc).not.toContain('function renderBoundaryTools');
+    expect(viewSrc).not.toContain('data-pasture-boundary-tools');
+    expect(viewSrc).not.toContain('data-pasture-boundary-tools-toggle');
+    expect(viewSrc).not.toContain('function renderClassificationQueue');
+    expect(viewSrc).not.toContain('data-pasture-classify-queue');
+    // Classification review relocated to the Reports tab.
+    expect(viewSrc).toContain('data-pasture-report-needs-classification');
     // Roster card dropped; no rest-days input survives.
     expect(viewSrc).not.toContain('Locked roster - counts come from real animal records');
     expect(viewSrc).not.toContain('<span>Rest days</span>');
@@ -1670,12 +1731,59 @@ describe('Tool lifecycle hardening (Measure P0, exits, archived recovery)', () =
     expect(viewSrc).not.toContain('was Edit');
   });
 
-  it('archived areas have a recovery surface in Plan', () => {
-    expect(viewSrc).toContain('function renderArchivedAreas');
-    expect(viewSrc).toContain('{renderArchivedAreas()}');
+  it('archived areas have a recovery surface in the Reports tab', () => {
+    // Archived recovery relocated OFF the Map side panel into the Reports accordion.
+    expect(viewSrc).not.toContain('function renderArchivedAreas');
     expect(viewSrc).toContain('data-pasture-archived');
     expect(viewSrc).toContain('data-pasture-archived-restore');
+    expect(viewSrc).toContain('restoreArea(a)');
     expect(viewSrc).toMatch(/archivedAreas = React\.useMemo\([\s\S]*?status === 'retired'/);
+  });
+});
+
+describe('Pasture Map: Area modal + parent-pasture assignment', () => {
+  it('the Area modal is an accessible centered dialog with the contract selectors', () => {
+    expect(modalSrc).toContain("import {useModalFocusTrap} from '../shared/useModalFocusTrap.js'");
+    expect(modalSrc).toContain('role="dialog"');
+    expect(modalSrc).toContain('aria-modal="true"');
+    expect(modalSrc).toContain('aria-labelledby="pasture-area-modal-title"');
+    expect(modalSrc).toContain('data-pasture-area-modal-backdrop');
+    expect(modalSrc).toContain('data-pasture-area-modal=');
+    expect(modalSrc).toContain('data-pasture-area-modal-close');
+    expect(modalSrc).toContain('onKeyDown={handleDialogKeyDown}');
+    // Backdrop click closes; the inner dialog does not (overlay-dismiss guarded).
+    expect(modalSrc).toContain('if (e.target === e.currentTarget) onClose()');
+  });
+
+  it('the view opens the modal from a map click (onSelect), gated to the Map tab in select mode', () => {
+    expect(viewSrc).toContain('onSelect: handleAreaClick');
+    expect(viewSrc).toContain('function renderAreaModal');
+    expect(viewSrc).toMatch(/appMode === 'view' &&\s*selectedArea &&\s*!addMode/);
+    expect(viewSrc).toContain("!['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode)");
+  });
+
+  it('permanent paddocks carry a parent-pasture select scoped to permanent pastures', () => {
+    expect(viewSrc).toContain('data-pasture-area-parent-select');
+    expect(viewSrc).toContain('const parentPastureOptions = React.useMemo');
+    expect(viewSrc).toMatch(/a\.kind === 'pasture' && a\.permanence !== 'temporary'/);
+    // Assign / clear go through the existing update_land_area mapping (no new RPC).
+    expect(viewSrc).toContain('saveAreaPatch(a, parentId ? {parentId} : {clearParent: true})');
+    expect(apiSrc).toContain("parentId: 'p_parent_id'");
+    expect(apiSrc).toContain("clearParent: 'p_clear_parent'");
+  });
+
+  it('a reviewed permanent paddock requires a parent pasture before save/review (no auto-backfill)', () => {
+    expect(viewSrc).toContain('function needsParentAssignment');
+    expect(viewSrc).toMatch(/isPermanentPaddock\(a\) && !a\.parent_id/);
+    // The modal Save action is blocked + surfaces the reason when a parent is missing.
+    expect(viewSrc).toContain('data-pasture-area-modal-save');
+    expect(viewSrc).toContain('disabled={saveBlocked');
+    expect(viewSrc).toContain('Assign a parent pasture before saving this paddock.');
+    // classifyDesignation only marks a permanent paddock reviewed when it has a parent.
+    expect(viewSrc).toMatch(/a\.parent_id \? \{reviewStatus: 'reviewed'\} : \{\}/);
+    // Parentless permanent paddocks surface in the Reports "Needs pasture assignment".
+    expect(viewSrc).toContain('data-pasture-report-needs-pasture');
+    expect(viewSrc).toContain('Needs pasture assignment');
   });
 });
 

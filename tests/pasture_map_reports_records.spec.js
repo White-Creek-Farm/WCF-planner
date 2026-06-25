@@ -68,9 +68,11 @@ test('Reports lists every area (nested) and drills into a per-area grazing recor
   await page.waitForTimeout(1200);
   await page.keyboard.press('Escape');
 
-  // Reports: every-area list, with the paddock nested under the pasture.
+  // Reports: pastures collapse over their child paddocks; expand the pasture
+  // accordion to reveal the nested paddock row.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-report-areas]')).toBeVisible({timeout: 15_000});
+  await page.locator(`[data-pasture-report-pasture="${P_ID}"] > summary`).click();
   await expect(page.locator(`[data-pasture-report-area-row="${P_ID}"]`)).toBeVisible();
   const paddockRow = page.locator(`[data-pasture-report-area-row="${C_ID}"]`);
   await expect(paddockRow).toBeVisible();
