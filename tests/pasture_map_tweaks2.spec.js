@@ -176,7 +176,7 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   await expect(marker).toHaveCount(1);
 });
 
-test('Plan tab: one combined group/move card, no area list, move in the area inspector', async ({page}) => {
+test('Plan tab: one combined group/move card, no area list, move form in the side panel', async ({page}) => {
   await exec(`
     ${TRUNCATE}
     DO $$ DECLARE v_profile uuid; BEGIN
@@ -206,12 +206,14 @@ test('Plan tab: one combined group/move card, no area list, move in the area ins
   await expect(page.locator('[data-pasture-area-select]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-manual-move]')).toHaveCount(0);
 
-  // The move form lives in the Plan Area inspector, opened by selecting an area
-  // polygon (no modal).
+  // The free-form move form lives in the side panel (renderMoveControls), NOT the
+  // Area modal: it is present before any selection, and selecting an area opens a
+  // modal that contains no move form.
   await hideMapOverlays(page);
+  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
   await clickArea(page, A_ID);
   await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible();
+  await expect(page.locator('[data-pasture-area-modal] [data-pasture-move-form]')).toHaveCount(0);
 });
 
 async function drawMeasure(page) {

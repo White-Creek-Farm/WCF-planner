@@ -3373,3 +3373,26 @@
   flex: 1;
   min-width: 0;
 }
+
+/* Management/admin "Reset grazing history" card in the Reports area record. */
+.pm-record-reset {
+  border-color: #fde68a;
+  background: #fffbeb;
+  display: grid;
+  gap: 8px;
+}
+
+.pm-record-reset-note {
+  font-size: 12px;
+  color: var(--pm-muted, #6b7280);
+}
+
+.pm-record-reset-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b45309;
+}

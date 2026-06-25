@@ -80,15 +80,12 @@ test('Map tab: current groups, hover preview, no-op group click, read-only area 
 
   await hideClickBlockers(page);
 
-  // Record Mommas -> Paddock A via the Map Area inspector (Plan folded into Map).
+  // Record Mommas -> Paddock A via the side-panel Record-a-move form.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await clickArea(page, A_ID);
-  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(1000);
-  await page.keyboard.press('Escape');
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
 
   // On the Map, the occupied paddock shows an animal-type group marker, and the
   // legend (collapsed by default) reflects animal-type occupancy.
@@ -122,11 +119,11 @@ test('Map tab: current groups, hover preview, no-op group click, read-only area 
   await expect(tip).toContainText('Paddock');
   await expect(tip).toContainText('Mommas');
   await expect(tip).toContainText('ac');
-  // Clicking an area now opens the working inspector (Plan folded into Map): the area
-  // detail + the move/manage controls are right there.
+  // Clicking an area opens the Area modal (area detail + manage). Move/animal
+  // placement lives in the side panel, NOT the modal.
   await clickArea(page, A_ID);
   await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible();
+  await expect(page.locator('[data-pasture-area-modal] [data-pasture-move-form]')).toHaveCount(0);
   await page.keyboard.press('Escape');
 
   // The temp paddock readout reads "Temp paddock".

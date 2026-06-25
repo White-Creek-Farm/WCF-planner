@@ -357,6 +357,14 @@ export async function listPastureHistoryReport({
   );
 }
 
+// Management/admin reset (mig 143): wipe ONE area's grazing history so it reads
+// "no move history" again (e.g. a paddock that only carries test moves but shows
+// resting). Clears its move impacts + detaches it from every move event's
+// from/to, leaving other areas' history intact. Returns the recomputed summary.
+export async function deleteLandAreaGrazingHistory(id) {
+  return unwrap(await sb.rpc('delete_land_area_grazing_history', {p_id: id}), 'delete_land_area_grazing_history');
+}
+
 export async function listPastureRestReport() {
   return unwrap(await sb.rpc('list_pasture_rest_report'), 'list_pasture_rest_report');
 }

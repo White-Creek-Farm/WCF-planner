@@ -29,6 +29,8 @@ const mig140 = read('supabase-migrations/140_pasture_map_rotations.sql');
 const mig140Code = mig140.replace(/--[^\n]*/g, '');
 const mig141 = read('supabase-migrations/141_pasture_map_measurements.sql');
 const mig141Code = mig141.replace(/--[^\n]*/g, '');
+const mig143 = read('supabase-migrations/143_pasture_map_reset_area_history.sql');
+const mig143Code = mig143.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -775,10 +777,14 @@ describe('CP3 API + UI wiring', () => {
     expect(apiSrc).toContain("sb.rpc('record_pasture_move'");
   });
 
-  it('view renders move form, occupancy, rest, and recent moves without raw browser prompts', () => {
+  it('side panel records moves (free-form group + destination); modal keeps occupancy/rest', () => {
     for (const marker of [
       'data-pasture-selected-panel',
-      'data-pasture-move-form',
+      'data-pasture-move="1"', // side-panel current-group Move
+      'data-pasture-clear-placement',
+      'data-pasture-move-form', // side-panel Record-a-move form
+      'data-pasture-move-group',
+      'data-pasture-move-area', // destination picker (free-form: any area)
       'data-pasture-move-save',
       'data-pasture-occupancy',
       'data-pasture-rest-state',
@@ -786,6 +792,9 @@ describe('CP3 API + UI wiring', () => {
       expect(viewSrc).toContain(marker);
     }
     expect(viewSrc).toContain('recordPastureMove');
+    // The move/plan form lives in the side panel (renderMoveControls), NOT the modal.
+    expect(viewSrc).toContain('function renderMoveControls');
+    expect(viewSrc).not.toContain('function renderMoveAndPlanForms');
     expect(viewSrc).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
   });
 
@@ -863,17 +872,23 @@ describe('CP4 API + UI wiring', () => {
     }
   });
 
-  it('view renders CP4 forms/reports and same-day prompt without raw browser prompts', () => {
+  it('view renders the planned-moves worklist + side-panel plan form + density/use facts', () => {
     for (const marker of [
-      'data-pasture-plan-form',
-      'data-pasture-plan-save',
       'data-pasture-planned-moves',
-      'data-pasture-same-day-prompt',
+      'data-pasture-plan-form', // side-panel Plan-a-move form
+      'data-pasture-plan-area',
+      'data-pasture-plan-save',
       'data-pasture-density',
       'data-pasture-use-facts',
     ]) {
       expect(viewSrc).toContain(marker);
     }
+    // Plan creation + "Use" (records the planned move directly) both live in the side
+    // panel; the deprecated same-day prompt is gone.
+    expect(viewSrc).toContain('createPasturePlannedMove');
+    expect(viewSrc).toContain('async function applyPlan');
+    expect(viewSrc).toContain('updatePasturePlannedMoveStatus');
+    expect(viewSrc).not.toContain('data-pasture-same-day-prompt');
     expect(viewSrc).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
   });
 
@@ -1209,16 +1224,23 @@ describe('P1 planner-group roster wiring', () => {
     expect(viewSrc).toContain('data-pasture-current-groups');
   });
 
-  it('move/plan group pickers are a single flat roster list with locked read-only counts', () => {
-    expect(viewSrc).toContain('updateMoveGroup');
-    expect(viewSrc).toContain('updatePlanGroup');
-    expect(viewSrc).toContain('rosterGroupId');
-    // No species pre-selector (grouped/flat collapsed to one flat Group list).
-    expect(viewSrc).not.toContain('rosterGroupsForType');
+  it('move/plan placement is a free-form side-panel control, not in the Area modal', () => {
+    // The Record-a-move + Plan-a-move forms live in the side panel (renderMoveControls):
+    // any roster group -> any destination area, count locked to the roster group.
+    expect(viewSrc).toContain('function renderMoveControls');
+    expect(viewSrc).toContain('data-pasture-move-form');
+    expect(viewSrc).toContain('data-pasture-move-area');
+    expect(viewSrc).toContain('data-pasture-plan-form');
+    expect(viewSrc).toContain('data-pasture-plan-area');
+    expect(viewSrc).toContain('data-pasture-move-save');
+    expect(viewSrc).toContain('data-pasture-plan-save');
+    expect(viewSrc).toContain('data-pasture-move="1"');
+    expect(viewSrc).toContain('data-pasture-clear-placement');
+    expect(viewSrc).toContain('data-pasture-planned-moves');
+    // No per-species pre-selector; counts stay locked to the roster (groupSizeCount).
     expect(viewSrc).not.toContain('data-pasture-move-animal-type');
-    expect(viewSrc).not.toContain('data-pasture-plan-animal-type');
-    expect(viewSrc).toContain('readOnly data-pasture-move-count="1"');
-    expect(viewSrc).toContain('readOnly data-pasture-plan-count="1"');
+    expect(viewSrc).toContain('animalCount: groupSizeCount(g)');
+    expect(viewSrc).toContain('computePlannerGroupRoster(');
   });
 });
 
@@ -1279,16 +1301,19 @@ describe('P2 Map tab', () => {
     expect(modalSrc).toContain('pm-modal-backdrop');
     expect(modalSrc).toContain('data-pasture-area-modal-close');
 
-    // The Area modal owns per-area recording + line style + the Save/review action;
-    // the inner wrapper keeps the legacy data-pasture-plan-inspector hook.
+    // The Area modal owns per-area line style + classification/parent + the
+    // Save/review action; the inner wrapper keeps the legacy
+    // data-pasture-plan-inspector hook. Move/animal placement is NOT in the modal.
     const modalBody = viewSrc.slice(
       viewSrc.indexOf('function renderAreaModal'),
-      viewSrc.indexOf('function renderPlannedMoves'),
+      viewSrc.indexOf('function renderMoveControls'),
     );
-    expect(modalBody).toContain('renderMoveAndPlanForms()');
     expect(modalBody).toContain('renderLineStylePanel()');
     expect(modalBody).toContain('data-pasture-plan-inspector');
     expect(modalBody).toContain('data-pasture-area-modal-save');
+    expect(modalBody).not.toContain('renderMoveAndPlanForms');
+    expect(modalBody).not.toContain('data-pasture-move-form');
+    expect(modalBody).not.toContain('data-pasture-modal-move');
   });
 });
 
@@ -1527,8 +1552,8 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     expect(viewSrc).toContain('serverRotationByKey');
     // appendToRotation refuses a draft line as a destination.
     expect(viewSrc).toContain('isOutlineCandidateArea(area)');
-    // Manual move (in the Plan Area inspector) excludes draft lines.
-    expect(viewSrc).toContain('!isOutlineCandidateArea(selectedArea)');
+    // Move destinations exclude draft lines (destinationAreas filter).
+    expect(viewSrc).toMatch(/destinationAreas = React\.useMemo\([\s\S]*?!isOutlineCandidateArea/);
   });
 
   it('Close into temp paddock uses existing RPCs (no Edit, no new SQL) and is mgmt/admin', () => {
@@ -1784,6 +1809,59 @@ describe('Pasture Map: Area modal + parent-pasture assignment', () => {
     // Parentless permanent paddocks surface in the Reports "Needs pasture assignment".
     expect(viewSrc).toContain('data-pasture-report-needs-pasture');
     expect(viewSrc).toContain('Needs pasture assignment');
+  });
+});
+
+describe('Pasture Map: reset grazing history (mig 143) + move forms removed from modal', () => {
+  it('mig 143 adds a management/admin reset that clears one area history + recomputes state', () => {
+    expect(mig143Code).toContain('CREATE OR REPLACE FUNCTION public.delete_land_area_grazing_history');
+    expect(mig143Code).toContain('SECURITY DEFINER');
+    expect(mig143Code).toContain('public.profile_role()');
+    expect(mig143Code).toMatch(/NOT IN \('management', 'admin'\)/);
+    // Clears this area's impacts, detaches it from every event's from/to, resets baseline.
+    expect(mig143Code).toContain('DELETE FROM public.pasture_move_impacts WHERE land_area_id = p_id');
+    expect(mig143Code).toContain(
+      'UPDATE public.pasture_move_events SET to_land_area_id = NULL WHERE to_land_area_id = p_id',
+    );
+    expect(mig143Code).toContain(
+      'UPDATE public.pasture_move_events SET from_land_area_id = NULL WHERE from_land_area_id = p_id',
+    );
+    expect(mig143Code).toContain('baseline_no_history = true');
+    expect(mig143Code).toContain('public._land_area_summary(p_id)');
+    // Locked to authenticated only (RLS deny-all + SECDEF gate).
+    expect(mig143Code).toMatch(
+      /REVOKE ALL ON FUNCTION public\.delete_land_area_grazing_history\(text\) FROM PUBLIC, anon/,
+    );
+    expect(mig143Code).toContain(
+      'GRANT EXECUTE ON FUNCTION public.delete_land_area_grazing_history(text) TO authenticated',
+    );
+  });
+
+  it('api wrapper + Reports reset-history action are wired (management/admin, inline confirm)', () => {
+    expect(apiSrc).toContain('export async function deleteLandAreaGrazingHistory');
+    expect(apiSrc).toContain("sb.rpc('delete_land_area_grazing_history'");
+    expect(viewSrc).toContain('deleteLandAreaGrazingHistory');
+    expect(viewSrc).toContain('async function resetAreaHistory');
+    // The action is in the Reports area record, management/admin-gated, inline confirm.
+    expect(viewSrc).toContain('data-pasture-report-reset-history');
+    expect(viewSrc).toContain('data-pasture-report-reset-yes');
+    expect(viewSrc).toContain('Reset grazing history');
+    expect(viewSrc).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
+  });
+
+  it('the Area modal hosts no move/plan form (moves live in the side panel); Use records a plan directly', () => {
+    expect(viewSrc).not.toContain('function renderMoveAndPlanForms');
+    const modalBody = viewSrc.slice(
+      viewSrc.indexOf('function renderAreaModal'),
+      viewSrc.indexOf('function renderMoveControls'),
+    );
+    expect(modalBody).not.toContain('data-pasture-move-form');
+    expect(modalBody).not.toContain('data-pasture-plan-form');
+    expect(modalBody).not.toContain('data-pasture-modal-move');
+    // The move/plan forms ARE in the side panel.
+    expect(viewSrc).toContain('function renderMoveControls');
+    expect(viewSrc).toContain('data-pasture-move-form');
+    expect(viewSrc).toMatch(/async function applyPlan\(plan\)[\s\S]*?recordPastureMove\(movePayload\)/);
   });
 });
 

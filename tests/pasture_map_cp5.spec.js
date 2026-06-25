@@ -78,15 +78,14 @@ test('uses cached vectors and queues a move while pasture RPCs are offline', asy
   // Cached vectors still render the polygon offline.
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible();
 
-  // Record a move via the Plan Area inspector while offline -> it queues.
+  // Record a move via the side-panel form while offline -> it queues.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await hideMapOverlays(page);
-  await page.locator(`.pm-area-${A_ID}`).first().click();
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await expect(page.locator('[data-pasture-offline-queued]')).toContainText('1 queued', {timeout: 15_000});
-  await page.keyboard.press('Escape');
 
   await page.unroute('**/rest/v1/rpc/list_land_areas');
   await page.unroute('**/rest/v1/rpc/list_pasture_moves');

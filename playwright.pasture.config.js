@@ -36,6 +36,7 @@ export default defineConfig({
     '**/pasture_map_v1_basemap.spec.js',
     '**/pasture_map_v1_overlap.spec.js',
     '**/pasture_map_reports_records.spec.js',
+    '**/pasture_map_reset_history.spec.js',
     '**/pasture_map_clear_placement.spec.js',
   ],
   fullyParallel: false,

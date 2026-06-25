@@ -51,14 +51,14 @@ async function openArea(page, areaId) {
   await expect(page.locator(`[data-pasture-plan-inspector="${areaId}"]`)).toBeVisible({timeout: 15_000});
 }
 
-// Record a group move onto an area via the Plan inspector's move form.
+// Record a group move onto an area via the side-panel Record-a-move form.
 async function recordMove(page, areaId, groupLabel) {
-  await openArea(page, areaId);
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: areaId});
   await page.locator('[data-pasture-move-group]').selectOption({label: groupLabel});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
-  await page.keyboard.press('Escape');
 }
 
 test('Temp paddock archive/restore, occupied block, admin hard delete (via Plan inspector)', async ({page}) => {

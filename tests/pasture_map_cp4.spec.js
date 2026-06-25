@@ -86,29 +86,25 @@ test('plans a move and renders history/rest/stocking reports', async ({page}) =>
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
   await hideMapOverlays(page);
 
-  // Plan: selecting an area polygon opens the Plan Area inspector, which carries
-  // both the plan form and the move form (single flat Group picker, locked count).
+  // Plan a future move from the side-panel Plan-a-move form (free-form: group +
+  // destination area + date).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await clickArea(page, A_ID);
-  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-plan-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-plan-area]').selectOption({value: A_ID});
   await page.locator('[data-pasture-plan-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-plan-at]').fill(localDateTimeValue());
   await page.locator('[data-pasture-plan-save]').click();
   await page.waitForTimeout(500);
-  await page.keyboard.press('Escape');
 
-  // Deselecting returns to the Plan panel; planned moves render there.
+  // Planned moves render in the side panel.
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('Mommas', {timeout: 15_000});
   await expect(page.locator('[data-pasture-planned-moves]')).toContainText('CP4 North Paddock');
 
-  // Record the actual move for the same group/area via the inspector move form.
-  await clickArea(page, A_ID);
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  // Record the actual move for the same group/area from the side-panel move form.
+  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
-  await page.keyboard.press('Escape');
 
   // Reports tab: the every-area list -> open this paddock's grazing record.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();

@@ -65,14 +65,12 @@ test('overlap impact does not produce a duplicate occupant marker for the same g
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
   await hideClickBlockers(page);
 
-  // Record Mommas -> Paddock A via the Plan Area inspector (A's centroid is clear of B).
+  // Record Mommas -> Paddock A via the side-panel form (A's centroid is clear of B).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator(`.pm-area-${A_ID}`).first().click();
-  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(1200);
-  await page.keyboard.press('Escape');
 
   // Back on the Map: Mommas appears as a current-location marker EXACTLY once (on the
   // destination A), never a second time on the overlapped B.

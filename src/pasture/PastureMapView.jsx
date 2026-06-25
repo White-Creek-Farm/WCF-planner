@@ -30,6 +30,7 @@ import {
   createPasturePlannedMove,
   updatePasturePlannedMoveStatus,
   listPastureHistoryReport,
+  deleteLandAreaGrazingHistory,
   listPastureRotations,
   upsertPastureRotation,
   clearPastureRotation,
@@ -154,64 +155,6 @@ function renderPastureMapCanvas(props) {
   return React.createElement(PastureMapCanvas, props);
 }
 
-function slugKey(label) {
-  return (label || '')
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function localDateTimeValue(date = new Date()) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
-    date.getMinutes(),
-  )}`;
-}
-
-function tomorrowMorningValue() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(8, 0, 0, 0);
-  return localDateTimeValue(d);
-}
-
-function initialMoveForm() {
-  return {
-    animalType: 'cattle_herd',
-    groupKey: '',
-    groupLabel: '',
-    movedAt: localDateTimeValue(),
-    animalCount: '',
-    notes: '',
-  };
-}
-
-function initialPlanForm() {
-  return {
-    animalType: 'cattle_herd',
-    groupKey: '',
-    groupLabel: '',
-    plannedFor: tomorrowMorningValue(),
-    animalCount: '',
-    notes: '',
-  };
-}
-
-function resolveGroup(form) {
-  const groupLabel = (form.groupLabel || '').trim();
-  const groupKey = ((form.groupKey || '').trim() || slugKey(groupLabel)).trim();
-  return {groupLabel, groupKey};
-}
-
-function parseOptionalCount(value) {
-  if (value === '' || value == null) return null;
-  const count = Number.parseInt(value, 10);
-  if (!Number.isFinite(count) || count <= 0) return NaN;
-  return count;
-}
-
 function cleanLineColor(value) {
   if (typeof value !== 'string') return '';
   const color = value.trim().toLowerCase();
@@ -296,9 +239,18 @@ function formatDistanceFt(feet) {
   return `${Math.round(feet).toLocaleString()} ft`;
 }
 
-function isSameLocalDate(a, b) {
-  if (!a || !b) return false;
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+function localDateTimeValue(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
+    date.getMinutes(),
+  )}`;
+}
+
+function tomorrowMorningValue() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(8, 0, 0, 0);
+  return localDateTimeValue(d);
 }
 
 function formatMoveTime(value) {
@@ -555,6 +507,8 @@ export default function PastureMapView({Header, authState}) {
   const [zoomSignal, setZoomSignal] = React.useState(0);
   const [styleDraft, setStyleDraft] = React.useState(() => styleDraftFromArea(null));
   const [confirmDeleteId, setConfirmDeleteId] = React.useState(null);
+  const [confirmResetId, setConfirmResetId] = React.useState(null);
+  const [historyReloadSignal, setHistoryReloadSignal] = React.useState(0);
   const [confirmPromoteId, setConfirmPromoteId] = React.useState(null);
   const [boundaryFilter, setBoundaryFilter] = React.useState({pasture: true, paddock: true, temp: true});
   const [draftLinesVisible, setDraftLinesVisible] = React.useState(false);
@@ -563,12 +517,19 @@ export default function PastureMapView({Header, authState}) {
   const [editGeom, setEditGeom] = React.useState(null);
   const [track, setTrack] = React.useState(() => initialTrackState());
   const [trackForm, setTrackForm] = React.useState(null);
-  const [moveForm, setMoveForm] = React.useState(() => initialMoveForm());
-  const [planForm, setPlanForm] = React.useState(() => initialPlanForm());
-  const [activePlanId, setActivePlanId] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
   const [planSaving, setPlanSaving] = React.useState(false);
   const [planBusyId, setPlanBusyId] = React.useState(null);
+  // Side-panel "Record a move" + "Plan a move": self-contained (group + destination
+  // area + date), since move/animal placement was pulled out of the Area modal.
+  const [moveGroupId, setMoveGroupId] = React.useState('');
+  const [moveAreaId, setMoveAreaId] = React.useState('');
+  const [moveAt, setMoveAt] = React.useState(() => localDateTimeValue());
+  const [moveNotes, setMoveNotes] = React.useState('');
+  const [planGroupId, setPlanGroupId] = React.useState('');
+  const [planAreaId, setPlanAreaId] = React.useState('');
+  const [planAt, setPlanAt] = React.useState(() => tomorrowMorningValue());
+  const [planNotes, setPlanNotes] = React.useState('');
   const {breeders, feederGroups} = usePig();
   const {cattleForHome} = useCattleHome();
   const {sheepForHome} = useSheepHome();
@@ -699,7 +660,7 @@ export default function PastureMapView({Header, authState}) {
     return () => {
       alive = false;
     };
-  }, [reportAreaId, appMode, canViewPlanning, moves.length]);
+  }, [reportAreaId, appMode, canViewPlanning, moves.length, historyReloadSignal]);
 
   React.useEffect(() => () => clearTrackWatch(), []);
 
@@ -969,19 +930,6 @@ export default function PastureMapView({Header, authState}) {
     };
   }, []);
 
-  const sameDayMoveWarning = React.useMemo(() => {
-    const {groupKey} = resolveGroup(moveForm);
-    const movedDate = new Date(moveForm.movedAt);
-    if (!groupKey || Number.isNaN(movedDate.getTime())) return '';
-    const prior = moves.find((m) => {
-      const priorDate = new Date(m.moved_at);
-      return m.animal_type === moveForm.animalType && m.group_key === groupKey && isSameLocalDate(priorDate, movedDate);
-    });
-    return prior
-      ? `Same-day move already recorded at ${formatMoveTime(prior.moved_at)}. Check the time before saving.`
-      : '';
-  }, [moves, moveForm]);
-
   const statusCounts = React.useMemo(() => {
     const seed = {occupied: 0, resting: 0, ready: 0, no_history: 0, invalid: 0};
     activeAreas.forEach((area) => {
@@ -1180,6 +1128,25 @@ export default function PastureMapView({Header, authState}) {
   function confirmHardDelete(a) {
     setConfirmDeleteId(null);
     return withBusy(a.id, () => hardDeleteLandArea(a.id));
+  }
+
+  // Management/admin reset: wipe ONE area's grazing history so it reads "no move
+  // history" again (mig 143). reload() refreshes derived state; the signal
+  // re-pulls the open Reports timeline (the move events were detached, not
+  // deleted, so moves.length alone would not re-trigger the history fetch).
+  async function resetAreaHistory(a) {
+    setConfirmResetId(null);
+    setBusyId(a.id);
+    setErr('');
+    try {
+      await deleteLandAreaGrazingHistory(a.id);
+      await reload();
+      setHistoryReloadSignal((n) => n + 1);
+    } catch (e) {
+      setErr(e.message || 'Could not reset grazing history.');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   function closeOutline(a) {
@@ -1458,75 +1425,29 @@ export default function PastureMapView({Header, authState}) {
     }
   }
 
-  // Group picker is a single flat list from the locked roster (no species
-  // pre-selector, no free-form): selecting a group fills its durable
-  // (animal_type, group_key) identity and the locked count. The select value is
-  // the roster group id resolved from the form's current animal_type+group_key.
-  function rosterGroupById(id) {
-    return groups.find((g) => g.id === id) || null;
-  }
-  function rosterGroupId(form) {
-    const g = groups.find((x) => x.animalType === form.animalType && x.groupKey === form.groupKey);
-    return g ? g.id : '';
-  }
-  function updateMoveGroup(id) {
-    const g = rosterGroupById(id);
-    if (g)
-      setMoveForm((f) => ({
-        ...f,
-        animalType: g.animalType,
-        groupKey: g.groupKey,
-        groupLabel: g.name,
-        animalCount: String(g.count),
-      }));
-  }
-  function updatePlanGroup(id) {
-    const g = rosterGroupById(id);
-    if (g)
-      setPlanForm((f) => ({
-        ...f,
-        animalType: g.animalType,
-        groupKey: g.groupKey,
-        groupLabel: g.name,
-        animalCount: String(g.count),
-      }));
-  }
-
+  // Side-panel "Record a move": move any roster group to any destination area now.
+  // Self-contained (group + destination + date); the count is locked to the roster.
   async function saveMove() {
-    if (!selectedId) {
-      setErr('Select an area first, then record the move.');
-      return;
-    }
-    const {groupLabel, groupKey} = resolveGroup(moveForm);
-    const movedDate = new Date(moveForm.movedAt);
-    const count = parseOptionalCount(moveForm.animalCount);
-    if (!groupLabel || !groupKey) return setErr('Group name is required for a pasture move.');
+    const g = groups.find((x) => x.id === moveGroupId);
+    if (!g) return setErr('Pick a group to move.');
+    if (!moveAreaId) return setErr('Pick a destination area.');
+    const movedDate = new Date(moveAt);
     if (Number.isNaN(movedDate.getTime())) return setErr('Move date/time is required.');
-    if (Number.isNaN(count)) return setErr('Animal count must be a positive whole number.');
     setSaving(true);
     setErr('');
     const movePayload = {
       moveId: newPastureMoveId(),
-      animalType: moveForm.animalType,
-      groupKey,
-      groupLabel,
-      toLandAreaId: selectedId,
+      animalType: g.animalType,
+      groupKey: g.groupKey || g.id,
+      groupLabel: g.name,
+      toLandAreaId: moveAreaId,
       movedAt: movedDate.toISOString(),
-      animalCount: count,
-      notes: moveForm.notes,
+      animalCount: groupSizeCount(g),
+      notes: moveNotes || null,
     };
     try {
-      const savedMove = await recordPastureMove(movePayload);
-      if (activePlanId && savedMove && savedMove.id) {
-        await updatePasturePlannedMoveStatus({
-          planId: activePlanId,
-          status: 'completed',
-          completedMoveId: savedMove.id,
-        });
-      }
-      setActivePlanId(null);
-      // animalCount stays locked to the roster group; only transient inputs reset.
-      setMoveForm((f) => ({...f, movedAt: localDateTimeValue(), notes: ''}));
+      await recordPastureMove(movePayload);
+      setMoveNotes('');
       await reload();
     } catch (e) {
       if (classifyPastureOfflineError(e) === 'transient') {
@@ -1539,30 +1460,28 @@ export default function PastureMapView({Header, authState}) {
     }
   }
 
+  // Side-panel "Plan a move": create a planned move (worklist item) for any group +
+  // destination + future date. The planned-moves card's "Use" records it.
   async function savePlan() {
-    const targetId = selectedId || (activeNextArea && activeNextArea.id);
-    if (!targetId) return setErr('Select an area first, then plan the move.');
-    const {groupLabel, groupKey} = resolveGroup(planForm);
-    const plannedDate = new Date(planForm.plannedFor);
-    const count = parseOptionalCount(planForm.animalCount);
-    if (!groupLabel || !groupKey) return setErr('Group name is required for a planned move.');
+    const g = groups.find((x) => x.id === planGroupId);
+    if (!g) return setErr('Pick a group to plan.');
+    if (!planAreaId) return setErr('Pick a destination area.');
+    const plannedDate = new Date(planAt);
     if (Number.isNaN(plannedDate.getTime())) return setErr('Planned date/time is required.');
-    if (Number.isNaN(count)) return setErr('Animal count must be a positive whole number.');
     setPlanSaving(true);
     setErr('');
     try {
       await createPasturePlannedMove({
         planId: newPasturePlanId(),
-        animalType: planForm.animalType,
-        groupKey,
-        groupLabel,
-        toLandAreaId: targetId,
+        animalType: g.animalType,
+        groupKey: g.groupKey || g.id,
+        groupLabel: g.name,
+        toLandAreaId: planAreaId,
         plannedFor: plannedDate.toISOString(),
-        animalCount: count,
-        notes: planForm.notes,
+        animalCount: groupSizeCount(g),
+        notes: planNotes || null,
       });
-      // animalCount stays locked to the roster group; only transient inputs reset.
-      setPlanForm((f) => ({...f, plannedFor: tomorrowMorningValue(), notes: ''}));
+      setPlanNotes('');
       await reload();
     } catch (e) {
       setErr(e.message || 'Could not save planned move.');
@@ -1571,19 +1490,42 @@ export default function PastureMapView({Header, authState}) {
     }
   }
 
-  function applyPlan(plan) {
-    setSelectedId(plan.to_land_area_id);
-    setActivePlanId(plan.id);
-    setMoveForm({
+  // "Use" a planned move now: record the move to the planned area for the planned
+  // group and mark the plan completed. Records at "now" (the moment you make it).
+  async function applyPlan(plan) {
+    setPlanBusyId(plan.id);
+    setSaving(true);
+    setErr('');
+    const movePayload = {
+      moveId: newPastureMoveId(),
       animalType: plan.animal_type,
       groupKey: plan.group_key,
       groupLabel: plan.group_label,
-      movedAt: localDateTimeValue(new Date(plan.planned_for)),
-      animalCount: plan.animal_count == null ? '' : String(plan.animal_count),
-      notes: plan.notes || '',
-    });
-    setAppMode('view');
-    setErr('');
+      toLandAreaId: plan.to_land_area_id,
+      movedAt: new Date().toISOString(),
+      animalCount: plan.animal_count == null ? null : plan.animal_count,
+      notes: plan.notes || null,
+    };
+    try {
+      const savedMove = await recordPastureMove(movePayload);
+      if (savedMove && savedMove.id) {
+        await updatePasturePlannedMoveStatus({
+          planId: plan.id,
+          status: 'completed',
+          completedMoveId: savedMove.id,
+        });
+      }
+      await reload();
+    } catch (e) {
+      if (classifyPastureOfflineError(e) === 'transient') {
+        await enqueuePastureOperation({id: movePayload.moveId, op: 'record_move', payload: movePayload});
+        await refreshQueueState();
+        setOfflineStatus('Move saved on this device and will sync when the connection returns.');
+      } else setErr(e.message || 'Could not record the planned move.');
+    } finally {
+      setSaving(false);
+      setPlanBusyId(null);
+    }
   }
 
   async function cancelPlan(plan) {
@@ -1591,7 +1533,6 @@ export default function PastureMapView({Header, authState}) {
     setErr('');
     try {
       await updatePasturePlannedMoveStatus({planId: plan.id, status: 'canceled'});
-      if (activePlanId === plan.id) setActivePlanId(null);
       await reload();
     } catch (e) {
       setErr(e.message || 'Could not cancel planned move.');
@@ -1858,22 +1799,9 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function setActiveGroupFromGroup(group) {
+    // Move/plan forms were removed from the Area modal, so switching the active
+    // group no longer primes a form — it just selects the group for the side panel.
     setActiveGroupId(group.id);
-    const count = groupSizeCount(group);
-    setMoveForm((form) => ({
-      ...form,
-      animalType: groupAnimalType(group),
-      groupKey: group.groupKey || group.id,
-      groupLabel: group.name,
-      animalCount: count == null ? form.animalCount : String(count),
-    }));
-    setPlanForm((form) => ({
-      ...form,
-      animalType: groupAnimalType(group),
-      groupKey: group.groupKey || group.id,
-      groupLabel: group.name,
-      animalCount: count == null ? form.animalCount : String(count),
-    }));
   }
 
   const mapBanner = addMode
@@ -2215,132 +2143,6 @@ export default function PastureMapView({Header, authState}) {
           </div>
         )}
       </div>
-    );
-  }
-
-  function renderMoveAndPlanForms() {
-    if (!selectedArea || !canRecordMoves) return null;
-    return (
-      <>
-        <div className="pm-move-form" data-pasture-move-form="1">
-          <div className="pm-card-title">Record movement</div>
-          <div className="pm-form-grid">
-            <label className="pm-field pm-field-wide">
-              <span>Group</span>
-              <select
-                value={rosterGroupId(moveForm)}
-                onChange={(e) => updateMoveGroup(e.target.value)}
-                data-pasture-move-group="1"
-              >
-                <option value="" disabled>
-                  Select group
-                </option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="pm-field">
-              <span>Moved at</span>
-              <input
-                type="datetime-local"
-                value={moveForm.movedAt}
-                onChange={(e) => setMoveForm((f) => ({...f, movedAt: e.target.value}))}
-                data-pasture-move-at="1"
-              />
-            </label>
-            <label className="pm-field">
-              <span>Count (locked)</span>
-              <input type="number" value={moveForm.animalCount} readOnly data-pasture-move-count="1" />
-            </label>
-            <label className="pm-field pm-field-wide">
-              <span>Notes</span>
-              <input
-                type="text"
-                value={moveForm.notes}
-                maxLength={500}
-                onChange={(e) => setMoveForm((f) => ({...f, notes: e.target.value}))}
-                data-pasture-move-notes="1"
-              />
-            </label>
-          </div>
-          {activePlanId && <div className="pm-plan-note">Using planned move {activePlanId}</div>}
-          {sameDayMoveWarning && (
-            <div className="pm-same-day" data-pasture-same-day-prompt="1">
-              {sameDayMoveWarning}
-            </div>
-          )}
-          <div className="pm-form-actions">
-            <button
-              type="button"
-              className="pm-btn pm-btn-primary"
-              onClick={saveMove}
-              disabled={saving || !selectedId}
-              data-pasture-move-save="1"
-            >
-              {saving ? 'Saving...' : 'Save move'}
-            </button>
-          </div>
-        </div>
-        <div className="pm-plan-form" data-pasture-plan-form="1">
-          <div className="pm-card-title">Plan future move here</div>
-          <div className="pm-form-grid">
-            <label className="pm-field pm-field-wide">
-              <span>Group</span>
-              <select
-                value={rosterGroupId(planForm)}
-                onChange={(e) => updatePlanGroup(e.target.value)}
-                data-pasture-plan-group="1"
-              >
-                <option value="" disabled>
-                  Select group
-                </option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="pm-field">
-              <span>Planned for</span>
-              <input
-                type="datetime-local"
-                value={planForm.plannedFor}
-                onChange={(e) => setPlanForm((f) => ({...f, plannedFor: e.target.value}))}
-                data-pasture-plan-at="1"
-              />
-            </label>
-            <label className="pm-field">
-              <span>Count (locked)</span>
-              <input type="number" value={planForm.animalCount} readOnly data-pasture-plan-count="1" />
-            </label>
-            <label className="pm-field pm-field-wide">
-              <span>Notes</span>
-              <input
-                type="text"
-                value={planForm.notes}
-                maxLength={500}
-                onChange={(e) => setPlanForm((f) => ({...f, notes: e.target.value}))}
-                data-pasture-plan-notes="1"
-              />
-            </label>
-          </div>
-          <div className="pm-form-actions">
-            <button
-              type="button"
-              className="pm-btn"
-              onClick={savePlan}
-              disabled={planSaving}
-              data-pasture-plan-save="1"
-            >
-              {planSaving ? 'Saving...' : 'Save plan'}
-            </button>
-          </div>
-        </div>
-      </>
     );
   }
 
@@ -2956,6 +2758,7 @@ export default function PastureMapView({Header, authState}) {
           </div>
         )}
         {renderRotationEditor()}
+        {renderMoveControls()}
         {plans.length > 0 && renderPlannedMoves()}
         {/* Transient build-tool save forms stay on the Map tab while a tool is
             active so a redraw (launched from the Area modal) or a drawn temp
@@ -3254,11 +3057,8 @@ export default function PastureMapView({Header, authState}) {
               {renderLineStylePanel()}
             </section>
           )}
-          {canRecordMoves && !isOutlineCandidateArea(selectedArea) && (
-            <section className="pm-modal-section" data-pasture-modal-section="move" data-pasture-modal-move="1">
-              {renderMoveAndPlanForms()}
-            </section>
-          )}
+          {/* Move / animal placement is NOT in the Area modal: it lives in the side
+              panel (current-group Move/Clear + the planned-moves worklist). */}
           {isAdmin && (
             <section className="pm-modal-section pm-modal-section-danger" data-pasture-modal-section="danger">
               {renderDangerZone(selectedArea)}
@@ -3292,6 +3092,140 @@ export default function PastureMapView({Header, authState}) {
           )}
         </div>
       </PastureAreaModal>
+    );
+  }
+
+  // Side-panel move / plan controls (relocated out of the Area modal). A move is
+  // free-form here: pick any roster group + any destination area. The count is
+  // locked to the roster group. Plan a future move adds a planned-moves worklist
+  // item; the planned-moves card's "Use" records it.
+  function renderMoveControls() {
+    if (!canRecordMoves || !groups.length) return null;
+    return (
+      <div className="pm-card" data-pasture-move-controls="1">
+        <div className="pm-move-form" data-pasture-move-form="1">
+          <div className="pm-card-title">Record a move</div>
+          <div className="pm-form-grid">
+            <label className="pm-field pm-field-wide">
+              <span>Group</span>
+              <select value={moveGroupId} onChange={(e) => setMoveGroupId(e.target.value)} data-pasture-move-group="1">
+                <option value="" disabled>
+                  Select group
+                </option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="pm-field pm-field-wide">
+              <span>Destination</span>
+              <select value={moveAreaId} onChange={(e) => setMoveAreaId(e.target.value)} data-pasture-move-area="1">
+                <option value="" disabled>
+                  Select area
+                </option>
+                {destinationAreas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name || 'Unnamed'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="pm-field">
+              <span>Moved at</span>
+              <input
+                type="datetime-local"
+                value={moveAt}
+                onChange={(e) => setMoveAt(e.target.value)}
+                data-pasture-move-at="1"
+              />
+            </label>
+            <label className="pm-field pm-field-wide">
+              <span>Notes</span>
+              <input
+                type="text"
+                value={moveNotes}
+                maxLength={500}
+                onChange={(e) => setMoveNotes(e.target.value)}
+                data-pasture-move-notes="1"
+              />
+            </label>
+          </div>
+          <div className="pm-form-actions">
+            <button
+              type="button"
+              className="pm-btn pm-btn-primary"
+              onClick={saveMove}
+              disabled={saving || !moveGroupId || !moveAreaId}
+              data-pasture-move-save="1"
+            >
+              {saving ? 'Saving...' : 'Record move'}
+            </button>
+          </div>
+        </div>
+        <div className="pm-plan-form" data-pasture-plan-form="1">
+          <div className="pm-card-title">Plan a future move</div>
+          <div className="pm-form-grid">
+            <label className="pm-field pm-field-wide">
+              <span>Group</span>
+              <select value={planGroupId} onChange={(e) => setPlanGroupId(e.target.value)} data-pasture-plan-group="1">
+                <option value="" disabled>
+                  Select group
+                </option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="pm-field pm-field-wide">
+              <span>Destination</span>
+              <select value={planAreaId} onChange={(e) => setPlanAreaId(e.target.value)} data-pasture-plan-area="1">
+                <option value="" disabled>
+                  Select area
+                </option>
+                {destinationAreas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name || 'Unnamed'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="pm-field">
+              <span>Planned for</span>
+              <input
+                type="datetime-local"
+                value={planAt}
+                onChange={(e) => setPlanAt(e.target.value)}
+                data-pasture-plan-at="1"
+              />
+            </label>
+            <label className="pm-field pm-field-wide">
+              <span>Notes</span>
+              <input
+                type="text"
+                value={planNotes}
+                maxLength={500}
+                onChange={(e) => setPlanNotes(e.target.value)}
+                data-pasture-plan-notes="1"
+              />
+            </label>
+          </div>
+          <div className="pm-form-actions">
+            <button
+              type="button"
+              className="pm-btn"
+              onClick={savePlan}
+              disabled={planSaving || !planGroupId || !planAreaId}
+              data-pasture-plan-save="1"
+            >
+              {planSaving ? 'Saving...' : 'Save plan'}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -3662,6 +3596,44 @@ export default function PastureMapView({Header, authState}) {
             <div className="pm-report-empty">No grazing recorded for this area yet.</div>
           )}
         </div>
+        {/* Management/admin reset: wipe this area's grazing history (e.g. a paddock
+            that only carries test moves but shows as resting). Inline confirm, no
+            window.confirm. Other areas keep their records. */}
+        {isManager && (
+          <div className="pm-card pm-record-reset" data-pasture-report-reset={area.id}>
+            <div className="pm-record-reset-note">
+              Reset clears this area&apos;s grazing history so it reads &ldquo;no move history&rdquo; again. Other areas
+              keep their records. This cannot be undone.
+            </div>
+            {confirmResetId === area.id ? (
+              <span className="pm-record-reset-confirm" data-pasture-report-reset-confirm={area.id}>
+                Delete all grazing history for {area.name || 'this area'}?
+                <button
+                  type="button"
+                  className="pm-btn pm-btn-sm pm-btn-danger"
+                  onClick={() => resetAreaHistory(area)}
+                  disabled={busyId === area.id}
+                  data-pasture-report-reset-yes={area.id}
+                >
+                  Delete history
+                </button>
+                <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmResetId(null)}>
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="pm-btn pm-btn-sm pm-btn-danger"
+                onClick={() => setConfirmResetId(area.id)}
+                disabled={busyId === area.id}
+                data-pasture-report-reset-history={area.id}
+              >
+                Reset grazing history
+              </button>
+            )}
+          </div>
+        )}
       </>
     );
   }

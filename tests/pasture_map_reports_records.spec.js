@@ -59,14 +59,12 @@ test('Reports lists every area (nested) and drills into a per-area grazing recor
   await expect(page.locator(`.pm-area-${C_ID}`).first()).toBeVisible({timeout: 25_000});
   await hideMapOverlays(page);
 
-  // Record Mommas -> Paddock 1 via the Plan Area inspector.
+  // Record Mommas -> Paddock 1 via the side-panel Record-a-move form.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator(`.pm-area-${C_ID}`).first().click();
-  await expect(page.locator(`[data-pasture-plan-inspector="${C_ID}"]`)).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: C_ID});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(1200);
-  await page.keyboard.press('Escape');
 
   // Reports: pastures collapse over their child paddocks; expand the pasture
   // accordion to reveal the nested paddock row.

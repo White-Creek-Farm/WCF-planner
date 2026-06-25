@@ -18,15 +18,16 @@ const SHOTS = path.resolve('pasture-cp2-shots');
 
 async function cleanPastureTables() {
   const c = getTestAdminClient();
-  // Seed one cattle herd so a planner group exists -> the Map rotation editor
-  // (and its "Draw temp paddock" entry) renders. The Geoman draw/edit tools are
-  // reached from the rotation editor now (the standalone boundary-tools grid was
-  // removed in the Area-modal lane).
+  // Seed one cattle in the 'bulls' herd so a planner group exists -> the Map rotation
+  // editor (and its "Draw temp paddock" entry) renders. Using 'bulls' (a valid herd
+  // per cattle_herd_check) keeps the shared 'mommas' roster group other specs assert
+  // on clean. The Geoman draw/edit tools are reached from the rotation editor now
+  // (the standalone boundary-tools grid was removed in the Area-modal lane).
   const {error} = await c.rpc('exec_sql', {
     sql: `TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
-      DELETE FROM public.cattle WHERE id = 'pm-cp2-momma';
+      DELETE FROM public.cattle WHERE id = 'pm-cp2-bull';
       INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
-      VALUES ('pm-cp2-momma', 'CP2-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);`,
+      VALUES ('pm-cp2-bull', 'CP2-BULL', 'bull', 'bulls', false, '[]'::jsonb);`,
   });
   if (error) throw new Error('clean pasture tables: ' + error.message);
 }

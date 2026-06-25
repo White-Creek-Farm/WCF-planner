@@ -77,17 +77,15 @@ async function clickArea(page, areaId) {
   await page.locator(`.pm-area-${areaId}`).first().click();
 }
 
-// Record a Mommas move into an area by clicking its polygon (opens the Plan Area
-// inspector), then using the inspector's move form. No list, no modal.
+// Record a Mommas move into an area via the side-panel Record-a-move form
+// (free-form: pick the destination area + group, then save).
 async function recordMommasMoveTo(page, areaId) {
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await clickArea(page, areaId);
-  await expect(page.locator(`[data-pasture-plan-inspector="${areaId}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: areaId});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
-  await page.keyboard.press('Escape');
 }
 
 test.beforeAll(async () => {

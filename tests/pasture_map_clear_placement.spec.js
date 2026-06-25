@@ -50,14 +50,12 @@ test('Clear current area moves a placed group to Not placed via a no-destination
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
   await hideMapOverlays(page);
 
-  // Place Mommas -> Clear Test Paddock via the Plan Area inspector.
+  // Place Mommas -> Clear Test Paddock via the side-panel Record-a-move form.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator(`.pm-area-${A_ID}`).first().click();
-  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(1000);
-  await page.keyboard.press('Escape');
 
   // Make Mommas the active group -> its card shows Current area + the Clear control.
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();

@@ -142,15 +142,14 @@ test('light sees all tabs and can record a move (mig 139), but gets no manager b
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await expect(page.locator('[data-pasture-boundary-tools-toggle]')).toHaveCount(0);
 
-  // Light records a Mommas move via the Plan Area inspector — the server
+  // Light records a Mommas move via the side-panel form — the server
   // record_pasture_move RPC runs as 'light' and is allowed by mig 139.
-  await page.locator(`.pm-area-${A_ID}`).first().click();
-  await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
   await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
   await page.locator('[data-pasture-move-save]').click();
   await page.waitForTimeout(800);
-  await page.keyboard.press('Escape');
 
   // Map: the move landed — occupant marker shows Mommas in the destination.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
