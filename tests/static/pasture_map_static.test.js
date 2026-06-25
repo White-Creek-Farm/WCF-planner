@@ -464,6 +464,44 @@ describe('Reports = every-area grazing records, read-only to all pasture users',
   });
 });
 
+describe('Clear current area (no-destination move; no undo, no migration)', () => {
+  it('clear records a normal move with a NULL destination via clearPasturePlacement', () => {
+    // API wrapper forces toLandAreaId null over the existing record_pasture_move RPC.
+    expect(apiSrc).toContain('export async function clearPasturePlacement');
+    expect(apiSrc).toContain('recordPastureMove({...payload, toLandAreaId: null})');
+    // View: a Clear current area control + handler that builds a null-destination
+    // record_move payload, calls clearPasturePlacement, and queues offline as the SAME
+    // record_move op.
+    expect(viewSrc).toContain('data-pasture-clear-placement');
+    expect(viewSrc).toContain('function clearPlacement');
+    expect(viewSrc).toContain('clearPasturePlacement(movePayload)');
+    expect(viewSrc).toMatch(/clearPlacement[\s\S]*?toLandAreaId: null/);
+    expect(viewSrc).toMatch(/clearPlacement[\s\S]*?op: 'record_move'/);
+    // Hidden when the group is already Not placed (only rendered when currentArea).
+    expect(viewSrc).toContain('{currentArea && (');
+  });
+
+  it('adds NO undo / reversal / move-delete / history mutation (and no new migration)', () => {
+    for (const banned of ['undo_pasture_move', 'delete_pasture_move', 'reverse_pasture_move', 'data-pasture-undo']) {
+      expect(viewSrc).not.toContain(banned);
+      expect(apiSrc).not.toContain(banned);
+    }
+    // Clear reuses record_pasture_move (mig 128) — no new RPC was wrapped.
+    expect(apiSrc).not.toContain("sb.rpc('clear_pasture_placement'");
+    expect(apiSrc).not.toContain("sb.rpc('delete_pasture_move'");
+  });
+
+  it('Light stays farm-team-level for Pasture Map and can clear like it can move', () => {
+    expect(viewSrc).toContain(
+      "const canRecordMoves = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light'",
+    );
+    // Clear is gated by the SAME canRecordMoves as recordGroupMove (incl. light).
+    expect(viewSrc).toMatch(
+      /async function clearPlacement\(group\) \{[\s\S]*?if \(!canRecordMoves \|\| !group\) return;/,
+    );
+  });
+});
+
 describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)', () => {
   it('view passes all groups paths to the canvas with a next-stop-only toggle', () => {
     expect(viewSrc).toContain('const rotationPaths = React.useMemo');
