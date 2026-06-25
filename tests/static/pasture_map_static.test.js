@@ -357,10 +357,11 @@ describe('V1 reset — basemaps + offline imagery (CP-F)', () => {
     expect(hybridBlock).toContain('ESRI_IMAGERY_URL');
     expect(hybridBlock).toContain('ESRI_REFERENCE_URL');
     expect(hybridBlock).toContain('ESRI_TRANSPORTATION_URL');
-    // The base goes to the back and overlays to the FRONT — otherwise the labels
-    // render behind the imagery and Hybrid looks identical to Satellite.
-    expect(canvasSrc).toContain('if (l.bringToBack) l.bringToBack();');
-    expect(canvasSrc).toContain('l.bringToFront()');
+    // Overlays render in a dedicated pane ABOVE the imagery (deterministic) — relying
+    // on bringToFront within the single tile pane left the labels behind the imagery,
+    // so Hybrid looked identical to Satellite.
+    expect(canvasSrc).toContain("createPane('pm-hybrid-overlay')");
+    expect(hybridBlock).toContain("pane: 'pm-hybrid-overlay'");
   });
 });
 

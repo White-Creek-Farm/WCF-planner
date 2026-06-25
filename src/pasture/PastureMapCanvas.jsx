@@ -482,6 +482,13 @@ export default function PastureMapCanvas({
     map.createPane('pm-locate-pane');
     const locatePane = map.getPane('pm-locate-pane');
     if (locatePane) locatePane.style.zIndex = '690';
+    // Hybrid label/road overlays live in their own pane ABOVE the base imagery
+    // (tilePane 200) but BELOW the pasture boundaries (overlayPane 400). A dedicated
+    // pane is deterministic — relying on bringToFront within the single tile pane was
+    // not reliably stacking the overlays on top, so Hybrid looked like Satellite.
+    map.createPane('pm-hybrid-overlay');
+    const hybridPane = map.getPane('pm-hybrid-overlay');
+    if (hybridPane) hybridPane.style.zIndex = '350';
     if (map.pm) map.pm.setGlobalOptions({snappable: true, snapDistance: 20});
     // Clicking empty map background clears the current selection (but not while
     // drawing/editing/measuring/tracking, and not when the click was on an area).
@@ -531,11 +538,9 @@ export default function PastureMapCanvas({
     if (basemap === 'topo') {
       layers.push(L.tileLayer(ESRI_TOPO_URL, {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19, attribution: 'Esri Topo'}));
     } else if (basemap === 'hybrid') {
-      // Base imagery + TWO transparent reference overlays (place/boundary labels and
-      // the road/highway network). The overlays must stack ABOVE the imagery (see the
-      // base-to-back / overlay-to-front ordering below) — previously every layer was
-      // sent to the back, so the labels rendered behind the imagery and Hybrid looked
-      // identical to Satellite.
+      // Base imagery in the tile pane + TWO transparent reference overlays (place/
+      // boundary labels and the road/highway network) in the dedicated pm-hybrid-overlay
+      // pane, so they paint ABOVE the imagery (and below the pasture boundaries).
       layers.push(
         L.tileLayer(ESRI_IMAGERY_URL, {
           maxZoom: MAP_MAX_ZOOM,
@@ -543,8 +548,21 @@ export default function PastureMapCanvas({
           attribution: 'Esri World Imagery - Maxar',
         }),
       );
-      layers.push(L.tileLayer(ESRI_REFERENCE_URL, {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 16, opacity: 0.9}));
-      layers.push(L.tileLayer(ESRI_TRANSPORTATION_URL, {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19}));
+      layers.push(
+        L.tileLayer(ESRI_REFERENCE_URL, {
+          maxZoom: MAP_MAX_ZOOM,
+          maxNativeZoom: 16,
+          opacity: 0.9,
+          pane: 'pm-hybrid-overlay',
+        }),
+      );
+      layers.push(
+        L.tileLayer(ESRI_TRANSPORTATION_URL, {
+          maxZoom: MAP_MAX_ZOOM,
+          maxNativeZoom: 19,
+          pane: 'pm-hybrid-overlay',
+        }),
+      );
     } else if (!online) {
       // Offline + satellite: serve the cached NAIP farm tiles.
       layers.push(new OfflineImageryLayer('', {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 17}));
@@ -557,18 +575,9 @@ export default function PastureMapCanvas({
         }),
       );
     }
-    // The first layer is the base map (send to back, behind any reference overlay);
-    // any following layers are transparent overlays (labels/roads for Hybrid) and
-    // must sit IN FRONT of the base, in order. They still live in the tile pane, so
-    // pasture boundaries/markers (overlay/marker panes) stay on top of all of them.
-    layers.forEach((l, i) => {
-      l.addTo(map);
-      if (i === 0) {
-        if (l.bringToBack) l.bringToBack();
-      } else if (l.bringToFront) {
-        l.bringToFront();
-      }
-    });
+    // Z-order is handled by panes (base imagery in the tile pane; Hybrid overlays in
+    // pm-hybrid-overlay above it), so a plain add is enough and deterministic.
+    layers.forEach((l) => l.addTo(map));
     basemapRef.current = layers;
   }, [basemap, compact, online]);
 
