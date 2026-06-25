@@ -2144,6 +2144,18 @@
   width: 100%;
 }
 
+/* Clear current area: a quieter destructive-ish action under the primary Move. */
+.pm-clear-btn {
+  width: 100%;
+  margin-top: 8px;
+  background: #fff;
+  color: #b42318;
+  border-color: #f0c2bb;
+}
+.pm-clear-btn:hover:not(:disabled) {
+  background: #fdf3f1;
+}
+
 /* Secondary manual move / correction (Plan) — collapsed by default. */
 .pm-manual-move-toggle {
   display: flex;

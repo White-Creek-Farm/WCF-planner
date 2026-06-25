@@ -286,6 +286,16 @@ export async function recordPastureMove({
   );
 }
 
+// "Clear current area": a normal pasture move with NO destination (to_land_area_id
+// null), so the group becomes Not placed and its prior area starts resting via the
+// move ledger's departure impact. record_pasture_move already supports a null
+// destination (mig 128 gates destination/overlap impacts + the feeder conflict check
+// on IS NOT NULL while always recording the departure), so NO new RPC/migration is
+// needed. Forced null here so callers cannot accidentally send a destination.
+export async function clearPasturePlacement(payload) {
+  return recordPastureMove({...payload, toLandAreaId: null});
+}
+
 // CP4 - planned move worklist.
 export async function listPasturePlannedMoves({status = 'planned', limit = 100} = {}) {
   return unwrap(

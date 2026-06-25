@@ -24,6 +24,7 @@ import {
   updateLandAreaStyle,
   listPastureMoves,
   recordPastureMove,
+  clearPasturePlacement,
   listPasturePlannedMoves,
   createPasturePlannedMove,
   updatePasturePlannedMoveStatus,
@@ -1769,6 +1770,43 @@ export default function PastureMapView({Header, authState}) {
     }
   }
 
+  // Clear current area: record a normal pasture move for the group with NO
+  // destination (toLandAreaId null) so it becomes Not placed and its prior area
+  // starts resting through the existing move-ledger departure impact. Reuses
+  // record_pasture_move via clearPasturePlacement (no new RPC); queues offline as the
+  // same record_move payload. No-op when the group is already Not placed.
+  async function clearPlacement(group) {
+    // Same hard write-gate as recordGroupMove (the SECDEF RPC enforces it too;
+    // mig 139 includes light in the allowed roles).
+    if (!canRecordMoves || !group) return;
+    const loc = groupLocation[group.id];
+    if (!loc || !loc.areaId) return; // already Not placed
+    const movePayload = {
+      moveId: newPastureMoveId(),
+      animalType: groupAnimalType(group),
+      groupKey: group.groupKey || group.id,
+      groupLabel: group.name,
+      toLandAreaId: null,
+      movedAt: new Date().toISOString(),
+      animalCount: groupSizeCount(group),
+      notes: `Cleared from ${loc.areaName || 'current area'}`,
+    };
+    setSaving(true);
+    setErr('');
+    try {
+      await clearPasturePlacement(movePayload);
+      await reload();
+    } catch (e) {
+      if (classifyPastureOfflineError(e) === 'transient') {
+        await enqueuePastureOperation({id: movePayload.moveId, op: 'record_move', payload: movePayload});
+        await refreshQueueState();
+        setOfflineStatus('Cleared on this device and will sync when the connection returns.');
+      } else setErr(e.message || 'Could not clear the current area.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function setActiveGroupFromGroup(group) {
     setActiveGroupId(group.id);
     const count = groupSizeCount(group);
@@ -2854,6 +2892,19 @@ export default function PastureMapView({Header, authState}) {
               >
                 {saving ? 'Saving...' : 'Move'}
               </button>
+              {/* Clear current area: only when the group is actually placed. Records a
+                  no-destination move so it becomes Not placed (no new RPC). */}
+              {currentArea && (
+                <button
+                  type="button"
+                  className="pm-btn pm-clear-btn"
+                  onClick={() => clearPlacement(activeGroup)}
+                  disabled={saving || !canRecordMoves}
+                  data-pasture-clear-placement="1"
+                >
+                  {saving ? 'Saving...' : 'Clear current area'}
+                </button>
+              )}
             </div>
           );
         })()}
