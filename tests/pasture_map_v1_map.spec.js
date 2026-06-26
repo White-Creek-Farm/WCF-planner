@@ -70,9 +70,9 @@ test.describe('desktop (hover)', () => {
     await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
     await expect(page.locator('[data-pasture-map-popover]')).toHaveCount(0);
 
-    // Escape clears the selection -> Current groups overview + status strip return.
+    // Escape clears the selection -> Map overview header + status strip return.
     await page.keyboard.press('Escape');
-    await expect(page.locator('[data-pasture-current-groups]')).toBeVisible({timeout: 10_000});
+    await expect(page.locator('[data-pasture-map-header]')).toBeVisible({timeout: 10_000});
     await expect(page.locator('[data-pasture-status-unplaced]')).toBeVisible();
     await expect(page.locator('[data-pasture-status-queued]')).toBeVisible();
   });

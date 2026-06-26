@@ -62,6 +62,8 @@ test('Plan draws the rotation path; "Next only" collapses it to the next stop', 
   // marker + a numbered second stop marker).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
+  // Pill click also opens the group-history modal; dismiss it before reading the map.
+  await page.keyboard.press('Escape');
   await expect(page.locator('.pm-rotation-marker')).toHaveCount(2, {timeout: 15_000});
 
   // "Next only" collapses each path to a single next-stop marker.

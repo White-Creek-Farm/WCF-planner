@@ -296,6 +296,15 @@ export async function clearPasturePlacement(payload) {
   return recordPastureMove({...payload, toLandAreaId: null});
 }
 
+// Management/admin per-entry grazing delete (mig 147). Removes exactly ONE
+// pasture_move_events row; its pasture_move_impacts cascade (mig 128 FK) and
+// every area's occupied/resting/baseline state re-derives on read. This replaces
+// the per-AREA reset RPC (delete_land_area_grazing_history, mig 143) which stays
+// deployed but unused. Returns the deleted move's identity + impacts_cleared.
+export async function deletePastureMove(moveId) {
+  return unwrap(await sb.rpc('delete_pasture_move', {p_move_id: moveId}), 'delete_pasture_move');
+}
+
 // CP4 - planned move worklist.
 export async function listPasturePlannedMoves({status = 'planned', limit = 100} = {}) {
   return unwrap(
@@ -355,14 +364,6 @@ export async function listPastureHistoryReport({
     }),
     'list_pasture_history_report',
   );
-}
-
-// Management/admin reset (mig 143): wipe ONE area's grazing history so it reads
-// "no move history" again (e.g. a paddock that only carries test moves but shows
-// resting). Clears its move impacts + detaches it from every move event's
-// from/to, leaving other areas' history intact. Returns the recomputed summary.
-export async function deleteLandAreaGrazingHistory(id) {
-  return unwrap(await sb.rpc('delete_land_area_grazing_history', {p_id: id}), 'delete_land_area_grazing_history');
 }
 
 export async function listPastureRestReport() {

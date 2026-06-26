@@ -77,15 +77,15 @@ test('unplaced group reads Not placed, Next is the first rotation stop, and Move
 
   // Map tab: the unplaced Mommas group reports "Not placed" (no borrowed stop).
   // (Other roster groups may exist in the shared TEST DB; this asserts Mommas.)
-  await expect(page.locator('[data-pasture-current-group="mommas"]')).toContainText('Not placed', {timeout: 25_000});
-  await expect(
-    page.locator('[data-pasture-current-group="mommas"] [data-pasture-group-location="none"]'),
-  ).toBeVisible();
+  await expect(page.locator('[data-pasture-group-pill="mommas"]')).toContainText('Not placed', {timeout: 25_000});
+  await expect(page.locator('[data-pasture-group-pill="mommas"] [data-pasture-group-location="none"]')).toBeVisible();
 
   // Plan tab: make Mommas the active group (the default active group may be a
   // pre-existing pig/sheep roster group in the shared TEST DB).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
+  // Pill click also opens the group-history modal; dismiss it before using the card.
+  await page.keyboard.press('Escape');
 
   // Combined group/move card. Current = Not placed; Next = first rotation stop.
   const card = page.locator('[data-pasture-group-move]');
@@ -108,8 +108,6 @@ test('unplaced group reads Not placed, Next is the first rotation stop, and Move
 
   // The group is now placed in that exact area (the first rotation stop).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-current-group="mommas"]')).toContainText(nextName, {timeout: 15_000});
-  await expect(page.locator('[data-pasture-current-group="mommas"] [data-pasture-group-location="none"]')).toHaveCount(
-    0,
-  );
+  await expect(page.locator('[data-pasture-group-pill="mommas"]')).toContainText(nextName, {timeout: 15_000});
+  await expect(page.locator('[data-pasture-group-pill="mommas"] [data-pasture-group-location="none"]')).toHaveCount(0);
 });

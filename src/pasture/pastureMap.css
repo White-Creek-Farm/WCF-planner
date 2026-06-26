@@ -1842,90 +1842,6 @@
   background: var(--species-color);
 }
 
-/* P2 Map tab — Current groups rows + location chips */
-.pm-current-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-}
-.pm-current-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  padding: 8px 10px;
-  border: 1px solid #e6e8eb;
-  border-radius: 12px;
-  background: #fff;
-  cursor: pointer;
-  transition:
-    border-color 0.12s ease,
-    background 0.12s ease;
-}
-.pm-current-row:hover {
-  background: #f8f9fa;
-}
-.pm-current-row.is-active {
-  border-color: var(--species-color);
-  background: color-mix(in oklab, var(--species-color) 8%, #fff);
-}
-.pm-current-row .pm-avatar {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  border-radius: 50%;
-  background: var(--species-color);
-  color: #fff;
-  font-weight: 800;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pm-current-name {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.pm-current-name strong {
-  font-weight: 700;
-  font-size: 13px;
-  color: #222933;
-}
-.pm-current-name em {
-  font-style: normal;
-  font-weight: 600;
-  font-size: 11px;
-  color: #9aa1ab;
-}
-.pm-loc-chip {
-  flex: 0 0 auto;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 11px;
-  white-space: nowrap;
-}
-.pm-loc-chip.placed {
-  background: #eaf1ec;
-  color: #2f7a46;
-}
-.pm-loc-chip.unplaced {
-  background: #f1f3f4;
-  color: #9aa1ab;
-}
-.pm-loc-time {
-  display: block;
-  margin-top: 1px;
-  font-style: normal;
-  font-weight: 600;
-  font-size: 9.5px;
-  opacity: 0.85;
-}
-
 /* P2 Area detail designation chips */
 .pm-area-detail-chips {
   display: flex;
@@ -2064,6 +1980,36 @@
   font-size: 11px;
   font-style: normal;
   font-weight: 700;
+}
+
+/* Location chip ON the pill (area + time-in-area, or Not placed). Higher
+   specificity than `.pm-group-pill span` so it is NOT styled as an avatar. */
+.pm-group-pill .pm-pill-loc {
+  grid-column: 2;
+  width: auto;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 10.5px;
+  font-weight: 750;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-group-pill .pm-pill-loc.unplaced {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.pm-group-pill .pm-pill-loc-time {
+  font-style: normal;
+  font-weight: 850;
+  opacity: 0.8;
 }
 
 .pm-now-card,
@@ -2873,20 +2819,6 @@
    group hover preview, Occupied explanation, and reconciled-occupant states.
    ========================================================================== */
 
-/* Map Current-group rows are inspection-only (no click action): a focusable,
-   non-button row whose hover/focus previews the group's current area. */
-.pm-current-row.is-preview-row {
-  cursor: default;
-}
-.pm-current-row.is-preview-row:focus-visible {
-  outline: 2px solid var(--species-color, #1d4ed8);
-  outline-offset: 2px;
-}
-.pm-current-row.is-previewing {
-  border-color: var(--species-color);
-  background: color-mix(in oklab, var(--species-color) 12%, #fff);
-}
-
 /* Map "What is occupied" explanation (replaces the removed Land areas list). */
 .pm-occupied-explain {
   margin-top: 10px;
@@ -3210,6 +3142,11 @@
   gap: 12px;
 }
 
+/* Group move-history modal list: stays stack like the Reports timeline. */
+.pm-group-history-list {
+  display: grid;
+}
+
 .pm-modal-section {
   display: grid;
   gap: 8px;
@@ -3375,19 +3312,16 @@
 }
 
 /* Management/admin "Reset grazing history" card in the Reports area record. */
-.pm-record-reset {
-  border-color: #fde68a;
-  background: #fffbeb;
-  display: grid;
+/* Management/admin per-entry grazing delete inside each Grazing History stay. */
+.pm-record-stay-actions {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.pm-record-reset-note {
-  font-size: 12px;
-  color: var(--pm-muted, #6b7280);
-}
-
-.pm-record-reset-confirm {
+.pm-record-stay-confirm {
   display: flex;
   align-items: center;
   flex-wrap: wrap;

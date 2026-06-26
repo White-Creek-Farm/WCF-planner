@@ -31,6 +31,9 @@ const mig141 = read('supabase-migrations/141_pasture_map_measurements.sql');
 const mig141Code = mig141.replace(/--[^\n]*/g, '');
 const mig143 = read('supabase-migrations/143_pasture_map_reset_area_history.sql');
 const mig143Code = mig143.replace(/--[^\n]*/g, '');
+const mig147 = read('supabase-migrations/147_pasture_map_grazing_entry_delete_and_parent_overlap.sql');
+// Code-only (the header docs legitimately quote 'overlap'/'departure'/'occupied').
+const mig147Code = mig147.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -507,14 +510,16 @@ describe('Clear current area (no-destination move; no undo, no migration)', () =
     expect(viewSrc).toContain('{currentArea && (');
   });
 
-  it('adds NO undo / reversal / move-delete / history mutation (and no new migration)', () => {
-    for (const banned of ['undo_pasture_move', 'delete_pasture_move', 'reverse_pasture_move', 'data-pasture-undo']) {
+  it('Clear itself adds NO undo / reversal of the clear (it reuses record_pasture_move)', () => {
+    // The Clear control is append-only: it records a null-destination move, never
+    // an undo/reverse RPC. (Per-entry grazing DELETE is a SEPARATE management-only
+    // lane via delete_pasture_move, asserted in the mig 147 block below.)
+    for (const banned of ['undo_pasture_move', 'reverse_pasture_move', 'data-pasture-undo']) {
       expect(viewSrc).not.toContain(banned);
       expect(apiSrc).not.toContain(banned);
     }
-    // Clear reuses record_pasture_move (mig 128) — no new RPC was wrapped.
+    // Clear reuses record_pasture_move (mig 128) — no new clear RPC was wrapped.
     expect(apiSrc).not.toContain("sb.rpc('clear_pasture_placement'");
-    expect(apiSrc).not.toContain("sb.rpc('delete_pasture_move'");
   });
 
   it('Light stays farm-team-level for Pasture Map and can clear like it can move', () => {
@@ -579,9 +584,10 @@ describe('Merged Map: hover readout + click-to-open Area modal', () => {
     expect(viewSrc).toMatch(/queuedItemCount = \(queueState\.queuedCount/);
   });
 
-  it('Map group rows show time-in-paddock for placed groups', () => {
-    expect(viewSrc).toContain('data-pasture-current-time');
-    expect(viewSrc).toMatch(/loc && loc\.movedAt && \(/);
+  it('Animal Groups pills show time-in-paddock for placed groups', () => {
+    // The time chip moved onto the pills with the rest of the location data.
+    expect(viewSrc).toContain('data-pasture-group-pill-time');
+    expect(viewSrc).toMatch(/loc && loc\.movedAt \? formatTimeInArea\(loc\.movedAt\) : null/);
   });
 });
 
@@ -1221,7 +1227,10 @@ describe('P1 planner-group roster wiring', () => {
   it('current-group location is derived from the move ledger by (animal_type, group_key)', () => {
     expect(viewSrc).toContain('m.animal_type === g.animalType && m.group_key === g.groupKey');
     expect(viewSrc).toContain('Not placed');
-    expect(viewSrc).toContain('data-pasture-current-groups');
+    // The location chip now lives ON the Animal Groups pills (the separate Current
+    // groups card was removed); the chip carries the resolved area id.
+    expect(viewSrc).toContain('data-pasture-group-location');
+    expect(viewSrc).not.toContain('data-pasture-current-groups');
   });
 
   it('move/plan placement is a free-form side-panel control, not in the Area modal', () => {
@@ -1257,14 +1266,14 @@ describe('P2 Map tab', () => {
     expect(viewSrc).toContain('data-pasture-map-header');
   });
 
-  it('Map Current-group rows are inspection-only: no click select, hover/focus previews', () => {
-    expect(viewSrc).toContain('data-pasture-current-group');
-    expect(viewSrc).toContain('data-pasture-group-location');
-    // Click selection/zoom on group rows is GONE; hover/focus previews instead.
+  it('Animal Groups pills carry the map hover/focus preview (relocated from the removed card)', () => {
+    // The standalone Current groups card is gone; its map hover-preview moved onto
+    // the Animal Groups pills, which still highlight the group's current area.
+    expect(viewSrc).toContain('data-pasture-group-pill');
     expect(viewSrc).not.toContain('selectGroupAndLocation');
     expect(viewSrc).toContain('function previewGroupArea');
-    expect(viewSrc).toContain('onMouseEnter={() => previewGroupArea(g)}');
-    expect(viewSrc).toContain('onFocus={() => previewGroupArea(g)}');
+    expect(viewSrc).toContain('onMouseEnter={() => previewGroupArea(group)}');
+    expect(viewSrc).toContain('onFocus={() => previewGroupArea(group)}');
     expect(viewSrc).toContain('onMouseLeave={clearGroupPreview}');
     expect(viewSrc).toContain('onBlur={clearGroupPreview}');
     // Preview is display-only and must never mutate selection/active group.
@@ -1813,22 +1822,12 @@ describe('Pasture Map: Area modal + parent-pasture assignment', () => {
 });
 
 describe('Pasture Map: reset grazing history (mig 143) + move forms removed from modal', () => {
-  it('mig 143 adds a management/admin reset that clears one area history + recomputes state', () => {
+  it('mig 143 RPC stays deployed (per-area reset) but is no longer wired in the UI', () => {
+    // The reset RPC remains in the migration history (deployed, harmless) — Build
+    // Queue item 1 removed its UI in favor of a per-ENTRY delete (mig 147).
     expect(mig143Code).toContain('CREATE OR REPLACE FUNCTION public.delete_land_area_grazing_history');
     expect(mig143Code).toContain('SECURITY DEFINER');
-    expect(mig143Code).toContain('public.profile_role()');
     expect(mig143Code).toMatch(/NOT IN \('management', 'admin'\)/);
-    // Clears this area's impacts, detaches it from every event's from/to, resets baseline.
-    expect(mig143Code).toContain('DELETE FROM public.pasture_move_impacts WHERE land_area_id = p_id');
-    expect(mig143Code).toContain(
-      'UPDATE public.pasture_move_events SET to_land_area_id = NULL WHERE to_land_area_id = p_id',
-    );
-    expect(mig143Code).toContain(
-      'UPDATE public.pasture_move_events SET from_land_area_id = NULL WHERE from_land_area_id = p_id',
-    );
-    expect(mig143Code).toContain('baseline_no_history = true');
-    expect(mig143Code).toContain('public._land_area_summary(p_id)');
-    // Locked to authenticated only (RLS deny-all + SECDEF gate).
     expect(mig143Code).toMatch(
       /REVOKE ALL ON FUNCTION public\.delete_land_area_grazing_history\(text\) FROM PUBLIC, anon/,
     );
@@ -1837,16 +1836,16 @@ describe('Pasture Map: reset grazing history (mig 143) + move forms removed from
     );
   });
 
-  it('api wrapper + Reports reset-history action are wired (management/admin, inline confirm)', () => {
-    expect(apiSrc).toContain('export async function deleteLandAreaGrazingHistory');
-    expect(apiSrc).toContain("sb.rpc('delete_land_area_grazing_history'");
-    expect(viewSrc).toContain('deleteLandAreaGrazingHistory');
-    expect(viewSrc).toContain('async function resetAreaHistory');
-    // The action is in the Reports area record, management/admin-gated, inline confirm.
-    expect(viewSrc).toContain('data-pasture-report-reset-history');
-    expect(viewSrc).toContain('data-pasture-report-reset-yes');
-    expect(viewSrc).toContain('Reset grazing history');
-    expect(viewSrc).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
+  it('the per-AREA reset UI + frontend wiring are fully removed', () => {
+    // Reset button, handler, state, and the api wrapper are all gone; the RPC is
+    // deployed-but-unused.
+    expect(apiSrc).not.toContain('deleteLandAreaGrazingHistory');
+    expect(apiSrc).not.toContain("sb.rpc('delete_land_area_grazing_history'");
+    expect(viewSrc).not.toContain('deleteLandAreaGrazingHistory');
+    expect(viewSrc).not.toContain('resetAreaHistory');
+    expect(viewSrc).not.toContain('confirmResetId');
+    expect(viewSrc).not.toContain('data-pasture-report-reset-history');
+    expect(viewSrc).not.toContain('Reset grazing history');
   });
 
   it('the Area modal hosts no move/plan form (moves live in the side panel); Use records a plan directly', () => {
@@ -1862,6 +1861,108 @@ describe('Pasture Map: reset grazing history (mig 143) + move forms removed from
     expect(viewSrc).toContain('function renderMoveControls');
     expect(viewSrc).toContain('data-pasture-move-form');
     expect(viewSrc).toMatch(/async function applyPlan\(plan\)[\s\S]*?recordPastureMove\(movePayload\)/);
+  });
+});
+
+describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mig 147)', () => {
+  it('mig 147 adds delete_pasture_move: SECDEF, management/admin gate, REVOKE/GRANT, cascade', () => {
+    expect(mig147Code).toContain('CREATE OR REPLACE FUNCTION public.delete_pasture_move');
+    expect(mig147Code).toContain('SECURITY DEFINER');
+    expect(mig147Code).toContain('public.profile_role()');
+    expect(mig147Code).toMatch(/NOT IN \('management', 'admin'\)/);
+    // Deletes exactly one move event; impacts cascade via the mig 128 FK.
+    expect(mig147Code).toContain('DELETE FROM public.pasture_move_events WHERE id = p_move_id');
+    expect(mig147Code).toMatch(/REVOKE ALL ON FUNCTION public\.delete_pasture_move\(text\) FROM PUBLIC, anon/);
+    expect(mig147Code).toContain('GRANT EXECUTE ON FUNCTION public.delete_pasture_move(text) TO authenticated');
+    // New SECDEF return shape -> PostgREST reload.
+    expect(mig147Code).toContain("NOTIFY pgrst, 'reload schema'");
+  });
+
+  it('mig 147 delete also clears the NEXT move’s linked departures (completed-stay, no drift)', () => {
+    // A completed stay's later move-OUT wrote departure impacts derived from this
+    // move's touched areas. Deleting only the move-IN would orphan them and leave
+    // the area "resting" while Reports shows no stay. The RPC captures this move's
+    // destination/overlap areas, finds the next move for the same group, and clears
+    // that move's matching departure impacts (preserving the later move event).
+    expect(mig147Code).toMatch(/array_agg\(land_area_id\)[\s\S]*?impact_kind IN \('destination', 'overlap'\)/);
+    expect(mig147Code).toMatch(
+      /animal_type = v_event\.animal_type[\s\S]*?group_key = v_event\.group_key[\s\S]*?\(moved_at, created_at\) > \(v_event\.moved_at, v_event\.created_at\)/,
+    );
+    expect(mig147Code).toMatch(
+      /DELETE FROM public\.pasture_move_impacts[\s\S]*?move_id = v_next_id[\s\S]*?impact_kind = 'departure'[\s\S]*?land_area_id = ANY \(v_touched\)/,
+    );
+    // The later move event itself is preserved (only its departure impacts go).
+    expect(mig147Code).not.toMatch(/DELETE FROM public\.pasture_move_events WHERE id = v_next_id/);
+    expect(mig147Code).toContain('linked_departure_impacts_cleared');
+    // Serializes the group like record_pasture_move (advisory lock).
+    expect(mig147Code).toContain('pg_advisory_xact_lock');
+  });
+
+  it('mig 147 suppresses CHILD-derived state on a parent in _land_area_summary', () => {
+    expect(mig147Code).toContain('CREATE OR REPLACE FUNCTION public._land_area_summary');
+    // Occupancy: ignore overlap impacts whose move destination is a child of p_id.
+    expect(mig147Code).toMatch(
+      /i\.impact_kind = 'overlap'[\s\S]*?c\.id = l\.to_land_area_id[\s\S]*?c\.parent_id = p_id/,
+    );
+    // Resting: ignore departures whose move from-area is a child of p_id.
+    expect(mig147Code).toMatch(/c\.id = e\.from_land_area_id[\s\S]*?c\.parent_id = p_id/);
+    // Designation strokes are NOT changed server-side (still client-locked).
+    expect(mig147Code).not.toContain('#1d4ed8');
+    expect(mig147Code).not.toContain('#4ade80');
+  });
+
+  it('api exposes deletePastureMove over the new RPC', () => {
+    expect(apiSrc).toContain('export async function deletePastureMove');
+    expect(apiSrc).toContain("sb.rpc('delete_pasture_move'");
+  });
+
+  it('Reports renames the card to Grazing History and adds a per-stay delete (mgmt/admin)', () => {
+    expect(viewSrc).toContain('Grazing History');
+    expect(viewSrc).not.toContain('Grazing timeline');
+    // Per-stay delete targets s.id (the move-IN event id from buildGrazingStays),
+    // management/admin only, inline confirm (no window.confirm).
+    expect(viewSrc).toContain('async function deleteGrazingStay');
+    expect(viewSrc).toContain('deletePastureMove(stay.id)');
+    expect(viewSrc).toContain('data-pasture-report-stay-delete');
+    expect(viewSrc).toContain('data-pasture-report-stay-delete-yes');
+    expect(viewSrc).toContain('confirmDeleteStayId');
+    // Gated to management/admin (isManager), reusing the existing role flag.
+    expect(viewSrc).toMatch(/isManager && \(\s*<div className="pm-record-stay-actions"/);
+    expect(viewSrc).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
+  });
+
+  it('the side-panel cockpit header text is removed', () => {
+    expect(viewSrc).not.toContain('Plan / Grazing cockpit');
+    expect(viewSrc).not.toContain('Move planner');
+    expect(viewSrc).not.toContain('Pick a group, then build its rotation');
+  });
+
+  it('Animal Groups pills show location + open an accessible group-history modal on click', () => {
+    // Pills carry the location chip (area + time-in-area / Not placed).
+    expect(viewSrc).toContain('data-pasture-group-pill');
+    expect(viewSrc).toContain('pm-pill-loc');
+    expect(viewSrc).toContain('formatTimeInArea(loc.movedAt)');
+    // Click both selects the group AND opens the history modal.
+    expect(viewSrc).toMatch(/onClick=\{\(\) => \{\s*setActiveGroupFromGroup\(group\);\s*openGroupHistory\(group\);/);
+    expect(viewSrc).toContain('function openGroupHistory');
+    expect(viewSrc).toContain('<PastureGroupHistoryModal');
+    // The modal fetches the GROUP history (animalType + groupKey), not all-groups.
+    expect(viewSrc).toMatch(/listPastureHistoryReport\(\{\s*animalType: groupAnimalType\(groupHistoryGroup\)/);
+    expect(viewSrc).toContain('groupKey: groupHistoryGroup.groupKey || groupHistoryGroup.id');
+  });
+
+  it('the group-history modal follows the shared accessible modal contract', () => {
+    const groupModalSrc = read('src/pasture/PastureGroupHistoryModal.jsx');
+    expect(groupModalSrc).toContain('useModalFocusTrap');
+    expect(groupModalSrc).toContain('role="dialog"');
+    expect(groupModalSrc).toContain('aria-modal="true"');
+    expect(groupModalSrc).toContain('aria-labelledby="pasture-group-history-title"');
+    expect(groupModalSrc).toContain('data-pasture-group-history-modal');
+    // Shows in/out area, moved date, head count, and notes per move.
+    expect(groupModalSrc).toContain('from_land_area_name');
+    expect(groupModalSrc).toContain('to_land_area_name');
+    expect(groupModalSrc).toContain('formatMoveTime');
+    expect(groupModalSrc).toContain('h.notes');
   });
 });
 

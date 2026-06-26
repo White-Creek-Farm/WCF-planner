@@ -58,7 +58,10 @@ test('Clear current area moves a placed group to Not placed via a no-destination
   await page.waitForTimeout(1000);
 
   // Make Mommas the active group -> its card shows Current area + the Clear control.
+  // (Clicking a pill also opens the group-history modal; dismiss it before using
+  // the panel behind it.)
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
+  await page.keyboard.press('Escape');
   const card = page.locator('[data-pasture-group-move]');
   await expect(card).toContainText('Clear Test Paddock', {timeout: 15_000});
   const clearBtn = page.locator('[data-pasture-clear-placement]');
@@ -72,10 +75,10 @@ test('Clear current area moves a placed group to Not placed via a no-destination
   await expect(card).toContainText('Not placed');
   await expect(page.locator('[data-pasture-clear-placement]')).toHaveCount(0);
 
-  // Map: the current-groups row now reads Not placed, and the occupant marker for
-  // Mommas is gone (the area is no longer occupied by it).
+  // Map: the Mommas pill location chip now reads Not placed, and the occupant marker
+  // for Mommas is gone (the area is no longer occupied by it).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-current-group="mommas"] [data-pasture-group-location="none"]')).toBeVisible({
+  await expect(page.locator('[data-pasture-group-pill="mommas"] [data-pasture-group-location="none"]')).toBeVisible({
     timeout: 15_000,
   });
   await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(0, {timeout: 15_000});

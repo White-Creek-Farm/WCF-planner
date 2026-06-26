@@ -50,6 +50,8 @@ async function hideOverlays(page) {
 async function activateMommas(page) {
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
+  // Pill click also opens the group-history modal; dismiss it before using the panel.
+  await page.keyboard.press('Escape');
 }
 
 test.beforeAll(seed);

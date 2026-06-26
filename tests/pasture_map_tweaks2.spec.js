@@ -161,6 +161,8 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   // boundary toggle stays available for the toggle assertion below.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
+  // Pill click also opens the group-history modal; dismiss it before using the panel.
+  await page.keyboard.press('Escape');
   await page.locator('[data-pasture-move]').click();
   await page.waitForTimeout(1000);
   await page.keyboard.press('Escape');

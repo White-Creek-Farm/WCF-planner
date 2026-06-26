@@ -10,6 +10,7 @@
 import React from 'react';
 import PastureMapCanvas from './PastureMapCanvas.jsx';
 import PastureAreaModal from './PastureAreaModal.jsx';
+import PastureGroupHistoryModal from './PastureGroupHistoryModal.jsx';
 import {parseKmlToPlacemarks, closeOutlineToPolygon} from '../lib/pastureKml.js';
 import {haversineM, lineMetrics} from '../lib/pastureGeometry.js';
 import {
@@ -30,7 +31,7 @@ import {
   createPasturePlannedMove,
   updatePasturePlannedMoveStatus,
   listPastureHistoryReport,
-  deleteLandAreaGrazingHistory,
+  deletePastureMove,
   listPastureRotations,
   upsertPastureRotation,
   clearPastureRotation,
@@ -507,8 +508,13 @@ export default function PastureMapView({Header, authState}) {
   const [zoomSignal, setZoomSignal] = React.useState(0);
   const [styleDraft, setStyleDraft] = React.useState(() => styleDraftFromArea(null));
   const [confirmDeleteId, setConfirmDeleteId] = React.useState(null);
-  const [confirmResetId, setConfirmResetId] = React.useState(null);
+  const [confirmDeleteStayId, setConfirmDeleteStayId] = React.useState(null);
   const [historyReloadSignal, setHistoryReloadSignal] = React.useState(0);
+  // Group move-history modal (opened from an Animal Groups pill on the Map).
+  const [groupHistoryGroup, setGroupHistoryGroup] = React.useState(null);
+  const [groupHistoryRows, setGroupHistoryRows] = React.useState([]);
+  const [groupHistoryLoading, setGroupHistoryLoading] = React.useState(false);
+  const [groupHistoryError, setGroupHistoryError] = React.useState('');
   const [confirmPromoteId, setConfirmPromoteId] = React.useState(null);
   const [boundaryFilter, setBoundaryFilter] = React.useState({pasture: true, paddock: true, temp: true});
   const [draftLinesVisible, setDraftLinesVisible] = React.useState(false);
@@ -661,6 +667,39 @@ export default function PastureMapView({Header, authState}) {
       alive = false;
     };
   }, [reportAreaId, appMode, canViewPlanning, moves.length, historyReloadSignal]);
+
+  // Group move-history modal fetch: the open group's full ledger by the canonical
+  // (animal_type, group_key) identity (list_pasture_history_report), NOT the
+  // all-groups list. Re-pulls when the open group changes or the ledger refreshes.
+  React.useEffect(() => {
+    let alive = true;
+    if (!groupHistoryGroup || !canViewPlanning) {
+      setGroupHistoryRows([]);
+      setGroupHistoryLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+    setGroupHistoryLoading(true);
+    setGroupHistoryError('');
+    listPastureHistoryReport({
+      animalType: groupAnimalType(groupHistoryGroup),
+      groupKey: groupHistoryGroup.groupKey || groupHistoryGroup.id,
+      limit: 500,
+    })
+      .then((res) => {
+        if (alive) setGroupHistoryRows((res && res.history) || []);
+      })
+      .catch((e) => {
+        if (alive) setGroupHistoryError(e.message || 'Could not load the group move history.');
+      })
+      .finally(() => {
+        if (alive) setGroupHistoryLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [groupHistoryGroup, canViewPlanning, moves.length]);
 
   React.useEffect(() => () => clearTrackWatch(), []);
 
@@ -1130,23 +1169,33 @@ export default function PastureMapView({Header, authState}) {
     return withBusy(a.id, () => hardDeleteLandArea(a.id));
   }
 
-  // Management/admin reset: wipe ONE area's grazing history so it reads "no move
-  // history" again (mig 143). reload() refreshes derived state; the signal
-  // re-pulls the open Reports timeline (the move events were detached, not
-  // deleted, so moves.length alone would not re-trigger the history fetch).
-  async function resetAreaHistory(a) {
-    setConfirmResetId(null);
-    setBusyId(a.id);
+  // Management/admin per-entry grazing delete (mig 147): remove ONE grazing stay,
+  // which is the move-IN pasture_move_events row (stay.id from buildGrazingStays).
+  // Its impacts cascade and all area state re-derives; reload() refreshes the Map
+  // fills + Farm status and the signal re-pulls the open Reports timeline.
+  async function deleteGrazingStay(stay) {
+    if (!stay || !stay.id) return;
+    setConfirmDeleteStayId(null);
+    setBusyId(stay.id);
     setErr('');
     try {
-      await deleteLandAreaGrazingHistory(a.id);
+      await deletePastureMove(stay.id);
       await reload();
       setHistoryReloadSignal((n) => n + 1);
     } catch (e) {
-      setErr(e.message || 'Could not reset grazing history.');
+      setErr(e.message || 'Could not delete this grazing entry.');
     } finally {
       setBusyId(null);
     }
+  }
+
+  // Open/close the group move-history modal (from an Animal Groups pill).
+  function openGroupHistory(group) {
+    if (!group) return;
+    setGroupHistoryGroup(group);
+  }
+  function closeGroupHistory() {
+    setGroupHistoryGroup(null);
   }
 
   function closeOutline(a) {
@@ -2336,81 +2385,6 @@ export default function PastureMapView({Header, authState}) {
     setPreviewAreaId(null);
   }
 
-  // Current Groups (Map): roster-backed groups with locked counts and current
-  // location resolved from the move ledger by (animal_type, group_key). On Map
-  // these rows are inspection-only — clicking does nothing; hover/focus previews
-  // the group's current area on the map.
-  function renderCurrentGroups() {
-    if (!groups.length) {
-      return (
-        <div className="pm-card" data-pasture-current-groups="empty">
-          <div className="pm-card-title">Current groups</div>
-          <div className="pm-empty">
-            No active planner groups. Add animals in Cattle, Sheep, or Pigs to populate the roster.
-          </div>
-        </div>
-      );
-    }
-    const placed = groups.filter((g) => groupLocation[g.id]).length;
-    return (
-      <div className="pm-card" data-pasture-current-groups="1">
-        <div className="pm-card-head">
-          <div className="pm-card-title">Current groups</div>
-          <span>
-            {placed} of {groups.length} placed
-          </span>
-        </div>
-        {roster.bySpecies.map((sec) => (
-          <div key={sec.species} className="pm-group-section">
-            <div className="pm-section-label" style={{'--species-color': sec.color}}>
-              {sec.label} - {sec.headCount} head
-            </div>
-            <div className="pm-current-rows">
-              {sec.groups.map((g) => {
-                const loc = groupLocation[g.id];
-                const isPreview = previewAreaId && loc && loc.areaId === previewAreaId;
-                // Focusable, NON-button row: there is no click action, so button
-                // semantics would be wrong. Hover/focus previews only.
-                return (
-                  <div
-                    key={g.id}
-                    className={'pm-current-row is-preview-row' + (isPreview ? ' is-previewing' : '')}
-                    style={{'--species-color': sec.color}}
-                    tabIndex={0}
-                    data-pasture-current-group={g.groupKey}
-                    onMouseEnter={() => previewGroupArea(g)}
-                    onMouseLeave={clearGroupPreview}
-                    onFocus={() => previewGroupArea(g)}
-                    onBlur={clearGroupPreview}
-                  >
-                    <span className="pm-avatar">{g.short}</span>
-                    <span className="pm-current-name">
-                      <strong>{g.name}</strong>
-                      <em>
-                        {g.count} {g.unit}
-                      </em>
-                    </span>
-                    <span
-                      className={'pm-loc-chip ' + (loc ? 'placed' : 'unplaced')}
-                      data-pasture-group-location={loc ? loc.areaId : 'none'}
-                    >
-                      {loc ? loc.areaName || 'Placed' : 'Not placed'}
-                      {loc && loc.movedAt && (
-                        <em className="pm-loc-time" data-pasture-current-time="1">
-                          {formatTimeInArea(loc.movedAt)}
-                        </em>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   // Map "Occupied" explanation: enumerates every area Farm status counts as
   // occupied (including overlap), with the reconciled occupant(s). Replaces the
   // removed Land areas list and keeps Occupied=N understandable without it.
@@ -2459,7 +2433,6 @@ export default function PastureMapView({Header, authState}) {
               : 'No active planner groups yet'}
           </p>
         </div>
-        {renderCurrentGroups()}
         <div className="pm-card pm-status-card">
           <div className="pm-card-title">Farm status</div>
           <div className="pm-metric-grid">
@@ -2506,17 +2479,44 @@ export default function PastureMapView({Header, authState}) {
               <div className="pm-group-pills">
                 {speciesGroups.map((group) => {
                   const spec = groupSpeciesStyle(group);
+                  // Location chip: current area + time-in-area from the move ledger
+                  // (groupLocation, by animal_type/group_key), or "Not placed".
+                  const loc = groupLocation[group.id];
+                  const timeInArea = loc && loc.movedAt ? formatTimeInArea(loc.movedAt) : null;
                   return (
                     <button
                       type="button"
                       key={group.id}
                       className={'pm-group-pill' + (group.id === activeGroup.id ? ' is-active' : '')}
                       style={{'--species-color': spec.color, '--species-soft': spec.soft, '--species-ink': spec.ink}}
-                      onClick={() => setActiveGroupFromGroup(group)}
+                      data-pasture-group-pill={group.groupKey || group.id}
+                      // Click both selects the group for the cockpit AND opens its
+                      // accessible move-history modal. Hover/focus previews the
+                      // group's current area on the map (relocated from the removed
+                      // Current groups card).
+                      onClick={() => {
+                        setActiveGroupFromGroup(group);
+                        openGroupHistory(group);
+                      }}
+                      onMouseEnter={() => previewGroupArea(group)}
+                      onMouseLeave={clearGroupPreview}
+                      onFocus={() => previewGroupArea(group)}
+                      onBlur={clearGroupPreview}
                     >
                       <span>{group.short}</span>
                       <strong>{group.name}</strong>
                       <em>{group.size}</em>
+                      <span
+                        className={'pm-pill-loc ' + (loc ? 'placed' : 'unplaced')}
+                        data-pasture-group-location={loc ? loc.areaId : 'none'}
+                      >
+                        {loc ? loc.areaName || 'Placed' : 'Not placed'}
+                        {timeInArea && (
+                          <em className="pm-pill-loc-time" data-pasture-group-pill-time="1">
+                            {timeInArea}
+                          </em>
+                        )}
+                      </span>
                     </button>
                   );
                 })}
@@ -2661,10 +2661,6 @@ export default function PastureMapView({Header, authState}) {
     if (!activeGroup)
       return (
         <>
-          <div className="pm-panel-title">
-            <span className="pm-kicker">Plan / Grazing cockpit</span>
-            <h2>Move planner</h2>
-          </div>
           <div className="pm-card">
             <div className="pm-empty">
               No active planner groups. Add animals in Cattle, Sheep, or Pigs to plan moves.
@@ -2674,11 +2670,6 @@ export default function PastureMapView({Header, authState}) {
       );
     return (
       <>
-        <div className="pm-panel-title">
-          <span className="pm-kicker">Plan / Grazing cockpit</span>
-          <h2>Move planner</h2>
-          <p>Pick a group, then build its rotation. Drag to reorder; tap the map to add a stop.</p>
-        </div>
         {renderGroupSwitcher()}
         {(() => {
           const curLoc = groupLocation[activeGroup.id] || null;
@@ -3567,7 +3558,7 @@ export default function PastureMapView({Header, authState}) {
           </div>
         </div>
         <div className="pm-card" data-pasture-report-timeline="1">
-          <div className="pm-card-title">Grazing timeline</div>
+          <div className="pm-card-title">Grazing History</div>
           {reportHistoryLoading ? (
             <div className="pm-report-empty">Loading record...</div>
           ) : reportStays.length ? (
@@ -3590,50 +3581,46 @@ export default function PastureMapView({Header, authState}) {
                   {s.animalDays != null && <span>{s.animalDays.toLocaleString()} animal-days</span>}
                 </div>
                 {s.notes && <div className="pm-record-stay-notes">{s.notes}</div>}
+                {/* Management/admin per-entry delete (mig 147): removes THIS stay's
+                    move-IN pasture_move_events row (s.id); its impacts cascade and
+                    every area's state re-derives. Inline confirm, no window.confirm. */}
+                {isManager && (
+                  <div className="pm-record-stay-actions" data-pasture-report-stay-actions={s.id}>
+                    {confirmDeleteStayId === s.id ? (
+                      <span className="pm-record-stay-confirm" data-pasture-report-stay-confirm={s.id}>
+                        Delete this grazing entry? This cannot be undone.
+                        <button
+                          type="button"
+                          className="pm-btn pm-btn-sm pm-btn-danger"
+                          onClick={() => deleteGrazingStay(s)}
+                          disabled={busyId === s.id}
+                          data-pasture-report-stay-delete-yes={s.id}
+                        >
+                          Delete entry
+                        </button>
+                        <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmDeleteStayId(null)}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="pm-btn pm-btn-sm pm-btn-danger"
+                        onClick={() => setConfirmDeleteStayId(s.id)}
+                        disabled={busyId === s.id}
+                        data-pasture-report-stay-delete={s.id}
+                      >
+                        Delete entry
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))
           ) : (
             <div className="pm-report-empty">No grazing recorded for this area yet.</div>
           )}
         </div>
-        {/* Management/admin reset: wipe this area's grazing history (e.g. a paddock
-            that only carries test moves but shows as resting). Inline confirm, no
-            window.confirm. Other areas keep their records. */}
-        {isManager && (
-          <div className="pm-card pm-record-reset" data-pasture-report-reset={area.id}>
-            <div className="pm-record-reset-note">
-              Reset clears this area&apos;s grazing history so it reads &ldquo;no move history&rdquo; again. Other areas
-              keep their records. This cannot be undone.
-            </div>
-            {confirmResetId === area.id ? (
-              <span className="pm-record-reset-confirm" data-pasture-report-reset-confirm={area.id}>
-                Delete all grazing history for {area.name || 'this area'}?
-                <button
-                  type="button"
-                  className="pm-btn pm-btn-sm pm-btn-danger"
-                  onClick={() => resetAreaHistory(area)}
-                  disabled={busyId === area.id}
-                  data-pasture-report-reset-yes={area.id}
-                >
-                  Delete history
-                </button>
-                <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmResetId(null)}>
-                  Cancel
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="pm-btn pm-btn-sm pm-btn-danger"
-                onClick={() => setConfirmResetId(area.id)}
-                disabled={busyId === area.id}
-                data-pasture-report-reset-history={area.id}
-              >
-                Reset grazing history
-              </button>
-            )}
-          </div>
-        )}
       </>
     );
   }
@@ -3840,6 +3827,17 @@ export default function PastureMapView({Header, authState}) {
         !addMode &&
         !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode) &&
         renderAreaModal()}
+      {/* Group move-history modal: opened by clicking an Animal Groups pill. */}
+      {groupHistoryGroup && (
+        <PastureGroupHistoryModal
+          group={groupHistoryGroup}
+          rows={groupHistoryRows}
+          loading={groupHistoryLoading}
+          error={groupHistoryError}
+          formatMoveTime={formatMoveTime}
+          onClose={closeGroupHistory}
+        />
+      )}
       <div className="pm-hidden-compat">
         <span data-mode="select" />
         <span data-pasture-style-weight="1" />
