@@ -88,6 +88,8 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/layer/LayerDailysView.jsx', {retry: true, inlineNotice: true}],
   ['src/layer/LayerHousingPage.jsx', {retry: true, inlineNotice: true}],
   ['src/livestock/LivestockWeighInsView.jsx', {retry: true, inlineNotice: true}],
+  // Newsletter admin issue editor: fail-closed load with Retry + InlineNotice.
+  ['src/newsletter/NewsletterAdminView.jsx', {retry: true, inlineNotice: true}],
   ['src/pig/PigDailyPage.jsx', {retry: true, inlineNotice: true}],
   ['src/pig/PigDailysView.jsx', {retry: true, inlineNotice: true}],
   ['src/shared/Header.jsx', {retry: true, inlineNotice: true}],

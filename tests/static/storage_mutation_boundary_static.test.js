@@ -13,6 +13,11 @@ const EXPECTED_REMOVE_OWNERS = new Map([
   ['src/broiler/BatchForm.jsx', 1],
   ['src/equipment/EquipmentMaintenanceModal.jsx', 1],
   ['src/lib/commentAttachments.js', 1],
+  // Newsletter photo cleanup (mig 145): one checked remove helper deletes the
+  // PUBLIC copy on unapprove/remove and the PRIVATE staging object on remove
+  // (both buckets flow through a single .remove call site). Never touches the
+  // append-only daily/task buckets (asserted by the third test below).
+  ['src/lib/newsletterApi.js', 1],
   ['src/webforms/EquipmentFuelingWebform.jsx', 1],
 ]);
 
@@ -69,7 +74,7 @@ describe('Storage mutation boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(removeCount).toBe(11);
+    expect(removeCount).toBe(12);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

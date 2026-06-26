@@ -16,6 +16,9 @@ const EXPECTED_IMAGE_INPUT_OWNERS = new Map([
   // tests/static/cattle_log_static.test.js (CattleLogPage contains no
   // 'capture=' anywhere).
   ['src/cattle/CattleLogPage.jsx', 1],
+  // Newsletter admin photo uploader (staging-first; desktop file pick, no
+  // forced camera capture). Added with the Monthly Newsletter lane (mig 144).
+  ['src/newsletter/NewsletterAdminView.jsx', 1],
   ['src/equipment/EquipmentMaintenanceModal.jsx', 1],
   ['src/shared/CommentsSection.jsx', 2],
   ['src/tasks/CompleteTaskModal.jsx', 1],
@@ -78,7 +81,7 @@ describe('Image file inputs avoid forced camera capture', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(imageInputCount).toBe(13);
+    expect(imageInputCount).toBe(14);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

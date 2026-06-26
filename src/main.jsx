@@ -215,6 +215,13 @@ import ClientErrorsView from './admin/ClientErrorsView.jsx';
 import EquipmentHome from './equipment/EquipmentHome.jsx';
 import PastureMapView from './pasture/PastureMapView.jsx';
 
+// Public, no-login Monthly Newsletter archive. Mounted in a bypass block above
+// the LoginScreen gate (see the PUBLIC NEWSLETTER block in App's render). Self-
+// contained: talks only to the three anon newsletter RPCs.
+import NewsletterPublicApp from './newsletter/NewsletterPublicApp.jsx';
+// Admin Monthly Newsletter workspace (admin-only via UnauthorizedRedirect).
+import NewsletterAdminView from './newsletter/NewsletterAdminView.jsx';
+
 // Phase 2 Round 2 tail: LayerBatchesView (deferred from the original Round 2
 // push). Now imports once the housing + broiler primitives live in lib/.
 import LayerBatchesView from './layer/LayerBatchesView.jsx';
@@ -1302,6 +1309,9 @@ function App() {
     const isPigBatchesSubpath = !exactPathView && location.pathname.startsWith('/pig/batches/');
     const isTasksSubpath = !exactPathView && location.pathname.startsWith('/tasks/');
     const isWeighInSessionSubpath = !exactPathView && location.pathname.startsWith('/weigh-in-sessions/');
+    // Public newsletter owns its own pathname routing under /newsletter/* (latest
+    // + issue slug + preview). /newsletter itself resolves via exactPathView.
+    const isNewsletterSubpath = !exactPathView && location.pathname.startsWith('/newsletter/');
     const viewFromUrl = isWebformSubpath
       ? 'webformhub'
       : isEquipmentSubpath
@@ -1342,7 +1352,9 @@ function App() {
                                           ? 'tasks'
                                           : isWeighInSessionSubpath
                                             ? 'weighinsessions'
-                                            : exactPathView;
+                                            : isNewsletterSubpath
+                                              ? 'newsletter'
+                                              : exactPathView;
     if (viewFromUrl && viewFromUrl !== view) {
       syncingFromUrl.current = true;
       setView(viewFromUrl);
@@ -1379,6 +1391,9 @@ function App() {
     if (view === 'webformhub' && location.pathname.startsWith('/dailys/')) return;
     // Don't clobber /fleet/<slug> sub-paths — EquipmentHome owns them.
     if (view === 'equipmentHome' && location.pathname.startsWith('/fleet/')) return;
+    // Don't clobber /newsletter/<slug> (or /latest, ?preview) — the public
+    // newsletter app owns its own pathname routing under /newsletter*.
+    if (view === 'newsletter' && location.pathname.startsWith('/newsletter')) return;
     // Don't clobber /equipment/<slug> sub-paths — FuelingHub owns them.
     if (view === 'fuelingHub' && location.pathname.startsWith('/equipment/')) return;
     // Don't clobber /cattle/herds/<id> sub-paths — CattleHerdsView owns them.
@@ -1699,6 +1714,8 @@ function App() {
     'weighinsessions',
     'mySubmissions',
     'pastureMap',
+    'newsletter',
+    'newsletterAdmin',
   ];
   useEffect(() => {
     if (view && !VALID_VIEWS.includes(view)) setView('home');
@@ -3432,6 +3449,19 @@ function App() {
         onDone={() => setPwRecovery(false)}
       />
     );
+
+  // ── PUBLIC NEWSLETTER (no auth — renders ABOVE the login gate) ──
+  // The Monthly Review archive is a public, no-login web surface. It mounts
+  // before the authState gates so a logged-out visitor never hits LoginScreen,
+  // and it talks ONLY to the three anon newsletter RPCs (no app data, no
+  // contexts). The admin/build surface stays admin-only below (view
+  // 'newsletterAdmin' at /admin/newsletter). Keyed on pathname so it paints
+  // immediately, before auth resolves. /newsletter exact + /newsletter/<...>
+  // sub-paths; /admin/newsletter is NOT matched (different prefix).
+  if (location.pathname === '/newsletter' || location.pathname.startsWith('/newsletter/')) {
+    return React.createElement(NewsletterPublicApp, {sb});
+  }
+
   if (authState === null)
     return (
       <div
@@ -3906,6 +3936,17 @@ function App() {
         setAdminTab,
         refreshDailys,
       }),
+    );
+
+  // ── NEWSLETTER ADMIN (admin-only) ──
+  // Route-level guard mirrors the clientErrors/webforms admin gates: a non-admin
+  // who types/bookmarks /admin/newsletter is bounced home. The public archive
+  // at /newsletter is a separate, no-login surface handled above the auth gates.
+  if (view === 'newsletterAdmin')
+    return React.createElement(
+      UnauthorizedRedirect,
+      {authState, setView, requireAdmin: true, fallbackView: 'home'},
+      React.createElement(NewsletterAdminView, {Header}),
     );
 
   // ── PIG DAILY WEBFORM (public, no auth) ──

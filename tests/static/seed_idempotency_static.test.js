@@ -492,6 +492,11 @@ const CP9_RAW_INSERT_SPEC_ALLOWLIST = [
   // (Date.now + random) behind the same delete-first comments wipe.
   'tests/cattle_log_screenshots.spec.js',
   'tests/generate_task_instances_rpc.spec.js',
+  // Audited: seeds two throwaway newsletter issues (FIXED ids nli-2099-11 /
+  // nli-2099-10, delete-first; deleted again in afterAll) for the public/admin
+  // newsletter e2e. Service-role insert behind delete-first hygiene so a
+  // duplicate-id failure surfaces rather than being masked by an upsert.
+  'tests/newsletter_public.spec.js',
   // Audited: seeds a one-time task (fixed ids, delete-first) for the
   // task_completed cross-user notification spec; idempotent under the race.
   'tests/notifications_task_completed.spec.js',
