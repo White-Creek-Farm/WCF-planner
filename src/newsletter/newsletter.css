@@ -1,0 +1,313 @@
+/* Public newsletter surface — scoped under .nl-public. Standalone (no app
+ * chrome): a calm, email-style single column that reads like White Creek
+ * Farm's monthly note rather than a marketing landing page. Hanken Grotesk is
+ * already loaded globally. Colors fall back to literals so the page is correct
+ * even before the app token layer parses. */
+
+.nl-public {
+  --nl-green: #085041;
+  --nl-green-soft: #e7f0ec;
+  --nl-ink: #111613;
+  --nl-muted: #5b6661;
+  --nl-border: #d8ddda;
+  --nl-bg: #f6f7f5;
+  background: var(--nl-bg);
+  min-height: 100vh;
+  color: var(--nl-ink);
+  font-family:
+    'Hanken Grotesk',
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.nl-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.nl-loading,
+.nl-empty {
+  color: var(--nl-muted);
+  padding: 48px 0;
+  text-align: center;
+}
+
+.nl-message {
+  padding: 48px 0;
+}
+
+/* ── Kicker / titles ─────────────────────────────────────────────────────── */
+.nl-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nl-green);
+  margin-bottom: 6px;
+}
+
+.nl-title {
+  font-size: 32px;
+  line-height: 1.15;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--nl-ink);
+}
+
+.nl-published {
+  color: var(--nl-muted);
+  font-size: 13px;
+}
+
+/* ── Archive ─────────────────────────────────────────────────────────────── */
+.nl-archive-header {
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--nl-border);
+  padding-bottom: 20px;
+}
+.nl-archive-sub {
+  color: var(--nl-muted);
+  font-size: 15px;
+  margin: 4px 0 0;
+}
+.nl-archive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nl-archive-item + .nl-archive-item {
+  border-top: 1px solid var(--nl-border);
+}
+.nl-archive-link {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 8px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 12px;
+  transition: background 200ms ease;
+}
+.nl-archive-link:hover {
+  background: var(--nl-green-soft);
+}
+.nl-archive-thumb {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--nl-green-soft);
+}
+.nl-archive-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.nl-archive-thumb-empty {
+  border: 1px dashed var(--nl-border);
+}
+.nl-archive-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.nl-archive-month {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--nl-green);
+}
+.nl-archive-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* ── Issue ───────────────────────────────────────────────────────────────── */
+.nl-preview-banner {
+  background: #fff6e0;
+  border: 1px solid #f0d48a;
+  color: #6b4e0a;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+.nl-cover {
+  margin-bottom: 8px;
+}
+.nl-cover .nl-figure {
+  margin: 0;
+}
+.nl-cover .nl-photo {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 14px;
+}
+.nl-issue-header {
+  margin: 20px 0 8px;
+  border-bottom: 1px solid var(--nl-border);
+  padding-bottom: 18px;
+}
+.nl-body {
+  font-size: 17px;
+  line-height: 1.65;
+}
+.nl-h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 32px 0 10px;
+}
+.nl-h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 24px 0 8px;
+}
+.nl-p {
+  margin: 0 0 16px;
+}
+.nl-list {
+  margin: 0 0 16px;
+  padding-left: 22px;
+}
+.nl-list li {
+  margin-bottom: 6px;
+}
+
+/* Stat strip — a few highlight figures (animals on farm, records). */
+.nl-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 8px 0 24px;
+}
+.nl-stat {
+  flex: 1 1 120px;
+  background: #fff;
+  border: 1px solid var(--nl-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.nl-stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--nl-green);
+  line-height: 1.1;
+}
+.nl-stat-label {
+  font-size: 12px;
+  color: var(--nl-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nl-quote {
+  margin: 24px 0;
+  padding: 4px 0 4px 18px;
+  border-left: 3px solid var(--nl-green);
+  font-size: 19px;
+  font-style: italic;
+  color: #2a322e;
+}
+.nl-quote p {
+  margin: 0 0 6px;
+}
+.nl-cite {
+  font-size: 14px;
+  font-style: normal;
+  color: var(--nl-muted);
+}
+
+.nl-callout {
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 18px 0;
+  font-size: 16px;
+}
+.nl-callout-good {
+  background: var(--nl-green-soft);
+  border: 1px solid #bcd6cc;
+}
+.nl-callout-note {
+  background: #f1f3f8;
+  border: 1px solid #d3dae8;
+}
+
+.nl-divider {
+  border: none;
+  border-top: 1px solid var(--nl-border);
+  margin: 28px 0;
+}
+
+/* Photos */
+.nl-figure {
+  margin: 20px 0;
+}
+.nl-photo {
+  width: 100%;
+  border-radius: 12px;
+  display: block;
+}
+.nl-figcaption {
+  font-size: 13px;
+  color: var(--nl-muted);
+  margin-top: 6px;
+}
+.nl-credit {
+  font-style: italic;
+}
+.nl-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.nl-gallery .nl-figure {
+  margin: 0;
+}
+.nl-gallery .nl-photo {
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.nl-more-photos {
+  margin-top: 36px;
+}
+
+/* Footer / nav */
+.nl-issue-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--nl-border);
+}
+.nl-back {
+  color: var(--nl-green);
+  text-decoration: none;
+  font-weight: 600;
+}
+.nl-back:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 520px) {
+  .nl-title {
+    font-size: 26px;
+  }
+  .nl-body {
+    font-size: 16px;
+  }
+  .nl-archive-thumb {
+    width: 72px;
+    height: 56px;
+  }
+}

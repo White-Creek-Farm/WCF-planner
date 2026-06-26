@@ -15,6 +15,13 @@ const EXPECTED_IMG_OWNERS = [
   'src/equipment/EquipmentFuelingEntryPage.jsx',
   'src/equipment/EquipmentMaintenanceModal.jsx',
   'src/equipment/ManualsCard.jsx',
+  // Newsletter images carry admin-authored alt text (the editor's per-photo alt
+  // field, falling back to caption then 'Farm photo'), so they are image owners
+  // but NOT USER_MEDIA_OWNERS (which require the generic imageAltText fallback
+  // for media with no authored alt).
+  'src/newsletter/NewsletterAdminView.jsx',
+  'src/newsletter/NewsletterArchive.jsx',
+  'src/newsletter/NewsletterBlocks.jsx',
   'src/shared/CommentsSection.jsx',
   'src/shared/DailyPhotoThumbnails.jsx',
   'src/tasks/TaskPhotoLightbox.jsx',

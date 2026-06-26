@@ -87,6 +87,11 @@ export const VIEW_TO_PATH = {
   // + aerial map. Auth-gated, not program-scoped (cross-species field tool).
   pastureMap: '/pasture-map',
 
+  // Newsletter admin (admin-only, inside the planner). Exact path; the
+  // route-level guard in main.jsx requires admin. Issue selection is component
+  // state, not a URL subpath, so this stays a single exact route.
+  newsletterAdmin: '/admin/newsletter',
+
   // Admin (logged-in only)
   webforms: '/admin',
   // Task Center (Tasks v2). Auth-gated, requireAdmin:false. Every
@@ -100,6 +105,14 @@ export const VIEW_TO_PATH = {
   // Admin-only runtime observability review surface (self-gated via the
   // list_client_errors admin RPC + requireAdmin route guard).
   clientErrors: '/admin/client-errors',
+
+  // Newsletter — PUBLIC no-login archive. Unlike the report/form hubs below
+  // (which are login-required), /newsletter renders in a bypass block ABOVE
+  // the LoginScreen gate in main.jsx. /newsletter is the archive; the public
+  // app owns its own pathname routing for /newsletter/latest and
+  // /newsletter/<slug> (main.jsx maps any /newsletter* to view 'newsletter'),
+  // and issue preview is /newsletter/<slug>?preview=<token>.
+  newsletter: '/newsletter',
 
   // Public (no-auth) — these also have legacy aliases handled below.
   webformhub: '/dailys',
