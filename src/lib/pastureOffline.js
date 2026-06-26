@@ -20,7 +20,6 @@ import {
   createLandAreaTrack,
   createTempLandArea,
   recordPastureMove,
-  updatePasturePlannedMoveStatus,
   upsertPastureRotation,
 } from './pastureMapApi.js';
 
@@ -40,7 +39,7 @@ export function cachePastureSnapshot(snapshot) {
         savedAt: new Date().toISOString(),
         areas: snapshot.areas || [],
         moves: snapshot.moves || [],
-        plans: snapshot.plans || [],
+        history: snapshot.history || [],
         rotations: snapshot.rotations || [],
         restReport: snapshot.restReport || {areas: [], counts: {}},
         stockingReport: snapshot.stockingReport || {areas: []},
@@ -63,7 +62,7 @@ export function loadPastureSnapshot() {
       savedAt: parsed.savedAt || null,
       areas: parsed.areas || [],
       moves: parsed.moves || [],
-      plans: parsed.plans || [],
+      history: parsed.history || [],
       rotations: parsed.rotations || [],
       restReport: parsed.restReport || {areas: [], counts: {}},
       stockingReport: parsed.stockingReport || {areas: []},
@@ -105,15 +104,7 @@ export async function enqueuePastureOperation({id, op, payload}) {
 async function replayPastureOperation(row) {
   if (!row || !row.record || !row.record.op) throw new Error('pasture queue row missing operation');
   if (row.record.op === 'record_move') {
-    const res = await recordPastureMove(row.record.payload);
-    if (row.record.payload.activePlanId && res && res.id) {
-      await updatePasturePlannedMoveStatus({
-        planId: row.record.payload.activePlanId,
-        status: 'completed',
-        completedMoveId: res.id,
-      });
-    }
-    return res;
+    return await recordPastureMove(row.record.payload);
   }
   if (row.record.op === 'create_area') return await createLandArea(row.record.payload);
   if (row.record.op === 'create_temp_area') return await createTempLandArea(row.record.payload);

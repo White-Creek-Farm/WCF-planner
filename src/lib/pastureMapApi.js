@@ -57,18 +57,6 @@ export function newPastureMoveId() {
   return 'pmv-' + uuid;
 }
 
-// Stable client id for a planned pasture move.
-export function newPasturePlanId() {
-  const uuid =
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-          const r = (Math.random() * 16) | 0;
-          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-        });
-  return 'pmp-' + uuid;
-}
-
 function unwrap({data, error}, label) {
   if (error) {
     const msg = (error.message || String(error)).replace(/^PM_VALIDATION:\s*/, '');
@@ -269,6 +257,7 @@ export async function recordPastureMove({
   toLandAreaId,
   movedAt,
   animalCount = null,
+  totalWeightLbs = null,
   notes = null,
 }) {
   return unwrap(
@@ -280,20 +269,11 @@ export async function recordPastureMove({
       p_to_land_area_id: toLandAreaId,
       p_moved_at: movedAt,
       p_animal_count: animalCount,
+      p_total_weight_lbs: totalWeightLbs,
       p_notes: notes,
     }),
     'record_pasture_move',
   );
-}
-
-// "Clear current area": a normal pasture move with NO destination (to_land_area_id
-// null), so the group becomes Not placed and its prior area starts resting via the
-// move ledger's departure impact. record_pasture_move already supports a null
-// destination (mig 128 gates destination/overlap impacts + the feeder conflict check
-// on IS NOT NULL while always recording the departure), so NO new RPC/migration is
-// needed. Forced null here so callers cannot accidentally send a destination.
-export async function clearPasturePlacement(payload) {
-  return recordPastureMove({...payload, toLandAreaId: null});
 }
 
 // Management/admin per-entry grazing delete (mig 147). Removes exactly ONE
@@ -303,50 +283,6 @@ export async function clearPasturePlacement(payload) {
 // deployed but unused. Returns the deleted move's identity + impacts_cleared.
 export async function deletePastureMove(moveId) {
   return unwrap(await sb.rpc('delete_pasture_move', {p_move_id: moveId}), 'delete_pasture_move');
-}
-
-// CP4 - planned move worklist.
-export async function listPasturePlannedMoves({status = 'planned', limit = 100} = {}) {
-  return unwrap(
-    await sb.rpc('list_pasture_planned_moves', {p_status: status, p_limit: limit}),
-    'list_pasture_planned_moves',
-  );
-}
-
-export async function createPasturePlannedMove({
-  planId,
-  animalType,
-  groupKey,
-  groupLabel,
-  toLandAreaId,
-  plannedFor,
-  animalCount = null,
-  notes = null,
-}) {
-  return unwrap(
-    await sb.rpc('create_pasture_planned_move', {
-      p_plan_id: planId,
-      p_animal_type: animalType,
-      p_group_key: groupKey,
-      p_group_label: groupLabel,
-      p_to_land_area_id: toLandAreaId,
-      p_planned_for: plannedFor,
-      p_animal_count: animalCount,
-      p_notes: notes,
-    }),
-    'create_pasture_planned_move',
-  );
-}
-
-export async function updatePasturePlannedMoveStatus({planId, status, completedMoveId = null}) {
-  return unwrap(
-    await sb.rpc('update_pasture_planned_move_status', {
-      p_plan_id: planId,
-      p_status: status,
-      p_completed_move_id: completedMoveId,
-    }),
-    'update_pasture_planned_move_status',
-  );
 }
 
 export async function listPastureHistoryReport({

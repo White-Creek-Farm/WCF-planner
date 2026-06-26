@@ -1,7 +1,5 @@
-// Pasture Map "Clear current area": a group's current placement can be cleared by
-// recording a normal pasture move with NO destination (to_land_area_id null), so the
-// group becomes Not placed and its prior area starts resting via the existing move
-// ledger. Reuses record_pasture_move — no new RPC/migration, no undo.
+// Pasture Map: the old "Clear current area" affordance is intentionally gone.
+// Placement changes now happen through the rotation-backed Move box only.
 import {test, expect} from '@playwright/test';
 import {getTestAdminClient} from './setup/reset.js';
 
@@ -14,7 +12,7 @@ const SQUARE_A =
 async function seed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_rotations, public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches,
       public.land_areas RESTART IDENTITY CASCADE;
     DO $$
@@ -29,66 +27,29 @@ async function seed() {
     DELETE FROM public.cattle WHERE id = '${MOMMA_ID}';
     INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
     VALUES ('${MOMMA_ID}', 'CLR-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${A_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed clear placement: ' + error.message);
 }
 
-async function hideMapOverlays(page) {
-  await page.addStyleTag({
-    content:
-      '.pm-boundary-toggle,.pm-map-controls,.pm-legend,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
-  });
-}
-
 test.beforeAll(seed);
 
-test('Clear current area moves a placed group to Not placed via a no-destination move', async ({page}) => {
+test('group record exposes Move, not a clear-placement shortcut', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
-  await hideMapOverlays(page);
 
-  // Place Mommas -> Clear Test Paddock via the side-panel Record-a-move form.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
-  await page.waitForTimeout(1000);
+  await page.locator('[data-pasture-group-row="mommas"]').click();
 
-  // Make Mommas the active group -> its card shows Current area + the Clear control.
-  // (Clicking a pill also opens the group-history modal; dismiss it before using
-  // the panel behind it.)
-  await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
-  await page.keyboard.press('Escape');
-  const card = page.locator('[data-pasture-group-move]');
-  await expect(card).toContainText('Clear Test Paddock', {timeout: 15_000});
-  const clearBtn = page.locator('[data-pasture-clear-placement]');
-  await expect(clearBtn).toBeVisible();
-
-  // Clear current area.
-  await clearBtn.click();
-  await page.waitForTimeout(1200);
-
-  // The group reads Not placed and the Clear control is gone (hidden when unplaced).
-  await expect(card).toContainText('Not placed');
+  const card = page.locator('[data-pasture-group-move="mommas"]');
+  await expect(card).toBeVisible({timeout: 15_000});
+  await expect(card.locator('.pm-group-move-cell').nth(0).locator('strong')).toHaveText('Not placed');
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText('Clear Test Paddock');
+  await expect(card.getByRole('button', {name: 'Move', exact: true})).toBeVisible();
   await expect(page.locator('[data-pasture-clear-placement]')).toHaveCount(0);
-
-  // Map: the Mommas pill location chip now reads Not placed, and the occupant marker
-  // for Mommas is gone (the area is no longer occupied by it).
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-group-pill="mommas"] [data-pasture-group-location="none"]')).toBeVisible({
-    timeout: 15_000,
-  });
-  await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(0, {timeout: 15_000});
-
-  // Reports: the area record stays coherent -> a recorded stay (not "In use"), and the
-  // status line is now "Last grazed ..." rather than "In use by Mommas".
-  await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
-  await page.locator(`[data-pasture-report-area-row="${A_ID}"]`).click();
-  await expect(page.locator(`[data-pasture-report-record="${A_ID}"]`)).toBeVisible({timeout: 15_000});
-  await expect(page.locator('[data-pasture-report-status]')).toContainText('Last grazed');
-  await expect(page.locator('[data-pasture-report-timeline]')).toContainText('Mommas');
-  await expect(page.locator('[data-pasture-report-timeline]')).not.toContainText('Still here');
+  await expect(page.locator('body')).not.toContainText('Clear selection');
 });

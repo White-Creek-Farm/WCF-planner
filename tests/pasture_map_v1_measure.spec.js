@@ -11,8 +11,7 @@ const SQUARE_A =
 async function seed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_measurements, public.pasture_rotations, public.pasture_planned_moves,
-      public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions,
+    TRUNCATE TABLE public.pasture_measurements, public.pasture_rotations, public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
     DO $$
     DECLARE v_profile uuid;

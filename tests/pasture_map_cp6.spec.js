@@ -11,7 +11,7 @@ import {getTestAdminClient} from './setup/reset.js';
 async function cleanPastureTables() {
   const c = getTestAdminClient();
   const {error} = await c.rpc('exec_sql', {
-    sql: 'TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
+    sql: 'TRUNCATE TABLE public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
   });
   if (error) throw new Error('clean pasture tables: ' + error.message);
 }
@@ -64,7 +64,7 @@ test('CP6: mobile GPS track saves as an outline candidate', async ({page}) => {
   // The 2-point trace is a draft line: it surfaces in the Reports Tracks / Lines
   // section (relocated off the Map side panel), not the Map grazing-area list.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
-  await page.locator('[data-pasture-tracks-lines] > summary').click();
+  await expect(page.locator('[data-pasture-report-review]')).toBeVisible({timeout: 15_000});
   const row = page.locator('[data-pasture-track-line]', {hasText: 'Mobile Track Test'}).first();
   await expect(row).toBeVisible({timeout: 15_000});
   await expect(row.locator('.pm-chip-outline_candidate')).toBeVisible();

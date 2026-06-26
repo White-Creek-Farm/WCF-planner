@@ -17,7 +17,7 @@ const SQUARE_B =
 async function seed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches,
       public.land_areas RESTART IDENTITY CASCADE;
     DO $$
@@ -81,7 +81,7 @@ test.describe('desktop (hover)', () => {
 test.describe('mobile (touch)', () => {
   test.use({hasTouch: true, isMobile: true, viewport: {width: 390, height: 844}});
 
-  test('Map tap opens the working Area inspector (no read-only popover), and Clear dismisses it', async ({page}) => {
+  test('Map tap opens the working Area inspector (no read-only popover), and X saves/closes it', async ({page}) => {
     await page.goto('/pasture-map', {timeout: 90_000});
     await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
     await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
@@ -93,8 +93,8 @@ test.describe('mobile (touch)', () => {
     await expect(page.locator('[data-pasture-map-popover]')).toHaveCount(0);
     await expect(page.locator('[data-pasture-area-modal]')).toContainText('V1 North Paddock');
 
-    // Clear dismisses the inspector.
-    await page.locator('[data-pasture-clear-selection]').first().click();
+    // The single visible modal X dismisses the inspector.
+    await page.locator('[data-pasture-area-modal-close]').click();
     await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toHaveCount(0);
   });
 

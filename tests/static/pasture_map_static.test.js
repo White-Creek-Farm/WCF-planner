@@ -34,6 +34,8 @@ const mig143Code = mig143.replace(/--[^\n]*/g, '');
 const mig147 = read('supabase-migrations/147_pasture_map_grazing_entry_delete_and_parent_overlap.sql');
 // Code-only (the header docs legitimately quote 'overlap'/'departure'/'occupied').
 const mig147Code = mig147.replace(/--[^\n]*/g, '');
+const mig148 = read('supabase-migrations/148_pasture_map_group_records_weight_and_planned_move_cleanup.sql');
+const mig148Code = mig148.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -79,8 +81,10 @@ describe('Pasture Map route + wiring', () => {
     // All tabs render for every pasture role (no Light filter, no mode block).
     expect(viewSrc).toContain('{MODE_TABS.map((tab) => (');
     expect(viewSrc).not.toContain('MODE_TABS.filter');
-    // Planning/report/history reads now run for all pasture roles (incl. Light).
-    expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPasturePlannedMoves/);
+    // Planning/report/history reads now run for all pasture roles (incl. Light);
+    // planned moves were deleted in mig 148, so the broad history ledger replaces
+    // that fetch.
+    expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureHistoryReport\(\{limit: 1000\}\)/);
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureRotations/);
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureMeasurements/);
     // The Reports area-record drill-down lazily loads that area's grazing history
@@ -88,7 +92,7 @@ describe('Pasture Map route + wiring', () => {
     expect(viewSrc).toMatch(/if \(!reportAreaId \|\| appMode !== 'reports' \|\| !canViewPlanning\)/);
     // Move writes stay hard-gated on canRecordMoves (which now includes light).
     expect(viewSrc).toMatch(/async function recordGroupMove[\s\S]*?if \(!canRecordMoves\) return;/);
-    expect(viewSrc).toContain('disabled={!activeNextArea || saving || !canRecordMoves}');
+    expect(viewSrc).toContain('const disabled = !group.active || !canRecordMoves || !next || saving');
   });
 
   it('home page exposes the Pasture Map field button', () => {
@@ -453,26 +457,25 @@ describe('Reports = every-area grazing records, read-only to all pasture users',
     expect(viewSrc).toContain('a.parent_id === id');
   });
 
-  it('Reports is a collapsible accordion: pastures collapse over child paddocks, with review sections', () => {
+  it('Reports uses DataTable rows for areas and a maintenance card for review actions', () => {
     const body = viewSrc.slice(
       viewSrc.indexOf('function renderReportAreaList'),
       viewSrc.indexOf('function renderAreaRecord'),
     );
-    // Pastures are per-pasture <details> (collapsed by default -> NOT open) that
-    // reveal their child paddocks (parent_id) on expand.
-    expect(body).toContain('data-pasture-report-pasture');
-    expect(body).toMatch(/<details[^>]*className="pm-report-pasture"/);
-    // Parentless permanent paddocks get their own "Needs pasture assignment" section,
-    // open by default, with a manager Assign action into the Area modal.
-    expect(body).toContain('data-pasture-report-needs-pasture');
-    expect(body).toContain('Needs pasture assignment');
+    // Area records follow the site table pattern instead of the old accordion,
+    // while section/depth metadata keeps pasture/paddock hierarchy readable.
+    expect(body).toContain('surfaceKey="pasture-report-area-table"');
+    expect(body).toContain('data-pasture-report-area-row');
+    expect(body).toContain('reportDepth');
+    expect(body).toContain("children.forEach((child) => pushArea(child, area.name || 'Paddocks', 1))");
+    // Parentless paddocks, unclassified polygons, tracks/lines, and archived areas
+    // live in the Area maintenance card with manager actions into the Area modal.
+    expect(body).toContain('data-pasture-report-review');
+    expect(body).toContain('data-pasture-report-needs-row');
     expect(body).toContain('data-pasture-report-assign-pasture');
     expect(body).toContain('openAreaModal(area.id)');
-    // Temp paddocks, Tracks / Lines and Archived areas stay reachable as their own
-    // collapsed sections (relocated off the Map side panel). No map is rendered.
-    expect(body).toContain('data-pasture-report-temp');
-    expect(body).toContain('data-pasture-tracks-lines');
-    expect(body).toContain('data-pasture-archived');
+    expect(body).toContain('data-pasture-track-line');
+    expect(body).toContain('data-pasture-archived-row');
     expect(body).not.toContain('renderPastureMapCanvas');
   });
 
@@ -493,21 +496,21 @@ describe('Reports = every-area grazing records, read-only to all pasture users',
   });
 });
 
-describe('Clear current area (no-destination move; no undo, no migration)', () => {
-  it('clear records a normal move with a NULL destination via clearPasturePlacement', () => {
+describe('Group-record move flow (no clear placement utility)', () => {
+  it('removes the old null-destination clear placement wrapper and UI', () => {
     // API wrapper forces toLandAreaId null over the existing record_pasture_move RPC.
-    expect(apiSrc).toContain('export async function clearPasturePlacement');
-    expect(apiSrc).toContain('recordPastureMove({...payload, toLandAreaId: null})');
+    expect(apiSrc).not.toContain('export async function clearPasturePlacement');
+    expect(apiSrc).not.toContain('recordPastureMove({...payload, toLandAreaId: null})');
     // View: a Clear current area control + handler that builds a null-destination
     // record_move payload, calls clearPasturePlacement, and queues offline as the SAME
     // record_move op.
-    expect(viewSrc).toContain('data-pasture-clear-placement');
-    expect(viewSrc).toContain('function clearPlacement');
-    expect(viewSrc).toContain('clearPasturePlacement(movePayload)');
-    expect(viewSrc).toMatch(/clearPlacement[\s\S]*?toLandAreaId: null/);
-    expect(viewSrc).toMatch(/clearPlacement[\s\S]*?op: 'record_move'/);
+    expect(viewSrc).not.toContain('data-pasture-clear-placement');
+    expect(viewSrc).not.toContain('function clearPlacement');
+    expect(viewSrc).not.toContain('clearPasturePlacement(movePayload)');
+    expect(viewSrc).not.toMatch(/clearPlacement[\s\S]*?toLandAreaId: null/);
+    expect(viewSrc).not.toMatch(/clearPlacement[\s\S]*?op: 'record_move'/);
     // Hidden when the group is already Not placed (only rendered when currentArea).
-    expect(viewSrc).toContain('{currentArea && (');
+    expect(viewSrc).toContain('function renderGroupMoveBox');
   });
 
   it('Clear itself adds NO undo / reversal of the clear (it reuses record_pasture_move)', () => {
@@ -522,23 +525,22 @@ describe('Clear current area (no-destination move; no undo, no migration)', () =
     expect(apiSrc).not.toContain("sb.rpc('clear_pasture_placement'");
   });
 
-  it('Light stays farm-team-level for Pasture Map and can clear like it can move', () => {
+  it('Light stays farm-team-level for Pasture Map moves', () => {
     expect(viewSrc).toContain(
       "const canRecordMoves = role === 'farm_team' || role === 'management' || role === 'admin' || role === 'light'",
     );
-    // Clear is gated by the SAME canRecordMoves as recordGroupMove (incl. light).
-    expect(viewSrc).toMatch(
-      /async function clearPlacement\(group\) \{[\s\S]*?if \(!canRecordMoves \|\| !group\) return;/,
-    );
+    expect(viewSrc).toMatch(/async function recordGroupMove[\s\S]*?if \(!canRecordMoves\) return;/);
   });
 });
 
 describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)', () => {
-  it('view passes all groups paths to the canvas with a next-stop-only toggle', () => {
+  it('view passes all groups paths to the canvas without a next-stop-only UI toggle', () => {
     expect(viewSrc).toContain('const rotationPaths = React.useMemo');
     expect(viewSrc).toContain("rotationPaths: appMode === 'view' ? rotationPaths : []");
-    expect(viewSrc).toContain('const [nextStopOnly, setNextStopOnly]');
-    expect(viewSrc).toContain('data-pasture-next-stop-only');
+    expect(viewSrc).toContain('nextStopOnly: false');
+    expect(viewSrc).toContain('showRotationPath: true');
+    expect(viewSrc).not.toContain('setNextStopOnly');
+    expect(viewSrc).not.toContain('data-pasture-next-stop-only');
   });
 
   it('canvas draws one path per group (species color, active emphasis, label, next-only)', () => {
@@ -584,9 +586,9 @@ describe('Merged Map: hover readout + click-to-open Area modal', () => {
     expect(viewSrc).toMatch(/queuedItemCount = \(queueState\.queuedCount/);
   });
 
-  it('Animal Groups pills show time-in-paddock for placed groups', () => {
-    // The time chip moved onto the pills with the rest of the location data.
-    expect(viewSrc).toContain('data-pasture-group-pill-time');
+  it('Animal Groups table shows time-in-area for placed groups', () => {
+    expect(viewSrc).toContain('pm-group-location-cell');
+    expect(viewSrc).toContain('surfaceKey="pasture-group-table"');
     expect(viewSrc).toMatch(/loc && loc\.movedAt \? formatTimeInArea\(loc\.movedAt\) : null/);
   });
 });
@@ -656,7 +658,9 @@ describe('Pasture Map view - CP1/CP3 scope boundary', () => {
   it('exposes import + classify + close-into-temp actions', () => {
     expect(viewSrc).toContain('Import OnX KML');
     expect(viewSrc).toContain('Close into temp paddock');
-    expect(viewSrc).toContain('classifyLandArea');
+    expect(viewSrc).toContain('function classifyDesignation');
+    expect(viewSrc).toContain("kind: 'pasture'");
+    expect(viewSrc).toContain("kind: 'paddock'");
   });
 });
 
@@ -783,23 +787,22 @@ describe('CP3 API + UI wiring', () => {
     expect(apiSrc).toContain("sb.rpc('record_pasture_move'");
   });
 
-  it('side panel records moves (free-form group + destination); modal keeps occupancy/rest', () => {
+  it('group record records rotation-derived moves; modal keeps occupancy/rest', () => {
     for (const marker of [
       'data-pasture-selected-panel',
-      'data-pasture-move="1"', // side-panel current-group Move
-      'data-pasture-clear-placement',
-      'data-pasture-move-form', // side-panel Record-a-move form
-      'data-pasture-move-group',
-      'data-pasture-move-area', // destination picker (free-form: any area)
-      'data-pasture-move-save',
+      'data-pasture-move="1"',
+      'data-pasture-group-move-at',
+      'function renderGroupMoveBox',
+      'nextAreaForGroup(group)',
       'data-pasture-occupancy',
       'data-pasture-rest-state',
     ]) {
       expect(viewSrc).toContain(marker);
     }
     expect(viewSrc).toContain('recordPastureMove');
-    // The move/plan form lives in the side panel (renderMoveControls), NOT the modal.
-    expect(viewSrc).toContain('function renderMoveControls');
+    expect(viewSrc).toContain('totalWeightLbs: group.totalWeightLbs || null');
+    expect(viewSrc).not.toContain('function renderMoveControls');
+    expect(viewSrc).not.toContain('data-pasture-move-form');
     expect(viewSrc).not.toContain('function renderMoveAndPlanForms');
     expect(viewSrc).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
   });
@@ -864,36 +867,35 @@ describe('Migration 129 - CP4 planned moves / reports', () => {
 });
 
 describe('CP4 API + UI wiring', () => {
-  it('pastureMapApi wraps planned move and report RPCs', () => {
-    for (const marker of [
+  it('pastureMapApi keeps report RPCs and removes planned-move wrappers', () => {
+    for (const marker of ['listPastureHistoryReport', 'listPastureRestReport', 'listPastureStockingReport']) {
+      expect(apiSrc).toContain(marker);
+    }
+    for (const removed of [
       'newPasturePlanId',
       'listPasturePlannedMoves',
       'createPasturePlannedMove',
       'updatePasturePlannedMoveStatus',
-      'listPastureHistoryReport',
-      'listPastureRestReport',
-      'listPastureStockingReport',
     ]) {
-      expect(apiSrc).toContain(marker);
+      expect(apiSrc).not.toContain(removed);
     }
   });
 
-  it('view renders the planned-moves worklist + side-panel plan form + density/use facts', () => {
-    for (const marker of [
+  it('view removes planned-move UI; rotation editor drives the move box', () => {
+    for (const removed of [
       'data-pasture-planned-moves',
-      'data-pasture-plan-form', // side-panel Plan-a-move form
+      'data-pasture-plan-form',
       'data-pasture-plan-area',
       'data-pasture-plan-save',
-      'data-pasture-density',
-      'data-pasture-use-facts',
+      'createPasturePlannedMove',
+      'async function applyPlan',
+      'updatePasturePlannedMoveStatus',
     ]) {
+      expect(viewSrc).not.toContain(removed);
+    }
+    for (const marker of ['data-pasture-density', 'data-pasture-use-facts', 'function renderRotationEditor']) {
       expect(viewSrc).toContain(marker);
     }
-    // Plan creation + "Use" (records the planned move directly) both live in the side
-    // panel; the deprecated same-day prompt is gone.
-    expect(viewSrc).toContain('createPasturePlannedMove');
-    expect(viewSrc).toContain('async function applyPlan');
-    expect(viewSrc).toContain('updatePasturePlannedMoveStatus');
     expect(viewSrc).not.toContain('data-pasture-same-day-prompt');
     expect(viewSrc).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
   });
@@ -906,6 +908,29 @@ describe('CP4 API + UI wiring', () => {
 
   it('pasture Playwright lane includes CP4 coverage', () => {
     expect(pasturePwConfig).toContain('pasture_map_cp4.spec.js');
+  });
+});
+
+describe('Migration 148 - group records / planned move cleanup', () => {
+  it('adds actual total weight snapshots to pasture moves and returns them in history', () => {
+    expect(mig148).toContain('ADD COLUMN IF NOT EXISTS total_weight_lbs numeric');
+    expect(mig148).toContain('p_total_weight_lbs numeric DEFAULT NULL');
+    expect(mig148).toContain('p_total_weight_lbs, NULLIF');
+    expect(mig148).toContain("'total_weight_lbs', m.total_weight_lbs");
+    expect(mig148).toContain('m.total_weight_lbs');
+    expect(mig148Code).toMatch(/CHECK \(total_weight_lbs IS NULL OR total_weight_lbs > 0\)/);
+  });
+
+  it('drops the planned-move table and RPCs in favor of rotation-driven moves', () => {
+    for (const marker of [
+      'DROP FUNCTION IF EXISTS public.update_pasture_planned_move_status',
+      'DROP FUNCTION IF EXISTS public.create_pasture_planned_move',
+      'DROP FUNCTION IF EXISTS public.list_pasture_planned_moves',
+      'DROP FUNCTION IF EXISTS public._pasture_planned_move_summary',
+      'DROP TABLE IF EXISTS public.pasture_planned_moves',
+    ]) {
+      expect(mig148).toContain(marker);
+    }
   });
 });
 
@@ -1227,28 +1252,23 @@ describe('P1 planner-group roster wiring', () => {
   it('current-group location is derived from the move ledger by (animal_type, group_key)', () => {
     expect(viewSrc).toContain('m.animal_type === g.animalType && m.group_key === g.groupKey');
     expect(viewSrc).toContain('Not placed');
-    // The location chip now lives ON the Animal Groups pills (the separate Current
-    // groups card was removed); the chip carries the resolved area id.
-    expect(viewSrc).toContain('data-pasture-group-location');
+    expect(viewSrc).toContain('pm-group-location-cell');
+    expect(viewSrc).toContain('data-pasture-group-row');
     expect(viewSrc).not.toContain('data-pasture-current-groups');
   });
 
-  it('move/plan placement is a free-form side-panel control, not in the Area modal', () => {
-    // The Record-a-move + Plan-a-move forms live in the side panel (renderMoveControls):
-    // any roster group -> any destination area, count locked to the roster group.
-    expect(viewSrc).toContain('function renderMoveControls');
-    expect(viewSrc).toContain('data-pasture-move-form');
-    expect(viewSrc).toContain('data-pasture-move-area');
-    expect(viewSrc).toContain('data-pasture-plan-form');
-    expect(viewSrc).toContain('data-pasture-plan-area');
-    expect(viewSrc).toContain('data-pasture-move-save');
-    expect(viewSrc).toContain('data-pasture-plan-save');
+  it('move placement is a selected group-record control, not in the Area modal', () => {
+    expect(viewSrc).toContain('function renderGroupRecord');
+    expect(viewSrc).toContain('function renderGroupMoveBox');
+    expect(viewSrc).toContain('data-pasture-group-move-at');
     expect(viewSrc).toContain('data-pasture-move="1"');
-    expect(viewSrc).toContain('data-pasture-clear-placement');
-    expect(viewSrc).toContain('data-pasture-planned-moves');
+    expect(viewSrc).not.toContain('data-pasture-move-form');
+    expect(viewSrc).not.toContain('data-pasture-plan-form');
+    expect(viewSrc).not.toContain('data-pasture-clear-placement');
+    expect(viewSrc).not.toContain('data-pasture-planned-moves');
     // No per-species pre-selector; counts stay locked to the roster (groupSizeCount).
     expect(viewSrc).not.toContain('data-pasture-move-animal-type');
-    expect(viewSrc).toContain('animalCount: groupSizeCount(g)');
+    expect(viewSrc).toContain('animalCount: groupSizeCount(group)');
     expect(viewSrc).toContain('computePlannerGroupRoster(');
   });
 });
@@ -1259,25 +1279,22 @@ describe('P2 Map tab', () => {
     expect(viewSrc).not.toContain("label: 'View / Map'");
   });
 
-  it('Map panel header uses the roster placed-count copy', () => {
+  it('Map panel header removes the roster placed-count instruction copy', () => {
     expect(viewSrc).toContain('MAP - WHERE THINGS ARE');
-    // Merged Map: hover reads, click an area to work; tap on a phone.
-    expect(viewSrc).toContain('hover to read, click an area to work; tap on a phone');
+    expect(viewSrc).not.toContain('hover to read, click an area to work; tap on a phone');
     expect(viewSrc).toContain('data-pasture-map-header');
   });
 
-  it('Animal Groups pills carry the map hover/focus preview (relocated from the removed card)', () => {
-    // The standalone Current groups card is gone; its map hover-preview moved onto
-    // the Animal Groups pills, which still highlight the group's current area.
-    expect(viewSrc).toContain('data-pasture-group-pill');
+  it('Animal Groups render as table rows with no map hover/focus preview', () => {
+    expect(viewSrc).toContain('surfaceKey="pasture-group-table"');
+    expect(viewSrc).toContain('data-pasture-group-row');
     expect(viewSrc).not.toContain('selectGroupAndLocation');
-    expect(viewSrc).toContain('function previewGroupArea');
-    expect(viewSrc).toContain('onMouseEnter={() => previewGroupArea(group)}');
-    expect(viewSrc).toContain('onFocus={() => previewGroupArea(group)}');
-    expect(viewSrc).toContain('onMouseLeave={clearGroupPreview}');
-    expect(viewSrc).toContain('onBlur={clearGroupPreview}');
-    // Preview is display-only and must never mutate selection/active group.
-    expect(viewSrc).toMatch(/setPreviewAreaId\(loc && loc\.areaId \? loc\.areaId : null\)/);
+    expect(viewSrc).not.toContain('function previewGroupArea');
+    expect(viewSrc).not.toContain('onMouseEnter={() => previewGroupArea(group)}');
+    expect(viewSrc).not.toContain('onFocus={() => previewGroupArea(group)}');
+    expect(viewSrc).not.toContain('onMouseLeave={clearGroupPreview}');
+    expect(viewSrc).not.toContain('onBlur={clearGroupPreview}');
+    expect(viewSrc).toContain('onRowOpen={(group) => openGroupRecord(group)}');
   });
 
   it('Area detail derives the designation and flags temp/archived', () => {
@@ -1291,7 +1308,7 @@ describe('P2 Map tab', () => {
   it('read-only facts panel never embeds forms; the Area modal owns recording + line style + parent', () => {
     const selBody = viewSrc.slice(
       viewSrc.indexOf('function renderSelectedPanel'),
-      viewSrc.indexOf('function previewGroupArea'),
+      viewSrc.indexOf('function renderOccupiedExplain'),
     );
     // The read-only Area detail facts panel never embeds the move or line-style forms.
     expect(selBody).not.toContain('renderMoveAndPlanForms');
@@ -1310,16 +1327,21 @@ describe('P2 Map tab', () => {
     expect(modalSrc).toContain('pm-modal-backdrop');
     expect(modalSrc).toContain('data-pasture-area-modal-close');
 
-    // The Area modal owns per-area line style + classification/parent + the
-    // Save/review action; the inner wrapper keeps the legacy
+    // The Area modal owns per-area line style + classification/parent; the
+    // single header X owns the debounced save/review close. The inner wrapper keeps the legacy
     // data-pasture-plan-inspector hook. Move/animal placement is NOT in the modal.
     const modalBody = viewSrc.slice(
       viewSrc.indexOf('function renderAreaModal'),
-      viewSrc.indexOf('function renderMoveControls'),
+      viewSrc.indexOf('function reportAreaTag'),
     );
     expect(modalBody).toContain('renderLineStylePanel()');
     expect(modalBody).toContain('data-pasture-plan-inspector');
-    expect(modalBody).toContain('data-pasture-area-modal-save');
+    expect(modalBody).toContain('onClose={closeAreaModal}');
+    expect(modalBody).toContain('closeDisabled={areaModalCloseSaving}');
+    expect(viewSrc).toContain('AREA_MODAL_CLOSE_DEBOUNCE_MS');
+    expect(viewSrc).toContain('function closeAreaModal');
+    expect(modalBody).not.toContain('data-pasture-area-modal-save');
+    expect(modalBody).not.toContain('pm-modal-footer');
     expect(modalBody).not.toContain('renderMoveAndPlanForms');
     expect(modalBody).not.toContain('data-pasture-move-form');
     expect(modalBody).not.toContain('data-pasture-modal-move');
@@ -1370,9 +1392,10 @@ describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Fi
     expect(viewSrc).toContain('pm-report-tag deleted');
   });
 
-  it('Plan: conflict warning when the next area is occupied by another group', () => {
-    expect(viewSrc).toContain('data-pasture-plan-conflict');
-    expect(viewSrc).toContain('is currently occupied by');
+  it('Map group record removes the old next-area conflict warning card', () => {
+    expect(viewSrc).not.toContain('data-pasture-plan-conflict');
+    expect(viewSrc).not.toContain('is currently occupied by');
+    expect(viewSrc).toContain('occupantsByArea');
   });
 
   it('Field: walked GPS track becomes a real temp paddock; OnX-style spatial build/measure tool', () => {
@@ -1522,25 +1545,29 @@ describe('Pasture Map tweaks #2: default labels / occupancy / dismissal / open o
     expect(canvasSrc).toMatch(/\['draw', 'edit', 'measure', 'track', 'droppin'\]\.includes\(modeRef\.current\)/);
   });
 
-  it('view clears selection on Escape and via an X close button', () => {
+  it('view keeps one visible area-modal close control and removes inner clear/zoom actions', () => {
     expect(viewSrc).toMatch(/e\.key !== 'Escape'/);
+    expect(viewSrc).toContain('if (e.defaultPrevented) return');
     expect(viewSrc).toContain("window.addEventListener('keydown'");
-    expect(viewSrc).toContain('data-pasture-clear-selection');
-    expect(viewSrc).toContain('Close area detail');
-    // Existing Clear selection button retained too.
-    expect(viewSrc).toContain('Clear selection');
+    expect(modalSrc).toContain('data-pasture-area-modal-close');
+    expect(viewSrc).not.toContain('data-pasture-clear-selection');
+    expect(viewSrc).not.toContain('pm-selected-close');
+    expect(viewSrc).not.toContain('Clear selection');
+    expect(viewSrc).not.toContain('Zoom to this pasture');
   });
 
-  it('Reports surfaces a Tracks / Lines section with close-into-temp and delete (no map zoom)', () => {
-    // Tracks / Lines relocated OFF the Map side panel into the Reports accordion.
-    expect(viewSrc).toContain('data-pasture-tracks-lines');
-    expect(viewSrc).toContain('data-pasture-tracks-lines-count');
+  it('Reports surfaces Tracks / Lines in Area maintenance with close-into-temp and delete (no map zoom)', () => {
+    // Tracks / Lines relocated OFF the Map side panel into the Reports maintenance card.
+    expect(viewSrc).toContain('data-pasture-report-review');
+    expect(viewSrc).toContain('data-pasture-track-line');
     expect(viewSrc).toContain('data-pasture-track-line-close');
     expect(viewSrc).toContain('data-pasture-track-line-delete');
-    expect(viewSrc).toContain('Tracks / Lines');
+    expect(viewSrc).toContain('Track / line');
     expect(viewSrc).toContain('trackLineAreas');
     // Reports renders no map, so the old map-zoom action is gone, and the standalone
     // Map-side-panel Tracks/Lines card no longer exists.
+    expect(viewSrc).not.toContain('data-pasture-tracks-lines');
+    expect(viewSrc).not.toContain('data-pasture-tracks-lines-count');
     expect(viewSrc).not.toContain('data-pasture-track-line-zoom');
     expect(viewSrc).not.toContain('function renderTracksLines');
   });
@@ -1600,12 +1627,16 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     expect(canvasSrc).not.toContain('function zoomSelected');
   });
 
-  it('Plan shows one combined group/move card with a plain "Move" button and time-in-paddock', () => {
+  it('Group record shows details, rotation editor, move box, date, and grazing history', () => {
+    expect(viewSrc).toMatch(
+      /renderGroupDetails\(group\)[\s\S]*?renderRotationEditor\(group\)[\s\S]*?renderGroupMoveBox\(group\)[\s\S]*?renderGroupGrazingHistory\(group\)/,
+    );
     expect(viewSrc).toContain('data-pasture-group-move');
     expect(viewSrc).toContain('data-pasture-move="1"');
-    expect(viewSrc).toContain('data-pasture-time-in-area');
+    expect(viewSrc).toContain('data-pasture-group-move-at');
     expect(viewSrc).toContain('function formatTimeInArea');
-    expect(viewSrc).toContain('Time in paddock unknown');
+    expect(viewSrc).toContain('time in area');
+    expect(viewSrc).not.toContain('data-pasture-move-notes');
     // The move button copy is exactly "Move" (no abbreviation).
     expect(viewSrc).toMatch(/saving \? 'Saving\.\.\.' : 'Move'/);
   });
@@ -1617,18 +1648,18 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     expect(viewSrc).not.toContain('const nowArea =');
     expect(viewSrc).not.toContain('const nextArea =');
     expect(viewSrc).not.toMatch(/areaById\.get\(activeRotation\[1\]\)/);
-    // Current area comes from groupLocation (the move ledger); next is derived
-    // relative to actual placement.
-    expect(viewSrc).toContain('const activeCurrentArea = React.useMemo');
-    expect(viewSrc).toContain('const activeNextArea = React.useMemo');
-    expect(viewSrc).toContain('activeCurrentInRotation');
+    // Current area comes from the move ledger; next is derived relative to actual
+    // placement for the selected group record.
+    expect(viewSrc).toContain('function currentAreaForGroup');
+    expect(viewSrc).toContain('function nextAreaForGroup');
+    expect(viewSrc).toContain('locationForGroup(group)');
     // The rotation NOW chip/label is gated on actual placement, not index 0.
     expect(viewSrc).not.toMatch(/index === 0 \? ' is-now' : ''/);
     expect(viewSrc).not.toMatch(/index === 0 \? 'NOW - ' : ''/);
-    expect(viewSrc).toContain('const isNow = !!activeCurrentArea && areaId === activeCurrentArea.id');
+    expect(viewSrc).toContain('const isNow = !!currentArea && areaId === currentArea.id');
     // Move / Confirm record to the derived next destination (first rotation stop
     // for an unplaced group), not rotation[1].
-    expect(viewSrc).toContain('recordGroupMove(activeGroup, activeNextArea && activeNextArea.id)');
+    expect(viewSrc).toContain('recordGroupMove(group, next && next.id, groupMoveAt)');
   });
 
   it('Plan panel is the slim group/rotation cockpit; per-area tools moved to the modal/Reports', () => {
@@ -1638,12 +1669,11 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     );
     expect(planBody).not.toContain('renderAreaIndex');
     expect(planBody).not.toContain('data-pasture-plan-destinations');
-    // Slim cockpit keeps the group switcher, current-group Move/Clear, rotation
-    // editor, transient tool save forms, and ONE bottom Import KML entry point.
+    // Slim cockpit keeps the group table, transient tool save forms, and ONE
+    // bottom Import KML entry point. The rotation editor opens inside a group record.
     expect(planBody).toContain('renderGroupSwitcher()');
-    expect(planBody).toContain('renderRotationEditor()');
-    expect(planBody).toContain('data-pasture-move="1"');
-    expect(planBody).toContain('data-pasture-clear-placement');
+    expect(planBody).toContain('if (selectedRecordGroup) return renderGroupRecord(selectedRecordGroup,');
+    expect(planBody).not.toContain('data-pasture-clear-placement');
     expect(planBody).toContain('data-pasture-import-kml');
     // The relocated cards (boundary-tools grid, tracks/lines, classification queue)
     // are GONE from the side panel. Manual move lives in the Area modal.
@@ -1699,9 +1729,10 @@ describe('Merged Map IA: tabs are Map / Field / Reports, with an Area modal', ()
     // The old read-only touch popover is retired.
     expect(viewSrc).not.toContain('function renderMapPopover');
     expect(viewSrc).not.toContain('data-pasture-map-popover');
-    // Clearing the selection (Esc / Close) still dismisses the modal.
-    expect(viewSrc).toContain('onClick={() => setSelectedId(null)}');
-    expect(viewSrc).toContain('data-pasture-clear-selection');
+    // The single modal X owns the close path; the old inner clear-selection hook is gone.
+    expect(viewSrc).toContain('closeAreaModal');
+    expect(modalSrc).toContain('data-pasture-area-modal-close');
+    expect(viewSrc).not.toContain('data-pasture-clear-selection');
   });
 
   it('Per-area Manage actions live in the Area modal; boundary-tools grid + classify queue left the side panel', () => {
@@ -1784,9 +1815,11 @@ describe('Pasture Map: Area modal + parent-pasture assignment', () => {
     expect(modalSrc).toContain('data-pasture-area-modal-backdrop');
     expect(modalSrc).toContain('data-pasture-area-modal=');
     expect(modalSrc).toContain('data-pasture-area-modal-close');
-    expect(modalSrc).toContain('onKeyDown={handleDialogKeyDown}');
-    // Backdrop click closes; the inner dialog does not (overlay-dismiss guarded).
-    expect(modalSrc).toContain('if (e.target === e.currentTarget) onClose()');
+    expect(modalSrc).toContain('data-overlay-dismiss="disabled"');
+    expect(modalSrc).toContain('handleDialogKeyDown(e)');
+    expect(modalSrc).toContain('closeDisabled');
+    // Backdrop click no longer closes; the header X is the single visible close control.
+    expect(modalSrc).not.toContain('if (e.target === e.currentTarget) onClose()');
   });
 
   it('the view opens the modal from a map click (onSelect), gated to the Map tab in select mode', () => {
@@ -1809,9 +1842,14 @@ describe('Pasture Map: Area modal + parent-pasture assignment', () => {
   it('a reviewed permanent paddock requires a parent pasture before save/review (no auto-backfill)', () => {
     expect(viewSrc).toContain('function needsParentAssignment');
     expect(viewSrc).toMatch(/isPermanentPaddock\(a\) && !a\.parent_id/);
-    // The modal Save action is blocked + surfaces the reason when a parent is missing.
-    expect(viewSrc).toContain('data-pasture-area-modal-save');
-    expect(viewSrc).toContain('disabled={saveBlocked');
+    // The modal X save/review path is debounced and surfaces the reason when a parent is missing.
+    expect(viewSrc).toContain('AREA_MODAL_CLOSE_DEBOUNCE_MS');
+    expect(viewSrc).toContain('areaModalCloseRef.current.running');
+    expect(viewSrc).toContain('function closeAreaModal');
+    expect(viewSrc).toContain("area.review_status !== 'reviewed'");
+    expect(viewSrc).toContain('saveAreaReview(area)');
+    expect(viewSrc).not.toContain('data-pasture-area-modal-save');
+    expect(viewSrc).not.toContain('disabled={saveBlocked');
     expect(viewSrc).toContain('Assign a parent pasture before saving this paddock.');
     // classifyDesignation only marks a permanent paddock reviewed when it has a parent.
     expect(viewSrc).toMatch(/a\.parent_id \? \{reviewStatus: 'reviewed'\} : \{\}/);
@@ -1852,15 +1890,16 @@ describe('Pasture Map: reset grazing history (mig 143) + move forms removed from
     expect(viewSrc).not.toContain('function renderMoveAndPlanForms');
     const modalBody = viewSrc.slice(
       viewSrc.indexOf('function renderAreaModal'),
-      viewSrc.indexOf('function renderMoveControls'),
+      viewSrc.indexOf('function reportAreaTag'),
     );
     expect(modalBody).not.toContain('data-pasture-move-form');
     expect(modalBody).not.toContain('data-pasture-plan-form');
     expect(modalBody).not.toContain('data-pasture-modal-move');
-    // The move/plan forms ARE in the side panel.
-    expect(viewSrc).toContain('function renderMoveControls');
-    expect(viewSrc).toContain('data-pasture-move-form');
-    expect(viewSrc).toMatch(/async function applyPlan\(plan\)[\s\S]*?recordPastureMove\(movePayload\)/);
+    // Moves are now in the selected group record; planned moves are removed.
+    expect(viewSrc).toContain('function renderGroupMoveBox');
+    expect(viewSrc).toContain('data-pasture-group-move-at');
+    expect(viewSrc).not.toContain('function renderMoveControls');
+    expect(viewSrc).not.toContain('data-pasture-plan-form');
   });
 });
 
@@ -1937,32 +1976,27 @@ describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mi
     expect(viewSrc).not.toContain('Pick a group, then build its rotation');
   });
 
-  it('Animal Groups pills show location + open an accessible group-history modal on click', () => {
-    // Pills carry the location chip (area + time-in-area / Not placed).
-    expect(viewSrc).toContain('data-pasture-group-pill');
-    expect(viewSrc).toContain('pm-pill-loc');
+  it('Animal Groups table rows show location + open an inline group record on click', () => {
+    expect(viewSrc).toContain('surfaceKey="pasture-group-table"');
+    expect(viewSrc).toContain('pm-group-location-cell');
     expect(viewSrc).toContain('formatTimeInArea(loc.movedAt)');
-    // Click both selects the group AND opens the history modal.
-    expect(viewSrc).toMatch(/onClick=\{\(\) => \{\s*setActiveGroupFromGroup\(group\);\s*openGroupHistory\(group\);/);
-    expect(viewSrc).toContain('function openGroupHistory');
-    expect(viewSrc).toContain('<PastureGroupHistoryModal');
-    // The modal fetches the GROUP history (animalType + groupKey), not all-groups.
-    expect(viewSrc).toMatch(/listPastureHistoryReport\(\{\s*animalType: groupAnimalType\(groupHistoryGroup\)/);
-    expect(viewSrc).toContain('groupKey: groupHistoryGroup.groupKey || groupHistoryGroup.id');
+    expect(viewSrc).toContain('onRowOpen={(group) => openGroupRecord(group)}');
+    expect(viewSrc).toContain('function openGroupRecord');
+    expect(viewSrc).toContain('function renderGroupRecord');
+    expect(viewSrc).not.toContain('<PastureGroupHistoryModal');
+    expect(viewSrc).toMatch(/listPastureHistoryReport\(\{\s*animalType: groupAnimalType\(openRecordGroup\)/);
+    expect(viewSrc).toContain('groupKey: openRecordGroup.groupKey || openRecordGroup.id');
   });
 
-  it('the group-history modal follows the shared accessible modal contract', () => {
-    const groupModalSrc = read('src/pasture/PastureGroupHistoryModal.jsx');
-    expect(groupModalSrc).toContain('useModalFocusTrap');
-    expect(groupModalSrc).toContain('role="dialog"');
-    expect(groupModalSrc).toContain('aria-modal="true"');
-    expect(groupModalSrc).toContain('aria-labelledby="pasture-group-history-title"');
-    expect(groupModalSrc).toContain('data-pasture-group-history-modal');
-    // Shows in/out area, moved date, head count, and notes per move.
-    expect(groupModalSrc).toContain('from_land_area_name');
-    expect(groupModalSrc).toContain('to_land_area_name');
-    expect(groupModalSrc).toContain('formatMoveTime');
-    expect(groupModalSrc).toContain('h.notes');
+  it('the inline group grazing-history table shows grazing stays + metrics', () => {
+    expect(viewSrc).toContain('function buildGroupGrazingStays');
+    expect(viewSrc).toContain('data-pasture-group-grazing-history');
+    expect(viewSrc).toContain('surfaceKey="pasture-group-grazing-history"');
+    expect(viewSrc).toContain("label: 'Head/ac'");
+    expect(viewSrc).toContain("label: 'Animal-days'");
+    expect(viewSrc).toContain("label: 'Lbs/ac'");
+    expect(viewSrc).toContain('lbsPerAcre');
+    expect(viewSrc).toContain('totalWeightLbs: group.totalWeightLbs || null');
   });
 });
 

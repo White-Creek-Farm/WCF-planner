@@ -53,7 +53,7 @@ async function ensureLightUser() {
 async function cleanAndSeedPastureTables() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches,
       public.land_areas RESTART IDENTITY CASCADE;
 
@@ -77,6 +77,8 @@ async function cleanAndSeedPastureTables() {
     DELETE FROM public.cattle WHERE id = '${MOMMA_ID}';
     INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
     VALUES ('${MOMMA_ID}', 'PMLIGHT-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${A_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed pasture light: ' + error.message);
@@ -145,10 +147,12 @@ test('light sees all tabs and can record a move (mig 139), but gets no manager b
   // Light records a Mommas move via the side-panel form — the server
   // record_pasture_move RPC runs as 'light' and is allowed by mig 139.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
+  await page.locator('[data-pasture-group-row="mommas"]').click();
+  const card = page.locator('[data-pasture-group-move="mommas"]');
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText('Light North Paddock', {
+    timeout: 15_000,
+  });
+  await card.locator('[data-pasture-move]').click();
   await page.waitForTimeout(800);
 
   // Map: the move landed — occupant marker shows Mommas in the destination.

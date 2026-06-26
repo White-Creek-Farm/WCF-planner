@@ -24,7 +24,7 @@ async function exec(sql) {
 }
 
 const TRUNCATE = `
-  TRUNCATE TABLE public.pasture_rotations, public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events,
+  TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts, public.pasture_move_events,
     public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 `;
 
@@ -54,7 +54,7 @@ async function seedTwoAreas() {
 }
 
 // Merged Map: clicking/tapping an area opens the accessible Area modal over the map;
-// it dismisses via the X button or Escape (and via the backdrop).
+// it dismisses via the single visible header X or Escape.
 test.describe('Map area modal dismissal', () => {
   test.use({hasTouch: true, isMobile: true});
   test('area modal opens on selection and dismisses via the X button and Escape', async ({page}) => {
@@ -75,8 +75,9 @@ test.describe('Map area modal dismissal', () => {
     await expect(page.locator('.pm-modal-backdrop')).toBeVisible();
     await expect(inspector).toBeVisible();
 
-    // Clear (X) button dismisses.
-    await page.locator('[data-pasture-clear-selection]').click();
+    // Header X saves/closes; the inner Area Detail card no longer has its own
+    // close affordance.
+    await page.locator('[data-pasture-area-modal-close]').click();
     await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
     await expect(inspector).toHaveCount(0);
 
@@ -110,12 +111,11 @@ test('Setup Tracks / Lines: lists draft lines, not on Map, closes into a temp pa
   // Draft lines are not grazing destinations (the Map Land areas list is gone).
   await expect(page.locator(`[data-pasture-area-select="${OUT_ID}"]`)).toHaveCount(0);
 
-  // It lives in the Reports Tracks / Lines section (relocated off the Map panel).
+  // It lives in the Reports Area maintenance card (relocated off the Map panel).
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
-  const card = page.locator('[data-pasture-tracks-lines]');
+  const card = page.locator('[data-pasture-report-review]');
   await expect(card).toBeVisible({timeout: 15_000});
-  await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('1');
-  await page.locator('[data-pasture-tracks-lines] > summary').click();
+  await expect(card).toContainText('TW2 Open Trace');
   await expect(page.locator(`[data-pasture-track-line="${OUT_ID}"]`)).toBeVisible();
 
   // Close into a temp paddock -> leaves the Tracks/Lines surface and becomes a
@@ -160,10 +160,8 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   // destination, so an unplaced Mommas moves there). No polygon click, so the
   // boundary toggle stays available for the toggle assertion below.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
-  // Pill click also opens the group-history modal; dismiss it before using the panel.
-  await page.keyboard.press('Escape');
-  await page.locator('[data-pasture-move]').click();
+  await page.locator('[data-pasture-group-row="mommas"]').click();
+  await page.locator('[data-pasture-group-move="mommas"] [data-pasture-move]').click();
   await page.waitForTimeout(1000);
   await page.keyboard.press('Escape');
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
@@ -178,7 +176,7 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   await expect(marker).toHaveCount(1);
 });
 
-test('Plan tab: one combined group/move card, no area list, move form in the side panel', async ({page}) => {
+test('Map tab: group record page has details, rotation, move box, and no free-form move form', async ({page}) => {
   await exec(`
     ${TRUNCATE}
     DO $$ DECLARE v_profile uuid; BEGIN
@@ -189,17 +187,22 @@ test('Plan tab: one combined group/move card, no area list, move form in the sid
     END $$;
     DELETE FROM public.cattle WHERE id='${MOMMA_ID}';
     INSERT INTO public.cattle (id,tag,sex,herd,breeding_blacklist,old_tags) VALUES ('${MOMMA_ID}','PMTW2-MOMMA','cow','mommas',false,'[]'::jsonb);
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids) VALUES ('cattle_herd','mommas','["${A_ID}"]'::jsonb);
   `);
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  await page.locator('[data-pasture-group-row="mommas"]').click();
 
-  // One combined group/move card with a plain "Move" button.
-  const card = page.locator('[data-pasture-group-move]');
+  // The inline group record is ordered details -> rotation editor -> move box.
+  await expect(page.locator('[data-pasture-group-record-details="mommas"]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-rotation-chips="mommas"]')).toContainText('TW2 Plan A');
+  const card = page.locator('[data-pasture-group-move="mommas"]');
   await expect(card).toBeVisible({timeout: 15_000});
   await expect(card.getByRole('button', {name: 'Move', exact: true})).toBeVisible();
-  await expect(card.locator('[data-pasture-time-in-area]')).toBeVisible();
+  await expect(card.locator('.pm-group-move-cell').nth(0).locator('strong')).toHaveText('Not placed');
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText('TW2 Plan A');
   // No abbreviation / day badge / progress copy.
   await expect(card).not.toContainText('Day 1/1');
   await expect(card).not.toContainText('Move due now');
@@ -208,11 +211,10 @@ test('Plan tab: one combined group/move card, no area list, move form in the sid
   await expect(page.locator('[data-pasture-area-select]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-manual-move]')).toHaveCount(0);
 
-  // The free-form move form lives in the side panel (renderMoveControls), NOT the
-  // Area modal: it is present before any selection, and selecting an area opens a
-  // modal that contains no move form.
+  // The old free-form move form is gone. Selecting an area opens a modal that
+  // still contains no move form.
   await hideMapOverlays(page);
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-move-form]')).toHaveCount(0);
   await clickArea(page, A_ID);
   await expect(page.locator(`[data-pasture-plan-inspector="${A_ID}"]`)).toBeVisible({timeout: 15_000});
   await expect(page.locator('[data-pasture-area-modal] [data-pasture-move-form]')).toHaveCount(0);
@@ -290,10 +292,9 @@ test('Archived areas have a recovery surface in Reports', async ({page}) => {
   // Archived area is NOT on the Map active list.
   await expect(page.locator(`[data-pasture-area-select="${A_ID}"]`)).toHaveCount(0);
 
-  // It is recoverable from the Reports "Archived areas" section (relocated off the Map).
+  // It is recoverable from the Reports Area maintenance card (relocated off the Map).
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
-  await expect(page.locator('[data-pasture-archived]')).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-archived] > summary').click();
+  await expect(page.locator('[data-pasture-report-review]')).toBeVisible({timeout: 15_000});
   await expect(page.locator(`[data-pasture-archived-row="${A_ID}"]`)).toBeVisible();
   await page.locator(`[data-pasture-archived-restore="${A_ID}"]`).click();
 

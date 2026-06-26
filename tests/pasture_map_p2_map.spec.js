@@ -1,5 +1,5 @@
-// Pasture Map P2 - Map tab: Animal Groups pills (location + hover preview +
-// click-opens-group-history), and Area Detail designation (paddock vs temp).
+// Pasture Map P2 - Map tab: Animal Groups table rows open inline group records,
+// and Area Detail designation (paddock vs temp) stays in the Area modal.
 // NON-resetting: cleans only the isolated pasture tables, seeds a permanent
 // paddock, a temp paddock, and one real Mommas cow (so the roster yields a
 // cattle "Mommas" group), then drives the roster-backed Map UI.
@@ -18,7 +18,7 @@ const SQUARE_T =
 async function cleanAndSeed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 
@@ -42,6 +42,9 @@ async function cleanAndSeed() {
     DELETE FROM public.cattle WHERE id = '${MOMMA_ID}';
     INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
     VALUES ('${MOMMA_ID}', 'PMP2-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);
+
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${A_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed pasture P2: ' + error.message);
@@ -62,7 +65,7 @@ async function clickArea(page, areaId) {
   await page.locator(`.pm-area-${areaId}`).first().click();
 }
 
-test('Map tab: group pills show location, hover previews, click opens group history, area modal', async ({page}) => {
+test('Map tab: group table opens inline records and area clicks open the area modal', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
@@ -71,21 +74,30 @@ test('Map tab: group pills show location, hover previews, click opens group hist
   await expect(page.locator('.pm-tabs button.is-active')).toContainText('Map');
   await expect(page.locator('[data-pasture-map-header]')).toContainText('Current groups');
 
-  // Roster-backed Animal Groups pill: Mommas is present and starts "Not placed"
-  // (the standalone Current groups card was removed; location lives on the pill).
-  const mommaPill = page.locator('[data-pasture-group-pill="mommas"]');
-  await expect(mommaPill).toBeVisible({timeout: 25_000});
-  await expect(mommaPill).toContainText('Mommas');
-  await expect(mommaPill).toContainText('Not placed');
-  await expect(mommaPill.locator('[data-pasture-group-location="none"]')).toBeVisible();
+  // Roster-backed Animal Groups table: Mommas is present and starts "Not placed".
+  const mommaRow = page.locator('[data-pasture-group-row="mommas"]');
+  await expect(mommaRow).toBeVisible({timeout: 25_000});
+  await expect(mommaRow).toContainText('Mommas');
+  await expect(mommaRow).toContainText('Not placed');
 
   await hideClickBlockers(page);
 
-  // Record Mommas -> Paddock A via the side-panel Record-a-move form.
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
+  // Hovering a group row keeps the effect on the table itself; it does not paint
+  // a map preview or open a modal.
+  await mommaRow.hover();
+  await expect(page.locator('[data-pasture-group-history-modal]')).toHaveCount(0);
+  await expect(page.locator('.pm-area-hover-tip')).toHaveCount(0);
+
+  // Clicking the row opens the inline group record page beside the map.
+  await mommaRow.click();
+  await expect(page.locator('[data-pasture-group-record-details="mommas"]')).toBeVisible({timeout: 10_000});
+  await expect(page.locator('[data-pasture-group-history-modal]')).toHaveCount(0);
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0);
+
+  // Record Mommas -> Paddock A via the inline current-area -> next-area move box.
+  const card = page.locator('[data-pasture-group-move="mommas"]');
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText('P2 Paddock A');
+  await card.locator('[data-pasture-move]').click();
   await page.waitForTimeout(1000);
 
   // On the Map, the occupied paddock shows an animal-type group marker, and the
@@ -94,27 +106,10 @@ test('Map tab: group pills show location, hover previews, click opens group hist
   await page.locator('.pm-legend-head').click();
   await expect(page.locator('.pm-legend-body')).toContainText('Occupied - Cattle');
 
-  // The pill location chip now shows the placed area (Paddock A).
-  await expect(mommaPill.locator(`[data-pasture-group-location="${A_ID}"]`)).toBeVisible({timeout: 15_000});
-  await expect(mommaPill).toContainText('P2 Paddock A');
-
-  // Hover/focus a placed pill PREVIEWS its area on the map (amber overlay), without
-  // selecting anything; mouse-leave clears it.
-  await mommaPill.hover();
-  await expect(page.locator('path[stroke="#f59e0b"]')).toHaveCount(1, {timeout: 5000});
-  await page.locator('[data-pasture-map-header]').hover();
-  await expect(page.locator('path[stroke="#f59e0b"]')).toHaveCount(0);
-
-  // Clicking a pill opens the accessible group move-history modal (and selects the
-  // group). It does NOT open the AREA inspector (only area clicks do).
-  await mommaPill.click();
-  const groupModal = page.locator('[data-pasture-group-history-modal]');
-  await expect(groupModal).toBeVisible({timeout: 10_000});
-  await expect(groupModal).toContainText('move history');
-  await expect(page.locator('[data-pasture-group-history-list]')).toContainText('P2 Paddock A');
-  await expect(page.locator('[data-pasture-plan-inspector]')).toHaveCount(0);
-  await page.keyboard.press('Escape');
-  await expect(groupModal).toHaveCount(0);
+  // The inline record now shows the placed area.
+  await expect(page.locator('[data-pasture-group-record-details="mommas"]')).toContainText('P2 Paddock A', {
+    timeout: 15_000,
+  });
 
   // Hide the legend too so it cannot block the eastern polygon, then read an area via
   // HOVER -> desktop readout.

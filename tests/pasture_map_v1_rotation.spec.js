@@ -17,7 +17,7 @@ const SQUARE_B =
 async function seed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_rotations, public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches,
       public.land_areas RESTART IDENTITY CASCADE;
     DO $$
@@ -49,9 +49,8 @@ async function hideOverlays(page) {
 
 async function activateMommas(page) {
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
-  // Pill click also opens the group-history modal; dismiss it before using the panel.
-  await page.keyboard.press('Escape');
+  await page.locator('[data-pasture-group-row="mommas"]').click();
+  await expect(page.locator('[data-pasture-group-record-details="mommas"]')).toBeVisible({timeout: 15_000});
 }
 
 test.beforeAll(seed);

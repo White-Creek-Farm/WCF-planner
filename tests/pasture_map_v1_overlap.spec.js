@@ -20,7 +20,7 @@ const SQUARE_B =
 async function cleanAndSeed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 
@@ -44,6 +44,9 @@ async function cleanAndSeed() {
     DELETE FROM public.cattle WHERE id = '${MOMMA_ID}';
     INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
     VALUES ('${MOMMA_ID}', 'PMOVL-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);
+
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${A_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed pasture overlap: ' + error.message);
@@ -65,11 +68,14 @@ test('overlap impact does not produce a duplicate occupant marker for the same g
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
   await hideClickBlockers(page);
 
-  // Record Mommas -> Paddock A via the side-panel form (A's centroid is clear of B).
+  // Record Mommas -> Paddock A via the inline group record Move box.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
+  await page.locator('[data-pasture-group-row="mommas"]').click();
+  const card = page.locator('[data-pasture-group-move="mommas"]');
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText('Overlap Paddock A', {
+    timeout: 15_000,
+  });
+  await card.locator('[data-pasture-move]').click();
   await page.waitForTimeout(1200);
 
   // Back on the Map: Mommas appears as a current-location marker EXACTLY once (on the

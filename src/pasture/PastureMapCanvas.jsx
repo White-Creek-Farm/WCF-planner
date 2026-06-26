@@ -507,12 +507,25 @@ export default function PastureMapCanvas({
       if (locateStateRef.current !== 'off') pausedRef.current = true;
     });
     mapRef.current = map;
-    setTimeout(() => map.invalidateSize(), 50);
+    const invalidateTimer = setTimeout(() => {
+      if (mapRef.current !== map) return;
+      try {
+        map.invalidateSize();
+      } catch {
+        /* map unmounted during a transition */
+      }
+    }, 50);
     return () => {
+      clearTimeout(invalidateTimer);
       if (watchRef.current != null && typeof navigator !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchRef.current);
       }
       watchRef.current = null;
+      try {
+        map.stop();
+      } catch {
+        /* map may already be mid-teardown */
+      }
       map.remove();
       mapRef.current = null;
     };

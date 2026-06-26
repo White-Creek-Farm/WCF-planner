@@ -19,7 +19,7 @@ const SQUARE_B =
 async function cleanAndSeedPastureTables() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_rotations, public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 
@@ -75,22 +75,18 @@ test('unplaced group reads Not placed, Next is the first rotation stop, and Move
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // Map tab: the unplaced Mommas group reports "Not placed" (no borrowed stop).
-  // (Other roster groups may exist in the shared TEST DB; this asserts Mommas.)
-  await expect(page.locator('[data-pasture-group-pill="mommas"]')).toContainText('Not placed', {timeout: 25_000});
-  await expect(page.locator('[data-pasture-group-pill="mommas"] [data-pasture-group-location="none"]')).toBeVisible();
+  // Map tab: the unplaced Mommas group reports "Not placed" in the group table
+  // (no borrowed stop). Other roster groups may exist in the shared TEST DB; this asserts Mommas.
+  await expect(page.locator('[data-pasture-group-row="mommas"]')).toContainText('Not placed', {timeout: 25_000});
 
-  // Plan tab: make Mommas the active group (the default active group may be a
+  // Open the inline Mommas group record (the default active group may be a
   // pre-existing pig/sheep roster group in the shared TEST DB).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
-  // Pill click also opens the group-history modal; dismiss it before using the card.
-  await page.keyboard.press('Escape');
+  await page.locator('[data-pasture-group-row="mommas"]').click();
 
   // Combined group/move card. Current = Not placed; Next = first rotation stop.
-  const card = page.locator('[data-pasture-group-move]');
+  const card = page.locator('[data-pasture-group-move="mommas"]');
   await expect(card).toBeVisible({timeout: 25_000});
-  await expect(card.locator('[data-pasture-time-in-area]')).toHaveText('Not placed');
   const cells = card.locator('.pm-group-move-cell');
   await expect(cells.nth(0).locator('strong')).toHaveText('Not placed');
 
@@ -102,12 +98,6 @@ test('unplaced group reads Not placed, Next is the first rotation stop, and Move
   // Move records the unplaced group INTO the displayed Next (the first stop).
   await page.locator('[data-pasture-move]').click();
   await page.waitForTimeout(900);
-  // Recording selects the destination area (opens the contextual modal); dismiss
-  // it before navigating tabs.
-  await page.keyboard.press('Escape');
-
   // The group is now placed in that exact area (the first rotation stop).
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-group-pill="mommas"]')).toContainText(nextName, {timeout: 15_000});
-  await expect(page.locator('[data-pasture-group-pill="mommas"] [data-pasture-group-location="none"]')).toHaveCount(0);
+  await expect(page.locator('[data-pasture-group-record-details="mommas"]')).toContainText(nextName, {timeout: 15_000});
 });

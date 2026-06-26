@@ -23,7 +23,7 @@ const POLY_C =
 async function seed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
     DO $$
@@ -62,7 +62,7 @@ async function seed() {
 async function seedCompleted() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
     DO $$
@@ -111,7 +111,6 @@ test('Reports: parent ignores child fill (mig 147), and a per-entry delete clear
 
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-report-areas]')).toBeVisible({timeout: 15_000});
-  await page.locator(`[data-pasture-report-pasture="${P_ID}"] > summary`).click();
 
   // COLOR FIX: the PARENT pasture record reads "No grazing history yet" — it did NOT
   // take occupied/grazed state from the child paddock's move (overlap suppressed).
@@ -122,7 +121,6 @@ test('Reports: parent ignores child fill (mig 147), and a per-entry delete clear
 
   // Back returns to the list and the native <details> re-renders collapsed; re-expand.
   await expect(page.locator('[data-pasture-report-areas]')).toBeVisible({timeout: 15_000});
-  await page.locator(`[data-pasture-report-pasture="${P_ID}"] > summary`).click();
 
   // The CHILD paddock record is "In use" and the renamed Grazing History card lists
   // the stay with a per-entry delete control.
@@ -163,7 +161,6 @@ test('Reports: deleting a COMPLETED stay clears the orphaned resting state (no d
 
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
   await expect(page.locator('[data-pasture-report-areas]')).toBeVisible({timeout: 15_000});
-  await page.locator(`[data-pasture-report-pasture="${P_ID}"] > summary`).click();
   await page.locator(`[data-pasture-report-area-row="${C_ID}"]`).click();
   await expect(page.locator(`[data-pasture-report-record="${C_ID}"]`)).toBeVisible({timeout: 15_000});
 

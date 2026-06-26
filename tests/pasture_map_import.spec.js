@@ -21,9 +21,16 @@ const SHOTS = path.resolve('pasture-map-shots');
 async function cleanPastureTables() {
   const c = getTestAdminClient();
   const {error} = await c.rpc('exec_sql', {
-    sql: 'TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
+    sql: 'TRUNCATE TABLE public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;',
   });
   if (error) throw new Error('clean pasture tables: ' + error.message);
+}
+
+async function closeAreaModal(page) {
+  const closeButton = page.locator('[data-pasture-area-modal-close]');
+  await expect(closeButton).toBeVisible({timeout: 15_000});
+  await closeButton.click();
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0, {timeout: 15_000});
 }
 
 test.beforeAll(async () => {
@@ -54,7 +61,9 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.getByRole('button', {name: /^Import \d+$/}).click();
   // The 6 draft lines surface in the Reports Tracks / Lines section now.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
-  await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('6', {timeout: 25_000});
+  const reviewCard = page.locator('[data-pasture-report-review]');
+  await expect(reviewCard).toBeVisible({timeout: 25_000});
+  await expect(page.locator('[data-pasture-track-line]')).toHaveCount(6, {timeout: 25_000});
   await page.waitForTimeout(1500);
   await page.screenshot({path: path.join(SHOTS, '03-post-import-plan.png'), fullPage: true});
 
@@ -63,7 +72,7 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await expect(page.locator('.pm-area-path')).toHaveCount(10, {timeout: 15_000});
 
-  // Classify a polygon as a paddock via its Plan Area inspector (Manage section).
+  // Classify a standalone polygon as a pasture via its Area inspector (Manage section).
   const {data: unclassified} = await getTestAdminClient()
     .from('land_areas')
     .select('id')
@@ -78,7 +87,7 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   });
   await page.locator(`.pm-area-${classifyId}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${classifyId}"]`)).toBeVisible({timeout: 15_000});
-  await page.locator(`[data-pasture-designation="${classifyId}"]`).selectOption('paddock');
+  await page.locator(`[data-pasture-designation="${classifyId}"]`).selectOption('pasture');
   await expect
     .poll(
       async () => {
@@ -87,16 +96,15 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
       },
       {timeout: 15_000},
     )
-    .toBe('paddock');
-  await page.keyboard.press('Escape');
+    .toBe('pasture');
+  await closeAreaModal(page);
   await page.screenshot({path: path.join(SHOTS, '04-classified-desktop.png'), fullPage: true});
 
   // Close a draft line into a temp paddock from the Reports Tracks / Lines section.
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
-  await page.locator('[data-pasture-tracks-lines] > summary').click();
   const outlineId = await page.locator('[data-pasture-track-line]').first().getAttribute('data-pasture-track-line');
   await page.locator(`[data-pasture-track-line-close="${outlineId}"]`).click();
-  await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('5', {timeout: 15_000});
+  await expect(page.locator('[data-pasture-track-line]')).toHaveCount(5, {timeout: 15_000});
   await page.waitForTimeout(1000);
   await page.screenshot({path: path.join(SHOTS, '05-outline-closed-desktop.png'), fullPage: true});
 

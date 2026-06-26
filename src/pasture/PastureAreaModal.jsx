@@ -9,24 +9,20 @@
 //
 // Follows the shared modal contract (see ConfirmModal/DeleteModal): role=dialog,
 // aria-modal, labelled title, Escape close + focus trap/return focus via
-// useModalFocusTrap, a dark backdrop, and a zIndex above the map. Backdrop click
-// closes (the inner dialog stops propagation). The view owns the body content
-// and passes it as children so every existing render-* closure keeps working.
+// useModalFocusTrap, a dark backdrop, and a zIndex above the map. The view owns
+// close behavior so the single visible X can save/debounce before dismissing.
 // ============================================================================
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import React from 'react';
 import {useModalFocusTrap} from '../shared/useModalFocusTrap.js';
 
-export default function PastureAreaModal({areaId, title, subtitle, onClose, children}) {
+export default function PastureAreaModal({areaId, title, subtitle, onClose, closeDisabled = false, children}) {
   const {dialogRef, handleDialogKeyDown} = useModalFocusTrap({onCancel: onClose});
   return (
     <div
       className="pm-modal-backdrop"
       data-pasture-area-modal-backdrop="1"
-      data-overlay-dismiss="enabled"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      data-overlay-dismiss="disabled"
       style={{
         position: 'fixed',
         top: 0,
@@ -50,7 +46,10 @@ export default function PastureAreaModal({areaId, title, subtitle, onClose, chil
         aria-modal="true"
         aria-labelledby="pasture-area-modal-title"
         tabIndex={-1}
-        onKeyDown={handleDialogKeyDown}
+        onKeyDown={(e) => {
+          handleDialogKeyDown(e);
+          if (e.key === 'Escape') e.stopPropagation();
+        }}
         style={{
           background: 'var(--surface, #fff)',
           borderRadius: 12,
@@ -73,8 +72,9 @@ export default function PastureAreaModal({areaId, title, subtitle, onClose, chil
             type="button"
             className="pm-modal-close"
             onClick={onClose}
-            aria-label="Close area editor"
-            title="Close (Esc)"
+            disabled={closeDisabled}
+            aria-label="Save and close area editor"
+            title="Save and close"
             data-pasture-area-modal-close="1"
           >
             ✕

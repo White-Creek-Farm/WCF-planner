@@ -1,9 +1,7 @@
 // Pasture Map CP3 - move ledger / occupancy / rest e2e (NON-resetting). Cleans
 // only the isolated pasture tables, seeds two paddocks through the existing
 // append-only geometry helper, then records moves through the real UI/RPC path.
-// Post-reconciliation: there is no Land areas list and no modal. Areas are
-// selected by clicking their polygon (pm-area-<id>); recording happens in the
-// Plan Area inspector; occupancy/rest are read from the map marker + inspector.
+// Moves now come from the group record page: current area -> next rotation stop.
 import {test, expect} from '@playwright/test';
 import {getTestAdminClient} from './setup/reset.js';
 
@@ -19,7 +17,7 @@ const SQUARE_B =
 async function cleanAndSeedPastureTables() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches,
       public.land_areas RESTART IDENTITY CASCADE;
 
@@ -56,6 +54,9 @@ async function cleanAndSeedPastureTables() {
     DELETE FROM public.cattle WHERE id = '${MOMMA_ID}';
     INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
     VALUES ('${MOMMA_ID}', 'PMCP3-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);
+
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${A_ID}", "${B_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed pasture CP3: ' + error.message);
@@ -71,20 +72,19 @@ async function hideMapOverlays(page) {
   });
 }
 
-// Select an area by clicking its polygon (corner overlays are hidden so the
-// path is not intercepted).
-async function clickArea(page, areaId) {
-  await page.locator(`.pm-area-${areaId}`).first().click();
+async function openMommasRecord(page) {
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  if ((await page.locator('[data-pasture-group-move="mommas"]').count()) === 0) {
+    await page.locator('[data-pasture-group-row="mommas"]').click();
+  }
+  await expect(page.locator('[data-pasture-group-move="mommas"]')).toBeVisible({timeout: 15_000});
 }
 
-// Record a Mommas move into an area via the side-panel Record-a-move form
-// (free-form: pick the destination area + group, then save).
-async function recordMommasMoveTo(page, areaId) {
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-move-area]').selectOption({value: areaId});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
+async function recordMommasNextMove(page, nextName) {
+  await openMommasRecord(page);
+  const card = page.locator('[data-pasture-group-move="mommas"]');
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText(nextName, {timeout: 15_000});
+  await card.locator('[data-pasture-move]').click();
   await page.waitForTimeout(800);
 }
 
@@ -102,8 +102,8 @@ test('records moves and derives occupied/resting state', async ({page}) => {
   await hideMapOverlays(page);
 
   // Move Mommas -> A, then Mommas -> B (vacating A).
-  await recordMommasMoveTo(page, A_ID);
-  await recordMommasMoveTo(page, B_ID);
+  await recordMommasNextMove(page, 'CP3 North Paddock');
+  await recordMommasNextMove(page, 'CP3 South Paddock');
 
   // Map: B is occupied (animal-type marker carries the group).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();

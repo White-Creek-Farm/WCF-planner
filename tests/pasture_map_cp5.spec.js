@@ -13,7 +13,7 @@ const SQUARE_A =
 async function cleanAndSeedPastureTables() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions,
       public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
 
@@ -41,6 +41,9 @@ async function cleanAndSeedPastureTables() {
     DELETE FROM public.cattle WHERE id = '${MOMMA_ID}';
     INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
     VALUES ('${MOMMA_ID}', 'PMCP5-MOMMA', 'cow', 'mommas', false, '[]'::jsonb);
+
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${A_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed pasture CP5: ' + error.message);
@@ -49,7 +52,6 @@ async function cleanAndSeedPastureTables() {
 async function abortPastureRpcs(page) {
   await page.route('**/rest/v1/rpc/list_land_areas', (route) => route.abort('failed'));
   await page.route('**/rest/v1/rpc/list_pasture_moves', (route) => route.abort('failed'));
-  await page.route('**/rest/v1/rpc/list_pasture_planned_moves', (route) => route.abort('failed'));
   await page.route('**/rest/v1/rpc/list_pasture_rest_report', (route) => route.abort('failed'));
   await page.route('**/rest/v1/rpc/list_pasture_stocking_report', (route) => route.abort('failed'));
   await page.route('**/rest/v1/rpc/record_pasture_move', (route) => route.abort('failed'));
@@ -78,18 +80,18 @@ test('uses cached vectors and queues a move while pasture RPCs are offline', asy
   // Cached vectors still render the polygon offline.
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible();
 
-  // Record a move via the side-panel form while offline -> it queues.
+  // Record a move from the group record page while offline -> it queues.
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await hideMapOverlays(page);
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-move-area]').selectOption({value: A_ID});
-  await page.locator('[data-pasture-move-group]').selectOption({label: 'Mommas'});
-  await page.locator('[data-pasture-move-save]').click();
+  await page.locator('[data-pasture-group-row="mommas"]').click();
+  const card = page.locator('[data-pasture-group-move="mommas"]');
+  await expect(card).toBeVisible({timeout: 15_000});
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText('CP5 Offline Paddock');
+  await card.locator('[data-pasture-move]').click();
   await expect(page.locator('[data-pasture-offline-queued]')).toContainText('1 queued', {timeout: 15_000});
 
   await page.unroute('**/rest/v1/rpc/list_land_areas');
   await page.unroute('**/rest/v1/rpc/list_pasture_moves');
-  await page.unroute('**/rest/v1/rpc/list_pasture_planned_moves');
   await page.unroute('**/rest/v1/rpc/list_pasture_rest_report');
   await page.unroute('**/rest/v1/rpc/list_pasture_stocking_report');
   await page.unroute('**/rest/v1/rpc/record_pasture_move');

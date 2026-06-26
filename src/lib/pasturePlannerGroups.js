@@ -51,6 +51,81 @@ export const SOW_GROUPS = ['1', '2', '3'];
 const asArray = (v) => (Array.isArray(v) ? v : []);
 const isLive = (row) => !!row && !row.deleted_at;
 
+const WEIGHT_FIELDS = [
+  'lastWeight',
+  'last_weight',
+  'currentWeight',
+  'current_weight',
+  'actualWeightLbs',
+  'actual_weight_lbs',
+  'weightLbs',
+  'weight_lbs',
+  'weight',
+  'receivingWeight',
+  'receiving_weight',
+];
+const TOTAL_WEIGHT_FIELDS = [
+  'actualTotalWeightLbs',
+  'actual_total_weight_lbs',
+  'totalWeightLbs',
+  'total_weight_lbs',
+  'currentTotalWeightLbs',
+  'current_total_weight_lbs',
+];
+const AVG_WEIGHT_FIELDS = [
+  'actualAverageWeightLbs',
+  'actual_average_weight_lbs',
+  'averageWeightLbs',
+  'average_weight_lbs',
+  'avgWeightLbs',
+  'avg_weight_lbs',
+];
+
+function positiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function latestRecordedWeight(row) {
+  if (!row) return null;
+  const weighins = Array.isArray(row.weighins) ? row.weighins : [];
+  for (let i = weighins.length - 1; i >= 0; i--) {
+    const w = positiveNumber(weighins[i] && (weighins[i].weight ?? weighins[i].weight_lbs ?? weighins[i].weightLbs));
+    if (w != null) return w;
+  }
+  for (const field of WEIGHT_FIELDS) {
+    const w = positiveNumber(row[field]);
+    if (w != null) return w;
+  }
+  return null;
+}
+
+function sumActualWeights(rows) {
+  const list = asArray(rows).filter(Boolean);
+  if (!list.length) return null;
+  let total = 0;
+  for (const row of list) {
+    const weight = latestRecordedWeight(row);
+    if (weight == null) return null;
+    total += weight;
+  }
+  return Math.round(total * 10) / 10;
+}
+
+function explicitGroupWeight(row, count) {
+  for (const field of TOTAL_WEIGHT_FIELDS) {
+    const total = positiveNumber(row && row[field]);
+    if (total != null) return Math.round(total * 10) / 10;
+  }
+  const n = Number(count);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  for (const field of AVG_WEIGHT_FIELDS) {
+    const avg = positiveNumber(row && row[field]);
+    if (avg != null) return Math.round(avg * n * 10) / 10;
+  }
+  return null;
+}
+
 // Derive a short avatar code (<=3 chars) from a feeder sub-batch name.
 export function deriveFeederShort(name) {
   const s = String(name || '');
@@ -60,18 +135,6 @@ export function deriveFeederShort(name) {
   if (digits) return digits.slice(-3);
   const letters = s.replace(/[^A-Za-z]/g, '').toUpperCase();
   return (letters || 'F').slice(0, 2);
-}
-
-// Count active breeders in a numbered sow group ('1' | '2' | '3').
-function sowGroupCount(breeders, group) {
-  return asArray(breeders).filter(
-    (b) => b && !b.archived && (b.sex === 'Sow' || b.sex === 'Gilt') && String(b.group || '') === String(group),
-  ).length;
-}
-
-// Count active boars.
-function boarCount(breeders) {
-  return asArray(breeders).filter((b) => b && !b.archived && b.sex === 'Boar').length;
 }
 
 // Compute the full planner-group roster from already-loaded app data. All inputs
@@ -87,7 +150,10 @@ export function computePlannerGroupRoster({
   // ── Pigs ──────────────────────────────────────────────────────────────────
   const pigGroups = [];
   for (const g of SOW_GROUPS) {
-    const count = sowGroupCount(breeders, g);
+    const sowRows = asArray(breeders).filter(
+      (b) => b && !b.archived && (b.sex === 'Sow' || b.sex === 'Gilt') && String(b.group || '') === String(g),
+    );
+    const count = sowRows.length;
     if (count > 0) {
       pigGroups.push({
         id: `pig-sow-${g}`,
@@ -98,10 +164,12 @@ export function computePlannerGroupRoster({
         unit: 'sows',
         animalType: 'breeder_pigs',
         groupKey: `sow-${g}`,
+        totalWeightLbs: sumActualWeights(sowRows),
       });
     }
   }
-  const boars = boarCount(breeders);
+  const boarRows = asArray(breeders).filter((b) => b && !b.archived && b.sex === 'Boar');
+  const boars = boarRows.length;
   if (boars > 0) {
     pigGroups.push({
       id: 'pig-boars',
@@ -112,6 +180,7 @@ export function computePlannerGroupRoster({
       unit: 'boars',
       animalType: 'breeder_pigs',
       groupKey: 'boars',
+      totalWeightLbs: sumActualWeights(boarRows),
     });
   }
   for (const grp of asArray(feederGroups)) {
@@ -133,6 +202,7 @@ export function computePlannerGroupRoster({
           unit: 'head',
           animalType: 'feeder_pigs',
           groupKey: subId,
+          totalWeightLbs: explicitGroupWeight(sub, count),
         });
       }
     }
@@ -141,7 +211,8 @@ export function computePlannerGroupRoster({
   // ── Sheep ─────────────────────────────────────────────────────────────────
   const sheepGroups = [];
   for (const f of SHEEP_FLOCKS) {
-    const count = asArray(sheep).filter((s) => isLive(s) && s.flock === f.key).length;
+    const sheepRows = asArray(sheep).filter((s) => isLive(s) && s.flock === f.key);
+    const count = sheepRows.length;
     if (count > 0) {
       sheepGroups.push({
         id: `sheep-${f.key}`,
@@ -152,6 +223,7 @@ export function computePlannerGroupRoster({
         unit: f.unit,
         animalType: 'sheep_flock',
         groupKey: f.key,
+        totalWeightLbs: sumActualWeights(sheepRows),
       });
     }
   }
@@ -159,7 +231,8 @@ export function computePlannerGroupRoster({
   // ── Cattle ──────────────────────────────────────────────────────────────────
   const cattleGroups = [];
   for (const h of CATTLE_HERDS) {
-    const count = asArray(cattle).filter((c) => isLive(c) && c.herd === h.key).length;
+    const cattleRows = asArray(cattle).filter((c) => isLive(c) && c.herd === h.key);
+    const count = cattleRows.length;
     if (count > 0) {
       cattleGroups.push({
         id: `cattle-${h.key}`,
@@ -170,6 +243,7 @@ export function computePlannerGroupRoster({
         unit: h.unit,
         animalType: 'cattle_herd',
         groupKey: h.key,
+        totalWeightLbs: sumActualWeights(cattleRows),
       });
     }
   }

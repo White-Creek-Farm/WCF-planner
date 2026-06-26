@@ -15,7 +15,7 @@ const SQUARE_T =
 async function cleanAndSeed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts, public.pasture_move_events,
       public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
     DO $$ DECLARE v_profile uuid; BEGIN
       SELECT id INTO v_profile FROM public.profiles LIMIT 1;
@@ -27,6 +27,8 @@ async function cleanAndSeed() {
     END $$;
     DELETE FROM public.cattle WHERE id='${MOMMA_ID}';
     INSERT INTO public.cattle (id,tag,sex,herd,breeding_blacklist,old_tags) VALUES ('${MOMMA_ID}','PMSU-MOMMA','cow','mommas',false,'[]'::jsonb);
+    INSERT INTO public.pasture_rotations (animal_type, group_key, area_ids)
+    VALUES ('cattle_herd', 'mommas', '["${T_ID}", "${A_ID}"]'::jsonb);
   `;
   const {error} = await c.rpc('exec_sql', {sql});
   if (error) throw new Error('seed pasture setup: ' + error.message);
@@ -51,13 +53,15 @@ async function openArea(page, areaId) {
   await expect(page.locator(`[data-pasture-plan-inspector="${areaId}"]`)).toBeVisible({timeout: 15_000});
 }
 
-// Record a group move onto an area via the side-panel Record-a-move form.
-async function recordMove(page, areaId, groupLabel) {
+// Record a group move onto the next rotation area via the inline group record.
+async function recordMove(page, areaName) {
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await expect(page.locator('[data-pasture-move-form]').first()).toBeVisible({timeout: 15_000});
-  await page.locator('[data-pasture-move-area]').selectOption({value: areaId});
-  await page.locator('[data-pasture-move-group]').selectOption({label: groupLabel});
-  await page.locator('[data-pasture-move-save]').click();
+  if ((await page.locator('[data-pasture-group-move="mommas"]').count()) === 0) {
+    await page.locator('[data-pasture-group-row="mommas"]').click();
+  }
+  const card = page.locator('[data-pasture-group-move="mommas"]');
+  await expect(card.locator('.pm-group-move-cell').nth(1).locator('strong')).toHaveText(areaName, {timeout: 15_000});
+  await card.locator('[data-pasture-move]').click();
   await page.waitForTimeout(800);
 }
 
@@ -83,7 +87,7 @@ test('Temp paddock archive/restore, occupied block, admin hard delete (via Plan 
 
   // Occupied-archive block: move Mommas onto the temp paddock, then archiving is
   // blocked with the exact copy.
-  await recordMove(page, T_ID, 'Mommas');
+  await recordMove(page, 'Setup Temp');
   await openArea(page, T_ID);
   await page.locator(`[data-pasture-archive="${T_ID}"]`).click();
   await expect(page.locator('.pm-error')).toContainText('Move animals out of this temp paddock before archiving it.', {
@@ -94,7 +98,7 @@ test('Temp paddock archive/restore, occupied block, admin hard delete (via Plan 
   // Admin hard delete renders directly in the Area modal (admin-only, no "Danger
   // zone" disclosure). Move the group away first so it is not blocked, then
   // hard-delete + confirm, and verify the area's polygon is gone.
-  await recordMove(page, A_ID, 'Mommas');
+  await recordMove(page, 'Setup Paddock A');
   await openArea(page, T_ID);
   await page.locator(`[data-pasture-hard-delete="${T_ID}"]`).click();
   await expect(page.locator(`[data-pasture-hard-delete-confirm="${T_ID}"]`)).toContainText('Permanently hard delete');

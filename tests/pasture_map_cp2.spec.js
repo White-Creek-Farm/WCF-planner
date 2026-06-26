@@ -24,7 +24,7 @@ async function cleanPastureTables() {
   // on clean. The Geoman draw/edit tools are reached from the rotation editor now
   // (the standalone boundary-tools grid was removed in the Area-modal lane).
   const {error} = await c.rpc('exec_sql', {
-    sql: `TRUNCATE TABLE public.pasture_planned_moves, public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
+    sql: `TRUNCATE TABLE public.pasture_move_impacts, public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches, public.land_areas RESTART IDENTITY CASCADE;
       DELETE FROM public.cattle WHERE id = 'pm-cp2-bull';
       INSERT INTO public.cattle (id, tag, sex, herd, breeding_blacklist, old_tags)
       VALUES ('pm-cp2-bull', 'CP2-BULL', 'bull', 'bulls', false, '[]'::jsonb);`,
@@ -57,6 +57,43 @@ async function drawPolygon(page, points) {
   await page.waitForTimeout(400);
 }
 
+async function tapDropShape(page, points) {
+  const box = await page.locator('.pm-map').boundingBox();
+  for (const [fx, fy] of points) await mapClick(page, box, fx, fy);
+  await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 10_000});
+}
+
+async function dropStableShape(page) {
+  await page.locator('[data-pasture-drop-point]').click();
+  await tapDropShape(page, [
+    [0.3, 0.22],
+    [0.7, 0.22],
+  ]);
+}
+
+async function startFieldDraw(page) {
+  await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
+  await page.locator('[data-pasture-field-draw]').click();
+  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible();
+}
+
+async function openBullsRecord(page) {
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  if ((await page.locator('[data-pasture-draw-temp]').count()) === 0) {
+    await page.locator('[data-pasture-group-row="bulls"]').click();
+  }
+  await expect(page.locator('[data-pasture-rotation-chips="bulls"]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-draw-temp]')).toBeVisible({timeout: 15_000});
+}
+
+async function closeAreaModal(page) {
+  const closeButton = page.locator('[data-pasture-area-modal-close]');
+  await expect(closeButton).toBeVisible({timeout: 15_000});
+  await closeButton.click();
+  await expect(page.locator('[data-pasture-area-modal]')).toHaveCount(0, {timeout: 15_000});
+}
+
 test.beforeAll(async () => {
   if (!fs.existsSync(SHOTS)) fs.mkdirSync(SHOTS, {recursive: true});
   if (!fs.existsSync(KML_PATH)) throw new Error('sample KML not found at ' + KML_PATH);
@@ -73,7 +110,8 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await expect(page.locator('[data-pasture-import-preview]')).toBeVisible();
   await page.getByRole('button', {name: /^Import \d+$/}).click();
   await page.locator('.pm-tabs button', {hasText: 'Reports'}).click();
-  await expect(page.locator('[data-pasture-tracks-lines-count]')).toHaveText('6', {timeout: 25_000});
+  await expect(page.locator('[data-pasture-report-review]')).toBeVisible({timeout: 25_000});
+  await expect(page.locator('[data-pasture-track-line]')).toHaveCount(6, {timeout: 25_000});
   await page.screenshot({path: path.join(SHOTS, '01-cp1-import.png'), fullPage: true});
 
   // ── CP2 measure (a Field tool now): HUD appears (transient measurement) ──
@@ -88,20 +126,17 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   ]);
   await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 8000});
   await page.screenshot({path: path.join(SHOTS, '02-measure-hud.png'), fullPage: true});
-  await page.keyboard.press('Escape'); // exit measure
+  await page.locator('[data-pasture-measure-done]').click();
+  await expect(page.locator('[data-pasture-hud]')).toHaveCount(0);
 
-  // ── CP2 draw (rotation editor "Draw temp paddock"): name required; save -> TEMP paddock ──
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  // ── CP2 draw: rotation editor exposes temp draw; Field drop-point path saves a TEMP paddock ──
+  await openBullsRecord(page);
+  await expect(page.locator('[data-pasture-draw-temp]')).toBeVisible();
   await hideMapOverlays(page);
-  await page.locator('[data-pasture-draw-temp]').click();
-  await page.waitForTimeout(400);
-  await drawPolygon(page, [
-    [0.3, 0.3],
-    [0.5, 0.3],
-    [0.5, 0.5],
-    [0.3, 0.5],
-  ]);
-  await expect(page.locator('[data-pasture-drawform]')).toBeVisible({timeout: 8000});
+  await startFieldDraw(page);
+  await dropStableShape(page);
+  await page.locator('[data-pasture-drop-save]').click();
+  await expect(page.locator('[data-pasture-drawform]')).toBeVisible({timeout: 10_000});
   // New drawn land is always a TEMP paddock (no Type select).
   await expect(page.locator('[data-pasture-drawform-save]')).toBeDisabled();
   await expect(page.locator('[data-pasture-drawform-temp]')).toBeVisible();
@@ -118,26 +153,25 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
     .single();
   expect(drawn).toEqual({kind: 'paddock', permanence: 'temporary'});
   await page.screenshot({path: path.join(SHOTS, '04-after-draw-save.png'), fullPage: true});
-  // Saving a draw selects the new area -> the Area modal opens; close it before
-  // the next draw (the modal backdrop would otherwise block the side panel).
-  await page.keyboard.press('Escape');
 
   // ── CP2 invalid: self-intersecting bowtie flags + disables save ──
-  await page.locator('[data-pasture-draw-temp]').click();
-  await page.waitForTimeout(400);
-  await drawPolygon(page, [
+  await startFieldDraw(page);
+  await tapDropShape(page, [
     [0.32, 0.32],
     [0.52, 0.52],
     [0.52, 0.32],
     [0.32, 0.52],
   ]); // bowtie
-  await expect(page.locator('[data-pasture-drawform]')).toBeVisible({timeout: 8000});
+  await page.locator('[data-pasture-drop-save]').click();
+  await expect(page.locator('[data-pasture-drawform]')).toBeVisible({timeout: 10_000});
   await expect(page.locator('.pm-drawform-warn')).toBeVisible();
   await expect(page.locator('[data-pasture-drawform-save]')).toBeDisabled();
   await page.locator('.pm-drawform').getByRole('button', {name: 'Cancel'}).click();
   await expect(page.locator('[data-pasture-drawform]')).toHaveCount(0);
 
   // ── CP2 edit: select the drawn paddock polygon -> Area modal -> Redraw -> edit bar ──
+  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
+  await expect(page.locator(`.pm-area-${drawnId}`).first()).toBeVisible({timeout: 15_000});
   await page.locator(`.pm-area-${drawnId}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${drawnId}"]`)).toBeVisible({timeout: 15_000});
   await page.locator(`[data-pasture-redraw="${drawnId}"]`).click();
@@ -146,15 +180,16 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await page.locator('[data-pasture-editbar-exit]').click();
   await expect(page.locator('[data-pasture-editbar]')).toHaveCount(0);
   // Exiting edit re-opens the Area modal (selection persists); clear it.
-  await page.keyboard.press('Escape');
+  await closeAreaModal(page);
   await expect(page.locator(`[data-pasture-plan-inspector="${drawnId}"]`)).toHaveCount(0);
 
   // ── Mobile: draw a temp paddock from the rotation editor ──
   await page.setViewportSize({width: 390, height: 844});
   await page.reload();
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
-  await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('[data-pasture-draw-temp]').click();
+  await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
+  await page.locator('[data-pasture-field-draw]').click();
+  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
   await page.waitForTimeout(800);
   await page.screenshot({path: path.join(SHOTS, '06-mobile-draw-mode.png'), fullPage: true});
 });

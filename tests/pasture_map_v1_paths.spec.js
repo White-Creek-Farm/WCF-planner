@@ -1,7 +1,5 @@
-// Pasture Map — V1 reset: Plan draws every group's manual rotation PATH on one
-// screen (species-colored, labeled), with a "Next only" toggle that declutters
-// each path down to its next planned stop. Seeds one group's 2-stop rotation and
-// checks the path markers render and collapse on toggle.
+// Pasture Map: Map draws every group's manual rotation path on one screen.
+// The old "Next only" toggle was removed; paths are always shown in steps.
 import {test, expect} from '@playwright/test';
 import {getTestAdminClient} from './setup/reset.js';
 
@@ -17,7 +15,7 @@ const SQUARE_B =
 async function seed() {
   const c = getTestAdminClient();
   const sql = `
-    TRUNCATE TABLE public.pasture_rotations, public.pasture_planned_moves, public.pasture_move_impacts,
+    TRUNCATE TABLE public.pasture_rotations, public.pasture_move_impacts,
       public.pasture_move_events, public.land_area_geometry_versions, public.pasture_import_batches,
       public.land_areas RESTART IDENTITY CASCADE;
     DO $$
@@ -51,26 +49,15 @@ async function hideOverlays(page) {
 
 test.beforeAll(seed);
 
-test('Plan draws the rotation path; "Next only" collapses it to the next stop', async ({page}) => {
+test('Map draws the full rotation path in steps', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await expect(page.locator(`.pm-area-${A_ID}`).first()).toBeVisible({timeout: 25_000});
   await hideOverlays(page);
 
-  // Plan tab: the Mommas 2-stop rotation draws on the map (a labelled first stop
-  // marker + a numbered second stop marker).
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
-  await page.locator('.pm-group-pill', {hasText: 'Mommas'}).click();
-  // Pill click also opens the group-history modal; dismiss it before reading the map.
-  await page.keyboard.press('Escape');
+  await page.locator('[data-pasture-group-row="mommas"]').click();
   await expect(page.locator('.pm-rotation-marker')).toHaveCount(2, {timeout: 15_000});
-
-  // "Next only" collapses each path to a single next-stop marker.
-  await page.getByRole('button', {name: 'Next only'}).click();
-  await expect(page.locator('.pm-rotation-marker')).toHaveCount(1, {timeout: 10_000});
-
-  // Toggling back restores the full path.
-  await page.getByRole('button', {name: 'Next only'}).click();
-  await expect(page.locator('.pm-rotation-marker')).toHaveCount(2, {timeout: 10_000});
+  await expect(page.getByRole('button', {name: 'Next only'})).toHaveCount(0);
 });
