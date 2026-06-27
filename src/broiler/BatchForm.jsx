@@ -911,7 +911,7 @@ export default function BatchForm({
                         marginBottom: 8,
                       }}
                     >
-                      🌾 Auto-filled from {bd.length} daily reports. Edit only to correct errors.
+                      Auto-filled from {bd.length} daily reports. Update daily reports to change these totals.
                     </div>
                   );
                 })()}
