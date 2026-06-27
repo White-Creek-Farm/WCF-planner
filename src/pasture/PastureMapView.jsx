@@ -11,6 +11,7 @@ import React from 'react';
 import PastureMapCanvas from './PastureMapCanvas.jsx';
 import PastureAreaModal from './PastureAreaModal.jsx';
 import DataTable from '../shared/DataTable.jsx';
+import {openableProps} from '../shared/openable.js';
 import {parseKmlToPlacemarks, closeOutlineToPolygon} from '../lib/pastureKml.js';
 import {haversineM, lineMetrics} from '../lib/pastureGeometry.js';
 import {
@@ -290,8 +291,9 @@ function densityCopy(area) {
 
 function areaFacts(area) {
   if (!area) return [];
+  // Rest-tracking only. Grazing recency ("last grazed") lives in the Grazing
+  // History card, not here, so the merged record doesn't repeat it.
   const facts = [];
-  facts.push(area.last_touched_at ? `Last used ${formatMoveTime(area.last_touched_at)}` : 'Last used: no move history');
   if (area.last_moved_out_at) facts.push(`Rest started ${formatMoveTime(area.last_moved_out_at)}`);
   if (area.rest_state === 'occupied') facts.push('Days rested: 0');
   else if (area.rest_days != null) facts.push(`${area.rest_days} day${area.rest_days === 1 ? '' : 's'} rested`);
@@ -561,6 +563,140 @@ function canEditLineStyle(area) {
   return isTempArea(area) || isOutlineCandidateArea(area);
 }
 
+// Shared, explicit area-name editor used by BOTH the Map area modal and the
+// Reports area record (one canonical control, two shells). Replaces the old
+// blur-only save: a pencil/Edit affordance opens a controlled input with Save +
+// Cancel, Enter saves, Escape cancels, and a visible saving/saved/error state.
+// onSave(name) must resolve on success and REJECT on failure so the editor can
+// show its own status. Gated by canEdit (management/admin, or farm_team+ for temp).
+// eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
+function AreaNameEditor({area, canEdit, onSave, trailing = null}) {
+  const [editing, setEditing] = React.useState(false);
+  const [value, setValue] = React.useState(area.name || '');
+  const [status, setStatus] = React.useState('idle'); // idle | saving | saved | error
+  const [error, setError] = React.useState(null);
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!editing) setValue(area.name || '');
+  }, [area.id, area.name, editing]);
+
+  React.useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  function startEdit() {
+    setValue(area.name || '');
+    setError(null);
+    setStatus('idle');
+    setEditing(true);
+  }
+  function cancel() {
+    setEditing(false);
+    setError(null);
+    setStatus('idle');
+    setValue(area.name || '');
+  }
+  async function save() {
+    const next = value.trim();
+    if (!next) {
+      setError('Name is required');
+      setStatus('error');
+      return;
+    }
+    if (next === (area.name || '')) {
+      cancel();
+      return;
+    }
+    setStatus('saving');
+    setError(null);
+    try {
+      await onSave(next);
+      setStatus('saved');
+      setEditing(false);
+    } catch (e) {
+      setError((e && e.message) || 'Save failed');
+      setStatus('error');
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="pm-name-edit" data-pasture-area-name-edit={area.id}>
+        <span className="pm-name-edit-value">{area.name || 'Unnamed area'}</span>
+        {trailing}
+        {canEdit && (
+          <button
+            type="button"
+            className="pm-name-edit-btn"
+            onClick={startEdit}
+            aria-label="Edit area name"
+            title="Edit name"
+            data-pasture-area-name-edit-start={area.id}
+          >
+            <span aria-hidden="true">✎</span> Edit
+          </button>
+        )}
+        {status === 'saved' && (
+          <span className="pm-name-edit-status is-saved" role="status">
+            Saved
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="pm-name-edit is-editing" data-pasture-area-name-edit={area.id}>
+      <input
+        ref={inputRef}
+        className="pm-name-edit-input"
+        value={value}
+        disabled={status === 'saving'}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            save();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation(); // cancel the edit, do not close the host modal
+            cancel();
+          }
+        }}
+        aria-label="Area name"
+        data-pasture-area-name-input={area.id}
+      />
+      <button
+        type="button"
+        className="pm-btn pm-btn-sm pm-btn-primary"
+        onClick={save}
+        disabled={status === 'saving'}
+        data-pasture-area-name-save={area.id}
+      >
+        {status === 'saving' ? 'Saving…' : 'Save'}
+      </button>
+      <button
+        type="button"
+        className="pm-btn pm-btn-sm"
+        onClick={cancel}
+        disabled={status === 'saving'}
+        data-pasture-area-name-cancel={area.id}
+      >
+        Cancel
+      </button>
+      {status === 'error' && (
+        <span className="pm-name-edit-status is-error" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function PastureMapView({Header, authState}) {
   const role = authState && authState.role;
   const isManager = role === 'management' || role === 'admin';
@@ -731,11 +867,12 @@ export default function PastureMapView({Header, authState}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reports drill-down: load the selected area's full move history (the grazing
-  // timeline source) only when its record is open. Same farm_team+/light read gate.
+  // Load the open area's full move history (the grazing-timeline source) for the
+  // canonical Area Record, in EITHER shell: the Map area modal or the Reports
+  // record both key off the selected area. Same farm_team+/light read gate.
   React.useEffect(() => {
     let alive = true;
-    if (!reportAreaId || appMode !== 'reports' || !canViewPlanning) {
+    if (!selectedId || !canViewPlanning) {
       setReportHistory([]);
       setReportHistoryLoading(false);
       return () => {
@@ -743,7 +880,7 @@ export default function PastureMapView({Header, authState}) {
       };
     }
     setReportHistoryLoading(true);
-    listPastureHistoryReport({landAreaId: reportAreaId, limit: 500})
+    listPastureHistoryReport({landAreaId: selectedId, limit: 500})
       .then((res) => {
         if (alive) setReportHistory((res && res.history) || []);
       })
@@ -756,7 +893,7 @@ export default function PastureMapView({Header, authState}) {
     return () => {
       alive = false;
     };
-  }, [reportAreaId, appMode, canViewPlanning, moves.length, historyReloadSignal]);
+  }, [selectedId, canViewPlanning, moves.length, historyReloadSignal]);
 
   React.useEffect(() => () => clearTrackWatch(), []);
 
@@ -1048,11 +1185,13 @@ export default function PastureMapView({Header, authState}) {
     return {pastures, needsPasture, feeders, temp, other};
   }, [setupAreas]);
   const reportArea = reportAreaId ? areaById.get(reportAreaId) || null : null;
-  const reportStays = React.useMemo(
-    () => (reportArea ? buildGrazingStays(reportArea.id, reportHistory, reportArea.effective_acres) : []),
-    [reportArea, reportHistory],
+  // Canonical Area Record (Map modal + Reports record) keys off the open/selected
+  // area; its move history loads into reportHistory for whichever shell is open.
+  const recordStays = React.useMemo(
+    () => (selectedArea ? buildGrazingStays(selectedArea.id, reportHistory, selectedArea.effective_acres) : []),
+    [selectedArea, reportHistory],
   );
-  const reportTotals = React.useMemo(() => grazingRecordTotals(reportStays), [reportStays]);
+  const recordTotals = React.useMemo(() => grazingRecordTotals(recordStays), [recordStays]);
   const selectedDensity = densityCopy(selectedArea);
   const selectedStyleChanged = lineStyleChanged(selectedArea, styleDraft);
   const selectedStyleBusy = selectedArea && busyId === selectedArea.id;
@@ -1256,6 +1395,21 @@ export default function PastureMapView({Header, authState}) {
   const removeArea = (a) => withBusy(a.id, () => deleteLandArea(a.id));
   const saveAreaPatch = (a, fields) => withBusy(a.id, () => updateLandArea(a.id, fields));
 
+  // Inline name save for AreaNameEditor (Map modal + Reports record). Unlike
+  // withBusy it RE-THROWS on failure so the editor can show its own error state;
+  // it still sets busy + reload()s on success so the new name appears everywhere.
+  async function saveAreaName(a, name) {
+    setBusyId(a.id);
+    setErr('');
+    try {
+      if (a.permanence === 'temporary') await renameTempLandArea(a.id, name);
+      else await updateLandArea(a.id, {name});
+      await reload();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // P0 temp-paddock lifecycle. Designations are exactly Pasture / Paddock /
   // Temp paddock; temp = permanence 'temporary'.
   function classifyDesignation(a, designation) {
@@ -1323,6 +1477,18 @@ export default function PastureMapView({Header, authState}) {
     setReportAreaId(null);
     setSelectedId(areaId);
   }
+  // Open the canonical Area Record in the Reports shell. Sets selectedId so the
+  // shared record body (built around the selected area) renders in Reports too,
+  // exactly as it does inside the Map area modal.
+  function openAreaRecord(areaId) {
+    setReportGroupId(null);
+    setReportAreaId(areaId);
+    setSelectedId(areaId);
+  }
+  function closeAreaRecord() {
+    setReportAreaId(null);
+    setSelectedId(null);
+  }
   // Promote a temp paddock to a PERMANENT pasture/paddock. Management/admin only
   // (update_land_area is mgmt/admin gated server-side too). After promotion the
   // boundary style locks to the fixed permanent style, so this is explicit and
@@ -1339,7 +1505,6 @@ export default function PastureMapView({Header, authState}) {
   }
   const archiveArea = (a) => withBusy(a.id, () => archiveLandArea(a.id));
   const restoreArea = (a) => withBusy(a.id, () => restoreLandArea(a.id));
-  const renameTemp = (a, name) => withBusy(a.id, () => renameTempLandArea(a.id, name));
   function confirmHardDelete(a) {
     setConfirmDeleteId(null);
     return withBusy(a.id, () => hardDeleteLandArea(a.id));
@@ -2316,33 +2481,44 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
-  function renderSelectedPanel() {
-    if (!selectedArea) return null;
-    const state = grazingState(selectedArea);
+  // Combined Area section: the read-only detail (name, state, acres, occupancy,
+  // rest facts) AND the management controls (classification, parent, redraw,
+  // archive) in ONE card. "Type" is dropped because the Classification control
+  // already names it; the name shows once, with its inline editor for managers.
+  function renderAreaSummary() {
+    const area = selectedArea;
+    if (!area) return null;
+    const state = grazingState(area);
+    const isTemp = area.permanence === 'temporary';
+    const canManageArea = isTemp ? canRecordMoves : isManager;
+    const lockedStyle = isManager && isFixedStyleArea(area);
+    const occupants = occupantsByArea[area.id] || [];
     return (
-      <div className={'pm-selected-panel state-' + state} data-pasture-selected-panel="1">
+      <div className={'pm-selected-panel pm-area-summary state-' + state} data-pasture-selected-panel="1">
         <div className="pm-selected-stripe" />
         <div className="pm-selected-head">
-          <div>
-            <div className="pm-kicker">Area detail</div>
-            <div className="pm-selected-title">{selectedArea.name || 'Unnamed'}</div>
+          <div className="pm-area-summary-id">
+            <div className="pm-kicker">Area</div>
+            {isManager ? (
+              <AreaNameEditor area={area} canEdit={canManageArea} onSave={(name) => saveAreaName(area, name)} />
+            ) : (
+              <div className="pm-selected-title">{area.name || 'Unnamed'}</div>
+            )}
           </div>
           <span className={'pm-state-badge state-' + state}>{statusLabelForState(state)}</span>
         </div>
-        <div className="pm-area-detail-chips" data-pasture-area-detail={selectedArea.id}>
-          <span className={'pm-chip pm-chip-' + selectedArea.kind}>{designationLabel(selectedArea)}</span>
-          {isTempArea(selectedArea) && <span className="pm-chip pm-chip-temp">Temp</span>}
-          {isArchivedArea(selectedArea) && (
-            <span className="pm-chip">{isTempArea(selectedArea) ? 'Archived temp' : 'Archived'}</span>
-          )}
+        <div className="pm-area-detail-chips" data-pasture-area-detail={area.id}>
+          <span className={'pm-chip pm-chip-' + area.kind}>{designationLabel(area)}</span>
+          {isTemp && <span className="pm-chip pm-chip-temp">Temp</span>}
+          {isArchivedArea(area) && <span className="pm-chip">{isTemp ? 'Archived temp' : 'Archived'}</span>}
         </div>
-        {(occupantsByArea[selectedArea.id] || []).length > 0 && (
-          <div className="pm-occupants" data-pasture-occupancy={selectedArea.id}>
+        {occupants.length > 0 && (
+          <div className="pm-occupants" data-pasture-occupancy={area.id}>
             {/* Occupant identity + count come from the roster-matched group when
                 available (same source as the map marker + the locked move-form
                 count); unmatched ledger rows and overlap-only occupancy are
                 tagged, never shown as a fresh/real group. */}
-            {(occupantsByArea[selectedArea.id] || []).map((o, i) => (
+            {occupants.map((o, i) => (
               <span
                 key={(o.animalType || '') + (o.groupKey || '') + i}
                 className={
@@ -2360,15 +2536,11 @@ export default function PastureMapView({Header, authState}) {
         )}
         <div className="pm-kv">
           <span>State</span>
-          <strong data-pasture-rest-state={selectedArea.rest_state || 'baseline'}>{restCopy(selectedArea)}</strong>
+          <strong data-pasture-rest-state={area.rest_state || 'baseline'}>{restCopy(area)}</strong>
           <span>Acres</span>
-          <strong data-pasture-acres-readonly={selectedArea.id}>
-            {selectedArea.effective_acres == null ? '-' : `${selectedArea.effective_acres} ac`}
+          <strong data-pasture-acres-readonly={area.id}>
+            {area.effective_acres == null ? '-' : `${area.effective_acres} ac`}
           </strong>
-          <span>Type</span>
-          <strong>{designationLabel(selectedArea)}</strong>
-          <span>Last grazed</span>
-          <strong>{selectedArea.last_touched_at ? formatMoveTime(selectedArea.last_touched_at) : 'No history'}</strong>
         </div>
         {selectedDensity && (
           <div className="pm-density-line" data-pasture-density="1">
@@ -2376,10 +2548,18 @@ export default function PastureMapView({Header, authState}) {
           </div>
         )}
         <div className="pm-use-facts" data-pasture-use-facts="1">
-          {areaFacts(selectedArea).map((fact) => (
+          {areaFacts(area).map((fact) => (
             <span key={fact}>{fact}</span>
           ))}
         </div>
+        {isManager && renderAreaManageActions(area)}
+        {lockedStyle && (
+          <p className="pm-style-locked-note" data-pasture-setup-linestyle-locked="1">
+            {area.kind === 'pasture' ? 'Pasture' : 'Paddock'} boundaries use a fixed
+            {area.kind === 'pasture' ? ' blue' : ' green'} line and cannot be restyled. Only temp paddocks and GPS field
+            tracks have editable line style.
+          </p>
+        )}
       </div>
     );
   }
@@ -2456,64 +2636,64 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function renderGroupSwitcher() {
-    const columns = [
-      {
-        key: 'name',
-        label: 'Group',
-        primary: true,
-        render: (group) => {
-          const spec = groupSpeciesStyle(group);
-          return (
-            <span className="pm-group-name-cell" style={{'--species-color': spec.color}}>
-              <span className="pm-group-avatar">{group.short}</span>
-              <span>{group.name}</span>
-            </span>
-          );
-        },
-      },
-      {key: 'size', label: 'Head', align: 'right', render: (group) => groupSizeCount(group)?.toLocaleString() || '-'},
-      {
-        key: 'location',
-        label: 'Location',
-        render: (group) => {
-          const loc = groupLocation[group.id];
-          const timeInArea = loc && loc.movedAt ? formatTimeInArea(loc.movedAt) : null;
-          return (
-            <span className="pm-group-location-cell">
-              <strong>{loc ? loc.areaName || 'Placed' : 'Not placed'}</strong>
-              {timeInArea && <em>{timeInArea}</em>}
-            </span>
-          );
-        },
-      },
-    ];
     const sections = ['cattle', 'pig', 'sheep']
       .map((species) => {
         const rows = groups.filter((group) => group.species === species);
-        return rows.length
-          ? {key: species, label: `${SPECIES[species].label} - ${rows.length}`, count: rows.length, rows}
-          : null;
+        return rows.length ? {key: species, label: `${SPECIES[species].label} - ${rows.length}`, rows} : null;
       })
       .filter(Boolean);
+    // Launcher list, not a data grid: each group is a shared .hoverable-tile that
+    // POPS OUT (lift + shadow) on hover/focus like the Home tiles / Pasture Map
+    // button, opening the group record. Tiles (divs) own the lift per the openable
+    // affordance contract (lift is for .hoverable-tile, never a <tr>).
     return (
-      <div className="pm-card pm-group-table-card">
+      <div className="pm-card pm-group-table-card pm-tile-card" data-surface="pasture-group-table">
         <div className="pm-card-head">
           <div className="pm-card-title">Animal groups</div>
           <span>{groups.length} groups</span>
         </div>
-        <DataTable
-          surfaceKey="pasture-group-table"
-          sections={sections}
-          columns={columns}
-          rowKey="id"
-          density="compact"
-          emptyMessage="No active planner groups yet."
-          onRowOpen={(group) => openGroupRecord(group)}
-          rowProps={(group) => ({
-            'data-pasture-group-row': group.groupKey || group.id,
-            'data-active': group.id === activeGroupId ? '1' : undefined,
-          })}
-        />
+        {sections.length === 0 ? (
+          <div className="pm-tile-empty">No active planner groups yet.</div>
+        ) : (
+          <div className="pm-tile-list">
+            {sections.map((section) => (
+              <div key={section.key} className="pm-tile-section" data-pasture-group-section={section.key}>
+                <div className="pm-tile-band">{section.label}</div>
+                {section.rows.map((group) => {
+                  const spec = groupSpeciesStyle(group);
+                  const loc = groupLocation[group.id];
+                  const timeInArea = loc && loc.movedAt ? formatTimeInArea(loc.movedAt) : null;
+                  return (
+                    <div
+                      key={group.id}
+                      className="pm-open-tile pm-group-tile hoverable-tile"
+                      style={{'--species-color': spec.color}}
+                      data-pasture-group-row={group.groupKey || group.id}
+                      data-active={group.id === activeGroupId ? '1' : undefined}
+                      {...openableProps(() => openGroupRecord(group))}
+                    >
+                      <span className="pm-group-avatar">{group.short}</span>
+                      <span className="pm-open-tile-main">
+                        <span className="pm-open-tile-title">{group.name}</span>
+                        <span className="pm-open-tile-sub">
+                          {loc ? loc.areaName || 'Placed' : 'Not placed'}
+                          {timeInArea ? ` · ${timeInArea}` : ''}
+                        </span>
+                      </span>
+                      <span className="pm-open-tile-metric">
+                        <strong>{groupSizeCount(group)?.toLocaleString() || '-'}</strong>
+                        <em>head</em>
+                      </span>
+                      <span className="chev" aria-hidden="true">
+                        {'›'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -2852,22 +3032,7 @@ export default function PastureMapView({Header, authState}) {
     const isOutline = area.kind === 'outline_candidate' || area.geometry_status === 'outline_candidate';
     const canManageArea = isTemp ? canRecordMoves : isManager;
     return (
-      <div className="pm-card pm-area-manage" data-pasture-area-manage={area.id} data-kind={area.kind}>
-        <div className="pm-card-title">Manage area</div>
-        {!isOutline && (
-          <label className="pm-field">
-            <span>Name</span>
-            <input
-              key={area.id}
-              defaultValue={area.name || ''}
-              disabled={!canManageArea}
-              onBlur={(e) => {
-                const value = e.target.value.trim();
-                if (value && value !== area.name) isTemp ? renameTemp(area, value) : saveAreaPatch(area, {name: value});
-              }}
-            />
-          </label>
-        )}
+      <div className="pm-area-manage" data-pasture-area-manage={area.id} data-kind={area.kind}>
         {isOutline ? (
           <div className="pm-field" data-pasture-designation-line={area.id}>
             <span>Draft line</span>
@@ -3061,8 +3226,6 @@ export default function PastureMapView({Header, authState}) {
   // close affordance and saves the review state before dismissing.
   function renderAreaModal() {
     if (!selectedArea) return null;
-    const styleEligible = isManager && canEditLineStyle(selectedArea);
-    const lockedStyle = isManager && isFixedStyleArea(selectedArea);
     return (
       <PastureAreaModal
         areaId={selectedArea.id}
@@ -3071,40 +3234,11 @@ export default function PastureMapView({Header, authState}) {
         onClose={closeAreaModal}
         closeDisabled={areaModalCloseSaving}
       >
+        {/* Map shell hosts the SAME canonical Area Record the Reports shell shows
+            (detail + grazing history + management). Move/animal placement is NOT
+            here — it stays in the side-panel group workflow. */}
         <div className="pm-plan-inspector" data-pasture-plan-inspector={selectedArea.id}>
-          {renderSelectedPanel()}
-          {isManager && (
-            <section className="pm-modal-section" data-pasture-modal-section="manage">
-              <div className="pm-modal-section-label">Manage area</div>
-              {renderAreaManageActions(selectedArea)}
-              {/* Locked permanent-style is a small inline note where the style
-                  controls would otherwise appear - not a standalone card. */}
-              {lockedStyle && (
-                <p className="pm-style-locked-note" data-pasture-setup-linestyle-locked="1">
-                  {selectedArea.kind === 'pasture' ? 'Pasture' : 'Paddock'} boundaries use a fixed
-                  {selectedArea.kind === 'pasture' ? ' blue' : ' green'} line and cannot be restyled. Only temp paddocks
-                  and GPS field tracks have editable line style.
-                </p>
-              )}
-            </section>
-          )}
-          {styleEligible && (
-            <section
-              className="pm-modal-section"
-              data-pasture-modal-section="linestyle"
-              data-pasture-setup-linestyle="1"
-            >
-              <div className="pm-modal-section-label">Line style</div>
-              {renderLineStylePanel()}
-            </section>
-          )}
-          {/* Move / animal placement is NOT in the Area modal: it lives in the side
-              panel (current-group Move/Clear + the planned-moves worklist). */}
-          {isAdmin && (
-            <section className="pm-modal-section pm-modal-section-danger" data-pasture-modal-section="danger">
-              {renderDangerZone(selectedArea)}
-            </section>
-          )}
+          {renderAreaRecordContent()}
         </div>
       </PastureAreaModal>
     );
@@ -3163,39 +3297,6 @@ export default function PastureMapView({Header, authState}) {
         }, new Map()),
         ([label, rows]) => ({key: label, label, rows}),
       );
-      const areaColumns = [
-        {
-          key: 'name',
-          label: 'Area',
-          primary: true,
-          render: (area) => (
-            <span className={'pm-report-area-cell depth-' + (area.reportDepth || 0)}>
-              {area.name || 'Unnamed'} {reportAreaTag(area.id)}
-            </span>
-          ),
-        },
-        {key: 'type', label: 'Type', render: (area) => designationLabel(area)},
-        {
-          key: 'state',
-          label: 'State',
-          render: (area) => (
-            <span className={'pm-report-state state-' + grazingState(area)}>
-              <i className="dot" /> {restCopy(area)}
-            </span>
-          ),
-        },
-        {
-          key: 'acres',
-          label: 'Acres',
-          align: 'right',
-          render: (area) => (area.effective_acres == null ? '-' : Number(area.effective_acres).toLocaleString()),
-        },
-        {
-          key: 'last',
-          label: 'Last grazed',
-          render: (area) => (area.last_touched_at ? formatMoveTime(area.last_touched_at) : 'No history'),
-        },
-      ];
       const groupRows = includeInactiveGroups ? allRecordGroups : groups;
       const groupSections = ['cattle', 'pig', 'sheep']
         .map((species) => {
@@ -3203,40 +3304,6 @@ export default function PastureMapView({Header, authState}) {
           return rows.length ? {key: species, label: SPECIES[species].label, rows} : null;
         })
         .filter(Boolean);
-      const groupColumns = [
-        {
-          key: 'name',
-          label: 'Group',
-          primary: true,
-          render: (group) => {
-            const spec = groupSpeciesStyle(group);
-            return (
-              <span className="pm-group-name-cell" style={{'--species-color': spec.color}}>
-                <span className="pm-group-avatar">{group.short}</span>
-                <span>{group.name}</span>
-              </span>
-            );
-          },
-        },
-        {key: 'status', label: 'Status', render: (group) => (group.active === false ? 'Inactive' : 'Current')},
-        {key: 'head', label: 'Head', align: 'right', render: (group) => groupSizeCount(group)?.toLocaleString() || '-'},
-        {
-          key: 'location',
-          label: 'Current area',
-          render: (group) => {
-            const loc = recordGroupLocation[group.id];
-            return loc ? loc.areaName || 'Placed' : 'Not placed';
-          },
-        },
-        {
-          key: 'moved',
-          label: 'Last move',
-          render: (group) => {
-            const loc = recordGroupLocation[group.id];
-            return loc && loc.movedAt ? formatMoveTime(loc.movedAt) : 'No history';
-          },
-        },
-      ];
       const showMaintenance =
         (isManager &&
           (reportGroups.needsPasture.length > 0 || needsClassifyTable.length > 0 || trackLineAreas.length > 0)) ||
@@ -3261,23 +3328,62 @@ export default function PastureMapView({Header, authState}) {
               <i className="dot no-history" /> No history {statusCounts.no_history}
             </span>
           </div>
-          <div className="pm-card pm-report-table-card" data-pasture-report-areas="1">
+          <div
+            className="pm-card pm-report-table-card pm-tile-card"
+            data-pasture-report-areas="1"
+            data-surface="pasture-report-area-table"
+          >
             <div className="pm-card-title">Areas</div>
-            <DataTable
-              surfaceKey="pasture-report-area-table"
-              sections={areaSections}
-              columns={areaColumns}
-              rowKey="id"
-              density="compact"
-              onRowOpen={(area) => {
-                setReportGroupId(null);
-                setReportAreaId(area.id);
-              }}
-              rowProps={(area) => ({'data-pasture-report-area-row': area.id})}
-              emptyMessage="No areas yet. Import or draw areas first."
-            />
+            {areaSections.length === 0 ? (
+              <div className="pm-tile-empty">No areas yet. Import or draw areas first.</div>
+            ) : (
+              <div className="pm-tile-list">
+                {areaSections.map((section) => (
+                  <div key={section.key} className="pm-tile-section">
+                    <div className="pm-tile-band">{section.label}</div>
+                    {section.rows.map((area) => (
+                      <div
+                        key={area.id}
+                        className={'pm-open-tile pm-area-tile hoverable-tile depth-' + (area.reportDepth || 0)}
+                        data-pasture-report-area-row={area.id}
+                        {...openableProps(() => openAreaRecord(area.id))}
+                      >
+                        <span className="pm-open-tile-main">
+                          <span className="pm-open-tile-title">
+                            {area.name || 'Unnamed'} {reportAreaTag(area.id)}
+                          </span>
+                          <span className="pm-open-tile-sub">
+                            {[
+                              designationLabel(area),
+                              area.effective_acres == null
+                                ? null
+                                : `${Number(area.effective_acres).toLocaleString()} ac`,
+                              area.last_touched_at
+                                ? `Last grazed ${formatMoveTime(area.last_touched_at)}`
+                                : 'No history',
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </span>
+                        <span className="pm-area-tile-state">
+                          <i className={'dot ' + grazingState(area)} /> {restCopy(area)}
+                        </span>
+                        <span className="chev" aria-hidden="true">
+                          {'›'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="pm-card pm-report-table-card" data-pasture-report-groups="1">
+          <div
+            className="pm-card pm-report-table-card pm-tile-card"
+            data-pasture-report-groups="1"
+            data-surface="pasture-report-group-table"
+          >
             <div className="pm-card-head">
               <div className="pm-card-title">Animal groups</div>
               <label className="pm-inline-toggle">
@@ -3290,16 +3396,51 @@ export default function PastureMapView({Header, authState}) {
                 <span>Include inactive groups</span>
               </label>
             </div>
-            <DataTable
-              surfaceKey="pasture-report-group-table"
-              sections={groupSections}
-              columns={groupColumns}
-              rowKey="id"
-              density="compact"
-              onRowOpen={(group) => openGroupRecord(group, 'reports')}
-              rowProps={(group) => ({'data-pasture-report-group-row': group.groupKey || group.id})}
-              emptyMessage="No animal groups yet."
-            />
+            {groupSections.length === 0 ? (
+              <div className="pm-tile-empty">No animal groups yet.</div>
+            ) : (
+              <div className="pm-tile-list">
+                {groupSections.map((section) => (
+                  <div key={section.key} className="pm-tile-section">
+                    <div className="pm-tile-band">{section.label}</div>
+                    {section.rows.map((group) => {
+                      const spec = groupSpeciesStyle(group);
+                      const loc = recordGroupLocation[group.id];
+                      return (
+                        <div
+                          key={group.id}
+                          className="pm-open-tile pm-group-tile hoverable-tile"
+                          style={{'--species-color': spec.color}}
+                          data-pasture-report-group-row={group.groupKey || group.id}
+                          {...openableProps(() => openGroupRecord(group, 'reports'))}
+                        >
+                          <span className="pm-group-avatar">{group.short}</span>
+                          <span className="pm-open-tile-main">
+                            <span className="pm-open-tile-title">{group.name}</span>
+                            <span className="pm-open-tile-sub">
+                              {[
+                                group.active === false ? 'Inactive' : 'Current',
+                                loc ? loc.areaName || 'Placed' : 'Not placed',
+                                loc && loc.movedAt ? formatMoveTime(loc.movedAt) : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                          </span>
+                          <span className="pm-open-tile-metric">
+                            <strong>{groupSizeCount(group)?.toLocaleString() || '-'}</strong>
+                            <em>head</em>
+                          </span>
+                          <span className="chev" aria-hidden="true">
+                            {'›'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           {showMaintenance && (
             <div className="pm-card pm-report-review-card" data-pasture-report-review="1">
@@ -3398,7 +3539,7 @@ export default function PastureMapView({Header, authState}) {
           type="button"
           key={area.id}
           className={'pm-report-area-row depth-' + depth + ' state-' + state}
-          onClick={() => setReportAreaId(area.id)}
+          onClick={() => openAreaRecord(area.id)}
           data-pasture-report-area-row={area.id}
         >
           <span className="pm-report-area-name">
@@ -3619,121 +3760,149 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
-  function renderAreaRecord() {
-    const area = reportArea;
+  // Grazing-history section of the canonical Area Record: status header + lifetime
+  // totals + the dated stay timeline with the per-entry delete (mig 147). Keys off
+  // the open area (selectedArea); shown in BOTH the Map modal and the Reports record.
+  function renderAreaGrazingHistory() {
+    const area = selectedArea;
+    if (!area) return null;
     const occ = (occupantsByArea[area.id] || []).find((o) => !o.overlap) || null;
-    const openStay = reportStays.find((s) => s.stillHere) || null;
+    const openStay = recordStays.find((s) => s.stillHere) || null;
     const statusLine =
       occ && openStay
         ? `In use by ${occ.name} since ${formatMoveTime(openStay.inAt)}`
         : area.last_touched_at
           ? `Last grazed ${formatMoveTime(area.last_touched_at)}`
           : 'No grazing history yet';
+    // ONE card. The area's designation / acres / current state already live in the
+    // Area-detail panel above, so the history card carries only what's unique to the
+    // grazing record: the status line, lifetime totals, and the dated stay timeline.
     return (
-      <>
-        <div className="pm-panel-title pm-record-title">
-          <button
-            type="button"
-            className="pm-btn pm-btn-sm"
-            onClick={() => setReportAreaId(null)}
-            data-pasture-report-back="1"
-          >
-            &larr; All areas
-          </button>
-          <span className="pm-kicker">Area grazing record</span>
-          <h2>
-            {area.name || 'Unnamed area'} {reportAreaTag(area.id)}
-          </h2>
+      <div className="pm-card pm-grazing-record" data-pasture-report-record={area.id} data-pasture-report-timeline="1">
+        <div className="pm-card-title">Grazing History</div>
+        <div className="pm-record-status" data-pasture-report-status="1">
+          {statusLine}
         </div>
-        <div className="pm-card pm-record-header" data-pasture-report-record={area.id}>
-          <div className="pm-record-facts">
-            <span className="pm-record-fact">
-              <b>{designationLabel(area)}</b>
-            </span>
-            {area.effective_acres != null && <span className="pm-record-fact">{area.effective_acres} ac</span>}
-          </div>
-          <div className="pm-record-status" data-pasture-report-status="1">
-            {statusLine}
-          </div>
-          <div className="pm-record-rest">{restCopy(area)}</div>
-          <div className="pm-record-totals" data-pasture-report-totals="1">
-            <span>
-              <b>{reportTotals.timesGrazed}</b> times grazed
-            </span>
-            <span>
-              <b>{reportTotals.totalAnimalDays.toLocaleString()}</b> animal-days
-            </span>
-            <span>
-              <b>{reportTotals.avgDensity != null ? reportTotals.avgDensity.toLocaleString() : '-'}</b> avg head/ac
-            </span>
-          </div>
+        <div className="pm-record-totals" data-pasture-report-totals="1">
+          <span>
+            <b>{recordTotals.timesGrazed}</b> times grazed
+          </span>
+          <span>
+            <b>{recordTotals.totalAnimalDays.toLocaleString()}</b> animal-days
+          </span>
+          <span>
+            <b>{recordTotals.avgDensity != null ? recordTotals.avgDensity.toLocaleString() : '-'}</b> avg head/ac
+          </span>
         </div>
-        <div className="pm-card" data-pasture-report-timeline="1">
-          <div className="pm-card-title">Grazing History</div>
-          {reportHistoryLoading ? (
-            <div className="pm-report-empty">Loading record...</div>
-          ) : reportStays.length ? (
-            reportStays.map((s) => (
-              <div key={s.id} className="pm-record-stay" data-pasture-report-stay="1">
-                <div className="pm-record-stay-head">
-                  <strong>{s.groupLabel}</strong>
-                  <span className="pm-record-stay-type">{animalTypeLabel(s.animalType)}</span>
-                  {s.headCount != null && (
-                    <span className="pm-record-stay-count">{s.headCount.toLocaleString()} head</span>
-                  )}
-                  {s.stillHere && <span className="pm-record-stay-here">Still here</span>}
-                </div>
-                <div className="pm-record-stay-when">
-                  {formatMoveTime(s.inAt)} &rarr; {s.outAt ? formatMoveTime(s.outAt) : 'now'}
-                  {s.days != null ? ` · ${s.days} day${s.days === 1 ? '' : 's'}` : ''}
-                </div>
-                <div className="pm-record-stay-metrics">
-                  {s.acres != null && <span>{s.acres.toLocaleString()} ac</span>}
-                  {s.density != null && <span>{s.density.toLocaleString()} head/ac</span>}
-                  {s.animalDays != null && <span>{s.animalDays.toLocaleString()} animal-days</span>}
-                  <span>{s.lbsPerAcre != null ? `${s.lbsPerAcre.toLocaleString()} lbs/ac` : 'lbs/ac unknown'}</span>
-                </div>
-                {s.notes && <div className="pm-record-stay-notes">{s.notes}</div>}
-                {/* Management/admin per-entry delete (mig 147): removes THIS stay's
+        {reportHistoryLoading ? (
+          <div className="pm-report-empty">Loading record...</div>
+        ) : recordStays.length ? (
+          recordStays.map((s) => (
+            <div key={s.id} className="pm-record-stay" data-pasture-report-stay="1">
+              <div className="pm-record-stay-head">
+                <strong>{s.groupLabel}</strong>
+                <span className="pm-record-stay-type">{animalTypeLabel(s.animalType)}</span>
+                {s.headCount != null && (
+                  <span className="pm-record-stay-count">{s.headCount.toLocaleString()} head</span>
+                )}
+                {s.stillHere && <span className="pm-record-stay-here">Still here</span>}
+              </div>
+              <div className="pm-record-stay-when">
+                {formatMoveTime(s.inAt)} &rarr; {s.outAt ? formatMoveTime(s.outAt) : 'now'}
+                {s.days != null ? ` · ${s.days} day${s.days === 1 ? '' : 's'}` : ''}
+              </div>
+              <div className="pm-record-stay-metrics">
+                {s.acres != null && <span>{s.acres.toLocaleString()} ac</span>}
+                {s.density != null && <span>{s.density.toLocaleString()} head/ac</span>}
+                {s.animalDays != null && <span>{s.animalDays.toLocaleString()} animal-days</span>}
+                <span>{s.lbsPerAcre != null ? `${s.lbsPerAcre.toLocaleString()} lbs/ac` : 'lbs/ac unknown'}</span>
+              </div>
+              {s.notes && <div className="pm-record-stay-notes">{s.notes}</div>}
+              {/* Management/admin per-entry delete (mig 147): removes THIS stay's
                     move-IN pasture_move_events row (s.id); its impacts cascade and
                     every area's state re-derives. Inline confirm, no window.confirm. */}
-                {isManager && (
-                  <div className="pm-record-stay-actions" data-pasture-report-stay-actions={s.id}>
-                    {confirmDeleteStayId === s.id ? (
-                      <span className="pm-record-stay-confirm" data-pasture-report-stay-confirm={s.id}>
-                        Delete this grazing entry? This cannot be undone.
-                        <button
-                          type="button"
-                          className="pm-btn pm-btn-sm pm-btn-danger"
-                          onClick={() => deleteGrazingStay(s)}
-                          disabled={busyId === s.id}
-                          data-pasture-report-stay-delete-yes={s.id}
-                        >
-                          Delete entry
-                        </button>
-                        <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmDeleteStayId(null)}>
-                          Cancel
-                        </button>
-                      </span>
-                    ) : (
+              {isManager && (
+                <div className="pm-record-stay-actions" data-pasture-report-stay-actions={s.id}>
+                  {confirmDeleteStayId === s.id ? (
+                    <span className="pm-record-stay-confirm" data-pasture-report-stay-confirm={s.id}>
+                      Delete this grazing entry? This cannot be undone.
                       <button
                         type="button"
                         className="pm-btn pm-btn-sm pm-btn-danger"
-                        onClick={() => setConfirmDeleteStayId(s.id)}
+                        onClick={() => deleteGrazingStay(s)}
                         disabled={busyId === s.id}
-                        data-pasture-report-stay-delete={s.id}
+                        data-pasture-report-stay-delete-yes={s.id}
                       >
                         Delete entry
                       </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="pm-report-empty">No grazing recorded for this area yet.</div>
-          )}
+                      <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmDeleteStayId(null)}>
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="pm-btn pm-btn-sm pm-btn-danger"
+                      onClick={() => setConfirmDeleteStayId(s.id)}
+                      disabled={busyId === s.id}
+                      data-pasture-report-stay-delete={s.id}
+                    >
+                      Delete entry
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="pm-report-empty">No grazing recorded for this area yet.</div>
+        )}
+      </div>
+    );
+  }
+
+  // The ONE canonical Area Record, rendered identically in BOTH shells (the Map
+  // area modal and the Reports record): area detail + name edit + grazing history
+  // + management (classification / parent / line style / archive / hard-delete),
+  // each role-gated. Move recording is NOT here — it stays in the group workflow.
+  function renderAreaRecordContent() {
+    const area = selectedArea;
+    if (!area) return null;
+    const styleEligible = isManager && canEditLineStyle(area);
+    return (
+      <div className="pm-area-record" data-pasture-area-record={area.id}>
+        {/* ONE Area section: detail + name edit + management combined. */}
+        {renderAreaSummary()}
+        {renderAreaGrazingHistory()}
+        {styleEligible && (
+          <section className="pm-modal-section" data-pasture-modal-section="linestyle" data-pasture-setup-linestyle="1">
+            <div className="pm-modal-section-label">Line style</div>
+            {renderLineStylePanel()}
+          </section>
+        )}
+        {isAdmin && (
+          <section className="pm-modal-section pm-modal-section-danger" data-pasture-modal-section="danger">
+            {renderDangerZone(area)}
+          </section>
+        )}
+      </div>
+    );
+  }
+
+  // Reports shell for the canonical Area Record: a Back affordance over the same
+  // renderAreaRecordContent the Map modal hosts. (selectedId is set when an area is
+  // opened from Reports, so selectedArea === the open area in both shells.)
+  function renderAreaRecord() {
+    if (!selectedArea) return null;
+    return (
+      <>
+        <div className="pm-panel-title pm-record-title">
+          <button type="button" className="pm-btn pm-btn-sm" onClick={closeAreaRecord} data-pasture-report-back="1">
+            &larr; All areas
+          </button>
+          <span className="pm-kicker">Area record</span>
         </div>
+        {renderAreaRecordContent()}
       </>
     );
   }

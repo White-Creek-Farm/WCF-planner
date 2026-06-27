@@ -38,6 +38,7 @@ export default defineConfig({
     '**/pasture_map_reports_records.spec.js',
     '**/pasture_map_reset_history.spec.js',
     '**/pasture_map_clear_placement.spec.js',
+    '**/pasture_map_tile_hover.spec.js',
   ],
   fullyParallel: false,
   workers: 1,

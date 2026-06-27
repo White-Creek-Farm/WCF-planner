@@ -168,7 +168,7 @@ test('Reports: deleting a COMPLETED stay clears the orphaned resting state (no d
   // move-OUT departure). The stay shows an end (not "Still here").
   await expect(page.locator('[data-pasture-report-stay]').first()).toContainText('Reset Test Group');
   await expect(page.locator('[data-pasture-report-stay]').first()).not.toContainText('Still here');
-  await expect(page.locator('.pm-record-rest')).toContainText('resting');
+  await expect(page.locator('[data-pasture-rest-state]')).toContainText('resting');
 
   // Delete the move-IN entry. The drift fix also clears the move-OUT's linked
   // departures, so the child stops reading "resting" (now no move history) instead
@@ -176,7 +176,7 @@ test('Reports: deleting a COMPLETED stay clears the orphaned resting state (no d
   await page.locator(`[data-pasture-report-stay-delete="${MV_ID}"]`).click();
   await page.locator(`[data-pasture-report-stay-delete-yes="${MV_ID}"]`).click();
   await expect(page.locator('[data-pasture-report-stay]')).toHaveCount(0, {timeout: 15_000});
-  await expect(page.locator('.pm-record-rest')).toContainText('No move history');
+  await expect(page.locator('[data-pasture-rest-state]')).toContainText('No move history');
 
   // Server-side: M1 + its impacts gone; the later move-OUT survives but its linked
   // departures are cleared (so nothing keeps the child resting).

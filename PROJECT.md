@@ -11,7 +11,8 @@ Last updated: 2026-06-26.
 Current product checkpoint: `73a8432` (`Merge pasture group records workflow`).
 Latest shipped product merges include newsletter Checkpoint A (`7d41d7f`) and
 Pasture Map group records (`73a8432`).
-Current docs checkpoint: this 2026-06-26 pasture/newsletter wrap.
+Current docs checkpoint: this 2026-06-26 pasture CC#1/newsletter/processing
+wrap.
 Production URL: https://wcfplanner.com.
 Netlify auto-deploys from GitHub `main`.
 
@@ -68,9 +69,11 @@ Design/function invariants that govern cross-surface behavior live in
 - Source: latest product merge on `main` is `73a8432` (`Merge pasture group
   records workflow`). `origin/main` is pushed. The immediately prior shipped
   newsletter merge is `7d41d7f` (PR #40, `feature/newsletter-engine`).
-- Active lanes / PR gates: none. Pasture Map groups/grazing delete/group-records
-  and Monthly Newsletter Checkpoint A are committed, merged to `main`, and
-  pushed. Start the next build from current `origin/main` in a fresh worktree.
+- Active lanes / PR gates: Pasture Map CC#1 is built locally on
+  `fix/pasture-prod-smoke-warning-cleanup` and is being committed/pushed from
+  this wrap. It still needs review/merge and, separately, explicit PROD approval
+  before migration `149` is applied. Monthly Newsletter Checkpoint A is
+  committed, merged to `main`, and pushed; Checkpoint B automation remains open.
 - Worktree inventory at wrap:
   `C:/Users/Ronni/WCF-planner-codex-residuals` is clean on `main`;
   `C:/Users/Ronni/WCF-planner` is clean on
@@ -78,25 +81,41 @@ Design/function invariants that govern cross-surface behavior live in
   folders `pasture-cp2-shots/`, `pasture-grazing-edit-shots/`, and
   `pasture-map-shots/`; `C:/Users/Ronni/WCF-planner-newsletter` is clean on
   `feature/newsletter-engine` except untracked `newsletter-shots/`.
-- Open production/build gates: newsletter automation is not built. Migration
-  `146`, the `newsletter-harvest` Edge Function, AI/Vault secret wiring, and
-  the monthly `pg_cron` schedule remain Build Queue work. The admin navigation
-  entry for `/admin/newsletter` is also not added yet; the admin surface is
-  reachable by URL.
+- Open production/build gates: Pasture migration `149` is written in the CC#1
+  branch but is not PROD-applied; applying it remains a separate Ronnie gate.
+  Newsletter automation is not built. Migration `146`, the
+  `newsletter-harvest` Edge Function, AI/Vault secret wiring, and the monthly
+  `pg_cron` schedule remain Build Queue work. The admin navigation entry for
+  `/admin/newsletter` is also not added yet; the admin surface is reachable by
+  URL.
 - PROD-applied recent migrations include `112` through `116`, `125` through
   `145`, `147`, and `148`. Migration `146` is reserved for newsletter
   automation and is not written/applied. Migration `143`
   (`delete_land_area_grazing_history`) remains deployed but unused by the UI.
   Pasture migrations `147` and `148` are PROD-applied and smoke verified:
   `delete_pasture_move` exists, `pasture_move_events.total_weight_lbs` exists,
-  and the retired `pasture_planned_moves` table is absent. Newsletter migrations
-  `144` and `145` are present on PROD: the five newsletter tables have RLS
+  and the retired `pasture_planned_moves` table is absent. Pasture migration
+  `149_pasture_map_rest_history_reconciliation.sql` exists only as pending
+  branch work until explicitly applied. Newsletter migrations `144` and `145`
+  are present on PROD: the five newsletter tables have RLS
   enabled, the public anon RPC surface is the three newsletter read RPCs, and
   buckets `newsletter-staging` (private) and `newsletter-public` (public) exist.
   PROD currently has `0` newsletter issues.
 - Production legacy import: `Processing Events - ALL.xlsx` parsed 69 rows,
   skipped 0, and upserted 69 rows into `production_legacy_events` on PROD by
   stable `source_key`.
+- Processing Calendar investigation (planning only; no schema/importer/UI built):
+  Codex and CC reached consensus on the Asana-backed Processing workflow after
+  reviewing the handoff folder `design_handoff_processing_calendar`, the CSV,
+  current repo contracts, and the live Asana API for project
+  `1201484014160203` (`SF Processing Calendar `, trailing space). Do not commit
+  or document the Asana token. Current live audit on 2026-06-26 found 117
+  top-level records, 5 top-level milestones, sections Broiler 48 / Cattle 27 /
+  Pig 29 / Lamb 13, 1,132 CSV subtask rows (1,121 direct API subtasks plus 11
+  nested children), 122 real comments on 52 top-level records, 71 attachments,
+  and 0 live dependencies. Counts are a checkpoint, not a hardcoded import
+  target; the importer must self-count against live API at cutover. Ronnie
+  decided comments must import but Asana system activity/stories must not.
 - Newsletter PROD state: Checkpoint A is merged and pushed. Public no-login
   archive routes live under `/newsletter`, including `/newsletter/latest`,
   issue slugs, and token preview. Admin manual issue editing lives at
@@ -122,6 +141,24 @@ Design/function invariants that govern cross-surface behavior live in
   filter, and per-stay delete. Parent-pasture occupancy/rest fill no longer
   comes from direct child paddock impacts. Light keeps pasture farm-team-level
   Map/Field working controls; non-pasture authorization is unchanged.
+- Pasture Map CC#1 pending branch state
+  (`fix/pasture-prod-smoke-warning-cleanup`): the Map Area modal and Reports
+  Area record now share one canonical Area Record body, so the Map modal gains
+  grazing history and the Reports record gains the same management controls.
+  Area name editing uses one shared explicit Edit -> Save/Cancel editor with
+  Enter-to-save, Escape-to-cancel, visible saving/saved/error states, and no
+  blur-save. The Map Animal Groups launcher and the Reports Areas / Animal
+  Groups launchers are rebuilt as `.hoverable-tile` pop-out openable tiles with
+  shared chevron/keyboard behavior instead of flat table rows. Area summaries no
+  longer repeat "Last grazed"; grazing recency lives in Grazing History. The
+  FP3/FP3A1 phantom "Resting/Last grazed" defect is handled by migration `149`,
+  which replaces `_land_area_summary` to ignore orphan `pasture_move_impacts`
+  whose move event has lost its directional `to_land_area_id`/`from_land_area_id`
+  link; no data mutation is included. Validation run during this wrap:
+  targeted Prettier check, `tests/static/pasture_map_static.test.js` (174/174),
+  `npm run lint` (0 errors; existing warnings), full `npm test` (251 files /
+  6377 tests), `npm run build`, TEST-only `scripts/apply_test_mig_149.cjs`, and
+  focused Playwright `tests/pasture_map_tile_hover.spec.js` (4/4) passed.
 - Latest validation on merged `main`: `npm run format:check` passed; `npm test`
   passed (`251` files / `6371` tests); `npm run build` passed; `npm run lint`
   passed with 0 errors and existing warnings. Full pasture Playwright passed
@@ -589,26 +626,115 @@ This is the canonical home for outstanding build/design work.
      enablement, nav/release push, and first-production publish are explicit
      Ronnie gates. Do not assume Checkpoint A approval covers automation.
 
-2. Pasture Map post-ship production smoke and warning cleanup
-   - Status: SHIPPED product, small verification/cleanup lane only.
-   - Class: `VERIFY`/`DEFECT`.
-   - Scope:
-     - After Netlify deploy, smoke `/pasture-map` in PROD: area modal single-X
-       save-on-close, group table hover/click record, inline group record beside
-       the full map, rotation chip reorder/path, current->next move with date and
-       actual weight, per-stay delete, Reports grazing-stay metrics, inactive
-       group filter, and parent-pasture color suppression.
-     - If reproducible, clean the non-blocking console warnings seen during
-       Playwright: duplicate `undefined|date` keys in HomeDashboard/
-       LightHomePortal and Leaflet `_leaflet_pos` teardown warnings during rapid
-       navigation.
-   - Validation target: focused production/browser smoke for `/pasture-map` after
-     deploy; focused tests for any warning cleanup; full pasture Playwright only
-     if touched behavior could regress.
-   - Gate: code-only unless a new DB defect is found. New DB work requires a new
-     scoped migration and explicit TEST/PROD gates.
+2. Processing Calendar Asana import and native workflow
+   - Status: PLANNING CONSENSUS ONLY. No build prompt has been issued and no
+     schema/importer/UI work is approved yet. Codex should ask Ronnie the
+     blocker questions one at a time before writing the CC build prompt.
+   - Class: `ENH`/`DB-GATE`/`SECURITY`/`STORAGE`/`DATA-IMPORT`.
+   - Source/design: `design_handoff_processing_calendar` contains the prototype
+     handoff, CSV, README, and support file. The CSV is not sufficient for
+     import because comments, attachments, Asana gids, recursive subtasks, and
+     reliable metadata require the live Asana API.
+   - Verified live API checkpoint on 2026-06-26: project
+     `1201484014160203` (`SF Processing Calendar ` with trailing space), 117
+     top-level records, 5 top-level milestones, section counts Broiler 48 /
+     Cattle 27 / Pig 29 / Lamb 13, 1,132 CSV subtask rows, 122 real comments
+     on 52 top-level records, 71 attachments, and 0 live dependencies. The
+     importer must self-audit current live counts at cutover; do not hardcode
+     these counts as permanent truth.
+   - Consensus defaults unless Ronnie changes them:
+     - Build a standalone Processing domain with its own tables and
+       `asana_gid` provenance; do not mutate cattle/sheep/pig/broiler source
+       tables during import. Link to existing program records only when a
+       confident match exists.
+     - Treat the Asana import as one-time, idempotent, and re-runnable unless
+       Ronnie explicitly asks for ongoing sync.
+     - Use a server-side/service-role importer, store the Asana token only in
+       Supabase Vault, preserve original timestamps and historical comment
+       author display names, and suppress notifications during import.
+     - Import real Asana comments. Do not import Asana system activity/stories,
+       field-change logs, likes, follower/rule events, or status-change noise.
+       Native WCF Activity should begin from cutover forward.
+     - Copy Asana-hosted attachments into WCF/Supabase Storage if Ronnie
+       approves the Storage/Vault gates; do not rely on temporary Asana links
+       for durable records.
+     - Use per-record field snapshots plus active/retired template fields so
+       deleted fields hide on future batches but remain visible on past batches
+       where they existed.
+     - Group program by Asana Section, not the broad `Farm Programs` field.
+       Milestone/non-batch classification remains an open Ronnie decision.
+     - Preserve real Asana field types/options: `Processor` is enum, `Farm`
+       includes GOF/WCF, `Year` enum is 2023-2027, actual dates reach 2022,
+       `Status (Animal Master)` has the real Asana option set, and
+       `Farm Programs` is a broad global field. Derive display year from
+       processing date when `Year` is null so 2022 records do not disappear.
+     - Recursively fetch subtasks. Flatten nested subtasks for v1 unless Ronnie
+       asks for nested checklist UI.
+     - Conform to CP0/design-system contracts and use the normal full-page
+       record route pattern unless Ronnie explicitly approves a new drawer
+       primitive. Light users are excluded by default.
+   - Blocker questions Codex must ask Ronnie one at a time before the build
+     prompt:
+     1. Standalone Processing domain vs directly unifying existing program
+        batch tables.
+     2. One-time Asana import vs ongoing Asana sync.
+     3. Full-page Processing record route vs slide-in panel.
+     4. How to classify non-batch top-level records and milestones.
+     5. Whether imported records are editable or historical-locked after import.
+     6. Whether attachments must be copied into Storage.
+     7. Completion source of truth: Asana completed state, `Status
+        (Processing)`, or all subtasks complete.
+     8. Which existing WCF workflow creates future Processing records, since
+        batches cannot be created inside the Processing tab.
+     9. Permissions by role for view/edit/templates/comments/milestones.
+     10. Field/template deletion and versioning behavior.
+   - Validation target: API dry-run inventory with live count reconciliation;
+     TEST-only schema/import first; idempotent re-run proof; imported task,
+     field, subtask, comment, attachment, milestone, and author-display spot
+     checks; static design/RLS/permission guards; focused browser coverage for
+     list filters, record pages, comments, subtasks, templates, milestones, and
+     hover/openable table behavior.
+   - Gates: TEST migration/import may happen only inside an approved lane. PROD
+     migration apply, Vault secret add/rotate, Storage bucket creation/change,
+     Asana import cutover, Edge Function/deploy work if any, commit, push, and
+     release are separate Ronnie gates. `exec_sql` in PROD remains forbidden.
 
-3. Pasture Map open-line Edit fast-follow
+3. Pasture Map CC#1 area record, pop-out tiles, and rest-history reconciliation
+   - Status: BUILT on `fix/pasture-prod-smoke-warning-cleanup`; pending
+     review/merge and explicit PROD migration `149` approval. Do not treat the
+     migration as PROD-applied until CC reports the approved apply/verification.
+   - Class: `DEFECT`/`UX`/`DB-GATE`.
+   - Scope built:
+     - Combined the Map Area modal and Reports Area record around one canonical
+       Area Record body. The Map modal now shows grazing history; the Reports
+       record now has the same management/config controls. Move recording
+       remains in the animal-group workflow, not the area record.
+     - Added shared explicit area-name editing for Map and Reports: Edit opens a
+       controlled input, Save/Cancel are visible, Enter saves, Escape cancels
+       without closing the host modal, and saving/saved/error states are shown.
+       Permanent areas save through `updateLandArea`; temp areas save through
+       `renameTempLandArea`.
+     - Rebuilt the Map Animal Groups launcher plus Reports Areas and Reports
+       Animal Groups launchers as `.hoverable-tile` pop-out openable tiles with
+       shared `openableProps`, keyboard activation, and chevron reveal. These
+       surfaces are no longer DataTables because they open records rather than
+       present dense tabular data.
+     - Removed duplicate last-grazed copy from the area summary; grazing recency
+       and stay counts live in Grazing History.
+     - Added migration `149_pasture_map_rest_history_reconciliation.sql` to
+       replace `_land_area_summary` so orphan NULL-link move impacts from reset
+       or hard-delete flows no longer make FP3/FP3A1 read "Resting" or "Last
+       grazed" when Reports show no visible stay. The migration is read-function
+       only: no schema, RLS, or data mutation.
+   - Validation target: `npm run format:check`, focused static pasture guard
+     tests, focused Pasture Map Playwright including
+     `tests/pasture_map_tile_hover.spec.js`, and TEST-only migration `149`
+     verification with `scripts/apply_test_mig_149.cjs` before any PROD apply.
+   - Gates: commit/push approved in this wrap. Merge/release remains separate.
+     PROD migration `149` apply and verification remain separate Ronnie gates;
+     `exec_sql` in PROD is still forbidden.
+
+4. Pasture Map open-line Edit fast-follow
    - Class: `ENH`/`DB-GATE`.
    - Scope: allow editing saved Tracks / Lines LineString geometry. Current
      polygon edit RPCs intentionally reject line geometry; open lines can be
@@ -622,7 +748,7 @@ This is the canonical home for outstanding build/design work.
    - Gate: TEST migration apply inside lane; explicit Ronnie PROD approval for
      the new migration and PostgREST schema reload. No manual PROD JSON edits.
 
-4. P3 derived-data durability/audit residuals
+5. P3 derived-data durability/audit residuals
    - Class: `DEFECT`/`ENH`.
    - Scope candidates from CC#2 audit: pig mortality/trips durability, cosmetic
      `calcPoultryStatus` cleanup, and orphan system-task detection/cleanup.
@@ -631,7 +757,7 @@ This is the canonical home for outstanding build/design work.
      path, guard tests, and whether a one-time data repair is needed.
    - Gate: depends on sub-lane; data cleanup needs explicit PROD approval.
 
-5. Parity Residuals
+6. Parity Residuals
    - Class: `ENH`.
    - Known small follow-up from the parity rollout: Home quick-nav tiles need a
      narrow-phone fix because `.home .tile` is missing `min-width: 0`, which can
@@ -640,7 +766,7 @@ This is the canonical home for outstanding build/design work.
      new audit.
    - Gate: code-only unless a touched surface needs a guard update.
 
-6. Design-Law Compliance residual follow-ups
+7. Design-Law Compliance residual follow-ups
    - Class: `ENH`. The CP0 compliance pass (A1-A12 + Tabs + WI-6; the 2026-06-17
      designer audit) shipped 2026-06-18. Source of truth for the laws is
      `CP0-SIGNOFF.md`, folded into Global Decisions + Design System above. These
@@ -1019,6 +1145,15 @@ migrations:
     records current area to next rotation area.
   - PROD smoke verified on 2026-06-26: weight column exists, record-move weight
     signature exists, and `pasture_planned_moves` is absent.
+- `149` Pasture Map rest/history reconciliation (WRITTEN, not PROD-applied):
+  - Replaces `_land_area_summary` so orphan `pasture_move_impacts` whose move
+    event has NULL `to_land_area_id`/`from_land_area_id` no longer derive
+    occupancy, last touch, or resting state. This resolves the FP3/FP3A1 defect
+    where the Map showed "Resting/Last grazed" while Reports showed no visible
+    direct stay.
+  - Preserves migration `147` child-from-parent suppression and does not change
+    schema, RLS, grants, or return shape. Stale orphan impact rows are ignored,
+    not deleted. PROD apply requires an explicit Ronnie migration gate.
 
 Special migration notes:
 
@@ -1350,6 +1485,38 @@ Workflow/worktable entities:
   can be confidently resolved, including broiler batch links by date/count.
 - Light users are excluded by route allowlist and RPC role gate.
 
+### Processing Calendar
+
+- Not shipped yet. The Processing Calendar is the planned Asana replacement for
+  the `SF Processing Calendar ` project, not the existing `/production`
+  reporting page.
+- `/production` remains the processed-output reporting surface. The Processing
+  Calendar should be a workflow/schedule/record surface for processing batches,
+  milestones, comments, attachments, custom fields, and subtasks.
+- Asana import must use the API, not CSV alone. The CSV can assist audit only;
+  authoritative import needs Asana gids, sections, custom field gids/options,
+  recursive subtasks, comments, attachments, and user metadata.
+- Import comments, not activity. Preserve real comment author display,
+  timestamp, and body. Do not import Asana system stories, field-change logs,
+  likes, follower/rule events, or status-change noise.
+- Imported Activity tabs start empty and accrue only native WCF events after
+  cutover.
+- The Asana token is a live secret and must not be committed, pasted into docs,
+  or stored in source. Future importer work must use Supabase Vault or an
+  equivalent approved secret path.
+- Historical field behavior requires versioning/snapshots: retired fields must
+  disappear from future batches while remaining visible on past/imported batches
+  where they existed.
+- Default planning stance is standalone Processing tables with `asana_gid`
+  provenance and optional links to existing program batch records. This remains
+  pending Ronnie's answer before build.
+- Program grouping should come from Asana Section, not the broad
+  `Farm Programs` custom field. Year filters must not hide records whose Year
+  field is null but whose processing date is in 2022.
+- Existing CP0/design-system contracts apply. Do not copy prototype styles that
+  conflict with true-black text, radius floor, closed badge set, table hover,
+  or program-accent rules unless Ronnie approves a Constitution amendment.
+
 ### Monthly Newsletter
 
 - Current shipped scope is Checkpoint A: manual public archive + admin editor,
@@ -1432,31 +1599,40 @@ Workflow/worktable entities:
 - Current Pasture Map tabs are Map / Field / Reports. Plan is folded into Map;
   Setup was already removed. Map is the single working surface: hover reads;
   clicking a map area opens the accessible Area MODAL (`PastureAreaModal.jsx`:
-  role=dialog, aria-modal, focus trap, backdrop) which owns per-area config
-  (classification, parent pasture, line style, redraw, archive/restore, admin
-  hard-delete) - there is NO move form in the modal. The modal has one close
-  affordance, the upper-right `X`, and it debounces/saves edits on close.
-  The slim side panel holds the Animal Groups DataTable-style group rows. A
-  group row opens an inline group record beside the map, not a modal. The record
-  order is group details, chip-based rotation editor, current->next move box
-  with date/time and optional actual group weight, then grazing history. The
-  rotation editor owns future planning; the old planned-move table/RPCs and
-  free-form Record/Plan forms are removed. Tracks / Lines, the
+  role=dialog, aria-modal, focus trap, backdrop) which hosts the same canonical
+  Area Record body used by Reports: area summary, explicit name editor, Grazing
+  History, and role-gated management/config controls (classification, parent
+  pasture, line style, redraw, archive/restore, admin hard-delete). There is NO
+  move form in the modal. The modal has one close affordance, the upper-right
+  `X`, and it debounces/saves review edits on close. Area name editing is
+  explicit Edit -> Save/Cancel with Enter-to-save and Escape-to-cancel; do not
+  reintroduce blur-save naming.
+  The slim side panel holds Animal Groups pop-out openable tiles, not flat
+  tables. A group tile opens an inline group record beside the map, not a modal.
+  The record order is group details, chip-based rotation editor, current->next
+  move box with date/time and optional actual group weight, then grazing
+  history. The rotation editor owns future planning; the old planned-move
+  table/RPCs and free-form Record/Plan forms are removed. Tracks / Lines, the
   classification/review queue, and archived recovery are collapsed sections in
   Reports. Reviewed permanent paddocks require a parent pasture (UI-enforced via
   `update_land_area` `p_parent_id`; no DB constraint, no auto-backfill);
   parentless paddocks surface in a Reports "Needs pasture assignment" section.
-  Field is phone-first execution/offline queue. Reports are a collapsible
-  per-area accordion plus animal-group grazing stays/metrics, inactive groups
-  behind an Include inactive groups filter, and per-stay delete. Light is
-  pasture farm-team-level on the merged Map and Field.
+  Field is phone-first execution/offline queue. Reports use pop-out openable
+  tiles for Areas and Animal Groups; opening an Area renders the same canonical
+  Area Record body. Reports also include animal-group grazing stays/metrics,
+  inactive groups behind an Include inactive groups filter, and per-stay delete.
+  Light is pasture farm-team-level on the merged Map and Field.
 - Move ledger / coloring contract: an area's occupancy/rest state is
   read-derived in `_land_area_summary` from `pasture_move_impacts`
   (`destination`/`overlap`/`departure`), not stored on `land_areas`.
   `record_pasture_move` still writes overlap impacts for intersecting areas, but
   migration `147` suppresses direct-child overlap impacts when deriving parent
-  pasture state. A permanent paddock's bright-green stroke is a LOCKED
-  designation color, independent of state; the FILL is the state.
+  pasture state. Migration `149` (pending PROD apply until explicitly approved)
+  additionally ignores orphan impacts whose move event has lost its directional
+  `to_land_area_id`/`from_land_area_id` link, so an area cannot read
+  "Resting/Last grazed" without a visible stay or non-orphan impact explaining
+  it. A permanent paddock's bright-green stroke is a LOCKED designation color,
+  independent of state; the FILL is the state.
 - Boundary visibility toggles hide/show pasture, paddock, or temp-paddock
   strokes only. Animal occupancy fills and group markers remain visible. Draft
   lines render on the working Map; Field has a Draft lines toggle; selected draft
@@ -1469,14 +1645,15 @@ Workflow/worktable entities:
   migration gates. Until then, saved Tracks / Lines can be zoomed, deleted, or
   closed into temp paddocks, but not edited in place.
 - Current Pasture Map includes the real-roster redesign, move ledger,
-  animal-color occupancy, inline group records, chip-based rotation planning,
-  group-record move logging, actual-weight grazing metrics, per-stay grazing
-  delete, history/rest/stocking reports, offline vector snapshot/queue, GPS
-  field tracks, line styling/pattern controls, temp-paddock lifecycle, the
-  single-X Area modal + Reports accordion, and Light pasture farm-team-level
-  Map/Field access. It does not include offline imagery cache, daily-report
-  wiring, open-line edit, or a generic undo stack; corrections are delete the
-  grazing stay and re-record the move.
+  animal-color occupancy, pop-out openable launch tiles, inline group records,
+  chip-based rotation planning, group-record move logging, actual-weight
+  grazing metrics, per-stay grazing delete, history/rest/stocking reports,
+  offline vector snapshot/queue, GPS field tracks, line styling/pattern
+  controls, temp-paddock lifecycle, the single-X Area modal, the shared
+  Map/Reports Area Record body, explicit area-name editor, and Light pasture
+  farm-team-level Map/Field access. It does not include offline imagery cache,
+  daily-report wiring, open-line edit, or a generic undo stack; corrections are
+  delete the grazing stay and re-record the move.
 - Future Pasture Map lanes should preserve the shipped Map / Field / Reports IA,
   the click-to-open Area modal, the Reports accordion, and the provider-neutral
   geometry/RPC model unless a new Ronnie-approved decision explicitly reopens

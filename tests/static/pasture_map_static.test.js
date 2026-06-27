@@ -36,6 +36,8 @@ const mig147 = read('supabase-migrations/147_pasture_map_grazing_entry_delete_an
 const mig147Code = mig147.replace(/--[^\n]*/g, '');
 const mig148 = read('supabase-migrations/148_pasture_map_group_records_weight_and_planned_move_cleanup.sql');
 const mig148Code = mig148.replace(/--[^\n]*/g, '');
+const mig149 = read('supabase-migrations/149_pasture_map_rest_history_reconciliation.sql');
+const mig149Code = mig149.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -87,9 +89,9 @@ describe('Pasture Map route + wiring', () => {
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureHistoryReport\(\{limit: 1000\}\)/);
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureRotations/);
     expect(viewSrc).toMatch(/canViewPlanning\s*\?\s*listPastureMeasurements/);
-    // The Reports area-record drill-down lazily loads that area's grazing history
-    // (still farm_team+/light gated).
-    expect(viewSrc).toMatch(/if \(!reportAreaId \|\| appMode !== 'reports' \|\| !canViewPlanning\)/);
+    // The canonical Area Record (Map modal OR Reports record) lazily loads the
+    // open area's grazing history off selectedId (still farm_team+/light gated).
+    expect(viewSrc).toMatch(/if \(!selectedId \|\| !canViewPlanning\)/);
     // Move writes stay hard-gated on canRecordMoves (which now includes light).
     expect(viewSrc).toMatch(/async function recordGroupMove[\s\S]*?if \(!canRecordMoves\) return;/);
     expect(viewSrc).toContain('const disabled = !group.active || !canRecordMoves || !next || saving');
@@ -451,20 +453,21 @@ describe('Reports = every-area grazing records, read-only to all pasture users',
     expect(viewSrc).toContain('function grazingRecordTotals');
     expect(viewSrc).toContain('ev.to_land_area_id !== areaId');
     expect(viewSrc).toContain('nx.from_land_area_id === areaId');
-    expect(viewSrc).toContain('listPastureHistoryReport({landAreaId: reportAreaId');
+    expect(viewSrc).toContain('listPastureHistoryReport({landAreaId: selectedId');
     // Grouped list: pastures/feeder areas carry child paddocks (parent_id) nested.
     expect(viewSrc).toContain('const reportGroups = React.useMemo');
     expect(viewSrc).toContain('a.parent_id === id');
   });
 
-  it('Reports uses DataTable rows for areas and a maintenance card for review actions', () => {
+  it('Reports renders areas as pop-out openable tiles + a maintenance card for review actions', () => {
     const body = viewSrc.slice(
       viewSrc.indexOf('function renderReportAreaList'),
       viewSrc.indexOf('function renderAreaRecord'),
     );
-    // Area records follow the site table pattern instead of the old accordion,
-    // while section/depth metadata keeps pasture/paddock hierarchy readable.
-    expect(body).toContain('surfaceKey="pasture-report-area-table"');
+    // Areas are launcher tiles that POP OUT (shared .hoverable-tile) like the Home
+    // tiles, opening the area record; section/depth metadata keeps hierarchy.
+    expect(body).toContain('data-surface="pasture-report-area-table"');
+    expect(body).toContain('pm-open-tile pm-area-tile hoverable-tile');
     expect(body).toContain('data-pasture-report-area-row');
     expect(body).toContain('reportDepth');
     expect(body).toContain("children.forEach((child) => pushArea(child, area.name || 'Paddocks', 1))");
@@ -586,9 +589,9 @@ describe('Merged Map: hover readout + click-to-open Area modal', () => {
     expect(viewSrc).toMatch(/queuedItemCount = \(queueState\.queuedCount/);
   });
 
-  it('Animal Groups table shows time-in-area for placed groups', () => {
-    expect(viewSrc).toContain('pm-group-location-cell');
-    expect(viewSrc).toContain('surfaceKey="pasture-group-table"');
+  it('Animal Groups tiles show location + time-in-area for placed groups', () => {
+    expect(viewSrc).toContain('data-surface="pasture-group-table"');
+    expect(viewSrc).toContain('pm-open-tile-sub');
     expect(viewSrc).toMatch(/loc && loc\.movedAt \? formatTimeInArea\(loc\.movedAt\) : null/);
   });
 });
@@ -1252,7 +1255,7 @@ describe('P1 planner-group roster wiring', () => {
   it('current-group location is derived from the move ledger by (animal_type, group_key)', () => {
     expect(viewSrc).toContain('m.animal_type === g.animalType && m.group_key === g.groupKey');
     expect(viewSrc).toContain('Not placed');
-    expect(viewSrc).toContain('pm-group-location-cell');
+    expect(viewSrc).toContain('pm-open-tile-sub');
     expect(viewSrc).toContain('data-pasture-group-row');
     expect(viewSrc).not.toContain('data-pasture-current-groups');
   });
@@ -1285,8 +1288,8 @@ describe('P2 Map tab', () => {
     expect(viewSrc).toContain('data-pasture-map-header');
   });
 
-  it('Animal Groups render as table rows with no map hover/focus preview', () => {
-    expect(viewSrc).toContain('surfaceKey="pasture-group-table"');
+  it('Animal Groups render as pop-out openable tiles with no map hover/focus preview', () => {
+    expect(viewSrc).toContain('data-surface="pasture-group-table"');
     expect(viewSrc).toContain('data-pasture-group-row');
     expect(viewSrc).not.toContain('selectGroupAndLocation');
     expect(viewSrc).not.toContain('function previewGroupArea');
@@ -1294,11 +1297,11 @@ describe('P2 Map tab', () => {
     expect(viewSrc).not.toContain('onFocus={() => previewGroupArea(group)}');
     expect(viewSrc).not.toContain('onMouseLeave={clearGroupPreview}');
     expect(viewSrc).not.toContain('onBlur={clearGroupPreview}');
-    expect(viewSrc).toContain('onRowOpen={(group) => openGroupRecord(group)}');
+    expect(viewSrc).toContain('openableProps(() => openGroupRecord(group))');
   });
 
   it('Area detail derives the designation and flags temp/archived', () => {
-    expect(viewSrc).toContain('<div className="pm-kicker">Area detail</div>');
+    expect(viewSrc).toContain('<div className="pm-kicker">Area</div>');
     expect(viewSrc).toContain('designationLabel');
     expect(viewSrc).toContain("return 'Temp paddock'");
     expect(viewSrc).toContain('data-pasture-area-detail');
@@ -1327,14 +1330,15 @@ describe('P2 Map tab', () => {
     expect(modalSrc).toContain('pm-modal-backdrop');
     expect(modalSrc).toContain('data-pasture-area-modal-close');
 
-    // The Area modal owns per-area line style + classification/parent; the
-    // single header X owns the debounced save/review close. The inner wrapper keeps the legacy
-    // data-pasture-plan-inspector hook. Move/animal placement is NOT in the modal.
+    // The Map modal hosts the ONE canonical Area Record body (renderAreaRecordContent
+    // — detail + grazing history + management/line style/classification/parent); the
+    // single header X owns the debounced save/review close. The inner wrapper keeps
+    // the legacy data-pasture-plan-inspector hook. Move/animal placement is NOT here.
     const modalBody = viewSrc.slice(
       viewSrc.indexOf('function renderAreaModal'),
       viewSrc.indexOf('function reportAreaTag'),
     );
-    expect(modalBody).toContain('renderLineStylePanel()');
+    expect(modalBody).toContain('renderAreaRecordContent()');
     expect(modalBody).toContain('data-pasture-plan-inspector');
     expect(modalBody).toContain('onClose={closeAreaModal}');
     expect(modalBody).toContain('closeDisabled={areaModalCloseSaving}');
@@ -1472,9 +1476,9 @@ describe('Designation boundary styling + promotion + boundary overlay (lane)', (
     expect(viewSrc).toContain('function isFixedStyleArea');
     // Editable line-style section (Plan inspector) is gated on canEditLineStyle;
     // permanent fixed-style areas get a small inline locked note instead.
-    expect(viewSrc).toContain('isManager && canEditLineStyle(selectedArea)');
+    expect(viewSrc).toContain('isManager && canEditLineStyle(area)');
     expect(viewSrc).toContain('data-pasture-setup-linestyle-locked');
-    expect(viewSrc).toContain('isFixedStyleArea(selectedArea)');
+    expect(viewSrc).toContain('isFixedStyleArea(area)');
   });
 
   it('view creates new drawn land as temp paddocks (permanent comes from promotion)', () => {
@@ -1950,6 +1954,29 @@ describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mi
     expect(mig147Code).not.toContain('#4ade80');
   });
 
+  it('mig 149 ignores orphan (NULL-link) impacts in _land_area_summary', () => {
+    // Defect: FP3 / FP3A1 read "Resting / Last grazed" while Reports showed no
+    // stay, because overlap/departure impacts whose move event lost its
+    // to/from link (143-reset or area hard-delete FK SET NULL) still drove
+    // rest_state. mig 149 ignores those orphan impacts in all three derivations.
+    expect(mig149Code).toContain('CREATE OR REPLACE FUNCTION public._land_area_summary');
+    // Occupancy + last-touch: require the move's destination link (to) be present.
+    expect(mig149Code).toContain('l.to_land_area_id IS NOT NULL');
+    expect(mig149Code).toContain('e.to_land_area_id IS NOT NULL');
+    // Resting: require the departure move's from link be present.
+    expect(mig149Code).toMatch(/impact_kind = 'departure'[\s\S]*?e\.from_land_area_id IS NOT NULL/);
+    // Preserves mig 147's child-from-parent suppression (keyed on parent_id = p_id).
+    expect(mig149Code).toContain('c.parent_id = p_id');
+    // Read function only: no schema / RLS / designation-stroke change.
+    expect(mig149Code).not.toContain('ALTER TABLE');
+    expect(mig149Code).not.toContain('#1d4ed8');
+    expect(mig149Code).not.toContain('#4ade80');
+    // Return shape unchanged (same keys the client reads).
+    expect(mig149Code).toContain("'rest_state', v_rest_state");
+    expect(mig149Code).toContain("'last_touched_at', v_last_touch");
+    expect(mig149Code).toContain("'last_moved_out_at', v_last_departure");
+  });
+
   it('api exposes deletePastureMove over the new RPC', () => {
     expect(apiSrc).toContain('export async function deletePastureMove');
     expect(apiSrc).toContain("sb.rpc('delete_pasture_move'");
@@ -1976,11 +2003,11 @@ describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mi
     expect(viewSrc).not.toContain('Pick a group, then build its rotation');
   });
 
-  it('Animal Groups table rows show location + open an inline group record on click', () => {
-    expect(viewSrc).toContain('surfaceKey="pasture-group-table"');
-    expect(viewSrc).toContain('pm-group-location-cell');
+  it('Animal Groups tiles show location + open an inline group record on click', () => {
+    expect(viewSrc).toContain('data-surface="pasture-group-table"');
+    expect(viewSrc).toContain('pm-open-tile pm-group-tile hoverable-tile');
     expect(viewSrc).toContain('formatTimeInArea(loc.movedAt)');
-    expect(viewSrc).toContain('onRowOpen={(group) => openGroupRecord(group)}');
+    expect(viewSrc).toContain('openableProps(() => openGroupRecord(group))');
     expect(viewSrc).toContain('function openGroupRecord');
     expect(viewSrc).toContain('function renderGroupRecord');
     expect(viewSrc).not.toContain('<PastureGroupHistoryModal');
@@ -2019,5 +2046,111 @@ describe('Feeder-pig destinations prefer the permanent pig-pasture paddocks', ()
     // Areas are sorted for click order but none are filtered out by kind.
     expect(canvasSrc).toContain('ordered.forEach');
     expect(canvasSrc).not.toMatch(/areas\.filter\([^)]*kind !== 'pasture'/);
+  });
+});
+
+describe('Pasture Map pop-out tiles + inline area name editor', () => {
+  it('the 3 launcher surfaces are openable POP-OUT tiles (.hoverable-tile + openableProps), not flat rows', () => {
+    // Ronnie direction: the Map Animal-groups + Reports Areas + Reports Animal-groups
+    // lists must POP OUT on hover like the Home tiles / Pasture Map button. The shared
+    // .hoverable-tile lift belongs on a div (never a <tr>), wired via openableProps for
+    // keyboard row-open, with the shared chevron.
+    for (const surface of [
+      'data-surface="pasture-group-table"',
+      'data-surface="pasture-report-area-table"',
+      'data-surface="pasture-report-group-table"',
+    ]) {
+      expect(viewSrc).toContain(surface);
+    }
+    expect(viewSrc).toContain("import {openableProps} from '../shared/openable.js'");
+    expect(viewSrc).toContain('pm-open-tile pm-group-tile hoverable-tile');
+    expect(viewSrc).toContain('pm-open-tile pm-area-tile hoverable-tile');
+    expect(viewSrc).toContain('openableProps(() => openGroupRecord(group))');
+    expect(viewSrc).toContain("openableProps(() => openGroupRecord(group, 'reports'))");
+    expect(viewSrc).toContain('<span className="chev" aria-hidden="true">');
+    // The three launcher surfaces no longer render as DataTables.
+    expect(viewSrc).not.toContain('surfaceKey="pasture-group-table"');
+    expect(viewSrc).not.toContain('surfaceKey="pasture-report-area-table"');
+    expect(viewSrc).not.toContain('surfaceKey="pasture-report-group-table"');
+  });
+
+  it('the pop-out lift never lands on a <tr> (affordance contract: hoverable-tile is for divs)', () => {
+    expect(viewSrc).not.toMatch(/<tr[^>]*hoverable-tile/);
+  });
+
+  it('area name editing is explicit Save/Cancel (no blur-save), shared by the Map modal + Reports record', () => {
+    expect(viewSrc).toContain('function AreaNameEditor');
+    // The fragile defaultValue + onBlur name save is gone.
+    expect(viewSrc).not.toContain('isTemp ? renameTemp(area, value) : saveAreaPatch(area, {name: value})');
+    expect(viewSrc).toMatch(/data-pasture-area-name-save/);
+    expect(viewSrc).toMatch(/data-pasture-area-name-cancel/);
+    expect(viewSrc).toMatch(/data-pasture-area-name-input/);
+    // Enter saves; Escape cancels and does not bubble to close the host modal.
+    expect(viewSrc).toMatch(/e\.key === 'Enter'[\s\S]*?save\(\)/);
+    expect(viewSrc).toMatch(/e\.key === 'Escape'[\s\S]*?e\.stopPropagation\(\)[\s\S]*?cancel\(\)/);
+    // Visible saving / saved / error state.
+    expect(viewSrc).toContain("status === 'saving' ? 'Saving");
+    expect(viewSrc).toContain('pm-name-edit-status is-saved');
+    expect(viewSrc).toContain('pm-name-edit-status is-error');
+    // Canonical: ONE AreaNameEditor lives in the shared Manage-area section, which
+    // renderAreaRecordContent renders in BOTH shells (Map modal + Reports record).
+    expect((viewSrc.match(/<AreaNameEditor/g) || []).length).toBe(1);
+    expect(viewSrc).toContain('canEdit={canManageArea}');
+    // Permanent areas save via updateLandArea; temp via renameTempLandArea.
+    expect(viewSrc).toMatch(
+      /async function saveAreaName[\s\S]*?renameTempLandArea\(a\.id, name\)[\s\S]*?updateLandArea\(a\.id, \{name\}\)/,
+    );
+  });
+
+  it('the area name editor only renames — move recording stays in the group workflow', () => {
+    const editor = viewSrc.slice(
+      viewSrc.indexOf('function AreaNameEditor'),
+      viewSrc.indexOf('export default function PastureMapView'),
+    );
+    expect(editor).not.toContain('record_pasture_move');
+    expect(editor).not.toContain('recordMove');
+  });
+
+  it('the area record is ONE canonical body (renderAreaRecordContent) rendered in BOTH shells', () => {
+    expect(viewSrc).toContain('function renderAreaRecordContent');
+    expect(viewSrc).toContain('function renderAreaGrazingHistory');
+    // Both shells render the canonical content.
+    const modalBody = viewSrc.slice(
+      viewSrc.indexOf('function renderAreaModal'),
+      viewSrc.indexOf('function reportAreaTag'),
+    );
+    expect(modalBody).toContain('renderAreaRecordContent()');
+    const recordShell = viewSrc.slice(
+      viewSrc.indexOf('function renderAreaRecord()'),
+      viewSrc.indexOf('function renderPanel'),
+    );
+    expect(recordShell).toContain('renderAreaRecordContent()');
+    // The canonical body composes the merged Area summary + grazing history +
+    // line style + danger, so the Reports record gains management and the Map
+    // modal gains grazing history.
+    const content = viewSrc.slice(
+      viewSrc.indexOf('function renderAreaRecordContent'),
+      viewSrc.indexOf('function renderAreaRecord()'),
+    );
+    expect(content).toContain('renderAreaSummary()');
+    expect(content).toContain('renderAreaGrazingHistory()');
+    expect(content).toContain('renderDangerZone(area)');
+    // Area detail + Manage area are MERGED into one section (renderAreaSummary):
+    // the management controls render inside the detail card, not a separate one.
+    const summary = viewSrc.slice(
+      viewSrc.indexOf('function renderAreaSummary'),
+      viewSrc.indexOf('function renderOccupiedExplain'),
+    );
+    expect(summary).toContain('renderAreaManageActions(area)');
+    expect(summary).toContain('<div className="pm-kicker">Area</div>');
+    // The redundant read-only "Type" row is gone (Classification names the kind).
+    expect(summary).not.toContain('<span>Type</span>');
+    // The standalone "Manage area" section/title is gone.
+    expect(viewSrc).not.toContain('<div className="pm-modal-section-label">Manage area</div>');
+    // Opening an area from Reports sets selectedId so the shared body (built on the
+    // selected area) renders in the Reports shell too.
+    expect(viewSrc).toContain('function openAreaRecord');
+    expect(viewSrc).toMatch(/function openAreaRecord[\s\S]*?setReportAreaId\(areaId\)[\s\S]*?setSelectedId\(areaId\)/);
+    expect(viewSrc).toContain('openableProps(() => openAreaRecord(area.id))');
   });
 });
