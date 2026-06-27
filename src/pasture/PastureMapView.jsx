@@ -23,6 +23,7 @@ import {
   createLandArea,
   createLandAreaTrack,
   updateLandAreaGeometry,
+  updateLandAreaTrack,
   updateLandAreaStyle,
   listPastureMoves,
   recordPastureMove,
@@ -306,6 +307,14 @@ function hasPolygonGeom(a) {
   if (a.current_version && a.current_version.geometry) return true;
   const rg = a.raw_geometry;
   return !!(rg && (rg.type === 'Polygon' || rg.type === 'MultiPolygon'));
+}
+
+// A saved Track / Line carries an editable LineString in raw_geometry (no polygon
+// version). Open-line edit (mig 150) reshapes that line in place.
+function hasLineGeom(a) {
+  if (!a) return false;
+  const rg = a.raw_geometry;
+  return !!(rg && (rg.type === 'LineString' || rg.type === 'MultiLineString'));
 }
 
 function groupSizeCount(group) {
@@ -753,7 +762,7 @@ export default function PastureMapView({Header, authState}) {
   const [confirmDeleteStayId, setConfirmDeleteStayId] = React.useState(null);
   const [historyReloadSignal, setHistoryReloadSignal] = React.useState(0);
   const [confirmPromoteId, setConfirmPromoteId] = React.useState(null);
-  const [boundaryFilter, setBoundaryFilter] = React.useState({pasture: true, paddock: true, temp: true});
+  const [boundaryFilter, setBoundaryFilter] = React.useState({pasture: true, paddock: true, temp: true, line: true});
   const [draftLinesVisible, setDraftLinesVisible] = React.useState(false);
   const [drawIsTemp, setDrawIsTemp] = React.useState(false);
   const [drawForm, setDrawForm] = React.useState(null);
@@ -1334,6 +1343,21 @@ export default function PastureMapView({Header, authState}) {
     setMapMode('edit');
   }
 
+  // Open-line edit: reshape a saved Track / Line (outline candidate) in place.
+  // Separate entry from startEdit (which is polygon-only) because lines have no
+  // polygon version and save through the line RPC, not the boundary RPC.
+  function startEditLine(a) {
+    if (!a || !isOutlineCandidateArea(a) || !hasLineGeom(a)) {
+      setErr('Select a Track / Line with a saved line, then use Edit line.');
+      return;
+    }
+    setErr('');
+    setEditGeom(null);
+    setSelectedId(a.id);
+    setAppMode('view');
+    setMapMode('edit');
+  }
+
   async function onFile(e) {
     const file = e.target.files && e.target.files[0];
     if (fileRef.current) fileRef.current.value = '';
@@ -1880,12 +1904,17 @@ export default function PastureMapView({Header, authState}) {
     }
     if (editGeom.metrics && editGeom.metrics.selfIntersects)
       return setErr('The edited boundary is self-intersecting. Fix it before saving.');
+    if (selectedArea && isOutlineCandidateArea(selectedArea) && editGeom.metrics && editGeom.metrics.valid === false)
+      return setErr('A Track / Line needs at least two points.');
     setSaving(true);
     setErr('');
     try {
-      // Temp paddocks redraw through the owner-or-manager temp RPC; permanent
-      // areas through the mgmt/admin RPC.
-      if (selectedArea && selectedArea.permanence === 'temporary')
+      // Saved Tracks / Lines reshape through the line RPC (no acreage, no version,
+      // no promotion); temp paddocks redraw through the owner-or-manager temp RPC;
+      // permanent areas through the mgmt/admin boundary RPC.
+      if (selectedArea && isOutlineCandidateArea(selectedArea))
+        await updateLandAreaTrack(selectedId, editGeom.geometry);
+      else if (selectedArea && selectedArea.permanence === 'temporary')
         await updateTempLandAreaGeometry(selectedId, editGeom.geometry);
       else await updateLandAreaGeometry(selectedId, editGeom.geometry);
       setEditGeom(null);
@@ -2211,7 +2240,7 @@ export default function PastureMapView({Header, authState}) {
             disabled={saving || (editGeom && editGeom.metrics && editGeom.metrics.selfIntersects)}
             data-pasture-editbar-save="1"
           >
-            {saving ? 'Saving...' : 'Save boundary'}
+            {saving ? 'Saving...' : isOutlineCandidateArea(selectedArea) ? 'Save line' : 'Save boundary'}
           </button>
         </div>
       </div>
@@ -2534,24 +2563,30 @@ export default function PastureMapView({Header, authState}) {
             ))}
           </div>
         )}
-        <div className="pm-kv">
-          <span>State</span>
-          <strong data-pasture-rest-state={area.rest_state || 'baseline'}>{restCopy(area)}</strong>
-          <span>Acres</span>
-          <strong data-pasture-acres-readonly={area.id}>
-            {area.effective_acres == null ? '-' : `${area.effective_acres} ac`}
-          </strong>
-        </div>
-        {selectedDensity && (
-          <div className="pm-density-line" data-pasture-density="1">
-            {selectedDensity}
-          </div>
+        {/* A saved Track / Line is draft geometry with no grazing/rest/acreage —
+            those rows are meaningless for it, so show them only for real areas. */}
+        {!isOutlineCandidateArea(area) && (
+          <>
+            <div className="pm-kv">
+              <span>State</span>
+              <strong data-pasture-rest-state={area.rest_state || 'baseline'}>{restCopy(area)}</strong>
+              <span>Acres</span>
+              <strong data-pasture-acres-readonly={area.id}>
+                {area.effective_acres == null ? '-' : `${area.effective_acres} ac`}
+              </strong>
+            </div>
+            {selectedDensity && (
+              <div className="pm-density-line" data-pasture-density="1">
+                {selectedDensity}
+              </div>
+            )}
+            <div className="pm-use-facts" data-pasture-use-facts="1">
+              {areaFacts(area).map((fact) => (
+                <span key={fact}>{fact}</span>
+              ))}
+            </div>
+          </>
         )}
-        <div className="pm-use-facts" data-pasture-use-facts="1">
-          {areaFacts(area).map((fact) => (
-            <span key={fact}>{fact}</span>
-          ))}
-        </div>
         {isManager && renderAreaManageActions(area)}
         {lockedStyle && (
           <p className="pm-style-locked-note" data-pasture-setup-linestyle-locked="1">
@@ -3041,6 +3076,15 @@ export default function PastureMapView({Header, authState}) {
               <button
                 type="button"
                 className="pm-btn pm-btn-sm"
+                onClick={() => startEditLine(area)}
+                disabled={!isManager || busyId === area.id || !hasLineGeom(area)}
+                data-pasture-edit-line={area.id}
+              >
+                Edit line
+              </button>
+              <button
+                type="button"
+                className="pm-btn pm-btn-sm"
                 onClick={() => closeIntoTempPaddock(area)}
                 disabled={!isManager || busyId === area.id}
                 data-pasture-close-into-temp={area.id}
@@ -3488,6 +3532,15 @@ export default function PastureMapView({Header, authState}) {
                       <button
                         type="button"
                         className="pm-btn pm-btn-sm"
+                        onClick={() => startEditLine(a)}
+                        disabled={busyId === a.id || !hasLineGeom(a)}
+                        data-pasture-track-line-edit={a.id}
+                      >
+                        Edit line
+                      </button>
+                      <button
+                        type="button"
+                        className="pm-btn pm-btn-sm"
                         onClick={() => closeIntoTempPaddock(a)}
                         disabled={busyId === a.id}
                         data-pasture-track-line-close={a.id}
@@ -3699,6 +3752,15 @@ export default function PastureMapView({Header, authState}) {
                       <button
                         type="button"
                         className="pm-btn pm-btn-sm"
+                        onClick={() => startEditLine(a)}
+                        disabled={busyId === a.id || !hasLineGeom(a)}
+                        data-pasture-track-line-edit={a.id}
+                      >
+                        Edit line
+                      </button>
+                      <button
+                        type="button"
+                        className="pm-btn pm-btn-sm"
                         onClick={() => closeIntoTempPaddock(a)}
                         disabled={busyId === a.id}
                         data-pasture-track-line-close={a.id}
@@ -3873,7 +3935,8 @@ export default function PastureMapView({Header, authState}) {
       <div className="pm-area-record" data-pasture-area-record={area.id}>
         {/* ONE Area section: detail + name edit + management combined. */}
         {renderAreaSummary()}
-        {renderAreaGrazingHistory()}
+        {/* Tracks / Lines are draft geometry; they never carry grazing history. */}
+        {!isOutlineCandidateArea(area) && renderAreaGrazingHistory()}
         {styleEligible && (
           <section className="pm-modal-section" data-pasture-modal-section="linestyle" data-pasture-setup-linestyle="1">
             <div className="pm-modal-section-label">Line style</div>

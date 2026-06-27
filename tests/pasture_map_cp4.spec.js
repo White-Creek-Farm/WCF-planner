@@ -67,8 +67,7 @@ test.beforeAll(async () => {
 // Corner map overlays can intercept polygon clicks; hide them (not under test).
 async function hideMapOverlays(page) {
   await page.addStyleTag({
-    content:
-      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+    content: '.pm-control-rail,.pm-map-banner{display:none!important}',
   });
 }
 async function openMommasRecord(page) {

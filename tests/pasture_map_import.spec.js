@@ -82,8 +82,7 @@ test('import OnX KML, classify, close outline, capture screenshots', async ({pag
   const classifyId = unclassified.id;
   await page.locator('.pm-tabs button', {hasText: 'Map'}).click();
   await page.addStyleTag({
-    content:
-      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+    content: '.pm-control-rail,.pm-map-banner{display:none!important}',
   });
   await page.locator(`.pm-area-${classifyId}`).first().click();
   await expect(page.locator(`[data-pasture-plan-inspector="${classifyId}"]`)).toBeVisible({timeout: 15_000});

@@ -736,6 +736,9 @@
   align-items: center;
   gap: 10px;
   transform: translateX(-50%);
+  /* Stay clear of the top-right map controls and never grow tall enough to
+     collide with the readout HUD that stacks just below it. */
+  max-width: calc(100% - 130px);
   padding: 9px 12px;
   border-radius: 999px;
   background: rgba(15, 26, 20, 0.94);
@@ -743,6 +746,40 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   font-size: 12.5px;
   font-weight: 800;
+}
+
+/* Keep the "Editing <name>" label to one line so the banner height is stable;
+   the Save / Exit buttons keep their size and the name truncates if needed. */
+.pm-map-banner > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* When the banner is showing (draw / edit), the readout HUD drops below it
+   instead of sharing the same top-center slot and overlapping it. */
+.pm-hud.is-below-banner {
+  top: 62px;
+}
+
+@media (max-width: 640px) {
+  /* Narrow screens: anchor the banner to the LEFT so it never tucks under the
+     top-right Fit Farm / My Location controls, with the HUD stacked beneath it. */
+  .pm-map-banner {
+    /* Clear the top-left zoom control on the left and the Fit Farm / My Location
+       controls on the right; the name label truncates to fit between them. */
+    left: 48px;
+    transform: none;
+    max-width: calc(100% - 152px);
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .pm-hud.is-below-banner {
+    top: 56px;
+  }
 }
 
 .pm-mini-btn {
@@ -953,32 +990,8 @@
 /* Boundary-overlay toggle (Pastures / Paddocks / Temp paddocks). Sits below the
    map controls; toggling a category hides only the boundary strokes, not the
    occupancy fills or group markers. */
-.pm-boundary-toggle {
-  position: absolute;
-  /* Sits BELOW the Leaflet +/- zoom control (top-left) so the two never overlap
-     on desktop or mobile. */
-  top: 84px;
-  left: 10px;
-  z-index: 600;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  max-width: 168px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid var(--pm-border-strong);
-  box-shadow: 0 2px 8px rgba(20, 30, 40, 0.12);
-}
-
-.pm-boundary-toggle-label {
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--pm-text-soft, #5b6770);
-}
-
+/* The boundary overlay group now lives inside the right-rail Layers popover
+   (styled by .pm-pop-group); its old standalone positioning panel is gone. */
 .pm-boundary-chip {
   display: flex;
   align-items: center;
@@ -1019,6 +1032,143 @@
 .pm-boundary-chip.boundary-temp.is-on i {
   border-top-color: #ffffff;
   filter: drop-shadow(0 0 1px rgba(15, 26, 20, 0.6));
+}
+
+/* Saved Tracks / Lines (outline candidates) render as a red draft line. */
+.pm-boundary-chip.boundary-line i {
+  border-top-color: #dc2626;
+}
+
+/* ── Right-side icon control rail + Layers/Legend popovers ─────────────────────
+   One docked rail (Fit Farm, My Location, Layers, Legend) replaces the old
+   scattered corner controls. Layers + Legend open as popovers to the LEFT of the
+   rail; the base map + boundary overlays now live inside the Layers popover. */
+.pm-control-rail {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 650;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.pm-rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--pm-border-strong);
+  box-shadow: 0 2px 8px rgba(20, 30, 40, 0.12);
+}
+
+/* The Fit/Locate group used to be absolutely positioned; in the rail it flows. */
+.pm-control-rail .pm-map-controls {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+}
+
+.pm-rail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: transparent;
+  color: var(--pm-text);
+  cursor: pointer;
+}
+.pm-rail-btn:hover {
+  background: rgba(20, 30, 40, 0.07);
+}
+.pm-rail-btn.is-active {
+  background: #1c8a5f;
+  color: #fff;
+}
+.pm-rail-btn.pm-locate-btn.is-follow,
+.pm-rail-btn.pm-locate-btn.is-heading {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.pm-rail-pop-anchor {
+  position: relative;
+  /* The popover extends OUTSIDE this single-button group; don't clip it. */
+  overflow: visible;
+}
+
+.pm-rail-pop {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 8px);
+  width: 210px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid var(--pm-border-strong);
+  box-shadow: 0 6px 20px rgba(20, 30, 40, 0.18);
+}
+.pm-legend-pop {
+  width: 224px;
+}
+
+.pm-pop-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pm-text-soft, #5b6770);
+}
+.pm-pop-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pm-pop-group + .pm-pop-group {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--pm-border);
+}
+.pm-pop-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--pm-text-soft, #5b6770);
+}
+.pm-basemap-row {
+  display: flex;
+  gap: 4px;
+}
+
+/* Groups that used to float at a screen corner now flow inside the Layers popover. */
+.pm-rail-pop .pm-basemap-switch,
+.pm-rail-pop .pm-boundary-toggle {
+  position: static;
+  inset: auto;
+  max-width: none;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.pm-rail-pop .pm-legend-body {
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  .pm-control-rail {
+    top: 8px;
+    right: 8px;
+  }
+  .pm-rail-pop {
+    width: min(210px, calc(100vw - 72px));
+  }
 }
 
 /* Field-only "Draft lines" visibility toggle (above the legend, clear of the

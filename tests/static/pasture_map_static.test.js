@@ -38,6 +38,8 @@ const mig148 = read('supabase-migrations/148_pasture_map_group_records_weight_an
 const mig148Code = mig148.replace(/--[^\n]*/g, '');
 const mig149 = read('supabase-migrations/149_pasture_map_rest_history_reconciliation.sql');
 const mig149Code = mig149.replace(/--[^\n]*/g, '');
+const mig150 = read('supabase-migrations/150_pasture_map_open_line_edit.sql');
+const mig150Code = mig150.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -342,11 +344,16 @@ describe('V1 reset — review patch fixes (PR #31)', () => {
 });
 
 describe('V1 reset — basemaps + offline imagery (CP-F)', () => {
-  it('basemap switcher offers satellite/topo/hybrid; offline imagery uses public-domain NAIP', () => {
+  it('base map offers satellite/topo (Hybrid removed); offline imagery uses public-domain NAIP', () => {
     expect(canvasSrc).toContain('data-pasture-basemap');
     expect(canvasSrc).toContain('data-pasture-basemap-option={b}');
     expect(canvasSrc).toContain('ESRI_TOPO_URL');
-    expect(canvasSrc).toContain('ESRI_REFERENCE_URL');
+    // Only satellite + topo remain; Hybrid was removed (it read identically to Satellite).
+    expect(canvasSrc).toContain("['satellite', 'topo'].map");
+    expect(canvasSrc).not.toContain("basemap === 'hybrid'");
+    expect(canvasSrc).not.toContain('ESRI_REFERENCE_URL');
+    expect(canvasSrc).not.toContain('ESRI_TRANSPORTATION_URL');
+    expect(canvasSrc).not.toContain("createPane('pm-hybrid-overlay')");
     // Offline + satellite serves cached NAIP tiles from IndexedDB.
     expect(canvasSrc).toContain('OfflineImageryLayer');
     expect(canvasSrc).toContain('getCachedTile');
@@ -360,22 +367,20 @@ describe('V1 reset — basemaps + offline imagery (CP-F)', () => {
     expect(viewSrc).toContain('function downloadImagery');
   });
 
-  it('Hybrid is visibly distinct from Satellite: imagery + labels + roads, overlays in front', () => {
-    // Hybrid stacks the imagery base with the place/boundary labels AND the
-    // road/highway transportation overlay (same Esri provider — no new licensing).
-    expect(canvasSrc).toContain('ESRI_TRANSPORTATION_URL');
-    const hybridBlock = canvasSrc.slice(
-      canvasSrc.indexOf("basemap === 'hybrid'"),
-      canvasSrc.indexOf('} else if (!online)'),
-    );
-    expect(hybridBlock).toContain('ESRI_IMAGERY_URL');
-    expect(hybridBlock).toContain('ESRI_REFERENCE_URL');
-    expect(hybridBlock).toContain('ESRI_TRANSPORTATION_URL');
-    // Overlays render in a dedicated pane ABOVE the imagery (deterministic) — relying
-    // on bringToFront within the single tile pane left the labels behind the imagery,
-    // so Hybrid looked identical to Satellite.
-    expect(canvasSrc).toContain("createPane('pm-hybrid-overlay')");
-    expect(hybridBlock).toContain("pane: 'pm-hybrid-overlay'");
+  it('map chrome is one right-side control rail (fit, locate, Layers, Legend)', () => {
+    expect(canvasSrc).toContain('data-pasture-control-rail');
+    expect(canvasSrc).toContain('data-pasture-fit');
+    expect(canvasSrc).toContain('data-pasture-locate');
+    expect(canvasSrc).toContain('data-pasture-layers-toggle');
+    expect(canvasSrc).toContain('data-pasture-legend-toggle');
+    // Base map + boundary overlays live inside the collapsible Layers popover.
+    expect(canvasSrc).toContain('data-pasture-layers-pop');
+    expect(canvasSrc).toContain('data-pasture-boundary-toggle');
+    // Fit Farm / My Location are icon buttons (the label is preserved as aria-label).
+    expect(canvasSrc).toContain('aria-label="Fit Farm"');
+    // No +/- buttons: zoom is scroll-wheel / pinch only (Leaflet's default off, no rail zoom).
+    expect(canvasSrc).toContain('zoomControl: false');
+    expect(canvasSrc).not.toContain('data-pasture-zoom-in');
   });
 });
 
@@ -1467,7 +1472,7 @@ describe('Designation boundary styling + promotion + boundary overlay (lane)', (
     expect(viewSrc).toContain('function toggleBoundary');
     expect(viewSrc).toContain('onToggleBoundary: toggleBoundary');
     expect(viewSrc).toMatch(
-      /boundaryFilter, setBoundaryFilter\] = React\.useState\(\{pasture: true, paddock: true, temp: true\}\)/,
+      /boundaryFilter, setBoundaryFilter\] = React\.useState\(\{pasture: true, paddock: true, temp: true, line: true\}\)/,
     );
   });
 
@@ -1596,25 +1601,28 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     expect(viewSrc).toMatch(/destinationAreas = React\.useMemo\([\s\S]*?!isOutlineCandidateArea/);
   });
 
-  it('Close into temp paddock uses existing RPCs (no Edit, no new SQL) and is mgmt/admin', () => {
+  it('Close into temp paddock uses existing RPCs (no new SQL) and is mgmt/admin', () => {
     expect(viewSrc).toContain('async function closeIntoTempPaddock');
     expect(viewSrc).toMatch(/closeLandAreaOutline\(a\.id, res\.polygon, 'paddock'\)/);
     expect(viewSrc).toMatch(/updateLandArea\(a\.id, \{permanence: 'temporary'/);
-    // close + delete actions live in the Reports Tracks / Lines section, wrapped in
-    // an isManager && gate.
+    // edit (open-line, mig 150) + close + delete actions live in the Reports
+    // Tracks / Lines section, wrapped in an isManager && gate.
     expect(viewSrc).toContain('onClick={() => closeIntoTempPaddock(a)}');
     expect(viewSrc).toContain('data-pasture-track-line-close');
-    // Edit is intentionally NOT in this lane.
-    expect(viewSrc).not.toContain('data-pasture-track-line-edit');
+    expect(viewSrc).toContain('data-pasture-track-line-edit');
   });
 
   it('canvas shows draft lines on the working Map; Field has a Draft-lines toggle', () => {
+    // Map draft-line visibility is gated by the Boundaries "Lines" toggle; the
+    // selected line always shows so an in-progress edit can't be hidden.
     expect(canvasSrc).toContain(
-      "appMode === 'view' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId",
+      "(appMode === 'view' && lineVisible) || (appMode === 'field' && draftLinesVisible) || a.id === selectedId",
     );
+    expect(canvasSrc).toContain('boundaryFilter.line !== false');
     expect(canvasSrc).toContain('data-pasture-draftlines-toggle');
-    // Draft-lines toggle lives behind the Field "Layers" button now.
-    expect(canvasSrc).toContain("appMode === 'field' && fieldLayersOpen && onToggleDraftLines");
+    // The Field Draft-lines toggle now lives inside the rail's Layers popover
+    // (the popover itself is gated by the Field "Layers" tool, fieldLayersOpen).
+    expect(canvasSrc).toContain("appMode === 'field' && onToggleDraftLines");
     expect(viewSrc).toContain('draftLinesVisible');
     expect(viewSrc).toContain('onToggleDraftLines: toggleDraftLines');
   });
@@ -1697,10 +1705,12 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     expect(viewSrc).toMatch(/<option value="unclassified" disabled>/);
   });
 
-  it('map: legend collapsed by default and boundary toggle sits clear of the zoom control', () => {
+  it('map: legend + layers popovers are collapsed by default, in the right-side rail', () => {
     expect(viewSrc).toMatch(/legendOpen, setLegendOpen\] = React\.useState\(false\)/);
-    // Boundary toggle repositioned below the Leaflet zoom control (no overlap).
-    expect(pastureCss).toMatch(/\.pm-boundary-toggle \{[\s\S]*?top: 84px/);
+    // Layers popover collapsed by default; both popovers anchor to the rail.
+    expect(canvasSrc).toMatch(/layersOpen, setLayersOpen\] = React\.useState\(false\)/);
+    expect(pastureCss).toContain('.pm-control-rail');
+    expect(pastureCss).toContain('.pm-rail-pop');
   });
 });
 
@@ -1975,6 +1985,64 @@ describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mi
     expect(mig149Code).toContain("'rest_state', v_rest_state");
     expect(mig149Code).toContain("'last_touched_at', v_last_touch");
     expect(mig149Code).toContain("'last_moved_out_at', v_last_departure");
+  });
+
+  it('mig 150 update_land_area_track reshapes a saved line in place (mgmt/admin, line-only)', () => {
+    expect(mig150Code).toContain('CREATE OR REPLACE FUNCTION public.update_land_area_track');
+    // management / admin only.
+    expect(mig150Code).toMatch(/v_role NOT IN \('management', 'admin'\)/);
+    // Line-only geometry: accept LineString / MultiLineString, reject anything else.
+    expect(mig150Code).toContain("v_gtype NOT IN ('ST_LineString', 'ST_MultiLineString')");
+    expect(mig150Code).toContain('ST_NPoints');
+    // Only a saved Track / Line (outline candidate) is editable; a polygon area is rejected.
+    expect(mig150Code).toMatch(/kind <> 'outline_candidate'[\s\S]*?is not an editable Track \/ Line/);
+    // Draft geometry only: rewrites raw_geometry in place — no polygon version, no
+    // acreage, no promotion, no schema change.
+    expect(mig150Code).toContain('SET raw_geometry = v_geom');
+    expect(mig150Code).not.toContain('_land_area_add_version');
+    expect(mig150Code).not.toContain('computed_acres');
+    expect(mig150Code).not.toContain('land_area_geometry_versions');
+    expect(mig150Code).not.toContain('ALTER TABLE');
+    // Returns the standard area summary; granted to authenticated, revoked from anon.
+    expect(mig150Code).toContain('RETURN public._land_area_summary(p_id)');
+    expect(mig150Code).toContain(
+      'GRANT EXECUTE ON FUNCTION public.update_land_area_track(text, jsonb) TO authenticated',
+    );
+    expect(mig150Code).toContain('REVOKE ALL ON FUNCTION public.update_land_area_track(text, jsonb) FROM PUBLIC, anon');
+  });
+
+  it('open-line edit is wired client-side (api wrapper, line-aware edit, track save route)', () => {
+    // API wrapper over the new RPC.
+    expect(apiSrc).toContain('export async function updateLandAreaTrack');
+    expect(apiSrc).toContain("sb.rpc('update_land_area_track', {p_id: id, p_line_geojson: line})");
+    // View imports the wrapper and exposes a line-edit entry gated on a real line.
+    expect(viewSrc).toContain('updateLandAreaTrack');
+    expect(viewSrc).toContain('function startEditLine');
+    expect(viewSrc).toContain('function hasLineGeom');
+    expect(viewSrc).toContain('data-pasture-edit-line');
+    // saveEdit routes a saved Track / Line through the line RPC, not the polygon RPC.
+    expect(viewSrc).toMatch(
+      /isOutlineCandidateArea\(selectedArea\)\)\s*await updateLandAreaTrack\(selectedId, editGeom\.geometry\)/,
+    );
+    // Canvas edit HUD/metrics are line-aware (distance, not acreage) for a polyline edit.
+    expect(canvasSrc).toContain('lineMetrics');
+    expect(canvasSrc).toMatch(/gj\.type === 'LineString'/);
+  });
+
+  it('open-line edit refinements: clean track records, Lines toggle, Reports edit, banner/HUD stack', () => {
+    // A Track / Line record hides grazing history + rest/acreage (draft geometry only).
+    expect(viewSrc).toContain('{!isOutlineCandidateArea(area) && renderAreaGrazingHistory()}');
+    expect(viewSrc).toMatch(/!isOutlineCandidateArea\(area\) && \(\s*<>/);
+    // Map Boundaries gains a Lines show/hide toggle wired into draft-line visibility.
+    expect(viewSrc).toContain('pasture: true, paddock: true, temp: true, line: true');
+    expect(canvasSrc).toContain("{key: 'line', label: 'Lines'}");
+    expect(canvasSrc).toContain('boundaryFilter.line !== false');
+    // Lines are findable + editable + deletable from the Reports Tracks / Lines list.
+    expect(viewSrc).toContain('data-pasture-track-line-edit');
+    expect(viewSrc).toContain('data-pasture-track-line-delete');
+    // The edit banner and the readout HUD stack instead of overlapping (mobile fix).
+    expect(canvasSrc).toContain('is-below-banner');
+    expect(pastureCss).toContain('.pm-hud.is-below-banner');
   });
 
   it('api exposes deletePastureMove over the new RPC', () => {

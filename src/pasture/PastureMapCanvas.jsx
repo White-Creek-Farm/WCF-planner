@@ -23,13 +23,6 @@ const IMAGERY_NATIVE_MAX_ZOOM = 19;
 // Basemap switcher sources (Esri online; online use is fine - only OFFLINE tile
 // CACHING is restricted, which is why offline imagery uses public-domain NAIP).
 const ESRI_TOPO_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
-const ESRI_REFERENCE_URL =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
-// Roads/highways reference overlay (same Esri ArcGIS Online provider already used
-// for satellite/topo/labels — no new licensing/terms). Pairs with the labels layer
-// so Hybrid reads as "satellite + roads + labels", visibly distinct from Satellite.
-const ESRI_TRANSPORTATION_URL =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}';
 
 // Offline imagery layer (CP-F): serves the cached NAIP farm tiles when offline,
 // falling back to a live NAIP fetch for any tile not in the cache. Used for the
@@ -336,6 +329,63 @@ function rotationLabelIcon(short, color, dim) {
   });
 }
 
+// Compact inline-SVG icons for the right-side control rail. 20px, currentColor so
+// the button's color drives them; aria-hidden (the button carries the label).
+const railSvg = (children) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {children}
+  </svg>
+);
+const RAIL_ICONS = {
+  // Fit: expand-to-frame corners.
+  fit: railSvg(
+    <>
+      <path d="M4 9V4h5" />
+      <path d="M20 9V4h-5" />
+      <path d="M4 15v5h5" />
+      <path d="M20 15v5h-5" />
+    </>,
+  ),
+  // Locate: crosshair / target.
+  locate: railSvg(
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <line x1="12" y1="2" x2="12" y2="5" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="5" y2="12" />
+      <line x1="19" y1="12" x2="22" y2="12" />
+    </>,
+  ),
+  // Layers: stacked sheets.
+  layers: railSvg(
+    <>
+      <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+      <path d="M3 13l9 5 9-5" />
+    </>,
+  ),
+  // Legend: a key / list.
+  legend: railSvg(
+    <>
+      <line x1="8" y1="7" x2="20" y2="7" />
+      <line x1="8" y1="12" x2="20" y2="12" />
+      <line x1="8" y1="17" x2="20" y2="17" />
+      <circle cx="4" cy="7" r="1" />
+      <circle cx="4" cy="12" r="1" />
+      <circle cx="4" cy="17" r="1" />
+    </>,
+  ),
+};
+
 // Read-only Map hover/tap readout labels.
 const AREA_TIP_KIND = {
   pasture: 'Pasture',
@@ -459,9 +509,11 @@ export default function PastureMapCanvas({
   // handler (so it can be torn down on tool switch).
   const measureVertsRef = React.useRef([]);
   const measureClickRef = React.useRef(null);
-  // Basemap switcher (CP-F): satellite (default) / topo / hybrid.
+  // Basemap switcher (CP-F): satellite (default) / topo.
   const basemapRef = React.useRef(null);
   const [basemap, setBasemap] = React.useState('satellite');
+  // Right-rail "Layers" popover (base map + boundary overlays), collapsed by default.
+  const [layersOpen, setLayersOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (mapRef.current || !elRef.current) return;
@@ -472,7 +524,8 @@ export default function PastureMapCanvas({
       zoomSnap: 0.25,
       zoomDelta: 0.5,
       wheelPxPerZoomLevel: 40,
-      zoomControl: !compact,
+      // Zoom lives in the custom right-side control rail (not Leaflet's default).
+      zoomControl: false,
     });
     L.control.scale({imperial: true, metric: false, position: 'bottomright'}).addTo(map);
     // Dedicated high-z pane so the GPS/current-location marker + heading cone render
@@ -482,13 +535,6 @@ export default function PastureMapCanvas({
     map.createPane('pm-locate-pane');
     const locatePane = map.getPane('pm-locate-pane');
     if (locatePane) locatePane.style.zIndex = '690';
-    // Hybrid label/road overlays live in their own pane ABOVE the base imagery
-    // (tilePane 200) but BELOW the pasture boundaries (overlayPane 400). A dedicated
-    // pane is deterministic — relying on bringToFront within the single tile pane was
-    // not reliably stacking the overlays on top, so Hybrid looked like Satellite.
-    map.createPane('pm-hybrid-overlay');
-    const hybridPane = map.getPane('pm-hybrid-overlay');
-    if (hybridPane) hybridPane.style.zIndex = '350';
     if (map.pm) map.pm.setGlobalOptions({snappable: true, snapDistance: 20});
     // Clicking empty map background clears the current selection (but not while
     // drawing/editing/measuring/tracking, and not when the click was on an area).
@@ -550,32 +596,6 @@ export default function PastureMapCanvas({
     const layers = [];
     if (basemap === 'topo') {
       layers.push(L.tileLayer(ESRI_TOPO_URL, {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19, attribution: 'Esri Topo'}));
-    } else if (basemap === 'hybrid') {
-      // Base imagery in the tile pane + TWO transparent reference overlays (place/
-      // boundary labels and the road/highway network) in the dedicated pm-hybrid-overlay
-      // pane, so they paint ABOVE the imagery (and below the pasture boundaries).
-      layers.push(
-        L.tileLayer(ESRI_IMAGERY_URL, {
-          maxZoom: MAP_MAX_ZOOM,
-          maxNativeZoom: IMAGERY_NATIVE_MAX_ZOOM,
-          attribution: 'Esri World Imagery - Maxar',
-        }),
-      );
-      layers.push(
-        L.tileLayer(ESRI_REFERENCE_URL, {
-          maxZoom: MAP_MAX_ZOOM,
-          maxNativeZoom: 16,
-          opacity: 0.9,
-          pane: 'pm-hybrid-overlay',
-        }),
-      );
-      layers.push(
-        L.tileLayer(ESRI_TRANSPORTATION_URL, {
-          maxZoom: MAP_MAX_ZOOM,
-          maxNativeZoom: 19,
-          pane: 'pm-hybrid-overlay',
-        }),
-      );
     } else if (!online) {
       // Offline + satellite: serve the cached NAIP farm tiles.
       layers.push(new OfflineImageryLayer('', {maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 17}));
@@ -588,8 +608,6 @@ export default function PastureMapCanvas({
         }),
       );
     }
-    // Z-order is handled by panes (base imagery in the tile pane; Hybrid overlays in
-    // pm-hybrid-overlay above it), so a plain add is enough and deterministic.
     layers.forEach((l) => l.addTo(map));
     basemapRef.current = layers;
   }, [basemap, compact, online]);
@@ -620,7 +638,12 @@ export default function PastureMapCanvas({
       // Draft lines (GPS tracks / open lines): shown on the working Map, on Field when
       // the Draft-lines toggle is on, or when the line itself is the current selection.
       if (g.kind === 'line') {
-        const showDraft = appMode === 'view' || (appMode === 'field' && draftLinesVisible) || a.id === selectedId;
+        // Map: the Boundaries "Lines" toggle controls draft-line visibility. Field:
+        // its own Draft-lines toggle. The selected line always shows so an in-progress
+        // edit/selection can never be hidden by a toggle.
+        const lineVisible = !boundaryFilter || boundaryFilter.line !== false;
+        const showDraft =
+          (appMode === 'view' && lineVisible) || (appMode === 'field' && draftLinesVisible) || a.id === selectedId;
         if (!showDraft) return;
       }
       const occList = occupants[a.id] || [];
@@ -985,8 +1008,10 @@ export default function PastureMapCanvas({
         editLayerRef.current = layer;
         const onChange = () => {
           const gj = layer.toGeoJSON().geometry;
-          const metrics = polygonMetrics(gj);
-          setHud({...metrics, mode: 'edit'});
+          // A saved Track / Line edits as a polyline: report distance, not acreage.
+          const isLine = !!gj && (gj.type === 'LineString' || gj.type === 'MultiLineString');
+          const metrics = isLine ? lineMetrics(gj) : polygonMetrics(gj);
+          setHud({...metrics, mode: 'edit', isLine});
           cbRef.current.onEditGeometry && cbRef.current.onEditGeometry(gj, metrics);
         };
         layer.on('pm:markerdragend', onChange);
@@ -1354,7 +1379,11 @@ export default function PastureMapCanvas({
         </div>
       )}
       {hud && (
-        <div className="pm-hud" data-pasture-hud="1" data-hud-valid={hud.valid === false ? 'false' : 'true'}>
+        <div
+          className={'pm-hud' + (mapBanner ? ' is-below-banner' : '')}
+          data-pasture-hud="1"
+          data-hud-valid={hud.valid === false ? 'false' : 'true'}
+        >
           {hud.isLine ? (
             <div className="pm-hud-row">
               <span className="pm-hud-k">Distance</span>
@@ -1418,127 +1447,176 @@ export default function PastureMapCanvas({
         </div>
       )}
       {!compact && (
-        <div className="pm-map-controls">
-          <button type="button" className="pm-map-control" onClick={fitFarm}>
-            Fit Farm
-          </button>
-          <button
-            type="button"
-            className={'pm-map-control pm-locate-btn is-' + locateState}
-            onClick={cycleLocate}
-            data-pasture-locate="1"
-            data-pasture-locate-state={locateState}
-            aria-pressed={locateState !== 'off'}
-          >
-            {locateState === 'off' ? 'My Location' : locateState === 'follow' ? 'Following' : 'Heading'}
-          </button>
-        </div>
-      )}
-      {!compact && (appMode !== 'field' || fieldLayersOpen) && (
-        <div className="pm-basemap-switch" data-pasture-basemap="1">
-          {['satellite', 'topo', 'hybrid'].map((b) => (
+        <div className="pm-control-rail" data-pasture-control-rail="1">
+          <div className="pm-rail-group pm-map-controls">
             <button
-              key={b}
               type="button"
-              className={'pm-basemap-btn' + (basemap === b ? ' is-active' : '')}
-              onClick={() => setBasemap(b)}
-              data-pasture-basemap-option={b}
+              className="pm-rail-btn"
+              onClick={fitFarm}
+              aria-label="Fit Farm"
+              title="Fit Farm"
+              data-pasture-fit="1"
             >
-              {b === 'satellite' ? 'Satellite' : b === 'topo' ? 'Topo' : 'Hybrid'}
+              {RAIL_ICONS.fit}
             </button>
-          ))}
-        </div>
-      )}
-      {!compact && boundaryFilter && onToggleBoundary && (appMode !== 'field' || fieldLayersOpen) && (
-        <div className="pm-boundary-toggle" data-pasture-boundary-toggle="1" role="group" aria-label="Boundary overlay">
-          <span className="pm-boundary-toggle-label">Boundaries</span>
-          {[
-            {key: 'pasture', label: 'Pastures'},
-            {key: 'paddock', label: 'Paddocks'},
-            {key: 'temp', label: 'Temp paddocks'},
-          ].map((b) => {
-            const on = boundaryFilter[b.key] !== false;
-            return (
+            <button
+              type="button"
+              className={'pm-rail-btn pm-locate-btn is-' + locateState}
+              onClick={cycleLocate}
+              data-pasture-locate="1"
+              data-pasture-locate-state={locateState}
+              aria-pressed={locateState !== 'off'}
+              aria-label={locateState === 'off' ? 'My Location' : locateState === 'follow' ? 'Following' : 'Heading'}
+              title={locateState === 'off' ? 'My Location' : locateState === 'follow' ? 'Following' : 'Heading'}
+            >
+              {RAIL_ICONS.locate}
+            </button>
+          </div>
+          {boundaryFilter && onToggleBoundary && (appMode !== 'field' || fieldLayersOpen) && (
+            <div className="pm-rail-group pm-rail-pop-anchor">
               <button
-                key={b.key}
                 type="button"
-                className={'pm-boundary-chip boundary-' + b.key + (on ? ' is-on' : '')}
-                aria-pressed={on}
-                onClick={() => onToggleBoundary(b.key)}
-                data-pasture-boundary={b.key}
-                data-pasture-boundary-on={on ? '1' : '0'}
+                className={'pm-rail-btn' + (layersOpen ? ' is-active' : '')}
+                onClick={() => {
+                  setLayersOpen((o) => !o);
+                  if (!layersOpen && legendOpen && onToggleLegend) onToggleLegend();
+                }}
+                aria-expanded={layersOpen}
+                aria-label="Layers"
+                title="Layers"
+                data-pasture-layers-toggle="1"
               >
-                <i aria-hidden="true" />
-                {b.label}
+                {RAIL_ICONS.layers}
               </button>
-            );
-          })}
-        </div>
-      )}
-      {!compact && appMode === 'field' && fieldLayersOpen && onToggleDraftLines && (
-        <div className="pm-draftlines-toggle" data-pasture-draftlines-toggle="1">
-          <button
-            type="button"
-            className={'pm-boundary-chip boundary-temp' + (draftLinesVisible ? ' is-on' : '')}
-            aria-pressed={draftLinesVisible}
-            onClick={onToggleDraftLines}
-            data-pasture-draftlines-on={draftLinesVisible ? '1' : '0'}
-          >
-            <i aria-hidden="true" />
-            Draft lines
-          </button>
-        </div>
-      )}
-      {!compact && (
-        <div className={'pm-legend' + (legendOpen ? ' is-open' : '')}>
-          <button type="button" className="pm-legend-head" onClick={onToggleLegend}>
-            <span>Legend</span>
-            <span aria-hidden="true">{legendOpen ? '-' : '+'}</span>
-          </button>
-          {legendOpen && (
-            <div className="pm-legend-body">
-              <span>
-                <i className="state occ-cattle" /> Occupied - Cattle
-              </span>
-              <span>
-                <i className="state occ-sheep" /> Occupied - Sheep
-              </span>
-              <span>
-                <i className="state occ-pigs" /> Occupied - Pigs
-              </span>
-              <span>
-                <i className="state resting" /> Resting - recovering
-              </span>
-              <span>
-                <i className="state ready" /> Ready to graze
-              </span>
-              <span>
-                <i className="state no-history" /> No history / unknown
-              </span>
-              <span>
-                <i className="state invalid" /> Invalid / needs setup
-              </span>
-              <hr />
-              <span>
-                <i className="state boundary-pasture" /> Pasture boundary
-              </span>
-              <span>
-                <i className="state boundary-paddock" /> Paddock boundary
-              </span>
-              <span>
-                <i className="state selected" /> Selected pasture
-              </span>
-              <span>
-                <i className="state rotation" /> Active group rotation
-              </span>
-              <span>
-                <i className="state temp" /> Temp paddock
-              </span>
-              <span>
-                <i className="state gps" /> GPS boundary trace
-              </span>
+              {layersOpen && (
+                <div className="pm-rail-pop pm-layers-pop" data-pasture-layers-pop="1">
+                  <div className="pm-pop-title">Layers</div>
+                  <div className="pm-pop-group pm-basemap-switch" data-pasture-basemap="1">
+                    <span className="pm-pop-label">Base map</span>
+                    <div className="pm-basemap-row">
+                      {['satellite', 'topo'].map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          className={'pm-basemap-btn' + (basemap === b ? ' is-active' : '')}
+                          onClick={() => setBasemap(b)}
+                          data-pasture-basemap-option={b}
+                        >
+                          {b === 'satellite' ? 'Satellite' : 'Topo'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div
+                    className="pm-pop-group pm-boundary-toggle"
+                    data-pasture-boundary-toggle="1"
+                    role="group"
+                    aria-label="Boundary overlay"
+                  >
+                    <span className="pm-pop-label">Show</span>
+                    {[
+                      {key: 'pasture', label: 'Pastures'},
+                      {key: 'paddock', label: 'Paddocks'},
+                      {key: 'temp', label: 'Temp paddocks'},
+                      {key: 'line', label: 'Lines'},
+                    ].map((b) => {
+                      const on = boundaryFilter[b.key] !== false;
+                      return (
+                        <button
+                          key={b.key}
+                          type="button"
+                          className={'pm-boundary-chip boundary-' + b.key + (on ? ' is-on' : '')}
+                          aria-pressed={on}
+                          onClick={() => onToggleBoundary(b.key)}
+                          data-pasture-boundary={b.key}
+                          data-pasture-boundary-on={on ? '1' : '0'}
+                        >
+                          <i aria-hidden="true" />
+                          {b.label}
+                        </button>
+                      );
+                    })}
+                    {appMode === 'field' && onToggleDraftLines && (
+                      <button
+                        type="button"
+                        className={'pm-boundary-chip boundary-temp' + (draftLinesVisible ? ' is-on' : '')}
+                        aria-pressed={draftLinesVisible}
+                        onClick={onToggleDraftLines}
+                        data-pasture-draftlines-on={draftLinesVisible ? '1' : '0'}
+                        data-pasture-draftlines-toggle="1"
+                      >
+                        <i aria-hidden="true" />
+                        Draft lines
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+          <div className="pm-rail-group pm-rail-pop-anchor">
+            <button
+              type="button"
+              className={'pm-rail-btn' + (legendOpen ? ' is-active' : '')}
+              onClick={() => {
+                onToggleLegend && onToggleLegend();
+                if (!legendOpen) setLayersOpen(false);
+              }}
+              aria-expanded={legendOpen}
+              aria-label="Legend"
+              title="Legend"
+              data-pasture-legend-toggle="1"
+            >
+              {RAIL_ICONS.legend}
+            </button>
+            {legendOpen && (
+              <div className="pm-rail-pop pm-legend-pop" data-pasture-legend-pop="1">
+                <div className="pm-pop-title">Legend</div>
+                <div className="pm-legend-body">
+                  <span>
+                    <i className="state occ-cattle" /> Occupied - Cattle
+                  </span>
+                  <span>
+                    <i className="state occ-sheep" /> Occupied - Sheep
+                  </span>
+                  <span>
+                    <i className="state occ-pigs" /> Occupied - Pigs
+                  </span>
+                  <span>
+                    <i className="state resting" /> Resting - recovering
+                  </span>
+                  <span>
+                    <i className="state ready" /> Ready to graze
+                  </span>
+                  <span>
+                    <i className="state no-history" /> No history / unknown
+                  </span>
+                  <span>
+                    <i className="state invalid" /> Invalid / needs setup
+                  </span>
+                  <hr />
+                  <span>
+                    <i className="state boundary-pasture" /> Pasture boundary
+                  </span>
+                  <span>
+                    <i className="state boundary-paddock" /> Paddock boundary
+                  </span>
+                  <span>
+                    <i className="state selected" /> Selected pasture
+                  </span>
+                  <span>
+                    <i className="state rotation" /> Active group rotation
+                  </span>
+                  <span>
+                    <i className="state temp" /> Temp paddock
+                  </span>
+                  <span>
+                    <i className="state gps" /> GPS boundary trace
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
       {gpsMsg && <div className="pm-gps-msg">{gpsMsg}</div>}

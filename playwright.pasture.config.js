@@ -39,6 +39,7 @@ export default defineConfig({
     '**/pasture_map_reset_history.spec.js',
     '**/pasture_map_clear_placement.spec.js',
     '**/pasture_map_tile_hover.spec.js',
+    '**/pasture_map_open_line_edit.spec.js',
   ],
   fullyParallel: false,
   workers: 1,

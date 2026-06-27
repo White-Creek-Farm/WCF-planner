@@ -31,8 +31,7 @@ const TRUNCATE = `
 // Hide corner overlays that can intercept polygon clicks (not under test here).
 async function hideMapOverlays(page) {
   await page.addStyleTag({
-    content:
-      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+    content: '.pm-control-rail,.pm-map-banner{display:none!important}',
   });
 }
 async function clickArea(page, areaId) {
@@ -171,6 +170,8 @@ test('animal occupancy survives toggling the boundary overlay off', async ({page
   await expect(marker).toHaveCount(1, {timeout: 15_000});
 
   // Toggle the Paddocks boundary overlay OFF -> occupancy marker must remain.
+  // Boundary overlays live in the rail's Layers popover now — open it first.
+  await page.locator('[data-pasture-layers-toggle]').click();
   await page.locator('[data-pasture-boundary="paddock"]').click();
   await expect(page.locator('[data-pasture-boundary="paddock"]')).toHaveAttribute('data-pasture-boundary-on', '0');
   await expect(marker).toHaveCount(1);

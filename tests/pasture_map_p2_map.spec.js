@@ -103,7 +103,7 @@ test('Map tab: group table opens inline records and area clicks open the area mo
   // On the Map, the occupied paddock shows an animal-type group marker, and the
   // legend (collapsed by default) reflects animal-type occupancy.
   await expect(page.locator('.pm-occupant-marker').filter({hasText: 'Mommas'})).toHaveCount(1, {timeout: 15_000});
-  await page.locator('.pm-legend-head').click();
+  await page.locator('[data-pasture-legend-toggle]').click();
   await expect(page.locator('.pm-legend-body')).toContainText('Occupied - Cattle');
 
   // The inline record now shows the placed area.
@@ -113,7 +113,7 @@ test('Map tab: group table opens inline records and area clicks open the area mo
 
   // Hide the legend too so it cannot block the eastern polygon, then read an area via
   // HOVER -> desktop readout.
-  await page.addStyleTag({content: '.pm-legend{display:none!important}'});
+  await page.addStyleTag({content: '.pm-control-rail{display:none!important}'});
   await page.locator(`.pm-area-${A_ID}`).first().hover();
   const tip = page.locator('.pm-area-hover-tip');
   await expect(tip).toBeVisible({timeout: 10_000});

@@ -190,6 +190,13 @@ export async function updateLandAreaGeometry(id, polygon) {
   );
 }
 
+// Open-line edit (mig 150) — reshape a saved Track / Line in place. management/
+// admin only; line is GeoJSON LineString/MultiLineString. Draft geometry only:
+// no acreage, no version row, no promotion. Polygon areas are rejected server-side.
+export async function updateLandAreaTrack(id, line) {
+  return unwrap(await sb.rpc('update_land_area_track', {p_id: id, p_line_geojson: line}), 'update_land_area_track');
+}
+
 // P0 (mig 135) — temp-paddock lifecycle. Temp paddock = kind='paddock' +
 // permanence='temporary'. create is farm_team+; rename/redraw/archive/restore
 // are temp-owner OR management/admin (server-gated); hard delete is admin-only.

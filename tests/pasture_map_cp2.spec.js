@@ -40,8 +40,7 @@ async function areaIdByName(name) {
 
 async function hideMapOverlays(page) {
   await page.addStyleTag({
-    content:
-      '.pm-boundary-toggle,.pm-legend,.pm-map-controls,.pm-draftlines-toggle,.pm-map-banner{display:none!important}',
+    content: '.pm-control-rail,.pm-map-banner{display:none!important}',
   });
 }
 
