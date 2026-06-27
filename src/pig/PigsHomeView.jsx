@@ -12,7 +12,11 @@ import {fmt, fmtS, todayISO, addDays} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {calcBreedingTimeline, calcCycleStatus, buildCycleSeqMap, PIG_GROUP_COLORS, PIG_GROUPS} from '../lib/pig.js';
 import {programDotStyle} from '../lib/programColors.js';
-import {processingStatusLabel} from '../lib/processingStatusDisplay.js';
+import {
+  PROCESSING_STATUS_DISPLAY,
+  pigBatchProcessingStatusLabel,
+  pigBatchProcessingStatusVariant,
+} from '../lib/processingStatusDisplay.js';
 import Badge from '../shared/Badge.jsx';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
@@ -142,8 +146,20 @@ export default function PigsHomeView({Header, loadUsers}) {
 
   // Feeder batch performance
   const feederBatchStats = activeFeeders.map((g) => {
+    const activeSubs = (g.subBatches || []).filter((s) => s.status === 'active');
+    const subNames =
+      activeSubs.length > 0
+        ? activeSubs.map((s) => (s.name || '').toLowerCase().trim())
+        : [g.batchName.toLowerCase().trim()];
+    const latestCounts = {};
+    [...pigDailys]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .forEach((d) => {
+        if (d.pig_count > 0 && d.batch_label && subNames.includes(d.batch_label.toLowerCase().trim()))
+          latestCounts[d.batch_label] = parseInt(d.pig_count);
+      });
+    const currentCount = Object.values(latestCounts).reduce((s, v) => s + v, 0);
     const batchDailys = pigDailys.filter((d) => {
-      const activeSubs = (g.subBatches || []).filter((s) => s.status === 'active');
       if (activeSubs.length > 0)
         return activeSubs.some(
           (s) => (d.batch_label || '').toLowerCase().trim() === (s.name || '').toLowerCase().trim(),
@@ -176,8 +192,12 @@ export default function PigsHomeView({Header, loadUsers}) {
     const perLbCost = parseFloat(g.perLbFeedCost) || 0;
     const totalFeedCost = totalFeed > 0 && perLbCost > 0 ? totalFeed * perLbCost : null;
     const costPerPig = totalFeedCost != null && originalCount > 0 ? totalFeedCost / originalCount : null;
+    const statusMetrics = {started: originalCount, current: currentCount};
     return {
       g,
+      currentCount,
+      statusLabel: pigBatchProcessingStatusLabel(g, statusMetrics),
+      statusVariant: pigBatchProcessingStatusVariant(g, statusMetrics),
       totalFeed,
       originalCount,
       reportDays,
@@ -187,6 +207,9 @@ export default function PigsHomeView({Header, loadUsers}) {
       costPerPig,
     };
   });
+  const inProcessFeederBatchCount = feederBatchStats.filter(
+    (stat) => stat.statusLabel === PROCESSING_STATUS_DISPLAY.inProcess,
+  ).length;
 
   // Carcass yield trend from processing trips
   const yieldTrend = feederGroups
@@ -297,7 +320,7 @@ export default function PigsHomeView({Header, loadUsers}) {
           <StatTile label="Pigs on Farm" val={pigsOnFarm > 0 ? pigsOnFarm.toLocaleString() : '\u2014'} />
           <StatTile label="Active Sows" val={activeSows} sub={activeBoars + ' boar' + (activeBoars !== 1 ? 's' : '')} />
           <StatTile label="Active Cycles" val={activeCycles2.length} />
-          <StatTile label="In Process Batches" val={activeFeeders.length} />
+          <StatTile label="In Process Batches" val={inProcessFeederBatchCount} />
           <StatTile label="Avg Born / Litter" val={avgLitterBorn != null ? fmtN(avgLitterBorn, 1) : '\u2014'} />
           <StatTile label="Avg Alive / Litter" val={avgLitterAlive != null ? fmtN(avgLitterAlive, 1) : '\u2014'} />
           <StatTile
@@ -557,24 +580,23 @@ export default function PigsHomeView({Header, loadUsers}) {
             <div
               style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 8, letterSpacing: 0.3}}
             >
-              IN PROCESS FEEDER BATCHES
+              FEEDER BATCHES
             </div>
             <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
               {feederBatchStats.map(
-                ({g, totalFeed, originalCount, reportDays, daysOld, feedPerPig, totalFeedCost, costPerPig}) => {
-                  const activeSubs = (g.subBatches || []).filter((s) => s.status === 'active');
-                  const subNames =
-                    activeSubs.length > 0
-                      ? activeSubs.map((s) => (s.name || '').toLowerCase().trim())
-                      : [g.batchName.toLowerCase().trim()];
-                  const latestCounts = {};
-                  [...pigDailys]
-                    .sort((a, b) => a.date.localeCompare(b.date))
-                    .forEach((d) => {
-                      if (d.pig_count > 0 && d.batch_label && subNames.includes(d.batch_label.toLowerCase().trim()))
-                        latestCounts[d.batch_label] = parseInt(d.pig_count);
-                    });
-                  const currentCount = Object.values(latestCounts).reduce((s, v) => s + v, 0);
+                ({
+                  g,
+                  currentCount,
+                  statusLabel,
+                  statusVariant,
+                  totalFeed,
+                  originalCount,
+                  reportDays,
+                  daysOld,
+                  feedPerPig,
+                  totalFeedCost,
+                  costPerPig,
+                }) => {
                   const hasFeederDashboardData =
                     currentCount > 0 ||
                     originalCount > 0 ||
@@ -607,7 +629,7 @@ export default function PigsHomeView({Header, loadUsers}) {
                         }}
                       >
                         <span style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)'}}>{g.batchName}</span>
-                        <Badge variant="ok">{processingStatusLabel('active')}</Badge>
+                        <Badge variant={statusVariant}>{statusLabel}</Badge>
                         {daysOld != null && (
                           <span style={{fontSize: 11, color: 'var(--text-secondary)'}}>
                             {Math.floor(daysOld / 30) + 'm ' + Math.floor((daysOld % 30) / 7) + 'w old'}

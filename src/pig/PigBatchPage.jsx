@@ -39,7 +39,7 @@ import {
   recalculateProjections,
 } from '../lib/pigForecast.js';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
-import {processingStatusLabel} from '../lib/processingStatusDisplay.js';
+import {pigBatchProcessingStatusLabel, pigBatchProcessingStatusVariant} from '../lib/processingStatusDisplay.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import PlannerIcon from '../components/PlannerIcon.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -145,8 +145,10 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
   } = view;
 
   // Local view-scoped derivations (were inline in PigBatchesView).
-  // CP0 WI-4: batch/sub-batch status → <Badge> (active→ok, processed→neutral).
-  const statusVariant = (status) => (status === 'processed' ? 'neutral' : 'ok');
+  // CP0 WI-4: batch/sub-batch status -> <Badge>; pig active display derives
+  // from started/current head because future placeholders are also stored active.
+  const statusLabel = (record, metrics) => pigBatchProcessingStatusLabel(record, metrics);
+  const statusVariant = (record, metrics) => pigBatchProcessingStatusVariant(record, metrics);
   const cycleSeqMap = buildCycleSeqMap(breedingCycles);
   function calcAgeRange(cycleId, asOfDate) {
     return libCalcAgeRange(cycleId, asOfDate, breedingCycles, farrowingRecs);
@@ -431,6 +433,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
           const originalPigCount = hasSubBatches
             ? subFeedTotals.reduce((s, sf) => s + sf.started, 0)
             : (parseInt(g.giltCount) || 0) + (parseInt(g.boarCount) || 0) || parseInt(g.originalPigCount) || 0;
+          const batchStatusMetrics = {started: originalPigCount, current: currentPigCount};
           // Feed cost
           const perLbCost = parseFloat(g.perLbFeedCost) || 0;
           const totalFeedCost = totalFeed > 0 && perLbCost > 0 ? totalFeed * perLbCost : null;
@@ -593,7 +596,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                     {g.startDate && (
                       <span style={{color: 'var(--text-secondary)', fontSize: 11}}>Started {fmt(g.startDate)}</span>
                     )}
-                    <Badge variant={statusVariant(g.status)}>{processingStatusLabel(g.status)}</Badge>
+                    <Badge variant={statusVariant(g, batchStatusMetrics)}>{statusLabel(g, batchStatusMetrics)}</Badge>
                     <div style={{marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap'}}>
                       {g.status === 'active' ? (
                         <button
@@ -1151,7 +1154,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                         }}
                       >
                         <strong style={{fontSize: 12, color: 'var(--ink)'}}>{sb.name}</strong>
-                        <Badge variant={statusVariant(sb.status)}>{processingStatusLabel(sb.status)}</Badge>
+                        <Badge variant={statusVariant(sb, sft)}>{statusLabel(sb, sft)}</Badge>
                         {sft.started > 0 && (
                           <span style={{fontSize: 11, color: 'var(--ink)'}}>
                             Started: <strong>{sft.started}</strong>

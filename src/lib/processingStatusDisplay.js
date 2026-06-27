@@ -28,3 +28,30 @@ export function processingStatusLabel(value) {
   if (status === 'in_process') return PROCESSING_STATUS_DISPLAY.inProcess;
   return PROCESSING_STATUS_DISPLAY.planned;
 }
+
+export function processingStatusVariantFromLabel(label) {
+  if (label === PROCESSING_STATUS_DISPLAY.complete) return 'neutral';
+  if (label === PROCESSING_STATUS_DISPLAY.inProcess) return 'ok';
+  return 'warn';
+}
+
+function positiveCount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0;
+}
+
+function statusFromRecord(recordOrStatus) {
+  return recordOrStatus && typeof recordOrStatus === 'object' ? recordOrStatus.status : recordOrStatus;
+}
+
+export function pigBatchProcessingStatusLabel(recordOrStatus, metrics = {}) {
+  const status = normalizeProcessingStatus(statusFromRecord(recordOrStatus));
+  if (status === 'complete') return PROCESSING_STATUS_DISPLAY.complete;
+  if (status === 'planned') return PROCESSING_STATUS_DISPLAY.planned;
+  if (positiveCount(metrics.started) || positiveCount(metrics.current)) return PROCESSING_STATUS_DISPLAY.inProcess;
+  return PROCESSING_STATUS_DISPLAY.planned;
+}
+
+export function pigBatchProcessingStatusVariant(recordOrStatus, metrics = {}) {
+  return processingStatusVariantFromLabel(pigBatchProcessingStatusLabel(recordOrStatus, metrics));
+}
