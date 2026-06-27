@@ -15,6 +15,7 @@
 import React from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
 import {sb} from '../lib/supabase.js';
+import {fmt} from '../lib/dateUtils.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -38,6 +39,33 @@ import {
 /* eslint-enable no-unused-vars */
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
+
+function broilerBreedLabel(code) {
+  if (code === 'CC') return 'Cornish Cross · CC';
+  if (code === 'WR') return 'White Ranger · WR';
+  return code || '';
+}
+
+function BroilerMetaItem({label, value, accent = false}) {
+  if (!value || value === '—') return null;
+  return (
+    <span style={{display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, minWidth: 0}}>
+      {accent && (
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            background: '#C7920A',
+            flex: '0 0 auto',
+          }}
+        />
+      )}
+      <span style={{color: 'var(--ink-muted)'}}>{label}</span>
+      <span style={{color: 'var(--text-primary)', fontWeight: 700, minWidth: 0}}>{value}</span>
+    </span>
+  );
+}
 
 export default function BroilerBatchPage({
   Header,
@@ -213,21 +241,48 @@ export default function BroilerBatchPage({
 
   return (
     <RecordPageFrame Header={Header}>
-      <RecordPageBody maxWidth={1100} data-broiler-batch-record-loaded="true">
+      <RecordPageBody maxWidth={1060} style={{padding: '24px 24px 96px'}} data-broiler-batch-record-loaded="true">
         <RecordBackLink label="Back to Broiler Batches" onBack={handleClose} />
 
         <RecordSequenceNav seq={recordSeq} currentId={batch.id} onNavigate={navigateToBatchId} />
 
-        <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12}}>
-          <RecordTitle fontSize={22} margin={0}>
+        <div style={{display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap', marginBottom: 8}}>
+          <RecordTitle
+            fontSize={27}
+            margin={0}
+            style={{fontWeight: 800, letterSpacing: 0, lineHeight: 1, color: 'var(--text-primary)'}}
+          >
             {batch.name}
           </RecordTitle>
           {/* WI-4: lifecycle status → Badge. active→ok, planned→warn, processed→neutral. */}
-          <Badge variant={batch.status === 'active' ? 'ok' : batch.status === 'planned' ? 'warn' : 'neutral'}>
+          <Badge
+            variant={batch.status === 'active' ? 'ok' : batch.status === 'planned' ? 'warn' : 'neutral'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '5px 13px',
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                background: 'currentColor',
+                flex: '0 0 auto',
+              }}
+            />
             {processingStatusLabel(batch.status)}
           </Badge>
-          {batch.breed && <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>Breed: {batch.breed}</span>}
-          {batch.hatchery && <span style={{fontSize: 12, color: 'var(--ink-muted)'}}>Hatchery: {batch.hatchery}</span>}
+        </div>
+        <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px 26px', marginBottom: 22}}>
+          <BroilerMetaItem label="Breed" value={broilerBreedLabel(batch.breed)} accent />
+          <BroilerMetaItem label="Hatchery" value={batch.hatchery} />
+          <BroilerMetaItem label="Hatched" value={fmt(batch.hatchDate)} />
+          <BroilerMetaItem label="Target processing" value={fmt(batch.processingDate)} />
         </div>
 
         {formReady && (

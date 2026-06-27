@@ -20,14 +20,14 @@ describe('CP5: BatchForm adopts shared record-page controls', () => {
     }
   });
 
-  it('styles visible controls with the shared primitives', () => {
-    expect(src).toContain('style={recordControl}');
-    expect(src).toContain('style={recordTextarea}');
+  it('composes the Broiler record controls from the shared primitives', () => {
+    expect(src).toContain('...recordControl');
+    expect(src).toContain('...recordTextarea');
+    expect(src).toContain('...recordFieldLabel');
+    expect(src).toContain('style={broilerControl}');
+    expect(src).toContain('style={broilerTextarea}');
     expect(src).toContain('style={recordCheckbox}');
-    // Labels migrated to the shared recordFieldLabel primitive. CP0 A12.1: field
-    // labels are plain (no program-color override), so the prior
-    // {...recordFieldLabel, color:X} spread assertion was retired.
-    expect(src).toContain('style={recordFieldLabel}');
+    expect(src).toContain('style={broilerLabel}');
   });
 
   it('drops the old S.label styling but keeps S for buttons/layout helpers', () => {
@@ -40,11 +40,13 @@ describe('CP5: BatchForm adopts shared record-page controls', () => {
     expect(src).toMatch(/S\.(btnPrimary|btnGhost|btnDanger|fieldGroup)/);
   });
 
-  it('stacks the main Batch details fieldGroup full-width on mobile', () => {
-    // The two-column S.fieldGroup wrapper must opt into the app's mobile
-    // single-column override so selects (Brooder/Schooner assigned) are not
-    // cramped/truncated on phones.
-    expect(src).toContain('<div data-mobile-1col="1" style={S.fieldGroup}>');
+  it('stacks redesigned section grids full-width on mobile', () => {
+    // SectionCard owns the card-body grid wrapper now; grid bodies still opt
+    // into the app's mobile single-column override so selects do not cramp on
+    // phones.
+    expect(src).toContain("data-mobile-1col={bodyStyle ? '1' : undefined}");
+    expect(src).toContain('bodyStyle={broilerGrid2}');
+    expect(src).toContain('bodyStyle={broilerGrid3}');
   });
 
   it('keeps the hidden file input hidden (not record-controlled)', () => {

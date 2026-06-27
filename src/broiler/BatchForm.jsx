@@ -20,8 +20,6 @@ import {recordControl, recordTextarea, recordFieldLabel, recordCheckbox} from '.
 import {
   BROODERS,
   SCHOONERS,
-  BROODER_CLEANOUT,
-  SCHOONER_CLEANOUT,
   STATUSES,
   ALL_HATCHERIES,
   LEGACY_HATCHERIES,
@@ -48,9 +46,233 @@ const weighInSourcedValueBox = {
   fontWeight: 600,
   display: 'flex',
   alignItems: 'center',
+  maxWidth: 'none',
+  minHeight: 42,
 };
 
 const weighInSourcedHint = {fontSize: 11, color: 'var(--ink-faint)', marginTop: 3};
+
+const broilerControl = {
+  ...recordControl,
+  maxWidth: 'none',
+  minHeight: 42,
+  padding: '8px 12px',
+  fontWeight: 600,
+  color: 'var(--text-primary)',
+  background: 'white',
+};
+
+const broilerTextarea = {
+  ...recordTextarea,
+  maxWidth: 'none',
+  minHeight: 86,
+  padding: '10px 12px',
+  fontWeight: 500,
+};
+
+const broilerLabel = {...recordFieldLabel, fontSize: 12, color: 'var(--ink-muted)'};
+const broilerHelp = {fontSize: 12, color: 'var(--ink-faint)', lineHeight: 1.4, marginTop: 3};
+const broilerGrid2 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  columnGap: 24,
+  rowGap: 18,
+};
+const broilerGrid3 = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  columnGap: 24,
+  rowGap: 18,
+};
+const sectionCard = {
+  background: 'white',
+  border: '1px solid transparent',
+  borderRadius: 14,
+  boxShadow: '0 6px 22px rgba(20,30,40,.09)',
+  overflow: 'hidden',
+};
+const sectionHeader = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  padding: '16px 22px',
+  borderBottom: '1px solid var(--divider)',
+};
+const sectionIcon = {
+  width: 32,
+  height: 32,
+  borderRadius: 10,
+  background: 'var(--surface-2)',
+  color: 'var(--ink-muted)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flex: '0 0 auto',
+};
+const sectionBody = {padding: 22};
+const stepBadge = {
+  width: 21,
+  height: 21,
+  borderRadius: 999,
+  background: 'var(--surface-2)',
+  color: 'var(--ink-muted)',
+  fontSize: 11,
+  fontWeight: 800,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flex: '0 0 auto',
+};
+const timelinePanel = {
+  marginTop: 22,
+  background: 'var(--bg-page)',
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  padding: '18px 20px',
+};
+
+function SectionIcon({type}) {
+  const common = {
+    width: 17,
+    height: 17,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  };
+  return (
+    <span style={sectionIcon} aria-hidden="true">
+      {type === 'schedule' && (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+      )}
+      {type === 'details' && (
+        <svg {...common}>
+          <rect x="5" y="4" width="14" height="17" rx="2" />
+          <path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M9 11h6M9 15h4" />
+        </svg>
+      )}
+      {type === 'housing' && (
+        <svg {...common}>
+          <path d="M3 11l9-7 9 7M5 10v10h14V10M9 20v-6h6v6" />
+        </svg>
+      )}
+      {type === 'feed' && (
+        <svg {...common}>
+          <path d="M12 22V12M12 12c0-4 3-7 8-7 0 4-3 7-8 7zM12 14c0-3-2.5-5-7-5 0 3 2.5 5 7 5z" />
+        </svg>
+      )}
+      {type === 'processing' && (
+        <svg {...common}>
+          <path d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5" />
+        </svg>
+      )}
+      {type === 'totals' && (
+        <svg {...common}>
+          <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />
+        </svg>
+      )}
+      {type === 'documents' && (
+        <svg {...common}>
+          <path d="M21 12.5l-8.5 8.5a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.6 1.6 0 0 1-2.3-2.3l7.8-7.8" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+function SectionCard({icon, title, hint, children, bodyStyle}) {
+  return (
+    <section style={sectionCard} data-broiler-record-section={title}>
+      <div style={sectionHeader}>
+        <SectionIcon type={icon} />
+        <h2 style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0}}>{title}</h2>
+        {hint && <span style={{fontSize: 12, color: 'var(--ink-faint)', marginLeft: 2}}>{hint}</span>}
+      </div>
+      <div
+        data-mobile-1col={bodyStyle ? '1' : undefined}
+        style={bodyStyle ? {...sectionBody, ...bodyStyle} : sectionBody}
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function StepHeading({number, children, style}) {
+  return (
+    <div style={{display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14, ...style}}>
+      <span style={stepBadge}>{number}</span>
+      <span style={{fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}}>{children}</span>
+    </div>
+  );
+}
+
+function TimelinePanel({timeline}) {
+  if (!timeline) return null;
+  const items = [
+    {label: 'Brooder in', date: timeline.brooderIn, note: 'Hatch day'},
+    {label: 'Brooder out', date: timeline.brooderOut, note: '2 weeks brooding'},
+    {label: 'Schooner in', date: timeline.schoonerIn, note: 'Move to pasture'},
+    {label: 'Schooner out', date: timeline.schoonerOut, note: 'Ready to process', final: true},
+  ];
+  return (
+    <div style={timelinePanel}>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '.08em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-faint)',
+          marginBottom: 16,
+        }}
+      >
+        Projected timeline
+      </div>
+      <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))'}}>
+        {items.map((item, index) => (
+          <div key={item.label} style={{minWidth: 0}}>
+            <div style={{display: 'flex', alignItems: 'center', width: '100%', marginBottom: 11}}>
+              <span
+                style={{
+                  width: 11,
+                  height: 11,
+                  borderRadius: 999,
+                  background: item.final ? '#1C8A5F' : getProgramColor('broiler'),
+                  flex: '0 0 auto',
+                  boxShadow: item.final
+                    ? '0 0 0 3px var(--bg-page), 0 0 0 4px #BFE0CE'
+                    : '0 0 0 3px var(--bg-page), 0 0 0 4px #E7D2A0',
+                }}
+              />
+              {index < items.length - 1 && <span style={{flex: 1, height: 2, background: 'var(--border)'}} />}
+            </div>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '.06em',
+                textTransform: 'uppercase',
+                color: item.final ? 'var(--ok-ink)' : 'var(--ink-faint)',
+              }}
+            >
+              {item.label}
+            </div>
+            <div style={{fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3}}>
+              {fmt(item.date)}
+            </div>
+            <div style={{fontSize: 12, color: 'var(--ink-faint)', marginTop: 1}}>{item.note}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function broilerWeekWeightLabel(value) {
   const parsed = Number.parseFloat(value);
@@ -148,68 +370,77 @@ export default function BatchForm({
       >
         <div
           style={{
-            background: 'white',
-            borderRadius: 12,
+            background: embedded ? 'transparent' : 'white',
+            borderRadius: embedded ? 0 : 12,
             width: '100%',
-            maxWidth: 806,
-            border: '1px solid var(--border)',
-            marginBottom: '2rem',
+            maxWidth: embedded ? 1060 : 960,
+            border: embedded ? 'none' : '1px solid var(--border)',
+            marginBottom: embedded ? 0 : '2rem',
           }}
         >
           {/* Sticky header: title + batch name + close */}
-          <div
-            style={{
-              padding: '12px 20px',
-              borderBottom: '1px solid var(--border)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              position: 'sticky',
-              top: 0,
-              background: 'white',
-              zIndex: 10,
-              boxShadow: '0 1px 4px rgba(0,0,0,.06)',
-            }}
-          >
-            <div style={{display: 'flex', alignItems: 'center', gap: 10, minWidth: 0}}>
-              <div style={{fontSize: 13, fontWeight: 500, color: 'var(--ink-faint)', flexShrink: 0}}>
-                {editId ? 'Edit Batch' : 'Add New Batch'}
-              </div>
-              {form.name && (
-                <div
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: '#085041',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {form.name}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => {
-                if (typeof onClose === 'function') onClose();
-                else closeForm();
-              }}
+          {!embedded && (
+            <div
               style={{
-                background: 'none',
-                border: 'none',
-                fontSize: 22,
-                cursor: 'pointer',
-                color: '#999',
-                lineHeight: 1,
-                flexShrink: 0,
+                padding: '12px 20px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                position: 'sticky',
+                top: 0,
+                background: 'white',
+                zIndex: 10,
+                boxShadow: '0 1px 4px rgba(0,0,0,.06)',
               }}
             >
-              ×
-            </button>
-          </div>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10, minWidth: 0}}>
+                <div style={{fontSize: 13, fontWeight: 500, color: 'var(--ink-faint)', flexShrink: 0}}>
+                  {editId ? 'Edit Batch' : 'Add New Batch'}
+                </div>
+                {form.name && (
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: '#085041',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {form.name}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  if (typeof onClose === 'function') onClose();
+                  else closeForm();
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 22,
+                  cursor: 'pointer',
+                  color: '#999',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
 
-          <div style={{padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12}}>
+          <div
+            style={{
+              padding: embedded ? 0 : '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: embedded ? 16 : 12,
+            }}
+          >
             {/* Conflict alert — only shown while the batch can still be
                 rescheduled. Once a batch is processed the scheduling is
                 history and the warning has nothing actionable to do. */}
@@ -295,333 +526,285 @@ export default function BatchForm({
                   </div>
                 );
               })()}
-            {/* Step 1 — Processing date + hatch suggestions */}
-            {/* WI-2c/WI-5: step panels use the white card surface + standard border;
-                step copy is plain black, not a green/blue theme. */}
-            <div
-              style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: '10px 14px',
-              }}
+            <SectionCard
+              icon="schedule"
+              title="Schedule"
+              hint="Target processing date drives the whole grow-out timeline"
             >
-              <div style={{color: 'var(--text-primary)', fontWeight: 600, fontSize: 12, marginBottom: 8}}>
-                Step 1 — Enter your target processing date
-              </div>
-              <div
-                data-mobile-1col="1"
-                style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8}}
-              >
-                <div>
-                  {/* CP0 A12.1: field labels are plain (no program color) on the shared
+              <div>
+                <StepHeading number="1">Enter your target processing date</StepHeading>
+                <div data-mobile-1col="1" style={{...broilerGrid2, marginBottom: 8}}>
+                  <div>
+                    {/* CP0 A12.1: field labels are plain (no program color) on the shared
                       recordFieldLabel primitive; program accent is reserved for the
                       date-mode selected pill below. */}
-                  <label style={recordFieldLabel}>Breed</label>
-                  <select style={recordControl} value={form.breed} onChange={(e) => upd('breed', e.target.value)}>
-                    <option value="CC">Cornish Cross {'\u2014'} 7 weeks</option>
-                    <option value="WR">White Ranger {'\u2014'} 8 weeks</option>
-                    {form.status === 'processed' && showLegacy && (
-                      <>
-                        <option disabled value="__sep__">
-                          {'\u2500\u2500\u2500 Legacy \u2500\u2500\u2500'}
-                        </option>
-                        {LEGACY_BREEDS.map((lb) => (
-                          <option key={lb.code} value={lb.code}>
-                            {lb.label} (legacy)
+                    <label style={broilerLabel}>Breed</label>
+                    <select style={broilerControl} value={form.breed} onChange={(e) => upd('breed', e.target.value)}>
+                      <option value="CC">Cornish Cross {'\u2014'} 7 weeks</option>
+                      <option value="WR">White Ranger {'\u2014'} 8 weeks</option>
+                      {form.status === 'processed' && showLegacy && (
+                        <>
+                          <option disabled value="__sep__">
+                            {'\u2500\u2500\u2500 Legacy \u2500\u2500\u2500'}
                           </option>
-                        ))}
-                      </>
+                          {LEGACY_BREEDS.map((lb) => (
+                            <option key={lb.code} value={lb.code}>
+                              {lb.label} (legacy)
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                    {form.status === 'processed' && (
+                      <button
+                        type="button"
+                        onClick={() => setShowLegacy((s) => !s)}
+                        style={{
+                          marginTop: 5,
+                          padding: '3px 9px',
+                          borderRadius: 10,
+                          border: '1px solid var(--border-strong)',
+                          background: 'white',
+                          color: showLegacy ? 'var(--text-primary)' : 'var(--ink-muted)',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {showLegacy ? '\u2713 Showing legacy options' : '+ Show legacy options'}
+                      </button>
                     )}
-                  </select>
-                  {form.status === 'processed' && (
-                    <button
-                      type="button"
-                      onClick={() => setShowLegacy((s) => !s)}
-                      style={{
-                        marginTop: 5,
-                        padding: '3px 9px',
-                        borderRadius: 10,
-                        border: '1px solid var(--border-strong)',
-                        background: 'white',
-                        color: showLegacy ? 'var(--text-primary)' : 'var(--ink-muted)',
-                        fontSize: 10,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {showLegacy ? '\u2713 Showing legacy options' : '+ Show legacy options'}
-                    </button>
-                  )}
+                  </div>
+                  <div>
+                    <label style={broilerLabel}>Processing date</label>
+                    <input
+                      style={broilerControl}
+                      type="date"
+                      value={form.processingDate}
+                      onChange={(e) => upd('processingDate', e.target.value)}
+                    />
+                    {/* Holiday proximity is a genuine warn signal \u2014 keep warn ink. */}
+                    {procWarn && (
+                      <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 3}}>
+                        {'\u26a0 Within 1 day of a major holiday'}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label style={recordFieldLabel}>Processing date</label>
-                  <input
-                    style={recordControl}
-                    type="date"
-                    value={form.processingDate}
-                    onChange={(e) => upd('processingDate', e.target.value)}
-                  />
-                  {/* Holiday proximity is a genuine warn signal \u2014 keep warn ink. */}
-                  {procWarn && (
-                    <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 3}}>
-                      {'\u26a0 Within 1 day of a major holiday'}
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Hatch suggestions — hidden once a hatch date is locked in. */}
-              {targetHatch && !form.hatchDate && (
-                <div style={{borderTop: '1px solid var(--border)', paddingTop: 8}}>
-                  <div style={{fontSize: 11, color: 'var(--text-primary)', marginBottom: 5, fontWeight: 600}}>
-                    Suggested hatch dates to check with hatchery (target: {fmt(targetHatch)}):
-                  </div>
-                  <div style={{display: 'flex', gap: 5, flexWrap: 'wrap'}}>
-                    {hatchSuggestions.map((s) => {
-                      // WI-2d: selected suggestion uses the broiler program accent;
-                      // unselected are neutral ghost chips (no green palette).
-                      const selected = form.hatchDate === s.iso;
-                      return (
-                        <button
-                          key={s.iso}
-                          onClick={() => upd('hatchDate', s.iso)}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 10,
-                            fontSize: 11,
-                            cursor: 'pointer',
-                            fontWeight: 500,
-                            border: '1px solid var(--border-strong)',
-                            background: selected ? getProgramColor('broiler') : 'white',
-                            color: selected ? getReadableText(getProgramColor('broiler')) : 'var(--text-primary)',
-                          }}
-                        >
-                          {s.day} {s.label}
-                          {s.offset === 0
-                            ? ' (exact)'
-                            : s.offset < 0
-                              ? ` (${Math.abs(s.offset)}d early)`
-                              : ` (${s.offset}d late)`}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div style={{fontSize: 11, color: 'var(--ink-muted)', marginTop: 5}}>
-                    Click a date or type one below once confirmed with hatchery
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Step 2 — Hatch date confirmed + full timeline */}
-            {/* WI-2c/WI-5: white card surface + standard border; copy is plain black. */}
-            <div
-              style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: '10px 14px',
-              }}
-            >
-              <div style={{color: 'var(--text-primary)', fontWeight: 600, fontSize: 12, marginBottom: 8}}>
-                Step 2 — Confirm hatch date with hatchery
-              </div>
-              <div>
-                <label style={recordFieldLabel}>Confirmed hatch date</label>
-                <input
-                  style={recordControl}
-                  type="date"
-                  value={form.hatchDate}
-                  onChange={(e) => upd('hatchDate', e.target.value)}
-                />
-                {/* Holiday proximity is a genuine warn signal — keep warn ink. */}
-                {hatchWarn && (
-                  <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 3}}>
-                    ⚠ Within 1 day of a major holiday
+                {/* Hatch suggestions — hidden once a hatch date is locked in. */}
+                {targetHatch && !form.hatchDate && (
+                  <div style={{borderTop: '1px solid var(--border)', paddingTop: 8}}>
+                    <div style={{fontSize: 11, color: 'var(--text-primary)', marginBottom: 5, fontWeight: 600}}>
+                      Suggested hatch dates to check with hatchery (target: {fmt(targetHatch)}):
+                    </div>
+                    <div style={{display: 'flex', gap: 5, flexWrap: 'wrap'}}>
+                      {hatchSuggestions.map((s) => {
+                        // WI-2d: selected suggestion uses the broiler program accent;
+                        // unselected are neutral ghost chips (no green palette).
+                        const selected = form.hatchDate === s.iso;
+                        return (
+                          <button
+                            key={s.iso}
+                            onClick={() => upd('hatchDate', s.iso)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 10,
+                              fontSize: 11,
+                              cursor: 'pointer',
+                              fontWeight: 500,
+                              border: '1px solid var(--border-strong)',
+                              background: selected ? getProgramColor('broiler') : 'white',
+                              color: selected ? getReadableText(getProgramColor('broiler')) : 'var(--text-primary)',
+                            }}
+                          >
+                            {s.day} {s.label}
+                            {s.offset === 0
+                              ? ' (exact)'
+                              : s.offset < 0
+                                ? ` (${Math.abs(s.offset)}d early)`
+                                : ` (${s.offset}d late)`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{fontSize: 11, color: 'var(--ink-muted)', marginTop: 5}}>
+                      Click a date or type one below once confirmed with hatchery
+                    </div>
                   </div>
                 )}
               </div>
-              {tl && (
-                <div
-                  data-mobile-1col="1"
-                  style={{
-                    marginTop: 8,
-                    borderTop: '1px solid var(--border)',
-                    paddingTop: 8,
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '3px 12px',
-                    fontSize: 12,
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <div>
-                    Brooder in: <strong>{fmt(tl.brooderIn)}</strong>
-                  </div>
-                  <div>
-                    Brooder out: <strong>{fmt(tl.brooderOut)}</strong>
-                    <span style={{opacity: 0.6}}> +{BROODER_CLEANOUT}d</span>
-                  </div>
-                  <div>
-                    Schooner in: <strong>{fmt(tl.schoonerIn)}</strong>
-                  </div>
-                  <div>
-                    Schooner out: <strong>{fmt(tl.schoonerOut)}</strong>
-                    <span style={{opacity: 0.6}}> +{SCHOONER_CLEANOUT}d</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Batch details */}
-            <div>
-              <label style={recordFieldLabel}>Batch name</label>
-              <input
-                style={recordControl}
-                value={form.name}
-                onChange={(e) => upd('name', e.target.value)}
-                placeholder="e.g. 26-01 CC BROILERS"
-              />
-            </div>
-            <div data-mobile-1col="1" style={S.fieldGroup}>
               <div>
-                <label style={recordFieldLabel}>Hatchery</label>
-                <select style={recordControl} value={form.hatchery} onChange={(e) => upd('hatchery', e.target.value)}>
-                  {hatcheries.map((h) =>
-                    h === '__SEP__' ? (
-                      <option key="sep" disabled value="__sep__">
-                        {'\u2500\u2500\u2500 Legacy \u2500\u2500\u2500'}
-                      </option>
-                    ) : (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </div>
-              <div>
-                <label style={recordFieldLabel}>Birds ordered</label>
-                <input
-                  style={recordControl}
-                  type="number"
-                  value={form.birdCount || ''}
-                  onChange={(e) => upd('birdCount', e.target.value)}
-                />
-                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
-                  Standard 750 · Schooner 1 solo: 650
-                </div>
-              </div>
-              <div>
-                <label style={recordFieldLabel}>Birds arrived</label>
-                <input
-                  style={recordControl}
-                  type="number"
-                  value={form.birdCountActual || ''}
-                  onChange={(e) => upd('birdCountActual', e.target.value)}
-                  placeholder="Enter actual count"
-                />
-                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
-                  Actual day-1 count after hatchery overship. Enter manually — never auto-fills from ordered.
-                </div>
-              </div>
-              <div>
-                <label style={recordFieldLabel}>Chick purchase cost ($)</label>
-                <input
-                  style={recordControl}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.chickCost || ''}
-                  onChange={(e) => upd('chickCost', e.target.value)}
-                  placeholder="Total paid to hatchery"
-                />
-                <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
-                  Total paid to the hatchery for this batch's chicks. Rolls into Total Cost.
-                </div>
-              </div>
-
-              <div>
-                <label style={recordFieldLabel}>Brooder assigned</label>
-                <select style={recordControl} value={form.brooder} onChange={(e) => upd('brooder', e.target.value)}>
-                  {BROODERS.map((b) => (
-                    <option key={b} value={b}>
-                      Brooder {b} — max 750 birds
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={recordFieldLabel}>Schooner assigned</label>
-                <select style={recordControl} value={form.schooner} onChange={(e) => upd('schooner', e.target.value)}>
-                  {SCHOONERS.map((s) => (
-                    <option key={s} value={s}>
-                      Schooner {s}
-                      {s === '1' ? ' (solo / 650 birds)' : ' (pair)'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={recordFieldLabel}>Status</label>
-                <select style={recordControl} value={form.status} onChange={(e) => upd('status', e.target.value)}>
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {processingStatusLabel(s)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label style={recordFieldLabel}>Notes</label>
-              <textarea
-                style={recordTextarea}
-                value={form.notes}
-                onChange={(e) => upd('notes', e.target.value)}
-                rows={2}
-                placeholder="Farm team, transporter, distribution notes…"
-              />
-            </div>
-            {/* ── Brooder / Schooner Counts ── */}
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4}}>
-              <div
-                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
-              >
-                BROODER & SCHOONER
-              </div>
-              <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
+                <StepHeading number="2" style={{marginTop: 22}}>
+                  Confirm hatch date with hatchery
+                </StepHeading>
                 <div>
-                  <label style={recordFieldLabel}>Date In Brooder</label>
+                  <label style={broilerLabel}>Confirmed hatch date</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
+                    type="date"
+                    value={form.hatchDate}
+                    onChange={(e) => upd('hatchDate', e.target.value)}
+                  />
+                  {/* Holiday proximity is a genuine warn signal — keep warn ink. */}
+                  {hatchWarn && (
+                    <div style={{fontSize: 11, color: 'var(--warn-ink)', marginTop: 3}}>
+                      ⚠ Within 1 day of a major holiday
+                    </div>
+                  )}
+                </div>
+                <TimelinePanel timeline={tl} />
+              </div>
+            </SectionCard>
+            <SectionCard icon="details" title="Batch details" bodyStyle={broilerGrid2}>
+              <div>
+                <label style={broilerLabel}>Batch name</label>
+                <input
+                  style={broilerControl}
+                  value={form.name}
+                  onChange={(e) => upd('name', e.target.value)}
+                  placeholder="e.g. 26-01 CC BROILERS"
+                />
+              </div>
+              <>
+                <div>
+                  <label style={broilerLabel}>Hatchery</label>
+                  <select
+                    style={broilerControl}
+                    value={form.hatchery}
+                    onChange={(e) => upd('hatchery', e.target.value)}
+                  >
+                    {hatcheries.map((h) =>
+                      h === '__SEP__' ? (
+                        <option key="sep" disabled value="__sep__">
+                          {'\u2500\u2500\u2500 Legacy \u2500\u2500\u2500'}
+                        </option>
+                      ) : (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label style={broilerLabel}>Birds ordered</label>
+                  <input
+                    style={broilerControl}
+                    type="number"
+                    value={form.birdCount || ''}
+                    onChange={(e) => upd('birdCount', e.target.value)}
+                  />
+                  <div style={broilerHelp}>Standard 750 · Schooner 1 solo: 650</div>
+                </div>
+                <div>
+                  <label style={broilerLabel}>Birds arrived</label>
+                  <input
+                    style={broilerControl}
+                    type="number"
+                    value={form.birdCountActual || ''}
+                    onChange={(e) => upd('birdCountActual', e.target.value)}
+                    placeholder="Enter actual count"
+                  />
+                  <div style={broilerHelp}>
+                    Actual day-1 count after hatchery overship. Enter manually — never auto-fills from ordered.
+                  </div>
+                </div>
+                <div>
+                  <label style={broilerLabel}>Chick purchase cost ($)</label>
+                  <input
+                    style={broilerControl}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.chickCost || ''}
+                    onChange={(e) => upd('chickCost', e.target.value)}
+                    placeholder="Total paid to hatchery"
+                  />
+                  <div style={broilerHelp}>
+                    Total paid to the hatchery for this batch's chicks. Rolls into Total Cost.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={broilerLabel}>Brooder assigned</label>
+                  <select style={broilerControl} value={form.brooder} onChange={(e) => upd('brooder', e.target.value)}>
+                    {BROODERS.map((b) => (
+                      <option key={b} value={b}>
+                        Brooder {b} — max 750 birds
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={broilerLabel}>Schooner assigned</label>
+                  <select
+                    style={broilerControl}
+                    value={form.schooner}
+                    onChange={(e) => upd('schooner', e.target.value)}
+                  >
+                    {SCHOONERS.map((s) => (
+                      <option key={s} value={s}>
+                        Schooner {s}
+                        {s === '1' ? ' (solo / 650 birds)' : ' (pair)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={broilerLabel}>Status</label>
+                  <select style={broilerControl} value={form.status} onChange={(e) => upd('status', e.target.value)}>
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {processingStatusLabel(s)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+              <div style={{gridColumn: '1 / -1'}}>
+                <label style={broilerLabel}>Notes</label>
+                <textarea
+                  style={broilerTextarea}
+                  value={form.notes}
+                  onChange={(e) => upd('notes', e.target.value)}
+                  rows={2}
+                  placeholder="Farm team, transporter, distribution notes…"
+                />
+              </div>
+            </SectionCard>
+            <SectionCard icon="housing" title="Brooder & Schooner" bodyStyle={broilerGrid3}>
+              <>
+                <div>
+                  <label style={broilerLabel}>Date In Brooder</label>
+                  <input
+                    style={broilerControl}
                     type="date"
                     value={form.brooderIn}
                     onChange={(e) => upd('brooderIn', e.target.value)}
                   />
-                  <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 3}}>
-                    Defaults to hatch date + 1 day
-                  </div>
+                  <div style={broilerHelp}>Defaults to hatch date + 1 day</div>
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>Date Out of Brooder</label>
+                  <label style={broilerLabel}>Date Out of Brooder</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="date"
                     value={form.brooderOut}
                     onChange={(e) => upd('brooderOut', e.target.value)}
                   />
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>4-Week Weight (lbs)</label>
+                  <label style={broilerLabel}>4-Week Weight (lbs)</label>
                   <div data-broiler-week4-weight-readonly="1" style={weighInSourcedValueBox}>
                     {broilerWeekWeightLabel(week4WeightDisplay)}
                   </div>
                   <div style={weighInSourcedHint}>Pulled from completed Week 4 weigh-ins.</div>
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>6-Week Weight (lbs)</label>
+                  <label style={broilerLabel}>6-Week Weight (lbs)</label>
                   <div data-broiler-week6-weight-readonly="1" style={weighInSourcedValueBox}>
                     {broilerWeekWeightLabel(week6WeightDisplay)}
                   </div>
@@ -632,9 +815,9 @@ export default function BatchForm({
                   if (stats.legacy) {
                     return (
                       <div>
-                        <label style={recordFieldLabel}>Mortality Cumulative</label>
+                        <label style={broilerLabel}>Mortality Cumulative</label>
                         <input
-                          style={recordControl}
+                          style={broilerControl}
                           type="number"
                           min="0"
                           value={form.mortalityCumulative || ''}
@@ -645,7 +828,7 @@ export default function BatchForm({
                   }
                   return (
                     <div>
-                      <label style={recordFieldLabel}>Mortality (from daily reports)</label>
+                      <label style={broilerLabel}>Mortality (from daily reports)</label>
                       <div
                         style={{
                           padding: '8px 11px',
@@ -668,15 +851,9 @@ export default function BatchForm({
                     </div>
                   );
                 })()}
-              </div>
-            </div>
-            {/* ── Feed ── */}
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
-              <div
-                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
-              >
-                FEED & GRIT
-              </div>
+              </>
+            </SectionCard>
+            <SectionCard icon="feed" title="Feed & Grit">
               {editId &&
                 !/^b-24-/i.test(form.name) &&
                 (() => {
@@ -745,9 +922,9 @@ export default function BatchForm({
                   return (
                     <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
                       <div>
-                        <label style={recordFieldLabel}>Brooder Feed (lbs)</label>
+                        <label style={broilerLabel}>Brooder Feed (lbs)</label>
                         <input
-                          style={recordControl}
+                          style={broilerControl}
                           type="number"
                           min="0"
                           value={form.brooderFeedLbs || ''}
@@ -755,9 +932,9 @@ export default function BatchForm({
                         />
                       </div>
                       <div>
-                        <label style={recordFieldLabel}>Schooner Feed (lbs)</label>
+                        <label style={broilerLabel}>Schooner Feed (lbs)</label>
                         <input
-                          style={recordControl}
+                          style={broilerControl}
                           type="number"
                           min="0"
                           value={form.schoonerFeedLbs || ''}
@@ -765,9 +942,9 @@ export default function BatchForm({
                         />
                       </div>
                       <div>
-                        <label style={recordFieldLabel}>Grit (lbs)</label>
+                        <label style={broilerLabel}>Grit (lbs)</label>
                         <input
-                          style={recordControl}
+                          style={broilerControl}
                           type="number"
                           min="0"
                           value={form.gritLbs || ''}
@@ -780,7 +957,7 @@ export default function BatchForm({
                 // Modern batches: read-only display sourced live from daily reports
                 const ro = (label, val, suffix) => (
                   <div>
-                    <label style={recordFieldLabel}>
+                    <label style={broilerLabel}>
                       {label} <span style={{fontWeight: 400, color: 'var(--ink-faint)'}}>(from daily reports)</span>
                     </label>
                     <div
@@ -862,19 +1039,18 @@ export default function BatchForm({
                   </span>
                 </div>
               </div>
-            </div>
-            {/* ── Processing ── */}
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
-              <div
-                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
-              >
-                PROCESSING
-              </div>
-              <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+            </SectionCard>
+            <SectionCard
+              icon="processing"
+              title="Processing"
+              hint="Enter once the batch comes back from the processor"
+              bodyStyle={broilerGrid2}
+            >
+              <>
                 <div>
-                  <label style={recordFieldLabel}>Birds to Processor</label>
+                  <label style={broilerLabel}>Birds to Processor</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="number"
                     min="0"
                     value={form.totalToProcessor || ''}
@@ -882,9 +1058,9 @@ export default function BatchForm({
                   />
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>Processing Cost ($)</label>
+                  <label style={broilerLabel}>Processing Cost ($)</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="number"
                     min="0"
                     step="0.01"
@@ -893,7 +1069,7 @@ export default function BatchForm({
                   />
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>Feed per Bird (lbs)</label>
+                  <label style={broilerLabel}>Feed per Bird (lbs)</label>
                   <div
                     style={{
                       padding: '8px 10px',
@@ -920,9 +1096,9 @@ export default function BatchForm({
                   </div>
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>Avg Breast (lbs)</label>
+                  <label style={broilerLabel}>Avg Breast (lbs)</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="number"
                     min="0"
                     step="0.01"
@@ -931,9 +1107,9 @@ export default function BatchForm({
                   />
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>Avg Thighs (lbs)</label>
+                  <label style={broilerLabel}>Avg Thighs (lbs)</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="number"
                     min="0"
                     step="0.01"
@@ -942,9 +1118,9 @@ export default function BatchForm({
                   />
                 </div>
                 <div style={{gridColumn: '1/-1'}}>
-                  <label style={recordFieldLabel}>Avg Dressed Bird (lbs)</label>
+                  <label style={broilerLabel}>Avg Dressed Bird (lbs)</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="number"
                     min="0"
                     step="0.01"
@@ -952,19 +1128,14 @@ export default function BatchForm({
                     onChange={(e) => upd('avgDressedLbs', e.target.value)}
                   />
                 </div>
-              </div>
-            </div>
-            <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
-              <div
-                style={{fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', letterSpacing: 0.5, marginBottom: 8}}
-              >
-                PRODUCTION TOTALS
-              </div>
-              <div data-mobile-1col="1" style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+              </>
+            </SectionCard>
+            <SectionCard icon="totals" title="Production totals" bodyStyle={broilerGrid2}>
+              <>
                 <div>
-                  <label style={recordFieldLabel}>Total Lbs — Whole Birds</label>
+                  <label style={broilerLabel}>Total Lbs — Whole Birds</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="number"
                     min="0"
                     step="0.1"
@@ -973,9 +1144,9 @@ export default function BatchForm({
                   />
                 </div>
                 <div>
-                  <label style={recordFieldLabel}>Total Lbs — Cuts</label>
+                  <label style={broilerLabel}>Total Lbs — Cuts</label>
                   <input
-                    style={recordControl}
+                    style={broilerControl}
                     type="number"
                     min="0"
                     step="0.1"
@@ -983,23 +1154,10 @@ export default function BatchForm({
                     onChange={(e) => upd('totalLbsCuts', e.target.value)}
                   />
                 </div>
-              </div>
-            </div>
-            {/* ── Documents ── */}
+              </>
+            </SectionCard>
             {editId && (
-              <div style={{gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12}}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: 'var(--ink-faint)',
-                    letterSpacing: 0.5,
-                    marginBottom: 8,
-                  }}
-                >
-                  DOCUMENTS
-                </div>
-
+              <SectionCard icon="documents" title="Documents">
                 {/* Processor Excel parse confirmation panel */}
                 {parsedProcessor && (
                   <div
@@ -1346,47 +1504,59 @@ export default function BatchForm({
                     </button>
                   </div>
                 ))}
-              </div>
+              </SectionCard>
             )}{' '}
           </div>
 
           <div
             style={{
-              padding: '12px 20px',
-              borderTop: '1px solid var(--border)',
+              padding: embedded ? '8px 2px 0' : '12px 20px',
+              borderTop: embedded ? 'none' : '1px solid var(--border)',
               display: 'flex',
-              gap: 8,
+              gap: embedded ? 14 : 8,
               alignItems: 'center',
+              flexWrap: 'wrap',
             }}
           >
             {editId ? (
               <button
-                style={S.btnDanger}
+                style={{
+                  ...S.btnDanger,
+                  minHeight: 42,
+                  fontWeight: 700,
+                  background: 'white',
+                }}
                 onClick={() => {
                   del(editId);
                   if (typeof onClose === 'function') onClose();
                   else closeForm();
                 }}
               >
-                Delete
+                {embedded ? 'Delete batch' : 'Delete'}
               </button>
             ) : (
               <button onClick={() => submit(false)} style={{...S.btnPrimary, background: '#085041', cursor: 'pointer'}}>
                 Add batch
               </button>
             )}
+            {editId && (
+              <div style={{marginLeft: 'auto', fontSize: 13, color: 'var(--ink-faint)', fontWeight: 600}}>
+                Auto-saves as you type
+              </div>
+            )}
             <button
-              style={S.btnGhost}
+              style={
+                embedded
+                  ? {...S.btnPrimary, width: 'auto', minHeight: 42, padding: '0 22px', background: '#1C8A5F'}
+                  : S.btnGhost
+              }
               onClick={() => {
                 if (typeof onClose === 'function') onClose();
                 else closeForm();
               }}
             >
-              Close
+              {embedded ? 'Done' : 'Close'}
             </button>
-            {editId && (
-              <div style={{marginLeft: 'auto', fontSize: 11, color: 'var(--ink-faint)'}}>Auto-saves as you type</div>
-            )}
           </div>
         </div>
       </div>
