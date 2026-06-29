@@ -70,8 +70,9 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
-- Production deploy: Netlify auto-deploys from GitHub `main`. At this checkpoint,
-  `origin/main` includes PR #49 (`1ac82ff`). Older main CI is known red from the
+- Production deploy: Netlify auto-deploys from GitHub `main`. PR #49 is live on
+  `wcfplanner.com`; the production main JS contains `Age at processing`,
+  `Age at sale`, and `Age at death`. Older main CI is known red from the
   repo-wide 30-minute Playwright/E2E health problem, not from the newsletter,
   pasture, or cattle hotfixes.
 - Source: latest product merge on `main` is cattle terminal-age animal records
@@ -112,7 +113,8 @@ Design/function invariants that govern cross-surface behavior live in
   and `Age at death` from `death_date`. Active herds still show current `Age`.
   Validation before merge: Prettier on changed files, `tests/static/
   animal_detail_age.test.js` 12/12, lint 0 errors (existing warnings only),
-  build passed, and Netlify PR preview checks were clean.
+  build passed, Netlify PR preview checks were clean, and production JS was
+  verified to contain the terminal-age labels.
 - Worktree inventory at wrap: after cleanup the intended steady state is a
   single primary worktree at `C:/Users/Ronni/WCF-planner` on `main` plus the
   seven preserved untracked handoff/shot folders:
@@ -231,7 +233,8 @@ The current source checkpoint is listed in the header above.
     event date instead of showing current age.
   - Validation: Prettier on changed files, `tests/static/
     animal_detail_age.test.js` 12/12, lint 0 errors with existing warnings only,
-    `npm run build`, and Netlify PR preview checks clean.
+    `npm run build`, Netlify PR preview checks clean, and production JS verified
+    on `wcfplanner.com`.
 - Newsletter Autopilot release (`a1cdcf7`, PR #44, merged 2026-06-29):
   - Ports the gather-first Autopilot admin workflow, brief/readiness panels,
     revision safeguards, photo plan, real-source harvest, and shared parity
