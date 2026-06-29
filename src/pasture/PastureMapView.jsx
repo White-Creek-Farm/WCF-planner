@@ -1112,6 +1112,9 @@ export default function PastureMapView({Header, authState}) {
         short: g.short,
         isActive: g.id === activeGroupId,
         nextAreaId,
+        // The area the group currently occupies (where the location pin renders);
+        // the canvas skips this stop's number so the pin and number don't overlap.
+        currentAreaId: currentId || null,
       });
     }
     return out;

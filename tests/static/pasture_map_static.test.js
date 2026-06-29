@@ -559,7 +559,11 @@ describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)',
     expect(canvasSrc).not.toContain('rotationAreaIds');
     // Every rotation stop is a numbered dot; the group-initials label is removed.
     expect(canvasSrc).not.toContain('rotationLabelIcon');
-    expect(canvasSrc).toContain('rotationIcon(index + 1, color, dim)');
+    expect(canvasSrc).toContain('rotationIcon(s.num, color, dim)');
+    // The number at the group's CURRENT area is skipped so it doesn't stack under
+    // the occupant location pin (view passes currentAreaId on each rotation path).
+    expect(canvasSrc).toContain('if (s.id === path.currentAreaId) return;');
+    expect(viewSrc).toContain('currentAreaId: currentId || null');
   });
 
   it('occupied-area marker is a teardrop location pin + name, not a group-initials badge', () => {
@@ -591,6 +595,13 @@ describe('Merged Map: hover readout + click-to-open Area modal', () => {
     expect(canvasSrc).not.toContain("if (appMode === 'view' && !isTouch) return;");
     expect(canvasSrc).toContain('function areaHoverTip');
     expect(canvasSrc).toContain('pm-area-hover-tip');
+    // The Map bubble is name + size only: no rest/grazing state, occupant, or
+    // last-moved/grazing-history lines.
+    expect(canvasSrc).toContain('function areaHoverTip(a) {');
+    expect(canvasSrc).not.toContain('pm-tip-rest');
+    expect(canvasSrc).not.toContain('pm-tip-occ');
+    expect(canvasSrc).not.toContain('pm-tip-last');
+    expect(canvasSrc).not.toContain('AREA_TIP_REST');
     // The readout is still edge-aware: clamped inside the map container so it cannot
     // clip off-screen, and wider than the old narrow tooltip.
     expect(canvasSrc).toContain('function clampTooltipWithin');
@@ -1553,8 +1564,6 @@ describe('Pasture Map tweaks #2: default labels / occupancy / dismissal / open o
     expect(canvasSrc).toContain('styleForArea(a, a.id === selectedId, primaryOcc, boundaryFilter)');
     // The marker no longer renders an "overlap" tag/full marker for overlap impacts.
     expect(canvasSrc).not.toContain('\'<span class="pm-occ-tag">overlap</span>\'');
-    // Overlap context still rides along in the hover/tap readout (full occList).
-    expect(canvasSrc).toContain('areaHoverTip(a, occList)');
   });
 
   it('canvas clears selection on empty-background click (guarded against feature clicks)', () => {

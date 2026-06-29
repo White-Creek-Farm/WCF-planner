@@ -386,41 +386,20 @@ const AREA_TIP_KIND = {
   outline_candidate: 'Track / line',
   scratch: 'Scratch',
 };
-const AREA_TIP_REST = {
-  occupied: 'Occupied now',
-  resting: 'Resting',
-  rested: 'Rested - ready',
-  ready: 'Ready',
-  baseline: 'No grazing history',
-};
 function escTip(s) {
   return String(s == null ? '' : s).replace(
     /[&<>"]/g,
     (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c],
   );
 }
-function areaShortDate(iso) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
-}
-// Rich read-only readout for an area on the Map (desktop hover / touch tap):
-// name, type, acres, rest state, occupant group(s) + count, and last-moved date.
-function areaHoverTip(a, occList) {
+// Read-only Map readout for an area (desktop hover / touch tap): name + size only.
+// No grazing/rest history, occupant, or last-moved date on the Map bubble.
+function areaHoverTip(a) {
   const type = a.permanence === 'temporary' ? 'Temp paddock' : AREA_TIP_KIND[a.kind] || 'Area';
   const acres = a.effective_acres == null ? null : `${a.effective_acres} ac`;
-  const rest = AREA_TIP_REST[a.rest_state] || (a.baseline_no_history ? 'No grazing history' : '');
-  const occ = (occList || [])
-    .map((o) => `${escTip(o.name)}${o.count != null ? ' &middot; ' + o.count : ''}${o.overlap ? ' (overlap)' : ''}`)
-    .join(', ');
-  const last = a.last_touched_at ? `Last moved ${escTip(areaShortDate(a.last_touched_at))}` : 'No history';
   return (
     `<span class="pm-tip-name">${escTip(a.name) || 'Unnamed'}</span>` +
-    `<span class="pm-tip-meta">${escTip(type)}${acres ? ' &middot; ' + acres : ''}</span>` +
-    (rest ? `<span class="pm-tip-rest">${escTip(rest)}</span>` : '') +
-    (occ ? `<span class="pm-tip-occ">${occ}</span>` : '') +
-    `<span class="pm-tip-last">${last}</span>`
+    `<span class="pm-tip-meta">${escTip(type)}${acres ? ' &middot; ' + acres : ''}</span>`
   );
 }
 
@@ -661,7 +640,7 @@ export default function PastureMapCanvas({
         // Read-only Map readout. Wider than the default tooltip (see CSS) and made
         // edge-aware: clampTooltipWithin pins it inside the map container on open and
         // on every sticky move, so it provably cannot render off-screen at the edges.
-        lyr.bindTooltip(areaHoverTip(a, occList), {
+        lyr.bindTooltip(areaHoverTip(a), {
           direction: 'top',
           className: 'pm-area-hover-tip',
           sticky: true,
@@ -792,24 +771,31 @@ export default function PastureMapCanvas({
         }
         return;
       }
-      const centers = (path.areaIds || [])
-        .map((id) => layerCenter(areaLayersRef.current.get(id)))
-        .filter((point) => point && Number.isFinite(point.lat) && Number.isFinite(point.lng));
-      if (!centers.length) return;
-      if (centers.length >= 2) {
+      // Keep each stop's rotation number (its position in the order) alongside its
+      // centroid so the numbering stays correct even when a stop is skipped.
+      const stops = (path.areaIds || [])
+        .map((id, i) => ({id, num: i + 1, center: layerCenter(areaLayersRef.current.get(id))}))
+        .filter((s) => s.center && Number.isFinite(s.center.lat) && Number.isFinite(s.center.lng));
+      if (!stops.length) return;
+      if (stops.length >= 2) {
         // Decorative path: must not intercept clicks meant for the area polygons it
         // crosses (it runs through their centroids).
-        L.polyline(centers, {
-          color,
-          weight: path.isActive ? 3.5 : 2,
-          opacity: path.isActive ? 0.95 : 0.5,
-          dashArray: '1,8',
-          interactive: false,
-        }).addTo(group);
+        L.polyline(
+          stops.map((s) => s.center),
+          {
+            color,
+            weight: path.isActive ? 3.5 : 2,
+            opacity: path.isActive ? 0.95 : 0.5,
+            dashArray: '1,8',
+            interactive: false,
+          },
+        ).addTo(group);
       }
-      centers.forEach((point, index) => {
-        // Every stop is a numbered dot in the group color; no group-initials labels.
-        L.marker(point, {icon: rotationIcon(index + 1, color, dim), interactive: false}).addTo(group);
+      stops.forEach((s) => {
+        // Skip the number at the group's CURRENT area: the occupant location pin
+        // already marks it, so the pin and number don't stack on the same centroid.
+        if (s.id === path.currentAreaId) return;
+        L.marker(s.center, {icon: rotationIcon(s.num, color, dim), interactive: false}).addTo(group);
       });
     });
     group.addTo(map);
