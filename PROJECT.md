@@ -7,14 +7,15 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-27.
-Current product checkpoint: `6c480ed`
-(`fix(broiler): lock brooder schedule dates`).
-Latest shipped product merges include Pasture Map open-line edit (`1d72e69`),
-newsletter automation B (`41153bc`), Pasture Map CC#1 (`b0917a9`), and
-Pasture Map group records (`73a8432`).
-Current docs checkpoint: this 2026-06-27 session-wrap update folding in the
-Pasture Map CC#1/open-line and Newsletter Autopilot lane states.
+Last updated: 2026-06-29.
+Current product checkpoint: `541d5fe`
+(`Merge pull request #47 from hotfix/cattle-batch-processing-age`).
+Latest shipped product merges include Newsletter Autopilot (`a1cdcf7`, PR #44),
+Pasture Map field/offline/header chrome (`ea02278`, PR #45), Pasture Map
+draw-temp/marker fixes (`8eba126`, PR #46), and cattle processing-batch age
+display (`541d5fe`, PR #47).
+Current docs checkpoint: this 2026-06-29 session-wrap update after PRs #44-#47,
+PROD newsletter migrations `146`/`151`, and the `newsletter-harvest` v2 deploy.
 Production URL: https://wcfplanner.com.
 Netlify auto-deploys from GitHub `main`.
 
@@ -67,49 +68,58 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
-- Production deploy: Netlify auto-deploys from GitHub `main`.
-- Source: latest product commit on `main` is `6c480ed`
-  (`fix(broiler): lock brooder schedule dates`). `origin/main` is pushed.
-  Recent main history includes Pasture Map open-line edit merge `1d72e69`,
-  Processing Calendar docs lock `41458ec`, and the Broiler batch record hotfix
-  trio `5085725` / `fad33dc` / `6c480ed`.
-- Active lanes / PR gates: Pasture Map CC#1 and the open-line edit lane are
-  merged to `main`, deployed by Netlify, and their migrations `149` and `150`
-  are PROD-applied + verified. Newsletter Autopilot is built and fully
-  validated in `C:/Users/Ronni/WCF-planner-newsletter-autopilot` on
-  `feature/newsletter-autopilot`, but it is intentionally uncommitted,
-  unpushed, and not deployed; migration `151` is TEST-applied only. Ronnie must
-  approve the newsletter flowchart before any commit. Processing Calendar is
-  planning-locked only; no schema/importer/UI work has started.
-- Worktree inventory at wrap:
-  `C:/Users/Ronni/WCF-planner-codex-residuals` is clean on `main`;
-  `C:/Users/Ronni/WCF-planner` is on merged branch
-  `feature/pasture-open-line-edit` with only untracked handoff/review folders
-  (`design_handoff_newsletter/`, `design_handoff_processing_calendar/`,
+- Production deploy: Netlify auto-deploys from GitHub `main`. At wrap,
+  `origin/main` is `541d5fe` and the main CI/deploy workflows for PRs #44/#47
+  were still running or pending; older main CI is known red from the repo-wide
+  30-minute Playwright/E2E health problem, not from the newsletter or cattle
+  changes.
+- Source: latest product merge on `main` is cattle processing-batch age display
+  (`541d5fe`, PR #47). Recent main history also includes Newsletter Autopilot
+  (`a1cdcf7`, PR #44), Pasture Map draw-temp/marker fixes (`8eba126`, PR #46),
+  and Pasture Map field/offline/header chrome (`ea02278`, PR #45).
+- Newsletter release state: PR #44 is merged to `main`. Migrations `146` then
+  `151` are PROD-applied and verified by CC#2. The `newsletter-harvest` Edge
+  Function is deployed to PROD as active version 2 (`UPDATED_AT` 2026-06-29
+  15:44 UTC). Cron remains off. PR #44 received a narrow red-CI exception:
+  format/lint/unit/build passed, unit tests were 6503/6503, and
+  `tests/newsletter_public.spec.js` passed in CI; the remaining CI failure was
+  the existing repo-wide Playwright timeout/unrelated non-newsletter specs.
+- Newsletter secret state: PROD Supabase Edge Function secrets do NOT include
+  `NEWSLETTER_AI_API_KEY` as of this wrap (`supabase secrets list` checked by
+  name only). Without that key, `newsletter-harvest` intentionally falls back to
+  the template composer even when settings say Anthropic/Opus. The only
+  remaining newsletter release task is to set the real Anthropic key, probe the
+  function, and run the first production issue workflow/smoke.
+- Pasture Map release state: PR #45 and PR #46 are merged to `main`.
+  Production deploy of PR #46 was verified by CC#1: new main JS/CSS are live,
+  `.pm-occ-pin` is present, old `.pm-occ-avatar` and `.pm-rotation-label` are
+  absent, occupant markers are teardrop pins with labels, and rotation stops are
+  numbered. Draw-temp save behavior was verified locally with Playwright and the
+  deployed bundle contains the same code; PROD click-test was not run because
+  the Playwright auth harness targets TEST Supabase. No pasture PROD SQL was
+  applied during PR #45/#46; migration `150`'s `NOTIFY` addition is text-only
+  for future/fresh-env applies and was not re-applied to PROD.
+- Cattle processing-batch state: PR #47 is merged to `main`. Cattle processing
+  batch record rows now show every cow's age at the batch processing date.
+  Validation before merge: Prettier on changed files, focused static test
+  51/51, lint 0 errors (existing warnings only), build passed, `git diff
+  --check` clean.
+- Worktree inventory at wrap: after cleanup the intended steady state is a
+  single primary worktree at `C:/Users/Ronni/WCF-planner` on `main` plus the
+  seven preserved untracked handoff/shot folders:
+  `design_handoff_newsletter/`, `design_handoff_processing_calendar/`,
   `pasture-cp2-shots/`, `pasture-map-shots/`,
-  `pasture-offline-field-guide/`, `pasture-open-line-edit-shots/`,
-  `pasture-rail-shots/`); `C:/Users/Ronni/WCF-planner-newsletter-autopilot`
-  is dirty with the Newsletter Autopilot implementation and is behind current
-  `main`; older newsletter worktrees remain present for Checkpoint A/B history.
-- Open production/build gates: Newsletter Autopilot gates are still pending:
-  flowchart approval, optional safeguard decision for overwriting edited drafts,
-  clean rebase over current `main`, commit/push/PR, PROD apply of migration
-  `151`, deploy of `newsletter-harvest`, setting the
-  `NEWSLETTER_AI_API_KEY` Edge Function secret, and any explicit release step.
-  Cron stays off. Pasture has no open migration gate from the CC#1/open-line
-  lanes; remaining pasture work is Build Queue follow-up only.
+  `pasture-offline-field-guide/`, `pasture-open-line-edit-shots/`, and
+  `pasture-rail-shots/`. Older newsletter/source/autopilot worktrees were safe
+  to prune after PR #44 merged. Do not delete the preserved folders unless
+  Ronnie explicitly asks.
 - PROD-applied recent migrations include `112` through `116`, `125` through
-  `145`, and `147` through `150`. Migration `146_newsletter_automation.sql`
-  exists on `main` from the earlier Checkpoint B automation lane but is not
-  PROD-applied/released; do not deploy that older path blindly because the
-  Newsletter Autopilot branch supersedes the workflow before release. Migration
-  `151_newsletter_autopilot.sql` exists only in the uncommitted
-  Newsletter Autopilot worktree and is TEST-applied only. Migration `143`
-  (`delete_land_area_grazing_history`) remains deployed but unused by the UI.
-  Newsletter migrations `144` and `145` are present on PROD: the five
-  newsletter tables have RLS enabled, the public anon RPC surface is the three
-  newsletter read RPCs, and buckets `newsletter-staging` (private) and
-  `newsletter-public` (public) exist. PROD currently has `0` newsletter issues.
+  `151`. Migration `143` (`delete_land_area_grazing_history`) remains deployed
+  but unused by the UI. Newsletter migrations `144` and `145` define the tables,
+  anon surface, and storage buckets; `146` adds automation/run logging/cron RPC
+  support; `151` adds Autopilot settings, source coverage, photo plan, and
+  generation-input extensions. The public anon newsletter surface remains the
+  exact three RPCs from `144`.
 - Production legacy import: `Processing Events - ALL.xlsx` parsed 69 rows,
   skipped 0, and upserted 69 rows into `production_legacy_events` on PROD by
   stable `source_key`.
@@ -140,17 +150,16 @@ Design/function invariants that govern cross-surface behavior live in
   `active` alone is not enough: active feeder batches with `0` started and `0`
   current head display `Planned`; active feeder batches with started/current
   pigs display `In Process`; `processed` displays `Complete`.
-- Newsletter PROD state: Checkpoint A is merged and pushed. Public no-login
-  archive routes live under `/newsletter`, including `/newsletter/latest`,
-  issue slugs, and token preview. Admin manual issue editing lives at
-  `/admin/newsletter` and is admin-only. Checkpoint B code/migration files are
-  on `main`, but the automation release gates were not completed. The
-  replacement Newsletter Autopilot branch changes the workflow to gather facts
-  first, then write/revise drafts with AI and a photo plan; it is not committed
-  or deployed. No AI generation, monthly task, Edge Function secret, or cron is
-  live in PROD yet. First production issue creation/publication still needs real
-  admin use and browser verification with actual photo upload/approve/cover
-  bytes.
+- Newsletter PROD state: Newsletter Autopilot is merged to `main`, migrations
+  `146`/`151` are PROD-applied, and `newsletter-harvest` v2 is deployed. Public
+  no-login archive routes live under `/newsletter`, including
+  `/newsletter/latest`, issue slugs, and token preview. Admin Autopilot editing
+  lives at `/admin/newsletter` and is admin-only. The real Anthropic AI path is
+  not enabled because `NEWSLETTER_AI_API_KEY` is not present in PROD Edge
+  Function secrets; until it is set, the function falls back to template
+  composition. Cron remains off. First production issue creation/publication
+  still needs real admin use and browser verification with actual photo
+  upload/approve/cover bytes.
 - Pasture Map PROD state: tabs are Map / Field / Reports. Map is the single
   working surface. The Area modal is config-only and has one close affordance:
   the upper-right `X`, which debounces/saves edits on close; extra Close, Save
@@ -173,15 +182,14 @@ Design/function invariants that govern cross-surface behavior live in
   (Fit Farm, My Location, Layers, Legend); Hybrid basemap is removed; zoom is
   scroll/pinch only. Light keeps pasture farm-team-level Map/Field working
   controls; non-pasture authorization is unchanged.
-- Latest validation: Pasture open-line merge validation was green
-  (`prettier`, `lint` 0 errors, full `npm test` 6437/6437, `build`, TEST
-  migration 150 apply/verify, and full pasture Playwright 44/44). Pasture CC#1
-  validation was green (`format/lint/test/build`, TEST migration 149, and
-  focused tile-hover Playwright). Newsletter Autopilot validation in its
-  worktree was green (`format:check`, `lint` 0 errors, `npm test` 6489/6489,
-  `build`, and `tests/newsletter_public.spec.js` 6/6) but remains uncommitted.
-  Broiler batch record hotfix validation was green through focused static tests
-  and `npm run build`.
+- Latest validation: Newsletter Autopilot PR #44 had format/lint/unit/build
+  green, unit tests 6503/6503, and newsletter public/admin E2E green in CI; it
+  received a narrow red-CI waiver for the unrelated repo-wide Playwright
+  timeout. Pasture PR #45/#46 validation was green locally and through targeted
+  Playwright; PR #46 production marker assets were verified live. Cattle PR #47
+  validation was green through Prettier, focused static 51/51, lint 0 errors
+  with existing warnings, build, and diff check. Broiler batch record hotfix
+  validation was green through focused static tests and `npm run build`.
   Residual non-blocking console noise observed during pasture Playwright:
   duplicate `undefined|date` keys in HomeDashboard/LightHomePortal and Leaflet
   `_leaflet_pos` teardown warnings during rapid navigation.
@@ -202,6 +210,36 @@ Design/function invariants that govern cross-surface behavior live in
 The following work is merged to `main` and pushed. Netlify deploys from `main`.
 The current source checkpoint is listed in the header above.
 
+- Cattle processing-batch age hotfix (`541d5fe`, PR #47, merged 2026-06-29):
+  - Cattle processing batch record rows show each cow's age at the batch
+    processing date (`actual_process_date` or `planned_process_date`) beside
+    breed/yield.
+  - Validation: Prettier on changed files, focused static test 51/51, lint 0
+    errors with existing warnings only, `npm run build`, and `git diff --check`.
+- Newsletter Autopilot release (`a1cdcf7`, PR #44, merged 2026-06-29):
+  - Ports the gather-first Autopilot admin workflow, brief/readiness panels,
+    revision safeguards, photo plan, real-source harvest, and shared parity
+    modules to `main`.
+  - PROD migrations `146` -> `151` are applied and verified; `newsletter-harvest`
+    v2 is deployed. `NEWSLETTER_AI_API_KEY` is not yet present, so the function
+    falls back to template composition until the real key is set.
+  - Validation: format/lint/unit/build green, unit tests 6503/6503, newsletter
+    public/admin E2E green in CI. Full CI has a documented narrow red-CI waiver
+    for the repo-wide Playwright timeout/unrelated non-newsletter failures.
+- Pasture Map draw-temp and marker fixes (`8eba126`, PR #46, merged 2026-06-29):
+  - Rotation-editor Draw temp paddock keeps the name + Save area form reachable
+    while a group record is open.
+  - Occupant markers are teardrop pins with labels such as `Mommas · 179`;
+    rotation stops are numbered markers instead of initials.
+  - Production deploy was verified by CC#1 for marker assets/classes; draw-save
+    behavior was locally Playwright-verified against the same shipped bundle.
+- Pasture Map field/offline/header chrome (`ea02278`, PR #45, merged 2026-06-29):
+  - Header hamburger and notifications dropdowns are portaled above map chrome.
+    Field status no longer sits under the right rail.
+  - Field toolbar is recurring actions only (Walk / Draw / Measure). Offline
+    setup and the self-contained field guide are secondary status-row affordances.
+  - `public/sw.js` serves exact runtime-cached static pages before SPA shell
+    fallback so the guide is reachable offline after one online open.
 - Broiler batch record redesign hotfixes (`5085725`, `fad33dc`, `6c480ed`,
   pushed 2026-06-27):
   - Rebuilt the Broiler batch record page to match the supplied record design:
@@ -302,12 +340,13 @@ The current source checkpoint is listed in the header above.
     RPC anon surface, preview hardening, and private/public newsletter buckets.
     PROD catalog verified the tables/RPCs/buckets exist; PROD issue count is
     currently `0`.
-  - Later Checkpoint B automation code and migration `146` were merged to
-    `main`, but the production release gates were not completed. The uncommitted
-    Newsletter Autopilot lane supersedes the earlier one-click automation flow
-    before any PROD automation release.
-  - CC#2 validation before merge: `format:check`, `lint`, `npm test`, `build`,
-    TEST migration apply/smoke, and `tests/newsletter_public.spec.js` 5/5.
+  - Newsletter Autopilot later superseded the earlier one-click automation flow:
+    PR #44 merged, migrations `146`/`151` are PROD-applied, and
+    `newsletter-harvest` v2 is deployed. The real AI path still requires the
+    `NEWSLETTER_AI_API_KEY` PROD secret.
+  - CC#2 validation before the earlier Checkpoint A/B merges: `format:check`,
+    `lint`, `npm test`, `build`, TEST migration apply/smoke, and
+    `tests/newsletter_public.spec.js` 5/5.
 - Pasture Map Area modal, Reports accordion, reset-history, and move-to-side-bar
   (PRs #37-#38, pushed 2026-06-25; `main` now `d18736f`):
   - PR #37 (`05b03e5`): per-area editing moved out of the Map side panel into an
@@ -674,14 +713,14 @@ The current source checkpoint is listed in the header above.
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-1. Newsletter Autopilot approval, release gates, and first-production issue
-   - Status: BUILT + VALIDATED in
-     `C:/Users/Ronni/WCF-planner-newsletter-autopilot` on
-     `feature/newsletter-autopilot`, but intentionally UNCOMMITTED /
-     UNPUSHED / NOT DEPLOYED. Migration `151_newsletter_autopilot.sql` is
-     TEST-applied only. Ronnie must approve the flowchart before any commit.
+1. Newsletter first production issue + AI secret finalization
+   - Status: RELEASED TO `main` / SQL PROD-APPLIED / EDGE FUNCTION DEPLOYED.
+     PR #44 merged as `a1cdcf7`; migrations `146` -> `151` are PROD-applied
+     and verified; `newsletter-harvest` is active in PROD as version 2.
+     `NEWSLETTER_AI_API_KEY` is not present in PROD Edge Function secrets, so
+     the function currently uses the template fallback. Cron remains off.
    - Class: `ENH`/`AI`/`DB-GATE`/`SECURITY`/`AUTOMATION`/`STORAGE`.
-   - Product model built:
+   - Product model shipped:
      - Gather this month's facts first: planner data only, no AI and no draft.
      - Ronnie steers: fact toggles, Monthly Q&A, tone, length/detail, and manual
        facts.
@@ -692,19 +731,19 @@ This is the canonical home for outstanding build/design work.
      - Photos: upload privately, approve/consent to public, assign to shot-list
        slots, place planned photos into the draft, choose cover, preview, and
        publish to public `/newsletter`.
-   - Built but not released:
-     - Migration `151`: extends newsletter settings/issues for tone,
+   - Released surface:
+     - Migration `151` extends newsletter settings/issues for tone,
        length/detail, photo minimum/target, source coverage, photo plan, and
-       past-issue context; drops/replaces old settings RPC shape; adds/extends
-       admin/service RPCs for harvest coverage, recent published admin context,
-       photo-plan storage, and photo-plan slot assignment. No new anon RPC; mig
-       `144`'s exactly-three anon surface remains the boundary.
-     - Shared parity modules and tests for fact detection, draft/revision
+       past-issue context; replaces the settings RPC shape while keeping old
+       six-argument PostgREST calls backward-compatible by parameter subset; and
+       adds/extends admin/service RPCs for harvest coverage, recent published
+       admin context, photo-plan storage, and photo-plan slot assignment. No new
+       anon RPC; mig `144`'s exactly-three anon surface remains the boundary.
+     - Shared parity modules and tests cover fact detection, draft/revision
        prompting, harvest shaping, brief assembly, and photo-plan placement.
-     - `newsletter-harvest` Edge Function changes for real-source harvest,
-       source coverage, revisions, photo-plan generation/merge, and AI
-       configuration probe. Edge Function is not deployed.
-     - Admin UI redesign: gather-first hero/brief, coverage/readiness/repetition
+     - `newsletter-harvest` now supports real-source harvest, source coverage,
+       revisions, photo-plan generation/merge, and AI configuration probe.
+     - Admin UI is gather-first: hero/brief, coverage/readiness/repetition
        panels, ranked highlights, real settings selectors, revision box,
        Monthly Q&A, manual fact, shot-list assignment, and Place planned photos.
    - Safety boundaries to preserve:
@@ -713,22 +752,19 @@ This is the canonical home for outstanding build/design work.
      - Structured-block whitelist only; renderer does not accept raw AI HTML.
      - Photo consent remains admin approval: private staging first, public copy
        only after approval.
-   - Open decisions/gates:
-     - Before any commit, remind Ronnie to approve
-       `C:/Users/Ronni/WCF-planner/design_handoff_newsletter/newsletter-flow.html`
-       and the admin screenshots in that folder.
-     - Decide whether `Write/Rewrite draft` should warn before overwriting an
-       already-edited draft or placed photos. Today only `Revise` preserves.
-     - Rebase the dirty branch over current `main`, then commit/push/PR.
-     - PROD gate sequence after approval: apply migration `151` with
-       `psql --single-transaction`, deploy `newsletter-harvest`, set
-       `NEWSLETTER_AI_API_KEY` Edge Function secret, then run a first-production
-       issue workflow. Cron remains off until separately approved.
-   - Validation already reported green in the branch: `format:check`, lint 0
-     errors, `npm test` 6489/6489 including parity/boundary/newsletter tests,
-     `npm run build`, and `tests/newsletter_public.spec.js` 6/6. Edge Function
-     Deno typecheck/live DB-query run is still a deploy-time gate because Deno is
-     not installed locally.
+   - Remaining actions:
+     - Set the real `NEWSLETTER_AI_API_KEY` in PROD Edge Function secrets. Do
+       not paste the key into chat or source; use `supabase secrets set` or the
+       approved secret manager path.
+     - Probe `newsletter-harvest` from `/admin/newsletter` or an approved admin
+       call and confirm `aiConfigured: true`.
+     - Run the first production issue workflow: gather facts, review coverage,
+       write/revise, approve/place photos, preview, publish, and verify public
+       `/newsletter` output. Cron stays off until separately approved.
+   - Validation/release notes: PR #44 had format/lint/unit/build green, unit
+     tests 6503/6503, and newsletter public/admin E2E green in CI. The branch
+     received an explicit narrow red-CI waiver because the full Playwright suite
+     hit the repo-wide 30-minute timeout and unrelated non-newsletter failures.
 
 2. Processing Calendar Asana import and native workflow
    - Status: PLANNING LOCKED / BUILD NOT STARTED. No schema/importer/UI work is
@@ -1217,10 +1253,7 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all applied migrations through `116`, plus
-`125` through `145`, and `147` through `150`. Migration `146` exists on `main`
-but is not PROD-applied/released. Migration `151` exists only in the uncommitted
-Newsletter Autopilot worktree and is TEST-applied only. Recent load-bearing
-migrations:
+`125` through `151`. Recent load-bearing migrations:
 
 - `100` processing batch lifecycle RPCs.
 - `101`-`104` audited delete RPCs and hardening.
@@ -1366,15 +1399,12 @@ migrations:
     only after admin photo approval; unapprove deletes the public copy.
   - PROD catalog verified 2026-06-26: `newsletter-staging` exists with
     `public=false`; `newsletter-public` exists with `public=true`.
-- `146` Newsletter automation (WRITTEN on `main`, not PROD-applied/released):
+- `146` Newsletter automation:
   - Adds the earlier Checkpoint B automation layer for
     `newsletter-harvest`, monthly reminder/task support, AI/template draft
     persistence, run logging, and a gated cron-invocation RPC.
-  - The monthly cron schedule remains intentionally off. PROD release still
-    requires migration apply, Edge Function deploy, AI secret wiring, and Ronnie
-    approval. The later Newsletter Autopilot branch supersedes the one-click
-    workflow before release, so do not deploy `146` in isolation without
-    reconciling it with migration `151`.
+  - PROD-applied + verified on 2026-06-29 as Gate 1 for PR #44, immediately
+    before migration `151`. The monthly cron schedule remains intentionally off.
 - `147` Pasture Map grazing entry delete and parent overlap:
   - Adds `delete_pasture_move(p_move_id)` SECDEF, management/admin gated,
     authenticated EXECUTE only, anon denied.
@@ -1417,17 +1447,20 @@ migrations:
     place, and intentionally writes no acreage, geometry version, promotion, or
     schema/RLS/grant/return-shape change.
   - PROD-applied + verified 2026-06-27. PostgREST schema reload was issued
-    manually after apply because this is a new exposed RPC. The migration file
-    still needs a follow-up `NOTIFY pgrst, 'reload schema'` line for future
-    re-apply/new environments.
-- `151` Newsletter Autopilot (BRANCH-ONLY, TEST-applied, not on `main`/PROD):
+    manually after apply because this is a new exposed RPC. PR #45 later added
+    `NOTIFY pgrst, 'reload schema'` to the migration file for future/fresh-env
+    applies only; the migration was not re-applied to PROD because the function
+    body was already live/verified.
+- `151` Newsletter Autopilot:
   - Extends newsletter settings/issues for tone, length/detail, source
     coverage, photo plan, photo targets/minimums, and past-issue context;
     updates settings/generation input/admin/service RPCs; preserves mig `144`'s
     exactly-three anon RPC surface.
-  - Exists only in `C:/Users/Ronni/WCF-planner-newsletter-autopilot` until
-    Ronnie approves the flowchart and release gates. Coordinate/verify numbering
-    during rebase before commit.
+  - PROD-applied + verified on 2026-06-29 immediately after `146`. Verification
+    covered the `146` RPC surface, the `151` RPC/settings/photo-plan additions,
+    and the single backward-compatible `update_newsletter_settings` overload.
+    `newsletter-harvest` v2 was deployed after the SQL gate; the Anthropic key
+    secret is still absent, so AI calls fall back to the template composer.
 
 Special migration notes:
 
@@ -1798,13 +1831,15 @@ Workflow/worktable entities:
 
 ### Monthly Newsletter
 
-- Current shipped scope is Checkpoint A: manual public archive + admin editor,
-  migrations `144`/`145`, and newsletter storage buckets. The earlier
-  Checkpoint B automation code/migration `146` is on `main` but not
-  PROD-applied/released. The active unreleased direction is the Newsletter
-  Autopilot branch: gather planner facts first, let Ronnie steer facts/Q&A/tone/
-  length, write or revise with AI, generate a photo plan, approve/place photos,
-  preview, and publish. Autopilot migration `151` is TEST-only until approval.
+- Current shipped scope is Newsletter Autopilot: public archive + admin editor,
+  migrations `144`/`145` for data/storage/public boundary, migration `146` for
+  automation/run logging/cron RPC support, migration `151` for Autopilot
+  settings/source coverage/photo plan/past-issue context, and the
+  `newsletter-harvest` Edge Function v2. Autopilot gathers planner facts first,
+  lets Ronnie steer facts/Q&A/tone/length, writes or revises with AI/template
+  composer, generates a photo plan, supports private upload + approval + place
+  planned photos, previews, and publishes. The real AI path remains disabled
+  until PROD Edge Function secret `NEWSLETTER_AI_API_KEY` is set.
 - The newsletter is a public no-login web archive at `/newsletter`, with past
   months navigable and a latest-issue route. Public issue pages must be
   `noindex`; this is an invariant, not a setting admins can accidentally drift.
@@ -1818,7 +1853,7 @@ Workflow/worktable entities:
   processing/production/yield records, and other genuinely noteworthy good-news
   events. Do not include finances or mortalities. First names of team members
   are OK; avoid sensitive/private details and never expose private file paths.
-- The target monthly workflow is minimum-human-input but Ronnie-directed:
+- The monthly workflow is minimum-human-input but Ronnie-directed:
   gather this month's facts from planner sources without AI, let Ronnie select/
   add facts and answer Monthly Q&A, then AI writes a draft and photo shot-list.
   Revisions should edit the current draft in place. Photo requests should be
