@@ -84,12 +84,11 @@ Design/function invariants that govern cross-surface behavior live in
   format/lint/unit/build passed, unit tests were 6503/6503, and
   `tests/newsletter_public.spec.js` passed in CI; the remaining CI failure was
   the existing repo-wide Playwright timeout/unrelated non-newsletter specs.
-- Newsletter secret state: PROD Supabase Edge Function secrets do NOT include
-  `NEWSLETTER_AI_API_KEY` as of this wrap (`supabase secrets list` checked by
-  name only). Without that key, `newsletter-harvest` intentionally falls back to
-  the template composer even when settings say Anthropic/Opus. The only
-  remaining newsletter release task is to set the real Anthropic key, probe the
-  function, and run the first production issue workflow/smoke.
+- Newsletter secret state: `NEWSLETTER_AI_API_KEY` is live as a PROD Supabase
+  Edge Function secret on project `pzfujbjtayhkdlxiblwe` (`Farm Planner`, West
+  US/Oregon). It is intentionally not set on TEST. The remaining newsletter
+  release task is to run the PROD admin AI probe / first issue workflow smoke
+  and confirm the live function uses Anthropic instead of template fallback.
 - Pasture Map release state: PR #45 and PR #46 are merged to `main`.
   Production deploy of PR #46 was verified by CC#1: new main JS/CSS are live,
   `.pm-occ-pin` is present, old `.pm-occ-avatar` and `.pm-rotation-label` are
@@ -155,11 +154,10 @@ Design/function invariants that govern cross-surface behavior live in
   no-login archive routes live under `/newsletter`, including
   `/newsletter/latest`, issue slugs, and token preview. Admin Autopilot editing
   lives at `/admin/newsletter` and is admin-only. The real Anthropic AI path is
-  not enabled because `NEWSLETTER_AI_API_KEY` is not present in PROD Edge
-  Function secrets; until it is set, the function falls back to template
-  composition. Cron remains off. First production issue creation/publication
-  still needs real admin use and browser verification with actual photo
-  upload/approve/cover bytes.
+  enabled by the PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret. Cron
+  remains off. First production issue creation/publication still needs real
+  admin use and browser verification with actual photo upload/approve/cover
+  bytes.
 - Pasture Map PROD state: tabs are Map / Field / Reports. Map is the single
   working surface. The Area modal is config-only and has one close affordance:
   the upper-right `X`, which debounces/saves edits on close; extra Close, Save
@@ -221,8 +219,9 @@ The current source checkpoint is listed in the header above.
     revision safeguards, photo plan, real-source harvest, and shared parity
     modules to `main`.
   - PROD migrations `146` -> `151` are applied and verified; `newsletter-harvest`
-    v2 is deployed. `NEWSLETTER_AI_API_KEY` is not yet present, so the function
-    falls back to template composition until the real key is set.
+    v2 is deployed. `NEWSLETTER_AI_API_KEY` is live on PROD only, so Anthropic
+    AI is available for the production admin workflow while TEST remains
+    template-fallback unless separately configured.
   - Validation: format/lint/unit/build green, unit tests 6503/6503, newsletter
     public/admin E2E green in CI. Full CI has a documented narrow red-CI waiver
     for the repo-wide Playwright timeout/unrelated non-newsletter failures.
@@ -341,9 +340,9 @@ The current source checkpoint is listed in the header above.
     PROD catalog verified the tables/RPCs/buckets exist; PROD issue count is
     currently `0`.
   - Newsletter Autopilot later superseded the earlier one-click automation flow:
-    PR #44 merged, migrations `146`/`151` are PROD-applied, and
-    `newsletter-harvest` v2 is deployed. The real AI path still requires the
-    `NEWSLETTER_AI_API_KEY` PROD secret.
+    PR #44 merged, migrations `146`/`151` are PROD-applied,
+    `newsletter-harvest` v2 is deployed, and the PROD-only
+    `NEWSLETTER_AI_API_KEY` secret is live.
   - CC#2 validation before the earlier Checkpoint A/B merges: `format:check`,
     `lint`, `npm test`, `build`, TEST migration apply/smoke, and
     `tests/newsletter_public.spec.js` 5/5.
@@ -713,12 +712,13 @@ The current source checkpoint is listed in the header above.
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-1. Newsletter first production issue + AI secret finalization
+1. Newsletter first production issue + PROD AI smoke
    - Status: RELEASED TO `main` / SQL PROD-APPLIED / EDGE FUNCTION DEPLOYED.
      PR #44 merged as `a1cdcf7`; migrations `146` -> `151` are PROD-applied
      and verified; `newsletter-harvest` is active in PROD as version 2.
-     `NEWSLETTER_AI_API_KEY` is not present in PROD Edge Function secrets, so
-     the function currently uses the template fallback. Cron remains off.
+     `NEWSLETTER_AI_API_KEY` is live as a PROD-only Edge Function secret, so
+     Anthropic AI is available in production; TEST intentionally does not have
+     the key. Cron remains off.
    - Class: `ENH`/`AI`/`DB-GATE`/`SECURITY`/`AUTOMATION`/`STORAGE`.
    - Product model shipped:
      - Gather this month's facts first: planner data only, no AI and no draft.
@@ -753,11 +753,8 @@ This is the canonical home for outstanding build/design work.
      - Photo consent remains admin approval: private staging first, public copy
        only after approval.
    - Remaining actions:
-     - Set the real `NEWSLETTER_AI_API_KEY` in PROD Edge Function secrets. Do
-       not paste the key into chat or source; use `supabase secrets set` or the
-       approved secret manager path.
      - Probe `newsletter-harvest` from `/admin/newsletter` or an approved admin
-       call and confirm `aiConfigured: true`.
+       call and confirm `aiConfigured: true` on PROD.
      - Run the first production issue workflow: gather facts, review coverage,
        write/revise, approve/place photos, preview, publish, and verify public
        `/newsletter` output. Cron stays off until separately approved.
@@ -1459,8 +1456,9 @@ Current PROD architecture includes all applied migrations through `116`, plus
   - PROD-applied + verified on 2026-06-29 immediately after `146`. Verification
     covered the `146` RPC surface, the `151` RPC/settings/photo-plan additions,
     and the single backward-compatible `update_newsletter_settings` overload.
-    `newsletter-harvest` v2 was deployed after the SQL gate; the Anthropic key
-    secret is still absent, so AI calls fall back to the template composer.
+    `newsletter-harvest` v2 was deployed after the SQL gate; the PROD-only
+    `NEWSLETTER_AI_API_KEY` secret is live, so AI calls can use Anthropic in
+    production. TEST intentionally remains without that key.
 
 Special migration notes:
 
@@ -1838,8 +1836,9 @@ Workflow/worktable entities:
   `newsletter-harvest` Edge Function v2. Autopilot gathers planner facts first,
   lets Ronnie steer facts/Q&A/tone/length, writes or revises with AI/template
   composer, generates a photo plan, supports private upload + approval + place
-  planned photos, previews, and publishes. The real AI path remains disabled
-  until PROD Edge Function secret `NEWSLETTER_AI_API_KEY` is set.
+  planned photos, previews, and publishes. The real AI path is enabled in PROD
+  through the PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret; TEST is
+  intentionally not configured with that key.
 - The newsletter is a public no-login web archive at `/newsletter`, with past
   months navigable and a latest-issue route. Public issue pages must be
   `noindex`; this is an invariant, not a setting admins can accidentally drift.
