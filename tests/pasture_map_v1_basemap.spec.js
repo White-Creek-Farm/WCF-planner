@@ -18,9 +18,10 @@ test('basemap switcher (satellite/topo) + offline imagery status in Field', asyn
   // Hybrid was removed; only satellite + topo remain.
   await expect(page.locator('[data-pasture-basemap-option="hybrid"]')).toHaveCount(0);
 
-  // Offline imagery status + download live in Field > Layers (warns when missing).
+  // Offline imagery status + download live in the Field "Offline setup" affordance
+  // (a secondary control, not a peer of Walk/Draw/Measure). Warns when missing.
   await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
-  await page.locator('[data-pasture-field-layers]').click();
+  await page.locator('[data-pasture-offline-setup-toggle]').click();
   await expect(page.locator('[data-pasture-offline-imagery]')).toBeVisible({timeout: 10_000});
   await expect(page.locator('[data-pasture-imagery-state]')).toHaveAttribute('data-pasture-imagery-state', 'missing');
   await expect(page.locator('[data-pasture-imagery-download]')).toBeVisible();

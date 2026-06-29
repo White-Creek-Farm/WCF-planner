@@ -51,6 +51,7 @@ const apiSrc = read('src/lib/pastureMapApi.js');
 const offlineSrc = read('src/lib/pastureOffline.js');
 const imagerySrc = read('src/lib/pastureImagery.js');
 const pasturePwConfig = read('playwright.pasture.config.js');
+const swSrc = read('public/sw.js');
 
 describe('Pasture Map route + wiring', () => {
   it('registers the canonical /pasture-map path', () => {
@@ -1620,8 +1621,8 @@ describe('Tracks / Lines lane (no-DB option B)', () => {
     );
     expect(canvasSrc).toContain('boundaryFilter.line !== false');
     expect(canvasSrc).toContain('data-pasture-draftlines-toggle');
-    // The Field Draft-lines toggle now lives inside the rail's Layers popover
-    // (the popover itself is gated by the Field "Layers" tool, fieldLayersOpen).
+    // The Field Draft-lines toggle lives inside the rail's Layers popover, which
+    // is directly available in Field (the old fieldLayersOpen tool gate is retired).
     expect(canvasSrc).toContain("appMode === 'field' && onToggleDraftLines");
     expect(viewSrc).toContain('draftLinesVisible');
     expect(viewSrc).toContain('onToggleDraftLines: toggleDraftLines');
@@ -2009,6 +2010,9 @@ describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mi
       'GRANT EXECUTE ON FUNCTION public.update_land_area_track(text, jsonb) TO authenticated',
     );
     expect(mig150Code).toContain('REVOKE ALL ON FUNCTION public.update_land_area_track(text, jsonb) FROM PUBLIC, anon');
+    // Emits a PostgREST schema reload for clean re-apply into fresh environments
+    // (pasture migration convention, matches 131/132/139/140/141/147).
+    expect(mig150).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/);
   });
 
   it('open-line edit is wired client-side (api wrapper, line-aware edit, track save route)', () => {
@@ -2043,6 +2047,69 @@ describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mi
     // The edit banner and the readout HUD stack instead of overlapping (mobile fix).
     expect(canvasSrc).toContain('is-below-banner');
     expect(pastureCss).toContain('.pm-hud.is-below-banner');
+  });
+
+  it('offline field guide ships as a self-contained public asset inside the Offline setup affordance', () => {
+    // The standalone guide is bundled in public/ so it serves at /pasture-map-field-guide.html.
+    const guide = read('public/pasture-map-field-guide.html');
+    expect(guide).toContain('<!doctype html>');
+    // Self-contained: images are inlined as data URIs, no img/ folder dependency,
+    // so it renders (and runtime-caches for offline) on its own.
+    expect(guide).not.toContain('img/');
+    expect(guide).toContain('data:image/png;base64');
+    // Wired as a plain product link living inside the secondary Offline setup panel.
+    expect(viewSrc).toContain('function renderFieldGuide');
+    expect(viewSrc).toContain('data-pasture-field-guide-link');
+    expect(viewSrc).toContain('href="/pasture-map-field-guide.html"');
+    expect(viewSrc).toContain('renderFieldGuide()');
+    // Anchor styled as a button needs the underline/display reset.
+    expect(pastureCss).toContain('a.pm-btn {');
+    // Offline reachability: the SW must let an exact runtime-cached navigation
+    // (the guide visited once online) win BEFORE the generic SPA shell fallback,
+    // or shellForPath() would mask /pasture-map-field-guide.html with /index.html.
+    const runtimeIdx = swSrc.indexOf('runtimeCache.match(request)');
+    const shellIdx = swSrc.indexOf('shellCache.match(shellUrl)');
+    expect(runtimeIdx).toBeGreaterThan(-1);
+    expect(shellIdx).toBeGreaterThan(-1);
+    expect(runtimeIdx).toBeLessThan(shellIdx);
+  });
+
+  it('Field IA: bottom toolbar is recurring tools only; offline setup + measurements are secondary', () => {
+    // The Field bottom toolbar keeps only the three recurring field actions.
+    expect(viewSrc).toContain('data-pasture-field-walk');
+    expect(viewSrc).toContain('data-pasture-field-draw');
+    expect(viewSrc).toContain('data-pasture-field-measure');
+    // The one-time setup/help "Layers" peer button is gone; fieldLayersOpen retired.
+    expect(viewSrc).not.toContain('data-pasture-field-layers');
+    expect(viewSrc).not.toContain('fieldLayersOpen');
+    expect(canvasSrc).not.toContain('fieldLayersOpen');
+    // Offline setup is a secondary affordance in the Field status row that holds
+    // offline imagery + the field guide (not beside Walk/Draw/Measure).
+    expect(viewSrc).toContain('data-pasture-offline-setup-toggle');
+    expect(viewSrc).toMatch(
+      /data-pasture-offline-setup="1"[\s\S]*?renderOfflineImagery\(\)[\s\S]*?renderFieldGuide\(\)/,
+    );
+    expect(pastureCss).toContain('.pm-field-setup-btn');
+    // Saved measurements stay reachable via a secondary toggle (not a peer tool),
+    // shown only when there are saved measurements to review.
+    expect(viewSrc).toContain('data-pasture-saved-measures-toggle');
+    expect(viewSrc).toMatch(/data-pasture-saved-measures="1"[\s\S]*?renderMeasurementsList\(\)/);
+    // The top status row is held clear of the top-right control rail.
+    expect(pastureCss).toMatch(/\.pm-field-top \{[\s\S]*?right: 64px;/);
+    // The rail Layers popover stays available in Field (not renamed, not removed).
+    expect(canvasSrc).toContain('boundaryFilter && onToggleBoundary && (');
+    expect(canvasSrc).toContain('data-pasture-layers-toggle');
+  });
+
+  it('pasture offline init requests best-effort persistent storage (browser-gated, silent)', () => {
+    // Feature-gated Storage Manager request: never throws, no UI, no-op when missing
+    // or already granted.
+    expect(offlineSrc).toContain('export async function ensurePersistentStorage');
+    expect(offlineSrc).toContain("typeof sm.persist !== 'function'");
+    expect(offlineSrc).toContain('await sm.persisted()');
+    // Called once on Pasture Map mount.
+    expect(viewSrc).toContain('ensurePersistentStorage');
+    expect(viewSrc).toMatch(/ensurePersistentStorage\(\);\s*\n\s*\}, \[\]\);/);
   });
 
   it('api exposes deletePastureMove over the new RPC', () => {

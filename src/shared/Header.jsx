@@ -25,6 +25,7 @@
 // across the ~50 call sites.
 // ============================================================================
 import React from 'react';
+import {createPortal} from 'react-dom';
 import {useNavigate} from 'react-router-dom';
 import {S, getReadableText} from '../lib/styles.js';
 import {getProgramColor} from '../lib/programColors.js';
@@ -211,6 +212,23 @@ const MENU_DIVIDER = {
   margin: '4px 0',
 };
 
+// Header stacking contract: the sticky header bar (position:sticky + z-index)
+// establishes a stacking context, so its absolutely-positioned dropdowns are
+// trapped at the bar's level — below page content like the Pasture map, whose
+// chrome stacks at z-index 600-2000. Portaling the dropdowns to <body> escapes
+// that trap; this z-index sits above all page content but below the app's
+// blocking modal tier (notifications/users/confirm modals at 9100-11000), so
+// real modals still cover the header. Applies app-wide, not just to Pasture.
+const HEADER_OVERLAY_Z = 9000;
+
+// Fixed-position style for a portaled dropdown, anchored under the right edge of
+// its toggle button. Falls back to a sane top-right spot before the ref mounts.
+function headerAnchorStyle(anchorRef) {
+  const rect = anchorRef && anchorRef.current && anchorRef.current.getBoundingClientRect();
+  if (!rect || typeof window === 'undefined') return {position: 'fixed', top: 56, right: 12};
+  return {position: 'fixed', top: Math.round(rect.bottom + 6), right: Math.round(window.innerWidth - rect.right)};
+}
+
 const ROLE_PREVIEW_LABELS = {
   admin: 'Admin',
   management: 'Management',
@@ -283,6 +301,9 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
   // on a route whose tab sits off-screen to the right (cattle has 8 tabs;
   // pigs has 8) and not realize the active one wasn't the first visible.
   const subnavRef = React.useRef(null);
+  // Toggle-button anchors for the portaled header overlays (see HEADER_OVERLAY_Z).
+  const menuBtnRef = React.useRef(null);
+  const notifBtnRef = React.useRef(null);
   React.useEffect(() => {
     if (!sb || !callerProfileId) {
       setMyDueCount(0);
@@ -604,6 +625,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
           {NOTIFICATIONS_CENTER_ENABLED && authState?.user && (
             <div style={{position: 'relative'}}>
               <button
+                ref={notifBtnRef}
                 data-notifications-header-link="1"
                 aria-label={`Notifications${notifUnread > 0 ? ` (${notifUnread} unread)` : ''}`}
                 title="Notifications"
@@ -618,216 +640,219 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                   </span>
                 )}
               </button>
-              {notifOpen && (
-                <div
-                  data-notifications-panel-scrim="1"
-                  onClick={() => setNotifOpen(false)}
-                  style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 199}}
-                />
-              )}
-              {notifOpen && (
-                <div
-                  data-notifications-panel="1"
-                  data-notifications-panel-loaded={!notifLoading && !notifLoadError ? '1' : '0'}
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: '110%',
-                    background: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 10,
-                    boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                    zIndex: 200,
-                    minWidth: 320,
-                    maxWidth: 360,
-                    maxHeight: 480,
-                    overflow: 'hidden',
-                    fontFamily: 'inherit',
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
-                >
+              {notifOpen &&
+                createPortal(
                   <div
-                    data-notifications-panel-header="1"
+                    data-notifications-panel-scrim="1"
+                    onClick={() => setNotifOpen(false)}
+                    style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: HEADER_OVERLAY_Z}}
+                  />,
+                  document.body,
+                )}
+              {notifOpen &&
+                createPortal(
+                  <div
+                    data-notifications-panel="1"
+                    data-notifications-panel-loaded={!notifLoading && !notifLoadError ? '1' : '0'}
                     style={{
-                      padding: '10px 14px',
-                      borderBottom: '1px solid #f3f4f6',
+                      ...headerAnchorStyle(notifBtnRef),
+                      background: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 10,
+                      boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                      zIndex: HEADER_OVERLAY_Z + 1,
+                      minWidth: 320,
+                      maxWidth: 360,
+                      maxHeight: 480,
+                      overflow: 'hidden',
+                      fontFamily: 'inherit',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
+                      flexDirection: 'column',
                     }}
                   >
-                    <span style={{fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}}>Notifications</span>
-                    <span style={{fontSize: 11, color: '#6b7280', fontVariantNumeric: 'tabular-nums'}}>
-                      {notifUnread > 0 ? `${notifUnread} unread` : 'all read'}
-                    </span>
-                    <button
-                      data-notifications-mark-all-read="1"
-                      onClick={async () => {
-                        try {
-                          await markAllNotificationsRead(sb, callerProfileId);
-                        } catch (_e) {
-                          /* soft-fail; next refresh will reconcile */
-                        }
-                      }}
-                      disabled={notifUnread === 0 || !!notifLoadError}
+                    <div
+                      data-notifications-panel-header="1"
                       style={{
-                        marginLeft: 'auto',
-                        padding: '4px 8px',
-                        background: 'none',
-                        border: 'none',
-                        color: notifUnread === 0 || notifLoadError ? '#9ca3af' : '#085041',
-                        cursor: notifUnread === 0 || notifLoadError ? 'default' : 'pointer',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        fontFamily: 'inherit',
+                        padding: '10px 14px',
+                        borderBottom: '1px solid #f3f4f6',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
                       }}
                     >
-                      Mark all read
-                    </button>
-                  </div>
-                  <div data-notifications-panel-list="1" style={{overflowY: 'auto', maxHeight: 420}}>
-                    {notifLoadError && (
-                      <div data-notifications-load-error="1" style={{padding: '12px 14px'}}>
-                        <InlineNotice notice={notifLoadError} />
-                        <button
-                          type="button"
-                          data-notifications-retry="1"
-                          onClick={() => setNotifReloadKey((k) => k + 1)}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 10,
-                            border: '1px solid #b91c1c',
-                            background: '#b91c1c',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    )}
-                    {!notifLoadError && notifLoading && notifRecent.length === 0 && (
-                      <div
-                        data-notifications-loading="1"
-                        style={{padding: '20px 14px', textAlign: 'center', color: '#6b7280', fontSize: 13}}
+                      <span style={{fontSize: 13, fontWeight: 700, color: 'var(--text-primary)'}}>Notifications</span>
+                      <span style={{fontSize: 11, color: '#6b7280', fontVariantNumeric: 'tabular-nums'}}>
+                        {notifUnread > 0 ? `${notifUnread} unread` : 'all read'}
+                      </span>
+                      <button
+                        data-notifications-mark-all-read="1"
+                        onClick={async () => {
+                          try {
+                            await markAllNotificationsRead(sb, callerProfileId);
+                          } catch (_e) {
+                            /* soft-fail; next refresh will reconcile */
+                          }
+                        }}
+                        disabled={notifUnread === 0 || !!notifLoadError}
+                        style={{
+                          marginLeft: 'auto',
+                          padding: '4px 8px',
+                          background: 'none',
+                          border: 'none',
+                          color: notifUnread === 0 || notifLoadError ? '#9ca3af' : '#085041',
+                          cursor: notifUnread === 0 || notifLoadError ? 'default' : 'pointer',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          fontFamily: 'inherit',
+                        }}
                       >
-                        Loading notifications...
-                      </div>
-                    )}
-                    {!notifLoadError && !notifLoading && notifRecent.length === 0 && (
-                      <div
-                        data-notifications-empty="1"
-                        style={{padding: '20px 14px', textAlign: 'center', color: '#6b7280', fontSize: 13}}
-                      >
-                        No notifications yet.
-                      </div>
-                    )}
-                    {!notifLoadError &&
-                      notifRecent.map((n) => {
-                        const unread = !n.read_at;
-                        return (
+                        Mark all read
+                      </button>
+                    </div>
+                    <div data-notifications-panel-list="1" style={{overflowY: 'auto', maxHeight: 420}}>
+                      {notifLoadError && (
+                        <div data-notifications-load-error="1" style={{padding: '12px 14px'}}>
+                          <InlineNotice notice={notifLoadError} />
                           <button
-                            key={n.id}
-                            data-notifications-row={n.id}
-                            data-notifications-row-unread={unread ? '1' : '0'}
-                            onClick={async () => {
-                              // Close the panel first so the navigation doesn't
-                              // leave a stale dropdown floating over /tasks.
-                              setNotifOpen(false);
-                              try {
-                                if (unread) await markNotificationRead(sb, n.id);
-                              } catch (_e) {
-                                /* soft-fail */
-                              }
-                              const route = resolveNotificationRoute(n, n.activity_entity_type, n.activity_entity_id);
-                              const isRecordPageRoute =
-                                n.type === 'comment_mention' ||
-                                route.startsWith('/tasks/') ||
-                                route.startsWith('/fleet/') ||
-                                route.startsWith('/cattle/herds/') ||
-                                route.startsWith('/cattle/batches/') ||
-                                route.startsWith('/sheep/flocks/') ||
-                                route.startsWith('/sheep/batches/') ||
-                                route.startsWith('/layer/batches/') ||
-                                route.startsWith('/layer/housings/') ||
-                                route.startsWith('/broiler/batches/') ||
-                                route.startsWith('/pig/batches/') ||
-                                route.startsWith('/broiler/dailys/') ||
-                                route.startsWith('/layer/dailys/') ||
-                                route.startsWith('/layer/eggs/') ||
-                                route.startsWith('/pig/dailys/') ||
-                                route.startsWith('/cattle/dailys/') ||
-                                route.startsWith('/sheep/dailys/') ||
-                                route.startsWith('/weigh-in-sessions/');
-                              if (isRecordPageRoute && route.startsWith('/')) {
-                                headerNavigate(route);
-                                setNotifOpen(false);
-                                return;
-                              }
-                              const {view: targetView} = routeToView(route);
-                              go(targetView);
-                            }}
+                            type="button"
+                            data-notifications-retry="1"
+                            onClick={() => setNotifReloadKey((k) => k + 1)}
                             style={{
-                              display: 'block',
-                              width: '100%',
-                              textAlign: 'left',
-                              background: unread ? '#ecfdf5' : 'white',
-                              border: 'none',
-                              borderBottom: '1px solid #f3f4f6',
-                              padding: '10px 14px',
+                              padding: '6px 12px',
+                              borderRadius: 10,
+                              border: '1px solid #b91c1c',
+                              background: '#b91c1c',
+                              color: 'white',
                               cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 600,
                               fontFamily: 'inherit',
                             }}
                           >
-                            <div
+                            Retry
+                          </button>
+                        </div>
+                      )}
+                      {!notifLoadError && notifLoading && notifRecent.length === 0 && (
+                        <div
+                          data-notifications-loading="1"
+                          style={{padding: '20px 14px', textAlign: 'center', color: '#6b7280', fontSize: 13}}
+                        >
+                          Loading notifications...
+                        </div>
+                      )}
+                      {!notifLoadError && !notifLoading && notifRecent.length === 0 && (
+                        <div
+                          data-notifications-empty="1"
+                          style={{padding: '20px 14px', textAlign: 'center', color: '#6b7280', fontSize: 13}}
+                        >
+                          No notifications yet.
+                        </div>
+                      )}
+                      {!notifLoadError &&
+                        notifRecent.map((n) => {
+                          const unread = !n.read_at;
+                          return (
+                            <button
+                              key={n.id}
+                              data-notifications-row={n.id}
+                              data-notifications-row-unread={unread ? '1' : '0'}
+                              onClick={async () => {
+                                // Close the panel first so the navigation doesn't
+                                // leave a stale dropdown floating over /tasks.
+                                setNotifOpen(false);
+                                try {
+                                  if (unread) await markNotificationRead(sb, n.id);
+                                } catch (_e) {
+                                  /* soft-fail */
+                                }
+                                const route = resolveNotificationRoute(n, n.activity_entity_type, n.activity_entity_id);
+                                const isRecordPageRoute =
+                                  n.type === 'comment_mention' ||
+                                  route.startsWith('/tasks/') ||
+                                  route.startsWith('/fleet/') ||
+                                  route.startsWith('/cattle/herds/') ||
+                                  route.startsWith('/cattle/batches/') ||
+                                  route.startsWith('/sheep/flocks/') ||
+                                  route.startsWith('/sheep/batches/') ||
+                                  route.startsWith('/layer/batches/') ||
+                                  route.startsWith('/layer/housings/') ||
+                                  route.startsWith('/broiler/batches/') ||
+                                  route.startsWith('/pig/batches/') ||
+                                  route.startsWith('/broiler/dailys/') ||
+                                  route.startsWith('/layer/dailys/') ||
+                                  route.startsWith('/layer/eggs/') ||
+                                  route.startsWith('/pig/dailys/') ||
+                                  route.startsWith('/cattle/dailys/') ||
+                                  route.startsWith('/sheep/dailys/') ||
+                                  route.startsWith('/weigh-in-sessions/');
+                                if (isRecordPageRoute && route.startsWith('/')) {
+                                  headerNavigate(route);
+                                  setNotifOpen(false);
+                                  return;
+                                }
+                                const {view: targetView} = routeToView(route);
+                                go(targetView);
+                              }}
                               style={{
-                                fontSize: 13,
-                                fontWeight: unread ? 700 : 500,
-                                color: 'var(--text-primary)',
-                                lineHeight: 1.35,
+                                display: 'block',
+                                width: '100%',
+                                textAlign: 'left',
+                                background: unread ? '#ecfdf5' : 'white',
+                                border: 'none',
+                                borderBottom: '1px solid #f3f4f6',
+                                padding: '10px 14px',
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
                               }}
                             >
-                              {n.title}
-                            </div>
-                            {n.body && (
                               <div
                                 style={{
-                                  fontSize: 12,
-                                  color: '#4b5563',
-                                  marginTop: 3,
-                                  lineHeight: 1.4,
-                                  whiteSpace: 'pre-wrap',
-                                  wordBreak: 'break-word',
+                                  fontSize: 13,
+                                  fontWeight: unread ? 700 : 500,
+                                  color: 'var(--text-primary)',
+                                  lineHeight: 1.35,
                                 }}
                               >
-                                {n.body}
+                                {n.title}
                               </div>
-                            )}
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: '#6b7280',
-                                marginTop: 4,
-                                fontVariantNumeric: 'tabular-nums',
-                              }}
-                            >
-                              {new Date(n.created_at).toLocaleString()}
-                            </div>
-                          </button>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
+                              {n.body && (
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: '#4b5563',
+                                    marginTop: 3,
+                                    lineHeight: 1.4,
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                  }}
+                                >
+                                  {n.body}
+                                </div>
+                              )}
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: '#6b7280',
+                                  marginTop: 4,
+                                  fontVariantNumeric: 'tabular-nums',
+                                }}
+                              >
+                                {new Date(n.created_at).toLocaleString()}
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>,
+                  document.body,
+                )}
             </div>
           )}
           {authState?.user && (
             <div style={{position: 'relative'}}>
               <button
+                ref={menuBtnRef}
                 data-header-menu-toggle="1"
                 aria-label="Menu"
                 aria-expanded={showMenu ? 'true' : 'false'}
@@ -836,116 +861,118 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
               >
                 ☰
               </button>
-              {showMenu && (
-                <div
-                  onClick={() => setShowMenu(false)}
-                  style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 199}}
-                />
-              )}
-              {showMenu && (
-                <div
-                  data-header-menu="1"
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: '110%',
-                    background: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 10,
-                    boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                    zIndex: 200,
-                    minWidth: 220,
-                    overflow: 'hidden',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  <button data-header-menu-item="home" onClick={() => go('home')} style={MENU_ITEM_BTN}>
-                    <span aria-hidden="true">🏠</span> Home
-                  </button>
-                  {!isLight && (
-                    <button data-header-menu-item="activity" onClick={() => go('activity')} style={MENU_ITEM_BTN}>
-                      <span aria-hidden="true">💬</span> Activity
-                    </button>
-                  )}
-
-                  <div style={MENU_DIVIDER} />
-                  <span style={MENU_SECTION_LABEL}>Webforms</span>
-                  <button data-header-menu-item="dailys" onClick={() => go('webformhub')} style={MENU_ITEM_BTN}>
-                    <span aria-hidden="true">📝</span> Dailys
-                  </button>
-                  <button data-header-menu-item="equipment" onClick={() => go('fuelingHub')} style={MENU_ITEM_BTN}>
-                    <PlannerIcon iconKey="tractor" size={16} /> Equipment
-                  </button>
-
-                  {isAdmin && (
-                    <>
-                      <div style={MENU_DIVIDER} />
-                      <button data-header-menu-item="admin" onClick={() => go('webforms')} style={MENU_ITEM_BTN}>
-                        <span aria-hidden="true">⚙️</span> Admin
-                      </button>
-                      <button
-                        data-header-menu-item="users"
-                        onClick={() => {
-                          setShowUsers(true);
-                          loadUsers();
-                          setShowMenu(false);
-                        }}
-                        style={MENU_ITEM_BTN}
-                      >
-                        <span aria-hidden="true">👥</span> Users
-                      </button>
-                      <button
-                        data-header-menu-item="client-errors"
-                        onClick={() => go('clientErrors')}
-                        style={MENU_ITEM_BTN}
-                      >
-                        <span aria-hidden="true">🐞</span> Client Errors
-                      </button>
-                      <button
-                        data-header-menu-item="newsletter"
-                        onClick={() => go('newsletterAdmin')}
-                        style={MENU_ITEM_BTN}
-                      >
-                        <span aria-hidden="true">📰</span> Newsletter
-                      </button>
-                    </>
-                  )}
-
-                  {canUseRolePreview && (
-                    <>
-                      <div style={MENU_DIVIDER} />
-                      <span style={MENU_SECTION_LABEL}>Role Preview</span>
-                      <div data-role-preview-menu="1" style={{padding: '8px 16px 12px'}}>
-                        <select
-                          data-role-preview-select="1"
-                          value={rolePreview || ''}
-                          onChange={(e) => chooseRolePreview(e.target.value)}
-                          style={ROLE_PREVIEW_SELECT}
-                        >
-                          <option value="">Actual role ({realRoleLabel})</option>
-                          {(rolePreviewRoles || []).map((role) => (
-                            <option key={role} value={role}>
-                              {ROLE_PREVIEW_LABELS[role] || role}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  <div style={MENU_DIVIDER} />
-                  <button
-                    data-header-menu-item="sign-out"
-                    onClick={() => {
-                      setShowMenu(false);
-                      signOut();
+              {showMenu &&
+                createPortal(
+                  <div
+                    onClick={() => setShowMenu(false)}
+                    style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: HEADER_OVERLAY_Z}}
+                  />,
+                  document.body,
+                )}
+              {showMenu &&
+                createPortal(
+                  <div
+                    data-header-menu="1"
+                    style={{
+                      ...headerAnchorStyle(menuBtnRef),
+                      background: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 10,
+                      boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                      zIndex: HEADER_OVERLAY_Z + 1,
+                      minWidth: 220,
+                      overflow: 'hidden',
+                      fontFamily: 'inherit',
                     }}
-                    style={{...MENU_ITEM_BTN, color: '#b91c1c'}}
                   >
-                    <span aria-hidden="true">🚪</span> Sign Out
-                  </button>
-                </div>
-              )}
+                    <button data-header-menu-item="home" onClick={() => go('home')} style={MENU_ITEM_BTN}>
+                      <span aria-hidden="true">🏠</span> Home
+                    </button>
+                    {!isLight && (
+                      <button data-header-menu-item="activity" onClick={() => go('activity')} style={MENU_ITEM_BTN}>
+                        <span aria-hidden="true">💬</span> Activity
+                      </button>
+                    )}
+
+                    <div style={MENU_DIVIDER} />
+                    <span style={MENU_SECTION_LABEL}>Webforms</span>
+                    <button data-header-menu-item="dailys" onClick={() => go('webformhub')} style={MENU_ITEM_BTN}>
+                      <span aria-hidden="true">📝</span> Dailys
+                    </button>
+                    <button data-header-menu-item="equipment" onClick={() => go('fuelingHub')} style={MENU_ITEM_BTN}>
+                      <PlannerIcon iconKey="tractor" size={16} /> Equipment
+                    </button>
+
+                    {isAdmin && (
+                      <>
+                        <div style={MENU_DIVIDER} />
+                        <button data-header-menu-item="admin" onClick={() => go('webforms')} style={MENU_ITEM_BTN}>
+                          <span aria-hidden="true">⚙️</span> Admin
+                        </button>
+                        <button
+                          data-header-menu-item="users"
+                          onClick={() => {
+                            setShowUsers(true);
+                            loadUsers();
+                            setShowMenu(false);
+                          }}
+                          style={MENU_ITEM_BTN}
+                        >
+                          <span aria-hidden="true">👥</span> Users
+                        </button>
+                        <button
+                          data-header-menu-item="client-errors"
+                          onClick={() => go('clientErrors')}
+                          style={MENU_ITEM_BTN}
+                        >
+                          <span aria-hidden="true">🐞</span> Client Errors
+                        </button>
+                        <button
+                          data-header-menu-item="newsletter"
+                          onClick={() => go('newsletterAdmin')}
+                          style={MENU_ITEM_BTN}
+                        >
+                          <span aria-hidden="true">📰</span> Newsletter
+                        </button>
+                      </>
+                    )}
+
+                    {canUseRolePreview && (
+                      <>
+                        <div style={MENU_DIVIDER} />
+                        <span style={MENU_SECTION_LABEL}>Role Preview</span>
+                        <div data-role-preview-menu="1" style={{padding: '8px 16px 12px'}}>
+                          <select
+                            data-role-preview-select="1"
+                            value={rolePreview || ''}
+                            onChange={(e) => chooseRolePreview(e.target.value)}
+                            style={ROLE_PREVIEW_SELECT}
+                          >
+                            <option value="">Actual role ({realRoleLabel})</option>
+                            {(rolePreviewRoles || []).map((role) => (
+                              <option key={role} value={role}>
+                                {ROLE_PREVIEW_LABELS[role] || role}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    <div style={MENU_DIVIDER} />
+                    <button
+                      data-header-menu-item="sign-out"
+                      onClick={() => {
+                        setShowMenu(false);
+                        signOut();
+                      }}
+                      style={{...MENU_ITEM_BTN, color: '#b91c1c'}}
+                    >
+                      <span aria-hidden="true">🚪</span> Sign Out
+                    </button>
+                  </div>,
+                  document.body,
+                )}
             </div>
           )}
         </div>

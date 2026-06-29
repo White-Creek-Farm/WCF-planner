@@ -458,7 +458,6 @@ export default function PastureMapCanvas({
   boundaryFilter = null,
   onToggleBoundary,
   appMode = 'view',
-  fieldLayersOpen = false,
   draftLinesVisible = false,
   onToggleDraftLines,
   onExitTool,
@@ -1472,7 +1471,7 @@ export default function PastureMapCanvas({
               {RAIL_ICONS.locate}
             </button>
           </div>
-          {boundaryFilter && onToggleBoundary && (appMode !== 'field' || fieldLayersOpen) && (
+          {boundaryFilter && onToggleBoundary && (
             <div className="pm-rail-group pm-rail-pop-anchor">
               <button
                 type="button"

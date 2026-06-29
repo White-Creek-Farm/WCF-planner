@@ -53,6 +53,7 @@ import {
   classifyPastureOfflineError,
   discardPastureOperation,
   enqueuePastureOperation,
+  ensurePersistentStorage,
   getPastureQueueState,
   loadPastureSnapshot,
   retryPastureOperation,
@@ -793,7 +794,11 @@ export default function PastureMapView({Header, authState}) {
   const [imageryProgress, setImageryProgress] = React.useState(null);
   const [activeGroupId, setActiveGroupId] = React.useState(null);
   const [online, setOnline] = React.useState(typeof navigator === 'undefined' ? true : navigator.onLine);
-  const [fieldLayersOpen, setFieldLayersOpen] = React.useState(false);
+  // Secondary Field affordances, kept off the recurring Walk/Draw/Measure toolbar.
+  // Offline setup holds one-time offline imagery + field guide; Saved measurements
+  // surfaces the saved-distance list outside the Measure tool's flow.
+  const [offlineSetupOpen, setOfflineSetupOpen] = React.useState(false);
+  const [savedMeasuresOpen, setSavedMeasuresOpen] = React.useState(false);
   const trackWatchRef = React.useRef(null);
 
   async function refreshQueueState() {
@@ -863,6 +868,12 @@ export default function PastureMapView({Header, authState}) {
 
   React.useEffect(() => {
     setImageryStatus(getOfflineImageryStatus());
+  }, []);
+
+  // Best-effort: keep the offline pasture snapshot/queue from being evicted in the
+  // field. Silent and browser-gated; no UI is shown on a denial.
+  React.useEffect(() => {
+    ensurePersistentStorage();
   }, []);
 
   React.useEffect(() => {
@@ -1783,6 +1794,32 @@ export default function PastureMapView({Header, authState}) {
               ? 'Re-download'
               : 'Download farm imagery'}
         </button>
+      </div>
+    );
+  }
+
+  // Standalone, self-contained offline field guide (public/pasture-map-field-guide.html).
+  // Opening it once while online lets the service worker runtime-cache it for no-signal
+  // field reference. It is product help, not a move/draw control, so it is a plain link.
+  function renderFieldGuide() {
+    return (
+      <div className="pm-card" data-pasture-field-guide="1">
+        <div className="pm-card-head">
+          <div className="pm-card-title">Field guide</div>
+        </div>
+        <p className="pm-imagery-note">
+          How-to for the phone map: my location, walk/draw a paddock, measure, and offline imagery. Open it once with
+          signal and it stays available offline.
+        </p>
+        <a
+          className="pm-btn pm-btn-primary"
+          href="/pasture-map-field-guide.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-pasture-field-guide-link="1"
+        >
+          Open field guide
+        </a>
       </div>
     );
   }
@@ -3999,21 +4036,55 @@ export default function PastureMapView({Header, authState}) {
     return (
       <div className="pm-field-chrome" data-pasture-field-chrome="1">
         <div className="pm-field-top">
-          <span className="pm-field-title">Field</span>
-          <span
-            className={'pm-field-net' + (online ? '' : ' is-offline')}
-            data-pasture-field-online={online ? '1' : '0'}
-          >
-            <i aria-hidden="true" />
-            {online ? 'Online' : 'Offline'}
-          </span>
+          <div className="pm-field-status" data-pasture-field-status="1">
+            <span className="pm-field-title">Field</span>
+            <span
+              className={'pm-field-net' + (online ? '' : ' is-offline')}
+              data-pasture-field-online={online ? '1' : '0'}
+            >
+              <i aria-hidden="true" />
+              {online ? 'Online' : 'Offline'}
+            </span>
+            {/* Secondary, low-prominence affordances — kept off the recurring
+                Walk/Draw/Measure toolbar. Saved measurements only appears when
+                there are some to review. */}
+            <button
+              type="button"
+              className={'pm-field-setup-btn' + (offlineSetupOpen ? ' is-active' : '')}
+              onClick={() => setOfflineSetupOpen((v) => !v)}
+              aria-expanded={offlineSetupOpen}
+              data-pasture-offline-setup-toggle="1"
+            >
+              <span aria-hidden="true">&#9881;</span> Offline setup
+            </button>
+            {measurements.length > 0 && (
+              <button
+                type="button"
+                className={'pm-field-setup-btn' + (savedMeasuresOpen ? ' is-active' : '')}
+                onClick={() => setSavedMeasuresOpen((v) => !v)}
+                aria-expanded={savedMeasuresOpen}
+                data-pasture-saved-measures-toggle="1"
+              >
+                <span aria-hidden="true">&#128207;</span> Saved measurements
+              </button>
+            )}
+          </div>
+          {offlineSetupOpen && (
+            <div className="pm-field-setup-panel" data-pasture-offline-setup="1">
+              {renderOfflineImagery()}
+              {renderFieldGuide()}
+            </div>
+          )}
+          {savedMeasuresOpen && measurements.length > 0 && (
+            <div className="pm-field-setup-panel" data-pasture-saved-measures="1">
+              {renderMeasurementsList()}
+            </div>
+          )}
         </div>
         <div className="pm-field-forms">
           {renderTrackPanel()}
           {renderDrawForm()}
           {renderMeasureForm()}
-          {fieldLayersOpen ? renderMeasurementsList() : null}
-          {fieldLayersOpen ? renderOfflineImagery() : null}
         </div>
         <div className="pm-field-toolbar" data-pasture-field-toolbar="1">
           <button
@@ -4053,17 +4124,6 @@ export default function PastureMapView({Header, authState}) {
               &#128207;
             </span>
             <span>Measure</span>
-          </button>
-          <button
-            type="button"
-            className={'pm-field-tool' + (fieldLayersOpen ? ' is-active' : '')}
-            onClick={() => setFieldLayersOpen((v) => !v)}
-            data-pasture-field-layers="1"
-          >
-            <span className="pm-field-tool-ic" aria-hidden="true">
-              &#9636;
-            </span>
-            <span>Layers</span>
           </button>
         </div>
       </div>
@@ -4151,7 +4211,6 @@ export default function PastureMapView({Header, authState}) {
                 measurements,
                 onSaveMeasurement,
                 online,
-                fieldLayersOpen,
                 draftLinesVisible,
                 onToggleDraftLines: toggleDraftLines,
                 onExitTool: () => switchToolMode('select'),

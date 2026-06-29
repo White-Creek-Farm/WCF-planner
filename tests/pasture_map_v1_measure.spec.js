@@ -58,8 +58,8 @@ test('measure -> save a named distance measurement -> it lists and deletes', asy
   await page.locator('[data-pasture-measure-save-confirm]').click();
   await page.waitForTimeout(900);
 
-  // Open Field Layers -> the saved measurement is listed.
-  await page.locator('[data-pasture-field-layers]').click();
+  // The saved measurement appears under the secondary "Saved measurements" toggle.
+  await page.locator('[data-pasture-saved-measures-toggle]').click();
   await expect(page.locator('[data-pasture-measurements]')).toContainText('North fence length', {timeout: 10_000});
 
   // Delete it -> the list empties.

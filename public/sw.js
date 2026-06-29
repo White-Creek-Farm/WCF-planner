@@ -135,8 +135,13 @@ async function cachedNavigationResponse(request) {
   const runtimeCache = await caches.open(RUNTIME_CACHE);
 
   return (
-    (await shellCache.match(shellUrl)) ||
+    // An exact runtime-cached navigation must win before the generic SPA shell
+    // fallback. A real static page like /pasture-map-field-guide.html is cached
+    // under its own request on first online open; without this, shellForPath()
+    // would mask it with /index.html and an offline open would show the app shell.
+    // Normal app routes still fall through to their precached hub/index shell.
     (await runtimeCache.match(request)) ||
+    (await shellCache.match(shellUrl)) ||
     (await shellCache.match('/index.html')) ||
     new Response('Offline app shell is not cached yet.', {
       status: 503,

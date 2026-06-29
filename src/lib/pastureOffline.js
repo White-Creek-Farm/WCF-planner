@@ -30,6 +30,23 @@ function storageAvailable() {
   return typeof window !== 'undefined' && window.localStorage;
 }
 
+// Ask the browser to mark this origin's storage as persistent so the offline
+// pasture snapshot / queue is not evicted under storage pressure in the field.
+// Fully feature-gated and silent: it never throws, never blocks, and is a no-op
+// where the Storage Manager API is missing or persistence is already granted.
+// On Chrome/Edge/Safari this resolves without any UI; only Firefox may show a
+// one-time persistent-storage prompt, so this is best-effort durability only.
+export async function ensurePersistentStorage() {
+  try {
+    const sm = typeof navigator !== 'undefined' && navigator.storage;
+    if (!sm || typeof sm.persist !== 'function' || typeof sm.persisted !== 'function') return false;
+    if (await sm.persisted()) return true;
+    return await sm.persist();
+  } catch {
+    return false;
+  }
+}
+
 export function cachePastureSnapshot(snapshot) {
   if (!storageAvailable() || !snapshot) return false;
   try {

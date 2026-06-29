@@ -33,7 +33,10 @@
 --
 -- Return shape is _land_area_summary(p_id), same as the other area RPCs, so the
 -- client can refresh the edited line from the response. No new return shape is
--- introduced, so no PostgREST schema reload is required for this function.
+-- introduced, so a running PROD instance does not strictly require the schema
+-- reload; the file still emits NOTIFY pgrst, 'reload schema' at the end so a
+-- clean re-apply into a fresh environment matches the pasture migration
+-- convention (mig 131/132/139/140/141/147) and stays idempotent.
 --
 -- NO BEGIN/COMMIT: TEST applies via exec_sql; PROD applies with psql
 -- --single-transaction. Apply order: TEST first, PROD after Ronnie approval.
@@ -105,3 +108,6 @@ $fn$;
 
 REVOKE ALL ON FUNCTION public.update_land_area_track(text, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.update_land_area_track(text, jsonb) TO authenticated;
+
+-- Schema reload for clean re-apply into fresh environments / convention parity.
+NOTIFY pgrst, 'reload schema';

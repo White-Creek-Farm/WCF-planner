@@ -1513,6 +1513,15 @@
   color: #fff;
 }
 
+/* .pm-btn is normally a <button>; the Field guide uses it on an <a>, so reset the
+   anchor underline and align it like the other primary buttons. */
+a.pm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .pm-btn-sm {
   padding: 5px 9px;
   font-size: 12px;
@@ -3345,16 +3354,57 @@
   pointer-events: auto;
 }
 
-/* top status row */
+/* top status row — left-anchored and kept clear of the top-right control rail
+   (Fit Farm / My Location / Layers / Legend) so the rail never covers the Field
+   title, Online/Offline chip, or the Offline setup affordance. */
 .pm-field-top {
   position: absolute;
   top: 12px;
   left: 12px;
-  right: 12px;
+  right: 64px; /* reserve the rail column (rail is right:14px, ~38px wide) */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.pm-field-status {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  pointer-events: none;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Secondary, low-prominence Offline setup toggle — deliberately NOT styled like
+   the Walk/Draw/Measure tools; a small dark pill that opens the setup card. */
+.pm-field-setup-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(12, 18, 14, 0.86);
+  color: #d7e4d8;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pm-field-setup-btn.is-active {
+  background: #1c8a5f;
+  color: #fff;
+}
+
+/* Opened Offline setup panel (offline imagery + field guide), anchored under the
+   status row, left of the rail, width-capped so it stays readable on a phone. */
+.pm-field-setup-panel {
+  pointer-events: auto;
+  display: grid;
+  gap: 8px;
+  width: min(320px, 78vw);
 }
 
 .pm-field-title {
