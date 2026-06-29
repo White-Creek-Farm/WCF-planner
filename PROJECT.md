@@ -8,16 +8,20 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-29.
-Current product checkpoint: `1ac82ff`
-(`Merge pull request #49 from hotfix/cattle-terminal-age-label`).
+Current product checkpoint: `1f84f20`
+(`Merge pull request #51 from fix/pasture-map-hover-and-rotation-pin`).
 Latest shipped product merges include Newsletter Autopilot (`a1cdcf7`, PR #44),
 Pasture Map field/offline/header chrome (`ea02278`, PR #45), Pasture Map
-draw-temp/marker fixes (`8eba126`, PR #46), and cattle processing-batch age
-display (`541d5fe`, PR #47), and cattle terminal-age animal records
-(`1ac82ff`, PR #49).
-Current docs checkpoint: this 2026-06-29 cattle terminal-age hotfix update after
-PR #49, PROD newsletter migrations `146`/`151`, the `newsletter-harvest` v2
-deploy, and the PROD-only live `NEWSLETTER_AI_API_KEY` secret.
+draw-temp/marker fixes (`8eba126`, PR #46), cattle processing-batch age
+display (`541d5fe`, PR #47), cattle terminal-age animal records
+(`1ac82ff`, PR #49), and Pasture Map hover-bubble + current-area rotation-pin
+trim (`1f84f20`, PR #51).
+Current docs checkpoint: this 2026-06-29 wrap pass covers PR #51 (Pasture Map
+hover-bubble trim + current-area rotation-pin suppression) plus the full PR
+#45/#46 detail (Field IA/offline guide/header portal, draw-temp save fix, and
+the teardrop occupant pin / numbered rotation markers), on top of the prior
+cattle terminal-age hotfix (PR #49), PROD newsletter migrations `146`/`151`,
+the `newsletter-harvest` v2 deploy, and the live `NEWSLETTER_AI_API_KEY` secret.
 Production URL: https://wcfplanner.com.
 Netlify auto-deploys from GitHub `main`.
 
@@ -75,8 +79,9 @@ Design/function invariants that govern cross-surface behavior live in
   `Age at sale`, and `Age at death`. Older main CI is known red from the
   repo-wide 30-minute Playwright/E2E health problem, not from the newsletter,
   pasture, or cattle hotfixes.
-- Source: latest product merge on `main` is cattle terminal-age animal records
-  (`1ac82ff`, PR #49). Recent main history also includes cattle
+- Source: latest product merge on `main` is Pasture Map hover-bubble +
+  current-area rotation-pin trim (`1f84f20`, PR #51). Recent main history also
+  includes cattle terminal-age animal records (`1ac82ff`, PR #49), cattle
   processing-batch age display (`541d5fe`, PR #47), Newsletter Autopilot
   (`a1cdcf7`, PR #44), Pasture Map draw-temp/marker fixes (`8eba126`, PR #46),
   and Pasture Map field/offline/header chrome (`ea02278`, PR #45).
@@ -92,15 +97,19 @@ Design/function invariants that govern cross-surface behavior live in
   US/Oregon). It is intentionally not set on TEST. The remaining newsletter
   release task is to run the PROD admin AI probe / first issue workflow smoke
   and confirm the live function uses Anthropic instead of template fallback.
-- Pasture Map release state: PR #45 and PR #46 are merged to `main`.
+- Pasture Map release state: PR #45, PR #46, and PR #51 are merged to `main`.
   Production deploy of PR #46 was verified by CC#1: new main JS/CSS are live,
   `.pm-occ-pin` is present, old `.pm-occ-avatar` and `.pm-rotation-label` are
   absent, occupant markers are teardrop pins with labels, and rotation stops are
   numbered. Draw-temp save behavior was verified locally with Playwright and the
   deployed bundle contains the same code; PROD click-test was not run because
-  the Playwright auth harness targets TEST Supabase. No pasture PROD SQL was
-  applied during PR #45/#46; migration `150`'s `NOTIFY` addition is text-only
-  for future/fresh-env applies and was not re-applied to PROD.
+  the Playwright auth harness targets TEST Supabase. PR #51 (`1f84f20`)
+  suppresses the rotation number at a group's current area so it no longer
+  stacks under the location pin, and trims the Map hover bubble to area name +
+  type/acres; verified locally (pasture static 181/181, ephemeral Playwright).
+  No pasture PROD SQL was applied during PR #45/#46/#51; migration `150`'s
+  `NOTIFY` addition is text-only for future/fresh-env applies and was not
+  re-applied to PROD.
 - Cattle processing-batch state: PR #47 is merged to `main`. Cattle processing
   batch record rows now show every cow's age at the batch processing date.
   Validation before merge: Prettier on changed files, focused static test
@@ -115,15 +124,17 @@ Design/function invariants that govern cross-surface behavior live in
   animal_detail_age.test.js` 12/12, lint 0 errors (existing warnings only),
   build passed, Netlify PR preview checks were clean, and production JS was
   verified to contain the terminal-age labels.
-- Worktree inventory at wrap: after cleanup the intended steady state is a
-  single primary worktree at `C:/Users/Ronni/WCF-planner` on `main` plus the
-  seven preserved untracked handoff/shot folders:
-  `design_handoff_newsletter/`, `design_handoff_processing_calendar/`,
-  `pasture-cp2-shots/`, `pasture-map-shots/`,
-  `pasture-offline-field-guide/`, `pasture-open-line-edit-shots/`, and
-  `pasture-rail-shots/`. Older newsletter/source/autopilot worktrees were safe
-  to prune after PR #44 merged. Do not delete the preserved folders unless
-  Ronnie explicitly asks.
+- Worktree inventory at wrap: two worktrees exist. The primary
+  `C:/Users/Ronni/WCF-planner` is the CC#1 worktree (transiently on the Pasture
+  Map wrap branch `fix/pasture-map-hover-and-rotation-pin`; returns to `main`
+  after wrap), and `C:/Users/Ronni/WCF-planner-newsletter-fact-fix` is an active
+  Codex lane on `fix/newsletter-fact-accuracy`. The primary worktree keeps the
+  seven preserved untracked handoff/shot folders: `design_handoff_newsletter/`,
+  `design_handoff_processing_calendar/`, `pasture-cp2-shots/`,
+  `pasture-map-shots/`, `pasture-offline-field-guide/`,
+  `pasture-open-line-edit-shots/`, and `pasture-rail-shots/`. Older
+  newsletter/source/autopilot/residuals worktrees were pruned after their lanes
+  merged. Do not delete the preserved folders unless Ronnie explicitly asks.
 - PROD-applied recent migrations include `112` through `116`, `125` through
   `151`. Migration `143` (`delete_land_area_grazing_history`) remains deployed
   but unused by the UI. Newsletter migrations `144` and `145` define the tables,
@@ -190,8 +201,20 @@ Design/function invariants that govern cross-surface behavior live in
   management/admin can edit saved open LineStrings in place through
   `update_land_area_track`. Map chrome is a single right-side icon rail
   (Fit Farm, My Location, Layers, Legend); Hybrid basemap is removed; zoom is
-  scroll/pinch only. Light keeps pasture farm-team-level Map/Field working
-  controls; non-pasture authorization is unchanged.
+  scroll/pinch only. An occupied area's group marker is a teardrop location pin
+  in the group color with a "Name · count" label (no initials avatar); rotation
+  stops are numbered dots and the number at the group's current area is
+  suppressed so it does not stack under the pin. The Map hover/tap area readout
+  shows area name + type/acres only (no rest/grazing state, occupant, or
+  last-moved line). The Field bottom toolbar is Walk paddock / Draw paddock /
+  Measure only; offline imagery + the self-contained field guide live in a
+  secondary "Offline setup" status-row affordance, saved measurements in a
+  secondary "Saved measurements" toggle, and the rail Layers popover is
+  available in Field; a temp paddock drawn from the rotation editor is saveable
+  while the inline group record is open. The header hamburger and notifications
+  dropdowns portal to `document.body` so they render above the map. Light keeps
+  pasture farm-team-level Map/Field working controls; non-pasture authorization
+  is unchanged.
 - Latest validation: Newsletter Autopilot PR #44 had format/lint/unit/build
   green, unit tests 6503/6503, and newsletter public/admin E2E green in CI; it
   received a narrow red-CI waiver for the unrelated repo-wide Playwright
@@ -246,6 +269,16 @@ The current source checkpoint is listed in the header above.
   - Validation: format/lint/unit/build green, unit tests 6503/6503, newsletter
     public/admin E2E green in CI. Full CI has a documented narrow red-CI waiver
     for the repo-wide Playwright timeout/unrelated non-newsletter failures.
+- Pasture Map hover bubble + rotation-pin trim (`1f84f20`, PR #51, merged
+  2026-06-29):
+  - The rotation path skips the numbered marker at the group's current area so
+    it no longer stacks under the occupant location pin (the view passes
+    `currentAreaId` on each rotation path; remaining stop numbers are preserved).
+  - The Map hover/tap bubble (`areaHoverTip`) now shows area name + type/acres
+    only; the rest/grazing state, current-occupant line, and last-moved/
+    grazing-history line were removed.
+  - Validation: Prettier clean, pasture static 181/181, lint 0 errors (existing
+    warnings), build, and ephemeral pasture Playwright verified.
 - Pasture Map draw-temp and marker fixes (`8eba126`, PR #46, merged 2026-06-29):
   - Rotation-editor Draw temp paddock keeps the name + Save area form reachable
     while a group record is open.
@@ -675,31 +708,37 @@ The current source checkpoint is listed in the header above.
   - Home shows a Pasture Map button beside Weather above Processing/Admin.
   - `/pasture-map` renders the one-page grazing cockpit with Map, Field, and
     Reports tabs. Plan is folded into Map; the Setup tab was already removed.
-  - Map is the single working surface (Plan merged in). Desktop hover shows the
-    read-only area readout; clicking/tapping an area opens the accessible Area
-    modal for area configuration only. The modal has one upper-right `X` close
-    affordance and debounces/saves edits on close.
-  - The Map side panel uses DataTable-style Animal Groups rows. Clicking a group
-    row opens the inline group record beside the full map. Group records show
-    details, a chip-based rotation editor, a current->next move box with
-    date/time and optional actual group weight, and grazing history.
+  - Map is the single working surface (Plan merged in). Desktop hover/tap shows
+    the read-only area readout (area name + type/acres only); clicking/tapping an
+    area opens the accessible Area modal for area configuration only. The modal
+    has one upper-right `X` close affordance and debounces/saves edits on close.
+  - The Map side panel uses `.hoverable-tile` pop-out openable Animal Groups
+    tiles. Clicking a group tile opens the inline group record beside the full
+    map. Group records show details, a chip-based rotation editor, a
+    current->next move box with date/time and optional actual group weight, and
+    grazing history.
   - Rotation order is the planning source. The old planned-move utility/table/
     RPCs and free-form Record/Plan move forms are removed.
   - Occupancy visuals are derived from the real planner-group roster and latest
     `pasture_move_events` by canonical `(animal_type, group_key)`, not from
-    ad-hoc/free-form groups. Occupied polygons fill by animal type and show
-    group markers. Parent pasture fill suppresses direct-child overlap state.
-    Group row hover is table-only; it does not preview on the map.
+    ad-hoc/free-form groups. Occupied polygons fill by animal type and show a
+    teardrop group location pin (group color + "Name · count" label, no
+    initials); rotation stops are numbered dots, with the current-area number
+    suppressed under the pin. Parent pasture fill suppresses direct-child
+    overlap state.
   - Field mode provides phone-first execution controls, offline queue/sync
     state, `My Location`, `Fit Farm`, and draft-lines visibility when
-    applicable.
+    applicable. Its bottom toolbar is Walk paddock / Draw paddock / Measure
+    only; offline imagery + the self-contained field guide live in a secondary
+    "Offline setup" status-row affordance, and saved measurements in a secondary
+    "Saved measurements" toggle.
   - Client parses OnX KML with `@tmcw/togeojson`; Polygons import as reviewable
     areas; LineStrings import as outline candidates and are never auto-closed.
   - Tracks / Lines are draft LineStrings only. They have no acreage, are
     excluded from move destinations and rotation seeding, render on the working
     Map and on Field (via the Draft-lines toggle), and can be zoomed/deleted/
-    closed into a temp paddock. Edit for open LineStrings is deferred until a new
-    line-geometry RPC exists.
+    closed into a temp paddock. Management/admin can also reshape a saved open
+    LineString in place via `update_land_area_track` (migration `150`).
   - Read access starts at `farm_team`; management/admin can import/classify,
     close/delete permanent areas, draw/edit permanent geometry, promote temp
     areas, manage Tracks / Lines, and delete individual grazing stays. Farm-team
@@ -721,8 +760,9 @@ The current source checkpoint is listed in the header above.
     5px and are style-editable. Only temp paddocks and GPS/field tracks have
     editable line style.
   - Migrations `116`, `127`, `128`, `129`, `130`, `131`, `132`, `135`, `136`,
-    `139`, `140`, `141`, `143`, `147`, and `148` are present on PROD. Offline
-    imagery cache is not built; vector/cache/queue behavior is present.
+    `139`, `140`, `141`, `143`, `147`, `148`, `149`, and `150` are present on
+    PROD. The offline NAIP imagery cache is built (downloadable from Field
+    Offline setup), alongside the vector snapshot/queue behavior.
   - `design_handoff_pasture_map/` is committed as the design reference bundle;
     production code does not import from it.
 
@@ -1021,31 +1061,23 @@ This is the canonical home for outstanding build/design work.
      release are separate Ronnie gates. `exec_sql` in PROD remains forbidden.
 
 3. Pasture Map post-open-line follow-ups
-   - Status: NEXT PASTURE DECISIONS / SMALL HARDENING. CC#1 and open-line edit
-     are shipped; migrations `149` and `150` are PROD-applied + verified.
-   - Class: `ENH`/`DECISION`/`HARDENING`.
-   - Scope:
-     - Add the standalone offline field guide into the Pasture Map app so it is
-       easy to access in-app. The produced guide currently lives only in the
-       untracked `pasture-offline-field-guide/` folder as PDF/HTML/assets.
-     - Rename the new "Layers" tab/button/popover label to something else.
-       Ronnie wants to choose the name next session; do not rename before that
-       discussion.
-     - Optional hardening: call `navigator.storage.persist()` on app load to
-       request persistent storage and reduce browser eviction risk for offline
-       vector/imagery cache.
-     - Add `NOTIFY pgrst, 'reload schema'` to
-       `150_pasture_map_open_line_edit.sql`. CC issued the reload manually
-       during PROD apply; the migration file should include it for future
-       re-apply/new environments.
-   - Validation target: focused pasture static guards, pasture Playwright for
-     any touched Map/Field/Reports surfaces, and build. The storage persistence
-     hardening should be guarded or manually smoke-checked in browsers that
-     expose the API.
-   - Gates: code-only for guide link/rename/storage persistence unless a
-     migration file change is re-applied. Any new PROD SQL still requires
-     Ronnie approval and must use `psql --single-transaction`; `exec_sql` in
-     PROD remains forbidden.
+   - Status: SHIPPED (PR #45, `ea02278`). Migrations `149` and `150` are
+     PROD-applied + verified. Only one optional decision remains open.
+   - Class: `DECISION`.
+   - Shipped in PR #45:
+     - The standalone offline field guide is in-app, served from
+       `public/pasture-map-field-guide.html` and reachable from the Field
+       "Offline setup" secondary affordance.
+     - `navigator.storage.persist()` shipped as `ensurePersistentStorage()`,
+       called best-effort on Pasture Map mount.
+     - `NOTIFY pgrst, 'reload schema'` was added to
+       `150_pasture_map_open_line_edit.sql` (text-only, for future/fresh-env
+       re-apply; not re-applied to PROD).
+   - Still open (the only remaining sub-item):
+     - Rename the rail "Layers" popover label. The Field IA rework deliberately
+       KEPT the rail Layers popover (no rename); Ronnie still wants to choose a
+       name. Deferred — do not rename before that decision.
+   - Gates: code-only when the rename is chosen.
 
 4. P3 derived-data durability/audit residuals
    - Class: `DEFECT`/`ENH`.
@@ -1675,6 +1707,11 @@ Append-only upload expectations:
 
 - Dialog layer order keeps Confirm/Delete at toast `9000`; other overlays and
   modals remain below that tier in the shared z-index ladder.
+- Header stacking contract: the sticky header bar establishes a stacking
+  context, so its hamburger and notifications dropdowns portal to
+  `document.body` at z-index `9000` (above page content such as the Pasture map
+  chrome, below the blocking-modal tier). Do not rely on raising the bar's own
+  z-index — that would regress the `500`-tier page modals.
 
 ### Save Model
 
@@ -1938,8 +1975,10 @@ Workflow/worktable entities:
   controls and is NOT read-only/Map-only; only management/admin-only actions stay
   gated, and write/report RPCs reject roles outside the granted set.
 - Current Pasture Map tabs are Map / Field / Reports. Plan is folded into Map;
-  Setup was already removed. Map is the single working surface: hover reads;
-  clicking a map area opens the accessible Area MODAL (`PastureAreaModal.jsx`:
+  Setup was already removed. Map is the single working surface: hover/tap reads
+  a name + type/acres-only bubble (no rest/grazing state, occupant, or
+  last-moved line); clicking a map area opens the accessible Area MODAL
+  (`PastureAreaModal.jsx`:
   role=dialog, aria-modal, focus trap, backdrop) which hosts the same canonical
   Area Record body used by Reports: area summary, explicit name editor, Grazing
   History, and role-gated management/config controls (classification, parent
@@ -1958,7 +1997,17 @@ Workflow/worktable entities:
   Reports. Reviewed permanent paddocks require a parent pasture (UI-enforced via
   `update_land_area` `p_parent_id`; no DB constraint, no auto-backfill);
   parentless paddocks surface in a Reports "Needs pasture assignment" section.
-  Field is phone-first execution/offline queue. Reports use pop-out openable
+  Field is phone-first execution/offline queue. The Field bottom toolbar is
+  Walk paddock / Draw paddock / Measure only; one-time setup/help lives in a
+  secondary "Offline setup" status-row affordance (offline NAIP imagery
+  download + the self-contained field guide) and saved measurements in a
+  secondary "Saved measurements" toggle; the rail Layers popover stays available
+  in Field. The field guide is served from `public/pasture-map-field-guide.html`
+  (self-contained, inline images); `public/sw.js` serves an exact runtime-cached
+  navigation before the SPA shell fallback so the guide works offline after one
+  online open; `ensurePersistentStorage()` requests persistent storage on mount.
+  A temp paddock drawn from the rotation editor stays saveable while the inline
+  group record is open. Reports use pop-out openable
   tiles for Areas and Animal Groups; opening an Area renders the same canonical
   Area Record body. Reports also include animal-group grazing stays/metrics,
   inactive groups behind an Include inactive groups filter, and per-stay delete.
@@ -1983,8 +2032,11 @@ Workflow/worktable entities:
   independent of state; the FILL is the state.
 - Boundary visibility toggles hide/show pasture, paddock, temp-paddock, or
   Lines/Tracks strokes only. Animal occupancy fills and group markers remain
-  visible. Draft lines render on the working Map; Field has a Draft lines toggle;
-  selected draft lines show for context.
+  visible. A group's occupied-area marker is a teardrop location pin in the
+  group color with a "Name · count" label (no initials avatar); rotation stops
+  are numbered dots, and the number at the group's current area is suppressed so
+  it does not stack under the pin. Draft lines render on the working Map; Field
+  has a Draft lines toggle; selected draft lines show for context.
 - Permanent pasture stroke is locked blue 4px; permanent paddock stroke is
   locked bright green 4px. Temp paddocks default to white dashed 5px and can be
   restyled. Only temp paddocks and GPS/field tracks have editable line style.
