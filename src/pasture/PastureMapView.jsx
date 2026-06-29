@@ -3038,7 +3038,18 @@ export default function PastureMapView({Header, authState}) {
   }
 
   function renderPlanPanel() {
-    if (selectedRecordGroup) return renderGroupRecord(selectedRecordGroup, 'map');
+    if (selectedRecordGroup)
+      return (
+        <>
+          {/* A temp paddock drawn from this group's rotation editor must stay
+              saveable while the inline group record is open. Without these forms
+              the canvas only shows the Cancel banner and the name + Save area
+              control is unreachable, so the drawn paddock can never be added. */}
+          {renderDrawForm()}
+          {renderMeasureForm()}
+          {renderGroupRecord(selectedRecordGroup, 'map')}
+        </>
+      );
     if (!activeGroup)
       return (
         <>

@@ -318,17 +318,6 @@ function rotationIcon(number, color, dim) {
   });
 }
 
-// The first stop of a group's rotation carries the group's short label so
-// overlapping paths stay distinguishable; dimmed for non-active groups.
-function rotationLabelIcon(short, color, dim) {
-  return L.divIcon({
-    className: 'pm-rotation-marker pm-rotation-label' + (dim ? ' is-dim' : ''),
-    html: `<span style="background:${color}">${escTip(short || '')}</span>`,
-    iconSize: [30, 24],
-    iconAnchor: [15, 12],
-  });
-}
-
 // Compact inline-SVG icons for the right-side control rail. 20px, currentColor so
 // the button's color drives them; aria-hidden (the button carries the label).
 const railSvg = (children) => (
@@ -722,7 +711,7 @@ export default function PastureMapCanvas({
             icon: L.divIcon({
               className: markerCls,
               html:
-                `<span class="pm-occ-avatar" style="background:${primaryOcc.color}">${primaryOcc.short || ''}</span>` +
+                `<span class="pm-occ-pin" style="color:${primaryOcc.color}"></span>` +
                 `<span class="pm-occ-name">${primaryOcc.name || ''}${countLabel}</span>${tag}${more}`,
               iconSize: [0, 0],
             }),
@@ -798,7 +787,8 @@ export default function PastureMapCanvas({
       if (nextStopOnly) {
         const center = layerCenter(areaLayersRef.current.get(path.nextAreaId));
         if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
-          L.marker(center, {icon: rotationLabelIcon(path.short, color, dim), interactive: false}).addTo(group);
+          const stopNo = Math.max(1, (path.areaIds || []).indexOf(path.nextAreaId) + 1);
+          L.marker(center, {icon: rotationIcon(stopNo, color, dim), interactive: false}).addTo(group);
         }
         return;
       }
@@ -818,8 +808,8 @@ export default function PastureMapCanvas({
         }).addTo(group);
       }
       centers.forEach((point, index) => {
-        const icon = index === 0 ? rotationLabelIcon(path.short, color, dim) : rotationIcon(index + 1, color, dim);
-        L.marker(point, {icon, interactive: false}).addTo(group);
+        // Every stop is a numbered dot in the group color; no group-initials labels.
+        L.marker(point, {icon: rotationIcon(index + 1, color, dim), interactive: false}).addTo(group);
       });
     });
     group.addTo(map);

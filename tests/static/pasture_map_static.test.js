@@ -552,12 +552,24 @@ describe('V1 reset — Plan shows all groups rotation paths (next-stop toggle)',
     expect(viewSrc).not.toContain('data-pasture-next-stop-only');
   });
 
-  it('canvas draws one path per group (species color, active emphasis, label, next-only)', () => {
+  it('canvas draws one path per group (species color, active emphasis, numbered stops)', () => {
     expect(canvasSrc).toContain('rotationPaths.forEach');
-    expect(canvasSrc).toContain('function rotationLabelIcon');
     expect(canvasSrc).toContain('nextStopOnly');
     expect(canvasSrc).toContain('path.isActive');
     expect(canvasSrc).not.toContain('rotationAreaIds');
+    // Every rotation stop is a numbered dot; the group-initials label is removed.
+    expect(canvasSrc).not.toContain('rotationLabelIcon');
+    expect(canvasSrc).toContain('rotationIcon(index + 1, color, dim)');
+  });
+
+  it('occupied-area marker is a teardrop location pin + name, not a group-initials badge', () => {
+    // The live-location marker drops the initials avatar for a colored map pin and
+    // keeps only the "Name · count" label.
+    expect(canvasSrc).not.toContain('pm-occ-avatar');
+    expect(canvasSrc).toContain('class="pm-occ-pin"');
+    expect(canvasSrc).toContain('pm-occ-name');
+    expect(pastureCss).toContain('.pm-occ-pin {');
+    expect(pastureCss).toContain('border-radius: 50% 50% 50% 0;');
   });
 });
 
@@ -1685,7 +1697,14 @@ describe('Pasture Map tweaks #3-#5: Plan card, Setup classification, map control
     // Slim cockpit keeps the group table, transient tool save forms, and ONE
     // bottom Import KML entry point. The rotation editor opens inside a group record.
     expect(planBody).toContain('renderGroupSwitcher()');
-    expect(planBody).toContain('if (selectedRecordGroup) return renderGroupRecord(selectedRecordGroup,');
+    expect(planBody).toContain('if (selectedRecordGroup)');
+    expect(planBody).toContain('renderGroupRecord(selectedRecordGroup,');
+    // The open group-record branch ALSO renders the transient draw save form, so a
+    // temp paddock drawn from the rotation editor stays saveable (regression: the
+    // canvas Cancel banner showed with no reachable Save area control).
+    expect(planBody).toMatch(
+      /if \(selectedRecordGroup\)[\s\S]*?renderDrawForm\(\)[\s\S]*?renderGroupRecord\(selectedRecordGroup,/,
+    );
     expect(planBody).not.toContain('data-pasture-clear-placement');
     expect(planBody).toContain('data-pasture-import-kml');
     // The relocated cards (boundary-tools grid, tracks/lines, classification queue)

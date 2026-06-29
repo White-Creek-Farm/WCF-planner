@@ -886,18 +886,28 @@
   border: none;
   pointer-events: none;
 }
-.pm-occ-avatar {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  border-radius: 50%;
-  color: #fff;
-  font-weight: 800;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Group location marker: a teardrop map pin in the group color (no initials). */
+.pm-occ-pin {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  background: currentColor; /* group color, set inline via `color` */
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+.pm-occ-pin::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
 }
 .pm-occ-name {
   background: rgba(255, 255, 255, 0.92);
