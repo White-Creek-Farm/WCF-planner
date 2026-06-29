@@ -38,6 +38,7 @@ const CowDetail = ({
   onClose,
   originOpts,
   breedOpts,
+  ageFieldLabel = 'Age',
   ageLabel,
   hideComments,
 }) => {
@@ -361,7 +362,7 @@ const CowDetail = ({
               onBlur={patchOnBlur('birth_date', 'text')}
               style={editInp}
             />
-            <span style={{color: 'var(--ink-faint)'}}>Age:</span>
+            <span style={{color: 'var(--ink-faint)'}}>{ageFieldLabel}:</span>
             <span
               style={{
                 fontSize: 12,

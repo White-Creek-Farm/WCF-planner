@@ -2,9 +2,9 @@
 // alongside the existing Birth Date input.
 //
 // Operators see age on the collapsed herd/flock tile; without this prop,
-// it disappears once the animal is expanded. Each parent view passes
-// ageLabel={age(<animal>.birth_date) || '—'} into the detail component,
-// and the detail component renders that label near birth_date.
+// it disappears once the animal is expanded. Active animals show current age.
+// Outcome-herd cattle show age at the terminal event instead, and the shared
+// detail component can render the row label supplied by the caller.
 
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -19,7 +19,6 @@ const COW_DETAIL_CALLERS = ['src/cattle/CattleAnimalPage.jsx', 'src/cattle/Cattl
 const animalPage = readFileSync(resolve(ROOT, 'src/cattle/CattleAnimalPage.jsx'), 'utf8');
 const forecastView = readFileSync(resolve(ROOT, 'src/cattle/CattleForecastView.jsx'), 'utf8');
 const cowDetail = readFileSync(resolve(ROOT, 'src/cattle/CowDetail.jsx'), 'utf8');
-const flocksView = readFileSync(resolve(ROOT, 'src/sheep/SheepFlocksView.jsx'), 'utf8');
 const sheepDetail = readFileSync(resolve(ROOT, 'src/sheep/SheepDetail.jsx'), 'utf8');
 
 describe('Every CowDetail caller passes ageLabel', () => {
@@ -41,8 +40,28 @@ describe('Every CowDetail caller passes ageLabel', () => {
 });
 
 describe('CattleAnimalPage → CowDetail ageLabel wiring', () => {
-  it('uses an age() helper with the "—" fallback for missing birth_date', () => {
-    expect(animalPage).toMatch(/ageLabel=\{age\(cow\.birth_date\)\s*\|\|\s*'—'\}/);
+  it('loads cattle processing batches so processed records can age against the process date', () => {
+    expect(animalPage).toContain("from('cattle_processing_batches')");
+    expect(animalPage).toContain("select('id,name,actual_process_date,planned_process_date')");
+  });
+
+  it('computes event-specific age labels for outcome herd records', () => {
+    expect(animalPage).toContain('function terminalAgeInfo');
+    expect(animalPage).toContain("cow.herd === 'processed'");
+    expect(animalPage).toContain("fieldLabel: 'Age at processing'");
+    expect(animalPage).toContain('processingBatchDate(processingBatch)');
+    expect(animalPage).toContain("cow.herd === 'sold'");
+    expect(animalPage).toContain("fieldLabel: 'Age at sale'");
+    expect(animalPage).toContain('cow.sale_date');
+    expect(animalPage).toContain("cow.herd === 'deceased'");
+    expect(animalPage).toContain("fieldLabel: 'Age at death'");
+    expect(animalPage).toContain('cow.death_date');
+  });
+
+  it('passes the event-aware label and value into CowDetail', () => {
+    expect(animalPage).toContain('const cowAge = terminalAgeInfo(cow, processingBatch)');
+    expect(animalPage).toMatch(/ageFieldLabel=\{cowAge\.fieldLabel\}/);
+    expect(animalPage).toMatch(/ageLabel=\{cowAge\.ageLabel\}/);
   });
 });
 
@@ -57,14 +76,15 @@ describe('CowDetail accepts and renders ageLabel near birth_date', () => {
     expect(cowDetail).toMatch(/\bageLabel\b/);
   });
 
-  it('renders an "Age:" label and the ageLabel value with the "—" fallback', () => {
-    expect(cowDetail).toMatch(/>Age:</);
+  it('renders the caller-supplied age field label and the ageLabel value with the "—" fallback', () => {
+    expect(cowDetail).toMatch(/ageFieldLabel\s*=\s*'Age'/);
+    expect(cowDetail).toMatch(/\{ageFieldLabel\}:<\/span>/);
     expect(cowDetail).toMatch(/\{ageLabel\s*\|\|\s*'—'\}/);
   });
 
   it('Age block sits between Birth and Purchased fields', () => {
     const birthIdx = cowDetail.indexOf('cow.birth_date');
-    const ageIdx = cowDetail.indexOf('>Age:<');
+    const ageIdx = cowDetail.indexOf('{ageFieldLabel}:</span>');
     const purchasedIdx = cowDetail.indexOf('cow.purchase_date');
     expect(birthIdx).toBeGreaterThan(-1);
     expect(ageIdx).toBeGreaterThan(birthIdx);

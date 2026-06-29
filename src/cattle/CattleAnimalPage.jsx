@@ -81,6 +81,47 @@ function age(birth) {
   return m + 'mo';
 }
 
+function ageAtDate(birth, endDate) {
+  if (!birth || !endDate) return '';
+  const birthMs = new Date(String(birth) + 'T12:00:00Z').getTime();
+  const endMs = new Date(String(endDate) + 'T12:00:00Z').getTime();
+  if (!Number.isFinite(birthMs) || !Number.isFinite(endMs)) return '';
+  const days = Math.floor((endMs - birthMs) / 86400000);
+  if (days < 0) return '';
+  const y = Math.floor(days / 365);
+  const m = Math.floor((days % 365) / 30);
+  if (y > 0) return y + 'y ' + m + 'mo';
+  return m + 'mo';
+}
+
+function processingBatchDate(batch) {
+  if (!batch) return '';
+  return batch.actual_process_date || batch.planned_process_date || '';
+}
+
+function terminalAgeInfo(cow, processingBatch) {
+  if (!cow) return {fieldLabel: 'Age', ageLabel: '—'};
+  if (cow.herd === 'processed') {
+    return {
+      fieldLabel: 'Age at processing',
+      ageLabel: ageAtDate(cow.birth_date, processingBatchDate(processingBatch)) || '—',
+    };
+  }
+  if (cow.herd === 'sold') {
+    return {
+      fieldLabel: 'Age at sale',
+      ageLabel: ageAtDate(cow.birth_date, cow.sale_date) || '—',
+    };
+  }
+  if (cow.herd === 'deceased') {
+    return {
+      fieldLabel: 'Age at death',
+      ageLabel: ageAtDate(cow.birth_date, cow.death_date) || '—',
+    };
+  }
+  return {fieldLabel: 'Age', ageLabel: age(cow.birth_date) || '—'};
+}
+
 export default function CattleAnimalPage({sb, fmt, authState, Header}) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,6 +135,7 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
   const [cow, setCow] = React.useState(null);
   const [cattle, setCattle] = React.useState([]);
   const [weighIns, setWeighIns] = React.useState([]);
+  const [processingBatches, setProcessingBatches] = React.useState([]);
   const [calvingRecs, setCalvingRecs] = React.useState([]);
   const [breedOpts, setBreedOpts] = React.useState([]);
   const [originOpts, setOriginOpts] = React.useState([]);
@@ -105,22 +147,25 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [cR, allCattle, wAll, calR, brR, orR] = await Promise.all([
+      const [cR, allCattle, wAll, calR, brR, orR, batchR] = await Promise.all([
         sb.from('cattle').select('*').eq('id', cattleId).is('deleted_at', null).maybeSingle(),
         sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
         loadCattleWeighInsCached(sb, {throwOnError: true}),
         sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
         sb.from('cattle_breeds').select('*').order('label'),
         sb.from('cattle_origins').select('*').order('label'),
+        sb.from('cattle_processing_batches').select('id,name,actual_process_date,planned_process_date'),
       ]);
       if (cR.error) throw new Error('cattle: ' + (cR.error.message || cR.error));
       if (allCattle.error) throw new Error('cattle list: ' + (allCattle.error.message || allCattle.error));
       if (calR.error) throw new Error('cattle_calving_records: ' + (calR.error.message || calR.error));
       if (brR.error) throw new Error('cattle_breeds: ' + (brR.error.message || brR.error));
       if (orR.error) throw new Error('cattle_origins: ' + (orR.error.message || orR.error));
+      if (batchR.error) throw new Error('cattle_processing_batches: ' + (batchR.error.message || batchR.error));
       setCow(cR.data || null);
       setCattle(allCattle.data || []);
       setWeighIns(wAll || []);
+      setProcessingBatches(batchR.data || []);
       setCalvingRecs(calR.data || []);
       setBreedOpts(brR.data || []);
       setOriginOpts(orR.data || []);
@@ -128,6 +173,7 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
       setCow(null);
       setCattle([]);
       setWeighIns([]);
+      setProcessingBatches([]);
       setCalvingRecs([]);
       setBreedOpts([]);
       setOriginOpts([]);
@@ -306,6 +352,8 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
     const tags = cowTagSet(cow);
     return tags.has(w.tag);
   });
+  const processingBatch = processingBatches.find((batch) => batch.id === cow.processing_batch_id) || null;
+  const cowAge = terminalAgeInfo(cow, processingBatch);
 
   return (
     <RecordPageFrame Header={Header}>
@@ -321,7 +369,8 @@ export default function CattleAnimalPage({sb, fmt, authState, Header}) {
         <CowDetail
           key={cow.id}
           cow={cow}
-          ageLabel={age(cow.birth_date) || '—'}
+          ageFieldLabel={cowAge.fieldLabel}
+          ageLabel={cowAge.ageLabel}
           weighIns={cowWeighIns}
           calving={calvingRecs.filter((r) => r.dam_tag === cow.tag)}
           comments={[]}
