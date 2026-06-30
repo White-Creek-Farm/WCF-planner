@@ -379,6 +379,30 @@
   background: #151d18;
 }
 
+/* While a paddock is being drawn (Map Geoman draw or Field drop-point), the map
+   surface itself reads as a crosshair so the user knows they're placing vertices
+   by tapping. On-map controls (banner, control rail, drop bar, HUD, Leaflet
+   zoom) keep a normal arrow/pointer so they never feel like part of the draw. */
+.pm-map-wrap.is-drawing .pm-map,
+.pm-map-wrap.is-drawing .pm-map.leaflet-container {
+  cursor: crosshair;
+}
+
+.pm-map-wrap.is-drawing .pm-map-banner,
+.pm-map-wrap.is-drawing .pm-control-rail,
+.pm-map-wrap.is-drawing .pm-drawbar,
+.pm-map-wrap.is-drawing .pm-hud,
+.pm-map-wrap.is-drawing .leaflet-control {
+  cursor: default;
+}
+
+.pm-map-wrap.is-drawing .pm-mini-btn,
+.pm-map-wrap.is-drawing .pm-rail-btn,
+.pm-map-wrap.is-drawing .pm-drawbar-btn,
+.pm-map-wrap.is-drawing .leaflet-control a {
+  cursor: pointer;
+}
+
 .pm-map-wrap.is-compact {
   position: relative;
   height: 100%;
@@ -3532,6 +3556,67 @@ a.pm-btn {
 .pm-field-tool.is-active {
   outline: 2px solid #fff;
   outline-offset: -2px;
+}
+
+/* Compact Field action card — floats over the map above the bottom toolbar when
+   a manager taps an area on the Field tab (promote / archive / hard delete). */
+.pm-field-action-card {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 660;
+  margin: 0 auto;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(7, 10, 8, 0.32);
+}
+
+.pm-field-action-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pm-field-action-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pm-field-action-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-field-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pm-field-action-note {
+  font-size: 13px;
+  color: #4a5750;
+}
+
+/* "Adding to <group>" pill + Deselect in the Map group-switcher head, shown only
+   while an animal group is explicitly armed for add-to-rotation. */
+.pm-group-armed {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2f7a46;
 }
 
 /* ==========================================================================

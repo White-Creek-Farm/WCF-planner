@@ -710,7 +710,6 @@ function AreaNameEditor({area, canEdit, onSave, trailing = null}) {
 export default function PastureMapView({Header, authState}) {
   const role = authState && authState.role;
   const isManager = role === 'management' || role === 'admin';
-  const isAdmin = role === 'admin';
   // V1 reset: Light has farm_team-level pasture access (pasture-scoped ONLY;
   // Light stays restricted in every other module). Migration 139 widens the same
   // farm_team-level pasture RPCs to include 'light' — keep client + DB in lockstep.
@@ -971,7 +970,10 @@ export default function PastureMapView({Header, authState}) {
     }
     return out;
   }, [groups, serverRotationByKey, areaById]);
-  const activeGroup = groups.find((group) => group.id === activeGroupId) || groups[0] || null;
+  // Explicit-only: the active group is whatever the user deliberately selected,
+  // never an implicit groups[0] default. A null active group is a real "nothing
+  // armed" state so drawing/tapping never silently adds a paddock to a rotation.
+  const activeGroup = groups.find((group) => group.id === activeGroupId) || null;
   // Current location per planner group = latest move ledger row by
   // (animal_type, group_key). moves is sorted moved_at DESC, so the first match
   // is the latest; no match -> Not placed (null).
@@ -1227,11 +1229,11 @@ export default function PastureMapView({Header, authState}) {
           : null
       : null;
 
-  // Keep the active group pointed at a real roster group (no demo default), and
-  // prime the move/plan forms with that group's locked identity + count.
+  // Explicit-only active group: never auto-select a default. Only drop the active
+  // group when it points at a roster group that no longer exists, so a deliberate
+  // "no group selected" state stays sticky.
   React.useEffect(() => {
-    if (groups.length && !groups.some((g) => g.id === activeGroupId)) setActiveGroupFromGroup(groups[0]);
-    else if (!groups.length && activeGroupId !== null) setActiveGroupId(null);
+    if (activeGroupId && !groups.some((g) => g.id === activeGroupId)) setActiveGroupId(null);
   }, [groups, activeGroupId]);
 
   React.useEffect(() => {
@@ -1326,6 +1328,9 @@ export default function PastureMapView({Header, authState}) {
     }
     if (next !== 'view') setSelectedGroupId(null);
     if (next !== 'view') setAddMode(false);
+    // Auto-deselect the armed animal group on any tab change so a paddock drawn /
+    // tapped on the next tab is never silently added to the prior tab's rotation.
+    setActiveGroupId(null);
     // Boundary tools (track/draw/edit) live on the merged Map; reset them off any other tab.
     if (next !== 'view' && mapMode === 'track') resetTrackFlow();
     if (next !== 'view' && ['draw', 'edit'].includes(mapMode)) setMapMode('select');
@@ -2725,7 +2730,21 @@ export default function PastureMapView({Header, authState}) {
       <div className="pm-card pm-group-table-card pm-tile-card" data-surface="pasture-group-table">
         <div className="pm-card-head">
           <div className="pm-card-title">Animal groups</div>
-          <span>{groups.length} groups</span>
+          {activeGroup ? (
+            <span className="pm-group-armed" data-pasture-group-armed={activeGroup.groupKey || activeGroup.id}>
+              Adding to <strong>{activeGroup.name}</strong>
+              <button
+                type="button"
+                className="pm-btn pm-btn-sm"
+                onClick={() => setActiveGroupId(null)}
+                data-pasture-group-deselect="1"
+              >
+                Deselect
+              </button>
+            </span>
+          ) : (
+            <span>{groups.length} groups</span>
+          )}
         </div>
         {sections.length === 0 ? (
           <div className="pm-tile-empty">No active planner groups yet.</div>
@@ -3053,7 +3072,7 @@ export default function PastureMapView({Header, authState}) {
           {renderGroupRecord(selectedRecordGroup, 'map')}
         </>
       );
-    if (!activeGroup)
+    if (!groups.length)
       return (
         <>
           <div className="pm-card">
@@ -3272,10 +3291,11 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
-  // Admin-only Danger zone: hard delete is intentionally isolated behind its own
-  // disclosure + inline confirm so it is never adjacent to routine area actions.
+  // Management/admin Danger zone: hard delete is intentionally isolated behind its
+  // own disclosure + inline confirm so it is never adjacent to routine area
+  // actions. Server RPC (mig 152) gates the same management/admin set.
   function renderDangerZone(area) {
-    if (!area || !isAdmin) return null;
+    if (!area || !isManager) return null;
     return (
       <div className="pm-card pm-danger-zone" data-pasture-danger-zone={area.id}>
         <p className="pm-danger-note">
@@ -3994,7 +4014,7 @@ export default function PastureMapView({Header, authState}) {
             {renderLineStylePanel()}
           </section>
         )}
-        {isAdmin && (
+        {isManager && (
           <section className="pm-modal-section pm-modal-section-danger" data-pasture-modal-section="danger">
             {renderDangerZone(area)}
           </section>
@@ -4144,6 +4164,98 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
+  // Compact phone-first action card for the Field tab: tapping an area on the
+  // Field map opens this over the map so a manager can promote a temp paddock to
+  // permanent (Pasture/Paddock), archive/restore, or hard delete WITHOUT round-
+  // tripping to the Map tab's Area modal. Reuses the same handlers + confirm
+  // state as the Map area manage actions and the shared Danger zone.
+  function renderFieldActionCard() {
+    if (appMode !== 'field' || !selectedArea || !isManager) return null;
+    const area = selectedArea;
+    const isTemp = area.permanence === 'temporary';
+    const isArchived = area.status === 'retired';
+    const canManageArea = isTemp ? canRecordMoves : isManager;
+    return (
+      <div className="pm-field-action-card" data-pasture-field-action-card={area.id}>
+        <div className="pm-field-action-head">
+          <span className="pm-field-action-title">
+            <span className={'pm-chip pm-chip-' + area.kind}>{designationLabel(area)}</span>
+            <strong>{area.name || 'Selected area'}</strong>
+          </span>
+          <button
+            type="button"
+            className="pm-btn pm-btn-sm"
+            onClick={() => setSelectedId(null)}
+            data-pasture-field-action-close="1"
+          >
+            Close
+          </button>
+        </div>
+        {isTemp ? (
+          confirmPromoteId === area.id ? (
+            <div className="pm-promote-confirm" data-pasture-promote-confirm={area.id}>
+              Promote to permanent? The boundary style locks to the fixed permanent style.
+              <button
+                type="button"
+                className="pm-btn pm-btn-sm pm-btn-primary"
+                onClick={() => promoteTempArea(area, 'pasture')}
+                data-pasture-promote-pasture={area.id}
+              >
+                Pasture
+              </button>
+              <button
+                type="button"
+                className="pm-btn pm-btn-sm pm-btn-primary"
+                onClick={() => promoteTempArea(area, 'paddock')}
+                data-pasture-promote-paddock={area.id}
+              >
+                Paddock
+              </button>
+              <button type="button" className="pm-btn pm-btn-sm" onClick={() => setConfirmPromoteId(null)}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="pm-btn pm-btn-sm pm-btn-primary"
+              onClick={() => setConfirmPromoteId(area.id)}
+              data-pasture-promote={area.id}
+            >
+              Promote to permanent
+            </button>
+          )
+        ) : (
+          <div className="pm-field-action-note">{designationLabel(area)} — permanent area.</div>
+        )}
+        <div className="pm-field-action-row">
+          {isArchived ? (
+            <button
+              type="button"
+              className="pm-btn pm-btn-sm"
+              onClick={() => restoreArea(area)}
+              disabled={!canManageArea}
+              data-pasture-restore={area.id}
+            >
+              Restore
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="pm-btn pm-btn-sm"
+              onClick={() => archiveArea(area)}
+              disabled={!canManageArea}
+              data-pasture-archive={area.id}
+            >
+              {isTemp ? 'Archive temp paddock' : 'Archive'}
+            </button>
+          )}
+        </div>
+        {renderDangerZone(area)}
+      </div>
+    );
+  }
+
   return (
     <div className="pm-cockpit theme-crisp">
       {Header ? <Header /> : null}
@@ -4230,6 +4342,7 @@ export default function PastureMapView({Header, authState}) {
                 onExitTool: () => switchToolMode('select'),
               })}
               {renderFieldChrome()}
+              {renderFieldActionCard()}
             </section>
             <aside className="pm-side-panel">
               {loading ? <div className="pm-card">Loading pasture map...</div> : renderPanel()}
