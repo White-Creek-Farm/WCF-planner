@@ -7,21 +7,19 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-06-29.
-Current product checkpoint: `1f84f20`
-(`Merge pull request #51 from fix/pasture-map-hover-and-rotation-pin`).
-Latest shipped product merges include Newsletter Autopilot (`a1cdcf7`, PR #44),
-Pasture Map field/offline/header chrome (`ea02278`, PR #45), Pasture Map
-draw-temp/marker fixes (`8eba126`, PR #46), cattle processing-batch age
-display (`541d5fe`, PR #47), cattle terminal-age animal records
-(`1ac82ff`, PR #49), and Pasture Map hover-bubble + current-area rotation-pin
-trim (`1f84f20`, PR #51).
-Current docs checkpoint: this 2026-06-29 wrap pass covers PR #51 (Pasture Map
-hover-bubble trim + current-area rotation-pin suppression) plus the full PR
-#45/#46 detail (Field IA/offline guide/header portal, draw-temp save fix, and
-the teardrop occupant pin / numbered rotation markers), on top of the prior
-cattle terminal-age hotfix (PR #49), PROD newsletter migrations `146`/`151`,
-the `newsletter-harvest` v2 deploy, and the live `NEWSLETTER_AI_API_KEY` secret.
+Last updated: 2026-06-30.
+Current product checkpoint: `1e7cab0`
+(`Merge remote-tracking branch 'origin/main' into codex/residual-lanes`).
+Latest shipped product merges include residual lanes closure (`365e8c1` /
+`1e7cab0`), Newsletter redesign and production-facts fixes (`bd44a3e` /
+`4c4a259`, PR #54/#55), Newsletter Autopilot (`a1cdcf7`, PR #44), Pasture Map
+field/offline/header chrome (`ea02278`, PR #45), Pasture Map draw-temp/marker
+fixes (`8eba126`, PR #46), cattle processing-batch age display (`541d5fe`,
+PR #47), cattle terminal-age animal records (`1ac82ff`, PR #49), and Pasture Map
+hover-bubble + current-area rotation-pin trim (`1f84f20`, PR #51).
+Current docs checkpoint: this 2026-06-30 closure pass removes the completed
+Pasture, P3 derived-data/audit, parity, and design-law residual tails from the
+Build Queue; only genuinely outstanding build lanes remain there.
 Production URL: https://wcfplanner.com.
 Netlify auto-deploys from GitHub `main`.
 
@@ -74,19 +72,20 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
-- Production deploy: Netlify auto-deploys from GitHub `main`. PR #49 is live on
-  `wcfplanner.com`; the production main JS contains `Age at processing`,
-  `Age at sale`, and `Age at death`. Older main CI is known red from the
-  repo-wide 30-minute Playwright/E2E health problem, not from the newsletter,
-  pasture, or cattle hotfixes.
-- Source: latest product merge on `main` is Pasture Map hover-bubble +
-  current-area rotation-pin trim (`1f84f20`, PR #51). Recent main history also
-  includes cattle terminal-age animal records (`1ac82ff`, PR #49), cattle
-  processing-batch age display (`541d5fe`, PR #47), Newsletter Autopilot
-  (`a1cdcf7`, PR #44), Pasture Map draw-temp/marker fixes (`8eba126`, PR #46),
-  and Pasture Map field/offline/header chrome (`ea02278`, PR #45).
-- Newsletter release state: PR #44 is merged to `main`. Migrations `146` then
-  `151` are PROD-applied and verified by CC#2. The `newsletter-harvest` Edge
+- Production deploy: Netlify auto-deploys from GitHub `main`. The latest pushed
+  main checkpoint before this docs-only closure branch is `1e7cab0`, which
+  includes the residual lanes closure and the newsletter redesign/facts fixes.
+- Source: latest pushed `main` checkpoint is `1e7cab0`. Recent main history
+  includes residual lanes closure (`365e8c1` / `1e7cab0`), Newsletter redesign
+  and production-facts fixes (`bd44a3e` / `4c4a259`, PR #54/#55), Pasture Map
+  hover-bubble + current-area rotation-pin trim (`1f84f20`, PR #51), cattle
+  terminal-age animal records (`1ac82ff`, PR #49), cattle processing-batch age
+  display (`541d5fe`, PR #47), Newsletter Autopilot (`a1cdcf7`, PR #44),
+  Pasture Map draw-temp/marker fixes (`8eba126`, PR #46), and Pasture Map
+  field/offline/header chrome (`ea02278`, PR #45).
+- Newsletter release state: PR #44 plus newsletter redesign/facts PR #54/#55
+  are merged to `main`. Migrations `146` then `151` are PROD-applied and
+  verified by CC#2. The `newsletter-harvest` Edge
   Function is deployed to PROD as active version 2 (`UPDATED_AT` 2026-06-29
   15:44 UTC). Cron remains off. PR #44 received a narrow red-CI exception:
   format/lint/unit/build passed, unit tests were 6503/6503, and
@@ -223,9 +222,10 @@ Design/function invariants that govern cross-surface behavior live in
   validation was green through Prettier, focused static 51/51, lint 0 errors
   with existing warnings, build, and diff check. Broiler batch record hotfix
   validation was green through focused static tests and `npm run build`.
-  Residual non-blocking console noise observed during pasture Playwright:
-  duplicate `undefined|date` keys in HomeDashboard/LightHomePortal and Leaflet
-  `_leaflet_pos` teardown warnings during rapid navigation.
+  The prior non-blocking console-noise residuals are closed: HomeDashboard/
+  LightHomePortal no longer emit duplicate `undefined|date` keys, and rapid
+  Pasture Map navigation is guarded against Leaflet `_leaflet_pos` teardown
+  warnings.
 - Broiler derived-data drift lane is closed: merge `6b94d37` contains Codex
   `c639311` and CC#2 `6ff36c7`; code is deployed/verified; B-26-08 wk6 PROD
   repair was run through `recomputeBroilerBatchWeekAvg(sb, 'B-26-08', 6)` and
@@ -243,6 +243,36 @@ Design/function invariants that govern cross-surface behavior live in
 The following work is merged to `main` and pushed. Netlify deploys from `main`.
 The current source checkpoint is listed in the header above.
 
+- Residual lanes closure (`1e7cab0`, pushed 2026-06-30):
+  - Pasture Map teardown and Home dashboard console-noise residuals are closed:
+    Leaflet layer cleanup is guarded during rapid Map/Field navigation, and
+    id-less daily alert keys fall back to stable slugs instead of
+    `undefined|date`.
+  - The old Pasture rail "Layers" label decision is settled: the base/overlay
+    rail control is icon-only, and offline map downloads live under Field
+    "Offline setup".
+  - Derived-data durability/audit residuals are closed without PROD cleanup:
+    pig mortality and processing-trip data remain sourced from
+    `app_store.ppp-feeders-v1`, read through the pig ledger helpers, and
+    guarded by best-effort `pig.batch` Activity events; `calcPoultryStatus`
+    is null-safe; system-task orphans are detected, surfaced, and deleted only
+    through the typed audited task delete path.
+  - Parity/design residuals are closed: Home quick-nav tiles have the
+    narrow-phone `min-width: 0` guard, pig/layer empty dashboard metric cards
+    show "No data yet", and dedicated Tabs/A12 static guards cover selected
+    program-color pills and canonical program accents.
+  - Validation: residual static/unit suite 398/398, focused Pasture Playwright
+    7/7, Cattle Forecast Playwright 37/37, feed/admin/add-feed Playwright
+    23/23, and `npm run build` passed. No PROD SQL or PROD data repair was
+    applied.
+- Newsletter public/admin redesign and production-facts fix (`bd44a3e`,
+  `4c4a259`, PR #54/#55, pushed 2026-06-30):
+  - Redesigns the admin and public newsletter surfaces around a direction-first
+    workflow, with revised archive/issue styling and updated admin controls.
+  - Corrects broilers-to-processing newsletter facts and adds YoY production
+    support shared between app code and `newsletter-harvest`.
+  - Validation coverage lives in newsletter unit/static guards and
+    `tests/newsletter_public.spec.js`.
 - Cattle processing-batch age hotfix (`541d5fe`, PR #47, merged 2026-06-29):
   - Cattle processing batch record rows show each cow's age at the batch
     processing date (`actual_process_date` or `planned_process_date`) beside
@@ -1060,59 +1090,6 @@ This is the canonical home for outstanding build/design work.
      Asana import cutover, Edge Function/deploy work if any, commit, push, and
      release are separate Ronnie gates. `exec_sql` in PROD remains forbidden.
 
-3. Pasture Map post-open-line follow-ups
-   - Status: SHIPPED (PR #45, `ea02278`). Migrations `149` and `150` are
-     PROD-applied + verified. The post-open-line naming decision is settled.
-   - Class: `DONE`.
-   - Shipped in PR #45:
-     - The standalone offline field guide is in-app, served from
-       `public/pasture-map-field-guide.html` and reachable from the Field
-       "Offline setup" secondary affordance.
-     - `navigator.storage.persist()` shipped as `ensurePersistentStorage()`,
-       called best-effort on Pasture Map mount.
-     - `NOTIFY pgrst, 'reload schema'` was added to
-       `150_pasture_map_open_line_edit.sql` (text-only, for future/fresh-env
-       re-apply; not re-applied to PROD).
-   - Settled follow-up:
-     - There is no visible rail "Layers" label anymore. The right-rail
-       base/overlay control stays icon-only, and Field exposes the secondary
-       "Offline setup" affordance where Ronnie can download the offline map set.
-   - Gates: none remaining for the old label decision.
-
-4. P3 derived-data durability/audit residuals
-   - Class: `DEFECT`/`ENH`.
-   - Scope candidates from CC#2 audit: pig mortality/trips durability, cosmetic
-     `calcPoultryStatus` cleanup, and orphan system-task detection/cleanup.
-     These are not active lanes and should be scoped one at a time.
-   - Success criteria: each sub-lane states source of truth, write path, read
-     path, guard tests, and whether a one-time data repair is needed.
-   - Gate: depends on sub-lane; data cleanup needs explicit PROD approval.
-
-5. Parity Residuals
-   - Class: `ENH`.
-   - Known small follow-up from the parity rollout: Home quick-nav tiles need a
-     narrow-phone fix because `.home .tile` is missing `min-width: 0`, which can
-     let quick-nav tiles overflow at `<=375px`.
-   - Scope each separately; do not reopen a full site-wide parity pass without a
-     new audit.
-   - Gate: code-only unless a touched surface needs a guard update.
-
-6. Design-Law Compliance residual follow-ups
-   - Class: `ENH`. The CP0 compliance pass (A1-A12 + Tabs + WI-6; the 2026-06-17
-     designer audit) shipped 2026-06-18. Source of truth for the laws is
-     `CP0-SIGNOFF.md`, folded into Global Decisions + Design System above. These
-     are the deliberately deferred tails only:
-   - Section 5.4 explicit empty-state: pig/layer dashboard all-dash group cards
-     show `--` rather than a "No data yet" label. They are genuine empties
-     (A9-ok) and A10 says leave dashboards as-is, so this is low-priority polish.
-   - Optional dedicated static guards for Tabs + A12 color-discipline laws.
-     Today they are enforced by the sweep + code review + existing
-     `design_token_contract` / `openable_hover_affordance` guards.
-   - Pre-existing main test debt, unrelated to this lane: `ActivityLogView`
-     retry, `PigBatchesView` filters/grid, and `SowsView` breeding-record entry
-     point. Scope separately.
-   - Gate: code-only.
-
 ---
 
 ## Global Decisions (Constitution)
@@ -1136,13 +1113,13 @@ Rules:
 | Button height/padding | Ratified; standard button pad `10px 16px` | `design_token_contract_static.test.js` |
 | Save model | Ratified; submit-style vs autosave split | `save_model_contract_static.test.js` |
 | Ordinary text hierarchy | Ratified; Home + parity + CP0 true-black sweep shipped | `homeRedesign.css`, `index.html`, `src/shared/DataTable.css`, `design_token_contract_static.test.js` |
-| Design-law package (CP0) | Ratified 2026-06-16 (CP0-SIGNOFF A1-A12 + Tabs); compliance pass shipped 2026-06-18 | folded into Global Decisions + Design System; residual follow-ups in Build Queue 6 |
+| Design-law package (CP0) | Ratified 2026-06-16 (CP0-SIGNOFF A1-A12 + Tabs); compliance pass shipped 2026-06-18; deferred residual tails closed 2026-06-30 | folded into Global Decisions + Design System; `tests/static/non_pasture_residuals_static.test.js` |
 | True-black text (CP0 section A1) | Ratified; `--text-primary`/`--ink`/island `--text` = `#000`; `getReadableText` exempt | `design_token_contract_static.test.js`, island/openable guards |
 | One border gray (CP0 section A2) | Ratified; `--border` == `--border-strong` (one defined gray) | `index.html` token layer |
-| Program-color tabs (CP0 Tabs) | Selected tab = filled pill in program color; unselected = plain text; header sub-nav adopts it; top green chrome stays | `Header.jsx` sub-nav + `Tabs.jsx`; no dedicated static guard (Build Queue 6) |
+| Program-color tabs (CP0 Tabs) | Selected tab = filled pill in program color; unselected = plain text; header sub-nav adopts it; top green chrome stays | `Header.jsx` sub-nav + `Tabs.jsx`; `tests/static/non_pasture_residuals_static.test.js` |
 | Closed badge set (CP0 section A4) | `ok/warn/danger/info/neutral`; <=1 per row; soft signals = colored text | `Badge.jsx`; broiler/pig/cattle batch static guards assert `<Badge>` adoption |
 | One table system (CP0 section A6) | hairline rows, no zebra, right-aligned numbers, status as text first, whole-row openable | `DataTable.jsx`, `DataTable.css` |
-| Color discipline (CP0 section A12) | program accent only on pill/dot/one-figure/brand-button; closed text-color set; species = dot + black label | enforced by the sweep + `design_token_contract`/`openable_hover` guards; no dedicated grep guard (Build Queue 6) |
+| Color discipline (CP0 section A12) | program accent only on pill/dot/one-figure/brand-button; closed text-color set; species = dot + black label | dedicated guard in `tests/static/non_pasture_residuals_static.test.js` plus `design_token_contract`/`openable_hover` guards |
 | Universal hover affordance (CP0 WI-6) | tile/card openables lift 3px/300ms + trailing chevron; table rows signal via wash + cell-border + chevron without `<tr>` transform; daily record lists use div-based `.hoverable-tile` cards to get the Home-tile lift | `openable_hover_affordance_static.test.js` |
 
 Locked functional invariants:
