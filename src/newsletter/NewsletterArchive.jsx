@@ -6,9 +6,14 @@
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import React from 'react';
-import {newsletterPublicPhotoUrl, formatYearMonth, buildNewsletterIssuePath} from '../lib/newsletterApi.js';
+import {
+  newsletterPublicPhotoUrl,
+  formatYearMonth,
+  buildNewsletterIssuePath,
+  withNewsletterKey,
+} from '../lib/newsletterApi.js';
 
-export default function NewsletterArchive({sb, issues}) {
+export default function NewsletterArchive({sb, issues, accessKey}) {
   const list = Array.isArray(issues) ? issues : [];
 
   return (
@@ -27,7 +32,7 @@ export default function NewsletterArchive({sb, issues}) {
             const coverUrl = it.cover && it.cover.storagePath ? newsletterPublicPhotoUrl(sb, it.cover.storagePath) : '';
             return (
               <li key={it.slug}>
-                <a className="nl-archive-card" href={buildNewsletterIssuePath(it.slug)}>
+                <a className="nl-archive-card" href={withNewsletterKey(buildNewsletterIssuePath(it.slug), accessKey)}>
                   {coverUrl ? (
                     <span className="nl-archive-thumb">
                       <img src={coverUrl} alt={(it.cover && it.cover.altText) || ''} loading="lazy" />
@@ -48,7 +53,7 @@ export default function NewsletterArchive({sb, issues}) {
       )}
 
       <p className="nl-foot-micro" style={{marginTop: 32}}>
-        A public, no-login archive. Preview links shared before an issue is published expire after 30 days.
+        Private archive — this link refreshes each month and expires when a new one is issued. Please don’t forward it.
       </p>
     </div>
   );

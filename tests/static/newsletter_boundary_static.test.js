@@ -243,3 +243,52 @@ describe('newsletter draft overwrite guard (admin view)', () => {
     expect(view).toMatch(/b\.type === 'photo' && b\.photoId/);
   });
 });
+
+describe('migration 153 archive-link gating', () => {
+  const sql = read('supabase-migrations/153_newsletter_archive_link.sql');
+
+  function fnBody(name) {
+    const start = sql.indexOf(`FUNCTION public.${name}(`);
+    expect(start, `${name} present`).toBeGreaterThan(-1);
+    const end = sql.indexOf('$fn$;', start);
+    return sql.slice(start, end);
+  }
+
+  it('the two published-archive anon RPCs require the archive key and lock otherwise', () => {
+    for (const fn of ['list_published_newsletters', 'get_published_newsletter']) {
+      const body = fnBody(fn);
+      expect(body, `${fn} gates on the key`).toMatch(
+        /IF NOT public\._newsletter_archive_key_ok\(p_key\) THEN[\s\S]*?RETURN NULL/,
+      );
+    }
+  });
+
+  it('the key helper does a real expiry + constant-time check and is NOT anon-callable', () => {
+    const body = fnBody('_newsletter_archive_key_ok');
+    expect(body).toMatch(/now\(\) > v_expires/);
+    expect(body).toMatch(/extensions\.hmac\(/);
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\._newsletter_archive_key_ok\(text\)[\s\S]*?anon/);
+  });
+
+  it('publish mints a fresh 7-day archive key', () => {
+    const body = fnBody('publish_newsletter_issue');
+    expect(body).toMatch(/archive_access_token\s*=\s*encode\(extensions\.gen_random_bytes/);
+    expect(body).toMatch(/archive_access_expires_at\s*=\s*now\(\)\s*\+\s*interval '7 days'/);
+  });
+
+  it('the admin regenerate RPC is admin-gated and never granted to anon', () => {
+    const body = fnBody('regenerate_newsletter_archive_link');
+    expect(body).toMatch(/_newsletter_assert_admin\(\)/);
+    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.regenerate_newsletter_archive_link\(int\) TO authenticated/);
+    expect(sql).not.toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.regenerate_newsletter_archive_link\([^)]*\)[^;]*\banon\b/,
+    );
+  });
+
+  it('grants the re-signatured published reads to anon, and adds NO other anon grant', () => {
+    const anonGrants = [...sql.matchAll(/GRANT EXECUTE ON FUNCTION public\.(\w+)\([^)]*\)\s+TO\s+([^;]*)/g)]
+      .filter((m) => /\banon\b/.test(m[2]))
+      .map((m) => m[1]);
+    expect(new Set(anonGrants)).toEqual(new Set(['list_published_newsletters', 'get_published_newsletter']));
+  });
+});
