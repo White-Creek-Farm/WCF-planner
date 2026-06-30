@@ -52,6 +52,8 @@ import {
   regenerateNewsletterPreviewToken,
   getNewsletterSettings,
   updateNewsletterSettings,
+  regenerateNewsletterArchiveLink,
+  buildNewsletterArchiveLink,
   gatherNewsletterFacts,
   regenerateNewsletterDraft,
   setNewsletterPhotoPlanSlot,
@@ -1088,6 +1090,91 @@ function IssueTile({issue, onOpen}) {
 }
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
+// Public archive access link (mig 153): the rotating, expiring link people use to
+// read the newsletter. Publishing mints a fresh 7-day link automatically; this
+// card shows the current one, copies it, and regenerates on demand (instant
+// revoke — e.g. the day someone leaves).
+function ArchiveLinkCard() {
+  const [settings, setSettings] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    getNewsletterSettings(sb)
+      .then(setSettings)
+      .catch((e) => setNotice({kind: 'error', message: friendlyNewsletterError(e)}));
+  }, []);
+
+  const token = settings && settings.archiveAccessToken;
+  const expiresAt = settings && settings.archiveAccessExpiresAt;
+  const msLeft = expiresAt ? new Date(expiresAt).getTime() - Date.now() : 0;
+  const daysLeft = Math.ceil(msLeft / 86400000);
+  const active = !!token && msLeft > 0;
+  const link = active ? buildNewsletterArchiveLink(token) : '';
+
+  const regenerate = async () => {
+    setBusy(true);
+    setNotice(null);
+    setCopied(false);
+    try {
+      setSettings(await regenerateNewsletterArchiveLink(sb));
+      setNotice({kind: 'success', message: 'New link generated — the previous link no longer works.'});
+    } catch (e) {
+      setNotice({kind: 'error', message: friendlyNewsletterError(e)});
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch (_e) {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <section className="nla-rail-card nla-link-card">
+      <div className="nla-rail-head">
+        <h3 className="nla-rail-title">Public link</h3>
+        {active ? (
+          <StatusText tone={daysLeft <= 2 ? 'warn' : 'ok'}>
+            expires in {daysLeft} day{daysLeft === 1 ? '' : 's'}
+          </StatusText>
+        ) : (
+          <StatusText tone="muted">no active link</StatusText>
+        )}
+      </div>
+      {notice && <InlineNotice notice={notice} />}
+      <p className="nla-faint">
+        The private, rotating link people use to read the newsletter + archive. A new 7-day link is created each time
+        you publish; Regenerate to revoke the old one immediately (e.g. when someone leaves).
+      </p>
+      {active ? (
+        <>
+          <div className="nla-preview-url">{link}</div>
+          <div className="nla-row-tight">
+            <button type="button" className="nla-btn-sm nla-btn-primary" onClick={copy} disabled={busy}>
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            <button type="button" className="nla-btn-sm" onClick={regenerate} disabled={busy}>
+              Regenerate
+            </button>
+          </div>
+        </>
+      ) : (
+        <button type="button" className="nla-btn-sm nla-btn-primary" onClick={regenerate} disabled={busy || !settings}>
+          Generate link
+        </button>
+      )}
+    </section>
+  );
+}
+
+// eslint-disable-next-line no-unused-vars -- JSX-only use
 function IssueList({onOpen, onSettings}) {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1168,6 +1255,8 @@ function IssueList({onOpen, onSettings}) {
       {notice && <InlineNotice notice={notice} />}
 
       {!loading && !error && <ThisMonthSpotlight issues={issues} onOpen={onOpen} onNotice={setNotice} />}
+
+      <ArchiveLinkCard />
 
       {loading ? (
         <div className="nla-loading">Loading…</div>
