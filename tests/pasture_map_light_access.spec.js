@@ -112,9 +112,10 @@ async function dropStableShape(page) {
     await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     await page.waitForTimeout(140);
   };
-  await page.locator('[data-pasture-drop-point]').click();
-  await tap(0.3, 0.22);
-  await tap(0.7, 0.22);
+  // Tap-to-place three corners in the empty band above the seeded paddocks.
+  await tap(0.5, 0.18);
+  await tap(0.3, 0.32);
+  await tap(0.7, 0.32);
   await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 10_000});
 }
 
@@ -171,11 +172,11 @@ test('light can draw + SAVE a Field temp paddock (drawIsTemp form is allowed for
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // Field "Draw paddock" -> custom drop-point mode (enabled because light has
+  // Field "Draw paddock" -> tap-to-place draw mode (enabled because light has
   // canCreateTrack).
   await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
   await page.locator('[data-pasture-field-draw]').click();
-  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible({timeout: 15_000});
 
   // Build a stable temp paddock via deterministic tap-to-place (no drag physics).
   await dropStableShape(page);

@@ -11,8 +11,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
-import {area as turfArea} from '@turf/area';
-import {lineMetrics, polygonMetrics, ringPerimeterM, SQM_PER_ACRE} from '../lib/pastureGeometry.js';
+import {lineMetrics, polygonMetrics} from '../lib/pastureGeometry.js';
 import {getCachedTile, naipTileUrl} from '../lib/pastureImagery.js';
 
 const WCF_CENTER = [30.84175647927683, -86.43686683451689];
@@ -267,34 +266,6 @@ function labelFor(a) {
   return [a.name || 'Unnamed', acres].filter(Boolean).join(' - ');
 }
 
-function liveMetricsFromLayer(layer) {
-  let latlngs;
-  try {
-    latlngs = layer.getLatLngs();
-  } catch {
-    return null;
-  }
-  while (Array.isArray(latlngs) && latlngs.length && Array.isArray(latlngs[0])) latlngs = latlngs[0];
-  if (!Array.isArray(latlngs) || latlngs.length < 2)
-    return {acres: null, perimeterFt: null, points: latlngs ? latlngs.length : 0};
-  const ring = latlngs.map((p) => [p.lng, p.lat]);
-  const closedRing = [...ring, ring[0]];
-  let acres = null;
-  if (ring.length >= 3) {
-    try {
-      acres =
-        Math.round(
-          (turfArea({type: 'Feature', geometry: {type: 'Polygon', coordinates: [closedRing]}, properties: {}}) /
-            SQM_PER_ACRE) *
-            100,
-        ) / 100;
-    } catch {
-      acres = null;
-    }
-  }
-  return {acres, perimeterFt: Math.round(ringPerimeterM(ring, false) * 3.28084), points: ring.length};
-}
-
 function layerCenter(layer) {
   if (!layer || !layer.getBounds) return null;
   const b = layer.getBounds();
@@ -463,10 +434,14 @@ export default function PastureMapCanvas({
   const [locateState, setLocateState] = React.useState('off');
   const locateStateRef = React.useRef('off');
   locateStateRef.current = locateState;
-  // Custom Drop Point draw (CP-D): own the in-progress polygon vertices so the
-  // crosshair center-drop + tap-to-place + Undo work without Geoman internals.
+  // Custom tap-to-place polygon draw: own the in-progress polygon vertices so
+  // click/tap-to-place + draggable vertex handles + Undo work without Geoman
+  // internals. Shared by BOTH the Map "Draw temp paddock" and the Field "Draw
+  // paddock" (modes 'draw' and 'droppin'). The cursor shows a crosshair over the
+  // map; there is no fixed on-screen crosshair overlay.
   const dropVertsRef = React.useRef([]);
-  const dropLayerRef = React.useRef(null);
+  const dropLayerRef = React.useRef(null); // the in-progress polygon/polyline outline
+  const dropMarkersRef = React.useRef([]); // one draggable handle per vertex
   const dropClickRef = React.useRef(null);
   // Saved distance measurements (CP-E): the last measured line geometry + the
   // rendered layer of persisted measurements.
@@ -968,6 +943,8 @@ export default function PastureMapCanvas({
       }
       measureVertsRef.current = [];
       safeClearLayerRef(dropLayerRef);
+      dropMarkersRef.current.forEach((m) => m.remove());
+      dropMarkersRef.current = [];
       dropVertsRef.current = [];
       clearTemp();
     }
@@ -977,32 +954,21 @@ export default function PastureMapCanvas({
     const writeMode = mode === 'draw' || mode === 'edit' || mode === 'droppin';
     if (writeMode && !canWrite) return;
 
-    if (mode === 'draw') {
-      map.pm.enableDraw('Polygon', {snappable: true, snapDistance: 20, continueDrawing: false});
-      map.on('pm:drawstart', ({workingLayer}) => {
-        if (!workingLayer) return;
-        const upd = () => {
-          const m = liveMetricsFromLayer(workingLayer);
-          if (m) setHud({...m, live: true, mode: 'draw'});
-        };
-        workingLayer.on('pm:vertexadded', upd);
-        workingLayer.on('pm:change', upd);
-      });
-      map.on('pm:create', (e) => {
-        const layer = e.layer;
-        const gj = layer.toGeoJSON().geometry;
-        const metrics = polygonMetrics(gj);
-        clearTemp();
-        tempRef.current = layer;
-        if (layer.setStyle) layer.setStyle({color: '#2f7a46', weight: 3, fillColor: '#3F9B5B', fillOpacity: 0.22});
-        setHud({...metrics, frozen: true, mode: 'draw'});
-        try {
-          map.pm.disableDraw();
-        } catch {
-          /* noop */
-        }
-        cbRef.current.onDrawComplete && cbRef.current.onDrawComplete(gj, metrics);
-      });
+    if (mode === 'draw' || mode === 'droppin') {
+      // Unified tap-to-place polygon builder (Map "Draw temp paddock" + Field
+      // "Draw paddock"): each map click/tap drops a vertex at the cursor, every
+      // vertex is a draggable handle (tweak placement), Undo pops the last, Save
+      // closes the ring (>=3 pts) and hands it up via onDrawComplete. No Geoman
+      // draw, no fixed-center crosshair.
+      dropVertsRef.current = [];
+      renderDropShape();
+      const onMapClick = (e) => {
+        if (!e || !e.latlng) return;
+        dropVertsRef.current = [...dropVertsRef.current, e.latlng];
+        renderDropShape();
+      };
+      map.on('click', onMapClick);
+      dropClickRef.current = onMapClick;
     } else if (mode === 'measure') {
       // Two-point distance ruler (NOT Geoman, NOT an area/multi-segment tool): tap
       // point A, tap point B, and the measurement freezes automatically into exactly
@@ -1026,18 +992,6 @@ export default function PastureMapCanvas({
         layer.on('pm:edit', onChange);
         onChange();
       }
-    } else if (mode === 'droppin') {
-      // Custom drop-point polygon: vertices come from the Drop point button (map
-      // center) and tap-to-place (map clicks). No Geoman draw is enabled here.
-      dropVertsRef.current = [];
-      renderDropShape();
-      const onMapClick = (e) => {
-        if (!e || !e.latlng) return;
-        dropVertsRef.current = [...dropVertsRef.current, e.latlng];
-        renderDropShape();
-      };
-      map.on('click', onMapClick);
-      dropClickRef.current = onMapClick;
     }
 
     return teardown;
@@ -1268,44 +1222,35 @@ export default function PastureMapCanvas({
     }
   }
 
-  // Drop Point (custom, Geoman-independent): own the in-progress polygon vertices
-  // so the fixed-center crosshair workflow works reliably. The user pans the map
-  // under the crosshair and taps Drop point to add a vertex at center; tapping the
-  // map (tap-to-place) adds one wherever tapped. Undo pops the last, Save closes
-  // the ring (>=3 pts) and hands it up via onDrawComplete, Cancel discards.
-  function renderDropShape() {
+  // Tap-to-place polygon (custom, Geoman-independent): own the in-progress polygon
+  // vertices. Each map tap/click drops a vertex at the cursor; every vertex is a
+  // draggable handle so its placement can be tweaked. Undo pops the last, Save
+  // closes the ring (>=3 pts) and hands it up via onDrawComplete, Cancel discards.
+  // updateDropOutline redraws ONLY the polygon/polyline so a live vertex drag
+  // reflows the shape without tearing down + recreating the draggable handles.
+  function updateDropOutline() {
     const map = mapRef.current;
     if (!map) return;
     safeClearLayerRef(dropLayerRef);
     const verts = dropVertsRef.current;
-    if (!verts.length) {
-      setHud(null);
-      return;
-    }
-    const g = L.layerGroup();
     if (verts.length >= 3) {
-      L.polygon(verts, {
+      dropLayerRef.current = L.polygon(verts, {
         color: '#2f7a46',
         weight: 3,
         fillColor: '#3F9B5B',
         fillOpacity: 0.22,
         interactive: false,
-      }).addTo(g);
+      }).addTo(map);
     } else if (verts.length === 2) {
-      L.polyline(verts, {color: '#2f7a46', weight: 3, interactive: false}).addTo(g);
+      dropLayerRef.current = L.polyline(verts, {color: '#2f7a46', weight: 3, interactive: false}).addTo(map);
     }
-    verts.forEach((ll) => {
-      L.circleMarker(ll, {
-        radius: 5,
-        color: '#0f5132',
-        fillColor: '#ffffff',
-        fillOpacity: 1,
-        weight: 2,
-        interactive: false,
-      }).addTo(g);
-    });
-    g.addTo(map);
-    dropLayerRef.current = g;
+  }
+  function updateDropHud() {
+    const verts = dropVertsRef.current;
+    if (!verts.length) {
+      setHud(null);
+      return;
+    }
     if (verts.length >= 3) {
       const m = polygonMetrics(dropPolygonGeoJSON(verts));
       setHud({...m, live: true, mode: 'draw'});
@@ -1313,11 +1258,45 @@ export default function PastureMapCanvas({
       setHud({acres: null, perimeterFt: null, live: true, mode: 'draw'});
     }
   }
-  function dropPoint() {
+  function renderDropShape() {
     const map = mapRef.current;
     if (!map) return;
-    dropVertsRef.current = [...dropVertsRef.current, map.getCenter()];
-    renderDropShape();
+    const verts = dropVertsRef.current;
+    // Drop markers that no longer have a vertex (after Undo). We only ever append
+    // a vertex (tap) or pop the last (Undo), so a marker's index never shifts and
+    // the drag handlers below can safely close over their index.
+    while (dropMarkersRef.current.length > verts.length) {
+      const extra = dropMarkersRef.current.pop();
+      if (extra) extra.remove();
+    }
+    verts.forEach((ll, i) => {
+      const existing = dropMarkersRef.current[i];
+      if (existing) {
+        existing.setLatLng(ll);
+        return;
+      }
+      const mk = L.marker(ll, {
+        draggable: true,
+        keyboard: false,
+        zIndexOffset: 1000,
+        icon: L.divIcon({className: 'pm-drop-vertex', iconSize: [18, 18], iconAnchor: [9, 9]}),
+      });
+      // Tweak placement by dragging: update this vertex and reflow the outline
+      // live; refresh acreage/perimeter once the drag settles.
+      mk.on('drag', () => {
+        dropVertsRef.current[i] = mk.getLatLng();
+        updateDropOutline();
+      });
+      mk.on('dragend', () => {
+        dropVertsRef.current[i] = mk.getLatLng();
+        updateDropOutline();
+        updateDropHud();
+      });
+      mk.addTo(map);
+      dropMarkersRef.current[i] = mk;
+    });
+    updateDropOutline();
+    updateDropHud();
   }
   function undoPoint() {
     if (!dropVertsRef.current.length) return;
@@ -1338,6 +1317,8 @@ export default function PastureMapCanvas({
   }
   function cancelDraw() {
     safeClearLayerRef(dropLayerRef);
+    dropMarkersRef.current.forEach((m) => m.remove());
+    dropMarkersRef.current = [];
     dropVertsRef.current = [];
     setHud(null);
     if (onExitTool) onExitTool();
@@ -1353,12 +1334,11 @@ export default function PastureMapCanvas({
       }
     >
       <div ref={elRef} className="pm-map" data-pasture-map-canvas="1" />
-      {mode === 'droppin' && !compact && <div className="pm-crosshair" aria-hidden="true" data-pasture-crosshair="1" />}
-      {mode === 'droppin' && !compact && canWrite && !(hud && hud.frozen) && (
+      {(mode === 'draw' || mode === 'droppin') && !compact && canWrite && !(hud && hud.frozen) && (
         <div className="pm-drawbar" data-pasture-drawbar="1">
-          <button type="button" className="pm-drawbar-btn is-primary" onClick={dropPoint} data-pasture-drop-point="1">
-            Drop point
-          </button>
+          <span className="pm-drawbar-hint" data-pasture-drawbar-hint="1">
+            Tap the map to place points · drag a point to adjust
+          </span>
           <button type="button" className="pm-drawbar-btn" onClick={undoPoint} data-pasture-drop-undo="1">
             Undo
           </button>

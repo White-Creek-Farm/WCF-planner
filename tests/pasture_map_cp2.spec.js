@@ -63,18 +63,18 @@ async function tapDropShape(page, points) {
 }
 
 async function dropStableShape(page) {
-  await page.locator('[data-pasture-drop-point]').click();
+  // Tap-to-place three corners -> a simple, non-self-intersecting triangle.
   await tapDropShape(page, [
-    [0.3, 0.22],
-    [0.7, 0.22],
+    [0.5, 0.55],
+    [0.3, 0.25],
+    [0.7, 0.25],
   ]);
 }
 
 async function startFieldDraw(page) {
   await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
   await page.locator('[data-pasture-field-draw]').click();
-  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
-  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible();
+  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible({timeout: 15_000});
 }
 
 async function openBullsRecord(page) {
@@ -188,7 +188,7 @@ test('CP1 regression + CP2 draw/measure/edit/cancel', async ({page}) => {
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
   await page.locator('[data-pasture-field-draw]').click();
-  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible({timeout: 15_000});
   await page.waitForTimeout(800);
   await page.screenshot({path: path.join(SHOTS, '06-mobile-draw-mode.png'), fullPage: true});
 });

@@ -58,23 +58,22 @@ test('stateful My Location cycles off -> follow -> heading -> off and acquires a
   await expect(page.locator('.pm-gps-msg')).toHaveCount(0);
 });
 
-// Build a stable, non-self-intersecting paddock WITHOUT drag physics: the Drop
-// point button seeds a vertex at the deterministic map centre, then two tap-to-place
-// corners complete a simple triangle. Fixed screen fractions => identical geometry
-// locally and in CI (the old drag-traced square self-intersected intermittently
-// under CI timing, leaving Save disabled).
+// Build a stable, non-self-intersecting paddock WITHOUT drag physics: tap-to-place
+// corners at fixed screen fractions => identical geometry locally and in CI (the
+// old drag-traced square self-intersected intermittently under CI timing, leaving
+// Save disabled). Each tap drops a vertex at the cursor; >=3 corners give acreage.
 async function dropStableShape(page) {
   const box = await page.locator('.pm-map').boundingBox();
   const tap = async (fx, fy) => {
     await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
     await page.waitForTimeout(140);
   };
-  await page.locator('[data-pasture-drop-point]').click();
-  await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 10_000});
+  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible({timeout: 10_000});
   const acres = page.locator('[data-pasture-hud] .pm-hud-v').first();
   for (const [fx, fy] of [
-    [0.3, 0.22],
-    [0.7, 0.22],
+    [0.5, 0.55],
+    [0.3, 0.25],
+    [0.7, 0.25],
     [0.68, 0.62],
     [0.36, 0.62],
   ]) {
@@ -89,14 +88,14 @@ test('Drop Point builds a temp paddock in Field (drop + tap-to-place + Save)', a
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
 
-  // Enter Field draw mode -> the fixed-center crosshair + bottom thumb-zone bar.
+  // Enter Field draw mode -> the bottom thumb-zone draw bar (cursor crosshair on
+  // the map; no fixed-center crosshair overlay).
   await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
   await page.locator('[data-pasture-field-draw]').click();
-  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
-  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible();
+  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible({timeout: 15_000});
 
-  // Drop point (centre) + tap-to-place corners build a stable, non-self-intersecting
-  // shape (deterministic screen points; no drag physics). The live HUD proves it.
+  // Tap-to-place corners build a stable, non-self-intersecting shape (deterministic
+  // screen points; no drag physics). The live HUD proves it.
   await dropStableShape(page);
 
   // Save finishes the shape -> the temp paddock draw form opens.
@@ -122,15 +121,14 @@ test('Walk tracker records, pauses, resumes, and shows a live duration', async (
   await expect(page.locator('[data-pasture-track-state]')).toHaveAttribute('data-pasture-track-state', 'recording');
 });
 
-test('Field draw Cancel exits the drop-point mode', async ({page}) => {
+test('Field draw Cancel exits the draw mode', async ({page}) => {
   await page.setViewportSize({width: 1280, height: 900});
   await page.goto('/pasture-map', {timeout: 90_000});
   await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
   await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
   await page.locator('[data-pasture-field-draw]').click();
-  await expect(page.locator('[data-pasture-crosshair]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-pasture-drawbar]')).toBeVisible({timeout: 15_000});
   await page.locator('[data-pasture-drop-cancel]').click();
-  await expect(page.locator('[data-pasture-crosshair]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-drawbar]')).toHaveCount(0);
 });
 

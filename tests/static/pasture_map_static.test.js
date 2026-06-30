@@ -401,20 +401,29 @@ describe('V1 reset — Walk tracker Pause/Resume + live duration (CP-D)', () => 
   });
 });
 
-describe('V1 reset — Field Drop Point crosshair (CP-D)', () => {
-  it('custom drop-point draw: crosshair + Drop point / Undo / Save / Cancel bar, no Geoman vertex internals', () => {
-    expect(canvasSrc).toContain('data-pasture-crosshair');
-    expect(canvasSrc).toContain('data-pasture-drop-point');
-    expect(canvasSrc).toContain('data-pasture-drop-save');
-    expect(canvasSrc).toContain('function dropPoint');
-    // Custom drop-point mode owns its vertices (Geoman-independent): Drop point adds
-    // the map center, tap-to-place adds map clicks, Save closes the ring upward.
-    expect(canvasSrc).toContain("mode === 'droppin'");
+describe('Tap-to-place paddock draw (unified Map + Field)', () => {
+  it('cursor-crosshair tap-to-place with draggable vertices; no fixed crosshair, no Drop point, no Geoman draw', () => {
+    // The old fixed-center crosshair overlay + "Drop point" center-drop are gone.
+    expect(canvasSrc).not.toContain('data-pasture-crosshair');
+    expect(canvasSrc).not.toContain('data-pasture-drop-point');
+    expect(canvasSrc).not.toContain('function dropPoint');
+    // No Geoman polygon draw / pm:create: the custom tap-to-place engine owns it.
+    expect(canvasSrc).not.toContain("enableDraw('Polygon'");
+    expect(canvasSrc).not.toContain("map.on('pm:create'");
+    // Both Map "Draw temp paddock" (draw) and Field "Draw paddock" (droppin) run
+    // the SAME engine: a map click drops a vertex, every vertex is draggable.
+    expect(canvasSrc).toContain("mode === 'draw' || mode === 'droppin'");
     expect(canvasSrc).toContain('function renderDropShape');
-    expect(canvasSrc).toContain('map.getCenter()');
+    expect(canvasSrc).toContain('draggable: true');
+    expect(canvasSrc).toContain("className: 'pm-drop-vertex'");
+    // Undo / Save / Cancel bar remains; Save closes the ring upward.
+    expect(canvasSrc).toContain('data-pasture-drop-save');
+    expect(canvasSrc).toContain('data-pasture-drop-undo');
+    expect(canvasSrc).toContain('data-pasture-drop-cancel');
     expect(canvasSrc).toContain('onDrawComplete(gj, metrics)');
-    // Field "Draw paddock" drives the custom drop-point mode.
+    // Field "Draw paddock" drives droppin; Map "Draw temp paddock" drives draw.
     expect(viewSrc).toContain("switchToolMode('droppin')");
+    expect(viewSrc).toContain("switchToolMode('draw')");
   });
 });
 
@@ -743,19 +752,24 @@ describe('CP2 API wrappers + draw/edit UI', () => {
   });
 
   it('keeps a completed draw visible while the save form is open', () => {
-    // Draw and measure now have separate pm:create handlers; the draw one is the
-    // one that calls onDrawComplete and keeps the layer (tempRef), not removing it.
-    const drawHandler = canvasSrc.match(/map\.on\('pm:create'[\s\S]*?cbRef\.current\.onDrawComplete/)?.[0] || '';
-    expect(drawHandler).toContain('tempRef.current = layer');
-    expect(drawHandler).not.toContain('map.removeLayer(layer)');
+    // The tap-to-place engine freezes the HUD on Save and hands the geometry up
+    // via onDrawComplete; it does NOT clear the outline layer on Save (only Cancel
+    // / teardown do), so the drawn shape stays on the map under the save form.
+    const save = canvasSrc.match(/function saveShape\(\)[\s\S]*?\n {2}\}/)?.[0] || '';
+    expect(save).toContain('onDrawComplete');
+    expect(save).not.toContain('safeClearLayerRef(dropLayerRef)');
+    expect(save).not.toContain('dropMarkersRef.current = []');
   });
 
   it('guards Leaflet teardown during rapid Field navigation', () => {
     expect(canvasSrc).toContain('function safeRemoveLayer');
     expect(canvasSrc).toContain('function releaseMapLayers');
-    expect(canvasSrc).not.toMatch(/\b(?:trackRef|rotationRef|measureLayerRef|previewRef|locateRef|dropLayerRef)\.current\.remove\(\)/);
+    expect(canvasSrc).not.toMatch(
+      /\b(?:trackRef|rotationRef|measureLayerRef|previewRef|locateRef|dropLayerRef)\.current\.remove\(\)/,
+    );
     expect(canvasSrc).not.toContain('map.removeLayer(tempRef.current)');
-    const mapCleanup = canvasSrc.match(/return \(\) => \{[\s\S]*?map\.remove\(\);[\s\S]*?\};\r?\n  \}, \[compact\]\);/)?.[0] || '';
+    const mapCleanup =
+      canvasSrc.match(/return \(\) => \{[\s\S]*?map\.remove\(\);[\s\S]*?\};\r?\n {2}\}, \[compact\]\);/)?.[0] || '';
     expect(mapCleanup).toContain('releaseMapLayers();');
     expect(mapCleanup).toMatch(/map\._wcfRemoving = true;[\s\S]*?mapRef\.current = null;[\s\S]*?map\.remove\(\);/);
     expect(mapCleanup).toMatch(/try \{\s*map\.remove\(\);\s*\} catch/);

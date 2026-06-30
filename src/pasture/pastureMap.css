@@ -388,6 +388,13 @@
   cursor: crosshair;
 }
 
+/* Existing paddock polygons are .leaflet-interactive with a default pointer
+   cursor that would otherwise override the crosshair when the cursor passes over
+   them mid-draw. Keep the crosshair everywhere on the drawing surface. */
+.pm-map-wrap.is-drawing .leaflet-interactive {
+  cursor: crosshair;
+}
+
 .pm-map-wrap.is-drawing .pm-map-banner,
 .pm-map-wrap.is-drawing .pm-control-rail,
 .pm-map-wrap.is-drawing .pm-drawbar,
@@ -401,6 +408,44 @@
 .pm-map-wrap.is-drawing .pm-drawbar-btn,
 .pm-map-wrap.is-drawing .leaflet-control a {
   cursor: pointer;
+}
+
+/* The Leaflet scale readout ("200 ft") is purely informational; without this it
+   sits over the bottom-left of the draw bar and steals clicks from Cancel. */
+.pm-map-wrap .leaflet-control-scale {
+  pointer-events: none;
+}
+
+/* Draggable vertex handle for the tap-to-place draw: a grabbable dot the user can
+   drag to tweak where a point landed. Overrides the crosshair with a move cursor. */
+.pm-drop-vertex {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #0f5132;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(7, 10, 8, 0.4);
+  cursor: move;
+  cursor: grab;
+}
+
+.pm-drop-vertex:active {
+  cursor: grabbing;
+}
+
+.pm-map-wrap.is-drawing .pm-drop-vertex {
+  cursor: grab;
+}
+
+/* Tap instruction inside the draw bar (replaces the old fixed-center crosshair). */
+.pm-drawbar-hint {
+  flex: 1 1 100%;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d7e4d8;
+  text-align: center;
+  margin-bottom: 4px;
 }
 
 .pm-map-wrap.is-compact {
