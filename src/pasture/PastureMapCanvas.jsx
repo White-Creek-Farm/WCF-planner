@@ -1344,7 +1344,14 @@ export default function PastureMapCanvas({
   }
 
   return (
-    <div className={'pm-map-wrap' + (compact ? ' is-compact' : '') + (appMode === 'field' ? ' is-field' : '')}>
+    <div
+      className={
+        'pm-map-wrap' +
+        (compact ? ' is-compact' : '') +
+        (appMode === 'field' ? ' is-field' : '') +
+        (mode === 'draw' || mode === 'droppin' ? ' is-drawing' : '')
+      }
+    >
       <div ref={elRef} className="pm-map" data-pasture-map-canvas="1" />
       {mode === 'droppin' && !compact && <div className="pm-crosshair" aria-hidden="true" data-pasture-crosshair="1" />}
       {mode === 'droppin' && !compact && canWrite && !(hud && hud.frozen) && (

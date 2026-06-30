@@ -40,6 +40,7 @@ const mig149 = read('supabase-migrations/149_pasture_map_rest_history_reconcilia
 const mig149Code = mig149.replace(/--[^\n]*/g, '');
 const mig150 = read('supabase-migrations/150_pasture_map_open_line_edit.sql');
 const mig150Code = mig150.replace(/--[^\n]*/g, '');
+const mig152 = read('supabase-migrations/152_pasture_map_manager_hard_delete.sql');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -1224,13 +1225,30 @@ describe('P0 temp-paddock lifecycle (mig 135) API + role/occupancy contract', ()
     expect(mig135Code).not.toContain('Move animals out of this temp paddock');
   });
 
-  it('hard delete is admin-only, detaches children, uses deleted_at (D3 no purge)', () => {
+  it('hard delete baseline (mig135) detaches children + uses deleted_at (D3 no purge)', () => {
     const body = mig135.match(/hard_delete_land_area\([\s\S]*?\$fn\$;/)?.[0] || '';
+    // mig135 shipped admin-only; mig152 later widens the role gate (asserted below).
     expect(body).toMatch(/v_role <> 'admin'/);
     expect(body).toContain('SET parent_id = NULL WHERE parent_id = p_id');
     expect(body).toContain('deleted_at = now(), deleted_by = v_caller');
     // v1 keeps geometry: no DELETE of land_area_geometry_versions / land_areas.
     expect(body).not.toMatch(/DELETE FROM public\.land_area/);
+  });
+
+  it('mig152 widens hard delete to management+admin, keeps occupancy guard + no purge', () => {
+    const body = mig152.match(/hard_delete_land_area\([\s\S]*?\$fn\$;/)?.[0] || '';
+    // Role gate moves from admin-only to management+admin.
+    expect(body).toMatch(/v_role NOT IN \('management', 'admin'\)/);
+    expect(body).not.toMatch(/v_role <> 'admin'/);
+    // Occupancy guard, child-detach, and the soft-delete (no purge) path are kept.
+    expect(body).toContain('public._land_area_is_occupied(p_id)');
+    expect(body).toContain('PM_VALIDATION: PM_AREA_OCCUPIED');
+    expect(body).toContain('SET parent_id = NULL WHERE parent_id = p_id');
+    expect(body).toContain('deleted_at = now(), deleted_by = v_caller');
+    expect(body).not.toMatch(/DELETE FROM public\.land_area/);
+    // Grant stays authenticated-only (server-side role check does the gating).
+    expect(mig152).toContain('REVOKE ALL ON FUNCTION public.hard_delete_land_area(text) FROM PUBLIC, anon');
+    expect(mig152).toContain('GRANT EXECUTE ON FUNCTION public.hard_delete_land_area(text) TO authenticated');
   });
 
   it('every new public RPC is granted to authenticated only (no anon/PUBLIC/light)', () => {
@@ -1408,7 +1426,7 @@ describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Fi
     expect(viewSrc).toMatch(/PM_AREA_OCCUPIED'.*\?.*PM_AREA_OCCUPIED_COPY/);
   });
 
-  it('Setup: permanent designation select + temp promotion, archive/restore/admin hard-delete copy, no raw prompts', () => {
+  it('Setup: permanent designation select + temp promotion, archive/restore/manager hard-delete copy, no raw prompts', () => {
     expect(viewSrc).toContain('classifyDesignation');
     // Permanent areas pick Pasture/Paddock; temp areas are promoted explicitly
     // (no free "Temp paddock" <option> that could silently demote a permanent area).
@@ -1416,8 +1434,9 @@ describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Fi
     expect(viewSrc).toContain('>Paddock<');
     expect(viewSrc).not.toMatch(/<option value="temp">/);
     expect(viewSrc).toContain('Archive temp paddock');
-    // Hard delete moved to a deliberate admin-only Danger zone (renderDangerZone),
-    // not adjacent to archive/restore/redraw.
+    // Hard delete lives in a deliberate Danger zone (renderDangerZone), not
+    // adjacent to archive/restore/redraw. It is now management+admin gated
+    // (self-gated on isManager) to match mig152.
     expect(viewSrc).toContain('function renderDangerZone');
     expect(viewSrc).toContain('data-pasture-danger-zone');
     expect(viewSrc).toMatch(/Permanently hard delete /);
@@ -1425,8 +1444,53 @@ describe('One-shot redesign: Setup lifecycle / Reports tags / Plan conflict / Fi
     expect(viewSrc).toContain('data-pasture-archive');
     expect(viewSrc).toContain('data-pasture-restore');
     expect(viewSrc).toContain('data-pasture-hard-delete');
-    expect(viewSrc).toContain('isAdmin &&');
+    // Danger zone self-gates on isManager; admin-only gating is retired.
+    expect(viewSrc).toMatch(/function renderDangerZone\(area\) \{\s*if \(!area \|\| !isManager\)/);
+    expect(viewSrc).not.toContain('const isAdmin =');
     expect(viewSrc).not.toMatch(/window\.(confirm|alert|prompt)\(/);
+  });
+
+  it('active group is explicit-only (no groups[0] default) and clears on tab change', () => {
+    // No implicit groups[0] fallback: a null active group is a real "nothing
+    // armed" state so drawing/tapping never silently adds to a rotation.
+    expect(viewSrc).not.toMatch(/groups\.find\(\(group\) => group\.id === activeGroupId\) \|\| groups\[0\]/);
+    expect(viewSrc).toContain('groups.find((group) => group.id === activeGroupId) || null');
+    // The reset effect no longer auto-selects groups[0]; it only drops a stale id.
+    expect(viewSrc).not.toContain('setActiveGroupFromGroup(groups[0])');
+    // switchAppMode auto-deselects the armed group on every tab change.
+    const switchBody = viewSrc.slice(
+      viewSrc.indexOf('function switchAppMode'),
+      viewSrc.indexOf('function switchToolMode'),
+    );
+    expect(switchBody).toContain('setActiveGroupId(null)');
+    // Visible deselect control + armed-group pill in the group switcher.
+    expect(viewSrc).toContain('data-pasture-group-deselect');
+    expect(viewSrc).toContain('data-pasture-group-armed');
+  });
+
+  it('Field tab exposes a compact manager action card (promote / archive / hard delete)', () => {
+    expect(viewSrc).toContain('function renderFieldActionCard');
+    expect(viewSrc).toContain('data-pasture-field-action-card');
+    // Gated to the Field tab + a selected area + manager.
+    const cardBody = viewSrc.slice(
+      viewSrc.indexOf('function renderFieldActionCard'),
+      viewSrc.indexOf('<div className="pm-cockpit'),
+    );
+    expect(cardBody).toMatch(/appMode !== 'field' \|\| !selectedArea \|\| !isManager/);
+    // Reuses the shared promote confirm + danger zone, not a parallel impl.
+    expect(cardBody).toContain('data-pasture-promote');
+    expect(cardBody).toContain('renderDangerZone(area)');
+    // Rendered in the Field map column.
+    expect(viewSrc).toContain('{renderFieldActionCard()}');
+  });
+
+  it('paddock draw shows a crosshair map surface with arrow/pointer controls', () => {
+    // Canvas flags the draw/droppin surface so cursor rules can target it.
+    expect(canvasSrc).toMatch(/mode === 'draw' \|\| mode === 'droppin' \? ' is-drawing'/);
+    // CSS: crosshair on the map, default/pointer on the on-map controls.
+    expect(pastureCss).toContain('.pm-map-wrap.is-drawing .pm-map');
+    expect(pastureCss).toMatch(/\.pm-map-wrap\.is-drawing[\s\S]*?cursor: crosshair/);
+    expect(pastureCss).toMatch(/\.pm-map-wrap\.is-drawing[\s\S]*?cursor: default/);
   });
 
   it('Reports: status/type tags incl. Deleted, archived included by default', () => {
