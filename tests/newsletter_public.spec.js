@@ -12,6 +12,10 @@ import {test, expect} from './fixtures.js';
 
 const SHOTS = 'newsletter-shots';
 const PREVIEW_TOKEN = 'a'.repeat(32);
+// Archive access key (mig 153): the published archive + issue pages are gated by
+// a rotating key. Seed a known one so the logged-out tests can read; clear it in
+// afterAll so the singleton returns to a locked state.
+const ACCESS_KEY = 'k'.repeat(40);
 const PUB = {id: 'nli-2099-11', ym: '2099-11', slug: '2099-11', title: 'White Creek Farm November 2099 Review'};
 const DRAFT = {id: 'nli-2099-10', ym: '2099-10', slug: '2099-10', title: 'White Creek Farm October 2099 Review'};
 
@@ -89,6 +93,17 @@ async function seedNewsletter(supabaseAdmin) {
   // Fail loud: PostgREST bulk insert sends a missing key as NULL (bypassing the
   // column default), so a schema/payload mismatch must not be swallowed.
   if (seedErr) throw new Error('newsletter seed insert failed: ' + seedErr.message);
+
+  // Mig 153: set a known, unexpired archive access key so the gated public reads
+  // succeed for these tests.
+  const {error: setErr} = await supabaseAdmin
+    .from('newsletter_settings')
+    .update({
+      archive_access_token: ACCESS_KEY,
+      archive_access_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+    })
+    .eq('id', 'singleton');
+  if (setErr) throw new Error('newsletter settings archive key seed failed: ' + setErr.message);
 }
 
 test.beforeAll(async ({supabaseAdmin}) => {
@@ -97,15 +112,37 @@ test.beforeAll(async ({supabaseAdmin}) => {
 
 test.afterAll(async ({supabaseAdmin}) => {
   await supabaseAdmin.from('newsletter_issues').delete().in('id', [PUB.id, DRAFT.id]);
+  // Re-lock: clear the seeded archive key.
+  await supabaseAdmin
+    .from('newsletter_settings')
+    .update({archive_access_token: null, archive_access_expires_at: null})
+    .eq('id', 'singleton');
 });
 
 test.describe('public newsletter (logged out)', () => {
   // Drop the admin storageState — these must work with NO session.
   test.use({storageState: {cookies: [], origins: []}});
 
-  test('renders archive, issue, latest, and token preview above the login gate', async ({page}) => {
-    // Archive — the public surface mounts; it is NOT the LoginScreen.
+  test('a missing/invalid archive key shows the locked screen, not the archive', async ({page}) => {
+    // No key at all -> locked.
     await page.goto('/newsletter');
+    await expect(page.getByRole('heading', {name: 'This link has expired'})).toBeVisible();
+    await expect(page.locator('.nl-archive')).toHaveCount(0);
+    await cleanShot(page, 'public-locked-desktop');
+    // Wrong key -> locked (the RPC returns null for a non-matching key).
+    await page.goto('/newsletter?key=not-the-real-key');
+    await expect(page.getByRole('heading', {name: 'This link has expired'})).toBeVisible();
+    await expect(page.locator('.nl-archive')).toHaveCount(0);
+    // A published issue URL without the key is also locked (no leak by raw slug).
+    await page.goto(`/newsletter/${PUB.slug}`);
+    await expect(page.getByRole('heading', {name: 'This link has expired'})).toBeVisible();
+    await expect(page.locator('.nl-issue')).toHaveCount(0);
+  });
+
+  test('renders archive, issue, latest, and token preview above the login gate', async ({page}) => {
+    const k = `?key=${ACCESS_KEY}`;
+    // Archive (with a valid key) — the public surface mounts; it is NOT the LoginScreen.
+    await page.goto(`/newsletter${k}`);
     await expect(page.locator('.nl-archive')).toBeVisible();
     await expect(page.getByRole('heading', {name: 'Monthly Review'})).toBeVisible();
     await expect(page.getByText(PUB.title)).toBeVisible();
@@ -114,40 +151,43 @@ test.describe('public newsletter (logged out)', () => {
     await cleanShot(page, 'public-archive-desktop');
 
     // Published issue page renders whitelisted blocks.
-    await page.goto(`/newsletter/${PUB.slug}`);
+    await page.goto(`/newsletter/${PUB.slug}${k}`);
     await expect(page.locator('.nl-issue')).toBeVisible();
     await expect(page.getByText('A Great November')).toBeVisible();
     await expect(page.getByText('Cattle on farm')).toBeVisible();
     await cleanShot(page, 'public-issue-desktop');
 
-    // /newsletter/latest resolves to a published issue slug.
-    await page.goto('/newsletter/latest');
+    // /newsletter/latest resolves to a published issue slug (key carried through).
+    await page.goto(`/newsletter/latest${k}`);
     await expect(page.locator('.nl-issue')).toBeVisible();
-    await expect(page).toHaveURL(/\/newsletter\/\d{4}-\d{2}$/);
+    await expect(page).toHaveURL(/\/newsletter\/\d{4}-\d{2}\?key=/);
 
-    // Token preview shows the draft + preview banner (draft, unexpired token).
+    // Token preview shows the draft + preview banner (draft, unexpired token) —
+    // the preview path uses its own token and needs no archive key.
     await page.goto(`/newsletter/${DRAFT.slug}?preview=${PREVIEW_TOKEN}`);
     await expect(page.locator('.nl-preview-banner')).toBeVisible();
     await expect(page.getByText('October Draft Heading')).toBeVisible();
     await cleanShot(page, 'public-preview-desktop');
 
-    // A draft without a token, and with a wrong token, is "not found".
-    await page.goto(`/newsletter/${DRAFT.slug}`);
-    await expect(page.getByText('Issue not found')).toBeVisible();
+    // A draft slug (not published) even WITH a valid key is "not available";
+    // a wrong preview token is "not available" too.
+    await page.goto(`/newsletter/${DRAFT.slug}${k}`);
+    await expect(page.getByRole('heading', {name: 'Issue not available'})).toBeVisible();
     await page.goto(`/newsletter/${DRAFT.slug}?preview=wrong-token`);
-    await expect(page.getByText('Issue not found')).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Preview not available'})).toBeVisible();
 
     // noindex meta is present on the public surface.
-    await page.goto(`/newsletter/${PUB.slug}`);
+    await page.goto(`/newsletter/${PUB.slug}${k}`);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
   });
 
   test('renders on a phone viewport', async ({page}) => {
+    const k = `?key=${ACCESS_KEY}`;
     await page.setViewportSize({width: 390, height: 844});
-    await page.goto('/newsletter');
+    await page.goto(`/newsletter${k}`);
     await expect(page.locator('.nl-archive')).toBeVisible();
     await cleanShot(page, 'public-archive-mobile');
-    await page.goto(`/newsletter/${PUB.slug}`);
+    await page.goto(`/newsletter/${PUB.slug}${k}`);
     await expect(page.locator('.nl-issue')).toBeVisible();
     await cleanShot(page, 'public-issue-mobile');
   });
@@ -158,6 +198,9 @@ test.describe('admin newsletter (admin)', () => {
     await page.goto('/admin/newsletter');
     await expect(page.getByRole('heading', {name: 'Monthly Newsletter'})).toBeVisible();
     await expect(page.getByText(PUB.title)).toBeVisible();
+    // The rotating public-link control (mig 153) is surfaced with the seeded key.
+    await expect(page.getByRole('heading', {name: 'Public link'})).toBeVisible();
+    await expect(page.getByRole('button', {name: /Copy link|Generate link/})).toBeVisible();
     await cleanShot(page, 'admin-list-desktop');
 
     // Issues are openable hover-lift tiles (A6 affordance) — the whole tile opens

@@ -97,14 +97,18 @@ export function formatYearMonth(yearMonth) {
 
 // ── Anon (public) reads — the only three anon-reachable RPCs ─────────────────
 
-export async function listPublishedNewsletters(sb) {
-  const {data, error} = await sb.rpc('list_published_newsletters');
+// The archive is gated by a rotating access key (mig 153). The RPC returns NULL
+// when the key is missing/invalid/expired (LOCKED) and [] when the key is valid
+// but nothing is published yet — so callers can tell "locked" from "empty".
+export async function listPublishedNewsletters(sb, key) {
+  const {data, error} = await sb.rpc('list_published_newsletters', {p_key: key ?? null});
   if (error) throw new Error(`listPublishedNewsletters: ${error.message || String(error)}`);
+  if (data == null) return null; // locked
   return Array.isArray(data) ? data : [];
 }
 
-export async function getPublishedNewsletter(sb, slug) {
-  const {data, error} = await sb.rpc('get_published_newsletter', {p_slug: slug});
+export async function getPublishedNewsletter(sb, slug, key) {
+  const {data, error} = await sb.rpc('get_published_newsletter', {p_slug: slug, p_key: key ?? null});
   if (error) throw new Error(`getPublishedNewsletter: ${error.message || String(error)}`);
   return data || null;
 }
@@ -314,6 +318,32 @@ export async function getNewsletterSettings(sb) {
   const {data, error} = await sb.rpc('get_newsletter_settings');
   if (error) throw new Error(`getNewsletterSettings: ${error.message || String(error)}`);
   return data || {};
+}
+
+// Admin: mint a fresh public archive access link (mig 153). Instantly revokes the
+// prior link; the new key is valid for `days` (server clamps 1..60, default 7).
+// Returns the updated settings (including the new archiveAccessToken + expiry).
+export async function regenerateNewsletterArchiveLink(sb, days) {
+  const {data, error} = await sb.rpc('regenerate_newsletter_archive_link', {
+    p_days: Number.isFinite(days) ? days : null,
+  });
+  if (error) throw new Error(`regenerateNewsletterArchiveLink: ${error.message || String(error)}`);
+  return data || {};
+}
+
+// Build the shareable public archive URL for a given key (origin-aware).
+export function buildNewsletterArchiveLink(key) {
+  if (!key) return '';
+  const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+  return `${origin}/newsletter?key=${encodeURIComponent(key)}`;
+}
+
+// Append the gated archive key to an internal newsletter path so navigation
+// keeps the link working (archive -> issue -> back all carry ?key=).
+export function withNewsletterKey(path, key) {
+  if (!key) return path;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}key=${encodeURIComponent(key)}`;
 }
 
 export async function updateNewsletterSettings(

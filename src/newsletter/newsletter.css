@@ -102,6 +102,14 @@
   max-width: 680px;
   margin: 0 auto;
 }
+.nl-locked {
+  text-align: center;
+}
+.nl-locked p {
+  color: var(--ink-muted, #6b7280);
+  font-size: 16px;
+  line-height: 1.6;
+}
 
 /* ── Kicker / eyebrow / titles ───────────────────────────────────────────── */
 .nl-kicker,

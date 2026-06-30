@@ -7,7 +7,12 @@
 import React from 'react';
 // eslint-disable-next-line no-unused-vars -- NewsletterBlocks is JSX-only use
 import NewsletterBlocks, {renderNewsletterBlock} from './NewsletterBlocks.jsx';
-import {newsletterPublicPhotoUrl, formatYearMonth, buildNewsletterIssuePath} from '../lib/newsletterApi.js';
+import {
+  newsletterPublicPhotoUrl,
+  formatYearMonth,
+  buildNewsletterIssuePath,
+  withNewsletterKey,
+} from '../lib/newsletterApi.js';
 
 function formatPublishedDate(iso) {
   if (!iso) return '';
@@ -49,7 +54,7 @@ function collectReferencedPhotoIds(blocks) {
   return ids;
 }
 
-export default function NewsletterIssuePage({sb, data, isPreview = false, moreIssues = []}) {
+export default function NewsletterIssuePage({sb, data, isPreview = false, moreIssues = [], accessKey = null}) {
   const urlFor = React.useCallback((storagePath) => newsletterPublicPhotoUrl(sb, storagePath), [sb]);
 
   const photos = React.useMemo(() => (Array.isArray(data && data.photos) ? data.photos : []), [data]);
@@ -115,7 +120,10 @@ export default function NewsletterIssuePage({sb, data, isPreview = false, moreIs
                 it.cover && it.cover.storagePath ? newsletterPublicPhotoUrl(sb, it.cover.storagePath) : '';
               return (
                 <li key={it.slug}>
-                  <a className="nl-archive-card nl-more-card" href={buildNewsletterIssuePath(it.slug)}>
+                  <a
+                    className="nl-archive-card nl-more-card"
+                    href={withNewsletterKey(buildNewsletterIssuePath(it.slug), accessKey)}
+                  >
                     {coverUrl ? (
                       <span className="nl-archive-thumb">
                         <img src={coverUrl} alt={(it.cover && it.cover.altText) || ''} loading="lazy" />
@@ -137,10 +145,12 @@ export default function NewsletterIssuePage({sb, data, isPreview = false, moreIs
       )}
 
       <footer className="nl-issue-footer">
-        <a className="nl-back" href="/newsletter">
-          ← All issues
-        </a>
-        <span className="nl-foot-micro">Public, no-login archive · White Creek Farm</span>
+        {!isPreview && (
+          <a className="nl-back" href={withNewsletterKey('/newsletter', accessKey)}>
+            ← All issues
+          </a>
+        )}
+        <span className="nl-foot-micro">White Creek Farm · Monthly Review</span>
       </footer>
     </article>
   );
