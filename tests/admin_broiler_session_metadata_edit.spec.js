@@ -1,12 +1,12 @@
 import {test, expect} from './fixtures.js';
 
 // ============================================================================
-// Admin broiler session metadata edit (WK + team_member)
+// Admin broiler session metadata edit (WK + locked team_member)
 // ============================================================================
 // Drives /weigh-in-sessions/<id> (WeighInSessionPage) and /broiler/weighins
 // (LivestockWeighInsView, now navigation-only) under the default
 // authenticated storage state. Locks the metadata panel on the record page,
-// broiler-only visibility, legacy team_member preservation, and the
+// broiler-only visibility, locked team_member preservation, and the
 // side-effect on app_store.ppp-v4 (recompute OLD week / write NEW week)
 // when a complete session's broiler_week changes.
 //
@@ -21,9 +21,10 @@ async function readPppV4Batch(supabaseAdmin, batchName) {
 }
 
 // =============================================================================
-// T1 — Edit DRAFT session: WK 4→6 + team BMAN→JANE; ppp-v4 untouched.
+// T1 — Edit DRAFT session: WK 4→6 while locked team BMAN is preserved;
+//      ppp-v4 untouched.
 // =============================================================================
-test('T1: edit draft session WK + team_member; ppp-v4 untouched', async ({
+test('T1: edit draft session WK only; locked team_member preserved; ppp-v4 untouched', async ({
   page,
   supabaseAdmin,
   adminBroilerSessionMetaScenario,
@@ -32,9 +33,11 @@ test('T1: edit draft session WK + team_member; ppp-v4 untouched', async ({
   await page.goto('/weigh-in-sessions/' + draftId);
 
   await expect(page.locator('[data-testid="broiler-meta-panel"]')).toBeVisible({timeout: 15_000});
+  const lockedTeam = page.locator('[data-team-member-select-locked="1"]');
+  await expect(lockedTeam).toContainText('BMAN');
+  await expect(lockedTeam).toContainText('signed in');
 
   await page.getByTestId('broiler-meta-wk6').click();
-  await page.getByTestId('broiler-meta-team').selectOption({label: 'JANE'});
   await page.getByTestId('broiler-meta-save').click();
 
   await expect(page.getByTestId('broiler-meta-save')).toHaveCount(0, {timeout: 10_000});
@@ -42,7 +45,7 @@ test('T1: edit draft session WK + team_member; ppp-v4 untouched', async ({
   const {data: rows} = await supabaseAdmin.from('weigh_in_sessions').select('*').eq('id', draftId);
   expect(rows).toHaveLength(1);
   expect(rows[0].broiler_week).toBe(6);
-  expect(rows[0].team_member).toBe('JANE');
+  expect(rows[0].team_member).toBe('BMAN');
   expect(rows[0].status).toBe('draft');
 
   const batch = await readPppV4Batch(supabaseAdmin, batchId);
@@ -51,9 +54,10 @@ test('T1: edit draft session WK + team_member; ppp-v4 untouched', async ({
 });
 
 // =============================================================================
-// T2 — Edit COMPLETE session: team_member only; ppp-v4 untouched.
+// T2 — COMPLETE session displays locked team_member and does not offer a
+//      metadata save when nothing changed; ppp-v4 untouched.
 // =============================================================================
-test('T2: edit complete session team_member only; ppp-v4 untouched', async ({
+test('T2: complete session locked team_member display; no dirty save; ppp-v4 untouched', async ({
   page,
   supabaseAdmin,
   adminBroilerSessionMetaScenario,
@@ -62,13 +66,14 @@ test('T2: edit complete session team_member only; ppp-v4 untouched', async ({
   await page.goto('/weigh-in-sessions/' + completeId);
 
   await expect(page.locator('[data-testid="broiler-meta-panel"]')).toBeVisible({timeout: 15_000});
-
-  await page.getByTestId('broiler-meta-team').selectOption({label: 'JANE'});
-  await page.getByTestId('broiler-meta-save').click();
-  await expect(page.getByTestId('broiler-meta-save')).toHaveCount(0, {timeout: 10_000});
+  const lockedTeam = page.locator('[data-team-member-select-locked="1"]');
+  await expect(lockedTeam).toContainText('BMAN');
+  await expect(lockedTeam).toContainText('signed in');
+  await expect(page.locator('[data-testid="broiler-meta-team"]')).toHaveCount(0);
+  await expect(page.getByTestId('broiler-meta-save')).toHaveCount(0);
 
   const {data: rows} = await supabaseAdmin.from('weigh_in_sessions').select('*').eq('id', completeId);
-  expect(rows[0].team_member).toBe('JANE');
+  expect(rows[0].team_member).toBe('BMAN');
   expect(rows[0].broiler_week).toBe(4);
 
   const batch = await readPppV4Batch(supabaseAdmin, batchId);
@@ -249,8 +254,8 @@ test('T6: pig complete session does NOT show the broiler metadata panel', async 
 
 // =============================================================================
 // T7 — Legacy team_member preservation on the record page. Session has
-//      team_member='RETIREE' not in active roster; dropdown shows it with
-//      "(retired)" suffix, and a WK-only save preserves team_member.
+//      team_member='RETIREE' from old data; locked display shows the saved
+//      value and a WK-only save preserves team_member.
 // =============================================================================
 test('T7: legacy team_member preserved across a WK-only save', async ({
   page,
@@ -326,9 +331,10 @@ test('T7: legacy team_member preserved across a WK-only save', async ({
   await page.goto('/weigh-in-sessions/' + retiredId);
   await expect(page.locator('[data-testid="broiler-meta-panel"]')).toBeVisible({timeout: 15_000});
 
-  const teamSelect = page.getByTestId('broiler-meta-team');
-  await expect(teamSelect).toHaveValue('RETIREE');
-  await expect(teamSelect.locator('option', {hasText: 'RETIREE (retired)'})).toHaveCount(1);
+  const lockedTeam = page.locator('[data-team-member-select-locked="1"]');
+  await expect(lockedTeam).toContainText('RETIREE');
+  await expect(lockedTeam).toContainText('signed in');
+  await expect(page.locator('[data-testid="broiler-meta-team"]')).toHaveCount(0);
 
   await page.getByTestId('broiler-meta-wk6').click();
   await page.getByTestId('broiler-meta-save').click();

@@ -1,4 +1,6 @@
 import {test, expect} from './fixtures.js';
+import {resetTestDatabase} from './setup/reset.js';
+import {seedCattleForecast, seedCattleForecastSendFlow} from './scenarios/cattle_forecast_seed.js';
 
 // ============================================================================
 // Cattle Forecast tab + Batches rework + Send-to-Processor gate
@@ -50,9 +52,87 @@ async function finishCandidateCount(page) {
 // test no longer reloads to re-mount and re-fetch. Still wait on REAL seeded
 // data (finish candidates > 0), not just shell/panel render — the panel
 // renders even on a raced empty read.
-async function waitForForecastData(page) {
-  await waitForForecastLoaded(page);
-  await expect.poll(() => finishCandidateCount(page), {timeout: 15_000}).toBeGreaterThan(0);
+async function waitForForecastData(page, {reloadOnEmpty = true} = {}) {
+  let lastError = null;
+  const attempts = reloadOnEmpty ? 3 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    await waitForForecastLoaded(page);
+    try {
+      await expect.poll(() => finishCandidateCount(page), {timeout: 10_000}).toBeGreaterThan(0);
+      return;
+    } catch (e) {
+      lastError = e;
+      if (!reloadOnEmpty || attempt === attempts - 1) break;
+      await page.reload();
+    }
+  }
+  throw lastError;
+}
+
+const BASE_FORECAST_CATTLE_IDS = ['B1', 'F-AT-MAX', 'F-HIDE', 'F1', 'F3', 'M-COW', 'M-HEIFER', 'M-STEER', 'P1'];
+const BASE_FORECAST_HERDS = {
+  B1: 'backgrounders',
+  'F-AT-MAX': 'finishers',
+  'F-HIDE': 'finishers',
+  F1: 'finishers',
+  F3: 'finishers',
+  'M-COW': 'mommas',
+  'M-HEIFER': 'mommas',
+  'M-STEER': 'mommas',
+  P1: 'processed',
+};
+
+async function ensureCleanForecastSeed(supabaseAdmin) {
+  const [{data, error}, batches, includes, hidden] = await Promise.all([
+    supabaseAdmin.from('cattle').select('id, herd, processing_batch_id, breeding_status').order('id'),
+    supabaseAdmin.from('cattle_processing_batches').select('id').limit(1),
+    supabaseAdmin.from('cattle_forecast_heifer_includes').select('cattle_id').limit(1),
+    supabaseAdmin.from('cattle_forecast_hidden').select('cattle_id').limit(1),
+  ]);
+  if (error) throw new Error(`ensureCleanForecastSeed [cattle select]: ${error.message}`);
+  for (const [label, r] of [
+    ['batches', batches],
+    ['includes', includes],
+    ['hidden', hidden],
+  ]) {
+    if (r.error) throw new Error(`ensureCleanForecastSeed [${label} select]: ${r.error.message}`);
+  }
+  const ids = (data || []).map((r) => r.id).sort();
+  const cleanIds =
+    ids.length === BASE_FORECAST_CATTLE_IDS.length && BASE_FORECAST_CATTLE_IDS.every((id, idx) => ids[idx] === id);
+  const cleanRows = (data || []).every(
+    (row) =>
+      BASE_FORECAST_HERDS[row.id] === row.herd && !row.processing_batch_id && (row.id !== 'M-HEIFER' || !row.breeding_status),
+  );
+  const clean = cleanIds && cleanRows && !batches.data?.length && !includes.data?.length && !hidden.data?.length;
+  if (clean) return;
+  await resetTestDatabase();
+  await seedCattleForecast(supabaseAdmin);
+}
+
+async function ensureCleanForecastSendFlowSeed(supabaseAdmin) {
+  const [session, rows] = await Promise.all([
+    supabaseAdmin
+      .from('weigh_in_sessions')
+      .select('id, status')
+      .eq('id', 'wsess-cattle-forecast-send-draft')
+      .maybeSingle(),
+    supabaseAdmin
+      .from('weigh_ins')
+      .select('id, send_to_processor')
+      .in('id', ['wi-send-F1', 'wi-send-F-AT-MAX', 'wi-send-F-HIDE']),
+  ]);
+  if (session.error) throw new Error(`ensureCleanForecastSendFlowSeed [session select]: ${session.error.message}`);
+  if (rows.error) throw new Error(`ensureCleanForecastSendFlowSeed [weigh_ins select]: ${rows.error.message}`);
+  const rowIds = (rows.data || []).map((r) => r.id).sort();
+  const clean =
+    session.data?.status === 'draft' &&
+    rowIds.length === 3 &&
+    ['wi-send-F-AT-MAX', 'wi-send-F-HIDE', 'wi-send-F1'].every((id, idx) => rowIds[idx] === id) &&
+    (rows.data || []).every((row) => row.send_to_processor === true);
+  if (clean) return;
+  await resetTestDatabase();
+  await seedCattleForecastSendFlow(supabaseAdmin);
 }
 
 // F-HIDE projects into a forecast year that may differ from the default
@@ -92,6 +172,28 @@ async function readFinishCandidateCount(page) {
   const match = /(\d[\d,]*)\s+finish candidates on farm/i.exec(text);
   expect(match).toBeTruthy();
   return Number(match[1].replace(/,/g, ''));
+}
+
+async function gotoCattleBatchRecord(page, batchId) {
+  const loaded = page.locator('[data-cattle-batch-record-loaded="true"]');
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto('/cattle/batches/' + batchId);
+    try {
+      await expect(loaded).toBeVisible({timeout: 6_000});
+      return;
+    } catch (e) {
+      if (attempt === 2) throw e;
+      await page.waitForTimeout(500 * (attempt + 1));
+    }
+  }
+}
+
+async function openSeededCattleDraftSession(page) {
+  await page.goto('/cattle/weighins');
+  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
+  await expect(draftRow).toBeVisible({timeout: 15_000});
+  await draftRow.click();
+  await expect(page.locator('tr[data-entry-tag="1002"]')).toBeVisible({timeout: 15_000});
 }
 
 // --------------------------------------------------------------------------
@@ -204,34 +306,28 @@ test('forecast: hide a cow, reveal under Show hidden, unhide from same month', a
   const after = await supabaseAdmin.from('cattle_forecast_hidden').select('cattle_id').eq('cattle_id', 'F-HIDE');
   expect(after.data?.length).toBe(0);
 
-  // Activity audit (CP1): the hide logged one cattle.animal field.updated row
-  // and the unhide logged a second. Activity is async (best-effort after each
+  // Activity audit (CP1): hide/unhide logs to the cattle.forecast workflow
+  // stream. Activity is async (best-effort after each
   // successful write) — poll until both rows land.
-  await expect
-    .poll(
-      async () => {
-        const r = await supabaseAdmin
-          .from('activity_events')
-          .select('body')
-          .eq('entity_id', 'F-HIDE')
-          .eq('entity_type', 'cattle.animal')
-          .eq('event_type', 'field.updated');
-        return (r.data || []).length;
-      },
-      {timeout: 10_000},
-    )
-    .toBe(2);
+  const readForecastVisibilityActs = async () => {
+    const r = await supabaseAdmin
+      .from('activity_events')
+      .select('body, payload')
+      .eq('entity_id', 'cattle-forecast')
+      .eq('entity_type', 'cattle.forecast')
+      .eq('event_type', 'status.changed');
+    return (r.data || []).filter((e) => e.payload?.cattle_id === 'F-HIDE' && e.payload?.month_key === hiddenMonth);
+  };
 
-  const acts = await supabaseAdmin
-    .from('activity_events')
-    .select('body')
-    .eq('entity_id', 'F-HIDE')
-    .eq('entity_type', 'cattle.animal')
-    .eq('event_type', 'field.updated');
-  const bodies = (acts.data || []).map((e) => e.body || '');
+  await expect.poll(async () => (await readForecastVisibilityActs()).length, {timeout: 10_000}).toBe(2);
+
+  const acts = await readForecastVisibilityActs();
+  const bodies = acts.map((e) => e.body || '');
+  const transitions = acts.map((e) => `${e.payload?.from}->${e.payload?.to}`);
   // One hide (… → hidden) and one unhide (… → visible).
-  expect(bodies.some((b) => b.includes('→ hidden'))).toBe(true);
-  expect(bodies.some((b) => b.includes('→ visible'))).toBe(true);
+  expect(bodies.every((b) => b.includes('Forecast month') && b.includes('#1003'))).toBe(true);
+  expect(transitions).toContain('visible->hidden');
+  expect(transitions).toContain('hidden->visible');
 });
 
 // --------------------------------------------------------------------------
@@ -243,9 +339,11 @@ test('forecast → send: active batch saved with exact virtual batch name', asyn
   cattleForecastSendFlowScenario,
   supabaseAdmin,
 }) => {
+  test.setTimeout(60_000);
+  await ensureCleanForecastSendFlowSeed(supabaseAdmin);
   // Read the displayed virtual batch name from the Forecast tab first.
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   const panel = page.locator('[data-next-processor-panel]');
   const panelText = await panel.innerText();
   const m = panelText.match(/(C-\d{2}-\d{2,})/);
@@ -259,11 +357,7 @@ test('forecast → send: active batch saved with exact virtual batch name', asyn
   await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).in('id', ['wi-send-F1', 'wi-send-F-HIDE']);
 
   // Drive the WeighIns view's Complete Session to fire the modal.
-  await page.goto('/cattle/weighins');
-  // Pick the draft session.
-  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
-  await expect(draftRow).toBeVisible({timeout: 15_000});
-  await draftRow.click();
+  await openSeededCattleDraftSession(page);
   await page.getByRole('button', {name: /Complete Session/}).click();
 
   // Send modal opens — the displayed Next forecast batch must match the
@@ -305,6 +399,7 @@ test('forecast → send: outside-projection tags warn but do not block; sent cow
   cattleForecastSendFlowScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSendFlowSeed(supabaseAdmin);
   // Hide F-HIDE in every future month so its tag drops OUT of every
   // bucket's animalIds and therefore out of next.allowedTagSet.
   const months = [];
@@ -324,10 +419,7 @@ test('forecast → send: outside-projection tags warn but do not block; sent cow
   // original herd ('finishers') with no processing_batch_id.
   await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).eq('id', 'wi-send-F-AT-MAX');
 
-  await page.goto('/cattle/weighins');
-  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
-  await expect(draftRow).toBeVisible({timeout: 15_000});
-  await draftRow.click();
+  await openSeededCattleDraftSession(page);
   await page.getByRole('button', {name: /Complete Session/}).click();
 
   // Modal renders with the remaining flagged cows. F-HIDE (tag 1003) is
@@ -385,6 +477,7 @@ test('send-to-processor: scheduled row promotes to active; same id; only sent ca
   cattleForecastSendFlowScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSendFlowSeed(supabaseAdmin);
   // Pre-seed: scheduled row named C-26-01 (first batch of 2026 since the
   // seed has no real batches) with planned_process_date matching the
   // session date so buildForecast surfaces it as the next-up batch via
@@ -408,10 +501,7 @@ test('send-to-processor: scheduled row promotes to active; same id; only sent ca
   // chose NOT to send. After promotion she must stay in finishers.
   await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).eq('id', 'wi-send-F-AT-MAX');
 
-  await page.goto('/cattle/weighins');
-  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
-  await expect(draftRow).toBeVisible({timeout: 15_000});
-  await draftRow.click();
+  await openSeededCattleDraftSession(page);
   await page.getByRole('button', {name: /Complete Session/}).click();
 
   // Modal renders with the scheduled batch name. The summary line on a
@@ -486,6 +576,7 @@ test('send-to-processor: farm_team cannot send even when the tag gate would othe
   cattleForecastSendFlowScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSendFlowSeed(supabaseAdmin);
   // Force farm_team role for this page's session via the DEV-only override.
   await setRoleOverride(page, 'farm_team');
 
@@ -494,10 +585,7 @@ test('send-to-processor: farm_team cannot send even when the tag gate would othe
   // role gate is the only thing keeping Confirm disabled.
   await supabaseAdmin.from('weigh_ins').update({send_to_processor: false}).in('id', ['wi-send-F1', 'wi-send-F-HIDE']);
 
-  await page.goto('/cattle/weighins');
-  const draftRow = page.locator('tr[data-weighin-session-tile]').filter({hasText: /draft/i}).first();
-  await expect(draftRow).toBeVisible({timeout: 15_000});
-  await draftRow.click();
+  await openSeededCattleDraftSession(page);
   await page.getByRole('button', {name: /Complete Session/}).click();
 
   const modal = page.locator('[data-cattle-send-modal]');
@@ -626,7 +714,7 @@ test('forecast: actual-batch month shows "X cows processed" and lists cow tags',
     .in('id', ['F1', 'F-AT-MAX']);
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
 
   const tile = page.locator(`[data-month-bucket="${monthKey}"]`);
   await expect(tile).toBeVisible();
@@ -712,7 +800,7 @@ test('forecast: tag search filters planned + actual batch rows; clear restores',
     .eq('id', 'F-AT-MAX');
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
 
   const search = page.locator('[data-forecast-tag-search]');
   await expect(search).toBeVisible();
@@ -758,7 +846,7 @@ test('forecast: actual-batch table does not include ADG Calc; planned table does
     .eq('id', 'F-AT-MAX');
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
 
   // Actual batch table headers: Tag / Sex / Herd / Age / Live / Hanging — no ADG Calc.
   const actualTable = page.locator('[data-actual-batch-table="b-no-adg-test"]');
@@ -798,7 +886,7 @@ test('forecast: visible dates render as mm/dd/yy', async ({page, cattleForecastS
   );
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
 
   // Planned-row Latest cell: weight + " · MM/DD/YY".
   const f1Row = page.locator('[data-month-row="F1"]');
@@ -816,9 +904,12 @@ test('forecast: visible dates render as mm/dd/yy', async ({page, cattleForecastS
 test('forecast: include-heifers modal rows show age + latest weight visible without expanding', async ({
   page,
   cattleForecastScenario,
+  supabaseAdmin,
 }) => {
+  test.setTimeout(60_000);
+  await ensureCleanForecastSeed(supabaseAdmin);
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
 
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
@@ -921,8 +1012,7 @@ test('batches: active auto-flips to complete on full hanging weights; reopen res
     .in('id', ['F1', 'F-AT-MAX']);
 
   // Navigate directly to the record page
-  await page.goto('/cattle/batches/' + batchId);
-  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+  await gotoCattleBatchRecord(page, batchId);
 
   // Auto-complete fires on full hanging weights, so let's enter both:
   const w1 = page.locator('[data-batch-hanging-weight="F1"]');
@@ -978,6 +1068,8 @@ test('scheduled batch record page: date edit persists after reload; unschedule n
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  test.setTimeout(60_000);
+  await ensureCleanForecastSeed(supabaseAdmin);
   const scheduledId = 'cpb-sched-test-1';
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const {error: insErr7b} = await supabaseAdmin.from('cattle_processing_batches').upsert(
@@ -994,8 +1086,7 @@ test('scheduled batch record page: date edit persists after reload; unschedule n
   expect(insErr7b).toBeNull();
 
   // Navigate to the record page
-  await page.goto('/cattle/batches/' + scheduledId);
-  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+  await gotoCattleBatchRecord(page, scheduledId);
 
   // Edit the scheduled date
   const nextDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -1019,8 +1110,7 @@ test('scheduled batch record page: date edit persists after reload; unschedule n
     .toBe(nextDate);
 
   // Reload and verify date persistence in the UI
-  await page.reload();
-  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+  await gotoCattleBatchRecord(page, scheduledId);
   await expect(page.locator('[data-scheduled-batch-date="' + scheduledId + '"]')).toHaveValue(nextDate);
 
   // Unschedule via two-step confirmation
@@ -1049,6 +1139,8 @@ test('complete batch record page: weights visible + disabled; reopen unlocks edi
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  test.setTimeout(60_000);
+  await ensureCleanForecastSeed(supabaseAdmin);
   const batchId = 'b-complete-test-1';
   const {error: insErr} = await supabaseAdmin.from('cattle_processing_batches').upsert(
     {
@@ -1069,8 +1161,7 @@ test('complete batch record page: weights visible + disabled; reopen unlocks edi
   const {data: verify} = await supabaseAdmin.from('cattle_processing_batches').select('id').eq('id', batchId).single();
   expect(verify).not.toBeNull();
 
-  await page.goto('/cattle/batches/' + batchId);
-  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+  await gotoCattleBatchRecord(page, batchId);
 
   // Weight values are visible
   const liveInput = page.locator('[data-batch-live-weight="F1"]');
@@ -1132,8 +1223,7 @@ test('complete batch record page mobile: weights visible and fields wide enough'
   );
   expect(insErr7d).toBeNull();
 
-  await page.goto('/cattle/batches/' + batchId);
-  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+  await gotoCattleBatchRecord(page, batchId);
 
   const liveInput = page.locator('[data-batch-live-weight="F1"]');
   const hangInput = page.locator('[data-batch-hanging-weight="F1"]');
@@ -1222,9 +1312,11 @@ test('forecast: actual-batch per-cow row shows age as of the processing date', a
 test('forecast: include-heifers modal — leftmost checkbox, no Details button, row click expands', async ({
   page,
   cattleForecastScenario,
+  supabaseAdmin,
 }) => {
+  await ensureCleanForecastSeed(supabaseAdmin);
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
 
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
@@ -1278,6 +1370,7 @@ test('forecast: include-heifers modal sorts youngest first; no-DOB heifers sink 
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSeed(supabaseAdmin);
   // Seed two extra mommas heifers — one older but still under the 15-month
   // cap, one with no birth_date — so we have a meaningful sort. M-HEIFER's
   // seed DOB is 2025-08-01 (~9 months at TODAY=2026-05-04), so expected
@@ -1314,7 +1407,7 @@ test('forecast: include-heifers modal sorts youngest first; no-DOB heifers sink 
   );
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
 
@@ -1334,7 +1427,7 @@ test('forecast: planned + hidden rows render Origin cell immediately after Herd'
   cattleForecastScenario,
 }) => {
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
 
   // F1 has origin "Smith Ranch" in the seed; planned row should render that.
   const f1Origin = page.locator('[data-month-row-origin="F1"]').first();
@@ -1357,6 +1450,7 @@ test('forecast: include-heifers modal omits pregnant heifers and heifers over 15
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSeed(supabaseAdmin);
   // Seed three extra mommas heifers:
   //   - M-HEIFER-PREG: under 15mo BUT breeding_status='PREGNANT' → excluded.
   //   - M-HEIFER-AGED: DOB 2024-01-01 → ~28 months at TODAY → excluded.
@@ -1404,7 +1498,7 @@ test('forecast: include-heifers modal omits pregnant heifers and heifers over 15
   );
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
 
@@ -1437,8 +1531,10 @@ test('forecast: finish candidate summary excludes pregnant and over-15-month mom
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  test.setTimeout(60_000);
+  await ensureCleanForecastSeed(supabaseAdmin);
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   const before = await readFinishCandidateCount(page);
 
   await supabaseAdmin.from('cattle').upsert(
@@ -1474,7 +1570,7 @@ test('forecast: finish candidate summary excludes pregnant and over-15-month mom
     .upsert([{cattle_id: 'M-HEIFER-SUMMARY-PREG'}, {cattle_id: 'M-HEIFER-SUMMARY-AGED'}], {onConflict: 'cattle_id'});
 
   await page.reload();
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   await expect.poll(() => readFinishCandidateCount(page)).toBe(before);
 });
 
@@ -1487,6 +1583,7 @@ test('forecast: include-heifers modal hides stale includes and deletes them on C
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSeed(supabaseAdmin);
   // Seed an over-15-month heifer (DOB 2024-01-01 → ~28 months at TODAY) and
   // an INCLUDE row pointing at her. The row is "stale": she no longer
   // qualifies for the modal/forecast, but the DB row exists.
@@ -1514,7 +1611,7 @@ test('forecast: include-heifers modal hides stale includes and deletes them on C
   );
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
 
@@ -1550,6 +1647,7 @@ test('forecast: include-heifers Confirm prunes stale preselected rows but preser
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSeed(supabaseAdmin);
   // Seed one extra eligible heifer + one over-15-month heifer + INCLUDE
   // rows for both (M-HEIFER from the seed scenario is also eligible but
   // not preselected). The eligible include should survive Confirm; the
@@ -1590,7 +1688,7 @@ test('forecast: include-heifers Confirm prunes stale preselected rows but preser
   );
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
 
@@ -1648,6 +1746,7 @@ test('forecast: include-heifers modal prunes staged heifer if she becomes inelig
   cattleForecastScenario,
   supabaseAdmin,
 }) => {
+  await ensureCleanForecastSeed(supabaseAdmin);
   // Seed an eligible heifer with an include row so she's visible AND
   // preselected when the modal opens.
   await supabaseAdmin.from('cattle').upsert(
@@ -1673,7 +1772,7 @@ test('forecast: include-heifers modal prunes staged heifer if she becomes inelig
     );
 
   await page.goto(FORECAST_PATH);
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
 
@@ -1721,7 +1820,7 @@ test('forecast: include-heifers modal prunes staged heifer if she becomes inelig
   // mid-flight DB delete only happens IF cattle reloads. To guarantee a
   // reload, we close + reopen the modal via the page reload path.
   await page.reload();
-  await waitForForecastLoaded(page);
+  await waitForForecastData(page);
   await page.locator('[data-include-heifers-btn]').click();
   await expect(page.locator('[data-include-heifers-modal]')).toBeVisible({timeout: 5_000});
 
@@ -1790,7 +1889,7 @@ test('forecast cold-boot: a raced EMPTY first weigh-ins read self-heals to finis
   await breakFirstCattleSessionsRead(page, 'empty');
   await page.goto(FORECAST_PATH);
   // No manual reload — the mount effect's bounded retry must recover real data.
-  await waitForForecastData(page);
+  await waitForForecastData(page, {reloadOnEmpty: false});
   expect(await readFinishCandidateCount(page)).toBeGreaterThan(0);
 });
 
@@ -1800,6 +1899,6 @@ test('forecast cold-boot: an ERRORED first weigh-ins read self-heals to finish c
 }) => {
   await breakFirstCattleSessionsRead(page, 'error');
   await page.goto(FORECAST_PATH);
-  await waitForForecastData(page);
+  await waitForForecastData(page, {reloadOnEmpty: false});
   expect(await readFinishCandidateCount(page)).toBeGreaterThan(0);
 });

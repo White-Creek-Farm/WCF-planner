@@ -353,7 +353,7 @@ test('source filter: existing dailys-list filter chip still sees RPC-written chi
 // --------------------------------------------------------------------------
 // Test 9 — UI-driven: AddFeedWebform constructs the correct payload
 // --------------------------------------------------------------------------
-// Drives /addfeed through the actual public form (anon context) for a
+// Drives /addfeed through the actual login-required form for a
 // 2-batch broiler submission. Locks the .insert() → .rpc() cutover from
 // the form side: that AddFeedWebform.jsx assembles parent_in / children_in
 // correctly, that the RPC is reached via the .rpc() call, and that the
@@ -362,58 +362,41 @@ test('source filter: existing dailys-list filter chip still sees RPC-written chi
 // browser invocation itself is wired correctly.
 test('UI: /addfeed broiler 2-batch submit creates 1 parent + 2 poultry_dailys via RPC', async ({
   supabaseAdmin,
-  resetDb,
-  browser,
+  page,
+  addFeedOfflineScenario,
 }) => {
-  await resetDb();
+  void addFeedOfflineScenario;
 
-  // Seed: broiler batches in the dropdown + allowAddGroup flag enabling
-  // the "+ Add Another Group" button. No roster needed — team-member
-  // field is optional under default config and we leave it blank.
-  await supabaseAdmin
-    .from('webform_config')
-    .upsert({key: 'broiler_groups', data: ['B-26-01', 'B-26-02']}, {onConflict: 'key'});
-  await supabaseAdmin
-    .from('webform_config')
-    .upsert({key: 'webform_settings', data: {allowAddGroup: {'add-feed-webform': true}}}, {onConflict: 'key'});
+  await page.goto('/addfeed');
+  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  // Anon context — public form path (no auth, matches real operator usage).
-  const anonContext = await browser.newContext({storageState: undefined});
-  const anonPage = await anonContext.newPage();
-  try {
-    await anonPage.goto('/addfeed');
-    await expect(anonPage.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  // Pick Broiler program.
+  await page.getByRole('button', {name: 'Broiler'}).click();
 
-    // Pick Broiler program.
-    await anonPage.getByRole('button', {name: 'Broiler'}).click();
+  // First batch group. The submitter is locked to the signed-in user, so the
+  // first batch select is now combobox index 0.
+  await expect(page.locator('[data-locked-submitter="1"]')).toContainText('signed in');
+  const firstBatchSelect = page.getByRole('combobox').first();
+  await expect
+    .poll(async () => await firstBatchSelect.locator('option').count(), {timeout: 10_000})
+    .toBeGreaterThan(1);
+  await firstBatchSelect.selectOption('B-26-01');
+  await page.getByRole('button', {name: 'STARTER'}).first().click();
+  await page.locator('input[type="number"]').first().fill('100');
 
-    // First batch group. Combobox indices after broiler is picked:
-    //   0 = team member (left blank — optional under default config)
-    //   1 = first batch select
-    const firstBatchSelect = anonPage.getByRole('combobox').nth(1);
-    await expect
-      .poll(async () => await firstBatchSelect.locator('option').count(), {timeout: 10_000})
-      .toBeGreaterThan(1);
-    await firstBatchSelect.selectOption('B-26-01');
-    await anonPage.getByRole('button', {name: 'STARTER'}).first().click();
-    await anonPage.locator('input[type="number"]').first().fill('100');
+  // Add second group. Its batch select is the next combobox.
+  await page.getByRole('button', {name: '+ Add Another Group'}).click();
+  const secondBatchSelect = page.getByRole('combobox').nth(1);
+  await expect(secondBatchSelect).toBeVisible({timeout: 10_000});
+  await secondBatchSelect.selectOption('B-26-02');
+  await page.getByRole('button', {name: 'STARTER'}).nth(1).click();
+  await page.locator('input[type="number"]').nth(1).fill('150');
 
-    // Add second group.
-    await anonPage.getByRole('button', {name: '+ Add Another Group'}).click();
-    const secondBatchSelect = anonPage.getByRole('combobox').nth(2);
-    await expect(secondBatchSelect).toBeVisible({timeout: 10_000});
-    await secondBatchSelect.selectOption('B-26-02');
-    await anonPage.getByRole('button', {name: 'STARTER'}).nth(1).click();
-    await anonPage.locator('input[type="number"]').nth(1).fill('150');
+  // Submit. Button label includes the entry count.
+  await page.getByRole('button', {name: /Log 2 Feed Entries/}).click();
 
-    // Submit. Button label includes the entry count.
-    await anonPage.getByRole('button', {name: /Log 2 Feed Entries/}).click();
-
-    // Existing success UI must appear.
-    await expect(anonPage.getByText('Feed logged!')).toBeVisible({timeout: 15_000});
-  } finally {
-    await anonContext.close();
-  }
+  // Existing success UI must appear.
+  await expect(page.getByText('Feed logged!')).toBeVisible({timeout: 15_000});
 
   // DB-side contract assertions.
   const {data: parents} = await supabaseAdmin

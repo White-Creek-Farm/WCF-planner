@@ -12,6 +12,21 @@ function asClearedSet(value) {
   return value instanceof Set ? value : new Set(asArray(value));
 }
 
+function keySlug(value) {
+  return (
+    String(value || 'unknown')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'unknown'
+  );
+}
+
+function dailyTargetKey(prefix, row, label, date) {
+  const id = row && row.id != null ? String(row.id).trim() : '';
+  return `${id || `${prefix}-${keySlug(label)}`}|${date}`;
+}
+
 export function foldEquipmentFuelings(rows = []) {
   const equipmentCompletions = {};
   const equipmentFuelings = {};
@@ -222,14 +237,14 @@ export function buildMissedDailyReports({
         const earliestDate = b.brooderIn || b.hatchDate;
         if (earliestDate && checkDate < earliestDate) return;
         if (b.processingDate && checkDate > b.processingDate) return;
-        const key = `${b.id}|${checkDate}`;
+        const key = dailyTargetKey('broiler', b, b.name, checkDate);
         if (!broilerCheck.has((b.name || '').toLowerCase().trim()) && !cleared.has(key)) {
           allMissed.push({key, label: b.name, iconKey: ANIMAL_ICON_KEYS.broiler, type: 'Broiler', date: checkDate});
         }
       });
 
     activePigFeederDailyTargets(asArray(feederGroups), {breeders: asArray(breeders)}).forEach((t) => {
-      const key = `${t.id}|${checkDate}`;
+      const key = dailyTargetKey('pig', t, t.name, checkDate);
       if (!pigCheck.has((t.name || '').toLowerCase().trim()) && !cleared.has(key)) {
         allMissed.push({
           key,
@@ -259,7 +274,7 @@ export function buildMissedDailyReports({
     asArray(layerGroups)
       .filter((g) => g.status === 'active')
       .forEach((g) => {
-        const key = `${g.id}|${checkDate}`;
+        const key = dailyTargetKey('layer', g, g.name, checkDate);
         if (!layerCheck.has((g.name || '').toLowerCase().trim()) && !cleared.has(key)) {
           allMissed.push({key, label: g.name, iconKey: ANIMAL_ICON_KEYS.layer, type: 'Layer', date: checkDate});
         }

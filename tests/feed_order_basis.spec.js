@@ -35,12 +35,12 @@ test.describe('feed-order count-aware basis', () => {
     await waitForAppReady(page);
 
     const orderTile = page.locator('[data-feed-order-tile="poultry-order"]');
-    const starterRow = orderTile.locator('[data-feed-order-row="starter"]');
+    const growerRow = orderTile.locator('[data-feed-order-row="grower"]');
     await expect(orderTile).toBeVisible({timeout: 15_000});
     await expect(orderTile).toContainText(`Order for ${scenario.activeLabel}`);
-    await expect(starterRow).toContainText('Starter');
-    await expect(starterRow).toContainText(lbs(scenario.poultry.starterExpectedOrder));
-    await expect(starterRow).not.toContainText(lbs(scenario.poultry.starterStaleEstimateOrder));
+    await expect(growerRow).toContainText('Grower');
+    await expect(growerRow).toContainText(lbs(scenario.poultry.growerExpectedOrder));
+    await expect(growerRow).not.toContainText(lbs(scenario.poultry.growerStaleEstimateOrder));
     await expect(orderTile).toContainText(
       `vs Actual On Hand where counted; otherwise End of ${scenario.prevLabel} Est.`,
     );

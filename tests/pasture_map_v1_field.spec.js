@@ -70,9 +70,18 @@ async function dropStableShape(page) {
     await page.waitForTimeout(140);
   };
   await page.locator('[data-pasture-drop-point]').click();
-  await tap(0.3, 0.22);
-  await tap(0.7, 0.22);
   await expect(page.locator('[data-pasture-hud]')).toBeVisible({timeout: 10_000});
+  const acres = page.locator('[data-pasture-hud] .pm-hud-v').first();
+  for (const [fx, fy] of [
+    [0.3, 0.22],
+    [0.7, 0.22],
+    [0.68, 0.62],
+    [0.36, 0.62],
+  ]) {
+    await tap(fx, fy);
+    if (((await acres.textContent()) || '').trim() !== '-') break;
+  }
+  await expect(acres).not.toHaveText('-', {timeout: 10_000});
 }
 
 test('Drop Point builds a temp paddock in Field (drop + tap-to-place + Save)', async ({page}) => {
@@ -123,4 +132,29 @@ test('Field draw Cancel exits the drop-point mode', async ({page}) => {
   await page.locator('[data-pasture-drop-cancel]').click();
   await expect(page.locator('[data-pasture-crosshair]')).toHaveCount(0);
   await expect(page.locator('[data-pasture-drawbar]')).toHaveCount(0);
+});
+
+test('rapid Field map mount/unmount does not emit Leaflet _leaflet_pos teardown noise', async ({page}) => {
+  const teardownNoise = [];
+  const collect = (text) => {
+    if (/_leaflet_pos|Cannot read properties of undefined.*Leaflet/i.test(String(text || ''))) {
+      teardownNoise.push(String(text));
+    }
+  };
+  page.on('console', (msg) => collect(msg.text()));
+  page.on('pageerror', (err) => collect(err && err.message ? err.message : err));
+
+  await page.setViewportSize({width: 1280, height: 900});
+  for (let i = 0; i < 3; i += 1) {
+    await page.goto('/pasture-map', {timeout: 90_000});
+    await expect(page.locator('.pm-tabs')).toBeVisible({timeout: 25_000});
+    await page.locator('.pm-tabs button', {hasText: 'Field'}).click();
+    await expect(page.locator('[data-pasture-field-draw]')).toBeVisible({timeout: 15_000});
+    await page.locator('[data-pasture-field-measure]').click();
+    await page.waitForTimeout(100);
+    await page.goto('/', {timeout: 90_000});
+    await page.waitForTimeout(100);
+  }
+
+  expect(teardownNoise).toEqual([]);
 });

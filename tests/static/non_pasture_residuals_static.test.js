@@ -103,3 +103,26 @@ describe('Non-pasture residuals - dedicated Tabs and A12 color guards', () => {
     expect(src).toContain("color: selected ? getReadableText(fill) : 'var(--text-secondary)'");
   });
 });
+
+describe('Non-pasture residuals - root Playwright suite scope', () => {
+  it('keeps local screenshot and audit utilities out of broad root e2e runs', () => {
+    const src = read('playwright.config.js');
+    expect(src).toContain('const hasExplicitSpecArg =');
+    expect(src).toContain('const rootRunUtilityIgnores = hasExplicitSpecArg');
+    expect(src).toContain("testIgnore: ['**/pasture_map_*.spec.js', ...rootRunUtilityIgnores]");
+
+    for (const pattern of [
+      '**/audit_review_screenshots.spec.js',
+      '**/broiler_batches_redesign_screenshots.spec.js',
+      '**/cattle_log_screenshots.spec.js',
+      '**/cattle_sheep_columns_screenshots.spec.js',
+      '**/daily_redesign_screenshots.spec.js',
+      '**/production_redesign_screenshots.spec.js',
+      '**/todo_screenshots.spec.js',
+      '**/mobile_audit.spec.js',
+      '**/ux_audit.spec.js',
+    ]) {
+      expect(src).toContain(pattern);
+    }
+  });
+});

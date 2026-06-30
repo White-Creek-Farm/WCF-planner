@@ -749,6 +749,17 @@ describe('CP2 API wrappers + draw/edit UI', () => {
     expect(drawHandler).not.toContain('map.removeLayer(layer)');
   });
 
+  it('guards Leaflet teardown during rapid Field navigation', () => {
+    expect(canvasSrc).toContain('function safeRemoveLayer');
+    expect(canvasSrc).toContain('function releaseMapLayers');
+    expect(canvasSrc).not.toMatch(/\b(?:trackRef|rotationRef|measureLayerRef|previewRef|locateRef|dropLayerRef)\.current\.remove\(\)/);
+    expect(canvasSrc).not.toContain('map.removeLayer(tempRef.current)');
+    const mapCleanup = canvasSrc.match(/return \(\) => \{[\s\S]*?map\.remove\(\);[\s\S]*?\};\r?\n  \}, \[compact\]\);/)?.[0] || '';
+    expect(mapCleanup).toContain('releaseMapLayers();');
+    expect(mapCleanup).toMatch(/map\._wcfRemoving = true;[\s\S]*?mapRef\.current = null;[\s\S]*?map\.remove\(\);/);
+    expect(mapCleanup).toMatch(/try \{\s*map\.remove\(\);\s*\} catch/);
+  });
+
   it('uses NO raw browser alert/confirm/prompt in the view or canvas', () => {
     for (const src of [viewSrc, canvasSrc]) {
       expect(src).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);

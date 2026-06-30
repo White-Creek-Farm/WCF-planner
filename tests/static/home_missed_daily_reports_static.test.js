@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {describe, it, expect} from 'vitest';
+import {buildMissedDailyReports} from '../../src/dashboard/homeAlerts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -74,6 +75,19 @@ describe('HomeDashboard — pig breeding stock missed dailys', () => {
 
   it('respects missedCleared for boars key', () => {
     expect(alertSrc).toMatch(/pig-stock-boars.*cleared/s);
+  });
+
+  it('does not emit duplicate undefined-date keys for id-less active targets', () => {
+    const rows = buildMissedDailyReports({
+      batches: [{status: 'active', name: 'B-26-01'}],
+      layerGroups: [{status: 'active', name: 'Eggmobile 1'}],
+      today: new Date('2026-06-30T12:00:00'),
+    });
+    const keys = rows.map((r) => r.key);
+    expect(keys.some((key) => key.startsWith('undefined|'))).toBe(false);
+    expect(keys).toContain('broiler-b-26-01|2026-06-29');
+    expect(keys).toContain('layer-eggmobile-1|2026-06-29');
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

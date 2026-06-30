@@ -479,8 +479,45 @@ export default function PastureMapCanvas({
   // Basemap switcher (CP-F): satellite (default) / topo.
   const basemapRef = React.useRef(null);
   const [basemap, setBasemap] = React.useState('satellite');
-  // Right-rail "Layers" popover (base map + boundary overlays), collapsed by default.
+  // Right-rail base/overlay popover, collapsed by default.
   const [layersOpen, setLayersOpen] = React.useState(false);
+
+  function safeRemoveLayer(layer) {
+    if (!layer) return;
+    try {
+      const map = layer._map || mapRef.current;
+      if (!map || mapRef.current !== map || map._wcfRemoving) return;
+      map.removeLayer(layer);
+    } catch {
+      /* Leaflet layer/map may already be mid-teardown. */
+    }
+  }
+
+  function safeClearLayerRef(ref) {
+    safeRemoveLayer(ref.current);
+    ref.current = null;
+  }
+
+  function safeClearLayerListRef(ref) {
+    const layers = Array.isArray(ref.current) ? ref.current : [];
+    layers.forEach((layer) => safeRemoveLayer(layer));
+    ref.current = null;
+  }
+
+  function releaseMapLayers() {
+    safeClearLayerListRef(basemapRef);
+    safeClearLayerRef(previewRef);
+    safeClearLayerRef(trackRef);
+    safeClearLayerRef(rotationRef);
+    safeClearLayerRef(measureLayerRef);
+    safeClearLayerRef(tempRef);
+    safeClearLayerRef(dropLayerRef);
+    safeClearLayerRef(locateRef);
+    safeClearLayerRef(layerRef);
+    areaLayersRef.current = new Map();
+    previewTooltipRef.current = null;
+    editLayerRef.current = null;
+  }
 
   React.useEffect(() => {
     if (mapRef.current || !elRef.current) return;
@@ -535,12 +572,28 @@ export default function PastureMapCanvas({
       }
       watchRef.current = null;
       try {
+        if (map.pm) map.pm.disableDraw();
+      } catch {
+        /* noop */
+      }
+      try {
+        map.off();
+      } catch {
+        /* noop */
+      }
+      releaseMapLayers();
+      map._wcfRemoving = true;
+      mapRef.current = null;
+      try {
         map.stop();
       } catch {
         /* map may already be mid-teardown */
       }
-      map.remove();
-      mapRef.current = null;
+      try {
+        map.remove();
+      } catch {
+        /* map may already be mid-teardown */
+      }
     };
   }, [compact]);
 
@@ -551,13 +604,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     if (!map) return;
     if (basemapRef.current) {
-      basemapRef.current.forEach((l) => {
-        try {
-          map.removeLayer(l);
-        } catch {
-          /* already gone */
-        }
-      });
+      safeClearLayerListRef(basemapRef);
       basemapRef.current = null;
     }
     const layers = [];
@@ -582,7 +629,7 @@ export default function PastureMapCanvas({
   React.useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (layerRef.current) layerRef.current.remove();
+    safeClearLayerRef(layerRef);
     areaLayersRef.current = new Map();
     const group = L.featureGroup();
     const fitSignature = (areas || [])
@@ -716,8 +763,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     if (!map) return;
     if (trackRef.current) {
-      trackRef.current.remove();
-      trackRef.current = null;
+      safeClearLayerRef(trackRef);
     }
     if (!trackGeometry || trackGeometry.type !== 'LineString' || !Array.isArray(trackGeometry.coordinates)) return;
     const coords = trackGeometry.coordinates.filter((p) => Array.isArray(p) && p.length >= 2);
@@ -742,7 +788,7 @@ export default function PastureMapCanvas({
     if (coords.length === 1) map.setView([last[1], last[0]], Math.max(map.getZoom(), 18));
     return () => {
       if (trackRef.current === group) {
-        group.remove();
+        safeRemoveLayer(group);
         trackRef.current = null;
       }
     };
@@ -752,8 +798,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     if (!map) return;
     if (rotationRef.current) {
-      rotationRef.current.remove();
-      rotationRef.current = null;
+      safeClearLayerRef(rotationRef);
     }
     if (!showRotationPath || !rotationPaths.length) return;
     const group = L.layerGroup();
@@ -802,7 +847,7 @@ export default function PastureMapCanvas({
     rotationRef.current = group;
     return () => {
       if (rotationRef.current === group) {
-        group.remove();
+        safeRemoveLayer(group);
         rotationRef.current = null;
       }
     };
@@ -815,8 +860,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     if (!map) return;
     if (measureLayerRef.current) {
-      measureLayerRef.current.remove();
-      measureLayerRef.current = null;
+      safeClearLayerRef(measureLayerRef);
     }
     if (!measurements.length) return;
     const group = L.layerGroup();
@@ -848,8 +892,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     if (!map) return;
     if (previewRef.current) {
-      previewRef.current.remove();
-      previewRef.current = null;
+      safeClearLayerRef(previewRef);
     }
     const prevTip = previewTooltipRef.current;
     if (prevTip && prevTip.id !== selectedId) {
@@ -886,7 +929,7 @@ export default function PastureMapCanvas({
     }
     return () => {
       if (previewRef.current === overlay) {
-        overlay.remove();
+        safeRemoveLayer(overlay);
         previewRef.current = null;
       }
     };
@@ -897,14 +940,7 @@ export default function PastureMapCanvas({
     if (!map || !map.pm) return;
 
     function clearTemp() {
-      if (tempRef.current) {
-        try {
-          map.removeLayer(tempRef.current);
-        } catch {
-          /* already gone */
-        }
-        tempRef.current = null;
-      }
+      safeClearLayerRef(tempRef);
     }
     function teardown() {
       try {
@@ -931,10 +967,7 @@ export default function PastureMapCanvas({
         measureClickRef.current = null;
       }
       measureVertsRef.current = [];
-      if (dropLayerRef.current) {
-        dropLayerRef.current.remove();
-        dropLayerRef.current = null;
-      }
+      safeClearLayerRef(dropLayerRef);
       dropVertsRef.current = [];
       clearTemp();
     }
@@ -1063,14 +1096,7 @@ export default function PastureMapCanvas({
   function renderMeasureShape() {
     const map = mapRef.current;
     if (!map) return;
-    if (tempRef.current) {
-      try {
-        map.removeLayer(tempRef.current);
-      } catch {
-        /* already gone */
-      }
-      tempRef.current = null;
-    }
+    safeClearLayerRef(tempRef);
     const verts = measureVertsRef.current.slice(0, 2);
     if (!verts.length) return;
     const g = L.layerGroup();
@@ -1130,14 +1156,7 @@ export default function PastureMapCanvas({
   function clearMeasure() {
     const map = mapRef.current;
     if (!map) return;
-    if (tempRef.current) {
-      try {
-        map.removeLayer(tempRef.current);
-      } catch {
-        /* already gone */
-      }
-      tempRef.current = null;
-    }
+    safeClearLayerRef(tempRef);
     measureVertsRef.current = [];
     measureGeomRef.current = null;
     // Clear removes the HUD entirely (transient — nothing saved); the click handler
@@ -1149,7 +1168,7 @@ export default function PastureMapCanvas({
     const map = mapRef.current;
     const fix = lastFixRef.current;
     if (!map || !fix) return;
-    if (locateRef.current) locateRef.current.remove();
+    safeClearLayerRef(locateRef);
     const g = L.layerGroup();
     if (fix.accuracy) {
       L.circle(fix.latlng, {
@@ -1244,10 +1263,7 @@ export default function PastureMapCanvas({
       setLocateState('off');
       followRef.current = false;
       stopWatch();
-      if (locateRef.current) {
-        locateRef.current.remove();
-        locateRef.current = null;
-      }
+      safeClearLayerRef(locateRef);
       setGpsMsg('');
     }
   }
@@ -1260,10 +1276,7 @@ export default function PastureMapCanvas({
   function renderDropShape() {
     const map = mapRef.current;
     if (!map) return;
-    if (dropLayerRef.current) {
-      dropLayerRef.current.remove();
-      dropLayerRef.current = null;
-    }
+    safeClearLayerRef(dropLayerRef);
     const verts = dropVertsRef.current;
     if (!verts.length) {
       setHud(null);
@@ -1324,10 +1337,7 @@ export default function PastureMapCanvas({
     if (cbRef.current.onDrawComplete) cbRef.current.onDrawComplete(gj, metrics);
   }
   function cancelDraw() {
-    if (dropLayerRef.current) {
-      dropLayerRef.current.remove();
-      dropLayerRef.current = null;
-    }
+    safeClearLayerRef(dropLayerRef);
     dropVertsRef.current = [];
     setHud(null);
     if (onExitTool) onExitTool();

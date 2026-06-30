@@ -200,7 +200,7 @@ Design/function invariants that govern cross-surface behavior live in
   orphan NULL-link impacts. Track/Line records hide grazing/rest/acreage, and
   management/admin can edit saved open LineStrings in place through
   `update_land_area_track`. Map chrome is a single right-side icon rail
-  (Fit Farm, My Location, Layers, Legend); Hybrid basemap is removed; zoom is
+  (Fit Farm, My Location, base/overlay, Legend); Hybrid basemap is removed; zoom is
   scroll/pinch only. An occupied area's group marker is a teardrop location pin
   in the group color with a "Name · count" label (no initials avatar); rotation
   stops are numbered dots and the number at the group's current area is
@@ -209,7 +209,7 @@ Design/function invariants that govern cross-surface behavior live in
   last-moved line). The Field bottom toolbar is Walk paddock / Draw paddock /
   Measure only; offline imagery + the self-contained field guide live in a
   secondary "Offline setup" status-row affordance, saved measurements in a
-  secondary "Saved measurements" toggle, and the rail Layers popover is
+  secondary "Saved measurements" toggle, and the rail base/overlay popover is
   available in Field; a temp paddock drawn from the rotation editor is saveable
   while the inline group record is open. The header hamburger and notifications
   dropdowns portal to `document.body` so they render above the map. Light keeps
@@ -315,7 +315,7 @@ The current source checkpoint is listed in the header above.
     Tracks/Lines list. Track/Line records now hide Grazing History plus
     State/Acres/Days-rested rows because draft geometry has none.
   - Decluttered Map chrome into one right-side icon rail for Fit Farm,
-    My Location, Layers, and Legend. Layers popover owns Satellite/Topo base map
+    My Location, base/overlay, and Legend. The base/overlay popover owns Satellite/Topo base map
     plus Pastures/Paddocks/Temp/Lines overlay toggles; Legend is its own
     mutually-exclusive popover. Hybrid basemap and +/- zoom buttons were
     removed; zoom is scroll/pinch only.
@@ -1062,8 +1062,8 @@ This is the canonical home for outstanding build/design work.
 
 3. Pasture Map post-open-line follow-ups
    - Status: SHIPPED (PR #45, `ea02278`). Migrations `149` and `150` are
-     PROD-applied + verified. Only one optional decision remains open.
-   - Class: `DECISION`.
+     PROD-applied + verified. The post-open-line naming decision is settled.
+   - Class: `DONE`.
    - Shipped in PR #45:
      - The standalone offline field guide is in-app, served from
        `public/pasture-map-field-guide.html` and reachable from the Field
@@ -1073,11 +1073,11 @@ This is the canonical home for outstanding build/design work.
      - `NOTIFY pgrst, 'reload schema'` was added to
        `150_pasture_map_open_line_edit.sql` (text-only, for future/fresh-env
        re-apply; not re-applied to PROD).
-   - Still open (the only remaining sub-item):
-     - Rename the rail "Layers" popover label. The Field IA rework deliberately
-       KEPT the rail Layers popover (no rename); Ronnie still wants to choose a
-       name. Deferred — do not rename before that decision.
-   - Gates: code-only when the rename is chosen.
+   - Settled follow-up:
+     - There is no visible rail "Layers" label anymore. The right-rail
+       base/overlay control stays icon-only, and Field exposes the secondary
+       "Offline setup" affordance where Ronnie can download the offline map set.
+   - Gates: none remaining for the old label decision.
 
 4. P3 derived-data durability/audit residuals
    - Class: `DEFECT`/`ENH`.
@@ -2001,7 +2001,7 @@ Workflow/worktable entities:
   Walk paddock / Draw paddock / Measure only; one-time setup/help lives in a
   secondary "Offline setup" status-row affordance (offline NAIP imagery
   download + the self-contained field guide) and saved measurements in a
-  secondary "Saved measurements" toggle; the rail Layers popover stays available
+  secondary "Saved measurements" toggle; the rail base/overlay popover stays available
   in Field. The field guide is served from `public/pasture-map-field-guide.html`
   (self-contained, inline images); `public/sw.js` serves an exact runtime-cached
   navigation before the SPA shell fallback so the guide works offline after one
@@ -2013,10 +2013,10 @@ Workflow/worktable entities:
   inactive groups behind an Include inactive groups filter, and per-stay delete.
   Track/Line records hide grazing history, state, acreage, and rested-day rows.
   Light is pasture farm-team-level on the merged Map and Field.
-- Map chrome is one right-side icon rail: Fit Farm, My Location, Layers, and
-  Legend. Layers is a popover containing Satellite/Topo base map selection plus
+- Map chrome is one right-side icon rail: Fit Farm, My Location, base/overlay,
+  and Legend. The base/overlay control is a popover containing Satellite/Topo base map selection plus
   Pastures/Paddocks/Temp/Lines overlay toggles. Legend is a separate popover,
-  mutually exclusive with Layers. Hybrid basemap and hybrid reference/transport
+  mutually exclusive with the base/overlay popover. Hybrid basemap and hybrid reference/transport
   overlay code are removed. Zoom is scroll-wheel/pinch only; Leaflet default
   zoom controls and custom rail +/- buttons are intentionally absent.
 - Move ledger / coloring contract: an area's occupancy/rest state is

@@ -8,7 +8,7 @@
 import {assertTestDatabase} from '../setup/assertTestDatabase.js';
 import {calcBatchFeedForMonth} from '../../src/lib/broiler.js';
 import {pigDailyBurnLbs} from '../../src/lib/feedPlanner.js';
-import {recommendedFeedOrder} from '../../src/lib/feedOrderBasis.js';
+import {calendarOrderYM, recommendedFeedOrder} from '../../src/lib/feedOrderBasis.js';
 
 function must(result, label) {
   if (result?.error) {
@@ -79,8 +79,9 @@ export async function seedFeedOrderBasisScenario(supabaseAdmin) {
   await ensureAdminProfile(supabaseAdmin);
 
   const thisYM = currentYM();
-  const prevYM = addMonthsYM(thisYM, -1);
-  const nextYM = addMonthsYM(thisYM, 1);
+  const activeYM = calendarOrderYM(new Date());
+  const prevYM = addMonthsYM(activeYM, -1);
+  const nextYM = addMonthsYM(activeYM, 1);
   const countDate = thisYM + '-01';
 
   const pigCountOnHand = 1500;
@@ -106,7 +107,7 @@ export async function seedFeedOrderBasisScenario(supabaseAdmin) {
     breeders: archivedBreeders,
     farrowingRecs: [],
   };
-  const pigNeedThruNext = pigProjectedMonth(thisYM, pigCtx) + pigProjectedMonth(nextYM, pigCtx);
+  const pigNeedThruNext = pigProjectedMonth(activeYM, pigCtx) + pigProjectedMonth(nextYM, pigCtx);
   const pigExpectedOrder = recommendedFeedOrder({
     needThruNext: pigNeedThruNext,
     hasCurrentCount: true,
@@ -120,7 +121,7 @@ export async function seedFeedOrderBasisScenario(supabaseAdmin) {
     endOfPrevEst: pigPrevOrder,
   });
 
-  const starterCountOnHand = 250;
+  const growerCountOnHand = 250;
   const poultryPrevOrder = 500;
   const broilerBatch = {
     id: 'br-feed-order-basis',
@@ -135,23 +136,23 @@ export async function seedFeedOrderBasisScenario(supabaseAdmin) {
     birdCount: 750,
     status: 'active',
   };
-  const currentFeed = calcBatchFeedForMonth(broilerBatch, thisYM);
+  const currentFeed = calcBatchFeedForMonth(broilerBatch, activeYM);
   const nextFeed = calcBatchFeedForMonth(broilerBatch, nextYM);
-  const starterNeedThruNext = currentFeed.starter + nextFeed.starter;
-  const starterExpectedOrder = recommendedFeedOrder({
-    needThruNext: starterNeedThruNext,
+  const growerNeedThruNext = currentFeed.grower + nextFeed.grower;
+  const growerExpectedOrder = recommendedFeedOrder({
+    needThruNext: growerNeedThruNext,
     hasCurrentCount: true,
-    actualOnHand: starterCountOnHand,
+    actualOnHand: growerCountOnHand,
     endOfPrevEst: poultryPrevOrder,
   });
-  const starterStaleEstimateOrder = recommendedFeedOrder({
-    needThruNext: starterNeedThruNext,
+  const growerStaleEstimateOrder = recommendedFeedOrder({
+    needThruNext: growerNeedThruNext,
     hasCurrentCount: false,
-    actualOnHand: starterCountOnHand,
+    actualOnHand: growerCountOnHand,
     endOfPrevEst: poultryPrevOrder,
   });
 
-  if (pigExpectedOrder === pigStaleEstimateOrder || starterExpectedOrder === starterStaleEstimateOrder) {
+  if (pigExpectedOrder === pigStaleEstimateOrder || growerExpectedOrder === growerStaleEstimateOrder) {
     throw new Error('feedOrderBasisSeed: count and previous-estimate recommendations must differ.');
   }
 
@@ -176,8 +177,8 @@ export async function seedFeedOrderBasisScenario(supabaseAdmin) {
     {
       key: 'ppp-poultry-feed-inventory-v1',
       data: {
-        starter: {
-          count: starterCountOnHand,
+        grower: {
+          count: growerCountOnHand,
           date: countDate,
           includesCurrentMonthDelivery: true,
         },
@@ -188,19 +189,21 @@ export async function seedFeedOrderBasisScenario(supabaseAdmin) {
 
   return {
     thisYM,
+    activeYM,
     prevYM,
     nextYM,
-    activeLabel: ymShort(thisYM),
+    activeLabel: ymShort(activeYM),
     prevLabel: ymShort(prevYM),
+    nextLabel: ymShort(nextYM),
     pig: {
       needThruNext: pigNeedThruNext,
       expectedOrder: pigExpectedOrder,
       staleEstimateOrder: pigStaleEstimateOrder,
     },
     poultry: {
-      starterNeedThruNext,
-      starterExpectedOrder,
-      starterStaleEstimateOrder,
+      growerNeedThruNext,
+      growerExpectedOrder,
+      growerStaleEstimateOrder,
     },
   };
 }

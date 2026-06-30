@@ -11,6 +11,26 @@ for (const [k, v] of Object.entries(env)) {
   if (process.env[k] === undefined) process.env[k] = v;
 }
 
+const cliArgs = process.argv.slice(2);
+const hasExplicitSpecArg = cliArgs.some((arg) => {
+  const normalized = arg.replaceAll('\\', '/');
+  return normalized.endsWith('.spec.js') || normalized.startsWith('tests/') || normalized.includes('/tests/');
+});
+
+const rootRunUtilityIgnores = hasExplicitSpecArg
+  ? []
+  : [
+      '**/audit_review_screenshots.spec.js',
+      '**/broiler_batches_redesign_screenshots.spec.js',
+      '**/cattle_log_screenshots.spec.js',
+      '**/cattle_sheep_columns_screenshots.spec.js',
+      '**/daily_redesign_screenshots.spec.js',
+      '**/production_redesign_screenshots.spec.js',
+      '**/todo_screenshots.spec.js',
+      '**/mobile_audit.spec.js',
+      '**/ux_audit.spec.js',
+    ];
+
 // ============================================================================
 // Playwright config — Phase A2 scaffolding.
 // ============================================================================
@@ -32,7 +52,11 @@ export default defineConfig({
   // Pasture Map browser specs run in their OWN focused lane via
   // playwright.pasture.config.js (CI: pasture-e2e.yml, path-gated). Exclude them
   // from the root verify e2e so it stays fast and never double-runs them.
-  testIgnore: ['**/pasture_map_*.spec.js'],
+  //
+  // Screenshot packets and route-wide audit sweeps are local capture utilities,
+  // not the regression floor. They are ignored only for broad root runs; passing
+  // an explicit spec path still runs them for Ronnie's review packets.
+  testIgnore: ['**/pasture_map_*.spec.js', ...rootRunUtilityIgnores],
   // Specs share the test database via a global truncate-and-reseed strategy.
   // Parallel + sharded specs would race the reset. Keep workers=1 until we
   // adopt a per-worker schema isolation pattern (out of scope for A2).
