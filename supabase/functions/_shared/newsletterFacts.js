@@ -106,7 +106,21 @@ function asArray(v) {
   return Array.isArray(v) ? v : [];
 }
 
-const BROILER_PROCESSED_KEYS = ['processedCount', 'birdsProcessed', 'processed', 'dressedCount', 'count', 'quantity'];
+// One calendar day before an ISO day (UTC math, deterministic). '' if not a date.
+// A broiler batch is BROUGHT to the processor the day before its processingDate
+// (Ronnie: "the date it goes to the processor is always 1 day before the
+// processing date"), so monthly "brought to processing" windows on this date.
+function isoDayMinusOne(v) {
+  const s = isoDay(v);
+  if (!s) return '';
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${mm}-${dd}`;
+}
+
 // Born-alive ONLY. We never fall back to totalBorn/litterSize, which include
 // stillborn — publishing those as "piglets born alive" would be a mortality leak.
 const PIG_BORN_ALIVE_KEYS = ['bornAlive', 'liveBorn', 'liveBirths', 'pigletsBornAlive', 'alive'];
@@ -160,31 +174,46 @@ export function detectBroilerOnFarm(input) {
   };
 }
 
+// Broilers brought to the processor this month. Mirrors the canonical app /
+// Production-tab logic (src/lib/production.js buildBroilerProductionEvents): the
+// bird count is the batch's totalToProcessor, NOT a "processed count" field
+// (those are never populated in the data). "Brought to processing" is the day
+// BEFORE the batch's processingDate (the batch physically goes to the processor
+// a day ahead), so we window on processingDate − 1. A batch already brought but
+// not yet tallied (totalToProcessor not entered, e.g. tonight's run) falls back
+// to its projected live birds (birdCountActual − mortalityCumulative) so the
+// issue reflects it immediately and self-corrects to the exact totalToProcessor
+// once entered.
 export function detectBroilerProcessed(input) {
   const batches = asArray(input.broilerBatches);
   let total = 0;
   const flocks = [];
   for (const b of batches) {
-    const pd = isoDay(firstStr(b, ['processingDate', 'processing_date', 'processedDate']));
-    if (!pd || !inPeriod(pd, input.period)) continue;
-    const c = firstNum(b, BROILER_PROCESSED_KEYS);
-    if (c > 0) {
-      total += c;
-      flocks.push({name: firstStr(b, ['name', 'batchName', 'id']), count: c, date: pd});
-    }
+    if (firstStr(b, ['status']).toLowerCase() === 'planned') continue;
+    const procDate = isoDay(firstStr(b, ['processingDate', 'processing_date', 'processedDate']));
+    if (!procDate) continue;
+    const broughtDate = isoDayMinusOne(procDate);
+    if (!broughtDate || !inPeriod(broughtDate, input.period)) continue;
+    const recorded = firstNum(b, ['totalToProcessor', 'total_to_processor']);
+    const projected = Math.max(0, firstNum(b, ['birdCountActual']) - firstNum(b, ['mortalityCumulative']));
+    const birds = recorded > 0 ? recorded : projected;
+    if (birds <= 0) continue;
+    total += birds;
+    flocks.push({name: firstStr(b, ['name', 'batchName', 'id']), count: birds, date: broughtDate});
   }
   if (total <= 0) return null;
+  const n = flocks.length;
   return {
     detectorKey: 'broiler_processed',
     program: 'broiler',
     title: 'Broilers brought to processing',
-    summary: `${pluralBirds(total)} processed across ${flocks.length} flock${flocks.length === 1 ? '' : 's'} this month.`,
+    summary: `${pluralBirds(total)} brought to the processor across ${n} flock${n === 1 ? '' : 's'} this month.`,
     metricValue: total,
     displayValue: pluralBirds(total),
     sourceRefs: [{module: 'ppp-v4', ids: flocks.map((f) => f.name)}],
     comparison: {},
     confidence: 'high',
-    evidence: {totalBirds: total, flocks},
+    evidence: {totalBirds: total, batches: n, flocks},
   };
 }
 

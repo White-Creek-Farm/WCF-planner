@@ -50,6 +50,11 @@ import {
 } from '../_shared/newsletterDraft.js';
 import {cronAuthOk} from '../_shared/newsletterCronAuth.js';
 import {
+  computeProductionYoy,
+  buildProductionYoyBlocks,
+  stripProductionYoyBlocks,
+} from '../_shared/newsletterProductionYoy.js';
+import {
   shapeHeadCounts,
   shapeBirths,
   shapeEggDailys,
@@ -490,6 +495,64 @@ async function runHarvest(
   return {factCount: facts.length, coverage};
 }
 
+// Year-over-year production totals for the draft's "Production — year over year"
+// section. Pulls the SAME sources the Production tab uses, for [lastYear..thisYear]
+// full years, and lets the shared module mirror the tab's per-program rules +
+// Planner-wins-by-coverage. Read-only; never reads cost/price/death fields.
+async function assembleProductionYoy(svc: ReturnType<typeof createClient>, thisYear: string, lastYear: string) {
+  const yStart = `${lastYear}-01-01`;
+  const yEnd = `${thisYear}-12-31`;
+  const arr = (v: unknown) => (Array.isArray(v) ? (v as unknown[]) : []);
+
+  const appStore = await scanSource(() =>
+    svc.from('app_store').select('key, data').in('key', ['ppp-v4', 'ppp-feeders-v1']),
+  );
+  const store = new Map<string, unknown>();
+  for (const r of appStore.rows) store.set(r.key as string, (r as {data: unknown}).data);
+
+  const cattle = await scanSource(() =>
+    svc
+      .from('cattle_processing_batches')
+      .select('actual_process_date, cows_detail')
+      .not('actual_process_date', 'is', null)
+      .gte('actual_process_date', yStart)
+      .lte('actual_process_date', yEnd),
+  );
+  const sheep = await scanSource(() =>
+    svc
+      .from('sheep_processing_batches')
+      .select('actual_process_date, sheep_detail')
+      .not('actual_process_date', 'is', null)
+      .gte('actual_process_date', yStart)
+      .lte('actual_process_date', yEnd),
+  );
+  const eggs = await scanSource(() =>
+    svc
+      .from('egg_dailys')
+      .select('date, group1_count, group2_count, group3_count, group4_count')
+      .is('deleted_at', null)
+      .gte('date', yStart)
+      .lte('date', yEnd),
+  );
+  // Legacy spreadsheet rows (pre-Planner backfill) come through the SECDEF RPC.
+  const legacy = await scanSource(() =>
+    svc.rpc('list_production_legacy_events', {p_from_date: yStart, p_to_date: yEnd}),
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+  return computeProductionYoy(
+    {
+      broilerBatches: arr(store.get('ppp-v4')),
+      feederGroups: arr(store.get('ppp-feeders-v1')),
+      cattleProcessingBatches: cattle.rows,
+      sheepProcessingBatches: sheep.rows,
+      eggDailys: eggs.rows,
+      legacyEvents: legacy.rows,
+    },
+    {thisYear, lastYear, today},
+  );
+}
+
 async function runDraft(
   svc: ReturnType<typeof createClient>,
   issueId: string,
@@ -504,8 +567,16 @@ async function runDraft(
   // Thread the tone preset + length + (optional) revision notes into the prompt.
   // input.currentDraft + input.photoPlan come from the generation RPC, so a
   // revision edits the existing blocks and a refreshed plan keeps fulfilled slots.
+  // Keep the deterministic YoY section out of the current-draft sample sent to
+  // the AI on a revise, so the model never reproduces it (we re-append it fresh
+  // below, exactly once).
+  const cleanedCurrent =
+    input && input.currentDraft && Array.isArray(input.currentDraft.blocks)
+      ? {...input.currentDraft, blocks: stripProductionYoyBlocks(input.currentDraft.blocks)}
+      : input && input.currentDraft;
   const draftInput = {
     ...input,
+    currentDraft: cleanedCurrent,
     tone: settings.tone,
     tonePreset: settings.tonePreset,
     lengthDetail: settings.lengthDetail,
@@ -543,6 +614,22 @@ async function runDraft(
       p_status: 'error',
       p_error: e instanceof Error ? e.message : String(e),
     });
+  }
+
+  // Append the deterministic "Production — year over year" section with EXACT
+  // numbers (never AI-authored). Additive and best-effort: a failure here must
+  // never block the draft, so it is logged to the function console only.
+  try {
+    const ym = String((input && input.issue && input.issue.yearMonth) || '');
+    const thisYear = ym.slice(0, 4);
+    if (/^\d{4}$/.test(thisYear)) {
+      const lastYear = String(Number(thisYear) - 1);
+      const yoy = await assembleProductionYoy(svc, thisYear, lastYear);
+      const base = stripProductionYoyBlocks(payload.blocks);
+      payload = validateNewsletterBlocks({blocks: [...base, ...buildProductionYoyBlocks(yoy)]});
+    }
+  } catch (e) {
+    console.error('newsletter production yoy skipped:', e instanceof Error ? e.message : String(e));
   }
 
   const {error: applyErr} = await svc.rpc('apply_newsletter_ai_draft', {

@@ -61,6 +61,36 @@ function parseRoute(pathname, search) {
   return {mode: previewToken ? 'preview' : 'issue', slug: rawSlug, previewToken: previewToken || null};
 }
 
+// Editorial masthead shared by every public surface (no admin chrome): a green
+// brand dot + the farm name as type, with Latest / Archive nav.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function Masthead({mode}) {
+  return (
+    <header className="nl-masthead">
+      <div className="nl-masthead-inner">
+        <a className="nl-brand" href="/newsletter">
+          <span className="nl-brand-dot" aria-hidden="true" />
+          <span className="nl-brand-word">White Creek Farm</span>
+        </a>
+        <nav className="nl-nav" aria-label="Newsletter">
+          <a
+            className={`nl-nav-link${mode === 'issue' || mode === 'preview' ? ' is-current' : ''}`}
+            href="/newsletter/latest"
+          >
+            Latest
+          </a>
+          <a
+            className={`nl-nav-link${mode === 'archive' || mode === 'latest' ? ' is-current' : ''}`}
+            href="/newsletter"
+          >
+            Archive
+          </a>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 export default function NewsletterPublicApp({sb}) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -72,6 +102,7 @@ export default function NewsletterPublicApp({sb}) {
   const [status, setStatus] = useState('loading'); // loading | ready | notfound | error
   const [issues, setIssues] = useState(null);
   const [data, setData] = useState(null);
+  const [moreIssues, setMoreIssues] = useState([]); // other published issues for the issue-page footer
   const reqId = useRef(0);
 
   useEffect(() => {
@@ -106,6 +137,15 @@ export default function NewsletterPublicApp({sb}) {
           if (cancelled || myReq !== reqId.current) return;
           setData(d);
           setStatus(d ? 'ready' : 'notfound');
+        }
+        // Best-effort: on a real issue/preview, fetch other published issues for
+        // the "More issues" footer. Failure is non-fatal — the section hides.
+        if (mode === 'issue' || mode === 'preview') {
+          const list = await listPublishedNewsletters(sb).catch(() => []);
+          if (cancelled || myReq !== reqId.current) return;
+          setMoreIssues(Array.isArray(list) ? list.filter((it) => it.slug !== slug) : []);
+        } else {
+          setMoreIssues([]);
         }
       } catch (_e) {
         if (cancelled || myReq !== reqId.current) return;
@@ -158,11 +198,12 @@ export default function NewsletterPublicApp({sb}) {
       </div>
     );
   } else {
-    body = <NewsletterIssuePage sb={sb} data={data} isPreview={mode === 'preview'} />;
+    body = <NewsletterIssuePage sb={sb} data={data} isPreview={mode === 'preview'} moreIssues={moreIssues} />;
   }
 
   return (
     <div className="nl-public">
+      <Masthead mode={mode} />
       <main className="nl-container">{body}</main>
     </div>
   );

@@ -42,17 +42,32 @@ describe('newsletter fact detectors — positive, evidence-backed facts', () => 
     expect(fact.confidence).toBe('high');
   });
 
-  it('broiler processed only counts batches processed within the period', () => {
+  it('broilers brought to processing: totalToProcessor, brought = processingDate−1, projected fallback', () => {
     const fact = detectBroilerProcessed(
       withPeriod({
         broilerBatches: [
-          {name: 'B-26-02', processingDate: '2026-05-10', processedCount: 280},
-          {name: 'B-26-01', processingDate: '2026-04-28', processedCount: 300}, // out of period
+          // Processed in-period: brought 05-09, counted by totalToProcessor.
+          {name: 'B-26-02', status: 'processed', processingDate: '2026-05-10', totalToProcessor: 280},
+          // Goes to the processor 05-31 though it processes 06-01 (next month):
+          // brought-date − 1 pulls it into May. Not yet tallied → projected
+          // live birds (320 − 20 = 300).
+          {
+            name: 'B-26-03',
+            status: 'active',
+            processingDate: '2026-06-01',
+            totalToProcessor: 0,
+            birdCountActual: 320,
+            mortalityCumulative: 20,
+          },
+          // Out of period (brought 04-28) and a planned batch are both excluded.
+          {name: 'B-26-01', status: 'processed', processingDate: '2026-04-29', totalToProcessor: 300},
+          {name: 'B-26-04', status: 'planned', processingDate: '2026-05-20', birdCountActual: 400},
         ],
       }),
     );
-    expect(fact.metricValue).toBe(280);
-    expect(fact.evidence.flocks).toHaveLength(1);
+    expect(fact.metricValue).toBe(580); // 280 + 300
+    expect(fact.evidence.batches).toBe(2);
+    expect(fact.evidence.flocks.map((f) => f.name).sort()).toEqual(['B-26-02', 'B-26-03']);
   });
 
   it('pig farrowings count litters + born-alive (never mortality)', () => {

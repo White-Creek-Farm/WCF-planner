@@ -23,6 +23,7 @@ const PAIRS = [
   ['src/lib/newsletterDraft.js', 'supabase/functions/_shared/newsletterDraft.js'],
   ['src/lib/newsletterHarvestShape.js', 'supabase/functions/_shared/newsletterHarvestShape.js'],
   ['src/lib/newsletterCronAuth.js', 'supabase/functions/_shared/newsletterCronAuth.js'],
+  ['src/lib/newsletterProductionYoy.js', 'supabase/functions/_shared/newsletterProductionYoy.js'],
 ];
 
 function readNormalized(rel) {

@@ -22,6 +22,11 @@ const EXPECTED_IMG_OWNERS = [
   'src/newsletter/NewsletterAdminView.jsx',
   'src/newsletter/NewsletterArchive.jsx',
   'src/newsletter/NewsletterBlocks.jsx',
+  // Redesign: the issue page's "More issues" archive cards render a cover <img>
+  // with admin-authored alt (cover.altText), falling back to empty for a
+  // decorative thumb — same admin-authored pattern as NewsletterArchive, so an
+  // image owner but NOT a USER_MEDIA_OWNER.
+  'src/newsletter/NewsletterIssuePage.jsx',
   'src/shared/CommentsSection.jsx',
   'src/shared/DailyPhotoThumbnails.jsx',
   'src/tasks/TaskPhotoLightbox.jsx',
