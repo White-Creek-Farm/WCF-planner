@@ -83,14 +83,24 @@ Design/function invariants that govern cross-surface behavior live in
   display (`541d5fe`, PR #47), Newsletter Autopilot (`a1cdcf7`, PR #44),
   Pasture Map draw-temp/marker fixes (`8eba126`, PR #46), and Pasture Map
   field/offline/header chrome (`ea02278`, PR #45).
-- Newsletter release state: PR #44 plus newsletter redesign/facts PR #54/#55
-  are merged to `main`. Migrations `146` then `151` are PROD-applied and
-  verified by CC#2. The `newsletter-harvest` Edge
-  Function is deployed to PROD as active version 2 (`UPDATED_AT` 2026-06-29
-  15:44 UTC). Cron remains off. PR #44 received a narrow red-CI exception:
-  format/lint/unit/build passed, unit tests were 6503/6503, and
-  `tests/newsletter_public.spec.js` passed in CI; the remaining CI failure was
-  the existing repo-wide Playwright timeout/unrelated non-newsletter specs.
+- Newsletter release state: PR #44 (Autopilot), PR #54 (public/admin redesign),
+  PR #55 (broiler-processing fact fix + YoY production section), and PR #59
+  (archive-link gating, migration `153`) are all merged to `main`. Migrations
+  `146`, `151`, then `153` are PROD-applied and verified by CC#2. The
+  `newsletter-harvest` Edge Function is deployed to PROD as active version 5
+  (carries the redesign-era detector/composer/YoY changes; `--no-verify-jwt`,
+  the function does its own admin/cron auth) and to TEST as version 1. Cron
+  remains off. PR #44 received a narrow red-CI exception: format/lint/unit/build
+  passed and `tests/newsletter_public.spec.js` passed in CI; the remaining CI
+  failure was the existing repo-wide Playwright timeout/unrelated non-newsletter
+  specs.
+- Newsletter access state (PR #59, migration `153`): the public archive is now
+  LINK-GATED, not open. `list_published_newsletters` / `get_published_newsletter`
+  require a current, unexpired `?key=` (archive access token in
+  `newsletter_settings`); publish mints a fresh 7-day key, and an admin Regenerate
+  RPC rotates it on demand (instant revoke). PROD currently has a NULL token (no
+  active link) + 0 published issues, so the archive is locked until an admin
+  generates a link or publishes.
 - Newsletter secret state: `NEWSLETTER_AI_API_KEY` is live as a PROD Supabase
   Edge Function secret on project `pzfujbjtayhkdlxiblwe` (`Farm Planner`, West
   US/Oregon). It is intentionally not set on TEST. The remaining newsletter
@@ -171,15 +181,18 @@ Design/function invariants that govern cross-surface behavior live in
   `active` alone is not enough: active feeder batches with `0` started and `0`
   current head display `Planned`; active feeder batches with started/current
   pigs display `In Process`; `processed` displays `Complete`.
-- Newsletter PROD state: Newsletter Autopilot is merged to `main`, migrations
-  `146`/`151` are PROD-applied, and `newsletter-harvest` v2 is deployed. Public
-  no-login archive routes live under `/newsletter`, including
-  `/newsletter/latest`, issue slugs, and token preview. Admin Autopilot editing
-  lives at `/admin/newsletter` and is admin-only. The real Anthropic AI path is
-  enabled by the PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret. Cron
-  remains off. First production issue creation/publication still needs real
-  admin use and browser verification with actual photo upload/approve/cover
-  bytes.
+- Newsletter PROD state: Autopilot + redesign + facts + archive-link gating are
+  merged to `main`; migrations `146`/`151`/`153` are PROD-applied, and
+  `newsletter-harvest` is deployed (PROD v5 / TEST v1). The public archive at
+  `/newsletter` (and `/newsletter/latest`, issue slugs) is now LINK-GATED by a
+  rotating `?key=` (migration `153`); the draft token preview
+  (`?preview=<token>`) is a separate, unchanged path. Admin editing lives at
+  `/admin/newsletter` and is admin-only, including the "Public link"
+  (Copy/Regenerate) control. The real Anthropic AI path is enabled by the
+  PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret. Cron remains off.
+  First production issue creation/publication still needs real admin use and
+  browser verification with actual photo upload/approve/cover bytes, plus
+  generating the first public link.
 - Pasture Map PROD state: tabs are Map / Field / Reports. Map is the single
   working surface. The Area modal is config-only and has one close affordance:
   the upper-right `X`, which debounces/saves edits on close; extra Close, Save
@@ -271,8 +284,37 @@ The current source checkpoint is listed in the header above.
     workflow, with revised archive/issue styling and updated admin controls.
   - Corrects broilers-to-processing newsletter facts and adds YoY production
     support shared between app code and `newsletter-harvest`.
+  - Broiler "brought to processing" now mirrors the canonical Production-tab
+    logic: counts `totalToProcessor`, windows on the brought date
+    (`processingDate − 1`), and falls back to projected live birds
+    (`birdCountActual − mortalityCumulative`) for a batch brought-but-not-yet-
+    tallied (self-corrects to `totalToProcessor` once entered).
+  - YoY production: `src/lib/newsletterProductionYoy.js` (+ `_shared` mirror)
+    computes full-year vs prior-full-year totals for all five Production-tab
+    programs (Planner-wins-by-coverage; eggs in dozens); the harvest appends a
+    deterministic "Production — year over year" stats section to every draft.
   - Validation coverage lives in newsletter unit/static guards and
-    `tests/newsletter_public.spec.js`.
+    `tests/newsletter_public.spec.js`. `newsletter-harvest` redeployed (PROD v5
+    / TEST v1) to carry the server-side detector/composer changes.
+- Newsletter archive-link gating (`f3a6b63`, PR #59, migration `153`, merged
+  2026-06-30):
+  - Replaces the fully-public no-login archive with a LINK-GATED one (goal:
+    former staff can't keep a working link). One rotating archive access key
+    unlocks the new issue + all past issues; it expires in 7 days and is
+    reissued on publish, and an admin Regenerate RPC kills the old link at once.
+  - Migration `153`: `archive_access_token` + `archive_access_expires_at` on
+    `newsletter_settings`; `list_published_newsletters` / `get_published_newsletter`
+    gain `p_key` and return NULL (locked) unless the key matches + is unexpired
+    (constant-time compare); `publish_newsletter_issue` mints a fresh 7-day key;
+    `regenerate_newsletter_archive_link` (admin-only) mints on demand;
+    `get_newsletter_settings` exposes the key + expiry. Anon surface stays the
+    same three RPCs.
+  - Public surface reads `?key=`, threads it through every link, and shows a
+    "This link has expired" lock screen otherwise; admin gains a "Public link"
+    (Copy/Regenerate) card. Draft preview path unchanged.
+  - Validation: format/lint(0 errors)/full vitest 6535/build green; mig `153`
+    boundary static guard; `scripts/apply_test_mig_153.cjs` applied + verified on
+    TEST and PROD; `tests/newsletter_public.spec.js` 7/7 on an isolated server.
 - Cattle processing-batch age hotfix (`541d5fe`, PR #47, merged 2026-06-29):
   - Cattle processing batch record rows show each cow's age at the batch
     processing date (`actual_process_date` or `planned_process_date`) beside
@@ -413,9 +455,11 @@ The current source checkpoint is listed in the header above.
     and client wrapper were removed.
 - Monthly Newsletter Checkpoint A, manual public + admin engine
   (PR #40, `7d41d7f`, pushed 2026-06-26):
-  - Public no-login routes `/newsletter`, `/newsletter/latest`, issue slugs, and
-    token preview are mounted above the login gate. Public rendering uses a
-    structured block whitelist and locked `noindex`; no raw AI HTML.
+  - Public routes `/newsletter`, `/newsletter/latest`, issue slugs, and
+    token preview are mounted above the login gate. (These were no-login at CP-A;
+    migration `153`/PR #59 later made the published archive link-gated — see the
+    Monthly Newsletter contract.) Public rendering uses a structured block
+    whitelist and locked `noindex`; no raw AI HTML.
   - Admin-only `/admin/newsletter` supports manual issue creation/editing,
     intake answers, manual facts, photo staging/approval/cover controls,
     preview, publish/unpublish, and draft-only preview token regeneration.
@@ -805,11 +849,12 @@ This is the canonical home for outstanding build/design work.
 
 1. Newsletter first production issue + PROD AI smoke
    - Status: RELEASED TO `main` / SQL PROD-APPLIED / EDGE FUNCTION DEPLOYED.
-     PR #44 merged as `a1cdcf7`; migrations `146` -> `151` are PROD-applied
-     and verified; `newsletter-harvest` is active in PROD as version 2.
-     `NEWSLETTER_AI_API_KEY` is live as a PROD-only Edge Function secret, so
-     Anthropic AI is available in production; TEST intentionally does not have
-     the key. Cron remains off.
+     PR #44 (Autopilot) merged as `a1cdcf7`; PR #54 (redesign), #55 (fact fix +
+     YoY), #59 (archive-link gating) also merged; migrations `146` -> `151` ->
+     `153` are PROD-applied and verified; `newsletter-harvest` is active in PROD
+     as version 5 (TEST v1). `NEWSLETTER_AI_API_KEY` is live as a PROD-only Edge
+     Function secret, so Anthropic AI is available in production; TEST
+     intentionally does not have the key. Cron remains off.
    - Class: `ENH`/`AI`/`DB-GATE`/`SECURITY`/`AUTOMATION`/`STORAGE`.
    - Product model shipped:
      - Gather this month's facts first: planner data only, no AI and no draft.
@@ -834,9 +879,12 @@ This is the canonical home for outstanding build/design work.
        prompting, harvest shaping, brief assembly, and photo-plan placement.
      - `newsletter-harvest` now supports real-source harvest, source coverage,
        revisions, photo-plan generation/merge, and AI configuration probe.
-     - Admin UI is gather-first: hero/brief, coverage/readiness/repetition
-       panels, ranked highlights, real settings selectors, revision box,
-       Monthly Q&A, manual fact, shot-list assignment, and Place planned photos.
+     - Admin UI (post-redesign, PR #54): a "this month" spotlight + section-banded
+       openable tiles (list); a 7-step tracker over step cards (facts +
+       coverage/readiness, direction Q&A/manual facts/tone, read-only draft,
+       revise box, photos + shot-list/place, review + preview, publish) plus a
+       312px utility rail (this issue / recent runs / guardrails); a grouped
+       in-view Settings sub-surface; and the "Public link" (Copy/Regenerate) card.
    - Safety boundaries to preserve:
      - No finances or mortalities; births are born-alive; on-farm counts exclude
        dead/sold/processed animals at source; AI key stays server-only.
@@ -846,9 +894,16 @@ This is the canonical home for outstanding build/design work.
    - Remaining actions:
      - Probe `newsletter-harvest` from `/admin/newsletter` or an approved admin
        call and confirm `aiConfigured: true` on PROD.
+     - On the June (or first) issue, re-gather facts (picks up the v5
+       broiler-processing fix) and Write/Rewrite the draft (appends the YoY
+       production section), then verify the numbers + section.
+     - Generate the first public archive link in `/admin/newsletter` ("Generate
+       link"; or it auto-mints on publish), then share it; the archive is locked
+       until a key exists.
      - Run the first production issue workflow: gather facts, review coverage,
-       write/revise, approve/place photos, preview, publish, and verify public
-       `/newsletter` output. Cron stays off until separately approved.
+       write/revise, approve/place photos, preview, publish, and verify the
+       link-gated public `/newsletter` output. Cron stays off until separately
+       approved.
    - Validation/release notes: PR #44 had format/lint/unit/build green, unit
      tests 6503/6503, and newsletter public/admin E2E green in CI. The branch
      received an explicit narrow red-CI waiver because the full Playwright suite
@@ -1489,6 +1544,22 @@ Current PROD architecture includes all applied migrations through `116`, plus
     `newsletter-harvest` v2 was deployed after the SQL gate; the PROD-only
     `NEWSLETTER_AI_API_KEY` secret is live, so AI calls can use Anthropic in
     production. TEST intentionally remains without that key.
+- `153` Newsletter archive-link gating:
+  - Adds `archive_access_token` + `archive_access_expires_at` to
+    `newsletter_settings`; key-gates the two published-archive anon RPCs
+    (`list_published_newsletters`, `get_published_newsletter` gain `p_key` and
+    return NULL unless the key matches + is unexpired, constant-time compare via
+    `_newsletter_archive_key_ok`); `publish_newsletter_issue` mints a fresh 7-day
+    key; adds the admin-only `regenerate_newsletter_archive_link`; and surfaces
+    the key + expiry through `get_newsletter_settings`. Anon surface stays the
+    same three RPCs (`get_newsletter_preview` unchanged). No BEGIN/COMMIT in the
+    file (exec_sql / `psql --single-transaction` wrap it).
+  - TEST-applied + behaviorally verified via `scripts/apply_test_mig_153.cjs`
+    (locked w/ no/wrong/expired key; valid key works; admin-only regenerate kills
+    the old key). PROD-applied + verified 2026-06-30 via
+    `psql --single-transaction -v ON_ERROR_STOP=1` with a behavioral check;
+    PostgREST reloaded via the file's `NOTIFY pgrst`. No Edge Function or Netlify
+    env change. Reverses the prior "public no-login archive" contract.
 
 Special migration notes:
 
@@ -1565,13 +1636,20 @@ Append-only upload expectations:
   plus `scripts/apply_test_mig_147.cjs`, `scripts/apply_test_mig_148.cjs`, and
   `scripts/apply_test_mig_150.cjs`: TEST apply/smoke helpers for the Pasture
   Map lanes.
-- `src/newsletter/*`, `src/lib/newsletterApi.js`, `tests/newsletter_public.spec.js`,
+- `src/newsletter/*`, `src/lib/newsletterApi.js`,
+  `src/lib/newsletterProductionYoy.js` (+ `supabase/functions/_shared` mirror),
+  `tests/newsletter_public.spec.js`,
   `tests/static/newsletter_boundary_static.test.js`,
+  `tests/static/newsletter_shared_parity.test.js`,
   `supabase-migrations/144_newsletter_engine.sql`,
   `supabase-migrations/145_newsletter_public_bucket.sql`,
-  `supabase-migrations/146_newsletter_automation.sql`, and
-  `scripts/apply_test_mig_144_145.cjs`: Monthly Newsletter public/admin/API,
-  boundary, storage, and unreleased automation owners on `main`.
+  `supabase-migrations/146_newsletter_automation.sql`,
+  `supabase-migrations/151_newsletter_autopilot.sql`,
+  `supabase-migrations/153_newsletter_archive_link.sql`,
+  `supabase/functions/newsletter-harvest/index.ts`, and
+  `scripts/apply_test_mig_144_145.cjs` + `scripts/apply_test_mig_153.cjs`:
+  Monthly Newsletter public/admin/API, boundary, storage, automation, archive-
+  link gating, and the server-side harvest/detector/composer owners on `main`.
 - `src/pig/SowsView.jsx`: breeding-pig grouped tables and record pages.
 - `src/lib/activityRegistry.js`: client entity registry, labels, and routes.
 - `src/lib/activityApi.js` and `src/lib/globalActivityApi.js`: Activity RPC
@@ -1864,19 +1942,38 @@ Workflow/worktable entities:
 
 ### Monthly Newsletter
 
-- Current shipped scope is Newsletter Autopilot: public archive + admin editor,
-  migrations `144`/`145` for data/storage/public boundary, migration `146` for
-  automation/run logging/cron RPC support, migration `151` for Autopilot
-  settings/source coverage/photo plan/past-issue context, and the
-  `newsletter-harvest` Edge Function v2. Autopilot gathers planner facts first,
-  lets Ronnie steer facts/Q&A/tone/length, writes or revises with AI/template
-  composer, generates a photo plan, supports private upload + approval + place
-  planned photos, previews, and publishes. The real AI path is enabled in PROD
-  through the PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret; TEST is
-  intentionally not configured with that key.
-- The newsletter is a public no-login web archive at `/newsletter`, with past
-  months navigable and a latest-issue route. Public issue pages must be
-  `noindex`; this is an invariant, not a setting admins can accidentally drift.
+- Current shipped scope is Newsletter Autopilot + the direction-first redesign +
+  archive-link gating: link-gated public archive + admin editor, migrations
+  `144`/`145` (data/storage/public boundary), `146` (automation/run logging/cron
+  RPC support), `151` (Autopilot settings/source coverage/photo plan/past-issue
+  context), `153` (archive-link gating), and the `newsletter-harvest` Edge
+  Function (PROD v5 / TEST v1). Autopilot gathers planner facts first, lets Ronnie
+  steer facts/Q&A/tone/length, writes or revises with AI/template composer,
+  generates a photo plan, supports private upload + approval + place planned
+  photos, previews, and publishes. The real AI path is enabled in PROD through the
+  PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret; TEST is intentionally
+  not configured with that key.
+- UI: the admin (`/admin/newsletter`) and public (`/newsletter`) surfaces follow
+  the direction-first redesign (PR #54), built on the app's design tokens +
+  shared primitives. Admin = a "this month" spotlight + section-banded openable
+  tiles (list), a 7-step tracker (Facts · Steer · Draft · Revise · Photos ·
+  Review · Publish) over step cards + a 312px utility rail (editor), and a grouped
+  in-view Settings sub-surface (no route alias). Public = an editorial masthead,
+  hover-lift archive cards, an issue page with numbers strip + reading time +
+  sign-off + "More issues". The draft stays AI-owned (read-only blocks, revise-in-
+  place, guarded rewrite).
+- ACCESS (migration `153`, PR #59): the public archive is LINK-GATED, not open.
+  `/newsletter`, `/newsletter/latest`, and issue slugs require a current,
+  unexpired `?key=` (one shared archive access token in `newsletter_settings`
+  that unlocks the new issue + all past issues). Publish mints a fresh 7-day key;
+  the admin "Public link" card (Copy/Regenerate) rotates it on demand (instant
+  revoke when someone leaves). A missing/invalid/expired key shows a "link
+  expired" lock screen. The goal is that former staff can never keep a working
+  link. Admins always read every issue via the authed admin RPCs regardless of
+  the public key state. The draft preview (`?preview=<token>`) is a SEPARATE path
+  with its own 30-day token and is unchanged by `153`.
+- Public issue pages must be `noindex`; this is an invariant, not a setting admins
+  can accidentally drift.
 - Admin creation/editing lives inside the planner and is admin-only. The public
   reader surface is web-only; no PDF, email send, RSS, or reader login is part
   of the current requirement.
@@ -1887,6 +1984,20 @@ Workflow/worktable entities:
   processing/production/yield records, and other genuinely noteworthy good-news
   events. Do not include finances or mortalities. First names of team members
   are OK; avoid sensitive/private details and never expose private file paths.
+- Fact accuracy mirrors the app's canonical logic (PR #50/#55). Broilers "brought
+  to processing" counts `totalToProcessor` (NOT the unpopulated processed-count
+  fields), windows on the brought date (`processingDate − 1`, since a batch goes
+  to the processor the day before its processing date), and falls back to
+  projected live birds (`birdCountActual − mortalityCumulative`) for a batch
+  brought-but-not-yet-tallied (self-corrects once `totalToProcessor` is entered).
+- Year-over-year production: the harvest appends a deterministic
+  "Production — year over year" stats section (exact, never AI-authored) to every
+  draft — full-year vs prior-full-year for all five Production-tab programs
+  (cattle/broilers/pigs/sheep/eggs), mirroring the tab's per-program quantity
+  rules + Planner-wins-by-coverage (legacy backfills only program-years with no
+  Planner data); eggs shown in dozens. Logic lives in the parity-locked
+  `newsletterProductionYoy.js` (src/lib + `_shared` mirror); a strip-then-reappend
+  keeps it from duplicating on revise.
 - The monthly workflow is minimum-human-input but Ronnie-directed:
   gather this month's facts from planner sources without AI, let Ronnie select/
   add facts and answer Monthly Q&A, then AI writes a draft and photo shot-list.
@@ -1899,10 +2010,16 @@ Workflow/worktable entities:
   renderer whitelists block types and never renders raw AI HTML. Ronnie remains
   the final editorial approver.
 - Data boundary: newsletter tables are deny-all RLS and exposed only through
-  narrow SECURITY DEFINER RPCs. The anon surface is exactly published list,
-  published issue, and token-gated preview. Public and preview payloads expose
+  narrow SECURITY DEFINER RPCs. The anon surface is exactly three RPCs — published
+  list, published issue, and token-gated preview. As of migration `153` the
+  published list + published issue are additionally ARCHIVE-KEY-GATED (they take
+  `p_key` and return NULL unless it matches the current, unexpired
+  `archive_access_token`, constant-time compare via `_newsletter_archive_key_ok`);
+  the preview RPC keeps its own draft token. Public and preview payloads expose
   approved photo paths only; draft facts, intake, runs, settings, and private
-  source paths stay admin-only.
+  source paths stay admin-only. The harvest detectors + draft composer run
+  server-side inside `newsletter-harvest` (so detector/composer changes require an
+  Edge Function redeploy).
 - Photo boundary: uploads/copies start in private `newsletter-staging`. Approval
   copies bytes to public `newsletter-public`; unapproval deletes the public copy.
   A photo row being present or suggested is not public consent.
@@ -2312,7 +2429,7 @@ Focused starting points:
 | Record pages | `tests/static/record_page_*.test.js`, per-entity static tests, `tests/*_sequence_nav.spec.js` |
 | Home / dashboard alerts | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js` |
 | Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
-| Newsletter | `tests/static/newsletter_boundary_static.test.js`, `src/lib/newsletterApi.test.js`, `src/newsletter/NewsletterBlocks.test.js`, `tests/newsletter_public.spec.js`, `scripts/apply_test_mig_144_145.cjs` |
+| Newsletter | `tests/static/newsletter_boundary_static.test.js`, `tests/static/newsletter_shared_parity.test.js`, `src/lib/newsletterApi.test.js`, `src/lib/newsletterFacts.test.js`, `src/lib/newsletterProductionYoy.test.js`, `src/newsletter/NewsletterBlocks.test.js`, `tests/newsletter_public.spec.js`, `scripts/apply_test_mig_144_145.cjs`, `scripts/apply_test_mig_153.cjs` |
 | Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_placement.spec.js`, `tests/pasture_map_reports_records.spec.js`, `tests/pasture_map_reset_history.spec.js`, `tests/pasture_map_light_access.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_tweaks2.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `tests/pasture_map_tile_hover.spec.js`, `tests/pasture_map_open_line_edit.spec.js`, `playwright.pasture.config.js`, `scripts/apply_test_mig_147.cjs`, `scripts/apply_test_mig_148.cjs`, `scripts/apply_test_mig_150.cjs` |
 | Breeding pigs | `tests/static/breeding_pigs_parity_static.test.js` |
 | Feed planning | `src/lib/feedPlanner.test.js`, `src/lib/feedOrderBasis.test.js`, `tests/static/feed_order_board_static.test.js` |
