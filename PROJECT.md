@@ -8,21 +8,27 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-06-30.
-Current product checkpoint: `535e373`
-(`Merge pull request #58 ... installable offline Pasture Map hub + map/draw UI fixes`).
-Latest shipped product merges include the Pasture Map field-tweaks trio
-(`f8ebb99` / `d2a4a89` / `535e373`, PR #56/#57/#58 — Field-tab promote + manager
-hard delete + mig `152`, tap-to-place draw, and the installable offline
-`/pasture-map` PWA hub), residual lanes closure (`365e8c1` / `1e7cab0`),
-Newsletter redesign and production-facts fixes (`bd44a3e` / `4c4a259`,
-PR #54/#55), Newsletter Autopilot (`a1cdcf7`, PR #44), Pasture Map
-field/offline/header chrome (`ea02278`, PR #45), Pasture Map draw-temp/marker
-fixes (`8eba126`, PR #46), cattle processing-batch age display (`541d5fe`,
-PR #47), cattle terminal-age animal records (`1ac82ff`, PR #49), and Pasture Map
-hover-bubble + current-area rotation-pin trim (`1f84f20`, PR #51).
-Current docs checkpoint: this 2026-06-30 closure pass removes the completed
-Pasture, P3 derived-data/audit, parity, and design-law residual tails from the
-Build Queue; only genuinely outstanding build lanes remain there.
+Current product checkpoint: `8735930`
+(`Merge pull request #60 ... docs/newsletter-state`). This consolidation also
+includes CC#1's Pasture Map state-doc commit `b75e4b6`.
+Latest shipped product/doc merges include Newsletter state docs (`8735930` /
+`bb9df54`, PR #60), Newsletter archive-link gating (`c668a2a` / `f3a6b63`,
+PR #59, migration `153`), persistent login session handling (`9c2d56b` /
+`39e13e0`), the Pasture Map field-tweaks trio (`f8ebb99` / `d2a4a89` /
+`535e373`, PR #56/#57/#58 - Field-tab promote + manager hard delete +
+migration `152`, tap-to-place draw, and the installable offline `/pasture-map`
+PWA hub), residual lanes closure (`365e8c1` / `1e7cab0`), Newsletter redesign
+and production-facts fixes (`bd44a3e` / `4c4a259`, PR #54/#55), Newsletter
+Autopilot (`a1cdcf7`, PR #44), Pasture Map field/offline/header chrome
+(`ea02278`, PR #45), Pasture Map draw-temp/marker fixes (`8eba126`, PR #46),
+cattle processing-batch age display (`541d5fe`, PR #47), cattle terminal-age
+animal records (`1ac82ff`, PR #49), and Pasture Map hover-bubble +
+current-area rotation-pin trim (`1f84f20`, PR #51).
+Current docs checkpoint: this 2026-06-30 consolidation reconciles CC#1's Pasture
+Map update and CC#2's Newsletter update, removes stale branch/worktree/current
+state text, and leaves Build Queue with only two open build lanes: Newsletter
+first production issue + PROD AI smoke, and Processing Calendar Asana import +
+native workflow.
 Production URL: https://wcfplanner.com.
 Netlify auto-deploys from GitHub `main`.
 
@@ -76,16 +82,17 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`. The latest pushed
-  main checkpoint before this docs-only closure branch is `1e7cab0`, which
-  includes the residual lanes closure and the newsletter redesign/facts fixes.
-- Source: latest pushed `main` checkpoint is `1e7cab0`. Recent main history
-  includes residual lanes closure (`365e8c1` / `1e7cab0`), Newsletter redesign
-  and production-facts fixes (`bd44a3e` / `4c4a259`, PR #54/#55), Pasture Map
-  hover-bubble + current-area rotation-pin trim (`1f84f20`, PR #51), cattle
-  terminal-age animal records (`1ac82ff`, PR #49), cattle processing-batch age
-  display (`541d5fe`, PR #47), Newsletter Autopilot (`a1cdcf7`, PR #44),
-  Pasture Map draw-temp/marker fixes (`8eba126`, PR #46), and Pasture Map
-  field/offline/header chrome (`ea02278`, PR #45).
+  main checkpoint before this consolidation is `8735930` (PR #60 Newsletter
+  state docs), which includes Newsletter archive-link gating, persistent login,
+  residual lanes closure, the Pasture Map field-tweaks trio, Newsletter redesign
+  and production-facts fixes, Newsletter Autopilot, Pasture Map field/offline/
+  header chrome, Pasture Map draw-temp/marker fixes, cattle processing-batch age
+  display, cattle terminal-age animal records, and Pasture Map hover-bubble +
+  current-area rotation-pin trim.
+- Source: this consolidation combines `origin/main` `8735930` with CC#1's
+  Pasture Map state-doc commit `b75e4b6`, so the docs carry both the CC#1
+  Pasture Map update and the CC#2 Newsletter update. Product code in this pass
+  is unchanged from the already-pushed `main`.
 - Newsletter release state: PR #44 (Autopilot), PR #54 (public/admin redesign),
   PR #55 (broiler-processing fact fix + YoY production section), and PR #59
   (archive-link gating, migration `153`) are all merged to `main`. Migrations
@@ -93,10 +100,10 @@ Design/function invariants that govern cross-surface behavior live in
   `newsletter-harvest` Edge Function is deployed to PROD as active version 5
   (carries the redesign-era detector/composer/YoY changes; `--no-verify-jwt`,
   the function does its own admin/cron auth) and to TEST as version 1. Cron
-  remains off. PR #44 received a narrow red-CI exception: format/lint/unit/build
-  passed and `tests/newsletter_public.spec.js` passed in CI; the remaining CI
-  failure was the existing repo-wide Playwright timeout/unrelated non-newsletter
-  specs.
+  remains off. PR #44 received a historical narrow red-CI exception: format/
+  lint/unit/build passed and `tests/newsletter_public.spec.js` passed in CI; the
+  red state was a historical full-suite Playwright timeout outside newsletter
+  scope, later handled by the residual closure work.
 - Newsletter access state (PR #59, migration `153`): the public archive is now
   LINK-GATED, not open. `list_published_newsletters` / `get_published_newsletter`
   require a current, unexpired `?key=` (archive access token in
@@ -106,9 +113,9 @@ Design/function invariants that govern cross-surface behavior live in
   generates a link or publishes.
 - Newsletter secret state: `NEWSLETTER_AI_API_KEY` is live as a PROD Supabase
   Edge Function secret on project `pzfujbjtayhkdlxiblwe` (`Farm Planner`, West
-  US/Oregon). It is intentionally not set on TEST. The remaining newsletter
-  release task is to run the PROD admin AI probe / first issue workflow smoke
-  and confirm the live function uses Anthropic instead of template fallback.
+  US/Oregon). It is intentionally not set on TEST. Build Queue item 1 is the
+  canonical open lane for the PROD admin AI probe / first issue workflow smoke
+  that confirms the live function uses Anthropic instead of template fallback.
 - Pasture Map release state: PR #45, PR #46, and PR #51 are merged to `main`.
   Production deploy of PR #46 was verified by CC#1: new main JS/CSS are live,
   `.pm-occ-pin` is present, old `.pm-occ-avatar` and `.pm-rotation-label` are
@@ -126,8 +133,9 @@ Design/function invariants that govern cross-surface behavior live in
   (manager hard delete) to TEST and PROD with the role gate, grants, occupancy
   guard, and no-purge path verified on PROD; PR #57/#58 are code-only (no SQL).
   The installable `/pasture-map` PWA install + offline behavior is verified by a
-  `pwa_offline_cache` cold-open e2e, but the Add-to-Home-Screen tap itself is a
-  device action Ronnie still needs to confirm on the deployed build.
+  `pwa_offline_cache` cold-open e2e; the Add-to-Home-Screen tap itself is a
+  manual device confirmation for Ronnie on the deployed build, not an open code
+  lane.
 - Cattle processing-batch state: PR #47 is merged to `main`. Cattle processing
   batch record rows now show every cow's age at the batch processing date.
   Validation before merge: Prettier on changed files, focused static test
@@ -142,27 +150,31 @@ Design/function invariants that govern cross-surface behavior live in
   animal_detail_age.test.js` 12/12, lint 0 errors (existing warnings only),
   build passed, Netlify PR preview checks were clean, and production JS was
   verified to contain the terminal-age labels.
-- Worktree inventory at wrap: two worktrees exist. The primary
-  `C:/Users/Ronni/WCF-planner` is the CC#1 worktree (transiently on the Pasture
-  Map wrap branch `fix/pasture-map-hover-and-rotation-pin`; returns to `main`
-  after wrap), and `C:/Users/Ronni/WCF-planner-newsletter-fact-fix` is an active
-  Codex lane on `fix/newsletter-fact-accuracy`. The primary worktree keeps the
+- Worktree inventory at this consolidation: three worktrees exist.
+  `C:/Users/Ronni/WCF-planner` is the active docs consolidation worktree on
+  `docs/pasture-map-session-state`; the newsletter redesign worktree
+  `C:/Users/Ronni/WCF-planner-newsletter-redesign` has `main` checked out at
+  `8735930`; and
+  `C:/Users/Ronni/WCF-planner-codex-residuals` remains on the old
+  `codex/persistent-login` branch at `39e13e0`. The primary worktree keeps the
   seven preserved untracked handoff/shot folders: `design_handoff_newsletter/`,
   `design_handoff_processing_calendar/`, `pasture-cp2-shots/`,
   `pasture-map-shots/`, `pasture-offline-field-guide/`,
-  `pasture-open-line-edit-shots/`, and `pasture-rail-shots/`. Older
-  newsletter/source/autopilot/residuals worktrees were pruned after their lanes
-  merged. Do not delete the preserved folders unless Ronnie explicitly asks.
+  `pasture-open-line-edit-shots/`, and `pasture-rail-shots/`. Do not delete the
+  preserved folders unless Ronnie explicitly asks.
 - PROD-applied recent migrations include `112` through `116`, `125` through
-  `152`. Migration `143` (`delete_land_area_grazing_history`) remains deployed
-  but unused by the UI. Newsletter migrations `144` and `145` define the tables,
-  anon surface, and storage buckets; `146` adds automation/run logging/cron RPC
-  support; `151` adds Autopilot settings, source coverage, photo plan, and
-  generation-input extensions. Migration `152`
+  `153`. Migration `143` (`delete_land_area_grazing_history`) remains deployed
+  as a benign unused helper; no UI calls it and no cleanup lane is open.
+  Newsletter migrations `144` and `145` define the tables, anon surface, and
+  storage buckets; `146` adds automation/run logging/cron RPC support; `151`
+  adds Autopilot settings, source coverage, photo plan, and generation-input
+  extensions; `153` gates the public archive RPCs behind a rotating expiring
+  access key. Migration `152`
   (`152_pasture_map_manager_hard_delete.sql`) widens `hard_delete_land_area` from
   admin-only to management+admin (occupancy guard, child-detach, and no-purge
   soft-delete path unchanged); applied to TEST and PROD on 2026-06-30. The public
-  anon newsletter surface remains the exact three RPCs from `144`.
+  anon newsletter surface remains exactly three RPCs from `144`; as of `153`,
+  the published list and published issue RPCs also require a valid archive key.
 - Production legacy import: `Processing Events - ALL.xlsx` parsed 69 rows,
   skipped 0, and upserted 69 rows into `production_legacy_events` on PROD by
   stable `source_key`.
@@ -202,9 +214,9 @@ Design/function invariants that govern cross-surface behavior live in
   `/admin/newsletter` and is admin-only, including the "Public link"
   (Copy/Regenerate) control. The real Anthropic AI path is enabled by the
   PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret. Cron remains off.
-  First production issue creation/publication still needs real admin use and
-  browser verification with actual photo upload/approve/cover bytes, plus
-  generating the first public link.
+  Build Queue item 1 tracks the first production issue creation/publication,
+  real admin browser verification with actual photo upload/approve/cover bytes,
+  and first public link generation.
 - Pasture Map PROD state: tabs are Map / Field / Reports. Map is the single
   working surface. The Area modal is config-only and has one close affordance:
   the upper-right `X`, which debounces/saves edits on close; extra Close, Save
@@ -316,7 +328,8 @@ The current source checkpoint is listed in the header above.
     `npm run build` (emits `dist/pasture-map.html`), and focused Playwright —
     pasture cp2/v1_field/light_access, plus `pwa_offline_cache` extended with a
     `/pasture-map` offline cold-open. The Add-to-Home-Screen install itself is a
-    device action for Ronnie to confirm on the deployed build.
+    manual device confirmation for Ronnie on the deployed build, not an open
+    code lane.
 - Residual lanes closure (`1e7cab0`, pushed 2026-06-30):
   - Pasture Map teardown and Home dashboard console-noise residuals are closed:
     Leaflet layer cleanup is guarded during rapid Map/Field navigation, and
@@ -400,8 +413,9 @@ The current source checkpoint is listed in the header above.
     AI is available for the production admin workflow while TEST remains
     template-fallback unless separately configured.
   - Validation: format/lint/unit/build green, unit tests 6503/6503, newsletter
-    public/admin E2E green in CI. Full CI has a documented narrow red-CI waiver
-    for the repo-wide Playwright timeout/unrelated non-newsletter failures.
+    public/admin E2E green in CI. Full CI had a historical narrow red-CI waiver
+    for unrelated full-suite Playwright failures; the residual closure work later
+    handled that class of repo-wide noise.
 - Pasture Map hover bubble + rotation-pin trim (`1f84f20`, PR #51, merged
   2026-06-29):
   - The rotation path skips the numbered marker at the group's current area so
