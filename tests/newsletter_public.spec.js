@@ -154,14 +154,20 @@ test.describe('public newsletter (logged out)', () => {
 });
 
 test.describe('admin newsletter (admin)', () => {
-  test('renders the workspace and opens the one-pass editor', async ({page}) => {
+  test('renders the workspace and opens the 7-step editor', async ({page}) => {
     await page.goto('/admin/newsletter');
     await expect(page.getByRole('heading', {name: 'Monthly Newsletter'})).toBeVisible();
     await expect(page.getByText(PUB.title)).toBeVisible();
     await cleanShot(page, 'admin-list-desktop');
 
-    await page.getByRole('row').filter({hasText: PUB.title}).getByRole('button', {name: 'Open'}).click();
-    await expect(page.getByRole('heading', {name: 'Draft'})).toBeVisible();
+    // Issues are openable hover-lift tiles (A6 affordance) — the whole tile opens
+    // the editor; there is no per-row "Open" button.
+    await page.locator('.nla-tile', {hasText: PUB.title}).click();
+
+    // The direction-first 7-step tracker (Facts → … → Publish) heads the editor.
+    await expect(page.locator('.nla-tracker')).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'This month’s facts'})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'The draft'})).toBeVisible();
 
     // Published issue: the AI-owned draft renders READ-ONLY (no manual block
     // editing) and shows the snapshotted blocks — publish leaves draft_payload
@@ -179,39 +185,37 @@ test.describe('admin newsletter (admin)', () => {
     await expect(page.getByRole('link', {name: 'Open preview'})).toHaveCount(0);
     await expect(page.getByRole('button', {name: 'Regenerate link'})).toHaveCount(0);
 
-    // Autopilot, direction-first: the editor leads with the Newsletter Brief
-    // (coverage + readiness + ranked highlights) and the two-step actions —
-    // "Gather facts" (data, no AI) and the AI "Write/Rewrite/Revise draft". The
-    // buttons trigger the newsletter-harvest Edge Function; full invocation needs
-    // the deploy gate, so this asserts the brief surface + wiring, not the round-trip.
-    await expect(page.getByRole('heading', {name: 'Newsletter brief'})).toBeVisible();
-    await expect(page.getByText('Source coverage')).toBeVisible();
-    await expect(page.getByText('Publish readiness')).toBeVisible();
-    await expect(page.getByRole('button', {name: /Gather facts|Re-gather facts/})).toBeVisible();
+    // Direction-first wiring: the facts step exposes the data-only "Gather facts"
+    // (no AI), and the Revise step exposes the AI "Write/Rewrite/Revise draft".
+    // These trigger the newsletter-harvest Edge Function; full invocation needs
+    // the deploy gate, so this asserts the surface + wiring, not the round-trip.
+    await expect(page.getByRole('button', {name: /Gather facts|Re-gather facts/}).first()).toBeVisible();
     // Published issue already has draft blocks → the AI button reads "Rewrite draft".
     await expect(page.getByRole('button', {name: /Write draft|Rewrite draft|Revise draft/})).toBeVisible();
+
+    // The always-on guardrails are surfaced in the utility rail.
+    await expect(page.getByRole('heading', {name: 'Guardrails'})).toBeVisible();
     await cleanShot(page, 'admin-editor-desktop');
   });
 
-  test('surfaces the this-month hero, real settings controls, and the draft brief', async ({page}) => {
+  test('surfaces the this-month spotlight, the settings sub-view, and the draft readiness', async ({page}) => {
     await page.goto('/admin/newsletter');
     await expect(page.getByRole('heading', {name: 'Monthly Newsletter'})).toBeVisible();
     // The current month is surfaced up front with a one-click "gather facts" action.
-    await expect(page.locator('.nla-hero')).toBeVisible();
+    await expect(page.locator('.nla-spotlight')).toBeVisible();
     await expect(page.getByRole('button', {name: /Gather this month’s facts|Re-gather facts/})).toBeVisible();
 
-    // Real settings controls replace the free-text boxes.
-    await page.getByRole('button', {name: 'Show settings'}).click();
+    // Settings is a dedicated in-view sub-surface of grouped cards (no new route).
+    await page.getByRole('button', {name: 'Settings'}).click();
+    await expect(page.getByRole('heading', {name: 'Newsletter settings'})).toBeVisible();
     await expect(page.getByText('AI provider')).toBeVisible();
     await expect(page.getByText('Tone preset')).toBeVisible();
     await expect(page.getByText('Length / detail')).toBeVisible();
     await cleanShot(page, 'admin-settings-desktop');
-    await page.getByRole('button', {name: 'Hide settings'}).click();
+    await page.getByRole('button', {name: '‹ Back to issues'}).click();
 
-    // Open the seeded DRAFT issue → the brief + readiness render for a draft.
-    await page.getByRole('row').filter({hasText: DRAFT.title}).getByRole('button', {name: 'Open'}).click();
-    await expect(page.locator('.nla-brief')).toBeVisible();
-    await expect(page.getByRole('heading', {name: 'Newsletter brief'})).toBeVisible();
+    // Open the seeded DRAFT issue → readiness + photo plan render for a draft.
+    await page.locator('.nla-tile', {hasText: DRAFT.title}).click();
     await expect(page.locator('.nla-readiness')).toBeVisible();
 
     // The AI photo plan (shot-list) renders from the seeded plan, and the
@@ -221,7 +225,7 @@ test.describe('admin newsletter (admin)', () => {
     await expect(page.getByPlaceholder(/tell the AI what to change/i)).toBeVisible();
     await cleanShot(page, 'admin-draft-desktop');
 
-    // Mobile capture of the editor + brief for the UI review.
+    // Mobile capture of the editor for the UI review.
     await page.setViewportSize({width: 390, height: 844});
     await cleanShot(page, 'admin-editor-mobile');
   });

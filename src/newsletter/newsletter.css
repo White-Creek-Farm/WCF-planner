@@ -1,108 +1,171 @@
 /* Public newsletter surface — scoped under .nl-public. Standalone (no app
- * chrome): a calm, email-style single column that reads like White Creek
- * Farm's monthly note rather than a marketing landing page. Hanken Grotesk is
- * already loaded globally. Colors fall back to literals so the page is correct
- * even before the app token layer parses. */
+ * chrome): an editorial, no-login monthly review for White Creek Farm. This
+ * surface mounts ABOVE the auth gate, but index.html's :root token layer is a
+ * global stylesheet that is always present, so we consume the canonical design
+ * tokens (var(--…)) here too — with a few literal fallbacks so the page is still
+ * legible if a token ever fails to resolve. Hanken Grotesk is loaded globally.
+ *
+ * Measures (handoff): article text reads at 680px; cover, numbers strip, and the
+ * archive grid span the wider 860px column. Radii stay on the 10/12/14 floor.
+ */
 
 .nl-public {
-  --nl-green: #085041;
-  --nl-green-soft: #e7f0ec;
-  --nl-ink: #111613;
-  --nl-muted: #5b6661;
-  --nl-border: #d8ddda;
-  --nl-bg: #f6f7f5;
-  background: var(--nl-bg);
+  background: var(--bg-page, #f8f9fa);
   min-height: 100vh;
-  color: var(--nl-ink);
+  color: var(--text-primary, #000);
   font-family:
     'Hanken Grotesk',
     system-ui,
     -apple-system,
-    Segoe UI,
+    'Segoe UI',
     Roboto,
     sans-serif;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Masthead ────────────────────────────────────────────────────────────── */
+.nl-masthead {
+  border-bottom: 1px solid var(--border, #e6e8eb);
+  background: var(--bg-card, #fff);
+}
+.nl-masthead-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.nl-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: inherit;
+}
+.nl-brand-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--brand, #1c8a5f);
+  flex: 0 0 auto;
+}
+.nl-brand-word {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary, #000);
+}
+.nl-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+}
+.nl-nav-link {
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ink-muted, #6b7280);
+}
+.nl-nav-link:hover {
+  color: var(--text-primary, #000);
+}
+.nl-nav-link.is-current {
+  color: var(--text-primary, #000);
+  font-weight: 700;
+}
+
 .nl-container {
-  max-width: 720px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 32px 20px 64px;
 }
 
+/* Article text reads at a tighter measure than the wide cover/numbers/archive. */
+.nl-measure {
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .nl-loading,
 .nl-empty {
-  color: var(--nl-muted);
+  color: var(--ink-muted, #6b7280);
   padding: 48px 0;
   text-align: center;
 }
 
 .nl-message {
   padding: 48px 0;
+  max-width: 680px;
+  margin: 0 auto;
 }
 
-/* ── Kicker / titles ─────────────────────────────────────────────────────── */
-.nl-kicker {
+/* ── Kicker / eyebrow / titles ───────────────────────────────────────────── */
+.nl-kicker,
+.nl-eyebrow {
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   font-size: 12px;
   font-weight: 700;
-  color: var(--nl-green);
-  margin-bottom: 6px;
+  color: var(--label, #7a828d);
+  margin-bottom: 8px;
 }
 
 .nl-title {
-  font-size: 32px;
-  line-height: 1.15;
-  font-weight: 700;
+  font-size: 34px;
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.025em;
   margin: 0 0 8px;
-  color: var(--nl-ink);
+  color: var(--text-primary, #000);
 }
 
 .nl-published {
-  color: var(--nl-muted);
+  color: var(--ink-muted, #6b7280);
   font-size: 13px;
 }
 
-/* ── Archive ─────────────────────────────────────────────────────────────── */
+/* ── Archive (landing) ───────────────────────────────────────────────────── */
 .nl-archive-header {
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--nl-border);
-  padding-bottom: 20px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border, #e6e8eb);
+  padding-bottom: 22px;
+  max-width: 680px;
 }
 .nl-archive-sub {
-  color: var(--nl-muted);
-  font-size: 15px;
-  margin: 4px 0 0;
+  color: var(--ink-muted, #6b7280);
+  font-size: 16px;
+  line-height: 1.55;
+  margin: 6px 0 0;
 }
-.nl-archive-list {
+.nl-archive-grid {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
 }
-.nl-archive-item + .nl-archive-item {
-  border-top: 1px solid var(--nl-border);
-}
-.nl-archive-link {
+.nl-archive-card {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 8px;
+  flex-direction: column;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #e6e8eb);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(20, 30, 40, 0.045));
+  overflow: hidden;
   text-decoration: none;
   color: inherit;
-  border-radius: 12px;
-  transition: background 200ms ease;
-}
-.nl-archive-link:hover {
-  background: var(--nl-green-soft);
 }
 .nl-archive-thumb {
-  flex: 0 0 auto;
-  width: 96px;
-  height: 72px;
-  border-radius: 10px;
+  display: block;
+  width: 100%;
+  height: 132px;
+  background: var(--surface-2, #f1f3f4);
   overflow: hidden;
-  background: var(--nl-green-soft);
 }
 .nl-archive-thumb img {
   width: 100%;
@@ -111,66 +174,122 @@
   display: block;
 }
 .nl-archive-thumb-empty {
-  border: 1px dashed var(--nl-border);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface-2, #f1f3f4),
+    var(--surface-2, #f1f3f4) 10px,
+    var(--bg-page, #f8f9fa) 10px,
+    var(--bg-page, #f8f9fa) 20px
+  );
 }
-.nl-archive-meta {
+.nl-archive-body {
+  padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 .nl-archive-month {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--nl-green);
+  letter-spacing: 0.08em;
+  color: var(--label, #7a828d);
 }
 .nl-archive-title {
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--text-primary, #000);
+  line-height: 1.3;
+}
+.nl-archive-read {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand, #1c8a5f);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-/* ── Issue ───────────────────────────────────────────────────────────────── */
+/* Public links-list lift: real anchors (not .hoverable-tile), so they keep
+ * native link semantics. Paint-only change → no layout shift. */
+.nl-archive-card,
+.nl-more-card {
+  transition:
+    transform 260ms ease,
+    box-shadow 260ms ease,
+    border-color 260ms ease;
+}
+@media (hover: hover) {
+  .nl-archive-card:hover,
+  .nl-more-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover, 0 8px 22px rgba(20, 30, 40, 0.1));
+    border-color: var(--border-strong, #d2d6db);
+  }
+}
+.nl-archive-card:focus-visible,
+.nl-more-card:focus-visible {
+  outline: 2px solid var(--brand, #1c8a5f);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nl-archive-card:hover,
+  .nl-more-card:hover {
+    transform: none;
+  }
+}
+
+/* ── Issue article ───────────────────────────────────────────────────────── */
 .nl-preview-banner {
-  background: #fff6e0;
-  border: 1px solid #f0d48a;
-  color: #6b4e0a;
-  border-radius: 10px;
+  background: var(--warn-soft, #f8f0da);
+  border: 1px solid var(--warn-ink, #8a6a1e);
+  color: var(--warn-ink, #8a6a1e);
+  border-radius: var(--radius-sm, 10px);
   padding: 10px 14px;
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 24px;
 }
 .nl-cover {
-  margin-bottom: 8px;
+  margin: 0 0 18px;
 }
 .nl-cover .nl-figure {
   margin: 0;
 }
 .nl-cover .nl-photo {
   width: 100%;
-  max-height: 420px;
+  max-height: 380px;
   object-fit: cover;
-  border-radius: 14px;
+  border-radius: var(--radius-lg, 14px);
 }
 .nl-issue-header {
-  margin: 20px 0 8px;
-  border-bottom: 1px solid var(--nl-border);
+  margin: 0 0 18px;
   padding-bottom: 18px;
+  border-bottom: 1px solid var(--border, #e6e8eb);
 }
 .nl-body {
   font-size: 17px;
-  line-height: 1.65;
+  line-height: 1.62;
+  color: var(--text-primary, #000);
+}
+.nl-lead {
+  font-size: 19px;
+  line-height: 1.55;
+  margin: 0 0 20px;
 }
 .nl-h2 {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   margin: 32px 0 10px;
+  color: var(--text-primary, #000);
 }
 .nl-h3 {
   font-size: 18px;
   font-weight: 700;
   margin: 24px 0 8px;
+  color: var(--text-primary, #000);
 }
 .nl-p {
   margin: 0 0 16px;
@@ -183,70 +302,77 @@
   margin-bottom: 6px;
 }
 
-/* Stat strip — a few highlight figures (animals on farm, records). */
+/* Numbers strip — headline figures (animals on farm, records). Wide column. */
 .nl-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin: 8px 0 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  margin: 8px 0 28px;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #e6e8eb);
+  border-radius: var(--radius-lg, 14px);
+  overflow: hidden;
 }
 .nl-stat {
-  flex: 1 1 120px;
-  background: #fff;
-  border: 1px solid var(--nl-border);
-  border-radius: 12px;
-  padding: 14px 16px;
+  padding: 18px 16px;
   text-align: center;
+  border-left: 1px solid var(--divider, #eceef0);
+}
+.nl-stat:first-child {
+  border-left: none;
 }
 .nl-stat-value {
   font-size: 26px;
-  font-weight: 700;
-  color: var(--nl-green);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary, #000);
   line-height: 1.1;
 }
 .nl-stat-label {
-  font-size: 12px;
-  color: var(--nl-muted);
-  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-muted, #6b7280);
+  margin-top: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  font-weight: 700;
 }
 
 .nl-quote {
-  margin: 24px 0;
+  margin: 28px 0;
   padding: 4px 0 4px 18px;
-  border-left: 3px solid var(--nl-green);
-  font-size: 19px;
-  font-style: italic;
-  color: #2a322e;
+  border-left: 3px solid var(--border, #e6e8eb); /* radius-allow: square accent rule */
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-primary, #000);
 }
 .nl-quote p {
   margin: 0 0 6px;
 }
 .nl-cite {
   font-size: 14px;
-  font-style: normal;
-  color: var(--nl-muted);
+  font-weight: 500;
+  color: var(--ink-muted, #6b7280);
 }
 
 .nl-callout {
-  border-radius: 12px;
+  border-radius: var(--radius-md, 12px);
   padding: 14px 16px;
   margin: 18px 0;
   font-size: 16px;
 }
 .nl-callout-good {
-  background: var(--nl-green-soft);
-  border: 1px solid #bcd6cc;
+  background: var(--ok-soft, #e6f4ec);
+  border: 1px solid var(--ok-ink, #3f7a5b);
 }
 .nl-callout-note {
-  background: #f1f3f8;
-  border: 1px solid #d3dae8;
+  background: var(--info-soft, #e7edf8);
+  border: 1px solid var(--info, #3b6cb7);
 }
 
 .nl-divider {
   border: none;
-  border-top: 1px solid var(--nl-border);
+  border-top: 1px solid var(--border, #e6e8eb);
   margin: 28px 0;
 }
 
@@ -256,12 +382,12 @@
 }
 .nl-photo {
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--radius-md, 12px);
   display: block;
 }
 .nl-figcaption {
   font-size: 13px;
-  color: var(--nl-muted);
+  color: var(--ink-muted, #6b7280);
   margin-top: 6px;
 }
 .nl-credit {
@@ -284,30 +410,67 @@
   margin-top: 36px;
 }
 
+/* Sign-off */
+.nl-signoff {
+  margin: 28px 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary, #000);
+}
+
+/* More issues (archive cards at the foot of an issue) */
+.nl-more {
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border, #e6e8eb);
+}
+.nl-more-grid {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
 /* Footer / nav */
 .nl-issue-footer {
   margin-top: 40px;
   padding-top: 20px;
-  border-top: 1px solid var(--nl-border);
+  border-top: 1px solid var(--border, #e6e8eb);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  justify-content: space-between;
 }
 .nl-back {
-  color: var(--nl-green);
+  color: var(--brand, #1c8a5f);
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 700;
 }
 .nl-back:hover {
   text-decoration: underline;
 }
+.nl-foot-micro {
+  font-size: 12px;
+  color: var(--ink-faint, #9aa1ab);
+}
 
-@media (max-width: 520px) {
+@media (max-width: 560px) {
   .nl-title {
-    font-size: 26px;
+    font-size: 28px;
   }
   .nl-body {
     font-size: 16px;
   }
-  .nl-archive-thumb {
-    width: 72px;
-    height: 56px;
+  .nl-lead {
+    font-size: 17px;
+  }
+  .nl-masthead-inner {
+    padding: 12px 16px;
+  }
+  .nl-nav {
+    gap: 14px;
   }
 }
