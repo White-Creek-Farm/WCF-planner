@@ -104,6 +104,12 @@ describe('§1 Supabase client (src/lib/supabase.js)', () => {
     expect(src).toMatch(/detectSessionInUrl:\s*false/);
   });
 
+  it('keeps browser sessions persistent with Supabase auto-refresh enabled', () => {
+    expect(src).toMatch(/storage:\s*window\.localStorage/);
+    expect(src).toMatch(/autoRefreshToken:\s*true/);
+    expect(src).toMatch(/persistSession:\s*true/);
+  });
+
   it('keeps the lock pass-through to avoid browser/extension hangs', () => {
     expect(src).toMatch(/lock:\s*\(name,\s*acquireTimeout,\s*fn\)\s*=>\s*fn\(\)/);
   });

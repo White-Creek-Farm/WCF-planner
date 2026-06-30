@@ -1083,6 +1083,9 @@ function canDeleteAnything(role) {
 
 // Phase 2.1.2: DeleteModal moved to src/shared/DeleteModal.jsx.
 
+const AUTH_BOOT_TIMEOUT_MS = 15000;
+const AUTH_VISIBILITY_REFRESH_THROTTLE_MS = 60000;
+
 function App() {
   // ── AUTH & LOADING STATE ──
   // Phase 2.0.1: these hooks live in AuthContext. See src/contexts/AuthContext.jsx
@@ -1849,26 +1852,94 @@ function App() {
   }, [view, authState]);
 
   useEffect(() => {
-    // Safety timeout — if auth hasn't resolved in 6s, show login
+    // Safety timeout — if auth hasn't resolved, make one last stored-session
+    // pass before showing Login. Slow/offline starts should keep a refreshable
+    // local session in-app whenever possible.
+    let cancelled = false;
+    let bootResolved = false;
     const authTimeout = setTimeout(() => {
-      setAuthState((prev) => (prev === null ? false : prev));
-    }, 6000);
+      if (bootResolved || cancelled) return;
+      sb.auth
+        .getSession()
+        .then(async ({data: {session}}) => {
+          if (cancelled || bootResolved) return;
+          if (session?.user) {
+            bootResolved = true;
+            await loadUser(session.user);
+            return;
+          }
+          setAuthState((prev) => (prev === null ? false : prev));
+        })
+        .catch(() => {
+          if (!cancelled && !bootResolved) setAuthState((prev) => (prev === null ? false : prev));
+        });
+    }, AUTH_BOOT_TIMEOUT_MS);
 
-    // Use getUser() instead of getSession() to avoid storage lock issues
-    sb.auth
-      .getUser()
-      .then(async ({data: {user}, error}) => {
+    async function verifyStoredSession(user) {
+      try {
+        const {data, error} = await sb.auth.getUser();
+        if (cancelled) return;
+        if (!error && data?.user) {
+          if (data.user.id !== user.id) await loadUser(data.user);
+          return;
+        }
+        const refreshed = await sb.auth.refreshSession();
+        if (cancelled) return;
+        if (refreshed?.data?.session?.user) {
+          await loadUser(refreshed.data.session.user);
+          return;
+        }
+        if (!refreshed?.error) setAuthState(false);
+      } catch (e) {
+        // Network/Auth service hiccups should not erase a stored refreshable
+        // session. Keep the least recent loaded auth state and retry on the
+        // next visibility/auth event.
+        console.warn('Session verification failed; keeping stored session for retry.', e);
+      }
+    }
+
+    async function bootAuth() {
+      try {
+        const {data: {session}} = await sb.auth.getSession();
+        if (cancelled) return;
+        if (session?.user) {
+          bootResolved = true;
+          clearTimeout(authTimeout);
+          await loadUser(session.user);
+          verifyStoredSession(session.user);
+          return;
+        }
+
+        const {data: {user}, error} = await sb.auth.getUser();
+        if (cancelled) return;
+        bootResolved = true;
         clearTimeout(authTimeout);
         if (user && !error) {
           await loadUser(user);
         } else {
           setAuthState(false);
         }
-      })
-      .catch(() => {
+      } catch (e) {
+        if (cancelled) return;
+        try {
+          const {data: {session}} = await sb.auth.getSession();
+          if (cancelled) return;
+          bootResolved = true;
+          clearTimeout(authTimeout);
+          if (session?.user) {
+            await loadUser(session.user);
+            return;
+          }
+        } catch (_e) {
+          /* fall through to signed-out state below */
+        }
+        bootResolved = true;
         clearTimeout(authTimeout);
         setAuthState(false);
-      });
+      }
+    }
+
+    bootAuth();
 
     const {
       data: {subscription},
@@ -1884,33 +1955,43 @@ function App() {
       if (event === 'PASSWORD_RECOVERY') {
         setPwRecovery(true);
       }
-      // Handle SIGNED_IN only when on login screen (authState===false), not on page-load token refresh
-      if (event === 'SIGNED_IN' && session?.user) {
+      // Refreshable sessions should hydrate from storage and survive token
+      // refresh/user-update events without forcing a fresh login.
+      if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event) && session?.user) {
         setAuthState((prev) => {
-          if (prev === false) loadUser(session.user);
+          if (prev === false || prev === null || (prev?.user && prev.user.id !== session.user.id)) loadUser(session.user);
           return prev;
         });
       }
     });
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
       clearTimeout(authTimeout);
     };
   }, []);
 
   // Refresh Supabase session when tab becomes visible (prevents stale session after backgrounding)
+  const lastVisibilityRefreshRef = React.useRef(0);
   useEffect(() => {
     function handleVisibility() {
       if (document.visibilityState === 'visible' && authState && authState.user) {
+        const now = Date.now();
+        if (now - lastVisibilityRefreshRef.current < AUTH_VISIBILITY_REFRESH_THROTTLE_MS) return;
+        lastVisibilityRefreshRef.current = now;
         sb.auth
-          .getUser()
-          .then(function (res) {
-            if (res.error) {
-              console.warn('Session expired, signing out');
-              sb.auth.signOut();
+          .refreshSession()
+          .then(async function (res) {
+            if (res?.data?.session?.user) {
+              if (res.data.session.user.id !== authState.user.id) await loadUser(res.data.session.user);
+              return;
             }
+            if (!res?.error) return;
+            console.warn('Session refresh failed; preserving current login for retry.', res.error);
           })
-          .catch(function () {});
+          .catch(function (e) {
+            console.warn('Session refresh failed; preserving current login for retry.', e);
+          });
       }
     }
     document.addEventListener('visibilitychange', handleVisibility);
