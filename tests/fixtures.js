@@ -251,9 +251,9 @@ export const test = base.extend({
     await use(ids);
   },
   // cattleHerdFiltersScenario — composable filter / sort + smart-input
-  // setup. Seeds 11 cattle covering 4 active herds, mixed sexes, varied
-  // calving status, blacklist, weight tiers (fresh/stale/none), one
-  // historical breed (Heritage Wagyu) absent from cattle_breeds.
+  // setup. Seeds active + outcome cattle covering mixed sexes, varied calving
+  // status, blacklist, weight tiers (fresh/stale/none), one historical breed
+  // (Heritage Wagyu) absent from cattle_breeds.
   cattleHerdFiltersScenario: async ({supabaseAdmin}, use) => {
     await resetTestDatabase();
     const ids = await seedCattleHerdFilters(supabaseAdmin);

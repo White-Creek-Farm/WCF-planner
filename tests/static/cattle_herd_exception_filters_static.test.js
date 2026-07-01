@@ -94,15 +94,19 @@ describe('Cattle herd filters — always-visible organized groups', () => {
   });
 });
 
-describe('Cattle herd rows — always-flat list + column picker', () => {
-  // The grouped/flat toggle was removed: results are always a single flat list
-  // rendered through the shared <DataTable> (cowTableColumns + CattleDataTable),
-  // with a column/display picker choosing which fields show.
-  it('renders the flat list through the shared DataTable renderer', () => {
+describe('Cattle herd rows - grouped default + flat controlled results', () => {
+  // The grouped/flat toggle stays retired: default rows group by herd, while
+  // any active filter or non-default sort renders one flat matched-results
+  // table through the shared <DataTable>.
+  it('renders grouped and flat lists through the shared DataTable renderer', () => {
     expect(herdsView).toContain('function cowTableColumns');
     expect(herdsView).toContain('function CattleDataTable');
     expect(herdsView).toContain('<DataTable');
     expect(herdsView).toContain('data-cattle-flat-list');
+    expect(herdsView).toContain('data-cattle-flat-results="1"');
+    expect(herdsView).toContain('data-cattle-grouped-herds="1"');
+    expect(herdsView).toContain('data-cattle-herd-section={section.key}');
+    expect(herdsView).toContain('hasActiveListControls');
     // The retired faux-grid row component is gone.
     expect(herdsView).not.toContain('function CowListRow');
   });
@@ -114,6 +118,7 @@ describe('Cattle herd rows — always-flat list + column picker', () => {
     // Picker covers the full field set incl. lineage/finance/calving columns.
     for (const key of [
       "key: 'lastCalved'",
+      "key: 'lastActivity'",
       "key: 'calfCount'",
       "key: 'sireTag'",
       "key: 'purchaseAmount'",
@@ -182,6 +187,7 @@ describe('Cattle herd CSV export', () => {
       'Origin',
       'Last weight lbs',
       'Last weighed',
+      'Last activity',
       'Last calved',
       'Calf count',
       'Record ID',

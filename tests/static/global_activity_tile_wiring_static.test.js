@@ -88,12 +88,11 @@ describe('No direct activity table access', () => {
 });
 
 describe('Cattle + sheep wired in both flat and grouped modes', () => {
-  it('CattleHerdsView has cattle.animal chips in both flat and grouped rows', () => {
-    const flatIdx = cattleHerds.indexOf('sortedFlat');
-    const groupedIdx = cattleHerds.indexOf('herdOpen');
-    const flatChip = cattleHerds.indexOf("entityType: 'cattle.animal'");
-    const groupedChip = cattleHerds.indexOf("entityType: 'cattle.animal'", flatChip + 1);
-    expect(flatChip).toBeGreaterThan(-1);
-    expect(groupedChip).toBeGreaterThan(flatChip);
+  it('CattleHerdsView routes both flat and grouped rows through the shared cattle table', () => {
+    expect(cattleHerds).toContain('function CattleDataTable');
+    expect(cattleHerds).toContain('navList={sortedFlat}');
+    expect(cattleHerds).toContain('navList={section.rows}');
+    expect(cattleHerds).toContain("navigate('/cattle/herds/' + c.id");
+    expect(cattleHerds).toContain("entityType: 'cattle.animal'");
   });
 });

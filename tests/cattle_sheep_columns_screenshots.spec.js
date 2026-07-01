@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 // ============================================================================
 // Cattle Herds + Sheep Flocks controls redesign — UI preview capture (NOT a CI
-// assertion). Captures the always-flat list, the program-color active tool
+// assertion). Captures the cattle grouped default / sheep flat list, the program-color active tool
 // buttons (cattle = maroon/red, sheep = green), and the new column/display
 // picker (every field) open + applied, desktop + mobile.
 // Screenshots -> C:/Users/Ronni/cc-research/cattle-sheep/.
@@ -19,7 +19,7 @@ async function settle(page) {
 }
 
 test.describe('Cattle + Sheep controls redesign preview', () => {
-  test('cattle herds: flat list + column picker', async ({page, cattleHerdFiltersScenario}) => {
+  test('cattle herds: grouped default + column picker', async ({page, cattleHerdFiltersScenario}) => {
     test.setTimeout(180_000);
     void cattleHerdFiltersScenario;
     fs.mkdirSync(SHOT, {recursive: true});

@@ -78,9 +78,8 @@ async function waitForCattleLoaded(page) {
 }
 
 async function expandHerd(page) {
-  // Results are always flat now — there is no herd tile to expand; every active
-  // cow renders directly in the flat list. Just wait for the list to settle.
-  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible({timeout: 15_000});
+  // Default results group by herd. Just wait for the grouped list to settle.
+  await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible({timeout: 15_000});
 }
 
 // --------------------------------------------------------------------------

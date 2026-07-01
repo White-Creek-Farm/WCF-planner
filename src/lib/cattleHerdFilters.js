@@ -42,6 +42,7 @@ export const CATTLE_SORT_KEYS = Object.freeze([
   'tag',
   'age',
   'lastWeight',
+  'lastActivity',
   'herd',
   'sex',
   'lastCalved',
@@ -402,6 +403,7 @@ export function buildCattleComparator(sortRules, ctx = {}) {
   const rules = (sortRules || []).filter((r) => r && r.key && CATTLE_SORT_KEYS.includes(r.key));
   const calvingRecs = ctx.calvingRecs || [];
   const weighIns = ctx.weighIns || [];
+  const lastActivityByCowId = ctx.lastActivityByCowId || {};
   const todayMs = ctx.todayMs ?? Date.now();
   // The nonCalving sort key ranks by the SAME cutoff the filter uses, so the
   // sort agrees with the active "no calf since" filter (or the 9-month default
@@ -411,7 +413,13 @@ export function buildCattleComparator(sortRules, ctx = {}) {
   return (a, b) => {
     for (const r of rules) {
       const dir = r.dir === 'desc' ? 'desc' : 'asc';
-      const cmp = compareByKey(r.key, a, b, dir, {calvingRecs, weighIns, todayMs, nonCalvingCutoff});
+      const cmp = compareByKey(r.key, a, b, dir, {
+        calvingRecs,
+        weighIns,
+        lastActivityByCowId,
+        todayMs,
+        nonCalvingCutoff,
+      });
       if (cmp !== 0) return cmp;
     }
     return 0;
@@ -459,6 +467,14 @@ function compareByKey(key, a, b, dir, ctx) {
       if (aw == null) return 1;
       if (bw == null) return -1;
       return applyDir(aw - bw, dir);
+    }
+    case 'lastActivity': {
+      const av = a && a.id ? ctx.lastActivityByCowId[a.id] || null : null;
+      const bv = b && b.id ? ctx.lastActivityByCowId[b.id] || null : null;
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      return applyDir(String(av).localeCompare(String(bv)), dir);
     }
     case 'herd': {
       const ai = HERD_ORDER.indexOf(a.herd);

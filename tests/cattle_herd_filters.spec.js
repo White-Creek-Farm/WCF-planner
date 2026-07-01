@@ -6,8 +6,8 @@ import {test, expect} from './fixtures.js';
 // Locks the post-build contract for the composable filter chips, ordered sort
 // rules, always-visible organized filter groups, the column/display picker, the
 // maternal-issue UI retirement, and surface_key=cattle.herds saved views.
-// Results are ALWAYS a single flat list (the grouped/flat toggle was removed);
-// outcome herds stay browsable in the collapsible sections below the list.
+// Default view is grouped by herd. Any active filter/search/sort switches to
+// one flat matched-results table.
 // Pure module helpers in src/lib/cattleHerdFilters.js are vitest-locked
 // separately.
 // ============================================================================
@@ -23,6 +23,10 @@ async function waitForLoaded(page) {
 
 function flatRows(page) {
   return page.locator('[data-cattle-flat-list] tr[id^="cow-"]');
+}
+
+function cattleRows(page) {
+  return page.locator('tr[id^="cow-"]');
 }
 
 async function readTagsInOrder(locator) {
@@ -63,9 +67,9 @@ async function pickHerd(page, label) {
 }
 
 // --------------------------------------------------------------------------
-// Test 1 — Default load shows a flat list of the active cattle (no tiles)
+// Test 1 — Default load groups by herd until a filter or sort is active
 // --------------------------------------------------------------------------
-test('default load: flat list of active cattle, outcomes collapsed below', async ({
+test('default load: grouped cattle by herd until a filter or sort is active', async ({
   page,
   cattleHerdFiltersScenario,
 }) => {
@@ -73,20 +77,127 @@ test('default load: flat list of active cattle, outcomes collapsed below', async
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // Single flat list — the grouped/flat toggle is gone.
-  await expect(page.locator('[data-cattle-flat-list]')).toBeVisible();
+  // No filter/sort selection: the list is grouped by herd and the old manual
+  // grouped/flat toggle is still gone.
+  await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible();
+  await expect(page.locator('[data-cattle-flat-results="1"]')).toHaveCount(0);
   await expect(page.locator('[data-cattle-herds-view-toggle="1"]')).toHaveCount(0);
 
-  // The 10 active cattle (4 active herds) render in one list.
-  await expect(flatRows(page)).toHaveCount(10);
-  const tags = await readTagsInOrder(flatRows(page));
-  for (const t of ['M001', 'M002', 'M003', 'M004', 'M005', 'B201', 'B202', 'B203', 'BL401', 'F301']) {
+  // Every herd section is visible by default, including outcome herds.
+  for (const herd of ['mommas', 'backgrounders', 'finishers', 'bulls', 'processed', 'deceased', 'sold']) {
+    await expect(page.locator(`[data-cattle-herd-section="${herd}"]`)).toBeVisible();
+  }
+  const tags = await readTagsInOrder(cattleRows(page));
+  for (const t of [
+    'M001',
+    'M002',
+    'M003',
+    'M004',
+    'M005',
+    'B201',
+    'B202',
+    'B203',
+    'BL401',
+    'F301',
+    'P501',
+    'S601',
+    'D701',
+  ]) {
     expect(tags).toContain(t);
   }
+});
 
-  // Outcome herds are not in the active flat list — they live in the
-  // CollapsibleOutcomeSections below (the seed has one processed cow).
-  await expect(page.getByText('Processed', {exact: false}).first()).toBeVisible();
+// --------------------------------------------------------------------------
+// Test 2 — Sold herd filter switches to one flat result table
+// --------------------------------------------------------------------------
+test('sold herd filter shows only sold cattle in a flat table', async ({page, cattleHerdFiltersScenario}) => {
+  void cattleHerdFiltersScenario;
+  await page.goto('/cattle/herds');
+  await waitForLoaded(page);
+
+  await pickHerd(page, 'Sold');
+
+  await expect(page.locator('[data-cattle-flat-results="1"]')).toBeVisible();
+  await expect(page.locator('[data-cattle-grouped-herds="1"]')).toHaveCount(0);
+  await expect(page.locator('[data-cattle-herd-section="processed"]')).toHaveCount(0);
+  await expect(page.locator('[data-cattle-herd-section="deceased"]')).toHaveCount(0);
+  await expect(flatRows(page)).toHaveCount(1);
+  await expect(flatRows(page).first()).toContainText('#S601');
+});
+
+// --------------------------------------------------------------------------
+// Test 3 — Any non-default sort switches to the flat result table
+// --------------------------------------------------------------------------
+test('sort selection switches unfiltered cattle to the flat table', async ({page, cattleHerdFiltersScenario}) => {
+  void cattleHerdFiltersScenario;
+  await page.goto('/cattle/herds');
+  await waitForLoaded(page);
+
+  await ensureToolPanel(page, 'sort');
+  await page.locator('select[data-sort-add]').selectOption('age');
+
+  await expect(page.locator('[data-cattle-flat-results="1"]')).toBeVisible();
+  await expect(page.locator('[data-cattle-grouped-herds="1"]')).toHaveCount(0);
+  await expect(flatRows(page)).toHaveCount(13);
+});
+
+// --------------------------------------------------------------------------
+// Test 4 — Last Activity sort uses record-page Activity timestamps
+// --------------------------------------------------------------------------
+test('last activity sort shows date/time and orders by newest activity first', async ({
+  page,
+  supabaseAdmin,
+  cattleHerdFiltersScenario,
+}) => {
+  void cattleHerdFiltersScenario;
+  const {error} = await supabaseAdmin.from('activity_events').upsert(
+    [
+      {
+        id: 'ae-cattle-herd-last-activity-b201',
+        entity_type: 'cattle.animal',
+        entity_id: 'cow-bg-fresh',
+        event_type: 'field.updated',
+        body: 'Updated test field',
+        payload: {entity_label: '#B201'},
+        created_at: '2026-06-03T10:00:00Z',
+      },
+      {
+        id: 'ae-cattle-herd-last-activity-m001',
+        entity_type: 'cattle.animal',
+        entity_id: 'cow-mom-calved-current',
+        event_type: 'field.updated',
+        body: 'Updated test field',
+        payload: {entity_label: '#M001'},
+        created_at: '2026-06-01T10:00:00Z',
+      },
+      {
+        id: 'ae-cattle-herd-last-activity-p501',
+        entity_type: 'cattle.animal',
+        entity_id: 'cow-processed-001',
+        event_type: 'field.updated',
+        body: 'Updated test field',
+        payload: {entity_label: '#P501'},
+        created_at: '2026-05-01T10:00:00Z',
+      },
+    ],
+    {onConflict: 'id'},
+  );
+  expect(error).toBeNull();
+
+  await page.goto('/cattle/herds');
+  await waitForLoaded(page);
+
+  await ensureToolPanel(page, 'sort');
+  await page.locator('select[data-sort-add]').selectOption('lastActivity');
+
+  await expect(page.locator('[data-cattle-flat-results="1"]')).toBeVisible();
+  await expect(page.locator('[data-cattle-flat-list] th', {hasText: 'Last Activity'})).toHaveCount(1);
+  await expect(page.locator('#cow-cow-bg-fresh')).toContainText(/06\/03\/26/, {timeout: 15_000});
+  await expect(page.locator('#cow-cow-mom-calved-current')).toContainText(/06\/01\/26/, {timeout: 15_000});
+  await expect(page.locator('#cow-cow-processed-001')).toContainText(/05\/01\/26/, {timeout: 15_000});
+  await expect(flatRows(page).first()).toContainText('#B201', {timeout: 15_000});
+  expect((await readTagsInOrder(flatRows(page))).slice(0, 3)).toEqual(['B201', 'M001', 'P501']);
+  await expect(flatRows(page).first()).toContainText(/06\/03\/26/);
 });
 
 // --------------------------------------------------------------------------
@@ -280,6 +391,8 @@ test('column picker toggles fields on the flat list and resets to default', asyn
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
+  await pickHerd(page, 'Mommas');
+
   // Sire Tag is off by default — its header is absent.
   await expect(page.locator('[data-cattle-flat-list] th', {hasText: 'Sire Tag'})).toHaveCount(0);
 
@@ -308,7 +421,7 @@ test('maternal-issue text absent from herd view, record page, and Add modal', as
   expect(bodyText.toLowerCase()).not.toContain('maternal');
 
   // Cow record page — a cow-row click routes to the record page. Open one.
-  await flatRows(page).first().click();
+  await cattleRows(page).first().click();
   await expect(page).toHaveURL(/\/cattle\/herds\/.+/);
   const recordText = await page.locator('body').innerText();
   expect(recordText.toLowerCase()).not.toContain('maternal');
@@ -354,10 +467,11 @@ test('No calf since date filters mature cows incl. those that calved before the 
   await page.locator('[data-cattle-noncalving-cutoff]').fill('2026-01-01');
   await page.locator('[data-filter-popover="nonCalving"] >> text=Close').click();
 
-  // Mature mommas whose last calving is missing or before 2026-01-01:
+  // Mature cattle whose last calving is missing or before 2026-01-01:
+  //   D701 and S601 are outcome-herd cows with no calving record.
   //   M002 (calved 2025-05), M004 (calved 2023-06), M005 (calved 2024-09).
   //   M001 calved 2026-04 (after cutoff) excluded; M003 heifer not yet 30mo.
-  await expect(page.locator('[data-cattle-match-count]')).toContainText('3 cattle match');
+  await expect(page.locator('[data-cattle-match-count]')).toContainText('5 cattle match');
 });
 
 // --------------------------------------------------------------------------

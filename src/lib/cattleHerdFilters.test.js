@@ -620,6 +620,28 @@ describe('buildCattleComparator — per key', () => {
     expect(desc.map((x) => x.tag)).toEqual(['C', 'A', 'B', 'D']);
   });
 
+  it('lastActivity desc = newest first; missing sorts last', () => {
+    const activityList = [
+      {id: 'a', tag: 'A'},
+      {id: 'b', tag: 'B'},
+      {id: 'c', tag: 'C'},
+      {id: 'd', tag: 'D'},
+    ];
+    const lastActivityByCowId = {
+      a: '2026-06-01T10:00:00Z',
+      c: '2026-06-03T10:00:00Z',
+      d: '2026-05-01T10:00:00Z',
+    };
+    const activityAsc = [...activityList].sort(
+      buildCattleComparator([{key: 'lastActivity', dir: 'asc'}], {...ctx, lastActivityByCowId}),
+    );
+    expect(activityAsc.map((x) => x.tag)).toEqual(['D', 'A', 'C', 'B']);
+    const activityDesc = [...activityList].sort(
+      buildCattleComparator([{key: 'lastActivity', dir: 'desc'}], {...ctx, lastActivityByCowId}),
+    );
+    expect(activityDesc.map((x) => x.tag)).toEqual(['C', 'A', 'D', 'B']);
+  });
+
   it('herd asc — locked order (mommas, backgrounders, finishers, bulls, processed, deceased, sold)', () => {
     const list = [{herd: 'finishers'}, {herd: 'mommas'}, {herd: 'sold'}, {herd: 'bulls'}];
     const asc = [...list].sort(buildCattleComparator([{key: 'herd', dir: 'asc'}], ctx));
@@ -683,6 +705,7 @@ describe('buildCattleComparator — composition', () => {
   it('CATTLE_SORT_KEYS is the parser/comparator ground truth', () => {
     expect(CATTLE_SORT_KEYS).toContain('age');
     expect(CATTLE_SORT_KEYS).toContain('lastWeight');
+    expect(CATTLE_SORT_KEYS).toContain('lastActivity');
   });
 });
 
