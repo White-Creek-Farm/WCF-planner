@@ -34,7 +34,8 @@ describe('persistent list view state hotfix', () => {
     expect(view).toMatch(/usePersistentViewState\(\s*'cattle\.herds\.columns'/);
     expect(view).toContain("usePersistentViewState('cattle.herds.filters'");
     expect(view).toContain("usePersistentViewState('cattle.herds.sortRules'");
-    // The grouped/flat mode is gone — results are always flat.
+    // The manual grouped/flat mode is gone; cattle chooses grouped default vs
+    // flat controlled results automatically.
     expect(view).not.toContain("usePersistentViewState('cattle.herds.viewMode'");
   });
 

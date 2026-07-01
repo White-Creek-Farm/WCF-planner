@@ -225,7 +225,7 @@ const COWS = [
     deleted_by: null,
     processing_batch_id: null,
   },
-  // ── outcome — processed (default-active filter excludes; "all" includes) ─
+  // ── outcome herds ───────────────────────────────────────────────────────
   {
     id: 'cow-processed-001',
     tag: 'P501',
@@ -237,6 +237,34 @@ const COWS = [
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
     // state into the exact intended (active, unattached) shape.
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
+  },
+  {
+    id: 'cow-sold-001',
+    tag: 'S601',
+    sex: 'cow',
+    herd: 'sold',
+    breed: 'Angus',
+    breeding_blacklist: false,
+    birth_date: '2020-02-01',
+    sale_date: '2026-04-10',
+    old_tags: [],
+    deleted_at: null,
+    deleted_by: null,
+    processing_batch_id: null,
+  },
+  {
+    id: 'cow-deceased-001',
+    tag: 'D701',
+    sex: 'cow',
+    herd: 'deceased',
+    breed: 'Hereford',
+    breeding_blacklist: false,
+    birth_date: '2019-01-01',
+    death_date: '2026-03-15',
+    old_tags: [],
     deleted_at: null,
     deleted_by: null,
     processing_batch_id: null,
@@ -342,6 +370,8 @@ export async function seedCattleHerdFilters(supabaseAdmin) {
       finishers: COWS.filter((c) => c.herd === 'finishers').length,
       bulls: COWS.filter((c) => c.herd === 'bulls').length,
       processed: COWS.filter((c) => c.herd === 'processed').length,
+      deceased: COWS.filter((c) => c.herd === 'deceased').length,
+      sold: COWS.filter((c) => c.herd === 'sold').length,
     },
   };
 }

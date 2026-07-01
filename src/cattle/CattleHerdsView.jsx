@@ -1,5 +1,5 @@
-// CattleHerdsView — composable filter chips in organized always-visible groups
-// + ordered sort rules + explicit grouped/flat toggle + saved views
+// CattleHerdsView — grouped default herds + flat filtered/sorted results
+// + composable filter chips + ordered sort rules + saved views
 // (surface_key cattle.herds). The local smart-filter assistant was removed
 // (PROJECT.md Recommended Work Queue); a real AI-assisted filter/sort is queued
 // separately.
@@ -16,7 +16,6 @@ import UsersModal from '../auth/UsersModal.jsx';
 import CattleBulkImport from './CattleBulkImport.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import CattleAnimalPage from './CattleAnimalPage.jsx';
-import CollapsibleOutcomeSections from './CollapsibleOutcomeSections.jsx';
 import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 import {
   buildCattlePredicate,
@@ -43,6 +42,7 @@ import {
 } from '../lib/savedViewsApi.js';
 import {getProgramColor} from '../lib/programColors.js';
 import {getReadableText} from '../lib/styles.js';
+import {listActivityEvents} from '../lib/activityApi.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -114,6 +114,7 @@ const CATTLE_HERD_COLUMNS = [
   {key: 'birthDate', label: 'Birth Date', default: false},
   {key: 'lastWeight', label: 'Last Weight', default: true},
   {key: 'lastWeighed', label: 'Last Weighed', default: false},
+  {key: 'lastActivity', label: 'Last Activity', default: false},
   {key: 'lastCalved', label: 'Last Calved', default: true},
   {key: 'calfCount', label: 'Calf Count', default: true},
   {key: 'breedingStatus', label: 'Breeding Status', default: false},
@@ -150,6 +151,7 @@ const SORT_KEY_LABELS = {
   tag: 'Tag',
   age: 'Age',
   lastWeight: 'Last weight',
+  lastActivity: 'Last activity',
   herd: 'Herd',
   sex: 'Sex',
   lastCalved: 'Last calved',
@@ -163,6 +165,7 @@ const SORT_DIR_LABELS = {
   tag: {asc: '↑ low→high', desc: '↓ high→low'},
   age: {asc: 'youngest first', desc: 'oldest first'},
   lastWeight: {asc: 'lightest first', desc: 'heaviest first'},
+  lastActivity: {asc: 'oldest first', desc: 'newest first'},
   herd: {asc: '↑ active→outcome', desc: '↓ outcome→active'},
   sex: {asc: '↑ cow→steer', desc: '↓ steer→cow'},
   lastCalved: {asc: 'oldest first', desc: 'most recent first'},
@@ -171,9 +174,48 @@ const SORT_DIR_LABELS = {
   breed: {asc: '↑ A→Z', desc: '↓ Z→A'},
   origin: {asc: '↑ A→Z', desc: '↓ Z→A'},
 };
+const SORT_DEFAULT_DIR = {
+  lastActivity: 'desc',
+};
 
 // Saved-views surface key for the cattle herds list (migration 095).
 const CATTLE_HERDS_SURFACE_KEY = 'cattle.herds';
+const DEFAULT_SORT_RULES = Object.freeze([{key: 'tag', dir: 'asc'}]);
+const ACTIVITY_LOAD_CONCURRENCY = 8;
+
+function isDefaultSortRules(rules) {
+  return (
+    Array.isArray(rules) &&
+    rules.length === 1 &&
+    rules[0] &&
+    rules[0].key === DEFAULT_SORT_RULES[0].key &&
+    rules[0].dir === DEFAULT_SORT_RULES[0].dir
+  );
+}
+
+function filterValueActive(value) {
+  if (value == null || value === '') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.values(value).some(filterValueActive);
+  return true;
+}
+
+function activeFilterKeysFor(filters) {
+  return Object.keys(filters || {}).filter((key) => filterValueActive(filters[key]));
+}
+
+function formatActivityDateTime(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString(undefined, {
+    month: '2-digit',
+    day: '2-digit',
+    year: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 // Organized filter groups (replaces the old quick/More-filters split). Each
 // filter is always visible under its group. 'nonCalving' is a composite chip
@@ -305,14 +347,17 @@ const CattleHerdsHub = ({
   // newOriginInput holds the in-progress label.
   const [addingOrigin, setAddingOrigin] = useState(false);
   const [newOriginInput, setNewOriginInput] = useState('');
-  const [processingBatches, setProcessingBatches] = useState([]);
   const [cattleTransfers, setCattleTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   // Composable filter / sort state.
   const [filters, setFilters] = usePersistentViewState('cattle.herds.filters', {});
-  const [sortRules, setSortRules] = usePersistentViewState('cattle.herds.sortRules', [{key: 'tag', dir: 'asc'}]);
+  const [sortRules, setSortRules] = usePersistentViewState('cattle.herds.sortRules', [{...DEFAULT_SORT_RULES[0]}]);
+  const [lastActivityByCowId, setLastActivityByCowId] = useState({});
+  const [lastActivityLoading, setLastActivityLoading] = useState(false);
+  const [lastActivityNotice, setLastActivityNotice] = useState(null);
+  const hasLastActivitySort = sortRules.some((r) => r && r.key === 'lastActivity');
   // Which columns show in the flat cattle list (the column/display picker),
   // persisted per surface and stored in saved views. `tag` is always shown.
   const [visibleColumns, setVisibleColumns] = usePersistentViewState(
@@ -322,7 +367,8 @@ const CattleHerdsHub = ({
   function toggleColumn(key) {
     setVisibleColumns((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
   }
-  const columnVisible = (key) => key === 'tag' || visibleColumns.includes(key);
+  const columnVisible = (key) =>
+    key === 'tag' || (key === 'lastActivity' && hasLastActivitySort) || visibleColumns.includes(key);
   const [openFilter, setOpenFilter] = useState(null); // chip popover state — string key
   const [openToolPanel, setOpenToolPanel] = useState(null); // savedViews | filters | sort | columns
 
@@ -348,27 +394,24 @@ const CattleHerdsHub = ({
     setLoading(true);
     setLoadError(null);
     try {
-      const [cR, wAll, calR, brR, orR, pbR, trR] = await Promise.all([
+      const [cR, wAll, calR, brR, orR, trR] = await Promise.all([
         sb.from('cattle').select('*').is('deleted_at', null).order('tag'),
         loadCattleWeighInsCached(sb, {throwOnError: true}),
         sb.from('cattle_calving_records').select('*').order('calving_date', {ascending: false}),
         sb.from('cattle_breeds').select('*').order('label'),
         sb.from('cattle_origins').select('*').order('label'),
-        sb.from('cattle_processing_batches').select('id,name,actual_process_date,planned_process_date'),
         sb.from('cattle_transfers').select('*').order('transferred_at', {ascending: false}),
       ]);
       if (cR.error) throw new Error('cattle: ' + (cR.error.message || cR.error));
       if (calR.error) throw new Error('cattle_calving_records: ' + (calR.error.message || calR.error));
       if (brR.error) throw new Error('cattle_breeds: ' + (brR.error.message || brR.error));
       if (orR.error) throw new Error('cattle_origins: ' + (orR.error.message || orR.error));
-      if (pbR.error) throw new Error('cattle_processing_batches: ' + (pbR.error.message || pbR.error));
       if (trR.error) throw new Error('cattle_transfers: ' + (trR.error.message || trR.error));
       setCattle(cR.data || []);
       setWeighIns(wAll || []);
       setCalvingRecs(calR.data || []);
       setBreedOpts(brR.data || []);
       setOriginOpts(orR.data || []);
-      setProcessingBatches(pbR.data || []);
       setCattleTransfers(trR.data || []);
     } catch (e) {
       setCattle([]);
@@ -376,7 +419,6 @@ const CattleHerdsHub = ({
       setCalvingRecs([]);
       setBreedOpts([]);
       setOriginOpts([]);
-      setProcessingBatches([]);
       setCattleTransfers([]);
       setLoadError({
         kind: 'error',
@@ -438,23 +480,15 @@ const CattleHerdsHub = ({
       ? ageAtDate(row.birth_date, row._accountingSnapshotEndDate)
       : age(row.birth_date);
   }
-  function processingInfo(cow) {
-    if (!cow || cow.herd !== 'processed' || !cow.processing_batch_id) return null;
-    const b = processingBatches.find((pb) => pb.id === cow.processing_batch_id);
-    if (!b) return null;
-    const date = b.actual_process_date || b.planned_process_date;
-    if (!date) return null;
-    return {date, age: ageAtDate(cow.birth_date, date)};
-  }
   function lastWeight(cow) {
     return lastWeightFor(cow, weighIns);
   }
   // Aggregate herd-tile total uses default for recently-purchased cows without
   // a real weigh-in. Per-cow rows still show "no weigh-in" honestly.
   // ── filter + sort: pure-helper-driven ─────────────────────────────────────
-  // Default behavior matches today's "active" mode: when no herdSet chip is
-  // explicitly set, cap the result to active herd keys (UNLESS the user has
-  // a textSearch active — then relax to all so prior outcomes can match).
+  // Cattle remain in one predicate/sort pipeline. The render layer decides
+  // whether the matching rows display grouped by herd (default) or as one flat
+  // results table (any active filter or sort).
   const breedFilterOptions = useMemo(
     () => mergeObservedValues(breedOpts, [...new Set(cattle.map((c) => c.breed).filter(Boolean))]),
     [breedOpts, cattle],
@@ -487,14 +521,80 @@ const CattleHerdsHub = ({
         : cattle,
     [cattle, cattleTransfers, accountingSnapshotEndDate, accountingSnapshotMonth],
   );
+  const wantsLastActivity = hasLastActivitySort || visibleColumns.includes('lastActivity');
+  const cattleActivityLoadKey = useMemo(
+    () =>
+      cattle
+        .map((c) => c.id)
+        .sort()
+        .join('|'),
+    [cattle],
+  );
+  useEffect(() => {
+    if (!wantsLastActivity) return undefined;
+    if (!cattle.length) {
+      setLastActivityByCowId({});
+      setLastActivityNotice(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    async function loadLastActivity() {
+      setLastActivityLoading(true);
+      setLastActivityNotice(null);
+      const next = {};
+      let failed = 0;
+      for (let i = 0; i < cattle.length; i += ACTIVITY_LOAD_CONCURRENCY) {
+        const chunk = cattle.slice(i, i + ACTIVITY_LOAD_CONCURRENCY);
+        const results = await Promise.allSettled(
+          chunk.map(async (cow) => {
+            const rows = await listActivityEvents(sb, 'cattle.animal', cow.id, {limit: 1});
+            return {id: cow.id, createdAt: rows[0]?.created_at || null};
+          }),
+        );
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            if (result.value.createdAt) next[result.value.id] = result.value.createdAt;
+          } else {
+            failed += 1;
+          }
+        }
+        if (cancelled) return;
+      }
+      if (cancelled) return;
+      setLastActivityByCowId(next);
+      setLastActivityNotice(
+        failed > 0
+          ? {
+              kind: 'warning',
+              message:
+                'Last Activity could not be loaded for ' +
+                failed +
+                ' cattle record' +
+                (failed === 1 ? '' : 's') +
+                '. Those rows sort last.',
+            }
+          : null,
+      );
+      setLastActivityLoading(false);
+    }
+
+    loadLastActivity().catch((e) => {
+      if (cancelled) return;
+      setLastActivityByCowId({});
+      setLastActivityNotice({
+        kind: 'warning',
+        message: 'Last Activity could not be loaded. The cattle list is still available. (' + (e.message || e) + ')',
+      });
+      setLastActivityLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsLastActivity, cattleActivityLoadKey, cattle, sb]);
 
   const filtered = useMemo(() => {
     const effectiveFilters = {...filters};
-    const userSetHerd = Array.isArray(filters.herdSet) && filters.herdSet.length > 0;
-    const searching = typeof filters.textSearch === 'string' && filters.textSearch.trim();
-    if (!userSetHerd && !searching) {
-      effectiveFilters.herdSet = [...CATTLE_HERD_KEYS];
-    }
     const predicate = buildCattlePredicate(effectiveFilters, {
       todayMs: Date.now(),
       calvingRecs: calvingEvidence,
@@ -508,11 +608,12 @@ const CattleHerdsHub = ({
     const cmp = buildCattleComparator(sortRules, {
       calvingRecs: calvingEvidence,
       weighIns,
+      lastActivityByCowId,
       todayMs: Date.now(),
       nonCalvingCutoffDate: filters.nonCalvingCutoffDate,
     });
     return [...filtered].sort(cmp);
-  }, [filtered, sortRules, calvingEvidence, weighIns, filters.nonCalvingCutoffDate]);
+  }, [filtered, sortRules, calvingEvidence, weighIns, lastActivityByCowId, filters.nonCalvingCutoffDate]);
 
   function cattleHerdExportColumns() {
     const female = (cow) => cow.sex === 'cow' || cow.sex === 'heifer';
@@ -543,6 +644,7 @@ const CattleHerdsHub = ({
       {header: 'Birth date', value: (c) => c.birth_date || ''},
       {header: 'Last weight lbs', value: (c) => lastWeight(c) ?? ''},
       {header: 'Last weighed', value: (c) => lastWeightEntryFor(c, weighIns)?.entered_at || ''},
+      {header: 'Last activity', value: (c) => lastActivityByCowId[c.id] || ''},
       {header: 'Last calved', value: (c) => (female(c) ? lastCalving(c.tag)?.calving_date || '' : '')},
       {header: 'Calf count', value: (c) => (female(c) ? calfCount(c.tag) : '')},
       {header: 'Breeding status', value: (c) => c.breeding_status || ''},
@@ -619,7 +721,7 @@ const CattleHerdsHub = ({
   function addSortRule(key) {
     setSortRules((prev) => {
       if (prev.find((r) => r.key === key)) return prev;
-      const nextRule = {key, dir: 'asc'};
+      const nextRule = {key, dir: SORT_DEFAULT_DIR[key] || 'asc'};
       const onlyDefaultTag = prev.length === 1 && prev[0].key === 'tag' && prev[0].dir === 'asc';
       if (onlyDefaultTag && key !== 'tag') return [nextRule];
       return [nextRule, ...prev];
@@ -1278,7 +1380,7 @@ const CattleHerdsHub = ({
     );
   }
 
-  // Cow columns for the always-flat list, rendered through the shared
+  // Cow columns for the grouped tables and flat results, rendered through the shared
   // <DataTable>. The full set is built here; the column/display picker
   // (columnVisible) decides which actually render. Calf count + last-calved
   // render for FEMALES (cow/heifer). Rows go through <DataTable>, which owns the
@@ -1382,6 +1484,12 @@ const CattleHerdsHub = ({
         },
       },
       {
+        key: 'lastActivity',
+        label: 'Last Activity',
+        align: 'right',
+        render: (c) => <StatusText tone="muted">{formatActivityDateTime(lastActivityByCowId[c.id])}</StatusText>,
+      },
+      {
         key: 'lastCalved',
         label: 'Last Calved',
         align: 'right',
@@ -1481,7 +1589,20 @@ const CattleHerdsHub = ({
   }
 
   // ── derived UI flags ───────────────────────────────────────────────────────
-  const filterCount = Object.keys(filters).length;
+  const activeFilterKeys = activeFilterKeysFor(filters);
+  const filterCount = activeFilterKeys.length;
+  const hasActiveSort = sortRules.length > 0 && !isDefaultSortRules(sortRules);
+  const hasActiveListControls = filterCount > 0 || hasActiveSort;
+  const extraHerdKeys = [
+    ...new Set(sortedFlat.map((c) => c.herd).filter((h) => h && !CATTLE_ALL_HERD_KEYS.includes(h))),
+  ];
+  const groupedHerdSections = [...CATTLE_ALL_HERD_KEYS, ...extraHerdKeys]
+    .map((h) => ({
+      key: h,
+      label: HERD_LABELS[h] || h,
+      rows: sortedFlat.filter((c) => c.herd === h),
+    }))
+    .filter((section) => section.rows.length > 0);
   const search = filters.textSearch || '';
 
   // Saved-view picker partition: my views (any visibility) vs other people's
@@ -1572,6 +1693,9 @@ const CattleHerdsHub = ({
         data-cattle-herds-loaded={loading || loadError ? 'false' : 'true'}
       >
         {!showAddForm && <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />}
+        {!showAddForm && lastActivityNotice && (
+          <InlineNotice notice={lastActivityNotice} onDismiss={() => setLastActivityNotice(null)} />
+        )}
         {loadError && (
           <div data-cattle-herds-load-error="true">
             <InlineNotice notice={loadError} />
@@ -2051,10 +2175,11 @@ const CattleHerdsHub = ({
               {openToolPanel === 'sort' && <div style={toolPanelS}>{sortBar()}</div>}
 
               <div style={{fontSize: 11, color: 'var(--ink-muted)'}} data-cattle-match-count>
-                {sortedFlat.length} {sortedFlat.length === 1 ? 'match' : 'cattle match'}
+                {sortedFlat.length}{' '}
+                {hasActiveListControls ? (sortedFlat.length === 1 ? 'match' : 'cattle match') : 'cattle'}
                 {accountingSnapshotLabel && ' - active at ' + accountingSnapshotLabel}
                 {filterCount > 0 && ' · ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
-                {sortRules.length > 0 && ' · ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
+                {hasActiveSort && ' · ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
               </div>
             </div>
 
@@ -2089,10 +2214,10 @@ const CattleHerdsHub = ({
               </div>
             )}
 
-            {/* Flat cattle list (results are always flat) */}
-            {!loading && cattle.length > 0 && (
+            {!loading && cattle.length > 0 && hasActiveListControls && (
               <div
                 data-cattle-flat-list
+                data-cattle-flat-results="1"
                 style={{background: 'white', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden'}}
               >
                 <div
@@ -2105,7 +2230,15 @@ const CattleHerdsHub = ({
                     color: 'var(--ink-muted)',
                   }}
                 >
-                  {sortedFlat.length} cattle
+                  {sortedFlat.length} {sortedFlat.length === 1 ? 'match' : 'matching cattle'}
+                  {lastActivityLoading && hasLastActivitySort && (
+                    <span
+                      data-cattle-last-activity-loading="1"
+                      style={{marginLeft: 8, color: 'var(--ink-faint)', fontWeight: 500}}
+                    >
+                      Loading Last Activity...
+                    </span>
+                  )}
                 </div>
                 {sortedFlat.length === 0 && (
                   <div style={{padding: '2rem', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13}}>
@@ -2116,25 +2249,39 @@ const CattleHerdsHub = ({
               </div>
             )}
 
-            {/* Outcome herds (processed / deceased / sold) stay browsable below
-                the flat list; clicking one filters the flat list to it. */}
-            {!loading && cattle.length > 0 && (
-              <CollapsibleOutcomeSections
-                cattle={cattle}
-                weighIns={weighIns}
-                HERD_LABELS={HERD_LABELS}
-                OUTCOMES={CATTLE_OUTCOME_KEYS}
-                fmt={fmt}
-                setStatusFilter={(value) => {
-                  if (!value || value === 'active' || value === 'all') {
-                    clearFilter('herdSet');
-                    return;
-                  }
-                  setFilter('herdSet', [value]);
-                }}
-                processingInfo={processingInfo}
-                onCowClick={(c) => navigate('/cattle/herds/' + c.id)}
-              />
+            {!loading && cattle.length > 0 && !hasActiveListControls && (
+              <div data-cattle-grouped-herds="1" style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                {groupedHerdSections.map((section) => (
+                  <section
+                    key={section.key}
+                    data-cattle-herd-section={section.key}
+                    style={{
+                      background: 'white',
+                      border: '1px solid var(--border)',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '10px 16px',
+                        borderBottom: '1px solid var(--border)',
+                        background: 'var(--surface-2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)'}}>{section.label}</span>
+                      <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>
+                        {section.rows.length} {section.rows.length === 1 ? 'animal' : 'cattle'}
+                      </span>
+                    </div>
+                    <CattleDataTable navList={section.rows} surfaceKey={'cattle-herds-' + section.key} />
+                  </section>
+                ))}
+              </div>
             )}
           </>
         )}

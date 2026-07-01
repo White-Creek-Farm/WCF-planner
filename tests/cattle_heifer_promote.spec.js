@@ -103,8 +103,7 @@ test('momma tile shows Calves: SUM(total_born) — twins double-count', async ({
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  // The list is always flat now; the momma row renders directly with its
-  // Calf Count column (on by default).
+  // The momma row renders with its Calf Count column (on by default).
   const cowTile = page.locator(`#cow-${MOMMA.id}`).first();
   await expect(cowTile).toBeVisible({timeout: 10_000});
 

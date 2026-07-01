@@ -35,12 +35,13 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
   it('navigates to /cattle/herds/<id> on tile click', () => {
     expect(herdsView).toContain("navigate('/cattle/herds/' + c.id");
   });
-  it('passes the visible-order sequence through route state on row click (flat)', () => {
-    // The always-flat list renders through the shared CattleDataTable, which
-    // threads its navList prop (sortedFlat) into recordSeqNavOptions on
-    // onRowOpen so RecordSequenceNav walks the on-screen order.
+  it('passes the visible-order sequence through route state on row click', () => {
+    // Flat and grouped lists render through the shared CattleDataTable, which
+    // threads its navList prop into recordSeqNavOptions on onRowOpen so
+    // RecordSequenceNav walks the on-screen order.
     expect(herdsView).toContain('recordSeqNavOptions(navList)');
     expect(herdsView).toContain('navList={sortedFlat}');
+    expect(herdsView).toContain('navList={section.rows}');
     expect(herdsView).toContain("from '../lib/recordSequence.js'");
   });
   it('imports CattleAnimalPage for hub routing', () => {
@@ -98,13 +99,7 @@ describe('CattleHerdsView - cold-boot readiness', () => {
     expect(loadAllSrc).toContain('} catch (e) {');
     expect(loadAllSrc).toMatch(/finally\s*\{[\s\S]*?setLoading\(false\);[\s\S]*?\}/);
     expect(loadAllSrc).toContain('loadCattleWeighInsCached(sb, {throwOnError: true})');
-    for (const table of [
-      'cattle',
-      'cattle_calving_records',
-      'cattle_breeds',
-      'cattle_origins',
-      'cattle_processing_batches',
-    ]) {
+    for (const table of ['cattle', 'cattle_calving_records', 'cattle_breeds', 'cattle_origins', 'cattle_transfers']) {
       expect(loadAllSrc, `CattleHerdsView must throw on ${table} errors`).toContain(`throw new Error('${table}: ' +`);
     }
     for (const clearCall of [
@@ -113,7 +108,7 @@ describe('CattleHerdsView - cold-boot readiness', () => {
       'setCalvingRecs([]);',
       'setBreedOpts([]);',
       'setOriginOpts([]);',
-      'setProcessingBatches([]);',
+      'setCattleTransfers([]);',
     ]) {
       expect(loadAllSrc, `CattleHerdsView must clear ${clearCall} on catch`).toContain(clearCall);
     }

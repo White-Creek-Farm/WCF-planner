@@ -64,7 +64,8 @@ describe('site-wide list controls scope', () => {
     expect(cattle).toContain("openToolPanel === 'savedViews'");
     expect(cattle).toContain("openToolPanel === 'filters'");
     expect(cattle).toContain("openToolPanel === 'columns'");
-    // The grouped/flat view toggle is gone — results are always flat.
+    // The grouped/flat view toggle is gone; default grouping vs flat controlled
+    // results is automatic.
     expect(cattle).not.toContain('data-cattle-herds-view-toggle="1"');
 
     for (const marker of [
