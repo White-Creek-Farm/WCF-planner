@@ -198,6 +198,13 @@ test('last activity sort shows date/time and orders by newest activity first', a
   await expect(flatRows(page).first()).toContainText('#B201', {timeout: 15_000});
   expect((await readTagsInOrder(flatRows(page))).slice(0, 3)).toEqual(['B201', 'M001', 'P501']);
   await expect(flatRows(page).first()).toContainText(/06\/03\/26/);
+
+  await flatRows(page).first().click();
+  await expect(page.locator('[data-cattle-animal-page="1"]')).toBeVisible({timeout: 15_000});
+  await page.getByRole('button', {name: 'Back to Herds'}).click();
+  await expect(page.locator('[data-cattle-flat-results="1"]')).toBeVisible({timeout: 5_000});
+  await expect(page.locator('[data-cattle-last-activity-loading="1"]')).toHaveCount(0);
+  await expect(flatRows(page).first()).toContainText('#B201', {timeout: 1_000});
 });
 
 // --------------------------------------------------------------------------

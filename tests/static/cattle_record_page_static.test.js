@@ -56,9 +56,11 @@ describe('CattleHerdsView — no legacy Activity or inline CowDetail', () => {
 });
 
 describe('CowDetail - herd status selector replaces duplicate transfer control', () => {
-  it('keeps herd changes on the inline status selector', () => {
-    expect(cowDetail).toContain("patchOnChange('herd')");
+  it('keeps herd changes on the inline status selector through the transfer handler', () => {
+    expect(cowDetail).toContain('data-cattle-herd-status-select="1"');
+    expect(cowDetail).toContain('onChange={transferOnChange}');
     expect(cowDetail).toContain('defaultValue={cow.herd ||');
+    expect(cowDetail).not.toContain("patchOnChange('herd')");
   });
 
   it('does not render the old separate transfer button or target picker', () => {
@@ -354,6 +356,16 @@ describe('CattleAnimalPage — transactional transfer via RPC', () => {
   it('transferCow calls the transferCattleAnimal RPC wrapper', () => {
     expect(animalPage).toContain("import {transferCattleAnimal} from '../lib/animalTransferApi.js'");
     expect(animalPage).toMatch(/transferCow[\s\S]*?transferCattleAnimal\(sb, cow\.id, newHerd/);
+  });
+  it('routes the CowDetail herd dropdown through onTransfer, not the generic field patch', () => {
+    expect(animalPage).toContain('onTransfer={(newHerd) => transferCow(newHerd)}');
+    expect(cowDetail).toContain('onTransfer,');
+    expect(cowDetail).toContain('data-cattle-herd-status-select="1"');
+    expect(cowDetail).toMatch(/onChange=\{transferOnChange\}/);
+    expect(cowDetail).toMatch(/typeof onTransfer === 'function'[\s\S]*?onTransfer\(v\)/);
+    const select = cowDetail.match(/<select[\s\S]*?data-cattle-herd-status-select="1"[\s\S]*?<\/select>/);
+    expect(select, 'expected herd status select').not.toBeNull();
+    expect(select[0]).not.toContain("patchOnChange('herd')");
   });
   it('transferCow keeps a client no-op guard when destination matches current herd', () => {
     expect(animalPage).toMatch(/transferCow[\s\S]*?newHerd === cow\.herd[\s\S]*?return/);

@@ -14,6 +14,7 @@ import {createClient} from '@supabase/supabase-js';
 //   5  Anon/unauth caller is rejected (REVOKE from anon)
 //   6  Deleted source row is rejected
 //   7  status.changed transfer events surface in global Activity
+//   8  Cattle record herd dropdown calls the transfer path
 // ============================================================================
 
 const TEST_ADMIN_EMAIL = process.env.VITE_TEST_ADMIN_EMAIL;
@@ -69,6 +70,47 @@ test('cattle transfer: updates herd, writes audit, logs status.changed', async (
   expect(events[0].event_type).toBe('status.changed');
   expect(events[0].entity_type).toBe('cattle.animal');
   expect(events[0].payload).toMatchObject({field: 'herd', from: 'mommas', to: 'finishers'});
+});
+
+// --------------------------------------------------------------------------
+// Test 1b - Record-page herd dropdown uses the transfer RPC path
+// --------------------------------------------------------------------------
+test('cattle record herd dropdown writes transfer audit and status.changed Activity', async ({
+  page,
+  supabaseAdmin,
+  animalTransferScenario,
+}) => {
+  const ids = animalTransferScenario;
+
+  await page.goto('/cattle/herds/' + ids.cowId);
+  await expect(page.locator('[data-cattle-animal-page="1"]')).toBeVisible({timeout: 15_000});
+  await page.locator('[data-cattle-herd-status-select="1"]').selectOption('sold');
+
+  await expect
+    .poll(async () => {
+      const {data} = await supabaseAdmin.from('cattle').select('herd').eq('id', ids.cowId).single();
+      return data?.herd || '';
+    })
+    .toBe('sold');
+
+  const {data: row} = await supabaseAdmin.from('cattle').select('herd,sale_date').eq('id', ids.cowId).single();
+  expect(row).toMatchObject({herd: 'sold'});
+  expect(row.sale_date).toBeTruthy();
+
+  const {data: audit} = await supabaseAdmin
+    .from('cattle_transfers')
+    .select('from_herd,to_herd,reason')
+    .eq('cattle_id', ids.cowId);
+  expect(audit).toHaveLength(1);
+  expect(audit[0]).toMatchObject({from_herd: 'mommas', to_herd: 'sold', reason: 'manual'});
+
+  const {data: events} = await supabaseAdmin
+    .from('activity_events')
+    .select('event_type,entity_type,payload')
+    .eq('entity_id', ids.cowId);
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({event_type: 'status.changed', entity_type: 'cattle.animal'});
+  expect(events[0].payload).toMatchObject({field: 'herd', from: 'mommas', to: 'sold'});
 });
 
 // --------------------------------------------------------------------------

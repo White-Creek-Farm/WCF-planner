@@ -182,6 +182,22 @@ const SORT_DEFAULT_DIR = {
 const CATTLE_HERDS_SURFACE_KEY = 'cattle.herds';
 const DEFAULT_SORT_RULES = Object.freeze([{key: 'tag', dir: 'asc'}]);
 const ACTIVITY_LOAD_CONCURRENCY = 8;
+const EMPTY_LAST_ACTIVITY_CACHE = {byCowId: {}, loadKey: '', loadedAt: null};
+
+function normalizeLastActivityCache(cache) {
+  if (!cache || typeof cache !== 'object' || Array.isArray(cache)) return EMPTY_LAST_ACTIVITY_CACHE;
+  const byCowId =
+    cache.byCowId && typeof cache.byCowId === 'object' && !Array.isArray(cache.byCowId) ? cache.byCowId : {};
+  return {
+    byCowId,
+    loadKey: typeof cache.loadKey === 'string' ? cache.loadKey : '',
+    loadedAt: typeof cache.loadedAt === 'string' ? cache.loadedAt : null,
+  };
+}
+
+function hasCachedActivityValue(byCowId, id) {
+  return Object.prototype.hasOwnProperty.call(byCowId, id);
+}
 
 function isDefaultSortRules(rules) {
   return (
@@ -354,7 +370,12 @@ const CattleHerdsHub = ({
   // Composable filter / sort state.
   const [filters, setFilters] = usePersistentViewState('cattle.herds.filters', {});
   const [sortRules, setSortRules] = usePersistentViewState('cattle.herds.sortRules', [{...DEFAULT_SORT_RULES[0]}]);
-  const [lastActivityByCowId, setLastActivityByCowId] = useState({});
+  const [lastActivityCache, setLastActivityCache] = usePersistentViewState(
+    'cattle.herds.lastActivityCache',
+    EMPTY_LAST_ACTIVITY_CACHE,
+  );
+  const lastActivityByCowId = normalizeLastActivityCache(lastActivityCache).byCowId;
+  const lastActivityCacheRef = React.useRef(lastActivityCache);
   const [lastActivityLoading, setLastActivityLoading] = useState(false);
   const [lastActivityNotice, setLastActivityNotice] = useState(null);
   const hasLastActivitySort = sortRules.some((r) => r && r.key === 'lastActivity');
@@ -531,16 +552,21 @@ const CattleHerdsHub = ({
     [cattle],
   );
   useEffect(() => {
+    lastActivityCacheRef.current = lastActivityCache;
+  }, [lastActivityCache]);
+  useEffect(() => {
     if (!wantsLastActivity) return undefined;
     if (!cattle.length) {
-      setLastActivityByCowId({});
+      setLastActivityCache(EMPTY_LAST_ACTIVITY_CACHE);
       setLastActivityNotice(null);
       return undefined;
     }
 
     let cancelled = false;
     async function loadLastActivity() {
-      setLastActivityLoading(true);
+      const cachedByCowId = normalizeLastActivityCache(lastActivityCacheRef.current).byCowId;
+      const hasCompleteCache = cattle.every((cow) => cow && cow.id && hasCachedActivityValue(cachedByCowId, cow.id));
+      setLastActivityLoading(!hasCompleteCache);
       setLastActivityNotice(null);
       const next = {};
       let failed = 0;
@@ -554,7 +580,7 @@ const CattleHerdsHub = ({
         );
         for (const result of results) {
           if (result.status === 'fulfilled') {
-            if (result.value.createdAt) next[result.value.id] = result.value.createdAt;
+            next[result.value.id] = result.value.createdAt;
           } else {
             failed += 1;
           }
@@ -562,7 +588,7 @@ const CattleHerdsHub = ({
         if (cancelled) return;
       }
       if (cancelled) return;
-      setLastActivityByCowId(next);
+      setLastActivityCache({byCowId: next, loadKey: cattleActivityLoadKey, loadedAt: new Date().toISOString()});
       setLastActivityNotice(
         failed > 0
           ? {
@@ -581,7 +607,6 @@ const CattleHerdsHub = ({
 
     loadLastActivity().catch((e) => {
       if (cancelled) return;
-      setLastActivityByCowId({});
       setLastActivityNotice({
         kind: 'warning',
         message: 'Last Activity could not be loaded. The cattle list is still available. (' + (e.message || e) + ')',
@@ -591,7 +616,7 @@ const CattleHerdsHub = ({
     return () => {
       cancelled = true;
     };
-  }, [wantsLastActivity, cattleActivityLoadKey, cattle, sb]);
+  }, [wantsLastActivity, cattleActivityLoadKey, cattle, sb, setLastActivityCache]);
 
   const filtered = useMemo(() => {
     const effectiveFilters = {...filters};

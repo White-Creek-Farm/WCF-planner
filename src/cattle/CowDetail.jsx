@@ -35,6 +35,7 @@ const CowDetail = ({
   canNavigateBack,
   backToTag,
   onPatch,
+  onTransfer,
   onClose,
   originOpts,
   breedOpts,
@@ -63,6 +64,15 @@ const CowDetail = ({
     if (!onPatch) return;
     const v = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value || null;
     onPatch({[field]: v});
+  };
+  const transferOnChange = (ev) => {
+    const v = ev.target.value || null;
+    if (!v || v === cow.herd) return;
+    if (typeof onTransfer === 'function') {
+      onTransfer(v);
+      return;
+    }
+    if (onPatch) onPatch({herd: v});
   };
   // Editable old_tags helpers
   function patchOldTagAt(idx, field, value) {
@@ -229,7 +239,12 @@ const CowDetail = ({
           >
             Herd
           </div>
-          <select defaultValue={cow.herd || ''} onChange={patchOnChange('herd')} style={{...editInp, width: 140}}>
+          <select
+            data-cattle-herd-status-select="1"
+            defaultValue={cow.herd || ''}
+            onChange={transferOnChange}
+            style={{...editInp, width: 140}}
+          >
             {(HERDS || []).map((h) => (
               <option key={h} value={h}>
                 {HERD_LABELS[h] || h}
