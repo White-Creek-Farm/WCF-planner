@@ -94,7 +94,7 @@ Design/function invariants that govern cross-surface behavior live in
   `production_legacy_events` on PROD by stable `source_key` (frozen historical
   count).
 - Processing Calendar: planning locked, build NOT started. The single source of
-  truth is Build Queue item 2; do not duplicate that plan elsewhere in this file.
+  truth is Build Queue item 3; do not duplicate that plan elsewhere in this file.
 - Processing status labels are normalized to `Planned` / `In Process` / `Complete`
   via `src/lib/processingStatusDisplay.js` (display-only; stored values are
   unchanged). See the Processing Calendar contract for the mapping and the
@@ -105,6 +105,10 @@ Design/function invariants that govern cross-surface behavior live in
   The `Sold` herd filter is sold-only and flat (no Processed/Deceased/Sold
   section headers). `Last Activity` sort/column uses the cattle animal Activity
   stream and shows date/time.
+  Follow-up hotfix `c6a880d` persists the Last Activity sort cache across
+  record-page round trips and routes the record-page Herd dropdown through the
+  audited transfer RPC. Full mutation-path hardening is tracked in Build Queue
+  item 2.
 - `tasks-cron` Edge Function is active in PROD: recurring + system-task generation
   with batch/group entity labels, plus To Do approval/originator notifications.
 - Broiler derived-data drift lane is closed and verified in PROD.
@@ -189,7 +193,38 @@ This is the canonical home for outstanding build/design work.
        link-gated public `/newsletter` output. Cron stays off until separately
        approved.
 
-2. Processing Calendar Asana import and native workflow
+2. Full mutation audit for audited workflow paths
+   - Status: NOT APPROVED / NOT STARTED. Added after the cattle record-page
+     Herd dropdown defect: the dropdown had been using a generic cattle row
+     update, which bypassed the transfer RPC and skipped `cattle_transfers`,
+     `status.changed` Activity, and sale/death-date side effects for some
+     2026-06-13 Mommas -> Sold changes. Hotfix `c6a880d` fixes that UI path;
+     this lane audits the rest of the project for the same class of issue.
+   - Class: `DEFECT`/`SECURITY`/`DB-GATE`/`TEST`.
+   - Scope:
+     - Inventory every direct client/helper mutation that inserts, updates, or
+       deletes operational business rows across livestock, processing, daily
+       reports, tasks/todos, webforms, admin tools, and recovery surfaces.
+     - Classify each mutation as routine best-effort `runMutation` logging,
+       audited transactional RPC, trigger-owned side effect, import-only path,
+       or intentionally unaudited utility write.
+     - Pay special attention to status/group transition fields:
+       `herd`, `flock`, `processing_batch_id`, sale/death/processed dates,
+       archive/delete/restore flags, batch attach/detach, completion/reopen,
+       and any field where Activity, transfer tables, notifications,
+       comments/attachments, or derived records must move together.
+     - Add static guards so audit-critical fields/tables cannot be updated
+       directly from UI code except through the approved helper/RPC path.
+     - Add focused browser/RPC regression tests for every corrected path.
+   - Required output: mutation inventory table, approved-path/gap list,
+     recommended RPC/guard/test changes, and a separate historical data-repair
+     plan for any already-missed Activity/audit rows. No historical backfill is
+     approved by this item alone.
+   - Gates: Ronnie must explicitly approve the audit lane before implementation.
+     Any PROD data repair, migration/RPC rewrite, or new SECDEF surface requires
+     its own approval gate.
+
+3. Processing Calendar Asana import and native workflow
    - Status: PLANNING LOCKED / BUILD NOT STARTED. No schema/importer/UI work is
      approved yet. This Build Queue item is the single source of truth for the
      Processing Calendar build plan; do not duplicate the detailed plan in later
@@ -425,7 +460,7 @@ This is the canonical home for outstanding build/design work.
      Asana import cutover, Edge Function/deploy work if any, commit, push, and
      release are separate Ronnie gates. `exec_sql` in PROD remains forbidden.
 
-3. CP5 forms pass (public webform island form styling)
+4. CP5 forms pass (public webform island form styling)
    - Status: NOT APPROVED / NOT STARTED. Placeholder home for the deferred public
      `#webform-container` island form-styling pass. The island's own `--wf-r-*`
      corner radii and form tokens are intentionally still pending this lane (see
@@ -508,7 +543,7 @@ unless Ronnie changes the contract:
 - The public `#webform-container` island adopts the CP0 section A3 10px radius floor on
   the app `:root` (`index.html`/`dailys.html`/`equipment.html` aligned 2026-06-17);
   the island's own `--wf-r-*` corner radii are pending the CP5 forms pass (see
-  Build Queue item 3).
+  Build Queue item 4).
 - CP0 section A12.1 permitted-uses are extended (2026-06-17) so the primary/brand button
   re-tints to the program color via `--brand` on each program's page wrapper; this
   is ratified, not palette drift.
@@ -1061,7 +1096,7 @@ Append-only upload expectations:
   untagged sub-10 radius.
 - Scope exemptions: the `.home` island (`homeRedesign.css`) keeps `9/12/18`; the
   public `#webform-container` island radius is pending the CP5 forms pass (see
-  Build Queue item 3).
+  Build Queue item 4).
 - New sub-10px control/card/row radii require a Ronnie-approved amendment and a
   matching guard update.
 - Guards: `radius_floor_static.test.js` (floor + allowlist) and
@@ -1220,7 +1255,7 @@ Workflow/worktable entities:
 ### Processing Calendar
 
 - Processing Calendar is distinct from the existing `/production` reporting
-  page. Build Queue item 2 (`Processing Calendar Asana import and native
+  page. Build Queue item 3 (`Processing Calendar Asana import and native
   workflow`) is the only home for its build scope; do not duplicate or fork that
   plan elsewhere in this file.
 - `/production` remains the processed-output reporting surface. The Processing
