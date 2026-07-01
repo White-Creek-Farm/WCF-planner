@@ -115,18 +115,10 @@ Design/function invariants that govern cross-surface behavior live in
 - Dependency hardening is complete: Vite/Vitest/plugin-react majors upgraded,
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
-- Worktree inventory: four worktrees — `C:/Users/Ronni/WCF-planner` (this docs
-  lane, `docs/pasture-map-session-state`),
-  `C:/Users/Ronni/WCF-planner-codex-cattle-herds-hotfix`
-  (`hotfix/cattle-herds-activity-sort`, pushed and merged into this wrap branch),
-  `C:/Users/Ronni/WCF-planner-newsletter-redesign` (`main`), and
-  `C:/Users/Ronni/WCF-planner-codex-residuals` (still on the old
-  `codex/persistent-login` branch; a merged lane, not a standing build worktree).
-  The primary worktree keeps seven preserved untracked handoff/shot folders:
-  `design_handoff_newsletter/`, `design_handoff_processing_calendar/`,
-  `pasture-cp2-shots/`, `pasture-map-shots/`, `pasture-offline-field-guide/`,
-  `pasture-open-line-edit-shots/`, and `pasture-rail-shots/`. Do not delete the
-  preserved folders unless Ronnie explicitly asks.
+- Worktree inventory: one active worktree at `C:/Users/Ronni/WCF-planner` on
+  `main`. Separate Codex/design/hotfix worktrees were pruned after wrap. The only
+  preserved untracked handoff folder is `design_handoff_processing_calendar/`,
+  which is referenced by Build Queue item 3.
 
 ### Recent Shipped Checkpoints
 
