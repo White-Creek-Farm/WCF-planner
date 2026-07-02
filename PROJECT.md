@@ -139,8 +139,9 @@ Design/function invariants that govern cross-surface behavior live in
   exist at `C:/Users/Ronni/WCF-planner-cp5-forms` (`codex/cp5-webform-island`)
   and `C:/Users/Ronni/WCF-planner-newsletter-ux`
   (`feature/newsletter-ux-polish`); both are already merged and should not be
-  reused for new work. The preserved untracked handoff folder
-  `design_handoff_processing_calendar/` is referenced by Build Queue item 3.
+  reused for new work. The preserved workstation-local handoff folder
+  `design_handoff_processing_calendar/` is ignored by Git/Prettier and
+  referenced by Build Queue item 3.
 
 ### Recent Shipped Checkpoints
 
@@ -269,10 +270,10 @@ This is the canonical home for outstanding build/design work.
      statuses, milestones, reconciliation, permissions, table/drawer behavior,
      comments, attachments, subtasks, Activity, and historical editability.
    - Class: `ENH`/`DB-GATE`/`SECURITY`/`STORAGE`/`DATA-IMPORT`.
-   - Source/design: `design_handoff_processing_calendar` contains the prototype
-     handoff, CSV, README, and support file. The CSV is not sufficient for
-     import because comments, attachments, Asana gids, recursive subtasks, and
-     reliable metadata require the live Asana API.
+   - Source/design: workstation-local `design_handoff_processing_calendar/`
+     contains the prototype handoff, CSV, README, and support file. The CSV is
+     not sufficient for import because comments, attachments, Asana gids,
+     recursive subtasks, and reliable metadata require the live Asana API.
    - Verified live API checkpoint on 2026-06-26: project
      `1201484014160203` (`SF Processing Calendar ` with trailing space), 117
      top-level records, 5 top-level milestones, section counts Broiler 48 /

@@ -158,3 +158,6 @@ scripts/test-bootstrap.sql
 tests/light_portal_screenshots.spec.js
 tests/cp2_light_edit_screenshots.spec.js
 audit-review-shots/
+
+# Local design handoff artifacts (referenced from PROJECT.md, not source-owned)
+design_handoff_processing_calendar/
