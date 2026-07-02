@@ -64,10 +64,26 @@ describe('SheepFlocksView - saved views', () => {
   });
 });
 
-describe('SheepDetail - flock status selector replaces duplicate transfer control', () => {
-  it('keeps flock changes on the inline status selector', () => {
-    expect(sheepDetail).toContain("patchOnChange('flock')");
+describe('SheepDetail - flock status selector routes through the transfer RPC', () => {
+  it('routes flock changes through onTransfer (transfer_sheep_animal), not the generic patch', () => {
+    // Sheep analog of the cattle herd-select guard. A flock change is
+    // audit-critical (spans sold/deceased/processed) and must go through the
+    // transfer RPC, not a raw sheep.update — otherwise it leaves no sheep_transfers
+    // ledger row and no status.changed Activity (the c6a880d archetype, never
+    // shipped for sheep). Locks the fix so the flock select cannot regress back to
+    // patchOnChange('flock').
+    expect(sheepDetail).toContain('onTransfer,');
+    expect(sheepDetail).toContain('data-sheep-flock-status-select="1"');
     expect(sheepDetail).toContain('defaultValue={sheep.flock ||');
+    expect(sheepDetail).toMatch(/onChange=\{transferOnChange\}/);
+    expect(sheepDetail).toMatch(/typeof onTransfer === 'function'[\s\S]*?onTransfer\(v\)/);
+    const select = sheepDetail.match(/<select[\s\S]*?data-sheep-flock-status-select="1"[\s\S]*?<\/select>/);
+    expect(select, 'expected flock status select').not.toBeNull();
+    expect(select[0]).not.toContain("patchOnChange('flock')");
+  });
+
+  it('SheepAnimalPage wires onTransfer to transferSheep (the RPC path)', () => {
+    expect(animalPage).toContain('onTransfer={(newFlock) => transferSheep(newFlock)}');
   });
 
   it('does not render the old separate transfer button or target picker', () => {

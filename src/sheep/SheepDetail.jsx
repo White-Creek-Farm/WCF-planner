@@ -37,6 +37,7 @@ const SheepDetail = ({
   canNavigateBack,
   backToTag,
   onPatch,
+  onTransfer,
   onClose,
   originOpts,
   breedOpts,
@@ -62,6 +63,20 @@ const SheepDetail = ({
     if (!onPatch) return;
     const v = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value || null;
     onPatch({[field]: v});
+  };
+  // Flock is audit-critical (spans sold/deceased/processed). Route flock changes
+  // through the transfer RPC (transfer_sheep_animal — atomic sheep_transfers
+  // ledger + status.changed Activity) via onTransfer, never the raw patch —
+  // mirrors CowDetail.transferOnChange. Falls back to onPatch only if no
+  // onTransfer handler is wired.
+  const transferOnChange = (ev) => {
+    const v = ev.target.value || null;
+    if (!v || v === sheep.flock) return;
+    if (typeof onTransfer === 'function') {
+      onTransfer(v);
+      return;
+    }
+    if (onPatch) onPatch({flock: v});
   };
   function patchOldTagAt(idx, field, value) {
     if (!onPatch) return;
@@ -232,7 +247,12 @@ const SheepDetail = ({
           >
             Flock
           </div>
-          <select defaultValue={sheep.flock || ''} onChange={patchOnChange('flock')} style={{...editInp, width: 140}}>
+          <select
+            data-sheep-flock-status-select="1"
+            defaultValue={sheep.flock || ''}
+            onChange={transferOnChange}
+            style={{...editInp, width: 140}}
+          >
             {(FLOCKS || []).map((f) => (
               <option key={f} value={f}>
                 {FLOCK_LABELS[f] || f}
