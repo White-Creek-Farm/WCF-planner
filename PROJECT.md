@@ -7,11 +7,11 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-01.
-Current wrap checkpoints: `1e8d58b` (PROJECT.md cleanup) plus `f32c2a1` (Cattle
-Herds grouped-default / flat-controlled hotfix). Last code/product checkpoint:
-`f32c2a1`. Previous newsletter checkpoint: `c668a2a` (PR #59, Newsletter
-archive-link gating, migration `153`).
+Last updated: 2026-07-02.
+Current wrap checkpoints: `ceb7dcf` (CP5 public webform island styling),
+`5e1f4e1` (newsletter UX polish), `0b424cb` (sheep transfer audit PR1), and
+`efe9483` (mutation-audit PR2A best-effort Activity logging). Last code/product
+checkpoint: `efe9483`.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -68,17 +68,23 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`. This wrap merges
-  the PROJECT.md cleanup (`1e8d58b`) and Cattle Herds hotfix (`f32c2a1`). The
-  latest code/product checkpoint is `f32c2a1`.
+  CP5 public webform island styling (`ceb7dcf`), newsletter UX polish
+  (`5e1f4e1`), sheep transfer audit PR1 (`0b424cb`), and mutation-audit PR2A
+  best-effort Activity logging (`efe9483`). The latest code/product checkpoint
+  is `efe9483`.
 - Newsletter live state: Autopilot + direction-first redesign + fact fixes +
-  archive-link gating are merged (PR #44/#54/#55/#59). Migrations `146`/`151`/`153`
-  are PROD-applied; `newsletter-harvest` is deployed (PROD v5 / TEST v1);
-  `NEWSLETTER_AI_API_KEY` is a PROD-only Edge Function secret (TEST intentionally
-  unset); the monthly cron is off. The public archive is link-gated by a rotating
-  `?key=`. See the Monthly Newsletter contract for behavior and Build Queue item 1
-  for the open first-issue / PROD-AI-smoke work. (Deploy version, secret presence,
-  PROD migration apply, and published-issue/token counts are live state — see the
-  live-verification note in the Supabase Migrations section.)
+  archive-link gating + the UX polish pass are merged. The polish pass adds
+  debounced/autosaved admin direction, prevents local direction clobbering during
+  refreshes, clarifies AI-vs-template/gather/fact workflow states, relabels
+  newsletter runs, and brings the public reader into the WCF branded email
+  family. Migrations `146`/`151`/`153` are PROD-applied; `newsletter-harvest` is
+  deployed (PROD v5 / TEST v1); `NEWSLETTER_AI_API_KEY` is a PROD-only Edge
+  Function secret (TEST intentionally unset); the monthly cron is off. The
+  public archive is link-gated by a rotating `?key=`. See the Monthly Newsletter
+  contract for behavior and Build Queue item 1 for the open first-issue /
+  PROD-AI-smoke work. (Deploy version, secret presence, PROD migration apply,
+  and published-issue/token counts are live state — see the live-verification
+  note in the Supabase Migrations section.)
 - Pasture Map live state: the pasture migrations `116`, `127`-`132`, `135`-`137`,
   `139`-`141`, `143`, `147`-`150`, and `152` are PROD-applied (`152` manager hard
   delete applied to TEST and PROD on 2026-06-30). Migration `150`'s `NOTIFY pgrst`
@@ -99,6 +105,12 @@ Design/function invariants that govern cross-surface behavior live in
   via `src/lib/processingStatusDisplay.js` (display-only; stored values are
   unchanged). See the Processing Calendar contract for the mapping and the
   pig-specific zero-head exception.
+- CP5 public webform island styling (`ceb7dcf`) is shipped in the static HTML
+  shells (`index.html`, `dailys.html`, `equipment.html`, `pasture-map.html`).
+  It updates the public `#webform-container` fallback/island form tokens and
+  radii; authenticated React routes such as `/dailys` render through
+  `<div id="root">` and are intentionally not visually changed by this island
+  CSS pass.
 - Cattle Herds hotfix (`f32c2a1`): `/cattle/herds` defaults to grouped herd
   sections when no filters/search/non-default sort are active. Any active
   filter/search/non-default sort switches to one flat matched-results table.
@@ -107,7 +119,14 @@ Design/function invariants that govern cross-surface behavior live in
   stream and shows date/time.
   Follow-up hotfix `c6a880d` persists the Last Activity sort cache across
   record-page round trips and routes the record-page Herd dropdown through the
-  audited transfer RPC. Full mutation-path hardening is tracked in Build Queue
+  audited transfer RPC.
+- Mutation audit current state: PR1 (`0b424cb`) routes the sheep record-page
+  Flock dropdown through `transfer_sheep_animal`; PR2A (`efe9483`) adds 19
+  best-effort Activity emits across live cattle, pig, weigh-in/webform,
+  equipment, and processing-attach surfaces, plus static coverage in
+  `tests/static/activity_change_logging_static.test.js`. No migration, schema,
+  RLS, deploy, PROD data repair, daily-create policy change, detach reroute, or
+  UsersModal change has shipped. Remaining audit work is tracked in Build Queue
   item 2.
 - `tasks-cron` Edge Function is active in PROD: recurring + system-task generation
   with batch/group entity labels, plus To Do approval/originator notifications.
@@ -115,10 +134,13 @@ Design/function invariants that govern cross-surface behavior live in
 - Dependency hardening is complete: Vite/Vitest/plugin-react majors upgraded,
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
-- Worktree inventory: one active worktree at `C:/Users/Ronni/WCF-planner` on
-  `main`. Separate Codex/design/hotfix worktrees were pruned after wrap. The only
-  preserved untracked handoff folder is `design_handoff_processing_calendar/`,
-  which is referenced by Build Queue item 3.
+- Worktree inventory at wrap: primary worktree `C:/Users/Ronni/WCF-planner` is
+  intended to end on `main` after this merge. Preserved side worktrees still
+  exist at `C:/Users/Ronni/WCF-planner-cp5-forms` (`codex/cp5-webform-island`)
+  and `C:/Users/Ronni/WCF-planner-newsletter-ux`
+  (`feature/newsletter-ux-polish`); both are already merged and should not be
+  reused for new work. The preserved untracked handoff folder
+  `design_handoff_processing_calendar/` is referenced by Build Queue item 3.
 
 ### Recent Shipped Checkpoints
 
@@ -127,10 +149,12 @@ Per-PR shipped history is not maintained here. For what shipped and when, read
 Durable behavior lives in the Load-Bearing Contracts below; current migration and
 live state lives in Current State and Backend And Data State.
 
-Most recent session: PROJECT.md cleanup (`1e8d58b`) plus Cattle Herds hotfix
-(`f32c2a1`) on top of the Pasture Map field-tweaks trio (PR #56/#57/#58 —
-Field-tab promote, tap-to-place draw, installable offline `/pasture-map` PWA;
-migration `152` PROD-applied) and the residual-lanes closure (`1e7cab0`).
+Most recent session: CP5 public webform island styling (`ceb7dcf`), newsletter
+UX polish (`5e1f4e1`), sheep transfer audit PR1 (`0b424cb`), and mutation-audit
+PR2A best-effort Activity logging (`efe9483`). Earlier durable checkpoints
+remain in `git log`, including the PROJECT.md cleanup (`1e8d58b`), Cattle Herds
+hotfixes (`f32c2a1`/`c6a880d`), Pasture Map field-tweaks trio, and residual-lanes
+closure.
 
 ---
 
@@ -186,35 +210,55 @@ This is the canonical home for outstanding build/design work.
        approved.
 
 2. Full mutation audit for audited workflow paths
-   - Status: NOT APPROVED / NOT STARTED. Added after the cattle record-page
-     Herd dropdown defect: the dropdown had been using a generic cattle row
-     update, which bypassed the transfer RPC and skipped `cattle_transfers`,
-     `status.changed` Activity, and sale/death-date side effects for some
-     2026-06-13 Mommas -> Sold changes. Hotfix `c6a880d` fixes that UI path;
-     this lane audits the rest of the project for the same class of issue.
+   - Status: PARTIALLY SHIPPED / PHASED AUDIT STILL OPEN. Added after the
+     cattle record-page Herd dropdown defect: the dropdown had been using a
+     generic cattle row update, which bypassed the transfer RPC and skipped
+     `cattle_transfers`, `status.changed` Activity, and sale/death-date side
+     effects for some 2026-06-13 Mommas -> Sold changes. Hotfix `c6a880d` fixed
+     that cattle path. PR1 (`0b424cb`) fixed the analogous sheep record-page
+     Flock dropdown by routing through the audited transfer RPC. PR2A
+     (`efe9483`) shipped the safe non-transactional best-effort Activity layer:
+     19 emits across 13 files covering live cattle, pig, weigh-in/webform,
+     equipment, and processing-attach surfaces, plus a static lock in
+     `tests/static/activity_change_logging_static.test.js`. PR2A did not change
+     mutation semantics inventory counts and did not add migrations.
    - Class: `DEFECT`/`SECURITY`/`DB-GATE`/`TEST`.
-   - Scope:
-     - Inventory every direct client/helper mutation that inserts, updates, or
-       deletes operational business rows across livestock, processing, daily
-       reports, tasks/todos, webforms, admin tools, and recovery surfaces.
-     - Classify each mutation as routine best-effort `runMutation` logging,
-       audited transactional RPC, trigger-owned side effect, import-only path,
-       or intentionally unaudited utility write.
-     - Pay special attention to status/group transition fields:
-       `herd`, `flock`, `processing_batch_id`, sale/death/processed dates,
-       archive/delete/restore flags, batch attach/detach, completion/reopen,
-       and any field where Activity, transfer tables, notifications,
-       comments/attachments, or derived records must move together.
-     - Add static guards so audit-critical fields/tables cannot be updated
-       directly from UI code except through the approved helper/RPC path.
-     - Add focused browser/RPC regression tests for every corrected path.
-   - Required output: mutation inventory table, approved-path/gap list,
-     recommended RPC/guard/test changes, and a separate historical data-repair
-     plan for any already-missed Activity/audit rows. No historical backfill is
-     approved by this item alone.
-   - Gates: Ronnie must explicitly approve the audit lane before implementation.
-     Any PROD data repair, migration/RPC rewrite, or new SECDEF surface requires
-     its own approval gate.
+   - Shipped PR2A scope:
+     - Cattle: cattle calving create, new-cow create, and processing schedule
+       create now emit best-effort Activity.
+     - Pig: breeder delete, feeder batch create, and sub-batch archive/unarchive
+       now emit best-effort Activity.
+     - Weigh-in/webform: animal identity changes, webform new-cow/retag/
+       reconcile, and webform session completion now emit best-effort Activity.
+     - Equipment: equipment create, maintenance-event create, and service
+       interval edits now emit best-effort Activity.
+     - Processing attach parity: cattle/sheep webform attach helper paths emit
+       on the processing batch Activity stream.
+   - Intentionally not changed by PR2A:
+     - Daily-create policy remains the app-wide baseline: create attribution is
+       via owner/submitted fields; edits/deletes stay audited through ownership
+       RPCs. Do not add pig-only daily `record.created`.
+     - Detach flows remain deferred to a gated atomic PR3 lane. The intended
+       path is to widen the migration-081 detach RPC role checks as needed for
+       the live `/weighins` webform/farm-team surface, then reroute
+       `WeighInSessionPage` and `WeighInsWebform` detach paths through the RPCs.
+       This requires TEST/PROD migration approval and focused RPC/browser proof.
+     - UsersModal admin writes remain direct `profiles` updates for role,
+       inactive/deactivate, and program access. They are live admin-only and
+       should become a separate gated user-management audit lane.
+     - Historical Activity/data backfill is not approved.
+   - Remaining PR2B decisions before build:
+     - Pig batch edit autosave (`PigBatchesView`) and equipment fueling field
+       autosave (`EquipmentDetail`) need one-summary-on-close or stable-baseline
+       diffing; do not log every debounce tick.
+     - Farrowing delete needs an Activity entity/scoping decision
+       (`pig.batch`, `pig.breeder`, or a new entity).
+     - Fuel-bill create needs scoping verified against `delete_fuel_bill`
+       Activity/read-gate behavior because a fuel-bill id is not an
+       `equipment.item` id.
+   - Gates: Any PROD data repair, migration/RPC rewrite, new SECDEF surface,
+     detach role widening/reroute, UsersModal audit hardening, or historical
+     backfill requires its own Ronnie approval gate.
 
 3. Processing Calendar Asana import and native workflow
    - Status: PLANNING LOCKED / BUILD NOT STARTED. No schema/importer/UI work is
@@ -452,16 +496,6 @@ This is the canonical home for outstanding build/design work.
      Asana import cutover, Edge Function/deploy work if any, commit, push, and
      release are separate Ronnie gates. `exec_sql` in PROD remains forbidden.
 
-4. CP5 forms pass (public webform island form styling)
-   - Status: NOT APPROVED / NOT STARTED. Placeholder home for the deferred public
-     `#webform-container` island form-styling pass. The island's own `--wf-r-*`
-     corner radii and form tokens are intentionally still pending this lane (see
-     Intentional Non-Uniformities and Design System > Radius, which point here).
-   - Class: `ENH`/`DESIGN`.
-   - Scope (unscheduled): align the webform island's form-control radii/tokens
-     toward the CP0 section A3 floor without regressing the intentionally-separate
-     island. Do not start without explicit Ronnie approval.
-
 ---
 
 ## Global Decisions (Constitution)
@@ -532,10 +566,9 @@ unless Ronnie changes the contract:
   React app tokens.
 - The homepage redesign remains scoped under `.home.theme-crisp`; do not move
   Home-specific non-canonical micro-values globally without an amendment.
-- The public `#webform-container` island adopts the CP0 section A3 10px radius floor on
-  the app `:root` (`index.html`/`dailys.html`/`equipment.html` aligned 2026-06-17);
-  the island's own `--wf-r-*` corner radii are pending the CP5 forms pass (see
-  Build Queue item 4).
+- The public `#webform-container` island has its CP5 form-styling pass in the
+  static HTML shells (`ceb7dcf`). That pass affects the fallback/island surface,
+  not authenticated React routes rendered through `#root`.
 - CP0 section A12.1 permitted-uses are extended (2026-06-17) so the primary/brand button
   re-tints to the program color via `--brand` on each program's page wrapper; this
   is ratified, not palette drift.
@@ -1087,8 +1120,8 @@ Append-only upload expectations:
   on a line tagged with the `radius-allow` marker; the floor guard fails any
   untagged sub-10 radius.
 - Scope exemptions: the `.home` island (`homeRedesign.css`) keeps `9/12/18`; the
-  public `#webform-container` island radius is pending the CP5 forms pass (see
-  Build Queue item 4).
+  public `#webform-container` island owns its CP5-local radius/token set in the
+  HTML shell CSS and stays intentionally separate from React app tokens.
 - New sub-10px control/card/row radii require a Ronnie-approved amendment and a
   matching guard update.
 - Guards: `radius_floor_static.test.js` (floor + allowlist) and
