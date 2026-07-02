@@ -9,9 +9,9 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 
 Last updated: 2026-07-02.
 Current wrap checkpoints: `ceb7dcf` (CP5 public webform island styling),
-`5e1f4e1` (newsletter UX polish), `0b424cb` (sheep transfer audit PR1), and
-`efe9483` (mutation-audit PR2A best-effort Activity logging). Last code/product
-checkpoint: `efe9483`.
+`5e1f4e1` (newsletter UX polish), `0b424cb` (sheep transfer audit PR1),
+`efe9483` (mutation-audit PR2A best-effort Activity logging), and `e7c79fb`
+(wrap handoff hygiene). Last code/product checkpoint: `efe9483`.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -134,6 +134,11 @@ Design/function invariants that govern cross-surface behavior live in
 - Dependency hardening is complete: Vite/Vitest/plugin-react majors upgraded,
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
+- Known format drift: full `npm run format:check` still fails on three
+  pre-existing files (`src/main.jsx`, `tests/add_feed_parent_submission.spec.js`,
+  `tests/cattle_forecast.spec.js`). PR2A touched files and `PROJECT.md` checked
+  clean. Do not attribute those three files to the mutation-audit lane unless a
+  future formatting cleanup explicitly takes them on.
 - Worktree inventory at wrap: primary worktree `C:/Users/Ronni/WCF-planner` is
   intended to end on `main` after this merge. Preserved side worktrees still
   exist at `C:/Users/Ronni/WCF-planner-cp5-forms` (`codex/cp5-webform-island`)
