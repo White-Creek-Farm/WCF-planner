@@ -1,33 +1,51 @@
 /* Public newsletter surface — scoped under .nl-public. Standalone (no app
- * chrome): an editorial, no-login monthly review for White Creek Farm. This
- * surface mounts ABOVE the auth gate, but index.html's :root token layer is a
- * global stylesheet that is always present, so we consume the canonical design
- * tokens (var(--…)) here too — with a few literal fallbacks so the page is still
- * legible if a token ever fails to resolve. Hanken Grotesk is loaded globally.
+ * chrome): an editorial, no-login monthly review for White Creek Farm.
+ *
+ * BRANDING: this surface matches the WCF branded-email family (task digests,
+ * Egg Report, new-user / password emails in supabase-functions/rapid-processor.ts)
+ * rather than the cool app UI. The palette below is that email family expressed as
+ * a NAMED LOCAL TOKEN SET (--nlc-*) so the reader reads as an intentional farm
+ * "Monthly Review" even for a text-only, cover-less draft:
+ *   - farm green   #566542   header band, labels, links, accents
+ *   - warm page    #f5f5f0   page background
+ *   - warm fill    #f8f6f0   stat/callout cards
+ *   - warm border  #e8e4dc
+ *   - main ink     #232323
+ *   - white letter #ffffff   the article sits on a white "letter" card
+ * A serif display face (Georgia, matching the emails) carries titles + body for
+ * the editorial feel; sans (Hanken Grotesk) carries labels/nav/eyebrows/meta.
  *
  * Measures (handoff): article text reads at 680px; cover, numbers strip, and the
  * archive grid span the wider 860px column. Radii stay on the 10/12/14 floor.
  */
 
 .nl-public {
-  background: var(--bg-page, #f8f9fa);
+  /* WCF branded-email palette (named local token set) */
+  --nlc-green: #566542;
+  --nlc-green-deep: #454f37;
+  --nlc-page: #f5f5f0;
+  --nlc-card: #f8f6f0;
+  --nlc-surface: #ffffff;
+  --nlc-border: #e8e4dc;
+  --nlc-border-strong: #ddd5c6;
+  --nlc-ink: #232323;
+  --nlc-muted: #6f695c;
+  --nlc-faint: #9a927f;
+  --nlc-serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --nlc-sans: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  background: var(--nlc-page);
   min-height: 100vh;
-  color: var(--text-primary, #000);
-  font-family:
-    'Hanken Grotesk',
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+  color: var(--nlc-ink);
+  font-family: var(--nlc-sans);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Masthead ────────────────────────────────────────────────────────────── */
+/* ── Masthead (green brand band, like the email headers) ─────────────────────*/
 .nl-masthead {
-  border-bottom: 1px solid var(--border, #e6e8eb);
-  background: var(--bg-card, #fff);
+  background: var(--nlc-green);
+  border-bottom: 3px solid var(--nlc-green-deep);
 }
 .nl-masthead-inner {
   max-width: 860px;
@@ -41,7 +59,7 @@
 .nl-brand {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   text-decoration: none;
   color: inherit;
 }
@@ -49,14 +67,15 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: var(--brand, #1c8a5f);
+  background: var(--nlc-page);
   flex: 0 0 auto;
 }
 .nl-brand-word {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--text-primary, #000);
+  font-family: var(--nlc-serif);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #fff;
 }
 .nl-nav {
   display: inline-flex;
@@ -64,17 +83,20 @@
   gap: 18px;
 }
 .nl-nav-link {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   text-decoration: none;
-  color: var(--ink-muted, #6b7280);
+  color: rgba(255, 255, 255, 0.78);
 }
 .nl-nav-link:hover {
-  color: var(--text-primary, #000);
+  color: #fff;
 }
 .nl-nav-link.is-current {
-  color: var(--text-primary, #000);
-  font-weight: 700;
+  color: #fff;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.85);
+  padding-bottom: 2px;
 }
 
 .nl-container {
@@ -92,21 +114,26 @@
 
 .nl-loading,
 .nl-empty {
-  color: var(--ink-muted, #6b7280);
+  color: var(--nlc-muted);
   padding: 48px 0;
   text-align: center;
 }
 
 .nl-message {
-  padding: 48px 0;
-  max-width: 680px;
+  padding: 48px 32px;
+  max-width: 640px;
   margin: 0 auto;
+  background: var(--nlc-surface);
+  border: 1px solid var(--nlc-border);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: 0 1px 3px rgba(60, 50, 30, 0.05);
 }
 .nl-locked {
   text-align: center;
 }
-.nl-locked p {
-  color: var(--ink-muted, #6b7280);
+.nl-locked p,
+.nl-message p {
+  color: var(--nlc-muted);
   font-size: 16px;
   line-height: 1.6;
 }
@@ -114,37 +141,40 @@
 /* ── Kicker / eyebrow / titles ───────────────────────────────────────────── */
 .nl-kicker,
 .nl-eyebrow {
+  font-family: var(--nlc-sans);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 12px;
+  letter-spacing: 0.14em;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--label, #7a828d);
+  color: var(--nlc-green);
   margin-bottom: 8px;
 }
 
 .nl-title {
+  font-family: var(--nlc-serif);
   font-size: 34px;
-  line-height: 1.12;
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0 0 8px;
-  color: var(--text-primary, #000);
+  color: var(--nlc-ink);
 }
 
 .nl-published {
-  color: var(--ink-muted, #6b7280);
+  font-family: var(--nlc-sans);
+  color: var(--nlc-muted);
   font-size: 13px;
 }
 
 /* ── Archive (landing) ───────────────────────────────────────────────────── */
 .nl-archive-header {
   margin-bottom: 28px;
-  border-bottom: 1px solid var(--border, #e6e8eb);
+  border-bottom: 2px solid var(--nlc-border);
   padding-bottom: 22px;
   max-width: 680px;
 }
 .nl-archive-sub {
-  color: var(--ink-muted, #6b7280);
+  color: var(--nlc-muted);
   font-size: 16px;
   line-height: 1.55;
   margin: 6px 0 0;
@@ -160,10 +190,10 @@
 .nl-archive-card {
   display: flex;
   flex-direction: column;
-  background: var(--bg-card, #fff);
-  border: 1px solid var(--border, #e6e8eb);
+  background: var(--nlc-surface);
+  border: 1px solid var(--nlc-border);
   border-radius: var(--radius-lg, 14px);
-  box-shadow: var(--shadow-card, 0 1px 2px rgba(20, 30, 40, 0.045));
+  box-shadow: 0 1px 2px rgba(60, 50, 30, 0.05);
   overflow: hidden;
   text-decoration: none;
   color: inherit;
@@ -172,7 +202,7 @@
   display: block;
   width: 100%;
   height: 132px;
-  background: var(--surface-2, #f1f3f4);
+  background: var(--nlc-card);
   overflow: hidden;
 }
 .nl-archive-thumb img {
@@ -184,10 +214,10 @@
 .nl-archive-thumb-empty {
   background: repeating-linear-gradient(
     135deg,
-    var(--surface-2, #f1f3f4),
-    var(--surface-2, #f1f3f4) 10px,
-    var(--bg-page, #f8f9fa) 10px,
-    var(--bg-page, #f8f9fa) 20px
+    var(--nlc-card),
+    var(--nlc-card) 10px,
+    var(--nlc-page) 10px,
+    var(--nlc-page) 20px
   );
 }
 .nl-archive-body {
@@ -197,23 +227,26 @@
   gap: 4px;
 }
 .nl-archive-month {
+  font-family: var(--nlc-sans);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--label, #7a828d);
+  letter-spacing: 0.1em;
+  color: var(--nlc-green);
 }
 .nl-archive-title {
-  font-size: 17px;
+  font-family: var(--nlc-serif);
+  font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary, #000);
+  color: var(--nlc-ink);
   line-height: 1.3;
 }
 .nl-archive-read {
   margin-top: 6px;
+  font-family: var(--nlc-sans);
   font-size: 13px;
   font-weight: 700;
-  color: var(--brand, #1c8a5f);
+  color: var(--nlc-green);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -232,13 +265,13 @@
   .nl-archive-card:hover,
   .nl-more-card:hover {
     transform: translateY(-3px);
-    box-shadow: var(--shadow-hover, 0 8px 22px rgba(20, 30, 40, 0.1));
-    border-color: var(--border-strong, #d2d6db);
+    box-shadow: 0 8px 22px rgba(60, 50, 30, 0.12);
+    border-color: var(--nlc-border-strong);
   }
 }
 .nl-archive-card:focus-visible,
 .nl-more-card:focus-visible {
-  outline: 2px solid var(--brand, #1c8a5f);
+  outline: 2px solid var(--nlc-green);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -248,12 +281,20 @@
   }
 }
 
-/* ── Issue article ───────────────────────────────────────────────────────── */
+/* ── Issue article (a white "letter" card on the warm page) ──────────────────*/
+.nl-issue {
+  background: var(--nlc-surface);
+  border: 1px solid var(--nlc-border);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: 0 1px 3px rgba(60, 50, 30, 0.06);
+  padding: 40px 44px;
+}
 .nl-preview-banner {
-  background: var(--warn-soft, #f8f0da);
-  border: 1px solid var(--warn-ink, #8a6a1e);
-  color: var(--warn-ink, #8a6a1e);
-  border-radius: var(--radius-sm, 10px);
+  background: var(--nlc-card);
+  border: 1px solid var(--nlc-border);
+  border-left: 4px solid var(--nlc-green);
+  color: var(--nlc-green-deep);
+  border-radius: var(--radius-md, 12px);
   padding: 10px 14px;
   font-size: 14px;
   font-weight: 600;
@@ -274,12 +315,13 @@
 .nl-issue-header {
   margin: 0 0 18px;
   padding-bottom: 18px;
-  border-bottom: 1px solid var(--border, #e6e8eb);
+  border-bottom: 2px solid var(--nlc-border);
 }
 .nl-body {
+  font-family: var(--nlc-serif);
   font-size: 17px;
-  line-height: 1.62;
-  color: var(--text-primary, #000);
+  line-height: 1.68;
+  color: var(--nlc-ink);
 }
 .nl-lead {
   font-size: 19px;
@@ -287,17 +329,19 @@
   margin: 0 0 20px;
 }
 .nl-h2 {
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-family: var(--nlc-serif);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
   margin: 32px 0 10px;
-  color: var(--text-primary, #000);
+  color: var(--nlc-ink);
 }
 .nl-h3 {
+  font-family: var(--nlc-serif);
   font-size: 18px;
   font-weight: 700;
   margin: 24px 0 8px;
-  color: var(--text-primary, #000);
+  color: var(--nlc-ink);
 }
 .nl-p {
   margin: 0 0 16px;
@@ -310,77 +354,88 @@
   margin-bottom: 6px;
 }
 
-/* Numbers strip — headline figures (animals on farm, records). Wide column. */
+/* Numbers strip — headline figures (animals on farm, records). Wide column,
+ * warm card fill + green labels, matching the email stat cards. */
 .nl-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0;
   margin: 8px 0 28px;
-  background: var(--bg-card, #fff);
-  border: 1px solid var(--border, #e6e8eb);
+  background: var(--nlc-card);
+  border: 1px solid var(--nlc-border);
   border-radius: var(--radius-lg, 14px);
   overflow: hidden;
 }
 .nl-stat {
   padding: 18px 16px;
   text-align: center;
-  border-left: 1px solid var(--divider, #eceef0);
+  border-left: 1px solid var(--nlc-border);
 }
 .nl-stat:first-child {
   border-left: none;
 }
 .nl-stat-value {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--text-primary, #000);
+  font-family: var(--nlc-serif);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--nlc-ink);
   line-height: 1.1;
 }
 .nl-stat-label {
+  font-family: var(--nlc-sans);
   font-size: 11px;
-  color: var(--ink-muted, #6b7280);
+  color: var(--nlc-green);
   margin-top: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.09em;
   font-weight: 700;
 }
 
 .nl-quote {
   margin: 28px 0;
-  padding: 4px 0 4px 18px;
-  border-left: 3px solid var(--border, #e6e8eb); /* radius-allow: square accent rule */
+  padding: 4px 0 4px 20px;
+  border-left: 3px solid var(--nlc-green); /* radius-allow: square accent rule */
+  font-family: var(--nlc-serif);
   font-size: 20px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--text-primary, #000);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--nlc-ink);
 }
 .nl-quote p {
   margin: 0 0 6px;
 }
 .nl-cite {
+  font-family: var(--nlc-sans);
+  font-style: normal;
   font-size: 14px;
-  font-weight: 500;
-  color: var(--ink-muted, #6b7280);
+  font-weight: 600;
+  color: var(--nlc-muted);
 }
 
 .nl-callout {
   border-radius: var(--radius-md, 12px);
   padding: 14px 16px;
   margin: 18px 0;
+  font-family: var(--nlc-serif);
   font-size: 16px;
+  color: var(--nlc-ink);
 }
 .nl-callout-good {
-  background: var(--ok-soft, #e6f4ec);
-  border: 1px solid var(--ok-ink, #3f7a5b);
+  background: #eef1e6;
+  border: 1px solid #cdd7ba;
+  border-left: 4px solid var(--nlc-green);
 }
 .nl-callout-note {
-  background: var(--info-soft, #e7edf8);
-  border: 1px solid var(--info, #3b6cb7);
+  background: var(--nlc-card);
+  border: 1px solid var(--nlc-border);
+  border-left: 4px solid var(--nlc-border-strong);
 }
 
 .nl-divider {
   border: none;
-  border-top: 1px solid var(--border, #e6e8eb);
+  border-top: 1px solid var(--nlc-border);
   margin: 28px 0;
 }
 
@@ -394,8 +449,9 @@
   display: block;
 }
 .nl-figcaption {
+  font-family: var(--nlc-sans);
   font-size: 13px;
-  color: var(--ink-muted, #6b7280);
+  color: var(--nlc-muted);
   margin-top: 6px;
 }
 .nl-credit {
@@ -420,17 +476,19 @@
 
 /* Sign-off */
 .nl-signoff {
+  font-family: var(--nlc-serif);
   margin: 28px 0 8px;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary, #000);
+  font-size: 18px;
+  font-style: italic;
+  font-weight: 500;
+  color: var(--nlc-green-deep);
 }
 
 /* More issues (archive cards at the foot of an issue) */
 .nl-more {
   margin-top: 44px;
   padding-top: 28px;
-  border-top: 1px solid var(--border, #e6e8eb);
+  border-top: 2px solid var(--nlc-border);
 }
 .nl-more-grid {
   list-style: none;
@@ -445,7 +503,7 @@
 .nl-issue-footer {
   margin-top: 40px;
   padding-top: 20px;
-  border-top: 1px solid var(--border, #e6e8eb);
+  border-top: 2px solid var(--nlc-border);
   display: flex;
   flex-wrap: wrap;
   gap: 8px 18px;
@@ -453,21 +511,34 @@
   justify-content: space-between;
 }
 .nl-back {
-  color: var(--brand, #1c8a5f);
+  font-family: var(--nlc-sans);
+  color: var(--nlc-green);
   text-decoration: none;
   font-weight: 700;
 }
 .nl-back:hover {
+  color: var(--nlc-green-deep);
   text-decoration: underline;
 }
 .nl-foot-micro {
+  font-family: var(--nlc-sans);
   font-size: 12px;
-  color: var(--ink-faint, #9aa1ab);
+  color: var(--nlc-faint);
+}
+
+/* The h2 that titles the "More from this month" / "More issues" sections uses
+ * the article measure on the issue page; keep the section headings on-brand. */
+.nl-more-photos .nl-h2,
+.nl-more .nl-h2 {
+  color: var(--nlc-ink);
 }
 
 @media (max-width: 560px) {
   .nl-title {
     font-size: 28px;
+  }
+  .nl-issue {
+    padding: 24px 20px;
   }
   .nl-body {
     font-size: 16px;
@@ -480,5 +551,8 @@
   }
   .nl-nav {
     gap: 14px;
+  }
+  .nl-message {
+    padding: 32px 20px;
   }
 }

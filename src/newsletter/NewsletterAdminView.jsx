@@ -33,6 +33,8 @@ import NewsletterBlocks from './NewsletterBlocks.jsx';
 import {NEWSLETTER_TONE_PRESETS, NEWSLETTER_LENGTH_PRESETS} from '../lib/newsletterDraft.js';
 import {assembleNewsletterBrief} from '../lib/newsletterBrief.js';
 import {placePlannedPhotos, pendingPlacementCount} from '../lib/newsletterPhotoPlan.js';
+import {DIRECTION_DEBOUNCE_MS, intakeEqual, isDirectionDirty, directionSaveLabel} from '../lib/newsletterDirection.js';
+import {describeNewsletterRun, formatRunTimestamp, isRunError} from '../lib/newsletterRuns.js';
 import {
   listNewsletterIssuesAdmin,
   getNewsletterIssueAdmin,
@@ -279,6 +281,38 @@ function FactRow({fact, busy, onToggle}) {
   );
 }
 
+// ── Direction autosave state ─────────────────────────────────────────────────
+
+// Compact autosave state for the "Your direction" section — reassures the admin
+// that typed direction is saved (Saved / Saving / Unsaved / Save failed) without
+// needing a manual click.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function DirectionSaveState({state}) {
+  const {text, tone} = directionSaveLabel(state);
+  return (
+    <span className={`nla-save-state nla-save-${tone}`} role="status" aria-live="polite">
+      {state === 'saving' ? <span className="nla-save-dot" aria-hidden="true" /> : null}
+      {text}
+    </span>
+  );
+}
+
+// ── AI status chip ───────────────────────────────────────────────────────────
+
+// What "Write draft" / "Revise" will actually do: real AI vs the template
+// fallback. Boolean-only — it reflects the aiConfigured probe + the chosen
+// provider and never exposes the server key.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function AiStatusChip({status}) {
+  const map = {
+    ai: {tone: 'ok', text: 'AI ready'},
+    template: {tone: 'muted', text: 'Template draft'},
+    unknown: {tone: 'muted', text: 'AI status unknown'},
+  };
+  const {tone, text} = map[status] || map.unknown;
+  return <StatusText tone={tone}>{`● ${text}`}</StatusText>;
+}
+
 // ── Issue editor ─────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -303,10 +337,33 @@ function IssueEditor({issueId, onBack}) {
   const [runs, setRuns] = useState([]);
   const fileRef = useRef(null);
 
+  // AI availability for THIS editor (null = unknown; boolean-only probe).
+  const [aiConfigured, setAiConfigured] = useState(null);
+  // Direction (Steer Q&A) autosave: 'idle' | 'unsaved' | 'saving' | 'saved' |
+  // 'error'. `intake` is a LOCAL draft — refs track what the server holds and
+  // whether we have unsaved edits, so a background applyIssue refresh never
+  // clobbers typed direction (the reported data-loss bug).
+  const [directionSave, setDirectionSave] = useState('idle');
+  const lastSavedIntakeRef = useRef({}); // what the server currently holds
+  const intakeRef = useRef({}); // latest local intake (for flush)
+  const directionDirtyRef = useRef(false); // unsaved local edits present?
+  const directionTimerRef = useRef(null); // debounce timer id
+  const directionSeqRef = useRef(0); // ignore stale in-flight saves
+
+  // applyIssue refreshes issue + draft blocks after any mutation. It must NEVER
+  // clobber unsaved "Your direction" text: the Steer textareas are a local
+  // autosave draft, so we adopt the server's intake only when there are no
+  // pending local edits. lastSavedIntakeRef always tracks what the server holds,
+  // so the next autosave diff stays correct even while we keep local edits.
   const applyIssue = useCallback((data) => {
     setIssue(data);
     setBlocks(Array.isArray(data?.draftPayload?.blocks) ? data.draftPayload.blocks : []);
-    setIntake(data?.intakeAnswers && typeof data.intakeAnswers === 'object' ? data.intakeAnswers : {});
+    const serverIntake = data?.intakeAnswers && typeof data.intakeAnswers === 'object' ? data.intakeAnswers : {};
+    lastSavedIntakeRef.current = serverIntake;
+    if (!directionDirtyRef.current) {
+      intakeRef.current = serverIntake;
+      setIntake(serverIntake);
+    }
   }, []);
 
   const load = useCallback(async () => {
@@ -380,6 +437,100 @@ function IssueEditor({issueId, onBack}) {
     }
   }
 
+  // ── Direction autosave (Steer Q&A) ──────────────────────────────────────────
+  // Persist typed direction on a debounce so it survives fact toggles, re-gather,
+  // photo actions, and any applyIssue refresh. On failure we KEEP the local text
+  // and surface an error state instead of reverting to stale server data.
+  // required=true is used by the forced actions (Write/Revise, Gather, Publish):
+  // if pending direction can't be persisted, THROW so the caller ABORTS rather
+  // than running against stale server-side direction. Debounced/background saves
+  // (required=false) keep the friendly behavior — preserve local text, show an
+  // error state, and let the admin retry — and return false instead of throwing.
+  const flushDirection = useCallback(
+    async ({required = false} = {}) => {
+      if (directionTimerRef.current) {
+        clearTimeout(directionTimerRef.current);
+        directionTimerRef.current = null;
+      }
+      const local = intakeRef.current;
+      if (intakeEqual(local, lastSavedIntakeRef.current)) {
+        directionDirtyRef.current = false;
+        return true; // nothing pending — safe to proceed
+      }
+      const seq = ++directionSeqRef.current;
+      setDirectionSave('saving');
+      try {
+        await saveNewsletterIntake(sb, issueId, local);
+        if (seq === directionSeqRef.current) {
+          lastSavedIntakeRef.current = local;
+          const stillDirty = isDirectionDirty(intakeRef.current, lastSavedIntakeRef.current);
+          directionDirtyRef.current = stillDirty;
+          setDirectionSave(stillDirty ? 'unsaved' : 'saved');
+        }
+        return true;
+      } catch (e) {
+        if (seq === directionSeqRef.current) {
+          directionDirtyRef.current = true; // keep local text; allow retry
+          setDirectionSave('error');
+          if (!required) setNotice({kind: 'error', message: friendlyNewsletterError(e)});
+        }
+        if (required) {
+          // Abort the forced action — the caller's withBusy surfaces this notice.
+          throw new Error('Your direction couldn’t be saved, so nothing was run. Check your connection and try again.');
+        }
+        return false;
+      }
+    },
+    [issueId],
+  );
+
+  // Textarea onChange: update the local draft, mark dirty, (re)arm the debounce.
+  const onDirectionChange = useCallback(
+    (key, value) => {
+      const next = {...intakeRef.current, [key]: value};
+      intakeRef.current = next;
+      setIntake(next);
+      const dirty = isDirectionDirty(next, lastSavedIntakeRef.current);
+      directionDirtyRef.current = dirty;
+      setDirectionSave(dirty ? 'unsaved' : 'saved');
+      if (directionTimerRef.current) clearTimeout(directionTimerRef.current);
+      if (dirty) directionTimerRef.current = setTimeout(flushDirection, DIRECTION_DEBOUNCE_MS);
+    },
+    [flushDirection],
+  );
+
+  // Manual "Save now" fallback — force the pending save immediately.
+  const saveDirectionNow = useCallback(() => {
+    if (directionTimerRef.current) {
+      clearTimeout(directionTimerRef.current);
+      directionTimerRef.current = null;
+    }
+    flushDirection();
+  }, [flushDirection]);
+
+  // Flush a pending direction save when leaving the editor (best-effort).
+  useEffect(() => {
+    return () => {
+      if (directionTimerRef.current) clearTimeout(directionTimerRef.current);
+      if (directionDirtyRef.current) flushDirection();
+    };
+  }, [flushDirection]);
+
+  // AI availability for the editor: boolean-only probe (never exposes the key).
+  useEffect(() => {
+    let cancelled = false;
+    probeNewsletterAi(sb)
+      .then((p) => {
+        if (!cancelled) setAiConfigured(p && p.ok ? !!p.aiConfigured : null);
+      })
+      .catch(() => {
+        if (!cancelled) setAiConfigured(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Draft is AI-owned: no manual block editing. The read-only preview reuses the
   // public block renderer (NewsletterBlocks). photosById/urlFor mirror
   // NewsletterIssuePage so placed (approved) photos resolve to their public URL.
@@ -399,13 +550,6 @@ function IssueEditor({issueId, onBack}) {
       setManualTitle('');
       applyIssue(data);
     }, 'Fact added.');
-
-  // Intake
-  const saveIntake = () =>
-    withBusy(async () => {
-      const data = await saveNewsletterIntake(sb, issueId, intake);
-      applyIssue(data);
-    }, 'Intake saved.');
 
   // Photos
   const onPickFiles = (e) => {
@@ -432,7 +576,11 @@ function IssueEditor({issueId, onBack}) {
     withBusy(async () => applyIssue(await updateNewsletterPhoto(sb, {id: p.id, ...meta})), 'Photo details saved.');
 
   // Publish lifecycle
-  const publish = () => withBusy(async () => applyIssue(await publishNewsletterIssue(sb, issueId)), 'Published.');
+  const publish = () =>
+    withBusy(async () => {
+      await flushDirection({required: true});
+      applyIssue(await publishNewsletterIssue(sb, issueId));
+    }, 'Published.');
   const unpublish = () =>
     withBusy(async () => applyIssue(await unpublishNewsletterIssue(sb, issueId)), 'Unpublished — back to draft.');
   const regenPreview = () =>
@@ -447,6 +595,7 @@ function IssueEditor({issueId, onBack}) {
   // (below) is the AI step, run after you've steered.
   const gather = () =>
     withBusy(async () => {
+      await flushDirection({required: true});
       await gatherNewsletterFacts(sb, {issueId});
       await reloadAfterRun();
     }, 'Facts gathered — curate them, add your Q&A and tone, then write the draft.');
@@ -455,6 +604,7 @@ function IssueEditor({issueId, onBack}) {
   const regenerateDraft = () =>
     withBusy(
       async () => {
+        await flushDirection({required: true}); // persist pending direction before the AI writes; abort if it fails
         await regenerateNewsletterDraft(sb, {issueId, revisionNotes});
         await reloadAfterRun();
       },
@@ -516,7 +666,11 @@ function IssueEditor({issueId, onBack}) {
   const hasDirection =
     Object.values(intake || {}).some((v) => String(v || '').trim()) || (issue.manualFactCount || 0) > 0;
   const hasDraft = blocks.length > 0;
-  const hasRevision = runs.some((r) => r.runType === 'ai_revise');
+  // A second (or later) AI draft run means the draft was rewritten/revised — the
+  // Edge Function logs both a first write and a revise as `ai_draft`, so ">1 run"
+  // is the honest signal that the Revise step has happened.
+  const draftRuns = runs.filter((r) => r.runType === 'ai_draft');
+  const hasRevision = draftRuns.length > 1;
   const photosTarget = Number(settings?.photoTarget ?? 6);
   const photosMin = Number(settings?.photoMin ?? 3);
   const photosOk = approvedPhotos.length >= photosMin;
@@ -539,7 +693,18 @@ function IssueEditor({issueId, onBack}) {
   const lastHarvestRun = runs.find((r) => r.runType === 'harvest');
   const toneLabel = settings?.tone || TONE_PRESET_LABELS[settings?.tonePreset] || 'Warm & credible';
   const lengthLabel = LENGTH_LABELS[settings?.lengthDetail] || 'Standard';
-  const reviseRuns = runs.filter((r) => r.runType === 'ai_revise');
+
+  // What "Write draft" / "Revise" will actually do. Real AI only when the chosen
+  // provider is anthropic AND the server key probe came back configured;
+  // otherwise the deterministic template composer runs. null probe = unknown.
+  const aiProvider = settings?.aiProvider || 'template';
+  const aiStatus = aiConfigured === null ? 'unknown' : aiProvider === 'anthropic' && aiConfigured ? 'ai' : 'template';
+  const aiStatusLine =
+    aiStatus === 'ai'
+      ? 'Real AI (Anthropic) is configured — Write/Revise uses it.'
+      : aiStatus === 'template'
+        ? 'Using the offline template composer (no AI key active).'
+        : 'Checking AI availability…';
 
   return (
     <div className="nla-editor">
@@ -595,7 +760,7 @@ function IssueEditor({issueId, onBack}) {
           <StepCard
             n={1}
             title="This month’s facts"
-            desc="Harvested from the planner — no AI. Toggle which inform the issue."
+            desc="Scans planner data only — no AI, no draft. Toggle which facts inform the issue."
             action={
               <span className="nla-step-count">
                 <strong>
@@ -635,7 +800,8 @@ function IssueEditor({issueId, onBack}) {
           <StepCard
             n={2}
             title="Your direction"
-            desc="Optional context the data can’t see. Steers the AI before it writes."
+            desc="Optional context the data can’t see — saved automatically as you type. No AI runs here."
+            action={<DirectionSaveState state={directionSave} />}
           >
             <div className="nla-qa">
               {INTAKE_QUESTIONS.map((q) => (
@@ -648,7 +814,7 @@ function IssueEditor({issueId, onBack}) {
                     className="nla-textarea"
                     rows={2}
                     value={intake[q.key] || ''}
-                    onChange={(e) => setIntake((m) => ({...m, [q.key]: e.target.value}))}
+                    onChange={(e) => onDirectionChange(q.key, e.target.value)}
                   />
                 </div>
               ))}
@@ -676,9 +842,15 @@ function IssueEditor({issueId, onBack}) {
               </div>
             </div>
             <div className="nla-step-foot">
-              <button type="button" className="nla-btn-sm" disabled={busy} onClick={saveIntake}>
-                Save direction
+              <button
+                type="button"
+                className="nla-btn-sm"
+                disabled={directionSave === 'saving'}
+                onClick={saveDirectionNow}
+              >
+                Save now
               </button>
+              <span className="nla-faint"> Typing saves on its own — this just saves immediately.</span>
             </div>
           </StepCard>
 
@@ -686,7 +858,7 @@ function IssueEditor({issueId, onBack}) {
           <StepCard
             n={3}
             title="The draft"
-            desc="The AI owns the content. Read-only here — use Revise below to change it."
+            desc="The currently saved draft, shown read-only. Writing or revising below is the only step that calls the AI; Open preview just shows this."
             action={<Badge variant="neutral">Read-only</Badge>}
           >
             {blocks.length === 0 ? (
@@ -701,10 +873,15 @@ function IssueEditor({issueId, onBack}) {
           {/* 4 · Revise — emphasized only when it's the actual active step. */}
           <StepCard
             n={4}
-            title="Revise"
-            desc="Tell the AI what to change — it edits the current draft in place."
+            title="Write / Revise"
+            desc="The only step that calls the AI. Write from your facts + direction, or type a note to revise in place."
             emphasized={activeKey === 'revise'}
-            action={activeKey === 'revise' ? <span className="nla-here">You’re here</span> : null}
+            action={
+              <span className="nla-step-count">
+                <AiStatusChip status={aiStatus} />
+                {activeKey === 'revise' ? <span className="nla-here">You’re here</span> : null}
+              </span>
+            }
           >
             {/* The AI owns the content structure — there is no manual block
                 building. Blank box = write/rewrite from your curated facts + Q&A;
@@ -731,6 +908,9 @@ function IssueEditor({issueId, onBack}) {
                 {revisionNotes.trim() ? 'Revise draft' : blocks.length === 0 ? 'Write draft' : 'Rewrite draft'}
               </button>
             </div>
+            <p className="nla-ai-note">
+              <StatusText tone={aiStatus === 'ai' ? 'ok' : 'muted'}>{aiStatusLine}</StatusText>
+            </p>
             <p className="nla-warn-note">
               Rewrite redraws everything and drops placed photos (you’ll confirm first). Revise keeps them.
             </p>
@@ -753,16 +933,24 @@ function IssueEditor({issueId, onBack}) {
                 </span>
               </div>
             )}
-            {reviseRuns.length > 0 && (
+            {draftRuns.length > 0 && (
               <div className="nla-subblock">
-                <div className="nla-subblock-label">Revision history</div>
+                <div className="nla-subblock-label">Draft history</div>
                 <ul className="nla-runs">
-                  {reviseRuns.slice(0, 5).map((r) => (
-                    <li key={r.id} className="nla-run">
-                      <span>Revised</span>
-                      <StatusText tone={r.status === 'error' ? 'danger' : 'ok'}>{r.status}</StatusText>
-                    </li>
-                  ))}
+                  {draftRuns.slice(0, 5).map((r) => {
+                    const d = describeNewsletterRun(r);
+                    const when = formatRunTimestamp(r.createdAt);
+                    return (
+                      <li key={r.id} className="nla-run">
+                        <span className="nla-run-main">
+                          <span className="nla-run-label">{d.label}</span>
+                          {d.detail ? <span className="nla-faint"> · {d.detail}</span> : null}
+                          {when ? <span className="nla-run-when">{when}</span> : null}
+                        </span>
+                        <StatusText tone={isRunError(r) ? 'danger' : 'ok'}>{isRunError(r) ? 'Error' : 'OK'}</StatusText>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -956,6 +1144,12 @@ function IssueEditor({issueId, onBack}) {
                 <dd>{lengthLabel}</dd>
               </div>
               <div>
+                <dt>Draft engine</dt>
+                <dd>
+                  <AiStatusChip status={aiStatus} />
+                </dd>
+              </div>
+              <div>
                 <dt>Last harvest</dt>
                 <dd>{lastHarvestRun ? (lastHarvestRun.status === 'ok' ? 'Done' : lastHarvestRun.status) : '—'}</dd>
               </div>
@@ -968,18 +1162,24 @@ function IssueEditor({issueId, onBack}) {
           {runs.length > 0 && (
             <section className="nla-rail-card">
               <h3 className="nla-rail-title">Recent runs</h3>
+              <p className="nla-faint nla-runs-hint">
+                Facts = planner scan (no AI). Draft = the AI/template write step.
+              </p>
               <ul className="nla-runs">
-                {runs.slice(0, 6).map((r) => (
-                  <li key={r.id} className="nla-run">
-                    <span>
-                      {r.runType}
-                      {r.provider ? <span className="nla-faint"> · {r.provider}</span> : null}
-                    </span>
-                    <StatusText tone={r.status === 'error' ? 'danger' : 'ok'}>
-                      {r.status === 'error' ? 'error' : 'OK'}
-                    </StatusText>
-                  </li>
-                ))}
+                {runs.slice(0, 6).map((r) => {
+                  const d = describeNewsletterRun(r);
+                  const when = formatRunTimestamp(r.createdAt);
+                  return (
+                    <li key={r.id} className="nla-run">
+                      <span className="nla-run-main">
+                        <span className="nla-run-label">{d.label}</span>
+                        {d.detail ? <span className="nla-faint"> · {d.detail}</span> : null}
+                        {when ? <span className="nla-run-when">{when}</span> : null}
+                      </span>
+                      <StatusText tone={isRunError(r) ? 'danger' : 'ok'}>{isRunError(r) ? 'Error' : 'OK'}</StatusText>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}

@@ -804,6 +804,9 @@
   margin: 0;
   padding: 0;
 }
+.nla-runs-hint {
+  margin: -2px 0 8px;
+}
 .nla-run {
   display: flex;
   align-items: center;
@@ -815,6 +818,75 @@
 }
 .nla-run:first-child {
   border-top: none;
+}
+.nla-run-main {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.nla-run-label {
+  font-weight: 600;
+  color: var(--text-primary, #000);
+}
+.nla-run-when {
+  font-size: 11px;
+  color: var(--ink-faint, #9aa1ab);
+}
+
+/* Direction autosave state (Steer) */
+.nla-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nla-save-faint {
+  color: var(--ink-faint, #9aa1ab);
+  font-weight: 500;
+}
+.nla-save-muted {
+  color: var(--ink-muted, #6b7280);
+}
+.nla-save-ok {
+  color: var(--ok-ink, #3f7a5b);
+}
+.nla-save-warn {
+  color: var(--warn-ink, #8a6a1e);
+}
+.nla-save-danger {
+  color: var(--danger, #c0452f);
+}
+.nla-save-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: nla-save-pulse 1s ease-in-out infinite;
+}
+@keyframes nla-save-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nla-save-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* AI-usage note (Write / Revise step) */
+.nla-ai-note {
+  margin: 10px 0 0;
+  font-size: 13px;
 }
 
 /* Utility rail cards */
