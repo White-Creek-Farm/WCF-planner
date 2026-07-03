@@ -382,10 +382,9 @@ describe('Pig planned-trip locks — UI affordances', () => {
 });
 
 describe('CP2 — pig.batch record-page helper extraction (no re-inlining)', () => {
-  it('imports current-count ledger helpers from lib/pig.js', () => {
-    // CP11: the sub-level ledger helpers moved with the record card to
-    // PigBatchPage. computeBatchCurrentCount stays in the view too (hub tiles).
-    expect(pageSrc).toMatch(/computeSubLedgerCurrent/);
+  it('imports current-count display helpers from lib/pig.js', () => {
+    // Sub-batch display current stays shared; the raw ledger-vs-latest-daily
+    // warning was removed because daily counts are date-specific history.
     expect(pageSrc).toMatch(/computeSubCurrentCount/);
     expect(pageSrc).toMatch(/computeBatchCurrentCount/);
     expect(metricSrc).toMatch(/computeBatchCurrentCount/);

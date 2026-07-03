@@ -25,7 +25,6 @@ import {
   processingTripWithResolvedWeights,
   tripTotalLive,
   tripYield,
-  computeSubLedgerCurrent,
   computeSubCurrentCount,
   computeBatchCurrentCount,
 } from '../lib/pig.js';
@@ -344,10 +343,6 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
             const sd = dailysForName(sb.name);
             const rawFeedSub =
               sd.reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0) + (parseFloat(sb.legacyFeedLbs) || 0);
-            const latest =
-              [...sd].sort(
-                (a, b) => b.date.localeCompare(a.date) || b.submitted_at?.localeCompare(a.submitted_at || '') || 0,
-              )[0] || null;
             const transfers = pigTransfersForSub(breeders, g.batchName, sb.name);
             const tripPigs = pigTripPigsForSub(g.processingTrips || [], sb.id, {
               ...tripSourceOptions,
@@ -355,16 +350,13 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
             });
             const mortality = pigMortalityForSub(g, sb.name);
             const started = (parseInt(sb.giltCount) || 0) + (parseInt(sb.boarCount) || 0);
-            // Ledger current + processed-aware current via the shared lib
-            // helpers so hub + future record page derive these identically.
-            const ledgerCurrent = computeSubLedgerCurrent(g, sb, breeders, tripSourceOptions);
+            // Processed-aware current via the shared lib helper so hub + future
+            // record page derive these identically.
             const currentCount = computeSubCurrentCount(g, sb, breeders, tripSourceOptions);
-            const dailyCount = latest?.pig_count;
             const adjustedFeed = Math.max(0, rawFeedSub - transfers.feedAllocLbs);
             return {
               sb,
               dailys: sd,
-              latestDaily: latest,
               started,
               rawFeed: rawFeedSub,
               transferFeedCredit: transfers.feedAllocLbs,
@@ -373,9 +365,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
               transferCount: transfers.count,
               tripPigs,
               mortality,
-              ledgerCurrent,
               currentCount,
-              dailyCount,
             };
           });
           const subAdjustedFeedTotal = subFeedTotals.reduce((s, sf) => s + sf.adjustedFeed, 0);
@@ -1090,18 +1080,12 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                     rawFeed: 0,
                     transferFeedCredit: 0,
                     dailys: [],
-                    latestDaily: null,
                     currentCount: null,
                     started: 0,
                     transferCount: 0,
                     tripPigs: 0,
                     mortality: 0,
-                    dailyCount: null,
                   };
-                  const dailyVsLedger =
-                    sft.dailyCount != null &&
-                    sb.status !== 'processed' &&
-                    Math.abs((parseInt(sft.dailyCount) || 0) - sft.ledgerCurrent) > 2;
                   // Planned-trip projection for this sub (commit 4a).
                   // Ronnie rule: forecast weight stays DOB/farrowing age at
                   // trip date × Global ADG. Weigh-in weights do not alter
@@ -1196,11 +1180,6 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                           <PlannerIcon iconKey={ANIMAL_ICON_KEYS.pig} size={14} />
                           {sft.currentCount} current
                         </span>
-                        {dailyVsLedger && (
-                          <Badge variant="danger" title="Latest daily count differs from ledger by more than 2">
-                            ⚠ daily {sft.dailyCount}
-                          </Badge>
-                        )}
                         {sft.dailys.length > 0 && (
                           <span style={{fontSize: 11, color: 'var(--ink-muted)'}}>📋 {sft.dailys.length} reports</span>
                         )}
