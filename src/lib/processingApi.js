@@ -1,0 +1,287 @@
+// ============================================================================
+// src/lib/processingApi.js  —  Processing Calendar client API (mig 155)
+// ----------------------------------------------------------------------------
+// Thin async wrappers over the SECURITY DEFINER RPCs from
+// supabase-migrations/155_processing_calendar.sql. This module is the ONLY
+// client path into the Processing domain: every processing_* table is deny-all
+// RLS (service_role reaches them via BYPASSRLS), so clients NEVER .from() them —
+// reads and writes both route through these RPCs.
+//
+// Role model (enforced server-side): farm_team / management / admin may read +
+// operate; light/equipment_tech/inactive are denied. A handful of RPCs are
+// admin-only (templates, hard delete, sync-mode flag). Deterministic failures
+// carry the 'PROCESSING_VALIDATION:' prefix; everything else (network / 5xx /
+// expired session) is transient. See isProcessingValidationError below.
+//
+// Every wrapper throws Error(`<fn>: <message>`) on rpc error so callers can
+// try/catch and surface a single, consistently-shaped message.
+// ============================================================================
+
+// Client-minted id for a milestone record or a subtask. The server validates
+// ids against ^[A-Za-z0-9-]+$ (length <= 100); a prefixed UUID satisfies that.
+// crypto.randomUUID is available in every supported browser (secure context);
+// the fallback covers older runners / non-secure contexts. Minting client-side
+// keeps create/add idempotent — the UI generates the id once and can replay the
+// same call on retry (the RPCs treat a pre-existing id as a no-op replay).
+export function newProcessingId(prefix = 'prc') {
+  const safePrefix = /^[A-Za-z0-9]+$/.test(prefix) ? prefix : 'prc';
+  const uuid =
+    typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+  return `${safePrefix}-${uuid}`;
+}
+
+// ── Reads ────────────────────────────────────────────────────────────────────
+
+// list_processing_records(p_year, p_program, p_include_archived) -> jsonb array.
+// Each row: id, record_type, program, title, processing_date, status,
+// completed_at, processor, number_processed, customer, source_kind, source_id,
+// archived, fields, historical_snapshot, subtask_total, subtask_done.
+export async function listProcessingRecords(sb, {year = null, program = null, includeArchived = false} = {}) {
+  const {data, error} = await sb.rpc('list_processing_records', {
+    p_year: Number.isFinite(year) ? year : year == null ? null : Number(year) || null,
+    p_program: program ?? null,
+    p_include_archived: !!includeArchived,
+  });
+  if (error) throw new Error(`listProcessingRecords: ${error.message || String(error)}`);
+  return Array.isArray(data) ? data : [];
+}
+
+// get_processing_record(p_id) -> the record columns + subtasks[] + attachments[]
+// + completion_blockers[] (text). Returns null when the id resolves to nothing.
+export async function getProcessingRecord(sb, id) {
+  const {data, error} = await sb.rpc('get_processing_record', {p_id: id});
+  if (error) throw new Error(`getProcessingRecord: ${error.message || String(error)}`);
+  return data || null;
+}
+
+// get_processing_settings() -> the singleton settings row (asana_sync_enabled,
+// processor_options, last_sync_at, ...).
+export async function getProcessingSettings(sb) {
+  const {data, error} = await sb.rpc('get_processing_settings');
+  if (error) throw new Error(`getProcessingSettings: ${error.message || String(error)}`);
+  return data || {};
+}
+
+// list_processing_templates(p_program) -> active templates (optionally one
+// program). Each: id, program, version, fields[], checklist[], is_active.
+export async function listProcessingTemplates(sb, program = null) {
+  const {data, error} = await sb.rpc('list_processing_templates', {p_program: program ?? null});
+  if (error) throw new Error(`listProcessingTemplates: ${error.message || String(error)}`);
+  return Array.isArray(data) ? data : [];
+}
+
+// ── Milestone CRUD (Processing-owned records) ────────────────────────────────
+
+// create_processing_milestone(p_id, p_program, p_title, p_processing_date,
+// p_processor, p_customer). id is minted client-side when omitted so the create
+// is idempotent on retry.
+export async function createProcessingMilestone(
+  sb,
+  {id, program, title, processingDate = null, processor = null, customer = []} = {},
+) {
+  const p_id = id || newProcessingId('prc');
+  const {data, error} = await sb.rpc('create_processing_milestone', {
+    p_id,
+    p_program: program,
+    p_title: title,
+    p_processing_date: processingDate ?? null,
+    p_processor: processor ?? null,
+    p_customer: customer ?? [],
+  });
+  if (error) throw new Error(`createProcessingMilestone: ${error.message || String(error)}`);
+  return data;
+}
+
+// update_processing_milestone(p_id, p_title, p_processing_date, p_status,
+// p_processor, p_customer). All fields optional; the server COALESCEs nulls to
+// the existing value (only milestones are editable this way).
+export async function updateProcessingMilestone(
+  sb,
+  {id, title = null, processingDate = null, status = null, processor = null, customer = null} = {},
+) {
+  const {data, error} = await sb.rpc('update_processing_milestone', {
+    p_id: id,
+    p_title: title ?? null,
+    p_processing_date: processingDate ?? null,
+    p_status: status ?? null,
+    p_processor: processor ?? null,
+    p_customer: customer ?? null,
+  });
+  if (error) throw new Error(`updateProcessingMilestone: ${error.message || String(error)}`);
+  return data;
+}
+
+export async function deleteProcessingMilestone(sb, id) {
+  const {data, error} = await sb.rpc('delete_processing_milestone', {p_id: id});
+  if (error) throw new Error(`deleteProcessingMilestone: ${error.message || String(error)}`);
+  return data;
+}
+
+// ── Processing-owned field edits ─────────────────────────────────────────────
+
+// set_processing_processor(p_id, p_processor). Editable on any record (blank
+// clears it, stored as NULL).
+export async function setProcessingProcessor(sb, id, processor) {
+  const {data, error} = await sb.rpc('set_processing_processor', {p_id: id, p_processor: processor ?? null});
+  if (error) throw new Error(`setProcessingProcessor: ${error.message || String(error)}`);
+  return data;
+}
+
+// set_processing_customer(p_id, p_customer) — Broiler-only (server rejects other
+// programs). p_customer must be a json array.
+export async function setProcessingCustomer(sb, id, customer) {
+  const {data, error} = await sb.rpc('set_processing_customer', {p_id: id, p_customer: customer ?? []});
+  if (error) throw new Error(`setProcessingCustomer: ${error.message || String(error)}`);
+  return data;
+}
+
+// ── Completion (gated) + reopen ──────────────────────────────────────────────
+
+// mark_processing_complete(p_id). RAISES
+// 'PROCESSING_VALIDATION: cannot complete — <blockers>' when the completion gate
+// is unmet (mirror the gate client-side with processingCompletion.js for instant
+// feedback before calling this).
+export async function markProcessingComplete(sb, id) {
+  const {data, error} = await sb.rpc('mark_processing_complete', {p_id: id});
+  if (error) throw new Error(`markProcessingComplete: ${error.message || String(error)}`);
+  return data;
+}
+
+export async function reopenProcessingRecord(sb, id) {
+  const {data, error} = await sb.rpc('reopen_processing_record', {p_id: id});
+  if (error) throw new Error(`reopenProcessingRecord: ${error.message || String(error)}`);
+  return data;
+}
+
+// ── Subtask CRUD ─────────────────────────────────────────────────────────────
+
+// add_processing_subtask(p_id, p_record_id, p_label, p_assignee). Subtask id is
+// minted client-side when omitted (idempotent replay).
+export async function addProcessingSubtask(sb, {id, recordId, label, assignee = null} = {}) {
+  const p_id = id || newProcessingId('pst');
+  const {data, error} = await sb.rpc('add_processing_subtask', {
+    p_id,
+    p_record_id: recordId,
+    p_label: label,
+    p_assignee: assignee ?? null,
+  });
+  if (error) throw new Error(`addProcessingSubtask: ${error.message || String(error)}`);
+  return data;
+}
+
+export async function updateProcessingSubtask(sb, {id, label = null, assignee = null} = {}) {
+  const {data, error} = await sb.rpc('update_processing_subtask', {
+    p_id: id,
+    p_label: label ?? null,
+    p_assignee: assignee ?? null,
+  });
+  if (error) throw new Error(`updateProcessingSubtask: ${error.message || String(error)}`);
+  return data;
+}
+
+// set_processing_subtask_done(p_id, p_done). Toggling NEVER auto-completes the
+// parent record (server-enforced).
+export async function setProcessingSubtaskDone(sb, id, done) {
+  const {data, error} = await sb.rpc('set_processing_subtask_done', {p_id: id, p_done: !!done});
+  if (error) throw new Error(`setProcessingSubtaskDone: ${error.message || String(error)}`);
+  return data;
+}
+
+export async function deleteProcessingSubtask(sb, id) {
+  const {data, error} = await sb.rpc('delete_processing_subtask', {p_id: id});
+  if (error) throw new Error(`deleteProcessingSubtask: ${error.message || String(error)}`);
+  return data;
+}
+
+// apply_current_template(p_record_id). Additive — adds only checklist steps not
+// already present; never destructive, never auto-completes.
+export async function applyCurrentTemplate(sb, recordId) {
+  const {data, error} = await sb.rpc('apply_current_template', {p_record_id: recordId});
+  if (error) throw new Error(`applyCurrentTemplate: ${error.message || String(error)}`);
+  return data;
+}
+
+// ── Admin-only ───────────────────────────────────────────────────────────────
+
+// upsert_processing_template(p_program, p_fields, p_checklist) — admin only.
+// Creates a new active version superseding the prior one.
+export async function upsertProcessingTemplate(sb, {program, fields = [], checklist = []} = {}) {
+  const {data, error} = await sb.rpc('upsert_processing_template', {
+    p_program: program,
+    p_fields: fields ?? [],
+    p_checklist: checklist ?? [],
+  });
+  if (error) throw new Error(`upsertProcessingTemplate: ${error.message || String(error)}`);
+  return data;
+}
+
+// hard_delete_processing_record(p_id) — admin only. Server refuses planner_batch
+// rows (planner-owned).
+export async function hardDeleteProcessingRecord(sb, id) {
+  const {data, error} = await sb.rpc('hard_delete_processing_record', {p_id: id});
+  if (error) throw new Error(`hardDeleteProcessingRecord: ${error.message || String(error)}`);
+  return data;
+}
+
+// set_asana_sync_enabled(p_enabled) — admin only. The explicit source-mode flag:
+// while enabled, Asana is the source of truth and imported/source-owned fields
+// stay read-only in the app.
+export async function setAsanaSyncEnabled(sb, enabled) {
+  const {data, error} = await sb.rpc('set_asana_sync_enabled', {p_enabled: !!enabled});
+  if (error) throw new Error(`setAsanaSyncEnabled: ${error.message || String(error)}`);
+  return data;
+}
+
+// ── Asana sync Edge Function ─────────────────────────────────────────────────
+
+// Trigger the server-side Asana mirror (import / probe). The Edge Function
+// authenticates the admin and runs the sync with the service role; the Asana
+// token never leaves the function. Mirrors newsletterApi's invoke pattern:
+// supabase-js v2 carries the HTTP error body on error.context, which we unwrap
+// to the real message when present.
+//   action : the sync action the function understands (e.g. 'import')
+//   since  : optional ISO cursor to limit the scan (modified-since)
+//   probe  : boolean — ask the function for status/config only (no writes)
+export async function invokeProcessingAsanaSync(sb, {action, since = null, probe = false} = {}) {
+  const body = {mode: 'admin'};
+  if (action != null) body.action = action;
+  if (since != null) body.since = since;
+  if (probe) body.probe = true;
+  const {data, error} = await sb.functions.invoke('processing-asana-sync', {body});
+  if (error) {
+    let detail = error.message || String(error);
+    try {
+      const errBody = error.context && (await error.context.json());
+      if (errBody && errBody.error) detail = errBody.error;
+    } catch (_e) {
+      /* keep the generic message */
+    }
+    throw new Error(`invokeProcessingAsanaSync: ${detail}`);
+  }
+  if (data && data.ok === false) throw new Error(`invokeProcessingAsanaSync: ${data.error || 'failed'}`);
+  return data || {};
+}
+
+// ── Error classification ─────────────────────────────────────────────────────
+// Deterministic validation failures carry the PROCESSING_VALIDATION prefix from
+// the RPCs (bad role, invalid input, completion gate). Everything else is
+// transient (network / 5xx / expired session) and worth a retry.
+
+export function isProcessingValidationError(err) {
+  return !!err && typeof err.message === 'string' && err.message.includes('PROCESSING_VALIDATION');
+}
+
+// Strip the wrapper prefix + PROCESSING_VALIDATION marker for a user-facing
+// message. e.g. "markProcessingComplete: PROCESSING_VALIDATION: cannot
+// complete — Processor is required" -> "cannot complete — Processor is required".
+export function friendlyProcessingError(err) {
+  const msg = err && err.message ? String(err.message) : String(err || 'Unknown error');
+  const idx = msg.indexOf('PROCESSING_VALIDATION:');
+  if (idx >= 0) return msg.slice(idx + 'PROCESSING_VALIDATION:'.length).trim();
+  return msg.replace(/^[a-zA-Z]+:\s*/, '');
+}

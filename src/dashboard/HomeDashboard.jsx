@@ -723,18 +723,13 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
         </div>
 
         {/* Utility row — Processing + Admin side by side (design composition).
-            Processing maps to a not-built top-level section: it is marked
-            data-status="not-built" and clicks through to the in-app coming-soon
-            page (a real, safe destination — not a broken route). Admin is
-            admin-only and routes to the existing Webforms admin. Non-admins see
-            Processing full width (no .utility grid). */}
+            Processing routes to the native Processing Calendar (/processing).
+            Admin is admin-only and routes to the existing Webforms admin.
+            Non-admins see Processing full width (no .utility grid). Light users
+            never render HomeDashboard (they get LightHomePortal), so this card is
+            structurally hidden from them. */}
         <div className={isAdmin ? 'utility' : undefined}>
-          <button
-            type="button"
-            className="card admin-card lift"
-            data-status="not-built"
-            onClick={() => setComingSoon('Processing')}
-          >
+          <button type="button" className="card admin-card lift" onClick={() => setView('processing')}>
             <span className="admin-ic">
               <PlannerIcon iconKey={PLANNER_ICON_KEYS.processing} text="🥩" size={28} />
             </span>

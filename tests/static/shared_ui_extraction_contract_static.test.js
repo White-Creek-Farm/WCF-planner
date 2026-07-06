@@ -53,6 +53,9 @@ const EXPECTED_SHARED_IMPORT_OWNERS = {
     // SowsView hosts the pig.breeder record surface inline and mounts
     // RecordCollaborationSection (comments + audit) for the selected breeding pig.
     'src/pig/SowsView.jsx',
+    // Processing drawer mounts RecordCollaborationSection (comments + audit) for
+    // the selected processing batch/milestone.
+    'src/processing/ProcessingDrawer.jsx',
     'src/sheep/SheepAnimalPage.jsx',
     'src/sheep/SheepBatchPage.jsx',
     'src/sheep/SheepDailyPage.jsx',

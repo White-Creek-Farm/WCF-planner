@@ -16,6 +16,7 @@ export const ENTITY_TYPES = {
   SHEEP_ANIMAL: 'sheep.animal',
   EQUIPMENT_ITEM: 'equipment.item',
   EQUIPMENT_FUEL_BILL: 'equipment.fuel_bill',
+  PROCESSING_RECORD: 'processing.record',
   PIG_BATCH: 'pig.batch',
   PIG_BREEDER: 'pig.breeder',
   CATTLE_PROCESSING: 'cattle.processing',
@@ -81,6 +82,14 @@ export const ACTIVITY_REGISTRY = {
   [ENTITY_TYPES.EQUIPMENT_FUEL_BILL]: {
     displayLabel: (id, ctx) => (ctx && ctx.label ? ctx.label : id),
     route: null,
+    program: null,
+  },
+  // Processing Calendar records. Native Activity begins post-cutover. Routes to
+  // the flat /processing page (the drawer opens in-page, not via a URL sub-path
+  // for v1); deep-link-to-specific-record is a documented follow-up.
+  [ENTITY_TYPES.PROCESSING_RECORD]: {
+    displayLabel: (id, ctx) => (ctx && ctx.title ? ctx.title : id),
+    route: () => '/processing',
     program: null,
   },
   [ENTITY_TYPES.PIG_BATCH]: {
@@ -231,6 +240,7 @@ export function routeToView(routePath) {
   const [path, search] = routePath.split('?');
   const VIEW_MAP = {
     '/tasks': 'tasks',
+    '/processing': 'processing',
     '/broiler/batches': 'list',
     '/broiler/dailys': 'broilerdailys',
     '/layer': 'layersHome',

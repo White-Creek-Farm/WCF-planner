@@ -221,6 +221,10 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   ['src/cattle/CattleHerdsView.jsx', 2],
   ['src/equipment/EquipmentDetail.jsx', 1],
   ['src/livestock/WeighInSessionPage.jsx', 5],
+  // Processing drawer batch/milestone lifecycle actions route through the
+  // entityMutations runMutation wrapper (RPC-backed via processingApi.js), not
+  // direct .from() table writes.
+  ['src/processing/ProcessingDrawer.jsx', 13],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -518,7 +522,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(19);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(32);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

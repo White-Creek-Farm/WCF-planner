@@ -214,6 +214,7 @@ import ClientErrorsView from './admin/ClientErrorsView.jsx';
 // Phase 2 Round 8: equipment placeholder.
 import EquipmentHome from './equipment/EquipmentHome.jsx';
 import PastureMapView from './pasture/PastureMapView.jsx';
+import ProcessingCalendarView from './processing/ProcessingCalendarView.jsx';
 
 // Public, no-login Monthly Newsletter archive. Mounted in a bypass block above
 // the LoginScreen gate (see the PUBLIC NEWSLETTER block in App's render). Self-
@@ -1721,6 +1722,7 @@ function App() {
     'weighinsessions',
     'mySubmissions',
     'pastureMap',
+    'processing',
     'newsletter',
     'newsletterAdmin',
   ];
@@ -1849,6 +1851,17 @@ function App() {
   // with the render-time fail-closed guard so the URL/view state also resets.
   useEffect(() => {
     if (isLight && view && !canLightAccessView(view)) setView('home');
+  }, [view, authState]);
+
+  // Processing Calendar: operational roles only (farm_team/management/admin);
+  // light/equipment_tech/inactive are bounced. It is a cross-program surface, so
+  // it is gated by role, NOT program_access (a restricted program list must not
+  // wrongly deny it). Light is also excluded from LIGHT_ALLOWED_VIEWS.
+  const isProcessingRole = !!role && ['farm_team', 'management', 'admin'].includes(role);
+  useEffect(() => {
+    // Only bounce once the role has RESOLVED — otherwise the pre-auth window
+    // (role still undefined) would strand a real operator on /processing home.
+    if (view === 'processing' && role && !isProcessingRole) setView('home');
   }, [view, authState]);
 
   useEffect(() => {
@@ -3904,6 +3917,16 @@ function App() {
       UnauthorizedRedirect,
       {authState, setView, requireAdmin: false, fallbackView: 'home'},
       React.createElement(PastureMapView, {Header, authState}),
+    );
+
+  // ── PROCESSING CALENDAR ── auth-gated cross-program operational surface.
+  // farm_team/management/admin only (light is bounced by isProcessingRole above
+  // and never reaches this dispatch; the wrapper handles the signed-out case).
+  if (view === 'processing')
+    return React.createElement(
+      UnauthorizedRedirect,
+      {authState, setView, requireAdmin: false, fallbackView: 'home'},
+      React.createElement(ProcessingCalendarView, {Header, authState}),
     );
 
   // ── LIST VIEW ──
