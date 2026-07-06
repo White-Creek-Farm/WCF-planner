@@ -145,6 +145,24 @@ function StatCard({label, value, sub, color}) {
   );
 }
 
+function dryRunSummary(plan) {
+  const p = plan || {};
+  return `Dry run: ${Number(p.tasksFetched || 0).toLocaleString()} tasks, ${Number(
+    p.wouldInsert || 0,
+  ).toLocaleString()} inserts, ${Number(p.wouldUpdate || 0).toLocaleString()} updates, ${Number(
+    p.wouldSkip || 0,
+  ).toLocaleString()} unchanged.`;
+}
+
+function syncSummary(counts) {
+  const c = counts || {};
+  return `Sync complete: ${Number(c.tasks || 0).toLocaleString()} tasks, ${Number(
+    c.recordsInserted || 0,
+  ).toLocaleString()} inserted, ${Number(c.recordsUpdated || 0).toLocaleString()} updated, ${Number(
+    c.errors || 0,
+  ).toLocaleString()} errors.`;
+}
+
 // eslint-disable-next-line no-unused-vars -- Header is a JSX-only prop component
 export default function ProcessingCalendarView({Header, authState}) {
   const {useState, useEffect, useMemo, useCallback} = React;
@@ -172,9 +190,13 @@ export default function ProcessingCalendarView({Header, authState}) {
   const [addMilestoneProgram, setAddMilestoneProgram] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
-  // Admin-only, read-only sync-status pill (no live sync trigger from the UI).
+  // Admin-only Asana sync guardrail: probe config, dry-run first, then allow one
+  // explicit write sync from the same page session.
   const [asanaSyncEnabled, setAsanaSyncEnabled] = useState(null);
   const [asanaConfigured, setAsanaConfigured] = useState(null);
+  const [asanaSyncBusy, setAsanaSyncBusy] = useState(null);
+  const [asanaSyncNotice, setAsanaSyncNotice] = useState(null);
+  const [dryRunReady, setDryRunReady] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,31 +216,64 @@ export default function ProcessingCalendarView({Header, authState}) {
     load();
   }, [load]);
 
-  // Best-effort admin sync-status probe. Never blocks or breaks the page.
-  useEffect(() => {
-    if (!isAdmin) return;
-    let cancelled = false;
-    (async () => {
+  const refreshAsanaStatus = useCallback(
+    async (cancelledRef = {current: false}) => {
+      if (!isAdmin) return;
       try {
         const settings = await getProcessingSettings(sb);
-        if (!cancelled) setAsanaSyncEnabled(!!(settings && settings.asana_sync_enabled));
+        if (!cancelledRef.current) setAsanaSyncEnabled(!!(settings && settings.asana_sync_enabled));
       } catch (_e) {
         /* leave unknown */
       }
       try {
         const probe = await invokeProcessingAsanaSync(sb, {probe: true});
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           const configured = probe && (probe.asanaConfigured ?? probe.configured ?? probe.ok);
           setAsanaConfigured(!!configured);
         }
       } catch (_e) {
-        if (!cancelled) setAsanaConfigured(false);
+        if (!cancelledRef.current) setAsanaConfigured(false);
       }
-    })();
+    },
+    [isAdmin],
+  );
+
+  // Best-effort admin sync-status probe. Never blocks or breaks the page.
+  useEffect(() => {
+    if (!isAdmin) return;
+    const cancelledRef = {current: false};
+    refreshAsanaStatus(cancelledRef);
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
-  }, [isAdmin]);
+  }, [isAdmin, refreshAsanaStatus]);
+
+  async function runAsanaSyncAction(action) {
+    if (!isAdmin || asanaSyncBusy) return;
+    if (action !== 'dry_run' && !dryRunReady) {
+      setAsanaSyncNotice({kind: 'warning', message: 'Run a dry run first, then sync.'});
+      return;
+    }
+    setAsanaSyncBusy(action);
+    setAsanaSyncNotice(null);
+    try {
+      const result = await invokeProcessingAsanaSync(sb, {action});
+      if (action === 'dry_run') {
+        setDryRunReady(true);
+        setAsanaSyncNotice({kind: 'success', message: dryRunSummary(result && result.plan)});
+      } else {
+        setDryRunReady(false);
+        setAsanaSyncNotice({kind: 'success', message: syncSummary(result && result.counts)});
+        await load();
+        await refreshAsanaStatus({current: false});
+      }
+    } catch (e) {
+      setDryRunReady(false);
+      setAsanaSyncNotice({kind: 'error', message: `Asana sync failed. ${(e && e.message) || e}`});
+    } finally {
+      setAsanaSyncBusy(null);
+    }
+  }
 
   // Decorate every record with its resolved display facts once.
   const decorated = useMemo(() => {
@@ -536,6 +591,25 @@ export default function ProcessingCalendarView({Header, authState}) {
     fontFamily: 'inherit',
     cursor: 'pointer',
   };
+  const syncButtonStyle = (primary, disabled) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    background: disabled ? '#EEF0F3' : primary ? T.green : T.card,
+    color: disabled ? T.faint : primary ? '#fff' : T.muted,
+    border: primary ? 'none' : `1px solid ${T.border}`,
+    borderRadius: 10,
+    padding: '9px 13px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'inherit',
+    minHeight: 36,
+    whiteSpace: 'nowrap',
+  });
+  const dryRunDisabled = asanaConfigured !== true || !!asanaSyncBusy;
+  const syncNowDisabled = asanaConfigured !== true || !!asanaSyncBusy || !dryRunReady;
 
   return (
     <div style={{minHeight: '100vh', background: T.page}}>
@@ -580,6 +654,29 @@ export default function ProcessingCalendarView({Header, authState}) {
               Asana sync {asanaSyncEnabled ? 'on' : 'off'}
               {asanaConfigured === false && ' · not configured'}
             </span>
+          )}
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                data-processing-asana-dry-run-btn="1"
+                disabled={dryRunDisabled}
+                onClick={() => runAsanaSyncAction('dry_run')}
+                style={syncButtonStyle(false, dryRunDisabled)}
+              >
+                {asanaSyncBusy === 'dry_run' ? 'Dry running...' : 'Dry run'}
+              </button>
+              <button
+                type="button"
+                data-processing-asana-sync-btn="1"
+                disabled={syncNowDisabled}
+                onClick={() => runAsanaSyncAction('sync_once')}
+                style={syncButtonStyle(true, syncNowDisabled)}
+                title={dryRunReady ? 'Import the last dry-run set from Asana' : 'Run a dry run first'}
+              >
+                {asanaSyncBusy === 'sync_once' ? 'Syncing...' : 'Sync now'}
+              </button>
+            </>
           )}
           {isAdmin && (
             <button
@@ -630,6 +727,11 @@ export default function ProcessingCalendarView({Header, authState}) {
             </button>
           )}
         </div>
+        {asanaSyncNotice && (
+          <div style={{marginBottom: 18}}>
+            <InlineNotice notice={asanaSyncNotice} onDismiss={() => setAsanaSyncNotice(null)} />
+          </div>
+        )}
 
         {/* Stat cards */}
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22}}>

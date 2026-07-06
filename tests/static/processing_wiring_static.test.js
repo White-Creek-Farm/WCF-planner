@@ -11,6 +11,7 @@ const activityLogView = fs.readFileSync(path.join(ROOT, 'src/activity/ActivityLo
 const mainJsx = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const routesSrc = fs.readFileSync(path.join(ROOT, 'src/lib/routes.js'), 'utf8');
 const homeDashboard = fs.readFileSync(path.join(ROOT, 'src/dashboard/HomeDashboard.jsx'), 'utf8');
+const processingCalendar = fs.readFileSync(path.join(ROOT, 'src/processing/ProcessingCalendarView.jsx'), 'utf8');
 
 describe('processing wiring — activityRegistry', () => {
   it('registers the processing.record entity type', () => {
@@ -26,6 +27,22 @@ describe('processing wiring — activityRegistry', () => {
 
   it('routeToView(/processing) resolves to the processing view', () => {
     expect(routeToView('/processing').view).toBe('processing');
+  });
+});
+
+describe('processing wiring - admin Asana sync controls', () => {
+  it('renders admin-only dry-run and sync buttons that call the Edge Function actions', () => {
+    expect(processingCalendar).toContain('data-processing-asana-dry-run-btn="1"');
+    expect(processingCalendar).toContain("runAsanaSyncAction('dry_run')");
+    expect(processingCalendar).toContain('data-processing-asana-sync-btn="1"');
+    expect(processingCalendar).toContain("runAsanaSyncAction('sync_once')");
+  });
+
+  it('keeps Sync now disabled until a successful dry run in the page session', () => {
+    expect(processingCalendar).toContain('const [dryRunReady, setDryRunReady] = useState(false)');
+    expect(processingCalendar).toMatch(/const syncNowDisabled =[\s\S]*?!dryRunReady/);
+    expect(processingCalendar).toMatch(/if \(action === 'dry_run'\)[\s\S]*?setDryRunReady\(true\)/);
+    expect(processingCalendar).toMatch(/action !== 'dry_run'[\s\S]*?!dryRunReady/);
   });
 });
 
