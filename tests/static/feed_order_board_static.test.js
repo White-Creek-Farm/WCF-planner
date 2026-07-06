@@ -33,7 +33,7 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).not.toMatch(/'Surplus'/);
     // Zero-or-positive recommendation always renders as "<N> lbs". Falls back
     // to em-dash only when the ledger has no anchor at all.
-    expect(pigSrc).toMatch(/orderTileValue != null \? orderTileValue\.toLocaleString\(\) \+ ' lbs' : '—'/);
+    expect(pigSrc).toMatch(/recommendedOrder != null \? recommendedOrder\.toLocaleString\(\) \+ ' lbs' : '—'/);
   });
 
   it('active order input has no recommendation placeholder', () => {
@@ -83,9 +83,8 @@ describe('PigFeedView — minimal ledger contract', () => {
   });
 
   it('recommended order is count-aware: basis = current-month Actual On Hand, else End of prev Est.', () => {
-    expect(pigSrc).toMatch(
-      /needThruNext\s*=\s*\(activeMd \? activeMd\.projTotal : 0\)\s*\+\s*\(nextMd \? nextMd\.projTotal : 0\)/,
-    );
+    expect(pigSrc).toMatch(/activeNeed\s*=\s*activeMd \? projectedConsumptionForMonth\(activeMd\) : 0/);
+    expect(pigSrc).toMatch(/needThruNext\s*=\s*activeNeed \+ \(nextMd \? nextMd\.projTotal : 0\)/);
     // The math moved into the shared, unit-tested helper (feedOrderBasis.js).
     expect(pigSrc).toMatch(/from '\.\.\/lib\/feedOrderBasis\.js'/);
     expect(pigSrc).toMatch(/recommendedOrder\s*=\s*recommendedFeedOrder\(/);
@@ -99,17 +98,30 @@ describe('PigFeedView — minimal ledger contract', () => {
     // The Order tile names its real basis so "End of prev Est." is not implied
     // as the source when the recommendation is count-aware.
     expect(pigSrc).toMatch(
-      /orderTileCaption\s*=\s*activeHasSavedOrder && !isActiveEditMode[\s\S]*?\? 'Saved order'[\s\S]*?: hasCurrentCount[\s\S]*?\? 'vs Actual On Hand'[\s\S]*?: 'vs End of ' \+ prevLabel \+ ' Est\.'/,
+      /orderTileCaption\s*=\s*hasCurrentCount \? 'vs Actual On Hand' : 'vs End of ' \+ prevLabel \+ ' Est\.'/,
     );
   });
 
-  it('saved active-month pig order replaces the recommendation in the top Order tile', () => {
-    expect(pigSrc).toMatch(/activeSavedOrder\s*=\s*\(feedOrders\.pig \|\| \{\}\)\[activeYM\]/);
-    expect(pigSrc).toMatch(/activeHasSavedOrder\s*=\s*activeSavedOrder != null && activeSavedOrder !== ''/);
-    expect(pigSrc).toMatch(
-      /orderTileValue\s*=\s*activeHasSavedOrder && !isActiveEditMode \? parseFloat\(activeSavedOrder\) \|\| 0 : recommendedOrder/,
-    );
-    expect(pigSrc).toMatch(/activeHasSavedOrder && !isActiveEditMode[\s\S]*?\? 'Saved order'/);
+  it('current-month pig demand is shared by Need Thru and the End-of-month ledger estimate', () => {
+    // The July ledger cannot use a smaller "days left" number while the top
+    // recommendation uses full July demand. The current-month demand helper
+    // floors demand at the full-month projection, but still allows actuals +
+    // remaining daily burn to exceed that projection.
+    expect(pigSrc).toMatch(/currentMonthRemainingBurn/);
+    expect(pigSrc).toMatch(/projectedDailyFeed\(isoFromDate\(d\)\)\.totalLbs/);
+    expect(pigSrc).toMatch(/function projectedConsumptionForMonth\(md\)/);
+    expect(pigSrc).toMatch(/Math\.max\(md\.projTotal \|\| 0, actualPlusRemaining\)/);
+    expect(pigSrc).toMatch(/const currentDemand = projectedConsumptionForMonth\(md\)/);
+    expect(pigSrc).toMatch(/pRem = Math\.max\(0, currentDemand - cActual\)/);
+    expect(pigSrc).toMatch(/lgProj = Math\.max\(0, currentDemand - lgActual\)/);
+  });
+
+  it('saved active-month pig order stays in the ledger, not the recommendation tile', () => {
+    expect(pigSrc).not.toMatch(/activeHasSavedOrder/);
+    expect(pigSrc).not.toMatch(/activeSavedOrder/);
+    expect(pigSrc).not.toMatch(/orderTileValue/);
+    expect(pigSrc).toMatch(/const savedVal = \(feedOrders\.pig \|\| \{\}\)\[ym\]/);
+    expect(pigSrc).toMatch(/isSaved \? Number\(savedVal\)\.toLocaleString\(\) : '—'/);
   });
 
   it('Actual On Hand counts only orders that arrived after the count', () => {

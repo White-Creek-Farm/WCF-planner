@@ -22,8 +22,9 @@
 //     via pigFeederSubCurrentCount).
 //   • Per-group breakdown uses pigFeederSubCurrentCount and
 //     pigFeederLbsPerDayAtAge directly so the table matches reality.
-//   • Recommended Order for [active] = max(0, Need Thru [active+1] − End
-//     of [prev] Est.). No carryover subtext, no hidden formula.
+//   • Recommended Order for [active] = max(0, Need Thru [active+1] − the
+//     current-month physical count's Actual On Hand, or End of [prev] Est.
+//     when no current count exists). No carryover subtext, no hidden formula.
 //   • Top tiles do NOT track the active draft — they update only on Save
 //     Order. The active card's End-of-Month estimate updates live while
 //     typing for that card only.
@@ -96,6 +97,11 @@ export default function PigFeedView({
     const [y, m] = ym.split('-').map(Number);
     return new Date(y, m - 1, 1).toLocaleDateString('en-US', {month: 'short'});
   }
+  function isoFromDate(d) {
+    return (
+      d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+    );
+  }
 
   // ── Ledger-correct daily burn via feedPlanner ─────────────────────────────
   function projectedDailyFeed(dateISO) {
@@ -139,7 +145,23 @@ export default function PigFeedView({
     };
   });
 
-  const curProj = projectedDailyFeed(todayDate);
+  const currentMonthDaysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+  const currentMonthRemainingBurn = (() => {
+    if (currentMonthDaysLeft <= 0) return 0;
+    let total = 0;
+    for (let i = 1; i <= currentMonthDaysLeft; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      total += projectedDailyFeed(isoFromDate(d)).totalLbs || 0;
+    }
+    return Math.round(total);
+  })();
+  function projectedConsumptionForMonth(md) {
+    if (!md) return 0;
+    if (!md.isCurrent) return md.isFuture ? md.projTotal : md.actual;
+    const actualPlusRemaining = Math.round((md.actual || 0) + currentMonthRemainingBurn);
+    return Math.max(md.projTotal || 0, actualPlusRemaining);
+  }
 
   // ── Active-month resolution ──────────────────────────────────────────────
   const autoActiveYM = calendarOrderYM(now);
@@ -239,18 +261,20 @@ export default function PigFeedView({
         const cAfter = pigDailys
           .filter((d) => d.date && d.date > inv.date && d.date.startsWith(md.ym))
           .reduce((s, d) => s + (parseFloat(d.feed_lbs) || 0), 0);
+        let cActual = Math.round(cAfter);
         let pRem = 0;
         if (md.isCurrent) {
-          const dl = md.daysInMonth - now.getDate();
-          if (dl > 0) pRem = Math.round(curProj.totalLbs * dl);
+          const currentDemand = projectedConsumptionForMonth(md);
+          cActual = Math.round(md.actual);
+          pRem = Math.max(0, currentDemand - cActual);
         }
-        const lgCons = Math.round(cAfter + pRem);
+        const lgCons = Math.round(cActual + pRem);
         const lgOrd = inv.includesCurrentMonthDelivery ? 0 : parseFloat(md.ordered) || 0;
         const lgEnd = Math.round(lgStart - lgCons + lgOrd);
         pigLedger[md.ym] = {
           start: lgStart,
           consumed: lgCons,
-          actualCons: Math.round(cAfter),
+          actualCons: cActual,
           projCons: Math.round(pRem),
           ordered: lgOrd,
           rawOrdered: parseFloat(md.ordered) || 0,
@@ -268,8 +292,9 @@ export default function PigFeedView({
     let lgActual = md.actual;
     let lgProj = 0;
     if (md.isCurrent) {
-      const dl = md.daysInMonth - now.getDate();
-      if (dl > 0) lgProj = Math.round(curProj.totalLbs * dl);
+      const currentDemand = projectedConsumptionForMonth(md);
+      lgActual = Math.round(md.actual);
+      lgProj = Math.max(0, currentDemand - lgActual);
     } else if (md.isFuture) {
       lgProj = md.projTotal;
       lgActual = 0;
@@ -338,7 +363,8 @@ export default function PigFeedView({
   const endOfPrevEst = endOfPrevLg ? endOfPrevLg.end : null;
   const activeMd = monthlyData.find((m) => m.ym === activeYM);
   const nextMd = monthlyData.find((m) => m.ym === nextYM);
-  const needThruNext = (activeMd ? activeMd.projTotal : 0) + (nextMd ? nextMd.projTotal : 0);
+  const activeNeed = activeMd ? projectedConsumptionForMonth(activeMd) : 0;
+  const needThruNext = activeNeed + (nextMd ? nextMd.projTotal : 0);
   // A current-month physical count is ground truth for "on hand now" and
   // supersedes the previous-month ending estimate as the order basis (the
   // estimate is computed before the count corrects the month). Actual On Hand
@@ -351,16 +377,7 @@ export default function PigFeedView({
     actualOnHand: feedOnHand,
     endOfPrevEst,
   });
-  const activeSavedOrder = (feedOrders.pig || {})[activeYM];
-  const activeHasSavedOrder = activeSavedOrder != null && activeSavedOrder !== '';
-  const orderTileValue =
-    activeHasSavedOrder && !isActiveEditMode ? parseFloat(activeSavedOrder) || 0 : recommendedOrder;
-  const orderTileCaption =
-    activeHasSavedOrder && !isActiveEditMode
-      ? 'Saved order'
-      : hasCurrentCount
-        ? 'vs Actual On Hand'
-        : 'vs End of ' + prevLabel + ' Est.';
+  const orderTileCaption = hasCurrentCount ? 'vs Actual On Hand' : 'vs End of ' + prevLabel + ' Est.';
   // Live End-of-Month estimate for the active card only, splicing the
   // typed draft into the ledger's saved value.
   const activeLg = pigLedger[activeYM];
@@ -554,11 +571,11 @@ export default function PigFeedView({
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: orderTileValue != null ? 'var(--warn-ink)' : '#9ca3af',
+                color: recommendedOrder != null ? 'var(--warn-ink)' : '#9ca3af',
                 lineHeight: 1,
               }}
             >
-              {orderTileValue != null ? orderTileValue.toLocaleString() + ' lbs' : '—'}
+              {recommendedOrder != null ? recommendedOrder.toLocaleString() + ' lbs' : '—'}
             </div>
             <div style={{fontSize: 10, color: 'var(--warn-ink)', opacity: 0.85, marginTop: 3}}>{orderTileCaption}</div>
           </div>
@@ -570,7 +587,7 @@ export default function PigFeedView({
               {needThruNext.toLocaleString() + ' lbs'}
             </div>
             <div style={{fontSize: 11, color: 'var(--ink-faint)', marginTop: 6}}>
-              {(activeMd ? activeMd.projTotal.toLocaleString() : '0') +
+              {activeNeed.toLocaleString() +
                 ' (' +
                 activeLabel +
                 ') + ' +
