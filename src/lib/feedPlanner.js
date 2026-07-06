@@ -49,6 +49,8 @@ import {
   pigMortalityForSub,
   pigMortalityForBatch,
   calcBreedingTimeline,
+  cycleRecords,
+  batchStartedCount,
 } from './pig.js';
 import {getFeedSchedule, LAYER_FEED_SCHEDULE, LAYER_FEED_PER_DAY} from './broiler.js';
 import {computeProjectedCount} from './layerHousing.js';
@@ -149,8 +151,9 @@ function pigSubBirthDate(group, breedingCycles) {
 
 // Total pig feed lbs/day at a given date. Sums:
 //   • non-nursing sows × 5
-//   • nursing sows     × 12
+//   • nursing sows     × 15
 //   • boars            × 5
+//   • born piglets not yet represented in a linked feeder batch × age-rate
 //   • feeder pigs (per sub-batch, ledger-derived current count) × age-rate
 //
 // Sow-rate constants are the same numbers PigFeedView used; lifted here
@@ -158,7 +161,7 @@ function pigSubBirthDate(group, breedingCycles) {
 
 export const PIG_FEED_RATES = {
   sowDryLbsPerDay: 5,
-  sowNursingLbsPerDay: 12,
+  sowNursingLbsPerDay: 15,
   boarLbsPerDay: 5,
 };
 
@@ -181,6 +184,63 @@ function nursingSowsOnDate(dateISO, breedingCycles, farrowingRecs) {
     }
   }
   return count;
+}
+
+function farrowingAliveCount(record) {
+  if (!record) return 0;
+  if (record.alive != null && record.alive !== '' && !Number.isNaN(Number(record.alive))) {
+    return Math.max(0, parseInt(record.alive) || 0);
+  }
+  return Math.max(0, (parseInt(record.totalBorn) || 0) - (parseInt(record.deaths) || 0));
+}
+
+function linkedCycleBatch(cycle, feederGroups) {
+  if (!cycle || !cycle.id) return null;
+  const generatedId = 'farrowing-cycle-' + cycle.id;
+  return (
+    (feederGroups || []).find((g) => g && g.cycleId === cycle.id) ||
+    (feederGroups || []).find((g) => g && g.id === generatedId) ||
+    null
+  );
+}
+
+function batchRepresentedStartedCount(group) {
+  if (!group) return 0;
+  const subs = Array.isArray(group.subBatches) ? group.subBatches : [];
+  if (subs.length > 0) {
+    return subs.reduce(
+      (sum, sub) => sum + (parseInt(sub && sub.giltCount) || 0) + (parseInt(sub && sub.boarCount) || 0),
+      0,
+    );
+  }
+  return batchStartedCount(group);
+}
+
+function unrepresentedFarrowingPigletFeed(dateISO, {breedingCycles = [], farrowingRecs = [], feederGroups = []} = {}) {
+  let piglets = 0;
+  let lbs = 0;
+  for (const cycle of breedingCycles || []) {
+    const tl = cycle ? calcBreedingTimeline(cycle.exposureStart) : null;
+    if (!tl || !cycle.id || !tl.growEnd || dateISO > tl.growEnd) continue;
+    let represented = batchRepresentedStartedCount(linkedCycleBatch(cycle, feederGroups));
+    const records = cycleRecords(cycle, farrowingRecs || [])
+      .filter((r) => r && r.farrowingDate && r.farrowingDate <= dateISO)
+      .sort((a, b) => String(a.farrowingDate).localeCompare(String(b.farrowingDate)));
+    for (const record of records) {
+      let residual = farrowingAliveCount(record);
+      if (represented > 0) {
+        const covered = Math.min(represented, residual);
+        residual -= covered;
+        represented -= covered;
+      }
+      if (residual <= 0) continue;
+      const ageDays = diffDays(record.farrowingDate, dateISO);
+      const ratePerPig = pigFeederLbsPerDayAtAge(ageDays);
+      piglets += residual;
+      lbs += residual * ratePerPig;
+    }
+  }
+  return {piglets, lbs};
 }
 
 export function pigDailyBurnLbs(dateISO, ctx) {
@@ -224,12 +284,15 @@ export function pigDailyBurnLbs(dateISO, ctx) {
       }
     }
   }
+  const farrowingPigletFeed = unrepresentedFarrowingPigletFeed(dateISO, {breedingCycles, farrowingRecs, feederGroups});
 
   return {
     sowLbs: sowFeed,
     boarLbs: boarFeed,
     feederLbs: feederFeed,
-    totalLbs: sowFeed + boarFeed + feederFeed,
+    farrowingPigletLbs: farrowingPigletFeed.lbs,
+    farrowingPiglets: farrowingPigletFeed.piglets,
+    totalLbs: sowFeed + boarFeed + feederFeed + farrowingPigletFeed.lbs,
     nursing,
     nonNursing,
   };

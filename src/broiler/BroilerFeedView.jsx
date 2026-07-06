@@ -19,7 +19,7 @@
 // Saved-vs-active rule:
 //   A month is "fully saved" only when starter, grower, AND layerfeed
 //   orders are all present (including explicit 0). Active month is the
-//   next calendar month and does not advance early when saved.
+//   current calendar month and does not advance early when saved.
 //
 // Save behavior (single month-level button):
 //   • For each feed type, either the operator typed a value OR the
@@ -413,7 +413,7 @@ export default function BroilerFeedView({
       ? 'vs Actual On Hand where counted; otherwise End of ' + prevLabel + ' Est.'
       : 'vs End of ' + prevLabel + ' Est.';
   // Second summary tile stays pinned to the current calendar month. The order
-  // workflow can advance activeYM after this month's order is saved, but this
+  // workflow can advance activeYM when the calendar month flips, but this
   // summary still shows the current month-end estimate per type. Saved order
   // only -- updates on save, not while typing an unsaved draft.
   const estTileYM = thisYM;

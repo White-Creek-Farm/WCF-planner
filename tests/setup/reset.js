@@ -47,7 +47,7 @@ const TEST_OWNED_TABLES = [
   // operator-applied clears between specs.
   'equipment_material_clears',
   'equipment_service_materials',
-  // Processing Calendar (mig 155). Children FK processing_records(id) CASCADE;
+  // Processing Calendar (mig 156). Children FK processing_records(id) CASCADE;
   // CASCADE on the TRUNCATE handles FK so child-first ordering is for readability.
   // processing_asana_sync_settings (singleton, seeded once at migration time) is
   // intentionally NOT truncated — wiping it would make get_processing_settings

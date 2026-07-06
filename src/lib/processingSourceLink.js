@@ -1,5 +1,5 @@
 // ============================================================================
-// src/lib/processingSourceLink.js  —  Processing → source resolution (mig 155)
+// src/lib/processingSourceLink.js  —  Processing → source resolution (mig 156)
 // ----------------------------------------------------------------------------
 // Pure, read-only resolution of a processing record's SOURCE-owned display data
 // from already-loaded planner source collections. The Processing domain stores

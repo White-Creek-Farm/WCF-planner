@@ -1,20 +1,14 @@
-// Apply mig 155 (Processing Calendar domain) to TEST via exec_sql, then
-// behaviorally verify the core RPCs. Hard PROD-ref guard. Behavioral checks
-// (never exec_sql SELECT for verification):
-//   1. milestone create/get/list + milestone completion gate (date only).
-//   2. importer idempotency: upsert_processing_from_asana twice on one gid ->
-//      insert then update, exactly one row.
-//   3. completion gate on a planner_batch: blocked by processor/number/subtasks,
-//      unblock step by step, then complete succeeds; reopen clears it.
-//   4. subtask gating: an open subtask blocks completion; completing it unblocks.
-//   5. comments on entity_type='processing.record' (post + list) — proves the
-//      _activity_can_read branch + shared comments reuse.
-// Env is loaded from the MAIN worktree (the fresh lane worktree has no
-// gitignored .env.test.local).
+// Apply mig 155 (Pasture Map same-move departure-overlap rest fix) to TEST via
+// exec_sql, then behaviorally verify the FP4D2 bug pattern:
+//   move 1: group moves INTO area A
+//   move 2: group moves FROM area A INTO area B, and the same move also writes
+//           an overlap impact back onto A because B intersects A
+//
+// Before mig 155, A reads occupied/current_occupants=[overlap]/rest_days=0.
+// After mig 155, A reads resting/current_occupants=[]/rest_days>=2, while B is
+// still occupied. Hard PROD-ref guard. Cleans up every synthetic row.
 const fs = require('fs');
 const path = require('path');
-
-const MAIN = 'C:/Users/Ronni/WCF-planner';
 
 function loadDotEnv(file) {
   if (!fs.existsSync(file)) return;
@@ -26,8 +20,9 @@ function loadDotEnv(file) {
     if (process.env[m[1]] === undefined) process.env[m[1]] = v;
   }
 }
-loadDotEnv(path.join(MAIN, '.env.test'));
-loadDotEnv(path.join(MAIN, '.env.test.local'));
+
+loadDotEnv(path.join(__dirname, '..', '.env.test'));
+loadDotEnv(path.join(__dirname, '..', '.env.test.local'));
 
 const url = process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,202 +40,153 @@ if (url.includes(PROD_REF)) {
   process.exit(2);
 }
 
-const {createClient} = require(path.join(MAIN, 'node_modules', '@supabase', 'supabase-js'));
+const {createClient} = require(path.join(__dirname, '..', 'node_modules', '@supabase', 'supabase-js'));
 const service = createClient(url, serviceKey, {auth: {autoRefreshToken: false, persistSession: false}});
-const admin = createClient(url, anonKey, {auth: {autoRefreshToken: false, persistSession: false}});
+const authed = createClient(url, anonKey, {auth: {autoRefreshToken: false, persistSession: false}});
 
-const STAMP = Date.now();
-const MILESTONE_ID = 'pmile-155-' + STAMP;
-const BATCH_GID = 'gid-155-' + STAMP;
-let batchId = null;
-let subId = null;
-let failures = 0;
-const ok = (l) => console.log('  ok  ' + l);
-const bad = (l, d) => {
-  failures++;
-  console.error('  FAIL ' + l + (d ? ' :: ' + (typeof d === 'string' ? d : JSON.stringify(d)) : ''));
-};
+const AREA_A = 'la-mig155-departed-overlap-a';
+const AREA_B = 'la-mig155-current-b';
+const MOVE_1 = 'pmv-mig155-into-a';
+const MOVE_2 = 'pmv-mig155-a-to-b-overlap-a';
+const GROUP = 'mig155-group';
+
+function die(msg) {
+  console.error('FAIL:', msg);
+  process.exit(1);
+}
+
+async function cleanup() {
+  await service.from('pasture_move_events').delete().in('id', [MOVE_1, MOVE_2]);
+  await service.from('land_areas').delete().in('id', [AREA_A, AREA_B]);
+}
+
+async function listArea(areaId) {
+  const {data, error} = await authed.rpc('list_land_areas', {p_include_deleted: false});
+  if (error) die('list_land_areas failed: ' + (error.message || error));
+  const row = (data && data.land_areas ? data.land_areas : []).find((a) => a.id === areaId);
+  if (!row) die('area not found in list_land_areas: ' + areaId);
+  return row;
+}
 
 (async () => {
   console.log(`TEST url=${url}`);
+
+  const {error: signErr} = await authed.auth.signInWithPassword({email: adminEmail, password: adminPassword});
+  if (signErr) die('admin signIn failed: ' + (signErr.message || signErr));
+
+  await cleanup();
+
+  const movedInAt = new Date(Date.now() - 5 * 86400_000).toISOString();
+  const movedOutAt = new Date(Date.now() - (2 * 86400_000 + 2 * 3600_000)).toISOString();
+
+  const {error: areaErr} = await service.from('land_areas').insert([
+    {
+      id: AREA_A,
+      kind: 'paddock',
+      name: 'Mig155 Departed Overlap A',
+      permanence: 'permanent',
+      status: 'active',
+      review_status: 'reviewed',
+      geometry_status: 'none',
+      baseline_no_history: false,
+      manual_acres: 4,
+      source: 'drawn',
+    },
+    {
+      id: AREA_B,
+      kind: 'paddock',
+      name: 'Mig155 Current B',
+      permanence: 'permanent',
+      status: 'active',
+      review_status: 'reviewed',
+      geometry_status: 'none',
+      baseline_no_history: false,
+      manual_acres: 5,
+      source: 'drawn',
+    },
+  ]);
+  if (areaErr) die('land_area insert failed: ' + (areaErr.message || areaErr));
+
+  const {error: moveErr} = await service.from('pasture_move_events').insert([
+    {
+      id: MOVE_1,
+      animal_type: 'cattle_herd',
+      group_key: GROUP,
+      group_label: 'Mig155 Group',
+      from_land_area_id: null,
+      to_land_area_id: AREA_A,
+      moved_at: movedInAt,
+      animal_count: 11,
+    },
+    {
+      id: MOVE_2,
+      animal_type: 'cattle_herd',
+      group_key: GROUP,
+      group_label: 'Mig155 Group',
+      from_land_area_id: AREA_A,
+      to_land_area_id: AREA_B,
+      moved_at: movedOutAt,
+      animal_count: 11,
+    },
+  ]);
+  if (moveErr) die('move insert failed: ' + (moveErr.message || moveErr));
+
+  const {error: impactErr} = await service.from('pasture_move_impacts').insert([
+    {move_id: MOVE_1, land_area_id: AREA_A, impact_kind: 'destination', impacted_at: movedInAt},
+    {move_id: MOVE_2, land_area_id: AREA_A, impact_kind: 'departure', impacted_at: movedOutAt},
+    {move_id: MOVE_2, land_area_id: AREA_A, impact_kind: 'overlap', impacted_at: movedOutAt},
+    {move_id: MOVE_2, land_area_id: AREA_B, impact_kind: 'destination', impacted_at: movedOutAt},
+  ]);
+  if (impactErr) die('impact insert failed: ' + (impactErr.message || impactErr));
+
+  const before = await listArea(AREA_A);
+  console.log(
+    `  [pre-155] area A rest_state=${before.rest_state}, rest_days=${before.rest_days}, current_occupancy_count=${before.current_occupancy_count}`,
+  );
+
   const body = fs.readFileSync(
-    path.join(__dirname, '..', 'supabase-migrations', '155_processing_calendar.sql'),
+    path.join(__dirname, '..', 'supabase-migrations', '155_pasture_map_departure_overlap_rest.sql'),
     'utf8',
   );
-  console.log(`applying 155_processing_calendar.sql (${body.length} bytes)`);
+  console.log(`applying 155_pasture_map_departure_overlap_rest.sql (${body.length} bytes)`);
   const {error: applyErr} = await service.rpc('exec_sql', {sql: body});
-  if (applyErr) {
-    console.error('exec_sql APPLY failed:', applyErr.message || applyErr);
-    process.exit(1);
+  if (applyErr) die('exec_sql APPLY failed: ' + (applyErr.message || applyErr));
+  await new Promise((resolve) => setTimeout(resolve, 2500));
+
+  const afterA = await listArea(AREA_A);
+  const afterB = await listArea(AREA_B);
+  console.log(
+    `  [post-155] area A rest_state=${afterA.rest_state}, rest_days=${afterA.rest_days}, current_occupancy_count=${afterA.current_occupancy_count}`,
+  );
+  console.log(
+    `  [post-155] area B rest_state=${afterB.rest_state}, current_occupancy_count=${afterB.current_occupancy_count}`,
+  );
+
+  if (afterA.rest_state !== 'resting') die(`area A should read resting, got ${afterA.rest_state}`);
+  if (Number(afterA.rest_days) < 2) die(`area A should have at least 2 rest days, got ${afterA.rest_days}`);
+  if (Number(afterA.current_occupancy_count || 0) !== 0) {
+    die(`area A should have no current occupants, got ${afterA.current_occupancy_count}`);
   }
-  await service.rpc('exec_sql', {sql: "NOTIFY pgrst, 'reload schema';"});
-  await new Promise((r) => setTimeout(r, 2500));
-  ok('migration applied');
-
-  const {error: signInErr} = await admin.auth.signInWithPassword({email: adminEmail, password: adminPassword});
-  if (signInErr) {
-    bad('admin sign-in', signInErr.message);
-    process.exit(1);
+  if (Array.isArray(afterA.current_occupants) && afterA.current_occupants.length > 0) {
+    die(`area A current_occupants should be empty, got ${JSON.stringify(afterA.current_occupants)}`);
   }
-
-  // ── 1. milestone create/get/list + milestone completion gate ──
-  {
-    const {data, error} = await admin.rpc('create_processing_milestone', {
-      p_id: MILESTONE_ID,
-      p_program: 'cattle',
-      p_title: 'Verify-155 milestone',
-      p_processing_date: '2026-09-01',
-    });
-    if (error) bad('create_processing_milestone', error.message);
-    else ok('create_processing_milestone -> ' + JSON.stringify(data));
-
-    const {data: rec, error: gErr} = await admin.rpc('get_processing_record', {p_id: MILESTONE_ID});
-    if (gErr) bad('get_processing_record(milestone)', gErr.message);
-    else if (
-      rec &&
-      rec.record &&
-      rec.record.record_type === 'milestone' &&
-      Array.isArray(rec.completion_blockers) &&
-      rec.completion_blockers.length === 0
-    )
-      ok('milestone get: record_type=milestone, no completion blockers (date present)');
-    else bad('milestone get unexpected', rec);
-
-    const {data: list, error: lErr} = await admin.rpc('list_processing_records', {p_year: 2026});
-    if (lErr) bad('list_processing_records(2026)', lErr.message);
-    else if (Array.isArray(list) && list.some((r) => r.id === MILESTONE_ID))
-      ok('list_processing_records(2026) includes the milestone');
-    else bad('list did not include milestone', Array.isArray(list) ? list.length + ' rows' : list);
+  if (afterB.rest_state !== 'occupied') die(`area B should stay occupied, got ${afterB.rest_state}`);
+  if (Number(afterB.current_occupancy_count || 0) !== 1) {
+    die(`area B should have one current occupant, got ${afterB.current_occupancy_count}`);
   }
 
-  // ── 2. importer idempotency ──
-  {
-    const asRow = (extra) => ({
-      p_row: {
-        asana_gid: BATCH_GID,
-        record_type: 'planner_batch',
-        program: 'cattle',
-        title: 'Verify-155 batch',
-        processing_date: '2026-09-15',
-        status: 'planned',
-        source_kind: 'cattle',
-        source_id: 'src-155-' + STAMP,
-        ...extra,
-      },
-    });
-    const {data: ins, error: iErr} = await service.rpc('upsert_processing_from_asana', asRow());
-    if (iErr) bad('upsert_processing_from_asana insert', iErr.message);
-    else if (ins && ins.action === 'inserted') {
-      batchId = ins.id;
-      ok('importer insert -> ' + JSON.stringify(ins));
-    } else bad('importer insert unexpected', ins);
+  console.log('  [ok] same-move departure overlap no longer blocks rest on the departed area');
+  console.log('  [ok] real destination area remains occupied');
 
-    const {data: upd, error: uErr} = await service.rpc('upsert_processing_from_asana', asRow({number_processed: 3}));
-    if (uErr) bad('upsert_processing_from_asana re-run', uErr.message);
-    else if (upd && upd.action === 'updated' && upd.id === batchId)
-      ok('importer re-run -> updated (idempotent, same id)');
-    else bad('importer re-run not idempotent', upd);
-
-    // Idempotency proof: the re-run merged fields onto the SAME row (admin read;
-    // get_processing_record requires an operational authed caller, not service).
-    const {data: chk, error: cErr} = await admin.rpc('get_processing_record', {p_id: batchId});
-    if (cErr) bad('get_processing_record(batch)', cErr.message);
-    else if (chk && chk.record && chk.record.asana_gid === BATCH_GID && chk.record.number_processed === 3)
-      ok('importer merged fields (number_processed=3) on the single row');
-    else
-      bad(
-        'importer row state unexpected',
-        chk && chk.record && {gid: chk.record.asana_gid, n: chk.record.number_processed},
-      );
+  await cleanup();
+  console.log('mig155 verify: ALL CHECKS PASSED');
+  process.exit(0);
+})().catch(async (e) => {
+  try {
+    await cleanup();
+  } catch {
+    /* best effort */
   }
-
-  // ── 3 + 4. completion gate + subtask gating on the planner_batch ──
-  {
-    // number_processed=3 is set; processor is still missing -> blocked.
-    let {data: rec} = await admin.rpc('get_processing_record', {p_id: batchId});
-    const hasBlocker = (rec, needle) =>
-      Array.isArray(rec.completion_blockers) && rec.completion_blockers.some((b) => b.includes(needle));
-    hasBlocker(rec, 'Processor')
-      ? ok('gate: Processor missing blocks completion')
-      : bad('expected Processor blocker', rec.completion_blockers);
-
-    const {error: mErr} = await admin.rpc('mark_processing_complete', {p_id: batchId});
-    mErr
-      ? ok('mark_processing_complete blocked while requirements unmet')
-      : bad('completion was allowed despite blockers');
-
-    await admin.rpc('set_processing_processor', {p_id: batchId, p_processor: 'Atlanta Poultry Processing'});
-    ({data: rec} = await admin.rpc('get_processing_record', {p_id: batchId}));
-    !rec.completion_blockers || rec.completion_blockers.length === 0
-      ? ok('gate clears once processor + date + number_processed present')
-      : bad('unexpected residual blockers', rec.completion_blockers);
-
-    // Add an open subtask -> completion blocked again.
-    subId = 'psub-155-' + STAMP;
-    await admin.rpc('add_processing_subtask', {p_id: subId, p_record_id: batchId, p_label: 'verify subtask'});
-    ({data: rec} = await admin.rpc('get_processing_record', {p_id: batchId}));
-    hasBlocker(rec, 'subtask')
-      ? ok('gate: an open subtask blocks completion')
-      : bad('expected subtask blocker', rec.completion_blockers);
-
-    const {error: m2} = await admin.rpc('mark_processing_complete', {p_id: batchId});
-    m2 ? ok('mark_processing_complete blocked by open subtask') : bad('completion allowed with open subtask');
-
-    // Complete the subtask -> completion now allowed. (Subtask completion does
-    // NOT auto-complete the record; a separate mark is still required.)
-    await admin.rpc('set_processing_subtask_done', {p_id: subId, p_done: true});
-    ({data: rec} = await admin.rpc('get_processing_record', {p_id: batchId}));
-    rec.record.status !== 'complete'
-      ? ok('completing the subtask did NOT auto-complete the record')
-      : bad('subtask auto-completed the record');
-
-    const {data: done, error: m3} = await admin.rpc('mark_processing_complete', {p_id: batchId});
-    if (m3) bad('mark_processing_complete failed after unblock', m3.message);
-    else if (done && done.status === 'complete') ok('mark_processing_complete succeeds once all requirements met');
-    else bad('completion unexpected', done);
-
-    const {data: reop} = await admin.rpc('reopen_processing_record', {p_id: batchId});
-    reop && reop.status === 'planned'
-      ? ok('reopen_processing_record clears completion')
-      : bad('reopen unexpected', reop);
-  }
-
-  // ── 5. comments on processing.record (activity branch + comments reuse) ──
-  {
-    const {error: pErr} = await admin.rpc('post_comment', {
-      p_entity_type: 'processing.record',
-      p_entity_id: batchId,
-      p_body: 'Verify-155 comment',
-      p_entity_label: 'Verify-155 batch',
-      p_mentions: [],
-      p_attachments: [],
-    });
-    if (pErr) bad('post_comment on processing.record (activity branch missing?)', pErr.message);
-    else ok('post_comment on processing.record succeeded (activity read branch live)');
-
-    const {data: cs, error: lcErr} = await admin.rpc('list_comments', {
-      p_entity_type: 'processing.record',
-      p_entity_id: batchId,
-      p_limit: 10,
-    });
-    if (lcErr) bad('list_comments on processing.record', lcErr.message);
-    else if (Array.isArray(cs) && cs.some((c) => c.body === 'Verify-155 comment'))
-      ok('list_comments returns the processing.record comment');
-    else bad('list_comments did not return the comment', Array.isArray(cs) ? cs.length + ' rows' : cs);
-  }
-
-  await admin.auth.signOut();
-
-  // ── cleanup ──
-  await service.rpc('exec_sql', {
-    sql: `DELETE FROM public.comments WHERE entity_type = 'processing.record' AND entity_id = '${batchId}';
-          DELETE FROM public.processing_records WHERE id IN ('${MILESTONE_ID}', '${batchId}');`,
-  });
-  ok('cleanup: verify processing rows + comments removed');
-
-  console.log(failures ? `\nDONE with ${failures} FAILURE(S)` : '\nALL CHECKS PASSED');
-  process.exit(failures ? 1 : 0);
-})().catch((e) => {
-  console.error('apply/verify threw:', e.message || e);
+  console.error('FAIL (exception):', e && (e.message || e));
   process.exit(1);
 });

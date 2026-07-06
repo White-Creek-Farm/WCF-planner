@@ -6,7 +6,7 @@ import {describe, it, expect} from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
-const mig = fs.readFileSync(path.join(ROOT, 'supabase-migrations/155_processing_calendar.sql'), 'utf8');
+const mig = fs.readFileSync(path.join(ROOT, 'supabase-migrations/156_processing_calendar.sql'), 'utf8');
 
 // Slice one CREATE OR REPLACE FUNCTION body (up to its $fn$; terminator) so a
 // scoped assertion cannot be satisfied by an unrelated function elsewhere in the
@@ -60,7 +60,7 @@ const CLIENT_RPCS = [
 
 const ADMIN_ONLY_RPCS = ['upsert_processing_template', 'hard_delete_processing_record', 'set_asana_sync_enabled'];
 
-// Every entity_type _activity_can_read handled BEFORE mig 155 was authored. The
+// Every entity_type _activity_can_read handled BEFORE mig 156 was authored. The
 // re-issued function must preserve all of them (it is a full re-emit, not a
 // partial), plus add processing.record.
 const PRIOR_ENTITY_TYPES = [
@@ -89,7 +89,7 @@ const PRIOR_ENTITY_TYPES = [
   'todo.item',
 ];
 
-describe('mig 155 — tables: deny-all RLS + REVOKE from public roles', () => {
+describe('mig 156 — tables: deny-all RLS + REVOKE from public roles', () => {
   for (const t of TABLES) {
     it(`creates ${t} with RLS enabled, a ${t}_deny_all FOR ALL USING (false) policy, and REVOKEs public roles`, () => {
       expect(mig, `${t} table missing`).toMatch(new RegExp('CREATE TABLE IF NOT EXISTS public\\.' + t + '\\b'));
@@ -106,7 +106,7 @@ describe('mig 155 — tables: deny-all RLS + REVOKE from public roles', () => {
   }
 });
 
-describe('mig 155 — SECURITY DEFINER hygiene', () => {
+describe('mig 156 — SECURITY DEFINER hygiene', () => {
   it('every SECURITY DEFINER function pins SET search_path = public', () => {
     const secdef = (mig.match(/SECURITY DEFINER/g) || []).length;
     const withPath = (mig.match(/SECURITY DEFINER\s+SET search_path = public/g) || []).length;
@@ -115,7 +115,7 @@ describe('mig 155 — SECURITY DEFINER hygiene', () => {
   });
 });
 
-describe('mig 155 — operational gate denies light/equipment_tech/inactive', () => {
+describe('mig 156 — operational gate denies light/equipment_tech/inactive', () => {
   const block = fnBlock('_processing_require_operational');
 
   it('restricts to farm_team/management/admin', () => {
@@ -130,7 +130,7 @@ describe('mig 155 — operational gate denies light/equipment_tech/inactive', ()
   });
 });
 
-describe('mig 155 — completion gate + manual completion', () => {
+describe('mig 156 — completion gate + manual completion', () => {
   const gate = fnBlock('_processing_completion_blockers');
   const complete = fnBlock('mark_processing_complete');
   const toggle = fnBlock('set_processing_subtask_done');
@@ -163,7 +163,7 @@ describe('mig 155 — completion gate + manual completion', () => {
   });
 });
 
-describe('mig 155 — Asana idempotency (keyed on asana_gid)', () => {
+describe('mig 156 — Asana idempotency (keyed on asana_gid)', () => {
   const upsert = fnBlock('upsert_processing_from_asana');
 
   it('selects the existing record by asana_gid', () => {
@@ -183,7 +183,7 @@ describe('mig 155 — Asana idempotency (keyed on asana_gid)', () => {
   });
 });
 
-describe('mig 155 — importer RPCs are service_role only (never authenticated)', () => {
+describe('mig 156 — importer RPCs are service_role only (never authenticated)', () => {
   for (const fn of IMPORTER_RPCS) {
     it(`${fn} GRANTed to service_role, REVOKEd from authenticated, NOT granted to authenticated`, () => {
       expect(mig, `${fn} not granted to service_role`).toMatch(
@@ -199,7 +199,7 @@ describe('mig 155 — importer RPCs are service_role only (never authenticated)'
   }
 });
 
-describe('mig 155 — client RPCs are granted to authenticated', () => {
+describe('mig 156 — client RPCs are granted to authenticated', () => {
   for (const fn of CLIENT_RPCS) {
     it(`${fn} GRANTed to authenticated`, () => {
       expect(mig, `${fn} not granted to authenticated`).toMatch(
@@ -209,7 +209,7 @@ describe('mig 155 — client RPCs are granted to authenticated', () => {
   }
 });
 
-describe('mig 155 — admin-only gate on privileged RPCs', () => {
+describe('mig 156 — admin-only gate on privileged RPCs', () => {
   for (const fn of ADMIN_ONLY_RPCS) {
     it(`${fn} requires role = admin`, () => {
       const block = fnBlock(fn);
@@ -219,7 +219,7 @@ describe('mig 155 — admin-only gate on privileged RPCs', () => {
   }
 });
 
-describe('mig 155 — Activity resolver re-issue preserves every prior branch', () => {
+describe('mig 156 — Activity resolver re-issue preserves every prior branch', () => {
   // The re-issued _activity_can_read is the last function; slice from its
   // definition to EOF so the branch assertions are scoped to that body.
   const canRead = mig.slice(mig.indexOf('CREATE OR REPLACE FUNCTION public._activity_can_read'));
@@ -236,7 +236,7 @@ describe('mig 155 — Activity resolver re-issue preserves every prior branch', 
 
   for (const t of PRIOR_ENTITY_TYPES) {
     it(`still handles the ${t} branch`, () => {
-      expect(canRead, `mig 155 dropped the ${t} branch`).toContain(`'${t}'`);
+      expect(canRead, `mig 156 dropped the ${t} branch`).toContain(`'${t}'`);
     });
   }
 
@@ -247,7 +247,7 @@ describe('mig 155 — Activity resolver re-issue preserves every prior branch', 
   });
 });
 
-describe('mig 155 — never writes source tables', () => {
+describe('mig 156 — never writes source tables', () => {
   it('has no INSERT/UPDATE/DELETE against cattle, sheep, processing batches, or app_store', () => {
     const writeRe =
       /(INSERT INTO|UPDATE|DELETE FROM)\s+public\.(cattle|sheep|cattle_processing_batches|sheep_processing_batches|app_store)\b/g;

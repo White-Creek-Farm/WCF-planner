@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const pigSrc = fs.readFileSync(path.join(ROOT, 'src/pig/PigFeedView.jsx'), 'utf8');
 const broilerSrc = fs.readFileSync(path.join(ROOT, 'src/broiler/BroilerFeedView.jsx'), 'utf8');
+const feedOrderBasisSrc = fs.readFileSync(path.join(ROOT, 'src/lib/feedOrderBasis.js'), 'utf8');
 
 // ============================================================================
 // Pig feed ledger — minimal screen contract (post snapshot-board removal)
@@ -82,9 +83,8 @@ describe('PigFeedView — minimal ledger contract', () => {
   });
 
   it('recommended order is count-aware: basis = current-month Actual On Hand, else End of prev Est.', () => {
-    expect(pigSrc).toMatch(
-      /needThruNext\s*=\s*\(activeMd \? activeMd\.projTotal : 0\)\s*\+\s*\(nextMd \? nextMd\.projTotal : 0\)/,
-    );
+    expect(pigSrc).toMatch(/activeNeed\s*=\s*activeMd \? projectedConsumptionForMonth\(activeMd\) : 0/);
+    expect(pigSrc).toMatch(/needThruNext\s*=\s*activeNeed \+ \(nextMd \? nextMd\.projTotal : 0\)/);
     // The math moved into the shared, unit-tested helper (feedOrderBasis.js).
     expect(pigSrc).toMatch(/from '\.\.\/lib\/feedOrderBasis\.js'/);
     expect(pigSrc).toMatch(/recommendedOrder\s*=\s*recommendedFeedOrder\(/);
@@ -97,7 +97,31 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).not.toMatch(/orderBaseEst/);
     // The Order tile names its real basis so "End of prev Est." is not implied
     // as the source when the recommendation is count-aware.
-    expect(pigSrc).toMatch(/hasCurrentCount \? 'vs Actual On Hand' : 'vs End of ' \+ prevLabel \+ ' Est\.'/);
+    expect(pigSrc).toMatch(
+      /orderTileCaption\s*=\s*hasCurrentCount \? 'vs Actual On Hand' : 'vs End of ' \+ prevLabel \+ ' Est\.'/,
+    );
+  });
+
+  it('current-month pig demand is shared by Need Thru and the End-of-month ledger estimate', () => {
+    // The July ledger cannot use a smaller "days left" number while the top
+    // recommendation uses full July demand. The current-month demand helper
+    // floors demand at the full-month projection, but still allows actuals +
+    // remaining daily burn to exceed that projection.
+    expect(pigSrc).toMatch(/currentMonthRemainingBurn/);
+    expect(pigSrc).toMatch(/projectedDailyFeed\(isoFromDate\(d\)\)\.totalLbs/);
+    expect(pigSrc).toMatch(/function projectedConsumptionForMonth\(md\)/);
+    expect(pigSrc).toMatch(/Math\.max\(md\.projTotal \|\| 0, actualPlusRemaining\)/);
+    expect(pigSrc).toMatch(/const currentDemand = projectedConsumptionForMonth\(md\)/);
+    expect(pigSrc).toMatch(/pRem = Math\.max\(0, currentDemand - cActual\)/);
+    expect(pigSrc).toMatch(/lgProj = Math\.max\(0, currentDemand - lgActual\)/);
+  });
+
+  it('saved active-month pig order stays in the ledger, not the recommendation tile', () => {
+    expect(pigSrc).not.toMatch(/activeHasSavedOrder/);
+    expect(pigSrc).not.toMatch(/activeSavedOrder/);
+    expect(pigSrc).not.toMatch(/orderTileValue/);
+    expect(pigSrc).toMatch(/const savedVal = \(feedOrders\.pig \|\| \{\}\)\[ym\]/);
+    expect(pigSrc).toMatch(/isSaved \? Number\(savedVal\)\.toLocaleString\(\) : '—'/);
   });
 
   it('Actual On Hand counts only orders that arrived after the count', () => {
@@ -126,7 +150,7 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).not.toMatch(/onChange:\s*function\s*\(e\)\s*\{\s*savePigOrder/);
   });
 
-  it('active month is pinned to the next calendar month, not the first unsaved month', () => {
+  it('active month is pinned to the current calendar month, not the first unsaved month', () => {
     expect(pigSrc).toMatch(/calendarOrderYM\(now\)/);
     expect(pigSrc).not.toMatch(/firstUnsavedFrom/);
     expect(pigSrc).not.toMatch(/while \(\(feedOrders\.pig \|\| \{\}\)\[cur\] != null\)/);
@@ -213,6 +237,14 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).toMatch(
       /const \[y, m\] = todayDate\.split\('-'\)\.map\(Number\);[\s\S]*?return new Date\(y, m - 1, 1\)\.toLocaleDateString\('en-US', \{month: 'short'\}\)/,
     );
+  });
+});
+
+describe('Feed boards — active order month contract', () => {
+  it('shared active-month helper returns the current calendar month, not next month', () => {
+    expect(feedOrderBasisSrc).toMatch(/export function calendarOrderYM\(today = new Date\(\)\)/);
+    expect(feedOrderBasisSrc).toMatch(/return ymFromDate\(today\)/);
+    expect(feedOrderBasisSrc).not.toMatch(/return addMonthsYM\(ymFromDate\(today\), 1\)/);
   });
 });
 
@@ -492,7 +524,7 @@ describe('BroilerFeedView — minimal ledger contract', () => {
 describe('Feed boards — Est. tile stays on the current calendar month', () => {
   it('Broiler: second tile is always End of [current] Est. with current-month ledger end per type', () => {
     // Values = current calendar-month PERSISTED ledger end per type. Saving
-    // an order can advance activeYM, but never the summary month/label.
+    // an order cannot advance activeYM or the summary month/label.
     expect(broilerSrc).toMatch(/const estTileYM = thisYM/);
     expect(broilerSrc).toMatch(
       /const lg = pLedger\[type\]\[estTileYM\];\s*endOfCurrent\[type\] = lg \? lg\.end : null/,

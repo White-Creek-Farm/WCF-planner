@@ -33,6 +33,7 @@ import {
   RESERVE_DAYS,
   ORDER_ROUNDING_LBS,
   STALE_SNAPSHOT_DAYS,
+  PIG_FEED_RATES,
 } from './feedPlanner.js';
 
 // ── Pig ledger fixture (Codex's locked scenario) ───────────────────────────
@@ -225,6 +226,93 @@ describe('pigDailyBurnLbs — sows + boars + feeders', () => {
     // Feeders: 35 pigs × (70 / 30.44) ≈ 80.5 lbs/day.
     expect(out.feederLbs).toBeCloseTo(35 * (70 / 30.44), 1);
     expect(out.totalLbs).toBeCloseTo(35 + 80.5, 0);
+  });
+
+  it('counts nursing sows at 15 lbs/day', () => {
+    const out = pigDailyBurnLbs(TODAY, {
+      feederGroups: [],
+      breedingCycles: [{id: 'cycle-nursing', group: '1', exposureStart: '2026-01-01'}],
+      breeders: [
+        {sex: 'Sow', archived: false},
+        {sex: 'Sow', archived: false},
+        {sex: 'Gilt', archived: false},
+        {sex: 'Boar', archived: false},
+      ],
+      farrowingRecs: [{group: '1', farrowingDate: '2026-04-27'}],
+    });
+
+    expect(PIG_FEED_RATES.sowNursingLbsPerDay).toBe(15);
+    expect(out.nursing).toBe(1);
+    expect(out.nonNursing).toBe(2);
+    expect(out.sowLbs).toBe(1 * 15 + 2 * 5);
+    expect(out.boarLbs).toBe(5);
+    expect(out.totalLbs).toBe(30);
+  });
+
+  it('adds farrowing-record piglets not represented in the linked feeder batch', () => {
+    const cycle = {id: 'cycle-farrow-feed', group: '3', exposureStart: '2026-01-01'};
+    const out = pigDailyBurnLbs(TODAY, {
+      feederGroups: [
+        {
+          id: 'farrowing-cycle-cycle-farrow-feed',
+          batchName: 'P-27-01',
+          cycleId: cycle.id,
+          farmBorn: true,
+          status: 'active',
+          originalPigCount: 0,
+          giltCount: 0,
+          boarCount: 0,
+          subBatches: [],
+          processingTrips: [],
+          pigMortalities: [],
+        },
+      ],
+      breedingCycles: [cycle],
+      breeders: [],
+      farrowingRecs: [
+        {id: 'f1', group: '3', farrowingDate: '2026-04-27', alive: 9},
+        {id: 'f2', group: '3', farrowingDate: '2026-05-01', totalBorn: 10, deaths: 3},
+      ],
+    });
+
+    expect(out.feederLbs).toBe(0);
+    expect(out.sowLbs).toBe(30);
+    expect(out.farrowingPiglets).toBe(16);
+    expect(out.farrowingPigletLbs).toBe(16);
+    expect(out.totalLbs).toBe(46);
+  });
+
+  it('does not double count farrowing piglets already represented by a linked batch', () => {
+    const cycle = {id: 'cycle-farrow-feed', group: '3', exposureStart: '2026-01-01'};
+    const out = pigDailyBurnLbs(TODAY, {
+      feederGroups: [
+        {
+          id: 'farrowing-cycle-cycle-farrow-feed',
+          batchName: 'P-27-01',
+          cycleId: cycle.id,
+          farmBorn: true,
+          status: 'active',
+          originalPigCount: 9,
+          giltCount: 0,
+          boarCount: 0,
+          subBatches: [],
+          processingTrips: [],
+          pigMortalities: [],
+        },
+      ],
+      breedingCycles: [cycle],
+      breeders: [],
+      farrowingRecs: [
+        {id: 'f1', group: '3', farrowingDate: '2026-04-27', alive: 9},
+        {id: 'f2', group: '3', farrowingDate: '2026-05-01', totalBorn: 10, deaths: 3},
+      ],
+    });
+
+    expect(out.feederLbs).toBe(9);
+    expect(out.sowLbs).toBe(30);
+    expect(out.farrowingPiglets).toBe(7);
+    expect(out.farrowingPigletLbs).toBe(7);
+    expect(out.totalLbs).toBe(46);
   });
 
   it('zero out when no feeders, no sows, no boars', () => {

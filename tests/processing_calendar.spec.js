@@ -6,7 +6,7 @@
 // subtasks render, and the completion gate is visible (Mark complete disabled
 // while a processor is missing + a subtask is open). The RPC round-trip
 // (set processor -> mark complete) is proven separately in
-// scripts/apply_test_mig_155.cjs; this spec proves the UI layer.
+// scripts/apply_test_mig_156.cjs; this spec proves the UI layer.
 import {test, expect} from './fixtures.js';
 
 const BATCH_ID = 'ptest-batch-1';

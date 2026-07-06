@@ -41,6 +41,8 @@ const mig149Code = mig149.replace(/--[^\n]*/g, '');
 const mig150 = read('supabase-migrations/150_pasture_map_open_line_edit.sql');
 const mig150Code = mig150.replace(/--[^\n]*/g, '');
 const mig152 = read('supabase-migrations/152_pasture_map_manager_hard_delete.sql');
+const mig155 = read('supabase-migrations/155_pasture_map_departure_overlap_rest.sql');
+const mig155Code = mig155.replace(/--[^\n]*/g, '');
 const mainSrc = read('src/main.jsx');
 const homeSrc = read('src/dashboard/HomeDashboard.jsx');
 const plannerIconsSrc = read('src/lib/plannerIcons.js');
@@ -2114,6 +2116,24 @@ describe('Pasture Map: per-entry grazing delete + parent-from-child coloring (mi
     expect(mig149Code).toContain("'rest_state', v_rest_state");
     expect(mig149Code).toContain("'last_touched_at', v_last_touch");
     expect(mig149Code).toContain("'last_moved_out_at', v_last_departure");
+  });
+
+  it('mig 155 lets a same-move departure beat overlap so departed areas rest', () => {
+    expect(mig155Code).toContain('CREATE OR REPLACE FUNCTION public._land_area_summary');
+    expect(mig155Code).toContain('CREATE OR REPLACE FUNCTION public._land_area_is_occupied');
+    // Occupancy: ignore overlap impacts when that same move also departed the
+    // same area. This is the FP4D2 case (from FP4D2 -> FP4D1, with FP4D1
+    // geometry overlapping FP4D2).
+    expect(mig155Code).toMatch(
+      /i\.impact_kind = 'overlap'[\s\S]*?d\.move_id = i\.move_id[\s\S]*?d\.land_area_id = i\.land_area_id[\s\S]*?d\.impact_kind = 'departure'/,
+    );
+    // Resting still derives from the departure, so the row becomes resting
+    // instead of occupied/no-history.
+    expect(mig155Code).toMatch(/v_last_departure IS NOT NULL[\s\S]*?v_rest_state := CASE/);
+    expect(mig155Code).toContain("'current_occupants', v_current");
+    expect(mig155Code).toContain("'current_occupancy_count', v_current_count");
+    expect(mig155Code).toContain("'rest_days', v_rest_days");
+    expect(mig155Code).toContain("'rest_state', v_rest_state");
   });
 
   it('mig 150 update_land_area_track reshapes a saved line in place (mgmt/admin, line-only)', () => {

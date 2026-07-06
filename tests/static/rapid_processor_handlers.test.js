@@ -69,7 +69,7 @@ describe('rapid-processor.ts — account emails use noreply and admin-created us
   const userWelcomeIdx = code.indexOf("if (type === 'user_welcome')");
   const userWelcomeSlice = userWelcomeIdx >= 0 ? code.slice(userWelcomeIdx, userWelcomeIdx + 1600) : '';
   const passwordResetIdx = code.indexOf("if (type === 'password_reset')");
-  const passwordResetSlice = passwordResetIdx >= 0 ? code.slice(passwordResetIdx, passwordResetIdx + 1600) : '';
+  const passwordResetSlice = passwordResetIdx >= 0 ? code.slice(passwordResetIdx, passwordResetIdx + 5200) : '';
   const eggReportIdx = code.indexOf("if (type === 'egg_report')");
   const eggReportSlice = eggReportIdx >= 0 ? code.slice(eggReportIdx, eggReportIdx + 1200) : '';
   const starterFeedIdx = code.indexOf("if (type === 'starter_feed_check')");
@@ -108,6 +108,19 @@ describe('rapid-processor.ts — account emails use noreply and admin-created us
     expect(userCreateSlice).toMatch(/from:\s*AUTH_FROM/);
     expect(userWelcomeSlice).toMatch(/from:\s*AUTH_FROM/);
     expect(passwordResetSlice).toMatch(/from:\s*AUTH_FROM/);
+  });
+
+  it('password_reset labels account/config/send failures instead of throwing a generic 500', () => {
+    expect(passwordResetSlice).toMatch(/missingEnv\.push\('SUPABASE_URL'\)/);
+    expect(passwordResetSlice).toMatch(/missingEnv\.push\('SUPABASE_SERVICE_ROLE_KEY'\)/);
+    expect(passwordResetSlice).toMatch(/missingEnv\.push\('RESEND_API_KEY'\)/);
+    expect(passwordResetSlice).toMatch(
+      /const email = String\(data\?\.email \|\| ''\)[\s\S]*?\.trim\(\)[\s\S]*?\.toLowerCase\(\)/,
+    );
+    expect(passwordResetSlice).toMatch(/No WCF Planner account was found for that email/);
+    expect(passwordResetSlice).toMatch(/step:\s*'generateLink'/);
+    expect(passwordResetSlice).toMatch(/step:\s*'sendEmail'/);
+    expect(passwordResetSlice).toMatch(/Resend timed out after 10s/);
   });
 
   it('operational report emails stay on reports@', () => {

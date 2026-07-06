@@ -1,8 +1,8 @@
 // ============================================================================
-// src/lib/processingApi.js  —  Processing Calendar client API (mig 155)
+// src/lib/processingApi.js  —  Processing Calendar client API (mig 156)
 // ----------------------------------------------------------------------------
 // Thin async wrappers over the SECURITY DEFINER RPCs from
-// supabase-migrations/155_processing_calendar.sql. This module is the ONLY
+// supabase-migrations/156_processing_calendar.sql. This module is the ONLY
 // client path into the Processing domain: every processing_* table is deny-all
 // RLS (service_role reaches them via BYPASSRLS), so clients NEVER .from() them —
 // reads and writes both route through these RPCs.

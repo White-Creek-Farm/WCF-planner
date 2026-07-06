@@ -17,7 +17,7 @@ const SHAPE = 'supabase/functions/_shared/processingAsanaShape.js';
 const edgeFn = fs.readFileSync(path.join(ROOT, EDGE_FN), 'utf8');
 const shapeSrc = fs.readFileSync(path.join(ROOT, SHAPE), 'utf8');
 const processingApi = fs.readFileSync(path.join(ROOT, 'src/lib/processingApi.js'), 'utf8');
-const mig = fs.readFileSync(path.join(ROOT, 'supabase-migrations/155_processing_calendar.sql'), 'utf8');
+const mig = fs.readFileSync(path.join(ROOT, 'supabase-migrations/156_processing_calendar.sql'), 'utf8');
 
 // Walk src/ and collect every text-ish source file so we can prove a secret
 // name is absent from the ENTIRE client bundle, not just a hand-picked file.
@@ -83,7 +83,7 @@ describe('processing-asana — edge fn never raw-writes source tables', () => {
     expect(edgeFn).not.toMatch(/svc\.from\([^)]*\)\.(insert|update|upsert|delete)\(/);
   });
 
-  it('routes every write through the mig-155 importer service_role RPCs', () => {
+  it('routes every write through the mig-156 importer service_role RPCs', () => {
     for (const rpc of IMPORTER_RPCS) {
       expect(edgeFn, `edge fn does not call svc.rpc('${rpc}')`).toContain(`svc.rpc('${rpc}'`);
     }

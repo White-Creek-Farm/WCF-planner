@@ -38,9 +38,10 @@ export function ymFromDate(date = new Date()) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
-// The feed-order board is calendar-pinned, not "first unsaved".
-// Example: any day in Jun 2026 shows the Jul 2026 order card. Saving Jul
-// never advances the board to Aug; the calendar flipping to Jul does.
+// The feed-order board is pinned to the current calendar month, not "next
+// month" or "first unsaved".
+// Example: any day in Jul 2026 shows the Jul 2026 order card. Saving Jul
+// does not hide it; the card stays editable until the calendar flips to Aug.
 export function calendarOrderYM(today = new Date()) {
-  return addMonthsYM(ymFromDate(today), 1);
+  return ymFromDate(today);
 }

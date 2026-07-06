@@ -64,18 +64,18 @@ describe('recommendedFeedOrder — basis selection + clamping', () => {
 });
 
 describe('calendarOrderYM', () => {
-  it('pins every day in June 2026 to the July 2026 order month', () => {
-    expect(calendarOrderYM(new Date(2026, 5, 1))).toBe('2026-07');
-    expect(calendarOrderYM(new Date(2026, 5, 15))).toBe('2026-07');
-    expect(calendarOrderYM(new Date(2026, 5, 30))).toBe('2026-07');
+  it('pins every day in July 2026 to the July 2026 order month', () => {
+    expect(calendarOrderYM(new Date(2026, 6, 1))).toBe('2026-07');
+    expect(calendarOrderYM(new Date(2026, 6, 15))).toBe('2026-07');
+    expect(calendarOrderYM(new Date(2026, 6, 31))).toBe('2026-07');
   });
 
   it('advances only when the calendar month flips', () => {
-    expect(calendarOrderYM(new Date(2026, 6, 1))).toBe('2026-08');
+    expect(calendarOrderYM(new Date(2026, 7, 1))).toBe('2026-08');
   });
 
   it('handles year rollover', () => {
-    expect(calendarOrderYM(new Date(2026, 11, 15))).toBe('2027-01');
+    expect(calendarOrderYM(new Date(2026, 11, 15))).toBe('2026-12');
     expect(addMonthsYM('2026-12', 1)).toBe('2027-01');
     expect(ymFromDate(new Date(2026, 11, 15))).toBe('2026-12');
   });

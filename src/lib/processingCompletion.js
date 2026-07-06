@@ -2,7 +2,7 @@
 // src/lib/processingCompletion.js  —  client mirror of the completion gate
 // ----------------------------------------------------------------------------
 // Pure client-side mirror of the server completion gate
-// (_processing_completion_blockers in supabase-migrations/155_processing_calendar.sql)
+// (_processing_completion_blockers in supabase-migrations/156_processing_calendar.sql)
 // so the UI can show "why can't I complete this yet" instantly — enable/disable
 // the Complete button, list the outstanding requirements — WITHOUT a round-trip.
 //
