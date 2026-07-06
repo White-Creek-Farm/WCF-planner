@@ -770,26 +770,105 @@ serve(async (req) => {
 
     // ─── PASSWORD RESET — admin triggered or user forgot ───
     if (type === 'password_reset') {
-      if (!data.email) throw new Error('email required');
-      const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      const {data: linkData, error: linkError} = await admin.auth.admin.generateLink({
-        type: 'recovery',
-        email: data.email,
-        options: {redirectTo: 'https://wcfplanner.com'},
-      });
-      if (linkError) throw new Error(linkError.message);
-      const resetLink = linkData.properties?.action_link || 'https://wcfplanner.com';
+      const missingEnv: string[] = [];
+      if (!SUPABASE_URL) missingEnv.push('SUPABASE_URL');
+      if (!SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
+      if (!RESEND_API_KEY) missingEnv.push('RESEND_API_KEY');
+      if (missingEnv.length > 0) {
+        return new Response(JSON.stringify({error: `config: missing env ${missingEnv.join(', ')}`, step: 'config'}), {
+          status: 500,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
 
-      const res = await sendEmail({
-        from: AUTH_FROM,
-        to: test_to ? [test_to] : [data.email],
-        subject: test_to ? `[TEST] Reset your WCF Planner password` : `Reset your WCF Planner password`,
-        html: passwordResetHtml(data.name || '', resetLink, !!test_to),
-      });
-      const result = await res.json();
-      return new Response(JSON.stringify({ok: true, result}), {
-        headers: {...corsHeaders, 'Content-Type': 'application/json'},
-      });
+      const email = String(data?.email || '')
+        .trim()
+        .toLowerCase();
+      const name = String(data?.name || '').trim();
+      if (!email) {
+        return new Response(JSON.stringify({error: 'email required', step: 'input'}), {
+          status: 400,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+
+      const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      let resetLink = 'https://wcfplanner.com';
+      try {
+        const {data: linkData, error: linkError} = await admin.auth.admin.generateLink({
+          type: 'recovery',
+          email,
+          options: {redirectTo: 'https://wcfplanner.com'},
+        });
+        if (linkError) throw new Error(linkError.message || String(linkError));
+        resetLink = linkData.properties?.action_link || resetLink;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const lower = msg.toLowerCase();
+        const missingAccount =
+          lower.includes('user not found') || lower.includes('not found') || lower.includes('does not exist');
+        return new Response(
+          JSON.stringify({
+            error: missingAccount
+              ? 'No WCF Planner account was found for that email. Use the email your account was created with, or ask an admin to send a reset.'
+              : `generateLink: ${msg}`,
+            step: 'generateLink',
+          }),
+          {status: missingAccount ? 404 : 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            from: AUTH_FROM,
+            to: test_to ? [test_to] : [email],
+            subject: test_to ? `[TEST] Reset your WCF Planner password` : `Reset your WCF Planner password`,
+            html: passwordResetHtml(name, resetLink, !!test_to),
+          }),
+          signal: controller.signal,
+        });
+        const bodyText = await res.text();
+        let result: Record<string, unknown> | string | null = null;
+        try {
+          result = bodyText ? JSON.parse(bodyText) : null;
+        } catch (_jsonErr) {
+          result = bodyText;
+        }
+        if (!res.ok) {
+          const parsedMsg =
+            (result && typeof result === 'object' && typeof result.message === 'string' && result.message) ||
+            (result && typeof result === 'object' && typeof result.error === 'string' && result.error) ||
+            (typeof result === 'string' && result) ||
+            `HTTP ${res.status}`;
+          return new Response(
+            JSON.stringify({error: `sendEmail: Resend ${res.status}: ${parsedMsg}`, step: 'sendEmail'}),
+            {
+              status: 502,
+              headers: {...corsHeaders, 'Content-Type': 'application/json'},
+            },
+          );
+        }
+        return new Response(JSON.stringify({ok: true, result}), {
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      } catch (e) {
+        const isAbort = e instanceof Error && e.name === 'AbortError';
+        const msg = isAbort
+          ? 'Resend timed out after 10s'
+          : `Resend fetch failed: ${e instanceof Error ? e.message : String(e)}`;
+        return new Response(JSON.stringify({error: `sendEmail: ${msg}`, step: 'sendEmail'}), {
+          status: 502,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
     }
 
     // ─── USER DELETE — admin hard-deletes an auth account ───

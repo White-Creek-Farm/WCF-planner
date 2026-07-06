@@ -6,6 +6,15 @@
 // ============================================================================
 import React, {useState} from 'react';
 import {sb} from '../lib/supabase.js';
+import {unwrapEdgeFunctionError} from '../lib/edgeErrors.js';
+
+function signInErrorMessage(message) {
+  if (/invalid login credentials/i.test(message || '')) {
+    return 'Invalid email or password. Use the email your WCF Planner account was created with.';
+  }
+  return message || 'Could not sign in. Please try again.';
+}
+
 function LoginScreen({onLogin}) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,9 +27,9 @@ function LoginScreen({onLogin}) {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const {error} = await sb.auth.signInWithPassword({email, password});
+    const {error} = await sb.auth.signInWithPassword({email: email.trim(), password});
     if (error) {
-      setError(error.message);
+      setError(signInErrorMessage(error.message));
       setLoading(false);
     }
   }
@@ -32,12 +41,13 @@ function LoginScreen({onLogin}) {
     try {
       // Use our branded email via edge function instead of Supabase's default
       const {error: fnError} = await sb.functions.invoke('rapid-processor', {
-        body: {type: 'password_reset', data: {email: email}},
+        body: {type: 'password_reset', data: {email: email.trim()}},
       });
       if (fnError) throw fnError;
       setResetSent(true);
     } catch (err) {
-      setError(err.message || 'Could not send reset email. Please try again.');
+      const msg = await unwrapEdgeFunctionError(err);
+      setError(msg || 'Could not send reset email. Please try again.');
     }
     setLoading(false);
   }
@@ -117,7 +127,11 @@ function LoginScreen({onLogin}) {
             </button>
             <button
               type="button"
-              onClick={() => setMode('reset')}
+              onClick={() => {
+                setError('');
+                setResetSent(false);
+                setMode('reset');
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -139,7 +153,9 @@ function LoginScreen({onLogin}) {
               </div>
             ) : (
               <>
-                <div style={{fontSize: 13, color: '#4b5563'}}>Enter your email and we'll send a reset link.</div>
+                <div style={{fontSize: 13, color: '#4b5563'}}>
+                  Enter your WCF Planner account email and we'll send a reset link.
+                </div>
                 <input
                   type="email"
                   value={email}
@@ -182,6 +198,7 @@ function LoginScreen({onLogin}) {
             <button
               type="button"
               onClick={() => {
+                setError('');
                 setMode('login');
                 setResetSent(false);
               }}
