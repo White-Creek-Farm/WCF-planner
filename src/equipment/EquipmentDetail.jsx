@@ -32,9 +32,21 @@ import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx
 import {RecordPageBody, RecordTitle} from '../shared/RecordPageShell.jsx';
 import {LockedTeamMemberField, recordControl, recordTextarea} from '../shared/recordPageControls.jsx';
 import {runMutation, recordStatusChange, recordActivityEvent} from '../lib/entityMutations.js';
+import {buildChanges} from '../lib/activityChangeDiff.js';
 import {fleetFuelingEntryPath, fleetChecklistEntryPath} from '../lib/routes.js';
 import {deleteEquipmentFueling, deleteEquipmentMaintenanceEvent} from '../lib/equipmentLogDeleteApi.js';
 import {imageAltText} from '../lib/imageAlt.js';
+
+// Human labels for the fueling-row fields the inline editor auto-saves. Drives
+// the best-effort field.updated Activity diff (edit_fueling_field).
+const FUELING_FIELD_LABELS = {
+  date: 'Date',
+  gallons: 'Gallons',
+  def_gallons: 'DEF gallons',
+  hours_reading: 'Hours',
+  km_reading: 'KM',
+  comments: 'Comments',
+};
 
 export default function EquipmentDetail({
   sb,
@@ -278,6 +290,12 @@ export default function EquipmentDetail({
   // and editing independently.
   const fuelingTimers = React.useRef({});
   const pendingFuelingSaves = React.useRef({});
+  // Per-(fuelingId:field) Activity baseline for the inline fueling editor.
+  // Captures the pre-edit durable value on the FIRST queued edit of a session
+  // and the latest saved value after each persist, so the emit (on blur / field-
+  // close / autosave flush) logs ONE net field.updated per session — never one
+  // per 800ms debounce tick. Shape: { [key]: {fuelingId, field, before, latest} }.
+  const fuelingActivityBaselineRef = React.useRef({});
   async function syncCurrentReadingFromFuelings() {
     const currentField = eq.tracking_unit === 'km' ? 'current_km' : 'current_hours';
     const {data, error} = await sb
@@ -312,10 +330,60 @@ export default function EquipmentDetail({
       setNotice({kind: 'error', message: 'Save failed: ' + error.message});
       return false;
     }
+    // Persist-only: record the latest durable value for this (fueling, field) so
+    // the blur/close/flush emit can diff it against the session baseline. This
+    // path deliberately does NOT emit Activity — a slow multi-pause edit fires
+    // the 800ms debounce (and this function) several times, so emitting here
+    // would log one row per tick. See emitFuelingFieldActivity.
+    const key = fuelingSaveKey(fuelingId, field);
+    if (fuelingActivityBaselineRef.current[key]) fuelingActivityBaselineRef.current[key].latest = next;
     const readingField = eq.tracking_unit === 'km' ? 'km_reading' : 'hours_reading';
     if (field === readingField) await syncCurrentReadingFromFuelings();
     onReload();
     return true;
+  }
+
+  // Emit ONE best-effort equipment.item field.updated for a completed fueling-
+  // field edit session (blur / field-close / autosave flush). Diffs the captured
+  // session baseline against the latest durably-saved value; an unchanged (or
+  // never-saved) session emits nothing. Clears the baseline afterward either way.
+  // Never blocks. The current-reading resync in patchFuelingField is a derived
+  // equipment side-effect, NOT a separate user edit, so it is not audited here.
+  function emitFuelingFieldActivity(key) {
+    const base = fuelingActivityBaselineRef.current[key];
+    if (!base) return;
+    delete fuelingActivityBaselineRef.current[key];
+    if (base.latest === undefined) return; // nothing durably saved this session
+    try {
+      const changes = buildChanges(
+        {[base.field]: base.before},
+        {[base.field]: base.latest},
+        {
+          labels: FUELING_FIELD_LABELS,
+        },
+      );
+      if (changes.length === 0) return;
+      const row = (fuelings || []).find((x) => x.id === base.fuelingId) || null;
+      recordActivityEvent(sb, {
+        entityType: 'equipment.item',
+        entityId: eq.id,
+        eventType: 'field.updated',
+        entityLabel: eq.name || eq.id,
+        body:
+          'Edited fueling entry' +
+          (row && row.date ? ' (' + fmt(row.date) + ')' : '') +
+          ': ' +
+          (FUELING_FIELD_LABELS[base.field] || base.field),
+        payload: {
+          record: 'equipment.fueling',
+          action: 'edit_fueling_field',
+          fueling_id: base.fuelingId,
+          changes,
+        },
+      }).catch(() => {});
+    } catch (_e) {
+      /* best-effort audit trail; the fueling field is already saved */
+    }
   }
 
   async function flushFuelingSave(key) {
@@ -330,8 +398,16 @@ export default function EquipmentDetail({
     return ok;
   }
 
-  function flushFuelingFieldSave(fuelingId, field) {
-    return flushFuelingSave(fuelingSaveKey(fuelingId, field));
+  // Field close (blur): flush any pending save, then emit the ONE session summary
+  // for this (fueling, field). This — not the debounce — owns the Activity emit.
+  async function flushFuelingFieldSave(fuelingId, field) {
+    const key = fuelingSaveKey(fuelingId, field);
+    const ok = await flushFuelingSave(key);
+    // Emit/clear the baseline ONLY after a durable flush. On failure the pending
+    // save stays queued (flushFuelingSave kept it), so keep the baseline intact
+    // for the next retry instead of emitting + clearing it here.
+    if (ok) emitFuelingFieldActivity(key);
+    return ok;
   }
 
   async function flushAllEquipmentAutosaves() {
@@ -341,6 +417,13 @@ export default function EquipmentDetail({
       ...fieldKeys.map((field) => flushFieldSave(field)),
       ...fuelingKeys.map((key) => flushFuelingSave(key)),
     ]);
+    // Emit one summary per fueling-field session whose save is durably complete
+    // (no longer pending after the flush). A save that FAILED stays queued in
+    // pendingFuelingSaves for the next retry — leave its baseline intact so the
+    // emit isn't lost.
+    for (const key of Object.keys(fuelingActivityBaselineRef.current)) {
+      if (!(key in pendingFuelingSaves.current)) emitFuelingFieldActivity(key);
+    }
     return results.every(Boolean);
   }
 
@@ -372,6 +455,18 @@ export default function EquipmentDetail({
   function queueFuelingSave(fuelingId, field, rawValue, parser) {
     setNotice(null);
     const key = fuelingSaveKey(fuelingId, field);
+    // Capture the stable pre-edit durable baseline once per (fueling, field)
+    // session. The debounce below persists; the Activity summary is emitted on
+    // blur/close/flush, diffing this baseline against the final saved value.
+    if (!(key in fuelingActivityBaselineRef.current)) {
+      const before = (fuelings || []).find((x) => x.id === fuelingId) || null;
+      fuelingActivityBaselineRef.current[key] = {
+        fuelingId,
+        field,
+        before: before ? before[field] : undefined,
+        latest: undefined,
+      };
+    }
     if (fuelingTimers.current[key]) clearTimeout(fuelingTimers.current[key]);
     pendingFuelingSaves.current[key] = {fuelingId, field, rawValue, parser};
     fuelingTimers.current[key] = setTimeout(async () => {

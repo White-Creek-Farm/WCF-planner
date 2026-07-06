@@ -11,6 +11,8 @@ import {S, getReadableText} from '../lib/styles.js';
 import {calcBreedingTimeline, buildCycleSeqMap, cycleLabel, PIG_GROUPS} from '../lib/pig.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 import {matchCycleForFarrowing, ensureFarrowBatchForCycle} from '../lib/pigFarrowBatch.js';
+import {buildChanges} from '../lib/activityChangeDiff.js';
+import {recordActivityEvent} from '../lib/entityMutations.js';
 import UsersModal from '../auth/UsersModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -21,6 +23,28 @@ import Badge from '../shared/Badge.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
+
+// Farrowing records live in app_store JSON, not a relational table, so there is
+// no SECDEF delete RPC. Their lifecycle is audited best-effort against the
+// matched breeding pig (pig.breeder) — the same entity SowsView owns — because
+// there is intentionally no pig.farrowing entity. `record: 'pig.farrowing'` is a
+// payload discriminator only, never an entity_type.
+const BREEDING_PIG_ENTITY_TYPE = 'pig.breeder';
+const FARROWING_ACTIVITY_LABELS = {
+  sow: 'Sow',
+  group: 'Group',
+  farrowingDate: 'Farrowing date',
+  exposureStart: 'Exposure start',
+  sire: 'Sire',
+  motheringQuality: 'Mothering quality',
+  demeanor: 'Demeanor',
+  totalBorn: 'Total born',
+  deaths: 'Deaths',
+  location: 'Location',
+  wentWell: 'What went well',
+  didntGoWell: "What didn't go well",
+  defects: 'Deaths / defects',
+};
 
 export default function FarrowingView({
   Header,
@@ -33,6 +57,7 @@ export default function FarrowingView({
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {
     breedingCycles,
+    breeders,
     feederGroups,
     farrowingRecs,
     setFarrowingRecs,
@@ -80,12 +105,59 @@ export default function FarrowingView({
     defects: '',
   };
 
+  // ── Best-effort farrowing → pig.breeder Activity ──────────────────────────
+  // Match a farrowing record's sow tag to a registered breeding pig so the
+  // audit lands on the existing pig.breeder entity (SowsView owns it). Tag
+  // equality mirrors sowFarrowStats in SowsView.
+  function matchBreederForSow(sow) {
+    const tag = String(sow == null ? '' : sow).trim();
+    if (!tag) return null;
+    return (breeders || []).find((b) => String(b && b.tag != null ? b.tag : '').trim() === tag) || null;
+  }
+  function breederEntityLabel(b) {
+    return b && b.tag ? '#' + b.tag : (b && b.id) || 'Breeding pig';
+  }
+  // Log a farrowing lifecycle event on the MATCHED breeding pig. Scoped to
+  // pig.breeder (entity_id = breeder.id); if no breeder matches the sow tag we
+  // skip the emit rather than writing to an invalid entity id. Always
+  // best-effort (try/catch + swallowed reject) — never blocks the save/delete.
+  function recordFarrowingActivity(rec, eventType, changes) {
+    const breeder = matchBreederForSow(rec && rec.sow);
+    if (!breeder) return;
+    const label = breederEntityLabel(breeder);
+    const totalBorn = parseInt(rec.totalBorn) || 0;
+    const deaths = parseInt(rec.deaths) || 0;
+    const verb = eventType === 'record.created' ? 'Added' : eventType === 'record.deleted' ? 'Deleted' : 'Updated';
+    try {
+      recordActivityEvent(sb, {
+        entityType: BREEDING_PIG_ENTITY_TYPE,
+        entityId: breeder.id,
+        entityLabel: label,
+        eventType,
+        body: verb + ' farrowing record for ' + label + (rec.farrowingDate ? ' · ' + fmt(rec.farrowingDate) : ''),
+        payload: {
+          record: 'pig.farrowing',
+          sow: rec.sow,
+          group: rec.group || null,
+          farrowingDate: rec.farrowingDate || null,
+          totalBorn,
+          deaths,
+          alive: totalBorn - deaths,
+          ...(changes && changes.length ? {changes} : {}),
+        },
+      }).catch(() => {});
+    } catch (_e) {
+      /* best-effort audit trail; farrowing persistence remains canonical */
+    }
+  }
+
   function saveFarrowForm() {
     setNotice(null);
     if (!farrowForm.sow) {
       setNotice({kind: 'error', message: 'Please enter a sow number.'});
       return;
     }
+    const existing = editFarrowId ? farrowingRecs.find((r) => r.id === editFarrowId) || null : null;
     const rec = {
       id: editFarrowId || String(Date.now()),
       ...farrowForm,
@@ -95,6 +167,14 @@ export default function FarrowingView({
     nb.sort((a, b) => b.farrowingDate.localeCompare(a.farrowingDate));
     setFarrowingRecs(nb);
     persistFarrowing(nb);
+    // Best-effort pig.breeder audit for the farrowing lifecycle (create + edit).
+    // Logged AFTER persistFarrowing; a no-op edit (no field changes) is skipped.
+    if (existing) {
+      const changes = buildChanges(existing, rec, {exclude: ['id', 'alive'], labels: FARROWING_ACTIVITY_LABELS});
+      if (changes.length > 0) recordFarrowingActivity(rec, 'field.updated', changes);
+    } else {
+      recordFarrowingActivity(rec, 'record.created');
+    }
     // Farm-born batch creation: ensure exactly one feeder group exists for this
     // record's breeding cycle. Create-only + idempotent — existing/manual linked
     // batches are reused untouched; deleting/editing-away never removes a batch.
@@ -749,11 +829,16 @@ export default function FarrowingView({
                 <button
                   onClick={() => {
                     confirmDelete('Delete this farrowing record? This cannot be undone.', () => {
+                      // Snapshot the record BEFORE the filter for the best-effort
+                      // pig.breeder record.deleted emit below.
+                      const deleted = farrowingRecs.find((r) => r.id === editFarrowId) || null;
                       const nb = farrowingRecs.filter((r) => r.id !== editFarrowId);
                       setFarrowingRecs(nb);
                       persistFarrowing(nb);
                       setShowFarrowForm(false);
                       setEditFarrowId(null);
+                      // Best-effort pig.breeder record.deleted on the matched sow.
+                      if (deleted) recordFarrowingActivity(deleted, 'record.deleted');
                     });
                   }}
                   style={S.btnDanger}

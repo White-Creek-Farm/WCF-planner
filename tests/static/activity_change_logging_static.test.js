@@ -591,15 +591,217 @@ describe('Activity change logging - PR2A best-effort logging additions', () => {
     expect(pigSubBatches).toMatch(/recordActivityEvent[\s\S]*?\}\)\.catch\(\(\) => \{\}\)/);
   });
 
-  it('PR2A-deferred whole-file sites carry NO emit (revisit in a follow-up)', () => {
-    // FarrowingView: a farrowing-delete has no registered activity entity (like
-    // the gated pig.breeding item) — needs an entity decision.
-    expect(read('src/pig/FarrowingView.jsx')).not.toContain('recordActivityEvent');
-    // FuelBillsView: a fuel bill's id is not an equipment id, so equipment.item
-    // entity-scoping for the create needs verification vs delete_fuel_bill.
-    expect(read('src/admin/FuelBillsView.jsx')).not.toContain('recordActivityEvent');
+  it('PR2B closed the deferred sites — FarrowingView + FuelBillsView now emit best-effort', () => {
+    // Formerly deferred in PR2A; PR2B added the scoped emits (see the PR2B
+    // describe below for the full behavior locks).
+    expect(read('src/pig/FarrowingView.jsx')).toContain('recordActivityEvent');
+    expect(read('src/admin/FuelBillsView.jsx')).toContain('recordActivityEvent');
     // EquipmentWebformsAdmin documents stay unaudited (ratified exclusion — see the
     // 'does not log documents' test above).
     expect(eqAdmin).not.toContain("field: 'documents'");
+  });
+});
+
+describe('Activity change logging - PR2B (autosave low-noise, farrowing scoping, fuel-bill entity)', () => {
+  const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+  const pigBatches = read('src/pig/PigBatchesView.jsx');
+  const eqDetail = read('src/equipment/EquipmentDetail.jsx');
+  const farrowing = read('src/pig/FarrowingView.jsx');
+  const fuelBills = read('src/admin/FuelBillsView.jsx');
+  const registry = read('src/lib/activityRegistry.js');
+  const activityLogView = read('src/activity/ActivityLogView.jsx');
+  const mig154 = read('supabase-migrations/154_fuel_bill_activity_entity.sql');
+  const mig107 = read('supabase-migrations/107_delete_fuel_bill_rpc.sql');
+
+  // ── 1. Pig batch parent autosave — ONE summary on close, stable baseline ──
+  describe('pig batch parent autosave (low-noise, stable-baseline diff)', () => {
+    it('imports buildChanges and keeps a baseline ref separate from originalFeederForm', () => {
+      expect(pigBatches).toContain("import {buildChanges} from '../lib/activityChangeDiff.js'");
+      // The stable baseline is NOT originalFeederForm (which the debounce rewrites).
+      expect(pigBatches).toContain('feederActivityBaselineRef');
+    });
+
+    it('updFeeder does NOT emit per debounce tick — it only captures the baseline', () => {
+      const fn = pigBatches.match(/function updFeeder\(k, v\)[\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).not.toContain('recordActivityEvent');
+      // Baseline captured once, guarded by id so it survives every tick.
+      expect(fn[0]).toContain('feederActivityBaselineRef');
+      // Autosave timing preserved (1.5s debounce).
+      expect(fn[0]).toContain('1500');
+    });
+
+    it('closeFeederForm emits ONE best-effort pig.batch field.updated via buildChanges', () => {
+      const fn = pigBatches.match(/function closeFeederForm\(\)[\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).toContain("entityType: 'pig.batch'");
+      expect(fn[0]).toContain("eventType: 'field.updated'");
+      expect(fn[0]).toContain('buildChanges(');
+      expect(fn[0]).toContain("action: 'edit_batch_fields'");
+      // Skips a no-op close and stays best-effort (swallowed reject).
+      expect(fn[0]).toContain('if (changes.length > 0)');
+      expect(fn[0]).toMatch(/recordActivityEvent[\s\S]*?\}\)\.catch\(\(\) => \{\}\)/);
+      // Close-before-1.5s + partition-dirty flush behavior preserved.
+      expect(fn[0]).toContain('partitionDirtyRef.current');
+    });
+  });
+
+  // ── 2. Equipment fueling autosave — ONE summary per field session ──
+  // The emit must NOT live in the 800ms debounce target (patchFuelingField); a
+  // slow multi-pause edit fires that several times. Baseline captured on queue,
+  // persisted per tick, emitted once on blur/close/flush.
+  describe('equipment fueling autosave (one summary per session, no debounce-tick rows)', () => {
+    it('imports buildChanges and keeps a per-field Activity baseline ref', () => {
+      expect(eqDetail).toContain("import {buildChanges} from '../lib/activityChangeDiff.js'");
+      expect(eqDetail).toContain('fuelingActivityBaselineRef');
+    });
+
+    it('patchFuelingField (the 800ms debounce target) PERSISTS only — it does NOT emit Activity', () => {
+      const fn = eqDetail.match(/async function patchFuelingField\([\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).not.toContain('recordActivityEvent');
+      // It only records the latest durable value for the close/flush emit to diff.
+      expect(fn[0]).toContain('fuelingActivityBaselineRef.current[key].latest = next');
+    });
+
+    it('queueFuelingSave captures the pre-edit baseline once per (fueling, field) session', () => {
+      const fn = eqDetail.match(/function queueFuelingSave\([\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).toContain('fuelingActivityBaselineRef');
+      expect(fn[0]).not.toContain('recordActivityEvent');
+    });
+
+    it('the close/flush path owns the ONE equipment.item field.updated emit (edit_fueling_field)', () => {
+      const fn = eqDetail.match(/function emitFuelingFieldActivity\([\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).toContain("entityType: 'equipment.item'");
+      expect(fn[0]).toContain("record: 'equipment.fueling'");
+      expect(fn[0]).toContain("action: 'edit_fueling_field'");
+      expect(fn[0]).toContain('fueling_id: base.fuelingId');
+      // Diffs baseline -> latest; unchanged / never-saved sessions emit nothing.
+      expect(fn[0]).toContain('buildChanges(');
+      expect(fn[0]).toContain('if (changes.length === 0) return');
+      expect(fn[0]).toContain('if (base.latest === undefined) return');
+      expect(fn[0]).toMatch(/recordActivityEvent[\s\S]*?\}\)\.catch\(\(\) => \{\}\)/);
+    });
+
+    it('emit/clear happens ONLY after a durable flush — failed/pending saves keep their baseline for retry', () => {
+      const blur = eqDetail.match(/async function flushFuelingFieldSave\([\s\S]*?\n {2}\}/);
+      expect(blur).not.toBeNull();
+      // Blur emits only when the flush succeeded (ok); a failed flush leaves the
+      // pending save + baseline untouched for the next retry.
+      expect(blur[0]).toContain('if (ok) emitFuelingFieldActivity(key)');
+      const flushAll = eqDetail.match(/async function flushAllEquipmentAutosaves\([\s\S]*?\n {2}\}/);
+      expect(flushAll).not.toBeNull();
+      // Flush-all emits only baselines whose save is no longer pending (durably
+      // complete); a still-pending (failed) save keeps its baseline.
+      expect(flushAll[0]).toContain('emitFuelingFieldActivity(key)');
+      expect(flushAll[0]).toContain('!(key in pendingFuelingSaves.current)');
+    });
+
+    it('does NOT log the derived current-reading sync as a separate user edit', () => {
+      const fn = eqDetail.match(/async function syncCurrentReadingFromFuelings\([\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).not.toContain('recordActivityEvent');
+    });
+  });
+
+  // ── 3. Farrowing → pig.breeder scoping (create/edit/delete on matched sow) ──
+  describe('farrowing pig.breeder scoping', () => {
+    it('uses the existing pig.breeder entity and never invents pig.farrowing/pig.breeding', () => {
+      expect(farrowing).toContain("const BREEDING_PIG_ENTITY_TYPE = 'pig.breeder'");
+      // record: 'pig.farrowing' is a PAYLOAD discriminator only, never an entity_type.
+      expect(farrowing).toContain("record: 'pig.farrowing'");
+      expect(farrowing).not.toMatch(/entityType: 'pig\.farrowing'/);
+      expect(farrowing).not.toContain("'pig.breeding'");
+    });
+
+    it('scopes the emit to the matched breeder id and SKIPS when no breeder matches', () => {
+      const fn = farrowing.match(/function recordFarrowingActivity\([\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).toContain('matchBreederForSow(');
+      // No breeder match → skip (do not write to an invalid entity id).
+      expect(fn[0]).toContain('if (!breeder) return;');
+      expect(fn[0]).toContain('entityId: breeder.id');
+      expect(fn[0]).toMatch(/recordActivityEvent[\s\S]*?\}\)\.catch\(\(\) => \{\}\)/);
+    });
+
+    it('covers create, edit (diffed), and delete of a farrowing record', () => {
+      expect(farrowing).toContain("recordFarrowingActivity(rec, 'record.created')");
+      expect(farrowing).toContain("recordFarrowingActivity(rec, 'field.updated', changes)");
+      expect(farrowing).toContain("recordFarrowingActivity(deleted, 'record.deleted')");
+      // Edit path diffs the prior record so a no-op save logs nothing.
+      expect(farrowing).toContain('buildChanges(existing, rec');
+    });
+  });
+
+  // ── 4. Dedicated equipment.fuel_bill entity (registry + log + create + mig) ──
+  describe('equipment.fuel_bill Activity entity', () => {
+    it('registry registers equipment.fuel_bill with an intentionally inert route', () => {
+      expect(registry).toContain("EQUIPMENT_FUEL_BILL: 'equipment.fuel_bill'");
+      // route null on purpose — no per-bill record page / stable deep-link, and we
+      // must not fabricate a /fleet route that lands on the wrong surface.
+      expect(registry).toMatch(/EQUIPMENT_FUEL_BILL\]: \{[\s\S]*?route: null/);
+    });
+
+    it('Activity Log labels + filters recognize equipment.fuel_bill', () => {
+      expect(activityLogView).toContain("'equipment.fuel_bill': 'Fuel Bill'");
+      expect(activityLogView).toContain("{value: 'equipment.fuel_bill', label: 'Fuel Bill'}");
+    });
+
+    it('FuelBillsView emits record.created after the bill + lines save, past every rollback', () => {
+      expect(fuelBills).toContain("import {recordActivityEvent} from '../lib/activityApi.js'");
+      const fn = fuelBills.match(/async function save\(\)[\s\S]*?\n {2}\}/);
+      expect(fn).not.toBeNull();
+      expect(fn[0]).toContain("entityType: 'equipment.fuel_bill'");
+      expect(fn[0]).toContain("eventType: 'record.created'");
+      expect(fn[0]).toContain("action: 'create_fuel_bill'");
+      // Ordered AFTER the fuel_bill_lines insert (so a rolled-back save emits nothing).
+      expect(fn[0]).toMatch(/fuel_bill_lines'\)\.insert\(lineRows\)[\s\S]*?recordActivityEvent\(sb/);
+      expect(fn[0]).toMatch(/recordActivityEvent[\s\S]*?\}\)\.catch\(\(\) => \{\}\)/);
+    });
+
+    it('mig 154 adds an admin-only fuel_bill read branch with NO row-existence gate', () => {
+      expect(mig154).toMatch(/CREATE OR REPLACE FUNCTION public\._activity_can_read/);
+      expect(mig154).toMatch(/IF p_entity_type = 'equipment\.fuel_bill' THEN\s*\n\s*RETURN v_role = 'admin';/);
+      // Full re-issue preserves every existing branch (not a partial).
+      for (const t of [
+        'pig.breeder',
+        'todo.item',
+        'cattle.log',
+        'weighin.session',
+        'equipment.item',
+        'cattle.daily',
+        'cattle.forecast',
+      ]) {
+        expect(mig154, `mig 154 dropped the ${t} branch`).toContain(`'${t}'`);
+      }
+      expect(mig154).toMatch(/REVOKE ALL ON FUNCTION public\._activity_can_read\(text, text\) FROM PUBLIC, anon/);
+      expect(mig154).toMatch(/GRANT EXECUTE ON FUNCTION public\._activity_can_read\(text, text\) TO authenticated/);
+      expect(mig154).toMatch(/NOTIFY pgrst, 'reload schema'/);
+    });
+
+    it('mig 154 re-scopes delete_fuel_bill onto equipment.fuel_bill (not equipment.item)', () => {
+      const delFn = mig154.slice(mig154.indexOf('FUNCTION public.delete_fuel_bill'));
+      expect(delFn).toContain("'equipment.fuel_bill'");
+      expect(delFn).not.toContain("'equipment.item'");
+    });
+
+    it('mig 154 does NOT re-issue _activity_can_write (it delegates to _activity_can_read)', () => {
+      expect(mig154).not.toContain('CREATE OR REPLACE FUNCTION public._activity_can_write');
+    });
+
+    it('mig 107 is left untouched — it still emits equipment.item; the re-scope lives in 154', () => {
+      expect(mig107).toContain("'equipment.item'");
+      expect(mig107).not.toContain("'equipment.fuel_bill'");
+    });
+  });
+
+  // ── 5. No source file writes activity_events / activity_mentions directly ──
+  it('every PR2B source emits via the RPC layer, never .from(activity_events/mentions)', () => {
+    for (const src of [pigBatches, eqDetail, farrowing, fuelBills]) {
+      expect(src).not.toMatch(/\.from\(['"]activity_events['"]\)/);
+      expect(src).not.toMatch(/\.from\(['"]activity_mentions['"]\)/);
+    }
   });
 });

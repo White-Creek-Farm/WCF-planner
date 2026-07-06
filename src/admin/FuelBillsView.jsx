@@ -9,6 +9,7 @@ import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {openableProps} from '../shared/openable.js';
 import {deleteFuelBill} from '../lib/fuelBillDeleteApi.js';
+import {recordActivityEvent} from '../lib/activityApi.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import InlineNotice from '../shared/InlineNotice.jsx';
 
@@ -522,6 +523,33 @@ function BillUploadModal({onClose, onSaved}) {
         await rollback('Line items failed: ' + lErr.message);
         return;
       }
+    }
+
+    // Best-effort record.created on the admin-only equipment.fuel_bill entity
+    // (mig 154), placed AFTER the bill + lines commit and past every rollback
+    // return so a rolled-back save emits nothing. entity_id = the bill id
+    // (matches the delete tombstone). Never blocks the save.
+    const billLabel = parsed.header.invoice_number || parsed.header.supplier || id;
+    try {
+      recordActivityEvent(sb, {
+        entityType: 'equipment.fuel_bill',
+        entityId: id,
+        eventType: 'record.created',
+        entityLabel: billLabel,
+        body: 'Added fuel bill ' + billLabel + (parsed.header.delivery_date ? ' · ' + parsed.header.delivery_date : ''),
+        payload: {
+          entity_label: billLabel,
+          record: 'equipment.fuel_bill',
+          action: 'create_fuel_bill',
+          invoice_number: parsed.header.invoice_number || null,
+          supplier: parsed.header.supplier || null,
+          delivery_date: parsed.header.delivery_date || null,
+          total: Number(parsed.header.total),
+          line_count: lineRows.length,
+        },
+      }).catch(() => {});
+    } catch (_e) {
+      /* best-effort audit trail; the bill + lines are already saved */
     }
 
     setBusy(false);

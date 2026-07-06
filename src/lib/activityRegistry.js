@@ -15,6 +15,7 @@ export const ENTITY_TYPES = {
   CATTLE_ANIMAL: 'cattle.animal',
   SHEEP_ANIMAL: 'sheep.animal',
   EQUIPMENT_ITEM: 'equipment.item',
+  EQUIPMENT_FUEL_BILL: 'equipment.fuel_bill',
   PIG_BATCH: 'pig.batch',
   PIG_BREEDER: 'pig.breeder',
   CATTLE_PROCESSING: 'cattle.processing',
@@ -70,6 +71,16 @@ export const ACTIVITY_REGISTRY = {
   [ENTITY_TYPES.EQUIPMENT_ITEM]: {
     displayLabel: (id, ctx) => (ctx && ctx.name ? ctx.name : id),
     route: (id) => `/fleet/${id}`,
+    program: null,
+  },
+  // Fuel bills are admin-only supplier invoices with no per-bill record page and
+  // no stable deep-link (they live in a tab inside /admin). route is null on
+  // purpose so global Activity Log rows display the invoice/supplier label but
+  // stay inert — we do NOT fabricate a /fleet route that would land the operator
+  // on the wrong surface. The label comes from the event's entity_label.
+  [ENTITY_TYPES.EQUIPMENT_FUEL_BILL]: {
+    displayLabel: (id, ctx) => (ctx && ctx.label ? ctx.label : id),
+    route: null,
     program: null,
   },
   [ENTITY_TYPES.PIG_BATCH]: {

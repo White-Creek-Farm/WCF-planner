@@ -9,6 +9,7 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {recordActivityEvent} from '../lib/activityApi.js';
+import {buildChanges} from '../lib/activityChangeDiff.js';
 import {fmtS} from '../lib/dateUtils.js';
 import {S, getReadableText} from '../lib/styles.js';
 import {getProgramColor} from '../lib/programColors.js';
@@ -79,6 +80,32 @@ const PIG_BATCH_SORT_KEY_LABELS = {
   feedPerStarted: 'Feed / Pig',
   startDate: 'Start date',
 };
+// Human labels for the parent-batch fields diffed on close for the one-summary
+// pig.batch field.updated Activity emit (stable-baseline diffing).
+const PIG_BATCH_FIELD_LABELS = {
+  batchName: 'Batch name',
+  cycleId: 'Linked cycle',
+  giltCount: 'Gilt count',
+  boarCount: 'Boar count',
+  originalPigCount: 'Started head',
+  perLbFeedCost: 'Feed cost / lb',
+  legacyFeedLbs: 'Legacy feed (lbs)',
+  feedAllocatedToTransfers: 'Feed allocated to transfers',
+  startDate: 'Start date',
+  notes: 'Notes',
+  status: 'Status',
+};
+// Numeric parent-batch fields — parsed back to numbers before persist + diff so
+// the baseline (group, numbers) and final (form, strings-while-typing) compare
+// cleanly.
+const PIG_BATCH_NUMERIC_KEYS = [
+  'giltCount',
+  'boarCount',
+  'originalPigCount',
+  'perLbFeedCost',
+  'legacyFeedLbs',
+  'feedAllocatedToTransfers',
+];
 
 export default function PigBatchesView({
   Header,
@@ -117,6 +144,13 @@ export default function PigBatchesView({
   // flushes the pending partition write — the shared pigAutoSaveTimer would
   // otherwise be cleared by closeFeederForm and the change lost on reload.
   const partitionDirtyRef = React.useRef(false);
+  // Stable Activity baseline for the parent-batch edit session. Captured once
+  // (lazily, on the first updFeeder keystroke) as the pre-edit persisted group,
+  // and NOT touched by the 1.5s debounce (unlike originalFeederForm, which the
+  // debounce rewrites for the close-race persist check). closeFeederForm diffs
+  // this baseline against the final saved values to emit ONE net field.updated —
+  // never a per-tick event. Shape: {id, snapshot: <group>} or null.
+  const feederActivityBaselineRef = React.useRef(null);
   const {authState, showUsers, setShowUsers, allUsers, setAllUsers} = useAuth();
   const {
     breedingCycles,
@@ -806,6 +840,13 @@ export default function PigBatchesView({
         (parseInt(k === 'giltCount' ? v : f.giltCount) || 0) + (parseInt(k === 'boarCount' ? v : f.boarCount) || 0);
     setFeederForm(f);
     if (editFeederId) {
+      // Capture the stable Activity baseline once per edit session (the pre-edit
+      // persisted group), guarded by id so it survives every debounce tick. This
+      // does NOT emit anything — the one summary is logged on close.
+      if (!feederActivityBaselineRef.current || feederActivityBaselineRef.current.id !== editFeederId) {
+        const base = feederGroups.find((g) => g.id === editFeederId) || null;
+        if (base) feederActivityBaselineRef.current = {id: editFeederId, snapshot: {...base}};
+      }
       clearTimeout(pigAutoSaveTimer.current);
       pigAutoSaveTimer.current = setTimeout(() => {
         // Parse numeric form fields back to numbers (form state holds raw strings during typing)
@@ -878,6 +919,46 @@ export default function PigBatchesView({
         persistFeeders(feederGroups);
         partitionDirtyRef.current = false;
       }
+      // One-summary pig.batch field.updated (stable-baseline diff). Fires on
+      // close for the whole edit session — covers BOTH the debounce-persisted
+      // case (parentChanged=false above, but the net value still differs from
+      // the session baseline) and the close-before-1.5s case. Numerics are
+      // normalized on both sides so no false diffs. Skips when nothing net-
+      // changed. Best-effort — never blocks the close/persist.
+      const baseline = feederActivityBaselineRef.current;
+      if (baseline && baseline.id === editFeederId) {
+        const normalize = (src) => {
+          const out = {};
+          for (const key of FEEDER_KEYS) {
+            const raw = src ? src[key] : undefined;
+            out[key] = PIG_BATCH_NUMERIC_KEYS.includes(key)
+              ? raw === '' || raw == null
+                ? 0
+                : parseFloat(raw) || 0
+              : raw;
+          }
+          return out;
+        };
+        const changes = buildChanges(normalize(baseline.snapshot), normalize(feederForm), {
+          labels: PIG_BATCH_FIELD_LABELS,
+        });
+        if (changes.length > 0) {
+          const label = feederForm.batchName || baseline.snapshot.batchName || editFeederId;
+          try {
+            recordActivityEvent(sb, {
+              entityType: 'pig.batch',
+              entityId: editFeederId,
+              eventType: 'field.updated',
+              entityLabel: label,
+              body: 'Edited batch ' + label,
+              payload: {record: 'pig.batch', action: 'edit_batch_fields', changes},
+            }).catch(() => {});
+          } catch (_e) {
+            /* best-effort — never block the close */
+          }
+        }
+      }
+      feederActivityBaselineRef.current = null;
     }
     setShowFeederForm(false);
     setEditFeederId(null);
