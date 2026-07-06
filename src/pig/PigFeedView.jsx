@@ -351,6 +351,16 @@ export default function PigFeedView({
     actualOnHand: feedOnHand,
     endOfPrevEst,
   });
+  const activeSavedOrder = (feedOrders.pig || {})[activeYM];
+  const activeHasSavedOrder = activeSavedOrder != null && activeSavedOrder !== '';
+  const orderTileValue =
+    activeHasSavedOrder && !isActiveEditMode ? parseFloat(activeSavedOrder) || 0 : recommendedOrder;
+  const orderTileCaption =
+    activeHasSavedOrder && !isActiveEditMode
+      ? 'Saved order'
+      : hasCurrentCount
+        ? 'vs Actual On Hand'
+        : 'vs End of ' + prevLabel + ' Est.';
   // Live End-of-Month estimate for the active card only, splicing the
   // typed draft into the ledger's saved value.
   const activeLg = pigLedger[activeYM];
@@ -544,15 +554,13 @@ export default function PigFeedView({
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                color: recommendedOrder != null ? 'var(--warn-ink)' : '#9ca3af',
+                color: orderTileValue != null ? 'var(--warn-ink)' : '#9ca3af',
                 lineHeight: 1,
               }}
             >
-              {recommendedOrder != null ? recommendedOrder.toLocaleString() + ' lbs' : '—'}
+              {orderTileValue != null ? orderTileValue.toLocaleString() + ' lbs' : '—'}
             </div>
-            <div style={{fontSize: 10, color: 'var(--warn-ink)', opacity: 0.85, marginTop: 3}}>
-              {hasCurrentCount ? 'vs Actual On Hand' : 'vs End of ' + prevLabel + ' Est.'}
-            </div>
+            <div style={{fontSize: 10, color: 'var(--warn-ink)', opacity: 0.85, marginTop: 3}}>{orderTileCaption}</div>
           </div>
 
           {/* Need Thru [next] */}

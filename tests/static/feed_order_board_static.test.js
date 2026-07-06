@@ -33,7 +33,7 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).not.toMatch(/'Surplus'/);
     // Zero-or-positive recommendation always renders as "<N> lbs". Falls back
     // to em-dash only when the ledger has no anchor at all.
-    expect(pigSrc).toMatch(/recommendedOrder != null \? recommendedOrder\.toLocaleString\(\) \+ ' lbs' : '—'/);
+    expect(pigSrc).toMatch(/orderTileValue != null \? orderTileValue\.toLocaleString\(\) \+ ' lbs' : '—'/);
   });
 
   it('active order input has no recommendation placeholder', () => {
@@ -98,7 +98,18 @@ describe('PigFeedView — minimal ledger contract', () => {
     expect(pigSrc).not.toMatch(/orderBaseEst/);
     // The Order tile names its real basis so "End of prev Est." is not implied
     // as the source when the recommendation is count-aware.
-    expect(pigSrc).toMatch(/hasCurrentCount \? 'vs Actual On Hand' : 'vs End of ' \+ prevLabel \+ ' Est\.'/);
+    expect(pigSrc).toMatch(
+      /orderTileCaption\s*=\s*activeHasSavedOrder && !isActiveEditMode[\s\S]*?\? 'Saved order'[\s\S]*?: hasCurrentCount[\s\S]*?\? 'vs Actual On Hand'[\s\S]*?: 'vs End of ' \+ prevLabel \+ ' Est\.'/,
+    );
+  });
+
+  it('saved active-month pig order replaces the recommendation in the top Order tile', () => {
+    expect(pigSrc).toMatch(/activeSavedOrder\s*=\s*\(feedOrders\.pig \|\| \{\}\)\[activeYM\]/);
+    expect(pigSrc).toMatch(/activeHasSavedOrder\s*=\s*activeSavedOrder != null && activeSavedOrder !== ''/);
+    expect(pigSrc).toMatch(
+      /orderTileValue\s*=\s*activeHasSavedOrder && !isActiveEditMode \? parseFloat\(activeSavedOrder\) \|\| 0 : recommendedOrder/,
+    );
+    expect(pigSrc).toMatch(/activeHasSavedOrder && !isActiveEditMode[\s\S]*?\? 'Saved order'/);
   });
 
   it('Actual On Hand counts only orders that arrived after the count', () => {
