@@ -41,6 +41,8 @@ import ProcessingDrawer from './ProcessingDrawer.jsx';
 import AddMilestoneModal from './AddMilestoneModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import ProcessingTemplatesModal from './ProcessingTemplatesModal.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ProcessingReconciliationModal from './ProcessingReconciliationModal.jsx';
 
 // Program sections, in display order. `key` is the stored program string; note
 // the Lamb section maps to the 'sheep' program (Lamb == sheep, CP0).
@@ -189,6 +191,7 @@ export default function ProcessingCalendarView({Header, authState}) {
   const [showAddMilestone, setShowAddMilestone] = useState(false);
   const [addMilestoneProgram, setAddMilestoneProgram] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showReconciliation, setShowReconciliation] = useState(false);
 
   // Admin-only Asana sync guardrail: probe config, dry-run first, then allow one
   // explicit write sync from the same page session.
@@ -681,6 +684,29 @@ export default function ProcessingCalendarView({Header, authState}) {
           {isAdmin && (
             <button
               type="button"
+              data-processing-reconciliation-btn="1"
+              onClick={() => setShowReconciliation(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                background: T.card,
+                color: T.muted,
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                padding: '9px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Reconciliation
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              type="button"
               data-processing-templates-btn="1"
               onClick={() => setShowTemplates(true)}
               style={{
@@ -1044,6 +1070,9 @@ export default function ProcessingCalendarView({Header, authState}) {
         />
       )}
       {showTemplates && <ProcessingTemplatesModal authState={authState} onClose={() => setShowTemplates(false)} />}
+      {showReconciliation && (
+        <ProcessingReconciliationModal authState={authState} onClose={() => setShowReconciliation(false)} />
+      )}
     </div>
   );
 }

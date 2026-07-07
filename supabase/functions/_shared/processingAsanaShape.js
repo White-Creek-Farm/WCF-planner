@@ -8,20 +8,31 @@
 //
 // Responsibility split:
 //   - THIS module shapes Asana API JSON into the exact `p_row` objects the
-//     migration-155 importer RPCs accept (upsert_processing_from_asana,
-//     upsert_processing_subtask_from_asana), classifies record_type, and diffs
-//     a batch of mapped rows against what is already stored (idempotency).
-//   - The edge function owns all network I/O + the service_role RPC calls +
-//     the real match lookups. classifyRecordType exposes the pure *rules*; the
-//     edge fn feeds it the `matched` signal it resolves at run time.
+//     migration 156/157 importer RPCs accept (upsert_processing_from_asana,
+//     upsert_processing_subtask_from_asana), MATCHES an Asana task to a Planner
+//     batch (matchAsanaTaskToPlanner), classifies bucket + record_type, computes
+//     per-link drift, and diffs a batch of mapped rows against what is stored.
+//   - The edge function owns all network I/O + the service_role RPC calls. It
+//     calls reconcile_planner_to_processing() FIRST, loads the planner_batch
+//     rows, then feeds this module's PURE matcher each Asana task to decide
+//     matched / historical / import_exception / needs_review / milestone.
 //
-// Contract references (migration 155):
-//   processing_records columns / upsert_processing_from_asana p_row keys:
-//     asana_gid, record_type, program, title, processing_date, status,
-//     processor, number_processed, customer(jsonb array), source_kind,
-//     source_id, asana_project_gid, asana_section_gid, asana_section_name,
-//     match_status, match_confidence, match_evidence, historical_snapshot,
-//     raw_asana_snapshot, sync_run_id.
+// LOCKED MODEL (migration 157): Planner is senior whenever a Planner batch/event
+// exists (any year). The Asana pass NEVER mints planner_batch and NEVER
+// overwrites Planner live facts. Year is derived from the DATE (never the Asana
+// 'Year' field); cutoff 2024 splits unmatched rows into asana_historical (<2024)
+// vs import_exception (>=2024).
+//
+// Contract references (migrations 156/157):
+//   upsert_processing_from_asana p_row keys (asana_historical | import_exception
+//     | milestone ONLY — never planner_batch): asana_gid, record_type, program,
+//     title, processing_date, status, number_processed, asana_section_name,
+//     historical_snapshot, raw_asana_snapshot, sync_run_id.
+//   link_asana_to_processing p_row keys: asana_gid, processing_record_id|null,
+//     program, asana_batch_code, match_status ('matched'|'historical'|
+//     'needs_review'|'milestone'), match_method ('auto_exact'|'manual_crosswalk'|
+//     'historical'|'milestone'|'none'), confidence, candidate_record_ids[],
+//     raw_asana_snapshot, drift, seed_processor, seed_customer, sync_run_id.
 //   record_type CHECK: planner_batch | asana_historical | milestone |
 //     import_exception. program CHECK: broiler | cattle | pig | sheep.
 // ============================================================================
@@ -229,18 +240,37 @@ export function sectionToProgram(sectionName) {
   return null;
 }
 
-// ── Year derivation (shared by mapper + classifier) ─────────────────────────
+// ── Year derivation + WCF code normalization ────────────────────────────────
 
-// Best-effort processing year: the explicit 'Year' custom field wins; else the
-// year of actual→planned proc date → due_on → start_on.
-function deriveYear(task, cf) {
-  const explicit = toInt(cf[CF.YEAR]);
-  if (explicit) return explicit;
+// Processing YEAR derived from the DATE — NEVER the Asana 'Year' custom field
+// (unreliable in the export). Precedence: actual proc → planned proc → due_on →
+// created_at. Returns a 4-digit integer or null. Pure + deterministic.
+export function deriveProcessingYear(task, customFieldsByName = null) {
+  const cf = normalizeCfMap(customFieldsByName != null ? customFieldsByName : indexCustomFields(task));
   const d = toDateOnly(
-    firstNonEmpty(cf[CF.ACTUAL_PROC], cf[CF.PLANNED_PROC], task && task.due_on, task && task.start_on),
+    firstNonEmpty(cf[CF.ACTUAL_PROC], cf[CF.PLANNED_PROC], task && task.due_on, task && task.created_at),
   );
   if (d) return Number.parseInt(d.slice(0, 4), 10);
   return null;
+}
+
+// Canonical WCF batch code: WCF-<P>-YY-NN[SUFFIX], P ∈ {B,C,P,L}. Extracts an
+// embedded code from a noisy string — task Name ("WCF-B-26-16: 700 @5LBS"),
+// Batch Name (Farms) ("WCF-B-26-10"), with trailing CR/LF/colon/whitespace.
+// Zero-pads NN to two digits, uppercases the program letter + optional single-
+// letter suffix, and ALWAYS emits the leading "WCF-" even when the source omits
+// it. Returns null when no code is present. Deterministic + idempotent
+// (normalizeWcfCode(normalizeWcfCode(x)) === normalizeWcfCode(x)).
+export function normalizeWcfCode(str) {
+  if (str == null) return null;
+  // (?:WCF-)? optional prefix; \b so we never match mid-word; a single-letter
+  // suffix must be immediately attached (no space) so a following description
+  // word is never swallowed; trailing \b closes the token cleanly.
+  const m = /(?:WCF-)?\b([BCPL])-(\d{2})-(\d{1,3})([A-Za-z])?\b/i.exec(String(str));
+  if (!m) return null;
+  const nn = m[3].padStart(2, '0');
+  const suffix = m[4] ? m[4].toUpperCase() : '';
+  return `WCF-${m[1].toUpperCase()}-${m[2]}-${nn}${suffix}`;
 }
 
 // ── historical_snapshot ─────────────────────────────────────────────────────
@@ -324,32 +354,184 @@ export function mapAsanaTaskToProcessingRow(task, opts = {}) {
   return row;
 }
 
-// Pure record_type rules. The edge fn resolves the real match and passes the
-// `matched` boolean; everything else is derivable from the task itself.
-//   1. resource_subtype 'milestone', OR no resolvable program → 'milestone'
-//   2. year ≥ 2026 AND a program:
-//        matched === false → 'import_exception' (an unmatched 2026 planner task)
-//        otherwise         → 'planner_batch'    (matchable / matched)
-//   3. otherwise (pre-2026, or no year, with a program) → 'asana_historical'
-// opts: { sectionName, program, customFieldsByName, matched }
+// Pure record_type rules. The Asana pass NEVER mints planner_batch — only the
+// Planner bridge (reconcile_planner_to_processing) does. This returns just the
+// two record_types decidable from the task alone; the edge layer runs the
+// matcher + classifyBucket to split match_candidate into matched (link only) vs
+// asana_historical vs import_exception.
+//   'milestone'       — an Asana milestone (resource_subtype), OR a task with no
+//                       resolvable program (section headers / stray notes).
+//   'match_candidate' — a program task; hand it to matchAsanaTaskToPlanner.
+// opts: { sectionName, program }
 export function classifyRecordType(task, opts = {}) {
-  const {sectionName = null, matched} = opts || {};
+  const {sectionName = null} = opts || {};
   const program =
     opts && Object.prototype.hasOwnProperty.call(opts, 'program') ? opts.program : sectionToProgram(sectionName);
-
   if (task && task.resource_subtype === 'milestone') return 'milestone';
   if (!program) return 'milestone';
+  return 'match_candidate';
+}
 
+// ── Matching + bucketing + drift (Planner-is-senior reconciler core) ─────────
+
+// Bucket an Asana program task by the 2024 cutoff (year is DATE-derived, never
+// the 'Year' field). Never mutates anything. Returns:
+//   'matched'          — opts.matched === true (edge already linked a Planner row)
+//   'milestone'        — an Asana milestone
+//   'historical'       — unmatched, derivable year < 2024 → asana_historical
+//   'import_exception' — unmatched, derivable year >= 2024
+//   'needs_review'     — NO derivable year (with or without a code)
+// opts: { matched, year, customFieldsByName }
+export function classifyBucket(task, opts = {}) {
+  if (opts && opts.matched === true) return 'matched';
+  if (task && task.resource_subtype === 'milestone') return 'milestone';
+  const year =
+    opts && opts.year != null ? toInt(opts.year) : deriveProcessingYear(task, opts ? opts.customFieldsByName : null);
+  if (year != null && year < 2024) return 'historical';
+  if (year != null && year >= 2024) return 'import_exception';
+  return 'needs_review';
+}
+
+// Tokenize a pig sub-batch attribution (planner row) or Batch Name (Asana task)
+// into a lowercase Set of identifiers. Accepts an array (jsonb / multi-enum) or
+// a delimited string.
+function pigSubBatchTokens(value) {
+  const out = new Set();
+  const push = (x) => {
+    const s = cleanStr(x);
+    if (s) out.add(s.toLowerCase());
+  };
+  if (value == null) return out;
+  const arr = Array.isArray(value) ? value : [value];
+  for (const item of arr) {
+    if (item == null) continue;
+    if (typeof item === 'object') {
+      push(item.subBatchId ?? item.sub_batch_id ?? item.id ?? item.label ?? item.name);
+    } else {
+      for (const part of String(item).split(/[,;/|]+/)) push(part);
+    }
+  }
+  return out;
+}
+
+// Sub-batch overlap is non-discriminating when EITHER side has no tokens (fall
+// back to date+count); otherwise require a non-empty intersection.
+function pigSubBatchOverlap(a, b) {
+  if (a.size === 0 || b.size === 0) return true;
+  for (const t of a) if (b.has(t)) return true;
+  return false;
+}
+
+// Deterministically match ONE Asana program task to a Planner batch row.
+// opts:
+//   program      resolved WCF program (broiler|cattle|pig|sheep)
+//   code         caller's normalized WCF code hint (coded programs; optional)
+//   plannerRows  loaded record_type='planner_batch' rows: {id, program, title,
+//                processing_date, status, number_processed, sub_batch_attribution}
+//   customFieldsByName  pre-indexed CF map (else derived from the task)
+// Returns { method, recordId|null, candidateIds[], confidence }:
+//   'milestone'   — task is an Asana milestone (excluded from batch matching)
+//   'auto_exact'  — exactly ONE planner candidate (recordId set, confidence high)
+//   'needs_review'— >=2 candidates, OR the Name-code and Batch-Name-code resolve
+//                   to DIFFERENT planner rows, OR ambiguous with no clean pick
+//   'historical'  — no candidate + derivable year < 2024 (→ asana_historical)
+// Coded programs match a normalized WCF code (from Name AND Batch Name) against
+// each planner row's normalized title. PIG has no code: match by program + date
+// equal + count (Animals Processed) equal + sub-batch overlap.
+export function matchAsanaTaskToPlanner(task, opts = {}) {
+  const {program = null, plannerRows = []} = opts || {};
+  const none = (method) => ({method, recordId: null, candidateIds: [], confidence: 'none'});
+
+  if (task && task.resource_subtype === 'milestone') return none('milestone');
+  if (!program) return none('needs_review');
+
+  const cf = normalizeCfMap(opts.customFieldsByName != null ? opts.customFieldsByName : indexCustomFields(task));
+  const rows = (Array.isArray(plannerRows) ? plannerRows : []).filter((r) => r && r.program === program);
+
+  // No planner candidate → bucket by the 2024 cutoff (year is DATE-derived).
+  const noMatch = () =>
+    none(
+      classifyBucket(task, {matched: false, customFieldsByName: cf}) === 'historical' ? 'historical' : 'needs_review',
+    );
+
+  // PIG: no code — match on program + date + count + sub-batch overlap.
+  if (program === 'pig') {
+    const date = toDateOnly(firstNonEmpty(cf[CF.ACTUAL_PROC], cf[CF.PLANNED_PROC], task && task.due_on));
+    const count = toInt(cf[CF.ANIMALS]);
+    const taskTokens = pigSubBatchTokens(cf[CF.BATCH_NAME]);
+    const candidates = rows.filter((r) => {
+      if (date == null || toDateOnly(r.processing_date) !== date) return false;
+      if (count == null || toInt(r.number_processed) !== count) return false;
+      return pigSubBatchOverlap(taskTokens, pigSubBatchTokens(r.sub_batch_attribution));
+    });
+    if (candidates.length === 1) {
+      return {method: 'auto_exact', recordId: candidates[0].id, candidateIds: [candidates[0].id], confidence: 'high'};
+    }
+    if (candidates.length >= 2) {
+      return {method: 'needs_review', recordId: null, candidateIds: candidates.map((r) => r.id), confidence: 'low'};
+    }
+    return noMatch();
+  }
+
+  // CODED programs (broiler / cattle / sheep).
+  const nameCode = normalizeWcfCode(task && task.name);
+  const bnCode = normalizeWcfCode(cf[CF.BATCH_NAME]);
+  const primaryCode = normalizeWcfCode(opts.code) || nameCode || bnCode;
+  const candFor = (c) => (c ? rows.filter((r) => normalizeWcfCode(r.title) === c) : []);
+
+  // Name/BN disagreement veto: both codes present, both resolve to a planner
+  // row, and they resolve to DIFFERENT rows → needs_review (no auto pick).
+  if (nameCode && bnCode && nameCode !== bnCode) {
+    const idsName = candFor(nameCode).map((r) => r.id);
+    const idsBN = candFor(bnCode).map((r) => r.id);
+    const sameSingleRow = idsName.length === 1 && idsBN.length === 1 && idsName[0] === idsBN[0];
+    if (idsName.length && idsBN.length && !sameSingleRow) {
+      return {
+        method: 'needs_review',
+        recordId: null,
+        candidateIds: Array.from(new Set([...idsName, ...idsBN])),
+        confidence: 'low',
+      };
+    }
+  }
+
+  if (!primaryCode) return noMatch();
+  const candidates = candFor(primaryCode);
+  if (candidates.length === 1) {
+    return {method: 'auto_exact', recordId: candidates[0].id, candidateIds: [candidates[0].id], confidence: 'high'};
+  }
+  if (candidates.length >= 2) {
+    return {method: 'needs_review', recordId: null, candidateIds: candidates.map((r) => r.id), confidence: 'low'};
+  }
+  return noMatch();
+}
+
+// Per-link DRIFT: the fields where the Asana task DISAGREES with the linked
+// Planner record. Informational ONLY — never applied to the record (Planner is
+// senior). Compares processing_date, number_processed, status. Reports a field
+// only when the Asana side has a value that differs from the Planner value.
+// opts: { customFieldsByName }
+export function computeDrift(task, plannerRow, opts = {}) {
+  const drift = {};
+  if (!plannerRow) return drift;
   const cf = normalizeCfMap(
     opts && opts.customFieldsByName != null ? opts.customFieldsByName : indexCustomFields(task),
   );
-  const year = deriveYear(task, cf);
 
-  if (year != null && year >= 2026) {
-    if (matched === false) return 'import_exception';
-    return 'planner_batch';
+  const aDate = toDateOnly(firstNonEmpty(cf[CF.ACTUAL_PROC], cf[CF.PLANNED_PROC], task && task.due_on));
+  const pDate = toDateOnly(plannerRow.processing_date);
+  if (aDate != null && aDate !== pDate) drift.processing_date = {asana: aDate, planner: pDate};
+
+  const aNum = toInt(cf[CF.ANIMALS]);
+  const pNum = toInt(plannerRow.number_processed);
+  if (aNum != null && aNum !== pNum) drift.number_processed = {asana: aNum, planner: pNum};
+
+  const aStatus = task && task.completed === true ? 'complete' : cleanStr(cf[CF.STATUS]);
+  const pStatus = cleanStr(plannerRow.status);
+  if (aStatus != null && (pStatus == null || aStatus.toLowerCase() !== pStatus.toLowerCase())) {
+    drift.status = {asana: aStatus, planner: pStatus};
   }
-  return 'asana_historical';
+  return drift;
 }
 
 // ── Subtask mapping ─────────────────────────────────────────────────────────

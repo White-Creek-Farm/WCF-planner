@@ -244,7 +244,10 @@ export async function setAsanaSyncEnabled(sb, enabled) {
 // token never leaves the function. Mirrors newsletterApi's invoke pattern:
 // supabase-js v2 carries the HTTP error body on error.context, which we unwrap
 // to the real message when present.
-//   action : the sync action the function understands (e.g. 'import')
+//   action : the sync action the function understands. The action string is
+//            passed straight through to the Edge Function, so newer actions
+//            work without a lib change — e.g. 'dry_run', 'sync_once',
+//            'sync_planner_to_processing'.
 //   since  : optional ISO cursor to limit the scan (modified-since)
 //   probe  : boolean — ask the function for status/config only (no writes)
 export async function invokeProcessingAsanaSync(sb, {action, since = null, probe = false} = {}) {
@@ -265,6 +268,57 @@ export async function invokeProcessingAsanaSync(sb, {action, since = null, probe
   }
   if (data && data.ok === false) throw new Error(`invokeProcessingAsanaSync: ${data.error || 'failed'}`);
   return data || {};
+}
+
+// ── Reconciliation (Planner ⇄ Processing crosswalk) ──────────────────────────
+// The reconciliation surface is a management/admin admin tool built on the
+// mig-157 RPCs. Planner is senior: reconcile_planner_to_processing bridges every
+// live Planner batch/trip into a planner_batch Processing row; the
+// processing_asana_links table then maps Asana tasks onto those rows (many Asana
+// -> one row for pig trips). list_processing_reconciliation buckets the links so
+// an admin can crosswalk needs_review links and acknowledge informational drift.
+
+// reconcile_planner_to_processing() -> {ok, cattle, sheep, broiler, pig}. Atomic,
+// advisory-locked, idempotent (safe to re-run) — upserts planner_batch rows by
+// (source_kind, source_id). authenticated management/admin only (service_role is
+// also permitted for the Edge Function path).
+export async function reconcilePlannerToProcessing(sb) {
+  const {data, error} = await sb.rpc('reconcile_planner_to_processing');
+  if (error) throw new Error(`reconcilePlannerToProcessing: ${error.message || String(error)}`);
+  return data || {};
+}
+
+// list_processing_reconciliation() -> {links[], planner_only_count,
+// needs_review_count, matched_count, historical_count, drift_count}. Each link:
+// {id, asana_gid, processing_record_id, program, asana_batch_code, match_status,
+// match_method, confidence, candidate_record_ids[], drift, drift_acknowledged_at,
+// raw_asana_snapshot, ...}. Operational-role gated server-side.
+export async function listProcessingReconciliation(sb) {
+  const {data, error} = await sb.rpc('list_processing_reconciliation');
+  if (error) throw new Error(`listProcessingReconciliation: ${error.message || String(error)}`);
+  return data || {};
+}
+
+// resolve_processing_asana_link(p_asana_gid, p_record_id) -> {ok}. Manual
+// crosswalk: point a needs_review link at the chosen Planner record
+// (candidate_record_ids are only suggestions; many Asana rows may map to one
+// record). recordId null sends the link back to needs_review.
+export async function resolveProcessingAsanaLink(sb, asanaGid, recordId) {
+  const {data, error} = await sb.rpc('resolve_processing_asana_link', {
+    p_asana_gid: asanaGid,
+    p_record_id: recordId ?? null,
+  });
+  if (error) throw new Error(`resolveProcessingAsanaLink: ${error.message || String(error)}`);
+  return data;
+}
+
+// acknowledge_processing_drift(p_asana_gid) -> {ok}. Drift is informational
+// (Asana disagrees with the senior Planner on a matched row); acknowledging it
+// clears the link from the drift bucket without changing any Planner-owned fact.
+export async function acknowledgeProcessingDrift(sb, asanaGid) {
+  const {data, error} = await sb.rpc('acknowledge_processing_drift', {p_asana_gid: asanaGid});
+  if (error) throw new Error(`acknowledgeProcessingDrift: ${error.message || String(error)}`);
+  return data;
 }
 
 // ── Error classification ─────────────────────────────────────────────────────

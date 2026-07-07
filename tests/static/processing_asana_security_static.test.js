@@ -33,11 +33,18 @@ function walkSrc(dir) {
 }
 const SRC_FILES = walkSrc(path.join(ROOT, 'src'));
 
+// The edge fn was re-scoped to "match Planner FIRST" (migration 157): it now
+// routes every write through this exact set of mig-156/157 service_role RPCs.
+// Kept in sync with the actual svc.rpc('…') calls in index.ts —
+// record_processing_import_exception was removed; reconcile_planner_to_processing
+// / link_asana_to_processing / record_processing_comment were added.
 const IMPORTER_RPCS = [
+  'reconcile_planner_to_processing',
+  'link_asana_to_processing',
   'upsert_processing_from_asana',
   'upsert_processing_subtask_from_asana',
+  'record_processing_comment',
   'record_processing_attachment',
-  'record_processing_import_exception',
   'start_processing_sync_run',
   'finish_processing_sync_run',
 ];
@@ -83,9 +90,17 @@ describe('processing-asana — edge fn never raw-writes source tables', () => {
     expect(edgeFn).not.toMatch(/svc\.from\([^)]*\)\.(insert|update|upsert|delete)\(/);
   });
 
-  it('routes every write through the mig-156 importer service_role RPCs', () => {
+  it('routes every write through the mig-156/157 importer service_role RPCs (match-first re-scope)', () => {
     for (const rpc of IMPORTER_RPCS) {
       expect(edgeFn, `edge fn does not call svc.rpc('${rpc}')`).toContain(`svc.rpc('${rpc}'`);
+    }
+    // And there is NO svc.rpc('…') OUTSIDE this reviewed allowlist — a new
+    // service_role write path would have to be added to IMPORTER_RPCS first
+    // (strengthens the no-raw-source-write guard rather than weakening it).
+    const calledSvcRpcs = [...edgeFn.matchAll(/svc\.rpc\(\s*'([^']+)'/g)].map((match) => match[1]);
+    expect(calledSvcRpcs.length).toBeGreaterThan(0);
+    for (const name of calledSvcRpcs) {
+      expect(IMPORTER_RPCS, `unexpected svc.rpc('${name}') not in the importer allowlist`).toContain(name);
     }
   });
 });

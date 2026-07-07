@@ -225,6 +225,10 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   // entityMutations runMutation wrapper (RPC-backed via processingApi.js), not
   // direct .from() table writes.
   ['src/processing/ProcessingDrawer.jsx', 13],
+  // Reconciliation crosswalk modal (mig 157): reconcile-planner / resolve-link /
+  // acknowledge-drift route through its own runMutation wrapper, which calls the
+  // processingApi RPC wrappers — NO direct .from() table writes.
+  ['src/processing/ProcessingReconciliationModal.jsx', 3],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -522,7 +526,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(32);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(35);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

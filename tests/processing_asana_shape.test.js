@@ -208,6 +208,11 @@ describe('mapAsanaTaskToProcessingRow', () => {
 // ── classifyRecordType ───────────────────────────────────────────────────────
 
 describe('classifyRecordType', () => {
+  // The Asana pass never mints planner_batch (only the Planner bridge does). The
+  // migration-157 model narrows classifyRecordType to milestone vs the deferred
+  // 'match_candidate' the edge fn hands to matchAsanaTaskToPlanner. Bucketing of
+  // candidates (matched / asana_historical / import_exception) is covered in
+  // processing_asana_matcher.test.js.
   it('classifies an Asana milestone by resource_subtype', () => {
     const task = broilerTaskFixture({task: {resource_subtype: 'milestone'}});
     expect(classifyRecordType(task, {sectionName: 'WCF Broiler Processing'})).toBe('milestone');
@@ -218,27 +223,18 @@ describe('classifyRecordType', () => {
     expect(classifyRecordType(task, {sectionName: null, program: null})).toBe('milestone');
   });
 
-  it('classifies a 2026 program task as planner_batch (matchable)', () => {
+  it('classifies any program task as a deferred match_candidate (NEVER planner_batch)', () => {
     const task = broilerTaskFixture();
-    expect(classifyRecordType(task, {sectionName: 'WCF Broiler Processing', program: 'broiler'})).toBe('planner_batch');
-  });
-
-  it('routes an explicitly-unmatched 2026 task to import_exception', () => {
-    const task = broilerTaskFixture();
-    expect(classifyRecordType(task, {sectionName: 'WCF Broiler Processing', program: 'broiler', matched: false})).toBe(
-      'import_exception',
-    );
-  });
-
-  it('classifies a pre-2026 program task as asana_historical', () => {
-    const task = broilerTaskFixture();
-    // override Year → 2024 and drop dates so year derives from the custom field
-    task.custom_fields = task.custom_fields.map((c) =>
-      c.name === 'Year' ? {...c, number_value: 2024, display_value: '2024'} : c,
-    );
-    task.due_on = '2024-05-01';
     expect(classifyRecordType(task, {sectionName: 'WCF Broiler Processing', program: 'broiler'})).toBe(
-      'asana_historical',
+      'match_candidate',
+    );
+  });
+
+  it("classifies a pre-2024 program task as a match_candidate too (year is the matcher's job)", () => {
+    const task = broilerTaskFixture();
+    task.due_on = '2023-05-01';
+    expect(classifyRecordType(task, {sectionName: 'WCF Broiler Processing', program: 'broiler'})).toBe(
+      'match_candidate',
     );
   });
 });

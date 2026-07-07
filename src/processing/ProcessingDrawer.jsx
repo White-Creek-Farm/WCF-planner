@@ -631,6 +631,11 @@ export default function ProcessingDrawer({sb, authState, recordId, onClose, onCh
                         {st.label}
                       </span>
                     )}
+                    {st.source === 'asana' && (
+                      <Badge variant="info" style={{flex: 'none'}} title="Imported from Asana">
+                        Asana
+                      </Badge>
+                    )}
                     {canOperate ? (
                       <select
                         value={PEOPLE.includes(st.assignee) ? st.assignee : ''}
