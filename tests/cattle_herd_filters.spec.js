@@ -6,8 +6,9 @@ import {test, expect} from './fixtures.js';
 // Locks the post-build contract for the composable filter chips, ordered sort
 // rules, always-visible organized filter groups, the column/display picker, the
 // maternal-issue UI retirement, and surface_key=cattle.herds saved views.
-// Default view is grouped by herd. Any active filter/search/sort switches to
-// one flat matched-results table.
+// Default view is grouped by herd. An active filter/search switches to one flat
+// matched-results table; a non-default sort re-orders cattle within the herd
+// groups (it does not collapse them).
 // Pure module helpers in src/lib/cattleHerdFilters.js are vitest-locked
 // separately.
 // ============================================================================
@@ -69,15 +70,12 @@ async function pickHerd(page, label) {
 // --------------------------------------------------------------------------
 // Test 1 — Default load groups by herd until a filter or sort is active
 // --------------------------------------------------------------------------
-test('default load: grouped cattle by herd until a filter or sort is active', async ({
-  page,
-  cattleHerdFiltersScenario,
-}) => {
+test('default load: grouped cattle by herd until a filter is active', async ({page, cattleHerdFiltersScenario}) => {
   void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // No filter/sort selection: the list is grouped by herd and the old manual
+  // No filter selection: the list is grouped by herd and the old manual
   // grouped/flat toggle is still gone.
   await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible();
   await expect(page.locator('[data-cattle-flat-results="1"]')).toHaveCount(0);
@@ -126,9 +124,12 @@ test('sold herd filter shows only sold cattle in a flat table', async ({page, ca
 });
 
 // --------------------------------------------------------------------------
-// Test 3 — Any non-default sort switches to the flat result table
+// Test 3 — A non-default sort keeps the grouped herd sections
 // --------------------------------------------------------------------------
-test('sort selection switches unfiltered cattle to the flat table', async ({page, cattleHerdFiltersScenario}) => {
+test('non-default sort keeps cattle grouped by herd (orders within groups)', async ({
+  page,
+  cattleHerdFiltersScenario,
+}) => {
   void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
@@ -136,9 +137,12 @@ test('sort selection switches unfiltered cattle to the flat table', async ({page
   await ensureToolPanel(page, 'sort');
   await page.locator('select[data-sort-add]').selectOption('age');
 
-  await expect(page.locator('[data-cattle-flat-results="1"]')).toBeVisible();
-  await expect(page.locator('[data-cattle-grouped-herds="1"]')).toHaveCount(0);
-  await expect(flatRows(page)).toHaveCount(13);
+  // A sort alone must NOT collapse the groups: grouped stays, flat stays absent,
+  // and every cow is still present (just re-ordered within its herd section).
+  await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible();
+  await expect(page.locator('[data-cattle-flat-results="1"]')).toHaveCount(0);
+  await expect(page.locator('[data-cattle-herd-section="mommas"]')).toBeVisible();
+  await expect(cattleRows(page)).toHaveCount(13);
 });
 
 // --------------------------------------------------------------------------
@@ -186,6 +190,13 @@ test('last activity sort shows date/time and orders by newest activity first', a
 
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
+
+  // A sort alone now keeps the herd groups, so filter to the three herds that
+  // have seeded activity to get the flat matched-results table, then sort by
+  // Last Activity (newest first across the filtered set).
+  await pickHerd(page, 'Backgrounders');
+  await pickHerd(page, 'Mommas');
+  await pickHerd(page, 'Processed');
 
   await ensureToolPanel(page, 'sort');
   await page.locator('select[data-sort-add]').selectOption('lastActivity');

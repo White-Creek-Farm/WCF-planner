@@ -95,9 +95,10 @@ describe('Cattle herd filters — always-visible organized groups', () => {
 });
 
 describe('Cattle herd rows - grouped default + flat controlled results', () => {
-  // The grouped/flat toggle stays retired: default rows group by herd, while
-  // any active filter or non-default sort renders one flat matched-results
-  // table through the shared <DataTable>.
+  // The grouped/flat toggle stays retired: default rows group by herd. Only an
+  // active FILTER renders one flat matched-results table through the shared
+  // <DataTable>; a non-default sort just re-orders cattle WITHIN each herd
+  // group (it must NOT collapse the groups).
   it('renders grouped and flat lists through the shared DataTable renderer', () => {
     expect(herdsView).toContain('function cowTableColumns');
     expect(herdsView).toContain('function CattleDataTable');
@@ -106,7 +107,9 @@ describe('Cattle herd rows - grouped default + flat controlled results', () => {
     expect(herdsView).toContain('data-cattle-flat-results="1"');
     expect(herdsView).toContain('data-cattle-grouped-herds="1"');
     expect(herdsView).toContain('data-cattle-herd-section={section.key}');
-    expect(herdsView).toContain('hasActiveListControls');
+    // Grouped-vs-flat is FILTER-only; a sort never collapses the groups.
+    expect(herdsView).toContain('const hasActiveFilters = filterCount > 0;');
+    expect(herdsView).not.toMatch(/hasActive\w+\s*=\s*filterCount > 0\s*\|\|\s*hasActiveSort/);
     // The retired faux-grid row component is gone.
     expect(herdsView).not.toContain('function CowListRow');
   });

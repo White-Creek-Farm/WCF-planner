@@ -1631,7 +1631,11 @@ const CattleHerdsHub = ({
   const activeFilterKeys = activeFilterKeysFor(filters);
   const filterCount = activeFilterKeys.length;
   const hasActiveSort = sortRules.length > 0 && !isDefaultSortRules(sortRules);
-  const hasActiveListControls = filterCount > 0 || hasActiveSort;
+  // Grouped-by-herd is the baseline. Only an active FILTER switches to the flat
+  // results list; a non-default sort just re-orders cattle WITHIN each herd
+  // group (groupedHerdSections slices the comparator-ordered sortedFlat), so a
+  // sort alone must not collapse the groups.
+  const hasActiveFilters = filterCount > 0;
   const extraHerdKeys = [
     ...new Set(sortedFlat.map((c) => c.herd).filter((h) => h && !CATTLE_ALL_HERD_KEYS.includes(h))),
   ];
@@ -2214,8 +2218,7 @@ const CattleHerdsHub = ({
               {openToolPanel === 'sort' && <div style={toolPanelS}>{sortBar()}</div>}
 
               <div style={{fontSize: 11, color: 'var(--ink-muted)'}} data-cattle-match-count>
-                {sortedFlat.length}{' '}
-                {hasActiveListControls ? (sortedFlat.length === 1 ? 'match' : 'cattle match') : 'cattle'}
+                {sortedFlat.length} {hasActiveFilters ? (sortedFlat.length === 1 ? 'match' : 'cattle match') : 'cattle'}
                 {accountingSnapshotLabel && ' - active at ' + accountingSnapshotLabel}
                 {filterCount > 0 && ' · ' + filterCount + ' filter' + (filterCount === 1 ? '' : 's')}
                 {hasActiveSort && ' · ' + sortRules.length + ' sort' + (sortRules.length === 1 ? '' : 's')}
@@ -2253,7 +2256,7 @@ const CattleHerdsHub = ({
               </div>
             )}
 
-            {!loading && cattle.length > 0 && hasActiveListControls && (
+            {!loading && cattle.length > 0 && hasActiveFilters && (
               <div
                 data-cattle-flat-list
                 data-cattle-flat-results="1"
@@ -2288,7 +2291,7 @@ const CattleHerdsHub = ({
               </div>
             )}
 
-            {!loading && cattle.length > 0 && !hasActiveListControls && (
+            {!loading && cattle.length > 0 && !hasActiveFilters && (
               <div data-cattle-grouped-herds="1" style={{display: 'flex', flexDirection: 'column', gap: 10}}>
                 {groupedHerdSections.map((section) => (
                   <section
