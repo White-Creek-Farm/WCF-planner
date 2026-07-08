@@ -341,9 +341,12 @@ export default function CattleDailyPage({sb, authState, Header}) {
   const isAddFeed = record.source === 'add_feed_webform';
   const showCreep = (form.herd || '').toLowerCase() === 'mommas';
 
-  // Partition feed inputs for selects
-  const feedOptions = feedInputs.filter((fi) => fi.category !== 'mineral');
-  const mineralOptions = feedInputs.filter((fi) => fi.category === 'mineral');
+  // Partition feed inputs for selects. Exclude inactive inputs from new
+  // selections; the loaded feedInputs array stays unfiltered so save-time
+  // .find() still resolves a feed already on this report that has since been
+  // marked inactive (historical edit must not silently drop it).
+  const feedOptions = feedInputs.filter((fi) => fi.status !== 'inactive' && fi.category !== 'mineral');
+  const mineralOptions = feedInputs.filter((fi) => fi.status !== 'inactive' && fi.category === 'mineral');
 
   return (
     <RecordPageFrame Header={Header}>

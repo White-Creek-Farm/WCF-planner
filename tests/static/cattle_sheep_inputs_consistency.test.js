@@ -10,6 +10,10 @@
 //   - src/sheep/SheepDailysView.jsx    — admin/management edit of sheep
 //                                        daily reports.
 //   - src/shared/AdminAddReportModal.jsx — admin "Add Report" flow.
+//   - src/cattle/CattleDailyPage.jsx   — cattle daily report record page
+//                                        (open-to-edit feed/mineral dropdowns).
+//   - src/sheep/SheepDailyPage.jsx     — sheep daily report record page
+//                                        (open-to-edit feed/mineral dropdowns).
 //
 // Rule each surface must follow:
 //
@@ -47,11 +51,15 @@ const ROOT = resolve(HERE, '../..');
 const cattleDailysSrc = readFileSync(resolve(ROOT, 'src/cattle/CattleDailysView.jsx'), 'utf8');
 const sheepDailysSrc = readFileSync(resolve(ROOT, 'src/sheep/SheepDailysView.jsx'), 'utf8');
 const adminAddReportSrc = readFileSync(resolve(ROOT, 'src/shared/AdminAddReportModal.jsx'), 'utf8');
+const cattleDailyPageSrc = readFileSync(resolve(ROOT, 'src/cattle/CattleDailyPage.jsx'), 'utf8');
+const sheepDailyPageSrc = readFileSync(resolve(ROOT, 'src/sheep/SheepDailyPage.jsx'), 'utf8');
 
 const ENTRY_SURFACES = [
   ['src/cattle/CattleDailysView.jsx', cattleDailysSrc],
   ['src/sheep/SheepDailysView.jsx', sheepDailysSrc],
   ['src/shared/AdminAddReportModal.jsx', adminAddReportSrc],
+  ['src/cattle/CattleDailyPage.jsx', cattleDailyPageSrc],
+  ['src/sheep/SheepDailyPage.jsx', sheepDailyPageSrc],
 ];
 
 describe('cattle/sheep entry surfaces — no server-side status filter at load', () => {
@@ -124,6 +132,40 @@ describe('AdminAddReportModal — load-time client filter (new-record-only flow)
     // filter is safe: every save-time .find() against cattleFeedInputs maps
     // to a row the user picked from the already-filtered dropdown.
     expect(adminAddReportSrc).toMatch(/setCattleFeedInputs\(\s*data\.filter\(\(f\) => f\.status !== 'inactive'\)\s*\)/);
+  });
+});
+
+describe('CattleDailyPage — record page dropdown filter (historical edit flow)', () => {
+  it('feed dropdown options exclude inactive inputs', () => {
+    expect(cattleDailyPageSrc).toMatch(
+      /feedOptions = feedInputs\.filter\(\(fi\) => fi\.status !== 'inactive' && fi\.category !== 'mineral'\)/,
+    );
+  });
+
+  it('mineral dropdown options exclude inactive inputs', () => {
+    expect(cattleDailyPageSrc).toMatch(
+      /mineralOptions = feedInputs\.filter\(\(fi\) => fi\.status !== 'inactive' && fi\.category === 'mineral'\)/,
+    );
+  });
+
+  it('retains the unfiltered feedInputs array so save-time .find() resolves inactive-by-id rows', () => {
+    // The loaded feedInputs array is NOT status-filtered, so opening a report
+    // that references a since-inactivated feed still resolves it on save.
+    expect(cattleDailyPageSrc).toMatch(/feedInputs\.find\(\(x\) => x\.id === r\.feedId\)/);
+    expect(cattleDailyPageSrc).toMatch(/feedInputs\.find\(\(x\) => x\.id === m\.feedId\)/);
+  });
+});
+
+describe('SheepDailyPage — record page dropdown filter (historical edit flow)', () => {
+  it('feedCategories option map excludes inactive inputs (drives both feed + mineral dropdowns)', () => {
+    expect(sheepDailyPageSrc).toMatch(
+      /feedCategories = feedInputs\s*\.filter\(\(fi\) => fi\.status !== 'inactive'\)\s*\.reduce\(/,
+    );
+  });
+
+  it('retains the unfiltered feedInputs array so save-time .find() resolves inactive-by-id rows', () => {
+    expect(sheepDailyPageSrc).toMatch(/feedInputs\.find\(\(x\) => x\.id === r\.feedId\)/);
+    expect(sheepDailyPageSrc).toMatch(/feedInputs\.find\(\(x\) => x\.id === m\.feedId\)/);
   });
 });
 

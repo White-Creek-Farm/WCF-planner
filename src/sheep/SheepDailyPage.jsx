@@ -365,13 +365,18 @@ export default function SheepDailyPage({sb, authState, Header}) {
   // Visible label uses the mm/dd/yyyy formatter (fmtMDY), not raw ISO dates.
   const entityLabel = fmtMDY(record.date) + (record.flock ? ' · ' + record.flock : '');
 
-  // Feed select options grouped by category
-  const feedCategories = feedInputs.reduce((acc, fi) => {
-    const cat = fi.category || 'Other';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(fi);
-    return acc;
-  }, {});
+  // Feed select options grouped by category. Exclude inactive inputs from new
+  // selections; the loaded feedInputs array stays unfiltered so save-time
+  // .find() still resolves a feed already on this report that has since been
+  // marked inactive (historical edit must not silently drop it).
+  const feedCategories = feedInputs
+    .filter((fi) => fi.status !== 'inactive')
+    .reduce((acc, fi) => {
+      const cat = fi.category || 'Other';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(fi);
+      return acc;
+    }, {});
 
   return (
     <RecordPageFrame Header={Header}>
