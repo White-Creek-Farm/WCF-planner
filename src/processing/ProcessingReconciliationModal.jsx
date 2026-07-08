@@ -1,22 +1,26 @@
 // ============================================================================
 // src/processing/ProcessingReconciliationModal.jsx  —  Planner ⇄ Processing
-// reconciliation / Asana crosswalk (admin tool)
+// reconciliation workbench (Asana crosswalk, admin tool)
 // ----------------------------------------------------------------------------
 // MANAGEMENT + ADMIN only (opened from an admin-only control on the calendar).
-// Planner is senior: this surface (a) bridges the live Planner into Processing
-// (reconcile_planner_to_processing → planner_batch rows), and (b) triages the
-// processing_asana_links buckets from list_processing_reconciliation:
-//   • Needs-review — an Asana task with no confident Planner match. The admin
-//     performs a MANUAL CROSSWALK: candidate_record_ids are suggestions, but any
-//     Planner record may be chosen (many Asana rows may map to one record).
-//     resolve_processing_asana_link(gid, record_id) attaches it; a row can also
-//     be skipped (kept in review) locally.
-//   • Drift — a matched link whose Asana snapshot disagrees with the senior
-//     Planner record (date/count/status). Drift is INFORMATIONAL; the admin can
-//     acknowledge it (acknowledge_processing_drift) to clear it from the bucket.
-//     Drift is never surfaced on the normal record drawer — it lives only here.
-// The Asana import itself (Dry run / Sync now) stays on the calendar toolbar;
-// this modal is about the Planner bridge + the crosswalk that follows it.
+// Planner is senior. This surface (a) bridges the live Planner into Processing
+// (reconcile_planner_to_processing → planner_batch rows), (b) populates the
+// review queue from Asana without importing artifacts (sync_review_queue: records
+// + links only, no subtasks/comments/attachments/Storage), and (c) is a fast
+// one-item-at-a-time WORKBENCH over the list_processing_reconciliation buckets:
+//   • Ambiguous       — an Asana task with >=2 Planner candidates / a Name↔Batch
+//                        disagreement. Manual crosswalk: assign the right record.
+//   • Import exception — an unmatched Asana row (>=2024, no candidate). Assign it
+//                        to a Planner batch, or triage it (milestone / historical
+//                        / dismiss = not-a-batch).
+//   • Pig             — pig ambiguous/exception rows (pig never auto-matches);
+//                        assign each to its Planner trip.
+//   • Duplicates      — >=2 Asana tasks sharing a program+code. Keep one canonical,
+//                        block the rest (supersede; provenance preserved).
+//   • Drift           — a matched link whose Asana snapshot disagrees with the
+//                        senior Planner. Informational; acknowledge to clear.
+// Every action writes through a narrow SECDEF RPC (deny-all RLS; RPC-only). The
+// Asana import (Dry run / Sync now) stays on the calendar toolbar.
 //
 // Fail-closed loading: data-processing-reconciliation-loaded flips to '1' only
 // when both reads land; a load error clears data and offers Retry.
@@ -28,6 +32,9 @@ import {
   reconcilePlannerToProcessing,
   resolveProcessingAsanaLink,
   acknowledgeProcessingDrift,
+  triageProcessingAsanaRecord,
+  supersedeProcessingAsanaDuplicate,
+  invokeProcessingAsanaSync,
   listProcessingRecords,
   friendlyProcessingError,
 } from '../lib/processingApi.js';
@@ -53,6 +60,7 @@ const T = {
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function formatDate(value) {
   const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${MONTHS[+m[2] - 1]} ${+m[3]}, ${m[1]}` : null;
@@ -119,6 +127,44 @@ function recordLabel(rec, id) {
   if (date) parts.push(date);
   return parts.join(' · ');
 }
+
+// Candidate list for a link: prefer the server-resolved objects; fall back to raw
+// ids (older payloads) resolved against recordsById.
+function linkCandidates(link, recordsById) {
+  if (Array.isArray(link.candidates) && link.candidates.length) return link.candidates;
+  const ids = Array.isArray(link.candidate_record_ids) ? link.candidate_record_ids : [];
+  return ids.map((id) => recordsById.get(id) || {id, title: id});
+}
+
+// Facts for the Asana side of a link (snapshot first, linked record as backup).
+function asanaFacts(link) {
+  const snap = link.raw_asana_snapshot || {};
+  const rec = link.record || null;
+  return {
+    name: snapName(snap, link),
+    code: link.asana_batch_code || null,
+    program: link.program || (rec && rec.program) || null,
+    date: formatDate(snapDate(snap)) || (rec && formatDate(rec.processing_date)) || null,
+    count: snapCount(snap) ?? (rec ? rec.number_processed : null),
+    section: snap.asana_section_name || snap.section || null,
+  };
+}
+
+const BUCKET_TABS = [
+  {key: 'ambiguous', label: 'Ambiguous', hint: 'Two+ Planner candidates — pick the right batch.'},
+  {
+    key: 'import_exception',
+    label: 'Exceptions',
+    hint: 'Unmatched Asana rows — assign, or triage as milestone/historical/dismiss.',
+  },
+  {key: 'pig', label: 'Pig', hint: 'Pig tasks never auto-match — crosswalk each to its Planner trip.'},
+  {key: 'duplicates', label: 'Duplicates', hint: 'Multiple Asana tasks share a code — keep one, block the rest.'},
+  {
+    key: 'drift',
+    label: 'Drift',
+    hint: 'Asana disagrees with the senior Planner — informational; acknowledge to clear.',
+  },
+];
 
 export default function ProcessingReconciliationModal({authState, onClose}) {
   // Guard: management + admin only. Anyone else gets a small dismissible notice.
@@ -189,6 +235,7 @@ function ReconciliationPanel({onClose}) {
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
   const [skipped, setSkipped] = useState(() => new Set());
+  const [tab, setTab] = useState('ambiguous');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -225,12 +272,32 @@ function ReconciliationPanel({onClose}) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const s = summary || {};
   const links = useMemo(() => (Array.isArray(summary?.links) ? summary.links : []), [summary]);
-  const reviewLinks = useMemo(
-    () => links.filter((l) => l.match_status === 'needs_review' && !skipped.has(l.asana_gid)),
-    [links, skipped],
+  const duplicateGroups = useMemo(
+    () => (Array.isArray(summary?.duplicate_groups) ? summary.duplicate_groups : []),
+    [summary],
   );
-  const driftLinks = useMemo(() => links.filter((l) => hasDrift(l.drift) && !l.drift_acknowledged_at), [links]);
+  const plannerRecords = useMemo(
+    () => records.filter((r) => r.record_type === 'planner_batch' && !r.archived),
+    [records],
+  );
+
+  // Bucketed, skip-filtered queues derived from the enriched links. The Pig tab is
+  // EXCLUSIVE: pig review rows appear only there, so Ambiguous + Exceptions filter
+  // program='pig' out (pig never auto-matches and needs its own crosswalk flow).
+  const buckets = useMemo(() => {
+    const notSkipped = (l) => !skipped.has(l.asana_gid);
+    const ambiguous = links.filter((l) => l.bucket === 'ambiguous' && l.program !== 'pig' && notSkipped(l));
+    const exceptions = links.filter((l) => l.bucket === 'import_exception' && l.program !== 'pig' && notSkipped(l));
+    const pig = links.filter(
+      (l) => (l.bucket === 'ambiguous' || l.bucket === 'import_exception') && l.program === 'pig' && notSkipped(l),
+    );
+    const drift = links.filter((l) => l.drift_open && notSkipped(l));
+    return {ambiguous, import_exception: exceptions, pig, duplicates: duplicateGroups, drift};
+  }, [links, duplicateGroups, skipped]);
+
+  const bucketCount = (key) => (Array.isArray(buckets[key]) ? buckets[key].length : 0);
 
   const runMutation = useCallback(
     async (fn, successMsg) => {
@@ -253,27 +320,35 @@ function ReconciliationPanel({onClose}) {
     [load],
   );
 
-  function runReconcile() {
+  const runReconcile = () =>
     runMutation(
       () => reconcilePlannerToProcessing(sb),
       (r) =>
-        `Reconcile complete — planner rows synced: ${num(r && r.cattle)} cattle, ${num(r && r.sheep)} sheep, ${num(
+        `Planner bridged — ${num(r && r.cattle)} cattle, ${num(r && r.sheep)} sheep, ${num(
           r && r.broiler,
         )} broiler, ${num(r && r.pig)} pig.`,
     );
-  }
-  function resolveLink(asanaGid, recordId) {
-    runMutation(() => resolveProcessingAsanaLink(sb, asanaGid, recordId || null), 'Link updated.');
-  }
-  function ackDrift(asanaGid) {
-    runMutation(() => acknowledgeProcessingDrift(sb, asanaGid), 'Drift acknowledged.');
-  }
-  function skipReview(asanaGid) {
-    setSkipped((s) => new Set(s).add(asanaGid));
-  }
+  const populateQueue = () =>
+    runMutation(
+      () => invokeProcessingAsanaSync(sb, {action: 'sync_review_queue'}),
+      (r) => {
+        const c = (r && r.counts) || {};
+        return `Review queue populated — ${num(c.tasks)} tasks: ${num(c.matched)} matched, ${num(
+          c.exceptions,
+        )} exceptions, ${num(c.needsReview)} needs review, ${num(c.milestones)} milestones (no artifacts imported).`;
+      },
+    );
+  const resolveLink = (asanaGid, recordId) =>
+    runMutation(() => resolveProcessingAsanaLink(sb, asanaGid, recordId || null), 'Assigned to the Planner record.');
+  const triageRecord = (recordId, action) =>
+    runMutation(() => triageProcessingAsanaRecord(sb, recordId, action), `Marked ${action}.`);
+  const supersedeDuplicate = (asanaGid, canonicalId) =>
+    runMutation(() => supersedeProcessingAsanaDuplicate(sb, asanaGid, canonicalId || null), 'Blocked as duplicate.');
+  const ackDrift = (asanaGid) => runMutation(() => acknowledgeProcessingDrift(sb, asanaGid), 'Drift acknowledged.');
+  const skipNext = (asanaGid) => setSkipped((prev) => new Set(prev).add(asanaGid));
 
-  const s = summary || {};
   const loaded = !loading && !loadError;
+  const hasAnyLink = links.length > 0;
 
   return (
     <div
@@ -292,11 +367,12 @@ function ReconciliationPanel({onClose}) {
       <style>{`@keyframes wcfProcModalIn{from{transform:translateY(10px) scale(.985);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}`}</style>
       <div onClick={onClose} style={{position: 'absolute', inset: 0, background: 'rgba(20,28,24,.34)'}} />
       <div
+        data-reconciliation-workbench="1"
         style={{
           position: 'relative',
-          width: 720,
+          width: 900,
           maxWidth: '96vw',
-          maxHeight: '90vh',
+          maxHeight: '92vh',
           background: T.card,
           borderRadius: 18,
           boxShadow: '0 24px 60px rgba(20,30,40,.28)',
@@ -319,10 +395,10 @@ function ReconciliationPanel({onClose}) {
         >
           <div style={{flex: 1, minWidth: 0}}>
             <div style={{fontSize: 16, fontWeight: 800, letterSpacing: '-.01em', color: T.ink}}>
-              Planner ⇄ Processing reconciliation
+              Reconciliation workbench
             </div>
             <div style={{fontSize: 12, color: T.faint, fontWeight: 600, marginTop: 2}}>
-              Bridge the senior Planner, then crosswalk Asana tasks &amp; acknowledge drift
+              Bridge the senior Planner, populate the review queue, then crosswalk &amp; triage Asana tasks
             </div>
           </div>
           <button
@@ -379,106 +455,135 @@ function ReconciliationPanel({onClose}) {
               {/* Summary buckets */}
               <div style={{display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14}}>
                 <StatChip label="Matched" value={num(s.matched_count)} accent={T.green} />
-                <StatChip label="Planner-only" value={num(s.planner_only_count)} accent={T.muted} />
-                <StatChip label="Needs review" value={num(s.needs_review_count)} accent="#8A6A1E" />
+                <StatChip label="Ambiguous" value={num(s.needs_review_count)} accent="#8A6A1E" />
+                <StatChip label="Exceptions" value={num(s.import_exception_count)} accent="#8A6A1E" />
+                <StatChip label="Duplicates" value={duplicateGroups.length} accent="#B4373A" />
                 <StatChip label="Historical" value={num(s.historical_count)} accent={T.faint} />
                 <StatChip label="Drift" value={num(s.drift_count)} accent="#B4373A" />
               </div>
 
-              {/* Reconcile planner */}
+              {/* Bridge + populate */}
               <div
                 style={{
                   border: `1px solid ${T.border}`,
                   borderRadius: 14,
-                  padding: '14px 16px',
-                  marginBottom: 18,
+                  padding: '13px 16px',
+                  marginBottom: 16,
                   background: T.tint,
+                  display: 'flex',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
                 }}
               >
-                <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
-                  <div style={{flex: 1, minWidth: 220}}>
-                    <div style={{fontSize: 13.5, fontWeight: 800, color: T.ink}}>Reconcile planner</div>
-                    <div style={{fontSize: 12, color: T.muted, fontWeight: 600, marginTop: 3, lineHeight: 1.45}}>
-                      Sync every live Planner batch &amp; pig trip into Processing (idempotent). Run this before
-                      crosswalking so candidate records exist.
-                    </div>
+                <div style={{flex: 1, minWidth: 200}}>
+                  <div style={{fontSize: 13.5, fontWeight: 800, color: T.ink}}>Prepare the queue</div>
+                  <div style={{fontSize: 12, color: T.muted, fontWeight: 600, marginTop: 3, lineHeight: 1.45}}>
+                    Bridge the live Planner first, then populate the review queue from Asana (records + links only — no
+                    subtasks, comments, or attachments).
                   </div>
-                  <button
-                    type="button"
-                    onClick={runReconcile}
-                    disabled={busy}
-                    data-processing-reconcile-btn="1"
-                    style={{
-                      background: busy ? '#EAECEF' : T.green,
-                      color: busy ? '#9AA1AB' : '#fff',
-                      border: 'none',
-                      borderRadius: 10,
-                      padding: '10px 18px',
-                      fontSize: 13.5,
-                      fontWeight: 700,
-                      cursor: busy ? 'default' : 'pointer',
-                      fontFamily: 'inherit',
-                      whiteSpace: 'nowrap',
-                      flex: 'none',
-                    }}
-                  >
-                    {busy ? 'Working…' : 'Reconcile planner'}
-                  </button>
                 </div>
-                <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 10}}>
-                  The Asana import (Dry run / Sync now) runs from the calendar toolbar. Reconcile here bridges the
-                  Planner; the sync then matches Asana tasks onto these rows.
-                </div>
+                <button
+                  type="button"
+                  onClick={runReconcile}
+                  disabled={busy}
+                  data-processing-reconcile-btn="1"
+                  style={secondaryBtn(busy)}
+                >
+                  {busy ? 'Working…' : 'Reconcile planner'}
+                </button>
+                <button
+                  type="button"
+                  onClick={populateQueue}
+                  disabled={busy}
+                  data-reconciliation-populate-btn="1"
+                  style={primaryBtn(busy)}
+                >
+                  {busy ? 'Working…' : 'Populate review queue'}
+                </button>
               </div>
 
-              {/* Needs review */}
-              <SectionHead
-                title="Needs review"
-                count={reviewLinks.length}
-                hint="Manual crosswalk — pick the Planner record this Asana task belongs to."
-              />
-              {reviewLinks.length === 0 ? (
+              {!hasAnyLink ? (
                 <div
-                  data-reconciliation-review-empty="1"
-                  style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '4px 0 16px'}}
+                  data-reconciliation-empty="1"
+                  style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '10px 0 16px', lineHeight: 1.5}}
                 >
-                  Nothing awaiting review.
+                  No Asana links yet. Run “Populate review queue” to fetch the SF Processing Calendar and stage the
+                  review items here — nothing is imported until you crosswalk it.
                 </div>
               ) : (
-                <div style={{marginBottom: 16}}>
-                  {reviewLinks.map((link) => (
-                    <ReviewRow
-                      key={link.asana_gid}
-                      link={link}
-                      records={records}
+                <>
+                  {/* Bucket tabs */}
+                  <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 6}}>
+                    {BUCKET_TABS.map((b) => {
+                      const count = bucketCount(b.key);
+                      const active = tab === b.key;
+                      return (
+                        <button
+                          key={b.key}
+                          type="button"
+                          data-reconciliation-bucket-tab={b.key}
+                          aria-pressed={active}
+                          onClick={() => setTab(b.key)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            borderRadius: 999,
+                            padding: '6px 13px',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            border: `1px solid ${active ? '#000' : T.border}`,
+                            background: active ? '#000' : '#fff',
+                            color: active ? '#fff' : T.muted,
+                          }}
+                        >
+                          {b.label}
+                          <span
+                            style={{
+                              fontVariantNumeric: 'tabular-nums',
+                              background: active ? 'rgba(255,255,255,.2)' : T.chipBg,
+                              borderRadius: 999,
+                              padding: '1px 7px',
+                              color: active ? '#fff' : T.label,
+                            }}
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginBottom: 12}}>
+                    {BUCKET_TABS.find((b) => b.key === tab)?.hint}
+                  </div>
+
+                  {/* Active bucket */}
+                  {tab === 'duplicates' ? (
+                    <DuplicateBucket
+                      groups={buckets.duplicates}
+                      links={links}
+                      plannerRecords={plannerRecords}
+                      busy={busy}
+                      onSupersede={supersedeDuplicate}
+                    />
+                  ) : tab === 'drift' ? (
+                    <DriftBucket items={buckets.drift} recordsById={recordsById} busy={busy} onAck={ackDrift} />
+                  ) : (
+                    <ReviewBucket
+                      bucketKey={tab}
+                      items={buckets[tab]}
+                      plannerRecords={plannerRecords}
                       recordsById={recordsById}
                       busy={busy}
                       onResolve={resolveLink}
-                      onSkip={skipReview}
+                      onTriage={triageRecord}
+                      onSkip={skipNext}
                     />
-                  ))}
-                </div>
-              )}
-
-              {/* Drift */}
-              <SectionHead
-                title="Drift"
-                count={driftLinks.length}
-                hint="Asana disagrees with the senior Planner on a matched row. Informational — acknowledge to clear."
-              />
-              {driftLinks.length === 0 ? (
-                <div
-                  data-reconciliation-drift-empty="1"
-                  style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '4px 0 8px'}}
-                >
-                  No unacknowledged drift.
-                </div>
-              ) : (
-                <div>
-                  {driftLinks.map((link) => (
-                    <DriftRow key={link.asana_gid} link={link} recordsById={recordsById} busy={busy} onAck={ackDrift} />
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -496,27 +601,457 @@ function ReconciliationPanel({onClose}) {
             flex: 'none',
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: '#fff',
-              border: `1px solid #D2D6DB`,
-              color: '#3F4650',
-              borderRadius: 10,
-              padding: '10px 18px',
-              fontSize: 13.5,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
+          <button type="button" onClick={onClose} style={secondaryBtn(false)}>
             Close
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+function primaryBtn(disabled) {
+  return {
+    background: disabled ? '#EAECEF' : T.green,
+    color: disabled ? '#9AA1AB' : '#fff',
+    border: 'none',
+    borderRadius: 10,
+    padding: '10px 16px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: disabled ? 'default' : 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    flex: 'none',
+  };
+}
+function secondaryBtn(disabled) {
+  return {
+    background: '#fff',
+    border: `1px solid ${T.border}`,
+    color: T.muted,
+    borderRadius: 10,
+    padding: '10px 16px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: disabled ? 'default' : 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    flex: 'none',
+  };
+}
+
+// One-at-a-time review queue for the crosswalk/triage buckets.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function ReviewBucket({bucketKey, items, plannerRecords, recordsById, busy, onResolve, onTriage, onSkip}) {
+  const list = Array.isArray(items) ? items : [];
+  if (list.length === 0) {
+    return (
+      <div
+        data-reconciliation-bucket-empty={bucketKey}
+        style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '6px 0 12px'}}
+      >
+        Nothing in this bucket — all clear.
+      </div>
+    );
+  }
+  const active = list[0];
+  return (
+    <div>
+      <div style={{fontSize: 11.5, color: T.label, fontWeight: 700, marginBottom: 8}}>
+        {list.length} remaining — reviewing one at a time
+      </div>
+      <WorkbenchItem
+        key={active.asana_gid}
+        link={active}
+        plannerRecords={plannerRecords}
+        recordsById={recordsById}
+        busy={busy}
+        onResolve={onResolve}
+        onTriage={onTriage}
+        onSkip={onSkip}
+      />
+    </div>
+  );
+}
+
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function WorkbenchItem({link, plannerRecords, recordsById, busy, onResolve, onTriage, onSkip}) {
+  const {useState, useMemo} = React;
+  const [search, setSearch] = useState('');
+  const facts = asanaFacts(link);
+  const candidates = linkCandidates(link, recordsById);
+  const rec = link.record || null;
+  // Triage applies to an Asana-owned placeholder record (import_exception here).
+  const canTriage = !!rec && rec.record_type !== 'planner_batch';
+
+  const results = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return plannerRecords
+      .filter((r) => `${r.title || ''} ${r.source_id || ''} ${r.program || ''}`.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [search, plannerRecords]);
+
+  const metaBits = [
+    facts.program,
+    facts.date,
+    facts.count != null ? `${Number(facts.count).toLocaleString()} head` : null,
+  ]
+    .concat(facts.code && facts.code !== facts.name ? [facts.code] : [])
+    .filter(Boolean);
+
+  return (
+    <div
+      data-reconciliation-item={link.asana_gid}
+      style={{
+        border: `1px solid ${T.border}`,
+        borderRadius: 14,
+        padding: '14px 16px',
+        background: T.card,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.2fr)',
+        gap: 16,
+      }}
+    >
+      {/* LEFT — the Asana task */}
+      <div style={{minWidth: 0, borderRight: `1px solid ${T.rowBorder}`, paddingRight: 14}}>
+        <div
+          style={{fontSize: 10.5, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: T.label}}
+        >
+          Asana task
+        </div>
+        <div style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, minWidth: 0}}>
+          {facts.program && <span style={programDotStyle(facts.program)} />}
+          <span
+            style={{fontSize: 14.5, fontWeight: 800, color: T.ink, minWidth: 0, wordBreak: 'break-word'}}
+            title={facts.name}
+          >
+            {facts.name}
+          </span>
+        </div>
+        {metaBits.length > 0 && (
+          <div style={{fontSize: 12, color: T.muted, fontWeight: 600, marginTop: 5}}>{metaBits.join(' · ')}</div>
+        )}
+        {facts.section && (
+          <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 4}}>{facts.section}</div>
+        )}
+        <div style={{marginTop: 8}}>
+          <Badge variant={matchStatusVariant(link.match_status)}>
+            {String(link.bucket || link.match_status || 'needs_review').replace(/_/g, ' ')}
+          </Badge>
+        </div>
+      </div>
+
+      {/* RIGHT — assign / triage */}
+      <div style={{minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10}}>
+        {candidates.length > 0 && (
+          <div>
+            <div style={sectionLabel}>Suggested Planner records</div>
+            <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
+              {candidates.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onResolve(link.asana_gid, c.id)}
+                  data-reconciliation-candidate={c.id}
+                  title={recordLabel(c, c.id)}
+                  style={candidateBtn(busy)}
+                >
+                  {c.title || c.id}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div style={sectionLabel}>Search a Planner batch</div>
+          <input
+            type="text"
+            value={search}
+            disabled={busy}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Type a code, title, or source id…"
+            data-reconciliation-search="1"
+            style={{
+              width: '100%',
+              border: `1px solid #D2D6DB`,
+              borderRadius: 10,
+              padding: '8px 10px',
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: T.ink,
+              fontFamily: 'inherit',
+              background: '#fff',
+            }}
+          />
+          {results.length > 0 && (
+            <div style={{display: 'grid', gap: 5, marginTop: 6}}>
+              {results.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onResolve(link.asana_gid, r.id)}
+                  data-reconciliation-search-assign={r.id}
+                  style={{
+                    textAlign: 'left',
+                    border: `1px solid ${T.border}`,
+                    background: '#fff',
+                    borderRadius: 10,
+                    padding: '7px 10px',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: T.ink,
+                    cursor: busy ? 'default' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {recordLabel(r, r.id)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 2}}>
+          {canTriage && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onTriage(rec.id, 'milestone')}
+                data-reconciliation-triage-milestone="1"
+                style={pillBtn(busy)}
+              >
+                Mark milestone
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onTriage(rec.id, 'historical')}
+                data-reconciliation-triage-historical="1"
+                style={pillBtn(busy)}
+              >
+                Mark historical
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onTriage(rec.id, 'dismiss')}
+                data-reconciliation-triage-dismiss="1"
+                style={pillBtn(busy)}
+              >
+                Dismiss (not a batch)
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSkip(link.asana_gid)}
+            data-reconciliation-skip="1"
+            style={pillBtn(busy)}
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Duplicate-group bucket: keep one canonical, block the rest.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function DuplicateBucket({groups, links, plannerRecords, busy, onSupersede}) {
+  const list = Array.isArray(groups) ? groups : [];
+  if (list.length === 0) {
+    return (
+      <div
+        data-reconciliation-bucket-empty="duplicates"
+        style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '6px 0 12px'}}
+      >
+        No duplicate Asana codes.
+      </div>
+    );
+  }
+  return (
+    <div style={{display: 'grid', gap: 12}}>
+      {list.map((g) => (
+        <DuplicateGroupCard
+          key={`${g.program}:${g.code}`}
+          group={g}
+          links={links}
+          plannerRecords={plannerRecords}
+          busy={busy}
+          onSupersede={onSupersede}
+        />
+      ))}
+    </div>
+  );
+}
+
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function DuplicateGroupCard({group, links, plannerRecords, busy, onSupersede}) {
+  const {useState, useMemo} = React;
+  const members = useMemo(
+    () => links.filter((l) => Array.isArray(group.asana_gids) && group.asana_gids.includes(l.asana_gid)),
+    [links, group],
+  );
+  // Canonical candidates: the records these members already point at (matched),
+  // plus any planner_batch by search. Default to the first matched member's record.
+  const memberRecords = members.map((m) => m.record).filter((r) => r && r.record_type === 'planner_batch');
+  const [canonical, setCanonical] = useState(memberRecords[0]?.id || '');
+
+  return (
+    <div
+      data-reconciliation-duplicate-group={group.code}
+      style={{border: `1px solid ${T.border}`, borderRadius: 14, padding: '13px 15px', background: T.card}}
+    >
+      <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap'}}>
+        {group.program && <span style={programDotStyle(group.program)} />}
+        <span style={{fontSize: 14, fontWeight: 800, color: T.ink}}>{group.code}</span>
+        <span style={{fontSize: 12, color: T.muted, fontWeight: 600}}>
+          {group.program} · {num(group.count)} Asana tasks
+        </span>
+      </div>
+
+      <div style={{marginBottom: 10}}>
+        <div style={sectionLabel}>Keep as canonical</div>
+        <select
+          value={canonical}
+          disabled={busy}
+          onChange={(e) => setCanonical(e.target.value)}
+          data-reconciliation-canonical="1"
+          style={{
+            width: '100%',
+            border: `1px solid #D2D6DB`,
+            borderRadius: 10,
+            padding: '7px 9px',
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: T.ink,
+            fontFamily: 'inherit',
+            background: '#fff',
+          }}
+        >
+          <option value="">No canonical (just block the duplicate)</option>
+          {plannerRecords.map((r) => (
+            <option key={r.id} value={r.id}>
+              {recordLabel(r, r.id)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{display: 'grid', gap: 7}}>
+        {members.map((m) => {
+          const facts = asanaFacts(m);
+          const blocked = m.match_status === 'duplicate_blocked';
+          return (
+            <div
+              key={m.asana_gid}
+              data-reconciliation-duplicate-member={m.asana_gid}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                borderTop: `1px solid ${T.rowBorder}`,
+                paddingTop: 7,
+              }}
+            >
+              <div style={{minWidth: 0, flex: 1}}>
+                <div style={{fontSize: 12.5, fontWeight: 700, color: T.ink, wordBreak: 'break-word'}}>{facts.name}</div>
+                <div style={{fontSize: 11.5, color: T.muted, fontWeight: 600}}>
+                  {[facts.date, facts.count != null ? `${Number(facts.count).toLocaleString()} head` : null, m.bucket]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+              </div>
+              {blocked ? (
+                <Badge variant="danger">blocked</Badge>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onSupersede(m.asana_gid, canonical)}
+                  data-reconciliation-supersede={m.asana_gid}
+                  style={pillBtn(busy)}
+                >
+                  Block as duplicate
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Drift bucket: informational; acknowledge to clear.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function DriftBucket({items, recordsById, busy, onAck}) {
+  const list = Array.isArray(items) ? items : [];
+  if (list.length === 0) {
+    return (
+      <div
+        data-reconciliation-bucket-empty="drift"
+        style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '6px 0 12px'}}
+      >
+        No unacknowledged drift.
+      </div>
+    );
+  }
+  return (
+    <div>
+      {list.map((link) => (
+        <DriftRow key={link.asana_gid} link={link} recordsById={recordsById} busy={busy} onAck={onAck} />
+      ))}
+    </div>
+  );
+}
+
+const sectionLabel = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: T.label,
+  textTransform: 'uppercase',
+  letterSpacing: '.06em',
+  marginBottom: 5,
+};
+function candidateBtn(disabled) {
+  return {
+    fontSize: 11.5,
+    fontWeight: 700,
+    borderRadius: 999,
+    padding: '5px 12px',
+    cursor: disabled ? 'default' : 'pointer',
+    fontFamily: 'inherit',
+    border: `1px solid ${T.green}`,
+    background: '#E6F4EC',
+    color: '#1F7A4D',
+    maxWidth: 260,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  };
+}
+function pillBtn(disabled) {
+  return {
+    fontSize: 12,
+    fontWeight: 700,
+    borderRadius: 10,
+    padding: '7px 12px',
+    cursor: disabled ? 'default' : 'pointer',
+    fontFamily: 'inherit',
+    border: `1px solid ${T.border}`,
+    background: '#fff',
+    color: T.muted,
+    flex: 'none',
+  };
 }
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -527,7 +1062,7 @@ function StatChip({label, value, accent}) {
         border: `1px solid ${T.border}`,
         borderRadius: 12,
         padding: '9px 14px',
-        minWidth: 96,
+        minWidth: 92,
         background: T.card,
       }}
     >
@@ -560,207 +1095,10 @@ function StatChip({label, value, accent}) {
 }
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
-function SectionHead({title, count, hint}) {
-  return (
-    <div style={{marginBottom: 8}}>
-      <div style={{display: 'flex', alignItems: 'baseline', gap: 9}}>
-        <span style={{fontSize: 14, fontWeight: 800, color: T.ink}}>{title}</span>
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: T.label,
-            background: T.chipBg,
-            borderRadius: 999,
-            padding: '2px 9px',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {count}
-        </span>
-      </div>
-      {hint && <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 3}}>{hint}</div>}
-    </div>
-  );
-}
-
-// eslint-disable-next-line no-unused-vars -- JSX-only use
-function ReviewRow({link, records, recordsById, busy, onResolve, onSkip}) {
-  const {useState} = React;
-  const [choice, setChoice] = useState('');
-  const snap = link.raw_asana_snapshot || {};
-  const name = snapName(snap, link);
-  const date = formatDate(snapDate(snap));
-  const count = snapCount(snap);
-  const candidates = Array.isArray(link.candidate_record_ids) ? link.candidate_record_ids : [];
-
-  const metaBits = [];
-  if (link.program) metaBits.push(link.program);
-  if (date) metaBits.push(date);
-  if (count != null) metaBits.push(`${Number(count).toLocaleString()} head`);
-  if (link.asana_batch_code && link.asana_batch_code !== name) metaBits.push(link.asana_batch_code);
-
-  return (
-    <div
-      data-reconciliation-review-row={link.asana_gid}
-      style={{
-        border: `1px solid ${T.border}`,
-        borderRadius: 12,
-        padding: '11px 13px',
-        marginBottom: 9,
-        background: T.card,
-      }}
-    >
-      {/* Asana task */}
-      <div style={{display: 'flex', alignItems: 'center', gap: 8, minWidth: 0}}>
-        {link.program && <span style={programDotStyle(link.program)} />}
-        <span
-          style={{
-            fontSize: 13.5,
-            fontWeight: 700,
-            color: T.ink,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            minWidth: 0,
-          }}
-          title={name}
-        >
-          {name}
-        </span>
-        <Badge variant={matchStatusVariant(link.match_status)} style={{flex: 'none'}}>
-          {String(link.match_status || 'needs_review').replace(/_/g, ' ')}
-        </Badge>
-      </div>
-      {metaBits.length > 0 && (
-        <div style={{fontSize: 11.5, color: T.muted, fontWeight: 600, marginTop: 3}}>{metaBits.join(' · ')}</div>
-      )}
-
-      {/* Candidate suggestions */}
-      {candidates.length > 0 && (
-        <div style={{marginTop: 9}}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: T.label,
-              textTransform: 'uppercase',
-              letterSpacing: '.06em',
-              marginBottom: 5,
-            }}
-          >
-            Suggestions
-          </div>
-          <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
-            {candidates.map((id) => (
-              <button
-                key={id}
-                type="button"
-                disabled={busy}
-                onClick={() => onResolve(link.asana_gid, id)}
-                data-reconciliation-candidate={id}
-                title={recordLabel(recordsById.get(id), id)}
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  borderRadius: 999,
-                  padding: '4px 11px',
-                  cursor: busy ? 'default' : 'pointer',
-                  fontFamily: 'inherit',
-                  border: `1px solid ${T.green}`,
-                  background: '#E6F4EC',
-                  color: '#1F7A4D',
-                  maxWidth: 260,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {recordsById.get(id)?.title || id}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Full picker + skip */}
-      <div style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap'}}>
-        <select
-          value={choice}
-          onChange={(e) => setChoice(e.target.value)}
-          disabled={busy}
-          aria-label="Choose a Planner record"
-          style={{
-            flex: 1,
-            minWidth: 200,
-            border: `1px solid #D2D6DB`,
-            borderRadius: 10,
-            padding: '7px 9px',
-            fontSize: 12.5,
-            fontWeight: 600,
-            color: T.ink,
-            fontFamily: 'inherit',
-            background: '#fff',
-            cursor: busy ? 'default' : 'pointer',
-          }}
-        >
-          <option value="">Choose a Planner record…</option>
-          {records.map((r) => (
-            <option key={r.id} value={r.id}>
-              {recordLabel(r, r.id)}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          disabled={busy || !choice}
-          onClick={() => onResolve(link.asana_gid, choice)}
-          data-reconciliation-resolve="1"
-          style={{
-            background: busy || !choice ? '#EAECEF' : T.green,
-            color: busy || !choice ? '#9AA1AB' : '#fff',
-            border: 'none',
-            borderRadius: 10,
-            padding: '8px 15px',
-            fontSize: 12.5,
-            fontWeight: 700,
-            cursor: busy || !choice ? 'default' : 'pointer',
-            fontFamily: 'inherit',
-            flex: 'none',
-          }}
-        >
-          Assign
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onSkip(link.asana_gid)}
-          data-reconciliation-skip="1"
-          style={{
-            background: '#fff',
-            border: `1px solid ${T.border}`,
-            color: T.muted,
-            borderRadius: 10,
-            padding: '8px 13px',
-            fontSize: 12.5,
-            fontWeight: 700,
-            cursor: busy ? 'default' : 'pointer',
-            fontFamily: 'inherit',
-            flex: 'none',
-          }}
-        >
-          Keep in review
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// eslint-disable-next-line no-unused-vars -- JSX-only use
 function DriftRow({link, recordsById, busy, onAck}) {
-  const rec = link.processing_record_id ? recordsById.get(link.processing_record_id) : null;
+  const rec = link.record || (link.processing_record_id ? recordsById.get(link.processing_record_id) : null);
   const entries = driftEntries(link.drift);
-  const title = rec?.title || link.processing_record_id || snapName(link.raw_asana_snapshot || {}, link);
+  const title = (rec && rec.title) || link.processing_record_id || snapName(link.raw_asana_snapshot || {}, link);
 
   return (
     <div

@@ -512,6 +512,7 @@ async function runSync(
   action: string,
   sinceISO: string | null,
   syncRunId: string,
+  reviewOnly = false,
 ): Promise<SyncCounts> {
   const counts: SyncCounts = {
     reconcile: null,
@@ -538,7 +539,10 @@ async function runSync(
   const plannerRows = await loadPlannerRows(svc);
   counts.plannerRows = plannerRows.length;
 
-  const doAttachments = action === 'sync_once' || action === 'sync_since' || action === 'attachment_backfill';
+  // reviewOnly (sync_review_queue) imports records + links ONLY: no subtasks,
+  // comments, attachments, or Storage writes.
+  const doAttachments =
+    !reviewOnly && (action === 'sync_once' || action === 'sync_since' || action === 'attachment_backfill');
 
   // (3) Fetch every Asana task and (4/5) match → link → import artifacts.
   const tasks = await fetchTasks(sinceISO);
@@ -577,7 +581,7 @@ async function runSync(
           continue;
         }
         counts.milestones += 1;
-        await importArtifacts(svc, gid, doAttachments, counts);
+        if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
         continue;
       }
 
@@ -604,7 +608,7 @@ async function runSync(
           continue;
         }
         counts.matched += 1;
-        await importArtifacts(svc, gid, doAttachments, counts);
+        if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
         continue;
       }
 
@@ -623,7 +627,7 @@ async function runSync(
           continue;
         }
         counts.historical += 1;
-        await importArtifacts(svc, gid, doAttachments, counts);
+        if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
         continue;
       }
 
@@ -661,7 +665,7 @@ async function runSync(
         continue;
       }
       counts.exceptions += 1;
-      await importArtifacts(svc, gid, doAttachments, counts);
+      if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
     } catch (e) {
       counts.errors += 1;
       console.error(`task ${gid}: ${e instanceof Error ? e.message : String(e)}`);
@@ -672,7 +676,14 @@ async function runSync(
 
 // ─── Main handler ────────────────────────────────────────────────────────────
 
-const ACTIONS = new Set(['dry_run', 'sync_planner_to_processing', 'sync_once', 'sync_since', 'attachment_backfill']);
+const ACTIONS = new Set([
+  'dry_run',
+  'sync_planner_to_processing',
+  'sync_review_queue',
+  'sync_once',
+  'sync_since',
+  'attachment_backfill',
+]);
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', {headers: corsHeaders});
@@ -742,6 +753,9 @@ serve(async (req: Request) => {
     return jsonResponse({ok: false, error: 'sync_since requires body.since (ISO timestamp)'}, 400);
   }
   const sinceISO = action === 'sync_since' ? String(body.since).trim() : null;
+  // sync_review_queue = records + links ONLY (reconcile + match + link, no
+  // subtasks/comments/attachments, no Storage) — the gated first queue population.
+  const reviewOnly = action === 'sync_review_queue';
 
   // Write actions: bracket the work in a sync-run row.
   let runId = '';
@@ -749,7 +763,7 @@ serve(async (req: Request) => {
     const {data: run, error: startErr} = await svc.rpc('start_processing_sync_run', {p_action: action});
     if (startErr) throw new Error(`start_processing_sync_run: ${startErr.message}`);
     runId = (run as {id?: string})?.id || '';
-    const counts = await runSync(svc, action, sinceISO, runId);
+    const counts = await runSync(svc, action, sinceISO, runId, reviewOnly);
     await svc.rpc('finish_processing_sync_run', {
       p_run_id: runId,
       p_status: 'ok',

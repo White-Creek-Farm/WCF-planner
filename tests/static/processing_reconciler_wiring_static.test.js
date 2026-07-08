@@ -34,13 +34,14 @@ describe('reconciler UI wiring', () => {
   it('ProcessingCalendarView adds an admin reconciliation entry point', () => {
     expect(read('src/processing/ProcessingCalendarView.jsx')).toContain('data-processing-reconciliation-btn');
   });
-  it('ProcessingReconciliationModal has the crosswalk + drift markers', () => {
+  it('ProcessingReconciliationModal has the workbench crosswalk + drift markers', () => {
     const m = read('src/processing/ProcessingReconciliationModal.jsx');
     for (const mk of [
       'data-processing-reconciliation-modal',
       'data-processing-reconciliation-loaded',
-      'data-reconciliation-review-row',
-      'data-reconciliation-resolve',
+      'data-reconciliation-workbench',
+      'data-reconciliation-item', // one-at-a-time crosswalk card (replaces the flat review row)
+      'data-reconciliation-candidate', // assign to a suggested planner record (replaces the single resolve button)
       'data-reconciliation-ack',
     ]) {
       expect(m, `missing marker ${mk}`).toContain(mk);

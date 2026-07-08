@@ -321,6 +321,30 @@ export async function acknowledgeProcessingDrift(sb, asanaGid) {
   return data;
 }
 
+// triage_processing_asana_record(p_record_id, p_action) -> {ok}. Reclassify an
+// Asana-owned record (import_exception / asana_historical / milestone) to
+// 'milestone' or 'historical', or 'dismiss' it (archive as not-a-batch). Never
+// touches a planner_batch. Used for the planning-note "import exceptions".
+export async function triageProcessingAsanaRecord(sb, recordId, action) {
+  const {data, error} = await sb.rpc('triage_processing_asana_record', {p_record_id: recordId, p_action: action});
+  if (error) throw new Error(`triageProcessingAsanaRecord: ${error.message || String(error)}`);
+  return data;
+}
+
+// supersede_processing_asana_duplicate(p_asana_gid, p_canonical_record_id) ->
+// {ok}. Block a duplicate Asana task's link (match_status='duplicate_blocked'),
+// noting the canonical record, and archive the duplicate's own orphaned Asana
+// placeholder. Provenance (raw_asana_snapshot) is preserved; the canonical link
+// and any planner_batch are never touched.
+export async function supersedeProcessingAsanaDuplicate(sb, asanaGid, canonicalRecordId = null) {
+  const {data, error} = await sb.rpc('supersede_processing_asana_duplicate', {
+    p_asana_gid: asanaGid,
+    p_canonical_record_id: canonicalRecordId ?? null,
+  });
+  if (error) throw new Error(`supersedeProcessingAsanaDuplicate: ${error.message || String(error)}`);
+  return data;
+}
+
 // ── Error classification ─────────────────────────────────────────────────────
 // Deterministic validation failures carry the PROCESSING_VALIDATION prefix from
 // the RPCs (bad role, invalid input, completion gate). Everything else is
