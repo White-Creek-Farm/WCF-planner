@@ -1,0 +1,1122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cattle Nutrition Audit - 30/90/120 Day Inputs</title>
+    <style>
+      :root {
+        --ink: #172033;
+        --muted: #657083;
+        --line: #d9dee7;
+        --paper: #f7f8fa;
+        --card: #ffffff;
+        --momma: #9b3f2f;
+        --finisher: #126b63;
+        --feed: #c89d3e;
+        --target: #d7dee8;
+        --good: #13795b;
+        --warn: #9a3412;
+        --soft: #eef2f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--paper);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.35;
+      }
+
+      main {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 28px 0 56px;
+      }
+
+      .hero,
+      .page {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin-bottom: 18px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgb(20 32 48 / 0.05);
+      }
+
+      .hero {
+        padding: 28px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 30px;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 18px;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h3 {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+
+      .subtle {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 22px;
+        align-items: end;
+      }
+
+      .pill-row,
+      .metric-grid,
+      .source-grid,
+      .mini-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .pill-row {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 18px;
+      }
+
+      .pill {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcfd;
+      }
+
+      .label {
+        display: block;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .value {
+        display: block;
+        margin-top: 4px;
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .note {
+        border-left: 4px solid var(--momma);
+        background: #fff8f5;
+        padding: 12px 14px;
+        border-radius: 4px;
+        color: #4a261d;
+      }
+
+      .page-body {
+        padding: 18px 22px 22px;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .flow-box {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        min-height: 112px;
+        background: #fbfcfd;
+      }
+
+      .flow-box strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+
+      .window {
+        border-top: 1px solid var(--line);
+      }
+
+      .window:first-child {
+        border-top: 0;
+      }
+
+      .window-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 16px 22px;
+        background: #fbfcfd;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .window-title strong {
+        font-size: 16px;
+      }
+
+      .herd-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+
+      .herd-card.mommas {
+        border-top: 4px solid var(--momma);
+      }
+
+      .herd-card.finishers {
+        border-top: 4px solid var(--finisher);
+      }
+
+      .herd-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 12px;
+      }
+
+      .herd-name {
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .metric-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+
+      .metric {
+        background: var(--soft);
+        border: 1px solid #e1e6ed;
+        border-radius: 8px;
+        padding: 10px;
+        min-height: 86px;
+      }
+
+      .metric .value {
+        font-size: 16px;
+      }
+
+      .target-line {
+        color: var(--muted);
+        display: block;
+        font-size: 11px;
+        margin-top: 2px;
+      }
+
+      .ratio {
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--target);
+        margin-top: 8px;
+      }
+
+      .ratio > span {
+        display: block;
+        height: 100%;
+        width: min(var(--pct), 200%);
+        background: var(--good);
+      }
+
+      .ratio.warn > span {
+        background: var(--warn);
+      }
+
+      .source-grid {
+        grid-template-columns: 1.2fr 0.8fr;
+        margin-top: 14px;
+      }
+
+      .stack {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      .stack-row {
+        display: grid;
+        grid-template-columns: 170px 1fr 84px;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 10px;
+        border-top: 1px solid #edf0f4;
+        font-size: 12px;
+      }
+
+      .stack-row:first-child {
+        border-top: 0;
+      }
+
+      .bar {
+        height: 14px;
+        border-radius: 999px;
+        background: #edf0f4;
+        overflow: hidden;
+      }
+
+      .bar > span {
+        display: block;
+        height: 100%;
+        width: var(--pct);
+        background: var(--feed);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      th,
+      td {
+        padding: 8px 8px;
+        border-bottom: 1px solid #e7ebf0;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        background: #fbfcfd;
+      }
+
+      td.num,
+      th.num {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .mini-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .small-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcfd;
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .page-break {
+        break-before: page;
+      }
+
+      @media (max-width: 900px) {
+        main {
+          width: min(100% - 18px, 1180px);
+          padding-top: 12px;
+        }
+
+        .hero-grid,
+        .flow,
+        .source-grid,
+        .two-col,
+        .pill-row {
+          grid-template-columns: 1fr;
+        }
+
+        .metric-grid,
+        .mini-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .stack-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        main {
+          width: 100%;
+          padding: 0;
+        }
+
+        .hero,
+        .page {
+          border-radius: 0;
+          box-shadow: none;
+          border-left: 0;
+          border-right: 0;
+        }
+
+        .page {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="hero-grid">
+          <div>
+            <p class="subtle">WCF Planner audit graphic</p>
+            <h1>Cattle Nutrition Inputs: 30 / 90 / 120 Days</h1>
+            <p class="subtle">
+              Report date: July 8, 2026. Herds audited: Mommas and Finishers.
+              Corrected July 8, 2026 after the DM hotfix. Values use true dry
+              matter from feed moisture, then calculate CP and NFC from that
+              dry matter quantity.
+            </p>
+            <div class="pill-row">
+              <div class="pill">
+                <span class="label">Feed records</span>
+                <span class="value">270</span>
+                <span class="subtle">cattle_dailys in 120-day pull</span>
+              </div>
+              <div class="pill">
+                <span class="label">Cattle records</span>
+                <span class="value">446</span>
+                <span class="subtle">current cattle source table</span>
+              </div>
+              <div class="pill">
+                <span class="label">Weight records</span>
+                <span class="value">2,431</span>
+                <span class="subtle">from 95 weigh-in sessions</span>
+              </div>
+              <div class="pill">
+                <span class="label">Targets</span>
+                <span class="value">4</span>
+                <span class="subtle">cattle_nutrition_targets rows</span>
+              </div>
+            </div>
+          </div>
+          <div class="note">
+            <strong>Hotfix note:</strong> DM lb/day is now true dry matter:
+            as-fed pounds multiplied by (100 - moisture %) from the feed
+            snapshot. CP and NFC now use that dry matter quantity because the
+            feed setup stores CP and NFC as % DM.
+          </div>
+        </div>
+      </section>
+
+      <section class="page">
+        <h2>Data Source Map</h2>
+        <div class="page-body">
+          <div class="flow">
+            <div class="flow-box">
+              <strong>1. Feed logs</strong>
+              <p class="subtle">
+                Source: cattle_dailys.feeds. Quantities: lbs_as_fed, feed name,
+                herd, feed date, nutrition_snapshot, is_creep.
+              </p>
+            </div>
+            <div class="flow-box">
+                <strong>2. Nutrition values</strong>
+              <p class="subtle">
+                Source: feed-line nutrition_snapshot. Moisture% converts
+                as-fed pounds to DM. CP% and NFC% are then applied to DM.
+                landed_per_lb would drive cost, but it is missing on these
+                lines.
+              </p>
+            </div>
+            <div class="flow-box">
+              <strong>3. Cow units</strong>
+              <p class="subtle">
+                Source: cattle plus latest cattle weigh-ins. Weight is averaged
+                across the window and divided by 1,000 lb.
+              </p>
+            </div>
+            <div class="flow-box">
+              <strong>4. Targets</strong>
+              <p class="subtle">
+                Source: cattle_nutrition_targets. Mommas: 2.5% DM, 10% CP,
+                30% NFC. Finishers: 2.8% DM, 12% CP, 50% NFC.
+              </p>
+            </div>
+            <div class="flow-box">
+              <strong>5. Cards</strong>
+              <p class="subtle">
+                Output: total feed, cost, DM/day, CP/day, NFC/day, cow units,
+                mortality, and report days for 30/90/120 day windows.
+              </p>
+            </div>
+          </div>
+
+          <div class="two-col" style="margin-top: 14px">
+            <div class="small-card">
+              <h3>Window dates</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Window</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th class="num">Report days</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>30 days</td>
+                    <td>2026-06-09</td>
+                    <td>2026-07-08</td>
+                    <td class="num">30 of 30</td>
+                  </tr>
+                  <tr>
+                    <td>90 days</td>
+                    <td>2026-04-10</td>
+                    <td>2026-07-08</td>
+                    <td class="num">90 of 90</td>
+                  </tr>
+                  <tr>
+                    <td>120 days</td>
+                    <td>2026-03-11</td>
+                    <td>2026-07-08</td>
+                    <td class="num">117 of 120</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="small-card">
+              <h3>Weight coverage</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Herd</th>
+                    <th class="num">Head</th>
+                    <th class="num">Current weight</th>
+                    <th class="num">With weigh-in</th>
+                    <th class="num">No weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Mommas</td>
+                    <td class="num">178</td>
+                    <td class="num">129,877 lb</td>
+                    <td class="num">176</td>
+                    <td class="num">2</td>
+                  </tr>
+                  <tr>
+                    <td>Finishers</td>
+                    <td class="num">55</td>
+                    <td class="num">47,239 lb</td>
+                    <td class="num">55</td>
+                    <td class="num">0</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-break">
+        <h2>Rolling Window Scorecards</h2>
+
+        <div class="window">
+          <div class="window-title">
+            <strong>30 days: 2026-06-09 to 2026-07-08</strong>
+            <span class="subtle">Corrected from as-fed to true DM</span>
+          </div>
+          <div class="page-body">
+            <article class="herd-card mommas">
+              <div class="herd-head">
+                <div>
+                  <div class="herd-name">Mommas</div>
+                  <p class="subtle">178 cows · 129.9 cow units · targets 2.5% DM / 10% CP / 30% NFC</p>
+                </div>
+                <strong>111,450 lb total feed</strong>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="label">DM lb/day</span>
+                  <span class="value">1,865.9</span>
+                  <span class="target-line">3,247 target · 57%</span>
+                  <div class="ratio warn" style="--pct: 57%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">CP lb/day</span>
+                  <span class="value">306.2</span>
+                  <span class="target-line">325 target · 94%</span>
+                  <div class="ratio" style="--pct: 94%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">NFC lb/day</span>
+                  <span class="value">327.4</span>
+                  <span class="target-line">974 target · 34%</span>
+                  <div class="ratio warn" style="--pct: 34%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">Feed cost</span>
+                  <span class="value">Unavailable</span>
+                  <span class="target-line">landed_per_lb missing</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Mortality</span>
+                  <span class="value">0</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Report days</span>
+                  <span class="value">30 of 30</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="herd-card finishers">
+              <div class="herd-head">
+                <div>
+                  <div class="herd-name">Finishers</div>
+                  <p class="subtle">55 cows · 47.2 cow units · targets 2.8% DM / 12% CP / 50% NFC</p>
+                </div>
+                <strong>32,425 lb total feed</strong>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="label">DM lb/day</span>
+                  <span class="value">766.5</span>
+                  <span class="target-line">1,323 target · 58%</span>
+                  <div class="ratio warn" style="--pct: 58%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">CP lb/day</span>
+                  <span class="value">75.3</span>
+                  <span class="target-line">159 target · 47%</span>
+                  <div class="ratio warn" style="--pct: 47%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">NFC lb/day</span>
+                  <span class="value">367.6</span>
+                  <span class="target-line">661 target · 56%</span>
+                  <div class="ratio warn" style="--pct: 56%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">Feed cost</span>
+                  <span class="value">Unavailable</span>
+                  <span class="target-line">landed_per_lb missing</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Mortality</span>
+                  <span class="value">0</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Report days</span>
+                  <span class="value">30 of 30</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="window">
+          <div class="window-title">
+            <strong>90 days: 2026-04-10 to 2026-07-08</strong>
+            <span class="subtle">90 feeding days present</span>
+          </div>
+          <div class="page-body">
+            <article class="herd-card mommas">
+              <div class="herd-head">
+                <div>
+                  <div class="herd-name">Mommas</div>
+                  <p class="subtle">178 cows · 129.9 cow units</p>
+                </div>
+                <strong>414,698 lb total feed</strong>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="label">DM lb/day</span>
+                  <span class="value">3,451.9</span>
+                  <span class="target-line">3,247 target · 106%</span>
+                  <div class="ratio" style="--pct: 106%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">CP lb/day</span>
+                  <span class="value">723.8</span>
+                  <span class="target-line">325 target · 223%</span>
+                  <div class="ratio" style="--pct: 200%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">NFC lb/day</span>
+                  <span class="value">732.4</span>
+                  <span class="target-line">974 target · 75%</span>
+                  <div class="ratio warn" style="--pct: 75%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">Feed cost</span>
+                  <span class="value">Unavailable</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Mortality</span>
+                  <span class="value">0</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Report days</span>
+                  <span class="value">90 of 90</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="herd-card finishers">
+              <div class="herd-head">
+                <div>
+                  <div class="herd-name">Finishers</div>
+                  <p class="subtle">55 cows · 47.2 cow units</p>
+                </div>
+                <strong>142,413.9 lb total feed</strong>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="label">DM lb/day</span>
+                  <span class="value">1,308.3</span>
+                  <span class="target-line">1,323 target · 99%</span>
+                  <div class="ratio" style="--pct: 99%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">CP lb/day</span>
+                  <span class="value">220.9</span>
+                  <span class="target-line">159 target · 139%</span>
+                  <div class="ratio" style="--pct: 139%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">NFC lb/day</span>
+                  <span class="value">454.7</span>
+                  <span class="target-line">661 target · 69%</span>
+                  <div class="ratio warn" style="--pct: 69%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">Feed cost</span>
+                  <span class="value">Unavailable</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Mortality</span>
+                  <span class="value">0</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Report days</span>
+                  <span class="value">90 of 90</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="window">
+          <div class="window-title">
+            <strong>120 days: 2026-03-11 to 2026-07-08</strong>
+            <span class="subtle">117 feeding days present</span>
+          </div>
+          <div class="page-body">
+            <article class="herd-card mommas">
+              <div class="herd-head">
+                <div>
+                  <div class="herd-name">Mommas</div>
+                  <p class="subtle">178 cows · 127.7 cow units average across window</p>
+                </div>
+                <strong>499,888.5 lb total feed</strong>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="label">DM lb/day</span>
+                  <span class="value">3,298.8</span>
+                  <span class="target-line">3,193 target · 103%</span>
+                  <div class="ratio" style="--pct: 103%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">CP lb/day</span>
+                  <span class="value">692.1</span>
+                  <span class="target-line">319 target · 217%</span>
+                  <div class="ratio" style="--pct: 200%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">NFC lb/day</span>
+                  <span class="value">695.3</span>
+                  <span class="target-line">958 target · 73%</span>
+                  <div class="ratio warn" style="--pct: 73%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">Feed cost</span>
+                  <span class="value">Unavailable</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Mortality</span>
+                  <span class="value">0</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Report days</span>
+                  <span class="value">117 of 120</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="herd-card finishers">
+              <div class="herd-head">
+                <div>
+                  <div class="herd-name">Finishers</div>
+                  <p class="subtle">55 cows · 47.2 cow units</p>
+                </div>
+                <strong>173,490.4 lb total feed</strong>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="label">DM lb/day</span>
+                  <span class="value">1,240.2</span>
+                  <span class="target-line">1,323 target · 94%</span>
+                  <div class="ratio" style="--pct: 94%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">CP lb/day</span>
+                  <span class="value">208.5</span>
+                  <span class="target-line">159 target · 131%</span>
+                  <div class="ratio" style="--pct: 131%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">NFC lb/day</span>
+                  <span class="value">422.3</span>
+                  <span class="target-line">661 target · 64%</span>
+                  <div class="ratio warn" style="--pct: 64%"><span></span></div>
+                </div>
+                <div class="metric">
+                  <span class="label">Feed cost</span>
+                  <span class="value">Unavailable</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Mortality</span>
+                  <span class="value">0</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Report days</span>
+                  <span class="value">117 of 120</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-break">
+        <h2>Feed Source Quantities - 30 Days</h2>
+        <div class="page-body two-col">
+          <div>
+            <h3>Mommas feed mix</h3>
+            <div class="stack">
+              <div class="stack-row">
+                <strong>Rye Baleage</strong>
+                <div class="bar"><span style="--pct: 98.3%"></span></div>
+                <span>109,500 lb</span>
+              </div>
+              <div class="stack-row">
+                <strong>DRY RYE</strong>
+                <div class="bar"><span style="--pct: 1.7%"></span></div>
+                <span>1,950 lb</span>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feed source</th>
+                  <th class="num">Lines</th>
+                  <th class="num">Dates</th>
+                  <th class="num">As-fed</th>
+                  <th class="num">DM lb</th>
+                  <th class="num">DM lb</th>
+                  <th class="num">DM lb</th>
+                  <th class="num">CP lb</th>
+                  <th class="num">NFC lb</th>
+                  <th class="num">CP%</th>
+                  <th class="num">NFC%</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Rye Baleage</td>
+                  <td class="num">16</td>
+                  <td class="num">2026-06-10..2026-07-07</td>
+                  <td class="num">109,500</td>
+                  <td class="num">54,202.5</td>
+                  <td class="num">8,997.6</td>
+                  <td class="num">9,593.8</td>
+                  <td class="num">16.6</td>
+                  <td class="num">17.7</td>
+                </tr>
+                <tr>
+                  <td>DRY RYE</td>
+                  <td class="num">1</td>
+                  <td class="num">2026-06-14</td>
+                  <td class="num">1,950</td>
+                  <td class="num">1,774.5</td>
+                  <td class="num">188.1</td>
+                  <td class="num">228.9</td>
+                  <td class="num">10.6</td>
+                  <td class="num">12.9</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h3>Finishers feed mix</h3>
+            <div class="stack">
+              <div class="stack-row">
+                <strong>Rye Baleage</strong>
+                <div class="bar"><span style="--pct: 46.3%"></span></div>
+                <span>15,000 lb</span>
+              </div>
+              <div class="stack-row">
+                <strong>Citrus Pellets</strong>
+                <div class="bar"><span style="--pct: 44.6%"></span></div>
+                <span>14,450 lb</span>
+              </div>
+              <div class="stack-row">
+                <strong>Molasses</strong>
+                <div class="bar"><span style="--pct: 9.2%"></span></div>
+                <span>2,975 lb</span>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feed source</th>
+                  <th class="num">Lines</th>
+                  <th class="num">Dates</th>
+                  <th class="num">As-fed</th>
+                  <th class="num">DM lb</th>
+                  <th class="num">CP lb</th>
+                  <th class="num">NFC lb</th>
+                  <th class="num">CP%</th>
+                  <th class="num">NFC%</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Rye Baleage</td>
+                  <td class="num">4</td>
+                  <td class="num">2026-06-12..2026-07-02</td>
+                  <td class="num">15,000</td>
+                  <td class="num">7,425.0</td>
+                  <td class="num">1,232.6</td>
+                  <td class="num">1,314.2</td>
+                  <td class="num">16.6</td>
+                  <td class="num">17.7</td>
+                </tr>
+                <tr>
+                  <td>Citrus Pellets</td>
+                  <td class="num">30</td>
+                  <td class="num">2026-06-09..2026-07-08</td>
+                  <td class="num">14,450</td>
+                  <td class="num">13,337.4</td>
+                  <td class="num">893.6</td>
+                  <td class="num">7,815.7</td>
+                  <td class="num">6.7</td>
+                  <td class="num">58.6</td>
+                </tr>
+                <tr>
+                  <td>Molasses</td>
+                  <td class="num">1</td>
+                  <td class="num">2026-07-01</td>
+                  <td class="num">2,975</td>
+                  <td class="num">2,231.3</td>
+                  <td class="num">133.9</td>
+                  <td class="num">1,896.6</td>
+                  <td class="num">6.0</td>
+                  <td class="num">85.0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-break">
+        <h2>Feed Source Quantities - 90 Days</h2>
+        <div class="page-body two-col">
+          <div>
+            <h3>Mommas</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feed source</th>
+                  <th class="num">Lines</th>
+                  <th class="num">Dates</th>
+                  <th class="num">As-fed lb</th>
+                  <th class="num">CP lb</th>
+                  <th class="num">NFC lb</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Alfalfa Hay</td><td class="num">16</td><td class="num">2026-04-18..2026-05-12</td><td class="num">168,000</td><td class="num">152,880.0</td><td class="num">35,162.4</td><td class="num">35,009.5</td></tr>
+                <tr><td>Rye Baleage</td><td class="num">25</td><td class="num">2026-05-25..2026-07-07</td><td class="num">166,500</td><td class="num">82,417.5</td><td class="num">13,681.3</td><td class="num">14,587.9</td></tr>
+                <tr><td>Alfalfa 2000# Bales</td><td class="num">8</td><td class="num">2026-05-14..2026-05-25</td><td class="num">47,800</td><td class="num">43,498.0</td><td class="num">10,004.5</td><td class="num">9,961.0</td></tr>
+                <tr><td>1000# ALFALFA ROUND BALES</td><td class="num">5</td><td class="num">2026-04-10..2026-04-16</td><td class="num">24,948</td><td class="num">24,948.0</td><td class="num">5,613.3</td><td class="num">5,513.5</td></tr>
+                <tr><td>DRY RYE</td><td class="num">2</td><td class="num">2026-06-07..2026-06-14</td><td class="num">5,850</td><td class="num">5,323.5</td><td class="num">564.3</td><td class="num">686.7</td></tr>
+                <tr><td>SORGHUM BALEAGE</td><td class="num">1</td><td class="num">2026-04-12</td><td class="num">1,600</td><td class="num">1,600.0</td><td class="num">115.2</td><td class="num">153.6</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>Finishers</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feed source</th>
+                  <th class="num">Lines</th>
+                  <th class="num">Dates</th>
+                  <th class="num">As-fed lb</th>
+                  <th class="num">DM lb</th>
+                  <th class="num">CP lb</th>
+                  <th class="num">NFC lb</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Alfalfa Hay</td><td class="num">8</td><td class="num">2026-04-17..2026-05-13</td><td class="num">60,000</td><td class="num">54,600.0</td><td class="num">12,558.0</td><td class="num">12,503.4</td></tr>
+                <tr><td>Rye Baleage</td><td class="num">8</td><td class="num">2026-05-27..2026-07-02</td><td class="num">28,500</td><td class="num">14,107.5</td><td class="num">2,341.8</td><td class="num">2,497.0</td></tr>
+                <tr><td>Citrus Pellets</td><td class="num">58</td><td class="num">2026-04-14..2026-07-08</td><td class="num">26,374.9</td><td class="num">24,344.0</td><td class="num">1,631.1</td><td class="num">14,265.6</td></tr>
+                <tr><td>CITRUS PELLETS</td><td class="num">23</td><td class="num">2026-04-10..2026-05-09</td><td class="num">10,025</td><td class="num">9,391.7</td><td class="num">607.6</td><td class="num">5,411.7</td></tr>
+                <tr><td>Alfalfa 2000# Bales</td><td class="num">3</td><td class="num">2026-05-17..2026-05-24</td><td class="num">8,000</td><td class="num">7,280.0</td><td class="num">1,674.4</td><td class="num">1,667.1</td></tr>
+                <tr><td>Molasses</td><td class="num">2</td><td class="num">2026-05-30..2026-07-01</td><td class="num">5,950</td><td class="num">4,462.5</td><td class="num">267.8</td><td class="num">3,793.1</td></tr>
+                <tr><td>1000# ALFALFA ROUND BALES</td><td class="num">1</td><td class="num">2026-04-13</td><td class="num">3,564</td><td class="num">3,564.0</td><td class="num">801.9</td><td class="num">787.6</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page page-break">
+        <h2>Feed Source Quantities - 120 Days</h2>
+        <div class="page-body two-col">
+          <div>
+            <h3>Mommas</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feed source</th>
+                  <th class="num">Lines</th>
+                  <th class="num">Dates</th>
+                  <th class="num">As-fed lb</th>
+                  <th class="num">CP lb</th>
+                  <th class="num">NFC lb</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Alfalfa Hay</td><td class="num">16</td><td class="num">2026-04-18..2026-05-12</td><td class="num">168,000</td><td class="num">152,880.0</td><td class="num">35,162.4</td><td class="num">35,009.5</td></tr>
+                <tr><td>Rye Baleage</td><td class="num">25</td><td class="num">2026-05-25..2026-07-07</td><td class="num">166,500</td><td class="num">82,417.5</td><td class="num">13,681.3</td><td class="num">14,587.9</td></tr>
+                <tr><td>1000# ALFALFA ROUND BALES</td><td class="num">20</td><td class="num">2026-03-13..2026-04-16</td><td class="num">98,010</td><td class="num">98,010.0</td><td class="num">22,070.1</td><td class="num">21,660.2</td></tr>
+                <tr><td>Alfalfa 2000# Bales</td><td class="num">8</td><td class="num">2026-05-14..2026-05-25</td><td class="num">47,800</td><td class="num">43,498.0</td><td class="num">10,004.5</td><td class="num">9,961.0</td></tr>
+                <tr><td>DRY RYE</td><td class="num">8</td><td class="num">2026-03-13..2026-06-14</td><td class="num">14,131</td><td class="num">13,604.5</td><td class="num">1,442.1</td><td class="num">1,755.0</td></tr>
+                <tr><td>CRABGRASS</td><td class="num">1</td><td class="num">2026-03-12</td><td class="num">3,847.5</td><td class="num">3,847.5</td><td class="num">577.1</td><td class="num">307.8</td></tr>
+                <tr><td>SORGHUM BALEAGE</td><td class="num">1</td><td class="num">2026-04-12</td><td class="num">1,600</td><td class="num">1,600.0</td><td class="num">115.2</td><td class="num">153.6</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>Finishers</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feed source</th>
+                  <th class="num">Lines</th>
+                  <th class="num">Dates</th>
+                  <th class="num">As-fed lb</th>
+                  <th class="num">DM lb</th>
+                  <th class="num">CP lb</th>
+                  <th class="num">NFC lb</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Alfalfa Hay</td><td class="num">8</td><td class="num">2026-04-17..2026-05-13</td><td class="num">60,000</td><td class="num">54,600.0</td><td class="num">12,558.0</td><td class="num">12,503.4</td></tr>
+                <tr><td>Rye Baleage</td><td class="num">8</td><td class="num">2026-05-27..2026-07-02</td><td class="num">28,500</td><td class="num">14,107.5</td><td class="num">2,341.8</td><td class="num">2,497.0</td></tr>
+                <tr><td>Citrus Pellets</td><td class="num">58</td><td class="num">2026-04-14..2026-07-08</td><td class="num">26,374.9</td><td class="num">24,344.0</td><td class="num">1,631.1</td><td class="num">14,265.6</td></tr>
+                <tr><td>1000# ALFALFA ROUND BALES</td><td class="num">7</td><td class="num">2026-03-11..2026-04-13</td><td class="num">23,166</td><td class="num">23,166.0</td><td class="num">5,212.4</td><td class="num">5,119.7</td></tr>
+                <tr><td>CITRUS PELLETS</td><td class="num">45</td><td class="num">2026-03-12..2026-05-09</td><td class="num">19,725</td><td class="num">19,091.7</td><td class="num">1,141.1</td><td class="num">10,601.2</td></tr>
+                <tr><td>Alfalfa 2000# Bales</td><td class="num">3</td><td class="num">2026-05-17..2026-05-24</td><td class="num">8,000</td><td class="num">7,280.0</td><td class="num">1,674.4</td><td class="num">1,667.1</td></tr>
+                <tr><td>Molasses</td><td class="num">2</td><td class="num">2026-05-30..2026-07-01</td><td class="num">5,950</td><td class="num">4,462.5</td><td class="num">267.8</td><td class="num">3,793.1</td></tr>
+                <tr><td>DRY RYE</td><td class="num">1</td><td class="num">2026-03-13</td><td class="num">1,774.5</td><td class="num">1,774.5</td><td class="num">188.1</td><td class="num">228.9</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page">
+        <h2>Formula Notes For Audit</h2>
+        <div class="page-body">
+          <div class="mini-grid">
+            <div class="small-card">
+              <span class="label">Total feed</span>
+              <p>Total of lbs_as_fed from feed lines inside the selected window.</p>
+            </div>
+            <div class="small-card">
+              <span class="label">DM lb/day</span>
+              <p>
+                Corrected calculation: included lbs_as_fed multiplied by the
+                dry-matter fraction from moisture_pct, then divided by window
+                days.
+              </p>
+            </div>
+            <div class="small-card">
+              <span class="label">CP / NFC lb/day</span>
+              <p>
+                Sum of true dry matter multiplied by nutrition_snapshot
+                protein_pct or nfc_pct, then divided by window days.
+              </p>
+            </div>
+            <div class="small-card">
+              <span class="label">Momma creep rule</span>
+              <p>
+                is_creep feed lines count in total feed and cost, but are
+                excluded from DM, CP, and NFC. No source rows in this audit were
+                flagged as creep.
+              </p>
+            </div>
+            <div class="small-card">
+              <span class="label">Cow units</span>
+              <p>
+                Latest cattle weigh-in per tag, prorated across the window by
+                purchase date. Pounds are divided by 1,000.
+              </p>
+            </div>
+            <div class="small-card">
+              <span class="label">Missing cost</span>
+              <p>
+                Feed cost is unavailable because the feed snapshots in these
+                windows do not carry landed_per_lb values.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

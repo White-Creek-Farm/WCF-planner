@@ -10,6 +10,7 @@ import {loadCattleWeighInsCached} from '../lib/cattleCache.js';
 import {toISO} from '../lib/dateUtils.js';
 import {buildForecast} from '../lib/cattleForecast.js';
 import {loadForecastSettings, loadHeiferIncludes, loadHidden} from '../lib/cattleForecastApi.js';
+import {feedNutritionContribution} from '../lib/cattleNutrition.js';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -230,15 +231,15 @@ const CattleHomeView = ({
       mort += parseInt(d.mortality_count) || 0;
       const feeds = Array.isArray(d.feeds) ? d.feeds : [];
       for (const f of feeds) {
-        const lbs = parseFloat(f.lbs_as_fed) || 0;
         const ns = f.nutrition_snapshot || {};
         const cpl = parseFloat(ns.landed_per_lb) || 0;
-        feedLbs += lbs;
-        feedCost += lbs * cpl;
+        const nutrition = feedNutritionContribution(f);
+        feedLbs += nutrition.asFedLbs;
+        feedCost += nutrition.asFedLbs * cpl;
         if (herd === 'mommas' && f.is_creep) continue;
-        dm += lbs;
-        cp += (lbs * (parseFloat(ns.protein_pct) || 0)) / 100;
-        nfc += (lbs * (parseFloat(ns.nfc_pct) || 0)) / 100;
+        dm += nutrition.dryMatterLbs;
+        cp += nutrition.crudeProteinLbs;
+        nfc += nutrition.nfcLbs;
       }
     }
     const perDay = {dm: dm / windowDays, cp: cp / windowDays, nfc: nfc / windowDays};
