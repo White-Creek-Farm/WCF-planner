@@ -371,9 +371,10 @@ const CattleHerdsHub = ({
   // Composable filter / sort state.
   const [filters, setFilters] = usePersistentViewState('cattle.herds.filters', {});
   const [sortRules, setSortRules] = usePersistentViewState('cattle.herds.sortRules', [{...DEFAULT_SORT_RULES[0]}]);
-  // Per-herd collapse state for the grouped tiles. Default is all-expanded so
-  // nothing is hidden on first load; toggling a tile persists per surface.
-  const [collapsedHerds, setCollapsedHerds] = usePersistentViewState('cattle.herds.collapsedHerds', {});
+  // Per-herd expand state for the grouped tiles. Default is all-collapsed
+  // (empty map) so the view opens as a compact tile stack; expanding a tile
+  // persists per surface.
+  const [expandedHerds, setExpandedHerds] = usePersistentViewState('cattle.herds.expandedHerds', {});
   const [lastActivityCache, setLastActivityCache] = usePersistentViewState(
     'cattle.herds.lastActivityCache',
     EMPTY_LAST_ACTIVITY_CACHE,
@@ -2298,7 +2299,17 @@ const CattleHerdsHub = ({
             {!loading && cattle.length > 0 && !hasActiveFilters && (
               <div data-cattle-grouped-herds="1" style={{display: 'flex', flexDirection: 'column', gap: 10}}>
                 {groupedHerdSections.map((section) => {
-                  const collapsed = !!collapsedHerds[section.key];
+                  const collapsed = !expandedHerds[section.key];
+                  // Total live weight (sum of each animal's latest recorded
+                  // weight) for the active herds only; outcome herds don't show
+                  // a weight. Animals with no weigh-in contribute nothing.
+                  const isActiveHerd = CATTLE_HERD_KEYS.includes(section.key);
+                  const herdWeightLbs = isActiveHerd
+                    ? section.rows.reduce((sum, c) => {
+                        const w = lastWeightFor(c, weighIns);
+                        return sum + (Number.isFinite(w) ? w : 0);
+                      }, 0)
+                    : 0;
                   return (
                     <section
                       key={section.key}
@@ -2312,7 +2323,7 @@ const CattleHerdsHub = ({
                     >
                       <div
                         {...openableProps(() =>
-                          setCollapsedHerds((prev) => ({...prev, [section.key]: !prev[section.key]})),
+                          setExpandedHerds((prev) => ({...prev, [section.key]: !prev[section.key]})),
                         )}
                         data-cattle-herd-toggle={section.key}
                         data-cattle-herd-collapsed={collapsed ? '1' : '0'}
@@ -2343,6 +2354,11 @@ const CattleHerdsHub = ({
                         <span style={{fontSize: 13, fontWeight: 700, color: 'var(--ink)'}}>{section.label}</span>
                         <span style={{fontSize: 11, color: 'var(--ink-muted)', marginLeft: 'auto'}}>
                           {section.rows.length} {section.rows.length === 1 ? 'animal' : 'cattle'}
+                          {herdWeightLbs > 0 && (
+                            <span data-cattle-herd-weight={section.key} style={{color: 'var(--ink)', fontWeight: 600}}>
+                              {' · ' + herdWeightLbs.toLocaleString() + ' lb'}
+                            </span>
+                          )}
                         </span>
                       </div>
                       {!collapsed && (

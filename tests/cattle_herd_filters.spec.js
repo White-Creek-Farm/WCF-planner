@@ -67,24 +67,44 @@ async function pickHerd(page, label) {
   await page.locator('[data-filter-popover="herdSet"] >> text=Close').click();
 }
 
+// Herd tiles default to collapsed — click each collapsed toggle until all open.
+async function expandAllHerds(page) {
+  const collapsed = page.locator('[data-cattle-herd-toggle][data-cattle-herd-collapsed="1"]');
+  for (let n = await collapsed.count(); n > 0; n = await collapsed.count()) {
+    await collapsed.first().click();
+  }
+}
+
 // --------------------------------------------------------------------------
-// Test 1 — Default load groups by herd until a filter or sort is active
+// Test 1 — Default load: herd tiles, collapsed by default
 // --------------------------------------------------------------------------
-test('default load: grouped cattle by herd until a filter is active', async ({page, cattleHerdFiltersScenario}) => {
+test('default load: herd tiles collapsed by default; expand reveals grouped cattle', async ({
+  page,
+  cattleHerdFiltersScenario,
+}) => {
   void cattleHerdFiltersScenario;
   await page.goto('/cattle/herds');
   await waitForLoaded(page);
 
-  // No filter selection: the list is grouped by herd and the old manual
-  // grouped/flat toggle is still gone.
+  // No filter selection: grouped-by-herd tiles (collapsed by default); the old
+  // manual grouped/flat toggle is still gone.
   await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible();
   await expect(page.locator('[data-cattle-flat-results="1"]')).toHaveCount(0);
   await expect(page.locator('[data-cattle-herds-view-toggle="1"]')).toHaveCount(0);
 
-  // Every herd section is visible by default, including outcome herds.
+  // Every herd tile is present (incl. outcome herds) and starts collapsed, so
+  // no cow rows are mounted yet.
   for (const herd of ['mommas', 'backgrounders', 'finishers', 'bulls', 'processed', 'deceased', 'sold']) {
     await expect(page.locator(`[data-cattle-herd-section="${herd}"]`)).toBeVisible();
+    await expect(page.locator(`[data-cattle-herd-toggle="${herd}"]`)).toHaveAttribute(
+      'data-cattle-herd-collapsed',
+      '1',
+    );
   }
+  await expect(cattleRows(page)).toHaveCount(0);
+
+  // Expanding the tiles reveals every seeded cow under its herd.
+  await expandAllHerds(page);
   const tags = await readTagsInOrder(cattleRows(page));
   for (const t of [
     'M001',
@@ -137,11 +157,13 @@ test('non-default sort keeps cattle grouped by herd (orders within groups)', asy
   await ensureToolPanel(page, 'sort');
   await page.locator('select[data-sort-add]').selectOption('age');
 
-  // A sort alone must NOT collapse the groups: grouped stays, flat stays absent,
-  // and every cow is still present (just re-ordered within its herd section).
+  // A sort alone must NOT collapse the grouping: grouped stays, flat stays
+  // absent. Expand the (default-collapsed) tiles to confirm every cow is still
+  // present, re-ordered within its herd section.
   await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible();
   await expect(page.locator('[data-cattle-flat-results="1"]')).toHaveCount(0);
   await expect(page.locator('[data-cattle-herd-section="mommas"]')).toBeVisible();
+  await expandAllHerds(page);
   await expect(cattleRows(page)).toHaveCount(13);
 });
 
@@ -438,7 +460,9 @@ test('maternal-issue text absent from herd view, record page, and Add modal', as
   const bodyText = await page.locator('body').innerText();
   expect(bodyText.toLowerCase()).not.toContain('maternal');
 
-  // Cow record page — a cow-row click routes to the record page. Open one.
+  // Cow record page — herd tiles are collapsed by default, so expand first,
+  // then a cow-row click routes to the record page.
+  await expandAllHerds(page);
   await cattleRows(page).first().click();
   await expect(page).toHaveURL(/\/cattle\/herds\/.+/);
   const recordText = await page.locator('body').innerText();

@@ -119,11 +119,20 @@ describe('Cattle herd rows - grouped default + flat controlled results', () => {
     // table body only mounts when the tile is expanded. openableProps supplies
     // the role=button + Enter/Space keyboard activation (no hover-class needed).
     expect(herdsView).toContain("import {openableProps} from '../shared/openable.js'");
-    expect(herdsView).toContain("usePersistentViewState('cattle.herds.collapsedHerds'");
+    expect(herdsView).toContain("usePersistentViewState('cattle.herds.expandedHerds'");
     expect(herdsView).toContain('data-cattle-herd-toggle={section.key}');
     expect(herdsView).toContain('data-cattle-herd-collapsed=');
     expect(herdsView).toContain('aria-expanded={!collapsed}');
     expect(herdsView).toContain('{!collapsed && (');
+  });
+
+  it('shows total live weight on the active-herd tiles only', () => {
+    // Active herds (mommas/backgrounders/finishers/bulls) sum each animal's
+    // latest recorded weight; outcome herds show no weight.
+    expect(herdsView).toContain('CATTLE_HERD_KEYS.includes(section.key)');
+    expect(herdsView).toContain('lastWeightFor(c, weighIns)');
+    expect(herdsView).toContain('data-cattle-herd-weight={section.key}');
+    expect(herdsView).toContain("herdWeightLbs.toLocaleString() + ' lb'");
   });
 
   it('offers every field in the column picker (saved in views), tag always shown', () => {
