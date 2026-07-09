@@ -27,7 +27,7 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {listProcessingRecords, getProcessingSettings, invokeProcessingAsanaSync} from '../lib/processingApi.js';
-import {resolveSourceForRecord, deriveDisplayStatus} from '../lib/processingSourceLink.js';
+import {resolveSourceForRecord, deriveDisplayStatus, weeksDaysText} from '../lib/processingSourceLink.js';
 import {processingStatusVariantFromLabel, PROCESSING_STATUS_DISPLAY} from '../lib/processingStatusDisplay.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 import {openableProps} from '../shared/openable.js';
@@ -104,7 +104,21 @@ function num(value) {
 // Unified grid: one global header + per-program rows keep the same columns.
 // Customer is populated for broiler only; the Age/TOF column shows time-on-farm
 // for broiler and age for the mammals (CP0).
-const GRID = 'minmax(180px,1fr) 104px 96px 150px 84px 150px 108px 74px 20px';
+const GRID = 'minmax(180px,1fr) 104px 96px 150px 84px 150px 108px 20px';
+
+// Sticky first (Batch/title) column: pins to the left edge during horizontal
+// scroll on narrow widths. background is supplied per-context (header / row / band)
+// so it stays readable over whatever it slides across.
+function stickyFirst(background) {
+  return {
+    position: 'sticky',
+    left: 0,
+    zIndex: 2,
+    background,
+    paddingRight: 12,
+    boxShadow: `1px 0 0 ${'#ECEEF0'}`,
+  };
+}
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 function StatCard({label, value, sub, color}) {
@@ -417,6 +431,9 @@ export default function ProcessingCalendarView({Header, authState}) {
   const [addMilestoneProgram, setAddMilestoneProgram] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showReconciliation, setShowReconciliation] = useState(false);
+  // One-time Asana import + reconciliation controls live behind this collapsed
+  // admin maintenance area so they stay out of the day-to-day scheduling flow.
+  const [adminOpen, setAdminOpen] = useState(false);
 
   // Admin-only Asana sync guardrail: probe config, dry-run first, then allow one
   // explicit write sync from the same page session.
@@ -518,7 +535,9 @@ export default function ProcessingCalendarView({Header, authState}) {
         _statusVariant: processingStatusVariantFromLabel(statusLabel),
         _numberProcessed: sourceInfo.numberProcessed,
         _ageText: sourceInfo.ageText,
-        _timeOnFarmText: sourceInfo.timeOnFarmText,
+        // Prefer the server-derived broiler Time-on-Farm (processing − hatch, from
+        // list_processing_records); fall back to the snapshot for imported/historical.
+        _timeOnFarmText: weeksDaysText(rec.time_on_farm_days) ?? sourceInfo.timeOnFarmText,
         _year: yearOf(rec.processing_date),
       };
     });
@@ -656,9 +675,8 @@ export default function ProcessingCalendarView({Header, authState}) {
     const isMilestone = rec.record_type === 'milestone';
     const isBroiler = (rec.program || rec.source_kind) === 'broiler';
     const ageTof = isBroiler ? rec._timeOnFarmText : rec._ageText;
-    const subTotal = rec.subtask_total ?? 0;
-    const subDone = rec.subtask_done ?? 0;
     const numText = num(rec._numberProcessed) != null ? Number(rec._numberProcessed).toLocaleString() : '—';
+    const rowBg = active ? (isMilestone ? '#F3F1FB' : T.hover) : T.card;
     return (
       <div
         key={rec.id}
@@ -679,7 +697,7 @@ export default function ProcessingCalendarView({Header, authState}) {
           position: 'relative',
           borderTop: `1px solid ${T.rowBorder}`,
           borderRadius: active ? 10 : 0,
-          background: active ? (isMilestone ? '#F3F1FB' : T.hover) : T.card,
+          background: rowBg,
           transform: active ? 'translateY(-2px)' : 'translateY(0)',
           boxShadow: active ? '0 6px 18px rgba(20,40,30,.12)' : 'none',
           zIndex: active ? 3 : 0,
@@ -687,7 +705,7 @@ export default function ProcessingCalendarView({Header, authState}) {
         }}
       >
         {/* Batch / title */}
-        <div style={{minWidth: 0}}>
+        <div style={{minWidth: 0, ...stickyFirst(rowBg)}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
             {isMilestone && (
               <span
@@ -755,18 +773,6 @@ export default function ProcessingCalendarView({Header, authState}) {
         {/* Age / Time on farm */}
         <span style={{fontSize: 13, color: ageTof ? T.ink : T.faint, fontWeight: 600, whiteSpace: 'nowrap'}}>
           {ageTof || '—'}
-        </span>
-        {/* Subtask count */}
-        <span
-          style={{
-            fontSize: 12.5,
-            color: T.muted,
-            fontWeight: 700,
-            textAlign: 'right',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {subTotal > 0 ? `${subDone}/${subTotal}` : '—'}
         </span>
         {/* Chevron (reveal on hover) */}
         <span
@@ -856,104 +862,34 @@ export default function ProcessingCalendarView({Header, authState}) {
           <h1 style={{flex: 1, minWidth: 200, fontSize: 24, fontWeight: 800, letterSpacing: '-.02em', color: T.ink}}>
             Processing schedule
           </h1>
-          {isAdmin && (asanaSyncEnabled !== null || asanaConfigured !== null) && (
-            <span
-              data-processing-sync-status="1"
-              title="Asana sync status (read-only)"
+          {isAdmin && (
+            <button
+              type="button"
+              data-processing-admin-toggle="1"
+              aria-expanded={adminOpen}
+              onClick={() => setAdminOpen((v) => !v)}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 7,
-                fontSize: 12,
-                fontWeight: 700,
+                background: adminOpen ? T.tint : T.card,
                 color: T.muted,
-                background: T.tint,
                 border: `1px solid ${T.border}`,
-                borderRadius: 999,
-                padding: '5px 12px',
+                borderRadius: 10,
+                padding: '9px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
               }}
             >
+              Admin
               <span
                 aria-hidden="true"
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: asanaSyncEnabled ? T.green : '#C8CDD3',
-                  flex: 'none',
-                }}
-              />
-              Asana sync {asanaSyncEnabled ? 'on' : 'off'}
-              {asanaConfigured === false && ' · not configured'}
-            </span>
-          )}
-          {isAdmin && (
-            <>
-              <button
-                type="button"
-                data-processing-asana-dry-run-btn="1"
-                disabled={dryRunDisabled}
-                onClick={() => runAsanaSyncAction('dry_run')}
-                style={syncButtonStyle(false, dryRunDisabled)}
+                style={{transform: adminOpen ? 'rotate(180deg)' : 'none', transition: 'transform .16s ease'}}
               >
-                {asanaSyncBusy === 'dry_run' ? 'Dry running...' : 'Dry run'}
-              </button>
-              <button
-                type="button"
-                data-processing-asana-sync-btn="1"
-                disabled={syncNowDisabled}
-                onClick={() => runAsanaSyncAction('sync_once')}
-                style={syncButtonStyle(true, syncNowDisabled)}
-                title={dryRunReady ? 'Import the last dry-run set from Asana' : 'Run a dry run first'}
-              >
-                {asanaSyncBusy === 'sync_once' ? 'Syncing...' : 'Sync now'}
-              </button>
-            </>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              data-processing-reconciliation-btn="1"
-              onClick={() => setShowReconciliation(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                background: T.card,
-                color: T.muted,
-                border: `1px solid ${T.border}`,
-                borderRadius: 10,
-                padding: '9px 14px',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Reconciliation
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              data-processing-templates-btn="1"
-              onClick={() => setShowTemplates(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                background: T.card,
-                color: T.muted,
-                border: `1px solid ${T.border}`,
-                borderRadius: 10,
-                padding: '9px 14px',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Templates
+                ▾
+              </span>
             </button>
           )}
           {canOperate && (
@@ -982,6 +918,128 @@ export default function ProcessingCalendarView({Header, authState}) {
             </button>
           )}
         </div>
+        {isAdmin && adminOpen && (
+          <div
+            data-processing-admin-panel="1"
+            style={{
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              background: T.tint,
+              padding: '14px 16px',
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '.07em',
+                textTransform: 'uppercase',
+                color: T.label,
+                marginBottom: 10,
+              }}
+            >
+              Admin · maintenance
+            </div>
+            <div style={{display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center'}}>
+              {(asanaSyncEnabled !== null || asanaConfigured !== null) && (
+                <span
+                  data-processing-sync-status="1"
+                  title="Asana sync status (read-only)"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: T.muted,
+                    background: T.card,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 999,
+                    padding: '5px 12px',
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: asanaSyncEnabled ? T.green : '#C8CDD3',
+                      flex: 'none',
+                    }}
+                  />
+                  Asana sync {asanaSyncEnabled ? 'on' : 'off'}
+                  {asanaConfigured === false && ' · not configured'}
+                </span>
+              )}
+              <button
+                type="button"
+                data-processing-asana-dry-run-btn="1"
+                disabled={dryRunDisabled}
+                onClick={() => runAsanaSyncAction('dry_run')}
+                style={syncButtonStyle(false, dryRunDisabled)}
+              >
+                {asanaSyncBusy === 'dry_run' ? 'Dry running...' : 'Dry run'}
+              </button>
+              <button
+                type="button"
+                data-processing-asana-sync-btn="1"
+                disabled={syncNowDisabled}
+                onClick={() => runAsanaSyncAction('sync_once')}
+                style={syncButtonStyle(true, syncNowDisabled)}
+                title={dryRunReady ? 'Import the last dry-run set from Asana' : 'Run a dry run first'}
+              >
+                {asanaSyncBusy === 'sync_once' ? 'Syncing...' : 'Sync now'}
+              </button>
+              <button
+                type="button"
+                data-processing-reconciliation-btn="1"
+                onClick={() => setShowReconciliation(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  background: T.card,
+                  color: T.muted,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  padding: '9px 14px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Reconciliation
+              </button>
+              <button
+                type="button"
+                data-processing-templates-btn="1"
+                onClick={() => setShowTemplates(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  background: T.card,
+                  color: T.muted,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
+                  padding: '9px 14px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Templates
+              </button>
+            </div>
+            <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 10, lineHeight: 1.4}}>
+              One-time Asana import + reconciliation controls — not needed for day-to-day scheduling.
+            </div>
+          </div>
+        )}
         {asanaSyncNotice && (
           <div style={{marginBottom: 18}}>
             <InlineNotice notice={asanaSyncNotice} onDismiss={() => setAsanaSyncNotice(null)} />
@@ -1185,14 +1243,13 @@ export default function ProcessingCalendarView({Header, authState}) {
                   borderBottom: `1px solid ${T.border}`,
                 }}
               >
-                <span style={headerCellStyle}>Batch</span>
+                <span style={{...headerCellStyle, ...stickyFirst(T.tint)}}>Batch</span>
                 <span style={headerCellStyle}>Status</span>
                 <span style={headerCellStyle}>Processing</span>
                 <span style={headerCellStyle}>Processor</span>
                 <span style={{...headerCellStyle, textAlign: 'right'}}>Number</span>
                 <span style={headerCellStyle}>Customer</span>
                 <span style={headerCellStyle}>Age / TOF</span>
-                <span style={{...headerCellStyle, textAlign: 'right'}}>Subtasks</span>
                 <span />
               </div>
 
@@ -1230,12 +1287,24 @@ export default function ProcessingCalendarView({Header, authState}) {
                           outline: 'none',
                         }}
                       >
-                        <span style={programDotStyle(sec.key, 10)} />
-                        <span style={{fontSize: 13.5, fontWeight: 800, color: T.ink, letterSpacing: '.005em'}}>
-                          {sec.section}
-                        </span>
-                        <span style={{fontSize: 12, color: T.label, fontWeight: 600}}>
-                          {sec.rows.length} {sec.rows.length === 1 ? 'batch' : 'batches'}
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            position: 'sticky',
+                            left: 16,
+                            zIndex: 2,
+                            background: T.tint,
+                          }}
+                        >
+                          <span style={programDotStyle(sec.key, 10)} />
+                          <span style={{fontSize: 13.5, fontWeight: 800, color: T.ink, letterSpacing: '.005em'}}>
+                            {sec.section}
+                          </span>
+                          <span style={{fontSize: 12, color: T.label, fontWeight: 600}}>
+                            {sec.rows.length} {sec.rows.length === 1 ? 'batch' : 'batches'}
+                          </span>
                         </span>
                         <span
                           aria-hidden="true"

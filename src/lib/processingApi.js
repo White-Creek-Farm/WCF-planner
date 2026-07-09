@@ -122,6 +122,15 @@ export async function deleteProcessingMilestone(sb, id) {
   return data;
 }
 
+// archive_processing_record(p_id, p_archived) -> {ok, archived}. Soft delete /
+// restore for Asana-owned + milestone records (preserves the record + its Asana
+// link provenance); refuses planner_batch (Planner-owned). Operational-role gated.
+export async function archiveProcessingRecord(sb, id, archived = true) {
+  const {data, error} = await sb.rpc('archive_processing_record', {p_id: id, p_archived: archived});
+  if (error) throw new Error(`archiveProcessingRecord: ${error.message || String(error)}`);
+  return data;
+}
+
 // ── Processing-owned field edits ─────────────────────────────────────────────
 
 // set_processing_processor(p_id, p_processor). Editable on any record (blank

@@ -74,8 +74,10 @@ function wholeDaysBetween(laterISO, earlierISO) {
 }
 
 // Format a whole-day count as 'Nw Nd' (weeks + remainder days). Negative /
-// null day counts return null (nothing sensible to display).
-function weeksDaysText(days) {
+// null day counts return null (nothing sensible to display). Exported so the
+// Processing table/drawer can format the server-derived time_on_farm_days the
+// same way the client fallback formats it.
+export function weeksDaysText(days) {
   if (days === null || days === undefined || !Number.isFinite(days) || days < 0) return null;
   const weeks = Math.floor(days / 7);
   const rem = days % 7;

@@ -35,10 +35,11 @@ import {
   applyCurrentTemplate,
   updateProcessingMilestone,
   deleteProcessingMilestone,
+  archiveProcessingRecord,
   isProcessingValidationError,
   friendlyProcessingError,
 } from '../lib/processingApi.js';
-import {resolveSourceForRecord, deriveDisplayStatus} from '../lib/processingSourceLink.js';
+import {resolveSourceForRecord, deriveDisplayStatus, weeksDaysText} from '../lib/processingSourceLink.js';
 import {processingStatusVariantFromLabel, PROCESSING_STATUS_DISPLAY} from '../lib/processingStatusDisplay.js';
 import {computeCompletionBlockers} from '../lib/processingCompletion.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -114,6 +115,7 @@ export default function ProcessingDrawer({sb, authState, recordId, onClose, onCh
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [editingSubtaskLabel, setEditingSubtaskLabel] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
   const notifyRef = useRef(onChanged);
   notifyRef.current = onChanged;
 
@@ -180,6 +182,8 @@ export default function ProcessingDrawer({sb, authState, recordId, onClose, onCh
   const isMilestone = record?.record_type === 'milestone';
   const isBroiler = record ? (record.program || record.source_kind) === 'broiler' : false;
   const sourceInfo = record ? resolveSourceForRecord(record, {}) : null;
+  // Server-derived broiler Time-on-Farm (from get_processing_record); snapshot fallback.
+  const tofText = isBroiler && record ? (weeksDaysText(record.time_on_farm_days) ?? sourceInfo?.timeOnFarmText) : null;
   const statusLabel = record ? deriveDisplayStatus(record, sourceInfo) : '';
   const isComplete = record ? record.completed_at != null || statusLabel === PROCESSING_STATUS_DISPLAY.complete : false;
   const blockers = record ? computeCompletionBlockers(record, subtasks) : [];
@@ -253,6 +257,18 @@ export default function ProcessingDrawer({sb, authState, recordId, onClose, onCh
   function doDeleteMilestone() {
     setConfirmingDelete(false);
     runMutation(() => deleteProcessingMilestone(sb, record.id)).then((ok) => {
+      if (ok) onClose();
+    });
+  }
+
+  // ── archive (soft delete) an Asana-owned record ──────────────────────────────
+  // Planner-owned rows are refused server-side; only asana_historical /
+  // import_exception are archivable here (the record + its Asana link survive).
+  const isArchivable =
+    !!record && !isMilestone && ['asana_historical', 'import_exception'].includes(record.record_type);
+  function doArchiveRecord() {
+    setConfirmingArchive(false);
+    runMutation(() => archiveProcessingRecord(sb, record.id, true)).then((ok) => {
       if (ok) onClose();
     });
   }
@@ -456,10 +472,10 @@ export default function ProcessingDrawer({sb, authState, recordId, onClose, onCh
                   </span>
                 </FieldRow>
 
-                {(isBroiler ? sourceInfo?.timeOnFarmText : sourceInfo?.ageText) && (
+                {(isBroiler ? tofText : sourceInfo?.ageText) && (
                   <FieldRow label={isBroiler ? 'Time on farm' : 'Age'}>
                     <span style={{fontSize: 13.5, color: T.ink, fontWeight: 700}}>
-                      {isBroiler ? sourceInfo.timeOnFarmText : sourceInfo.ageText}
+                      {isBroiler ? tofText : sourceInfo.ageText}
                     </span>
                   </FieldRow>
                 )}
@@ -883,6 +899,49 @@ export default function ProcessingDrawer({sb, authState, recordId, onClose, onCh
                       data-processing-milestone-delete
                     >
                       Delete milestone
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Archive (soft delete) an Asana-owned record (operational roles) */}
+              {isArchivable && canOperate && (
+                <div style={{marginTop: 22, borderTop: `1px solid ${T.rowBorder}`, paddingTop: 14}}>
+                  {confirmingArchive ? (
+                    <div style={{display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap'}}>
+                      <span style={{fontSize: 12.5, color: T.muted, fontWeight: 600}}>
+                        Archive this record? It hides from the calendar; the Asana history is kept.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={doArchiveRecord}
+                        disabled={busy}
+                        style={{...ghostBtn, borderColor: '#b91c1c', color: '#b91c1c'}}
+                        data-processing-record-archive-confirm
+                      >
+                        Archive
+                      </button>
+                      <button type="button" onClick={() => setConfirmingArchive(false)} style={ghostBtn}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingArchive(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#B4373A',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        padding: 0,
+                      }}
+                      data-processing-record-archive
+                    >
+                      Archive record
                     </button>
                   )}
                 </div>
