@@ -7,10 +7,11 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-07.
-Current wrap checkpoint: `9ac1921` (Processing Planner reconciler + Asana link
-table, after mutation-audit PR2B, auth, pasture, feed, and Processing Calendar
-foundation/sync-control lanes). Last code/product checkpoint: `9ac1921`.
+Last updated: 2026-07-09.
+Current wrap checkpoint: `5250222` (Processing finish-out sub-lanes 4-6:
+server-backed Customer/Processor option lists, Asana task-template import code,
+and the Processing attachments Storage bucket). Last code/product checkpoint:
+`5250222`.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -67,9 +68,11 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`. The latest
-  product checkpoint on `main` is `9ac1921`, which merges the Processing
-  Planner reconciler + Asana link table after mutation-audit PR2B, auth,
-  pasture, feed, and Processing Calendar foundation/sync-control lanes.
+  product checkpoint on `main`/`origin/main` is `5250222`, which ships the
+  Processing finish-out bundle after the reconciliation workbench, comments-only
+  import, Processing table cleanup/TOF/archive lanes, Pasture Map migration
+  `158`, the cattle nutrition dry-matter fix, and the Home materials-ordering
+  hotfix.
 - Newsletter live state: Autopilot + direction-first redesign + fact fixes +
   archive-link gating + the UX polish pass are merged. The polish pass adds
   debounced/autosaved admin direction, prevents local direction clobbering during
@@ -84,25 +87,40 @@ Design/function invariants that govern cross-surface behavior live in
   and published-issue/token counts are live state — see the live-verification
   note in the Supabase Migrations section.)
 - Pasture Map live state: the pasture migrations `116`, `127`-`132`, `135`-`137`,
-  `139`-`141`, `143`, `147`-`150`, `152`, and `155` are PROD-applied (`152`
-  manager hard delete applied to TEST and PROD on 2026-06-30; `155` fixes the
-  departed-overlap rest/occupancy edge). Migration `150`'s `NOTIFY pgrst`
-  line is text-only for future/fresh-env applies and was NOT re-applied to PROD
-  (the function body was already live/verified). `/pasture-map` is an installable
-  PWA hub; the service-worker cache version is `2026-06-30-pasture-pwa-v1`. Light
-  has pasture farm-team-level Map/Field access (migration `139`). See the Pasture
-  Map contract for UI/behavior rules.
-- Migration high-water: migrations `112`-`116` and `125`-`157` are PROD-applied
+  `139`-`141`, `143`, `147`-`150`, `152`, `155`, and `158` are PROD-applied.
+  Migration `158` fixes boundary-touch false resting/occupied states by requiring
+  positive-area overlap for overlap impacts and read derivation; FP4C1/FP4E2
+  re-read baseline while FP4D1 rests and FP4E1 is occupied. Migration `150`'s
+  `NOTIFY pgrst` line is text-only for future/fresh-env applies and was NOT
+  re-applied to PROD (the function body was already live/verified). `/pasture-map`
+  is an installable PWA hub; the service-worker cache version is
+  `2026-06-30-pasture-pwa-v1`. Light has pasture farm-team-level Map/Field access
+  (migration `139`). See the Pasture Map contract for UI/behavior rules.
+- Migration high-water: migrations `112`-`116` and `125`-`163` are PROD-applied
   (live state; see Supabase Migrations for per-migration detail). Migration `143`
   remains deployed as a benign unused helper; no UI calls it.
 - Production legacy import: `Processing Events - ALL.xlsx` upserted 69 rows into
   `production_legacy_events` on PROD by stable `source_key` (frozen historical
   count).
-- Processing Calendar: the native Processing foundation (`156`) and Planner to
-  Processing reconciler + Asana link table (`157`) are merged to `main` and
-  PROD-applied. `processing-asana-sync` is redeployed in PROD as version 3. No
-  PROD planner reconcile, Asana dry run/sync/import, or final cutover has been
-  run; those remain explicit gates in Build Queue item 3.
+- Processing Calendar: migrations `156`-`163` are merged to `main` and
+  PROD-applied. Planner-only reconcile has run once in PROD and created 52 clean
+  `planner_batch` rows (broiler 27 / cattle 16 / pig 8 / sheep 1). The
+  reconciliation workbench is live; the review queue was populated and Ronnie
+  completed the manual reconciliation pass. The comments-only import lane is
+  complete: `sync_comments` inserted 121 Asana comments across 51 records, an
+  idempotent re-run inserted 0 new comments, and verification found zero
+  subtasks, attachments, or Storage writes from that lane. The table cleanup is
+  live: the main-table Subtasks column is removed, the Batch/title column is
+  sticky, one-time admin controls are collapsed, broiler Time-on-Farm is
+  server-derived, and Asana-owned rows can be soft-archived while planner rows
+  are refused. Customer/Processor option-list editing is live from server-backed
+  settings (`162`). `processing-asana-sync` live Edge remains version 6 from the
+  comments lane; the new template-import and attachment-dry-run actions from
+  `5250222` are committed but not deployed yet. The private
+  `processing-attachments` bucket exists from `163`, with operational-only
+  SELECT and no authenticated INSERT, but no attachment bytes have been copied.
+  Template import, subtask/artifact import, attachment byte-copy/backfill, and
+  final Asana cutover remain explicit gates in Build Queue item 3.
 - Processing status labels are normalized to `Planned` / `In Process` / `Complete`
   via `src/lib/processingStatusDisplay.js` (display-only; stored values are
   unchanged). See the Processing Calendar contract for the mapping and the
@@ -113,15 +131,20 @@ Design/function invariants that govern cross-surface behavior live in
   radii; authenticated React routes such as `/dailys` render through
   `<div id="root">` and are intentionally not visually changed by this island
   CSS pass.
-- Cattle Herds hotfix (`f32c2a1`): `/cattle/herds` defaults to grouped herd
-  sections when no filters/search/non-default sort are active. Any active
-  filter/search/non-default sort switches to one flat matched-results table.
-  The `Sold` herd filter is sold-only and flat (no Processed/Deceased/Sold
+- Cattle Herds and nutrition current state: `/cattle/herds` defaults to grouped,
+  collapsible herd tiles when no filters/search/non-default sort are active. Any
+  active filter/search/non-default sort switches to one flat matched-results
+  table. The `Sold` herd filter is sold-only and flat (no Processed/Deceased/Sold
   section headers). `Last Activity` sort/column uses the cattle animal Activity
-  stream and shows date/time.
-  Follow-up hotfix `c6a880d` persists the Last Activity sort cache across
-  record-page round trips and routes the record-page Herd dropdown through the
-  audited transfer RPC.
+  stream and shows date/time; the record-page Herd dropdown routes through the
+  audited transfer RPC. The cattle nutrition dashboard now calculates `DM lb/day`
+  from true dry matter (as-fed pounds less feed-line moisture); CP and NFC are
+  computed from the nutrition snapshot percentages against that dry matter. The
+  standalone cattle nutrition audit HTML was updated with the dry-matter
+  correction.
+- Home materials-needed hotfix: clearing one material in an equipment service
+  interval preserves service-interval grouping/order, so later interval materials
+  no longer jump to the bottom and look deleted.
 - Mutation audit current state: PR1 (`0b424cb`) routes the sheep record-page
   Flock dropdown through `transfer_sheep_animal`; PR2A (`efe9483`) adds
   best-effort Activity emits across live cattle, pig, weigh-in/webform,
@@ -141,12 +164,14 @@ Design/function invariants that govern cross-surface behavior live in
   `tests/cattle_forecast.spec.js`). Recent lane files checked clean. Do not
   attribute those three files to the mutation-audit or Processing lanes unless a
   future formatting cleanup explicitly takes them on.
-- Worktree inventory at wrap: only the primary worktree
-  `C:/Users/Ronni/WCF-planner` remains registered, on `main` at `9ac1921` before
-  this docs wrap. Extra local worktrees/folders were pruned, the remote
-  `feature/processing-reconciler` branch was deleted, and there are no open GitHub
-  PRs. The workstation-local handoff folder `design_handoff_processing_calendar/`
-  is ignored by Git/Prettier and referenced by Build Queue item 3.
+- Worktree inventory at wrap: primary worktree `C:/Users/Ronni/WCF-planner` is
+  clean on `main` at `5250222` before this docs wrap. One old registered Codex
+  worktree remains at `C:/Users/Ronni/WCF-planner-codex-materials-needed-order`
+  on `codex/materials-needed-order` at `202ad1a`; that hotfix is already present
+  in `main` and the worktree is not active lane work. `gh pr list` returned no
+  open PRs. The workstation-local handoff folder
+  `design_handoff_processing_calendar/` is ignored by Git/Prettier and referenced
+  by Build Queue item 3.
 
 ### Recent Shipped Checkpoints
 
@@ -155,12 +180,13 @@ Per-PR shipped history is not maintained here. For what shipped and when, read
 Durable behavior lives in the Load-Bearing Contracts below; current migration and
 live state lives in Current State and Backend And Data State.
 
-Most recent session: mutation-audit PR2B (`d169757`), password-reset/error
-hardening (`8bf2f0b`), pasture rested-paddock fix (`e0b1e43`), feed-order
-hotfixes (`7057a93`/`5b80790`/`5c5192b`/`1dd4baa`), Processing Calendar
-foundation (`10302bb`), guarded sync controls (`37e5a63`), and Processing
-Planner reconciler + Asana link table (`9ac1921`). Earlier durable checkpoints
-remain in `git log`.
+Most recent session: Pasture Map positive-area overlap fix (`fa4d5e0`),
+Processing rich dry-run/reconciliation workbench (`82ea688`/`ce16e88`),
+comments-only Asana import (`c4be0b4`), cattle nutrition dry-matter fix
+(`7ba2b3e`), Home materials-needed ordering hotfix (`202ad1a`), Processing table
+cleanup/broiler TOF/archive (`f09f6f8`), cattle herd collapsible-tile updates
+(`dd677e2`/`4ae8fa9`/`fdfd1dc`), and Processing finish-out option/template/
+attachments bundle (`5250222`). Earlier durable checkpoints remain in `git log`.
 
 ---
 
@@ -274,15 +300,12 @@ This is the canonical home for outstanding build/design work.
      backfill requires its own Ronnie approval gate.
 
 3. Processing Calendar planner-first reconciliation and Asana mirror
-   - Status: FOUNDATION MERGED / PROD SCHEMA APPLIED / EDGE DEPLOYED / DATA
-     CUTOVER NOT RUN. Migration `156` shipped the native Processing Calendar
-     foundation (`10302bb`/`d4f660d`). Guarded sync controls shipped in
-     `37e5a63`. Migration `157` shipped the Planner to Processing reconciler,
-     Asana link table, drift/reporting, imported comments/subtask ownership, and
-     stale planner-row retirement in `9ac1921`. PROD has migrations `156` and
-     `157`, and `processing-asana-sync` is deployed as PROD version 3. No PROD
-     `reconcile_planner_to_processing`, Asana dry run, Asana import/sync, or
-     final cutover has been run.
+   - Status: PLANNER-FIRST PROCESSING LIVE / CORE RECONCILIATION DONE /
+     ARTIFACT-TEMPLATE GATES REMAIN. Migrations `156`-`163` are merged and
+     PROD-applied. The app is live from `5250222`. `processing-asana-sync` live
+     deploy is PROD version 6 from the comments-only lane; the template-import
+     and attachment-dry-run Edge actions committed in `5250222` are not deployed
+     yet.
    - Class: `ENH`/`DB-GATE`/`SECURITY`/`STORAGE`/`DATA-IMPORT`.
    - Source/design: workstation-local `design_handoff_processing_calendar/`
      contains the prototype handoff, CSV, README, and support file. The CSV is
@@ -295,6 +318,20 @@ This is the canonical home for outstanding build/design work.
      on 52 top-level records, 71 attachments, and 0 live dependencies. Future
      cutover runs must self-audit current live counts; do not hardcode these
      counts as permanent truth.
+   - PROD work already run:
+     - Planner-only reconcile ran once and inserted 52 active `planner_batch`
+       rows (broiler 27 / cattle 16 / pig 8 / sheep 1), with no duplicate active
+       planner rows and no Asana writes.
+     - Asana dry-run connectivity was proven from `/processing`; the live
+       project fetch returned the expected 117 top-level tasks.
+     - The review queue was populated using `sync_review_queue` (records + links
+       only, no artifacts/Storage), and Ronnie completed the reconciliation pass
+       in the workbench.
+     - Comments-only import ran once via `sync_comments`: 121 comments inserted
+       across 51 records; re-run was idempotent (0 new / 121 present). Three
+       deleted WCF-L-26-01 Asana cards returned 404 while scanning dismissed
+       placeholders and were accepted as harmless. Verification found zero
+       subtasks, attachments, or Storage writes from the comments lane.
    - Locked source model:
      - Planner is the authoritative writer for live batch facts now. If Planner
        has the batch/trip record, Planner owns date, count, status, and live
@@ -315,10 +352,15 @@ This is the canonical home for outstanding build/design work.
      - `asana_historical`: Asana-only historical row with no Planner match. It
        is viewable/searchable but does not create a batch in program workflows.
      - `milestone`: manual planning placeholder, not an animal batch. Milestones
-       are the only records users create directly in Processing.
+       are user-created Processing planning records and can be deleted through
+       the existing milestone delete RPC.
      - `import_exception`: Asana row requiring human review/reconciliation.
      - Processor and Customer are Processing-owned fields. Asana may seed them
        only on first attach if blank; it must never overwrite a native edit.
+       Customer and Processor selector choices now live in
+       `processing_asana_sync_settings` and are editable by admins via
+       `set_processing_option_list`. Existing off-list stored values remain valid
+       and visible.
      - Date, count, and status are Planner-owned for planner-backed rows.
        Asana differences are drift/report data only.
      - Asana comments import one-way into Processing comments with original
@@ -340,6 +382,10 @@ This is the canonical home for outstanding build/design work.
      - Reconcile runs under an advisory lock, stamps rows with a per-run
        `sync_run_id`, archives stale `planner_batch` rows not re-seen in the
        run, and unarchives them if the source returns.
+     - Broiler Time-on-Farm is server-derived by `160` from `ppp-v4`
+       `processingDate - hatchDate` for broiler planner rows, returned by both
+       `list_processing_records` and `get_processing_record`, and formatted by
+       the shared weeks/days helper.
    - Asana matching/reconciliation rules:
      - Match by program section plus normalized WCF batch code in task name
        (`WCF-<B|C|P|L>-YY-NN...`), with `Batch Name (Farms)` fallback and
@@ -353,38 +399,69 @@ This is the canonical home for outstanding build/design work.
        auto-pick a winner.
      - Manual crosswalks are sticky. Automated sync must not clear or orphan an
        existing non-null match because a later pass is ambiguous.
+   - Asana task-template import model:
+     - The Asana task-template API exposes project task templates and a template
+       recipe; template subtasks are compact (name/subtype only), so imported
+       Processing checklist items intentionally have `assignee: null`.
+     - Program is inferred from the task template name by a single-program
+       keyword match. No-program and multi-program conflicts are review items,
+       not auto-imports.
+     - `import_templates_dry_run` is read-only. `import_templates` writes only
+       ready items through the existing admin-gated `upsert_processing_template`
+       RPC using the caller's admin JWT; unchanged/conflict/no-program items are
+       skipped.
+     - Template import code is on `main` at `5250222`, but the Edge Function
+       carrying those actions is not deployed yet.
    - UI/current controls:
      - `/processing` is the native Processing Calendar surface; `/production`
        remains the processed-output reporting surface.
+     - Main table Subtasks column is intentionally removed. Subtasks remain a
+       drawer/artifact concern and must stay out of the main calendar table.
+     - Batch/title is sticky in the horizontal table. One-time admin controls are
+       collapsed under `Admin · maintenance`; normal workflow controls such as
+       `+ Add milestone` stay visible.
      - Admin sync controls are guarded. `dry_run` reads Asana and returns a
        report without writing. `sync_planner_to_processing` is planner-only.
-       `sync_once`, `sync_since`, attachment backfill, and final cutover remain
+       `sync_review_queue` is records+links only. `comments_dry_run` and
+       `sync_comments` are comments-only. `sync_once`, `sync_since`,
+       `attachment_backfill`, template import, and final Asana cutover remain
        deliberate gates.
-     - The normal record drawer should show operational details, comments,
-       subtasks, attachments, and Activity. Reconciliation/provenance details
-       belong in admin/debug surfaces, not the everyday drawer.
+     - Customer/Processor choices are edited in the admin options modal. Drawer
+       and Add Milestone read settings-backed choices, while preserving legacy
+       off-list values and free-text processor entry.
+     - The normal record drawer shows operational details, comments, subtasks,
+       attachments, and Activity. Reconciliation/provenance details belong in
+       admin/debug surfaces, not the everyday drawer.
    - Remaining gates:
-     - Run PROD planner-only `reconcile_planner_to_processing` and review the
-       counts/duplicates before any Asana import.
-     - Run an Asana `dry_run` against PROD and review current live inventory,
-       match buckets, import exceptions, milestones, duplicate/collision
-       reports, and pig match candidates.
-     - Resolve/manual-crosswalk review items, especially pig historical rows
-       where Asana sub-batch codes do not cleanly identify a Planner trip.
-     - Only after explicit Ronnie approval, run the Asana sync/import and any
-       attachment backfill. Final transition to Asana history-only/read-only is
-       controlled separately by `asana_sync_enabled=false`.
+     - Deploy `processing-asana-sync` from `5250222` before trying
+       `import_templates_dry_run`, `import_templates`, or `attachment_dry_run`;
+       use the deploy as the Deno/typecheck point and verify the Asana token
+       secret before calling Asana-backed actions.
+     - Run `import_templates_dry_run`, review ready/unchanged/conflict/no-program
+       results, then run `import_templates` only with explicit approval.
+     - Run `attachment_dry_run` before any attachment byte-copy. Although
+       migration `163` created the private bucket, no attachment bytes have been
+       copied yet.
+     - Only after explicit Ronnie approval, run `attachment_backfill` and/or any
+       broader Asana artifact sync. Final transition to Asana
+       history-only/read-only is controlled separately by
+       `asana_sync_enabled=false`.
    - Validation target: the 156/157 TEST proof scripts plus static guards are
-     the floor (`scripts/apply_test_mig_156.cjs`,
-     `scripts/apply_test_mig_157.cjs`, `scripts/proof_reconciler_blockers.cjs`,
-     `scripts/proof_reconciler_enumeration.cjs`, and the Processing static
-     suites). Final PROD data movement requires a live reconciliation report,
-     idempotent re-run proof, no duplicate planner-vs-Asana rows, and spot
-     checks for comments, subtasks, attachments, drift, and local subtask
+     the floor, extended by the 158-162 proof scripts and the Processing
+     finish-out guards (`scripts/apply_test_mig_156.cjs`,
+     `scripts/apply_test_mig_157.cjs`, `scripts/apply_test_mig_158.cjs`,
+     `scripts/apply_test_mig_159.cjs`, `scripts/apply_test_mig_160.cjs`,
+     `scripts/apply_test_mig_161.cjs`, `scripts/apply_test_mig_162.cjs`,
+     `scripts/proof_reconciler_blockers.cjs`,
+     `scripts/proof_reconciler_enumeration.cjs`, and the Processing static/unit
+     suites). Final PROD artifact/template movement requires live dry-run
+     reports, idempotent re-run proof, no duplicate planner-vs-Asana rows, and
+     spot checks for comments, subtasks, attachments, drift, and local subtask
      ownership.
-   - Gates: PROD schema migrations `156`/`157` and the Edge redeploy are done.
-     PROD planner reconcile, Asana dry run, Asana sync/import, attachment
-     backfill, cutover, Vault secret changes, Storage changes, and any new
+   - Gates: PROD schema migrations `156`-`163`, planner reconcile, review queue,
+     reconciliation pass, and comments-only import are done. The Edge redeploy
+     for `5250222`, template import, attachment dry run/backfill, broader
+     Asana sync/import, final cutover, Vault secret changes, and any new
      migration/RPC/security boundary remain separate Ronnie gates. `exec_sql` in
      PROD remains forbidden.
 
@@ -580,7 +657,7 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all applied migrations through `116`, plus
-`125` through `157`. Recent load-bearing migrations:
+`125` through `163`. Recent load-bearing migrations:
 
 - `100` processing batch lifecycle RPCs.
 - `101`-`104` audited delete RPCs and hardening.
@@ -830,8 +907,9 @@ Current PROD architecture includes all applied migrations through `116`, plus
     subtasks, comments, attachments, templates/settings/import support, storage
     plumbing, `processing.record` Activity scope, and the initial
     `processing-asana-sync` Edge Function contract.
-  - PROD-applied before the reconciler lane. The initial Asana import/cutover
-    was not run.
+  - PROD-applied before the reconciler lane. Later Processing lanes ran the
+    planner reconcile, review-queue reconciliation, and comments-only import;
+    full Asana artifact sync/cutover remains gated.
 - `157` Processing Planner reconciler + Asana link table:
   - Adds `processing_asana_links`, imported comment provenance, subtask local
     ownership, drift/ack fields, reconciliation reports, planner enumeration,
@@ -839,8 +917,57 @@ Current PROD architecture includes all applied migrations through `116`, plus
     RPC contract.
   - `upsert_processing_from_asana` cannot mint `planner_batch`; Asana can only
     link/seed allowed provenance and artifacts. Manual crosswalks are sticky.
-  - PROD-applied and catalog-verified; `processing-asana-sync` redeployed as
-    version 3. No PROD planner reconcile or Asana import/sync has been run.
+  - PROD-applied and catalog-verified. The later planner reconcile and
+    workbench/comments lanes have now run; see Build Queue item 3 for current
+    live state and remaining gates.
+- `158` Pasture Map positive-area overlap impacts:
+  - Reissues the pasture overlap predicate and affected move/read functions so a
+    shared boundary/edge touch no longer counts as grazing overlap. Overlap
+    state now requires positive geodesic intersection area (`> 1.0 m^2`) while
+    still allowing true containment/real overlap.
+  - PROD-applied and verified after the FP4D1 -> FP4E1 Mommas move defect:
+    FP4D1 reads resting, FP4E1 occupied, and edge-touch neighbours FP4C1/FP4E2
+    read baseline without data cleanup.
+- `159` Processing reconciliation workbench:
+  - Reissues/extends `resolve_processing_asana_link` so reassigning a link off a
+    sole-owned Asana placeholder reparents comments/subtasks/attachments and
+    archives the emptied placeholder.
+  - Adds `triage_processing_asana_record`,
+    `supersede_processing_asana_duplicate`, and an enriched
+    `list_processing_reconciliation` with buckets, duplicate groups, candidates,
+    dismissed rows, and duplicate-blocked provenance.
+  - PROD-applied and verified; the client workbench and `sync_review_queue`
+    action were deployed in the follow-on Edge gate, and Ronnie completed the
+    reconciliation pass.
+- `160` Processing broiler Time-on-Farm:
+  - Reissues `list_processing_records` and `get_processing_record` to include
+    `time_on_farm_days` for broiler `planner_batch` rows, derived read-only from
+    `app_store` `ppp-v4` as `processingDate - hatchDate`.
+  - PROD-applied and verified against live broiler planner rows; client table
+    and drawer format the value as weeks/days.
+- `161` Processing soft archive RPC:
+  - Adds `archive_processing_record(p_id text, p_archived boolean default true)`
+    for Asana-owned/historical Processing rows. It preserves the record and any
+    Asana links, supports restore, and refuses `planner_batch` rows because
+    Planner-owned records are reconcile-managed.
+  - PROD-applied and catalog-verified. Milestone hard delete remains separate.
+- `162` Processing option lists:
+  - Adds `customer_options` to the `processing_asana_sync_settings` singleton
+    and wires the already-existing `processor_options` list into the UI.
+  - Adds admin-only `set_processing_option_list(kind, options)`, which trims,
+    de-dupes, drops blanks, and never rewrites stored Processing record values.
+    Legacy/off-list customer/processor values remain valid and visible.
+  - PROD-applied and verified; the admin Customer/Processor choices editor is
+    live in `/processing`.
+- `163` Processing attachments Storage bucket:
+  - Creates the private `processing-attachments` bucket. SELECT on
+    `storage.objects` is limited to authenticated operational roles
+    (`farm_team`, `management`, `admin`) through `public.profile_role()`;
+    `light`, `equipment_tech`, inactive users, and anon have no read. There is
+    no authenticated INSERT policy; attachment byte-copy writes are service-role
+    importer work only.
+  - PROD-applied and verified as the sole policy on that bucket. No attachment
+    bytes have been copied yet; attachment dry-run/backfill remain gated.
 
 Special migration notes:
 
@@ -870,11 +997,19 @@ Known document/photo surfaces are locked by static guards:
 - `fuel-bills`.
 - `cattle-feed-pdfs`.
 - `batch-documents`.
+- `processing-attachments`.
 
 Newsletter buckets are current PROD infrastructure as of 2026-06-26:
 `newsletter-staging` is private/admin-only for uploads and copied planner photos
 before approval; `newsletter-public` is public-read/admin-write and receives
 only approved newsletter photo bytes.
+
+Processing attachments Storage is current PROD infrastructure as of 2026-07-09:
+`processing-attachments` is private; reads require authenticated operational
+roles (`farm_team`, `management`, `admin`) through the bucket SELECT policy; no
+authenticated INSERT policy exists. The bucket is ready for Asana attachment
+byte-copy, but no bytes have been copied yet and attachment backfill remains a
+separate gate.
 
 Append-only upload expectations:
 
@@ -899,6 +1034,25 @@ Append-only upload expectations:
   model/reconciliation rules, and data loading.
 - `scripts/import_production_legacy_events_from_xlsx.cjs`: spreadsheet backfill
   importer for `production_legacy_events`.
+- `src/processing/ProcessingCalendarView.jsx`,
+  `src/processing/ProcessingDrawer.jsx`,
+  `src/processing/ProcessingReconciliationModal.jsx`,
+  `src/processing/ProcessingTemplatesModal.jsx`,
+  `src/processing/ProcessingOptionsModal.jsx`,
+  `src/processing/AddMilestoneModal.jsx`, `src/lib/processingApi.js`,
+  `src/lib/processingSourceLink.js`,
+  `supabase/functions/processing-asana-sync/index.ts`, and
+  `supabase/functions/_shared/processingAsanaShape.js`: Processing Calendar
+  schedule/workbench/drawer/templates/options UI, RPC wrappers, source-link
+  display helpers, Edge Asana integration, dry-run/report logic, comments import,
+  template mapping, and attachment-preview/import ownership.
+- `supabase-migrations/156_processing_calendar.sql` through
+  `163_processing_attachments_storage.sql`, plus
+  `scripts/apply_test_mig_156.cjs` through `scripts/apply_test_mig_162.cjs`,
+  `scripts/proof_reconciler_blockers.cjs`, and
+  `scripts/proof_reconciler_enumeration.cjs`: Processing Calendar schema/RPC,
+  reconciler, workbench, broiler TOF, archive, option-list, and Storage proof
+  lanes.
 - `src/pasture/PastureMapView.jsx`, `src/pasture/PastureMapCanvas.jsx`,
   `src/pasture/pastureMap.css`, `src/lib/pastureKml.js`,
   `src/lib/pastureGeometry.js`, `src/lib/pastureMapApi.js`, and
@@ -918,9 +1072,12 @@ Append-only upload expectations:
   `148_pasture_map_group_records_weight_and_planned_move_cleanup.sql`,
   `149_pasture_map_rest_history_reconciliation.sql`,
   `150_pasture_map_open_line_edit.sql`, and
-  `152_pasture_map_manager_hard_delete.sql`: Pasture Map schema/RPC lanes through
-  group records, rest/history reconciliation, actual-weight grazing metrics,
-  open-line edit, and manager hard delete.
+  `152_pasture_map_manager_hard_delete.sql`,
+  `155_pasture_map_departure_overlap_rest.sql`, and
+  `158_pasture_map_positive_overlap_impacts.sql`: Pasture Map schema/RPC lanes
+  through group records, rest/history reconciliation, actual-weight grazing
+  metrics, open-line edit, manager hard delete, departed-overlap rest, and
+  positive-area overlap.
 - `scripts/apply_test_mig_127.cjs` through `scripts/apply_test_mig_132.cjs`,
   plus `scripts/apply_test_mig_147.cjs`, `scripts/apply_test_mig_148.cjs`, and
   `scripts/apply_test_mig_150.cjs`: TEST apply/smoke helpers for the Pasture
@@ -959,6 +1116,9 @@ Append-only upload expectations:
   builders.
 - `src/lib/feedPlanner.js` and `src/lib/feedOrderBasis.js`: feed order math and
   shared calendar-pinned order-month logic.
+- `src/lib/cattleNutrition.js`, `src/cattle/CattleHomeView.jsx`, and
+  `cattle-nutrition-audit-2026-07-08.html`: cattle nutrition dry-matter,
+  CP/NFC, herd rolling-window dashboard math, and the standalone audit graphic.
 - `src/livestock/WeighInSessionPage.jsx` and
   `src/livestock/LivestockWeighInsView.jsx`: shared weigh-in record/list
   surfaces, including pig table entries and pig Active/Complete session list.
@@ -1212,9 +1372,30 @@ Workflow/worktable entities:
   Planner processing date; pig persisted rows are actual trips only with
   `group.id:trip.id` source ids; stale planner rows are archived by reconcile and
   unarchived if the source returns.
+- The main Processing table must stay batch-focused. Subtasks are not a table
+  column; they belong in the record drawer/artifact model. The Batch/title
+  column is sticky in the horizontal table. One-time/admin sync controls belong
+  behind the collapsed `Admin · maintenance` area, not in the primary workflow.
+- Broiler Time-on-Farm is server-derived for broiler planner rows from `ppp-v4`
+  `processingDate - hatchDate`; clients format `time_on_farm_days` through the
+  shared weeks/days helper and may fall back to historical snapshots for
+  imported/historical rows.
+- Customer and Processor selector options are server-backed Processing settings.
+  Admins edit them through `set_processing_option_list`; stored off-list legacy
+  values remain valid/rendered and are not rewritten by option-list edits.
 - Asana sync controls are admin-only and gated. `dry_run` is read-only;
-  `sync_planner_to_processing` is planner-only; `sync_once`, `sync_since`,
-  attachment backfill, and final Asana cutover require explicit Ronnie approval.
+  `sync_planner_to_processing` is planner-only; `sync_review_queue` is
+  records+links only; `sync_comments` is comments-only; `sync_once`,
+  `sync_since`, template import, attachment backfill, and final Asana cutover
+  require explicit Ronnie approval.
+- Asana task templates import only after dry-run review. The Asana API exposes
+  compact template subtasks, so imported checklist item assignees are null.
+  Program inference is by template name and conflicts/no-program rows do not
+  auto-import.
+- Processing attachment files live in private `processing-attachments` Storage.
+  Reads require operational authenticated roles through the bucket policy; writes
+  are service-role importer only. No attachment byte-copy has run until an
+  explicit attachment dry-run/backfill gate says so.
 - Processing Calendar status vocabulary is exactly `Planned`, `In Process`,
   and `Complete`. Use `src/lib/processingStatusDisplay.js` for display mapping:
   `planned`/`scheduled` -> `Planned`, `active` -> `In Process`, and
@@ -1465,13 +1646,17 @@ Workflow/worktable entities:
 - Active cattle herds: `mommas`, `backgrounders`, `finishers`, `bulls`.
 - Active sheep flocks: `rams`, `ewes`, `feeders`.
 - Outcome states are `processed`, `deceased`, `sold`.
-- Cattle Herds default to grouped herd sections when no filters/search/non-default
-  sort are active. Any active filter/search/non-default sort renders one flat
-  matched-results table through the shared `DataTable`. The `Sold` herd filter
-  is flat and sold-only; it must not retain Processed/Deceased/Sold group
-  headers. `Last Activity` sort/column reads the cattle animal Activity stream
-  through `listActivityEvents`, shows date/time, defaults newest-first, and sorts
-  missing activity last.
+- Cattle Herds default to grouped, collapsible herd tiles when no
+  filters/search/non-default sort are active. Any active filter/search/non-default
+  sort renders one flat matched-results table through the shared `DataTable`.
+  The `Sold` herd filter is flat and sold-only; it must not retain
+  Processed/Deceased/Sold group headers. `Last Activity` sort/column reads the
+  cattle animal Activity stream through `listActivityEvents`, shows date/time,
+  defaults newest-first, and sorts missing activity last.
+- Cattle nutrition rolling-window dashboard math must use true dry matter:
+  `as-fed pounds * (1 - moisture_pct/100)` for `DM lb/day`; CP and NFC pounds
+  use the feed-line nutrition snapshot percentages against that dry matter, not
+  raw as-fed pounds.
 - Sheep Flocks render a single always-flat list (the grouped/flat view toggle was
   removed). A column/display picker chooses which of the full field set shows;
   `tag` is always shown; the choice persists in saved views (`columnVisible`
@@ -1605,6 +1790,9 @@ Workflow/worktable entities:
 - Fuel-log edit/delete paths recompute current readings from remaining fuel logs.
 - Equipment checklist/material edits must not reload, lose focus, or reorder list
   items on click/edit.
+- Home `Materials Needed` service groups must remain stable when a material is
+  cleared; clearing one item must not reorder later interval groups or move them
+  to the bottom of the list.
 - Admin client error review is at `/admin/client-errors` and reads through
   `list_client_errors` only.
 
@@ -1728,7 +1916,7 @@ Focused starting points:
 | Record pages | `tests/static/record_page_*.test.js`, per-entity static tests, `tests/*_sequence_nav.spec.js` |
 | Home / dashboard alerts | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js` |
 | Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
-| Processing Calendar | `tests/static/processing_calendar_migration_static.test.js`, `tests/static/processing_wiring_static.test.js`, `tests/static/processing_asana_security_static.test.js`, `tests/static/processing_reconciler_migration_static.test.js`, `tests/static/processing_reconciler_wiring_static.test.js`, `tests/processing_calendar.spec.js`, `tests/processing_asana_shape.test.js`, `tests/processing_asana_matcher.test.js`, `scripts/apply_test_mig_156.cjs`, `scripts/apply_test_mig_157.cjs`, `scripts/proof_reconciler_blockers.cjs`, `scripts/proof_reconciler_enumeration.cjs` |
+| Processing Calendar | `tests/static/processing_calendar_migration_static.test.js`, `tests/static/processing_wiring_static.test.js`, `tests/static/processing_asana_security_static.test.js`, `tests/static/processing_reconciler_migration_static.test.js`, `tests/static/processing_reconciler_wiring_static.test.js`, `tests/static/processing_reconciliation_workbench_static.test.js`, `tests/static/processing_comments_import_static.test.js`, `tests/static/processing_cleanup_static.test.js`, `tests/static/processing_options_static.test.js`, `tests/static/processing_templates_import_static.test.js`, `tests/static/processing_attachments_storage_static.test.js`, `tests/processing_calendar.spec.js`, `tests/processing_asana_shape.test.js`, `tests/processing_asana_matcher.test.js`, `tests/processing_asana_templates.test.js`, `scripts/apply_test_mig_156.cjs`, `scripts/apply_test_mig_157.cjs`, `scripts/apply_test_mig_158.cjs`, `scripts/apply_test_mig_159.cjs`, `scripts/apply_test_mig_160.cjs`, `scripts/apply_test_mig_161.cjs`, `scripts/apply_test_mig_162.cjs`, `scripts/proof_reconciler_blockers.cjs`, `scripts/proof_reconciler_enumeration.cjs` |
 | Newsletter | `tests/static/newsletter_boundary_static.test.js`, `tests/static/newsletter_shared_parity.test.js`, `src/lib/newsletterApi.test.js`, `src/lib/newsletterFacts.test.js`, `src/lib/newsletterProductionYoy.test.js`, `src/newsletter/NewsletterBlocks.test.js`, `tests/newsletter_public.spec.js`, `scripts/apply_test_mig_144_145.cjs`, `scripts/apply_test_mig_153.cjs` |
 | Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_placement.spec.js`, `tests/pasture_map_reports_records.spec.js`, `tests/pasture_map_reset_history.spec.js`, `tests/pasture_map_light_access.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_tweaks2.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `tests/pasture_map_tile_hover.spec.js`, `tests/pasture_map_open_line_edit.spec.js`, `playwright.pasture.config.js`, `scripts/apply_test_mig_147.cjs`, `scripts/apply_test_mig_148.cjs`, `scripts/apply_test_mig_150.cjs` |
 | Breeding pigs | `tests/static/breeding_pigs_parity_static.test.js` |
