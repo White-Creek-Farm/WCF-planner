@@ -202,9 +202,9 @@ describe('processing-asana — source-owned fields are guarded in the client API
     expect(processingApi).not.toContain('setProcessingStatus');
   });
 
-  it('the source-mode flag exists end to end (wrapper + RPC + settings column)', () => {
-    expect(processingApi).toContain('export async function setAsanaSyncEnabled');
-    expect(processingApi).toContain("sb.rpc('set_asana_sync_enabled'");
+  it('the source-mode flag stays server-side (RPC + settings column); its client wrapper is retired', () => {
+    // UI-simplification lane: no client surface flips the flag anymore.
+    expect(processingApi).not.toContain('setAsanaSyncEnabled');
     expect(mig).toMatch(/FUNCTION public\.set_asana_sync_enabled\(boolean\)/);
     expect(mig).toMatch(/asana_sync_enabled\s+boolean/);
   });

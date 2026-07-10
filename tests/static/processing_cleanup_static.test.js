@@ -26,11 +26,10 @@ describe('sub-lane 1 — main table cleanup', () => {
     // which is the ONLY sanctioned subtask surface in the table.
     expect(view).not.toContain('>Subtasks</span>');
     expect(view).toMatch(/const checklistMeta =[\s\S]*?-step checklist/);
-    // processing-complete GRID: check · Batch · Owner · Status · Farm arrival ·
-    // Processing · Processor · Number · Customer · Age/TOF · Remaining · chevron.
-    expect(view).toContain(
-      "const GRID = '20px minmax(190px,1fr) 118px 96px 92px 92px 128px 72px 132px 88px 92px 20px'",
-    );
+    // UI-simplification GRID: check · Batch · Status · Farm arrival ·
+    // Processing · Processor · Number · Customer · Age · chevron (the parent
+    // Owner and Remaining columns are retired).
+    expect(view).toContain("const GRID = '20px minmax(190px,1fr) 96px 92px 92px 128px 72px 132px 88px 20px'");
   });
 
   it('makes the title/batch column sticky (header, rows, group-header label)', () => {
@@ -40,25 +39,20 @@ describe('sub-lane 1 — main table cleanup', () => {
     expect(view).toMatch(/position: 'sticky',\s*\n\s*left: 16/); // group-header label
   });
 
-  it('collapses the one-time admin controls into a maintenance area (out of the day-to-day toolbar)', () => {
-    expect(view).toContain('data-processing-admin-toggle="1"');
-    expect(view).toContain('data-processing-admin-panel="1"');
-    expect(view).toContain('const [adminOpen, setAdminOpen] = useState(false)');
-    // The one-time controls live inside the collapsed panel now.
-    for (const marker of [
-      'data-processing-asana-dry-run-btn="1"',
-      'data-processing-asana-sync-btn="1"',
-      'data-processing-reconciliation-btn="1"',
-      'data-processing-templates-btn="1"',
-    ]) {
-      expect(view).toContain(marker);
-    }
+  it('the Admin maintenance panel is gone; Templates is a direct admin button; Show archived survives', () => {
+    // UI-simplification lane: no collapsed Admin area, no Asana import controls.
+    expect(view).not.toContain('data-processing-admin-toggle');
+    expect(view).not.toContain('data-processing-admin-panel');
+    expect(view).not.toContain('adminOpen');
+    expect(view).toContain('data-processing-templates-btn="1"');
+    // The soft-archive restore path keeps its admin-only entry point.
+    expect(view).toContain('data-processing-show-archived');
     // "+ Add milestone" stays in the normal workflow.
     expect(view).toContain('data-processing-add-milestone-btn="1"');
   });
 });
 
-describe('sub-lane 2 — broiler Time-on-Farm', () => {
+describe('sub-lane 2 — broiler Time-on-Farm (server derivation kept, display retired)', () => {
   it('mig 160 derives time_on_farm_days server-side in both RPCs (processing − hatch from ppp-v4)', () => {
     expect(mig160).toContain('CREATE OR REPLACE FUNCTION public.list_processing_records');
     expect(mig160).toContain('CREATE OR REPLACE FUNCTION public.get_processing_record');
@@ -73,10 +67,15 @@ describe('sub-lane 2 — broiler Time-on-Farm', () => {
     );
   });
 
-  it('client formats the server value with the shared weeksDaysText (table + drawer)', () => {
-    expect(sourceLink).toContain('export function weeksDaysText');
-    expect(view).toContain('weeksDaysText(rec.time_on_farm_days)');
-    expect(drawer).toContain('weeksDaysText(record.time_on_farm_days)');
+  it('the client no longer DISPLAYS broiler TOF (table + drawer show mammal Age only)', () => {
+    expect(sourceLink).toContain('export function weeksDaysText'); // still used for mammal age text
+    expect(view).not.toContain('weeksDaysText(rec.time_on_farm_days)');
+    expect(view).not.toContain('_timeOnFarmText');
+    expect(drawer).not.toContain('weeksDaysText(record.time_on_farm_days)');
+    expect(drawer).not.toContain('Time on farm');
+    // Age remains for the mammal programs.
+    expect(view).toMatch(/isBroiler \? null : rec\._ageText/);
+    expect(drawer).toMatch(/!isBroiler && sourceInfo\?\.ageText/);
   });
 });
 

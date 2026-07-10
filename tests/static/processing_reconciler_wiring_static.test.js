@@ -4,50 +4,39 @@ import {fileURLToPath} from 'node:url';
 import {describe, it, expect} from 'vitest';
 import * as shape from '../../supabase/functions/_shared/processingAsanaShape.js';
 
-// Static guards for the reconciler client wiring + the pure matcher module.
+// Static guards for the reconciler: the mig-157 RPCs stay server-side for
+// gated operational use; the CLIENT workbench (modal + wrappers + entry point)
+// was removed by the UI-simplification lane. The pure matcher module remains
+// the Edge Function's brain.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
-describe('reconciler lib wrappers', () => {
-  const api = read('src/lib/processingApi.js');
-  it('exposes the four mig-157 RPC wrappers', () => {
+describe('reconciler server surface stays; client workbench is gone', () => {
+  it('mig 157 keeps the four reconciliation RPCs server-side', () => {
+    const mig = read('supabase-migrations/157_processing_reconciler.sql');
+    for (const rpc of [
+      'reconcile_planner_to_processing',
+      'list_processing_reconciliation',
+      'resolve_processing_asana_link',
+      'acknowledge_processing_drift',
+    ]) {
+      expect(mig, `mig 157 defines ${rpc}`).toContain(`FUNCTION public.${rpc}`);
+    }
+  });
+  it('the client wrappers + workbench UI are removed (UI-simplification lane)', () => {
+    const api = read('src/lib/processingApi.js');
     for (const fn of [
       'reconcilePlannerToProcessing',
       'listProcessingReconciliation',
       'resolveProcessingAsanaLink',
       'acknowledgeProcessingDrift',
     ]) {
-      expect(api, `missing ${fn}`).toMatch(new RegExp('export (async )?function ' + fn + '\\b'));
+      expect(api, `${fn} wrapper must be gone`).not.toMatch(new RegExp('export (async )?function ' + fn + '\\b'));
     }
-  });
-  it('routes the wrappers through sb.rpc with the exact RPC names', () => {
-    expect(api).toContain("'reconcile_planner_to_processing'");
-    expect(api).toContain("'list_processing_reconciliation'");
-    expect(api).toContain("'resolve_processing_asana_link'");
-    expect(api).toContain("'acknowledge_processing_drift'");
-  });
-});
-
-describe('reconciler UI wiring', () => {
-  it('ProcessingCalendarView adds an admin reconciliation entry point', () => {
-    expect(read('src/processing/ProcessingCalendarView.jsx')).toContain('data-processing-reconciliation-btn');
-  });
-  it('ProcessingReconciliationModal has the workbench crosswalk + drift markers', () => {
-    const m = read('src/processing/ProcessingReconciliationModal.jsx');
-    for (const mk of [
-      'data-processing-reconciliation-modal',
-      'data-processing-reconciliation-loaded',
-      'data-reconciliation-workbench',
-      'data-reconciliation-item', // one-at-a-time crosswalk card (replaces the flat review row)
-      'data-reconciliation-candidate', // assign to a suggested planner record (replaces the single resolve button)
-      'data-reconciliation-ack',
-    ]) {
-      expect(m, `missing marker ${mk}`).toContain(mk);
-    }
-    // Uses the crosswalk + report + ack wrappers.
-    expect(m).toMatch(/resolveProcessingAsanaLink|listProcessingReconciliation/);
+    expect(fs.existsSync(path.join(ROOT, 'src/processing/ProcessingReconciliationModal.jsx'))).toBe(false);
+    expect(read('src/processing/ProcessingCalendarView.jsx')).not.toContain('data-processing-reconciliation-btn');
   });
   it('ProcessingDrawer badges imported (Asana-sourced) subtasks', () => {
     const d = read('src/processing/ProcessingDrawer.jsx');

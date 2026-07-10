@@ -7,11 +7,12 @@
 // the Asana-style record page:
 //   • OWNERSHIP MATRIX: source-owned facts (title / date / status / number
 //     processed) mirror the live planner batch / imported snapshot and are
-//     READ-ONLY. Processing-owned edits: Assignee (profile-backed), Processor,
-//     Customer (broiler), local template fields (set_processing_field), and
-//     subtasks. Milestones are fully Processing-owned (title + date incl.
-//     explicit clear + canonical status + assignee + processor + customer) and
-//     deletable.
+//     READ-ONLY. Processing-owned edits: Processor, Customer (broiler, SINGLE
+//     select), local template fields (set_processing_field), and subtasks.
+//     The parent record Assignee/Owner is retired (UI-simplification lane) —
+//     checklist/subtask assignees remain fully editable. Milestones are fully
+//     Processing-owned (title + date incl. explicit clear + canonical status +
+//     processor + customer) and deletable.
 //   • DETAILS: the active template's fields render in configured order through
 //     src/lib/processingFields.js — bound ids resolve from the record/derived
 //     formulas (read-only), local ids edit typed values into record.fields.
@@ -32,7 +33,6 @@ import {
   listProcessingTemplates,
   setProcessingProcessor,
   setProcessingCustomer,
-  setProcessingAssignee,
   setProcessingField,
   markProcessingComplete,
   reopenProcessingRecord,
@@ -49,7 +49,7 @@ import {
   friendlyProcessingError,
 } from '../lib/processingApi.js';
 import {uploadProcessingAttachment, getProcessingAttachmentUrl} from '../lib/processingAttachmentsApi.js';
-import {resolveSourceForRecord, deriveDisplayStatus, weeksDaysText} from '../lib/processingSourceLink.js';
+import {resolveSourceForRecord, deriveDisplayStatus} from '../lib/processingSourceLink.js';
 import {processingStatusVariantFromLabel, PROCESSING_STATUS_DISPLAY} from '../lib/processingStatusDisplay.js';
 import {computeCompletionBlockers} from '../lib/processingCompletion.js';
 import {normalizeFieldDef, resolveFieldDisplay, isFieldEditable} from '../lib/processingFields.js';
@@ -63,8 +63,11 @@ import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx
 const OPERATIONAL_ROLES = ['admin', 'management', 'farm_team'];
 // Fallback only if the settings-backed customer_options can't be fetched; the
 // live list comes from get_processing_settings (mig 162) via the customerOptions
-// prop. See ProcessingOptionsModal for editing.
+// prop. See ProcessingOptionsModal (inside Templates) for editing.
 const CUSTOMER_OPTIONS_FALLBACK = ["Sonny's", 'Coastal Pastures - CONFIRMED', 'Coastal Pastures - POTENTIAL'];
+// Sentinel select value representing a stored MULTI-customer set on an old
+// record — never persisted; selecting anything else replaces the whole set.
+const LEGACY_MULTI_CUSTOMER = '__legacy_multi_customer__';
 // Field ids already rendered by the core rows above the Details section.
 const CORE_COVERED_FIELD_IDS = ['status', 'program', 'batchName', 'animals', 'customer', 'processor'];
 
@@ -88,11 +91,6 @@ function formatDate(value) {
 function isoDateInput(value) {
   const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
-}
-function todayISO() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 function kbText(bytes) {
   const n = Number(bytes);
@@ -141,7 +139,7 @@ function DetailFieldRow({
   setNotice,
   inputStyle,
 }) {
-  const resolved = resolveFieldDisplay(field, record, {todayISO: todayISO()});
+  const resolved = resolveFieldDisplay(field, record);
   const editable = canOperate && isFieldEditable(field, record) && !resolved.readOnly;
   const value = resolved.value;
 
@@ -501,17 +499,20 @@ export default function ProcessingDrawer({
   const isMilestone = record?.record_type === 'milestone';
   const isBroiler = record ? (record.program || record.source_kind) === 'broiler' : false;
   const sourceInfo = record ? resolveSourceForRecord(record, {}) : null;
-  const tofText = isBroiler && record ? (weeksDaysText(record.time_on_farm_days) ?? sourceInfo?.timeOnFarmText) : null;
   const statusLabel = record ? deriveDisplayStatus(record, sourceInfo) : '';
   const isComplete = record ? record.completed_at != null || statusLabel === PROCESSING_STATUS_DISPLAY.complete : false;
   const blockers = record ? computeCompletionBlockers(record, subtasks) : [];
+  // Customer (broiler) — SINGLE select over customer_options (mig 162), stored
+  // in the existing array-backed column as [] or [value]. A stored off-list
+  // value stays visible/selectable as "(legacy)"; MULTIPLE stored values (old
+  // records) surface as ONE "(legacy — multiple)" option until deliberately
+  // replaced with a real choice or cleared.
   const customerSelected = useMemo(() => (Array.isArray(record?.customer) ? record.customer : []), [record?.customer]);
-  const customerChoices = useMemo(() => {
-    const base = Array.isArray(customerOptions) && customerOptions.length ? customerOptions : CUSTOMER_OPTIONS_FALLBACK;
-    const merged = base.slice();
-    for (const c of customerSelected) if (c && !merged.includes(c)) merged.push(c);
-    return merged;
-  }, [customerOptions, customerSelected]);
+  const customerBaseOptions =
+    Array.isArray(customerOptions) && customerOptions.length ? customerOptions : CUSTOMER_OPTIONS_FALLBACK;
+  const customerLegacyMulti = customerSelected.length > 1;
+  const customerCurrent = customerSelected.length === 1 ? customerSelected[0] : '';
+  const customerSelectValue = customerLegacyMulti ? LEGACY_MULTI_CUSTOMER : customerCurrent;
 
   // Profile choices for people pickers (assignee rows). Sorted by name.
   const profileChoices = useMemo(() => {
@@ -539,14 +540,11 @@ export default function ProcessingDrawer({
     if ((record.processor || '') === (value || '')) return;
     runMutation(() => setProcessingProcessor(sb, record.id, value || null));
   }
-  function toggleCustomer(option) {
-    const next = customerSelected.includes(option)
-      ? customerSelected.filter((c) => c !== option)
-      : [...customerSelected, option];
-    runMutation(() => setProcessingCustomer(sb, record.id, next));
-  }
-  function saveAssignee(profileId) {
-    runMutation(() => setProcessingAssignee(sb, record.id, profileId || null));
+  function saveCustomerSelect(value) {
+    // The legacy-multiple option IS the stored state — picking it changes nothing.
+    if (value === LEGACY_MULTI_CUSTOMER) return;
+    if (!customerLegacyMulti && (customerCurrent || '') === (value || '')) return;
+    runMutation(() => setProcessingCustomer(sb, record.id, value ? [value] : []));
   }
   function saveMilestoneTitle() {
     if (!isMilestone || (record.title || '') === titleDraft.trim()) return;
@@ -882,41 +880,6 @@ export default function ProcessingDrawer({
                   )}
                 </FieldRow>
 
-                {/* Assignee — profile-backed, Processing-owned on every record */}
-                <FieldRow label="Assignee">
-                  {canOperate ? (
-                    <select
-                      value={
-                        record.assignee_profile_id && profilesById[record.assignee_profile_id]
-                          ? record.assignee_profile_id
-                          : ''
-                      }
-                      disabled={busy}
-                      onChange={(e) => saveAssignee(e.target.value || null)}
-                      aria-label="Assignee"
-                      data-processing-assignee-select
-                      style={{...inputStyle, maxWidth: 200}}
-                    >
-                      <option value="">
-                        {record.assignee_profile_id && !profilesById[record.assignee_profile_id]
-                          ? 'Assigned user'
-                          : record.assignee_name
-                            ? `${record.assignee_name} (imported)`
-                            : '—'}
-                      </option>
-                      {profileChoices.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.full_name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span style={{fontSize: 13, color: T.muted, fontWeight: 600}}>
-                      {profileName(record.assignee_profile_id) || record.assignee_name || '—'}
-                    </span>
-                  )}
-                </FieldRow>
-
                 <FieldRow label="Processing date">
                   {isMilestone && canOperate ? (
                     <input
@@ -946,11 +909,10 @@ export default function ProcessingDrawer({
                   </FieldRow>
                 )}
 
-                {(isBroiler ? tofText : sourceInfo?.ageText) && (
-                  <FieldRow label={isBroiler ? 'Time on farm' : 'Age'}>
-                    <span style={{fontSize: 13.5, color: T.ink, fontWeight: 700}}>
-                      {isBroiler ? tofText : sourceInfo.ageText}
-                    </span>
+                {/* Age — mammal programs only (broiler Time-on-Farm is retired) */}
+                {!isBroiler && sourceInfo?.ageText && (
+                  <FieldRow label="Age">
+                    <span style={{fontSize: 13.5, color: T.ink, fontWeight: 700}}>{sourceInfo.ageText}</span>
                   </FieldRow>
                 )}
 
@@ -986,42 +948,40 @@ export default function ProcessingDrawer({
                   )}
                 </FieldRow>
 
-                {/* Customer — broiler only, editable Processing-owned field */}
+                {/* Customer — broiler only, TRUE SINGLE SELECT from the
+                    admin-configured customer_options (mig 162), matching the
+                    Processor control. '—' clears; a stored off-list value shows
+                    as (legacy); an old multi-customer set shows as ONE
+                    (legacy — multiple) option until deliberately replaced. */}
                 {isBroiler && (
                   <FieldRow label="Customer">
                     {canOperate ? (
-                      <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end'}}>
-                        {customerChoices.map((opt) => {
-                          const on = customerSelected.includes(opt);
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              disabled={busy}
-                              onClick={() => toggleCustomer(opt)}
-                              data-processing-customer-chip={opt}
-                              title={opt}
-                              style={{
-                                fontSize: 11.5,
-                                fontWeight: 700,
-                                borderRadius: 999,
-                                padding: '4px 10px',
-                                cursor: busy ? 'default' : 'pointer',
-                                fontFamily: 'inherit',
-                                border: `1px solid ${on ? T.green : T.border}`,
-                                background: on ? '#E6F4EC' : '#fff',
-                                color: on ? '#1F7A4D' : T.muted,
-                              }}
-                            >
-                              {opt.split(' - ')[0]}
-                              {opt.includes(' - ') ? ` (${opt.split(' - ')[1].slice(0, 4).toLowerCase()})` : ''}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <select
+                        value={customerSelectValue}
+                        disabled={busy}
+                        onChange={(e) => saveCustomerSelect(e.target.value)}
+                        aria-label="Customer"
+                        data-processing-customer-select
+                        style={{...inputStyle, maxWidth: 220}}
+                      >
+                        <option value="">—</option>
+                        {customerLegacyMulti && (
+                          <option value={LEGACY_MULTI_CUSTOMER}>
+                            {customerSelected.join(' + ')} (legacy — multiple)
+                          </option>
+                        )}
+                        {customerCurrent && !customerBaseOptions.includes(customerCurrent) && (
+                          <option value={customerCurrent}>{customerCurrent} (legacy)</option>
+                        )}
+                        {customerBaseOptions.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
                       <span style={{fontSize: 13, color: T.muted, fontWeight: 600}}>
-                        {customerSelected.length ? customerSelected.map((c) => c.split(' - ')[0]).join(', ') : '—'}
+                        {customerSelected.length ? customerSelected.join(', ') : '—'}
                       </span>
                     )}
                   </FieldRow>
