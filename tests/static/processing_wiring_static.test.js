@@ -30,73 +30,36 @@ describe('processing wiring — activityRegistry', () => {
   });
 });
 
-describe('processing wiring - admin Asana sync controls', () => {
-  it('renders admin-only dry-run and sync buttons that call the Edge Function actions', () => {
-    expect(processingCalendar).toContain('data-processing-asana-dry-run-btn="1"');
-    expect(processingCalendar).toContain("runAsanaSyncAction('dry_run')");
-    expect(processingCalendar).toContain('data-processing-asana-sync-btn="1"');
-    expect(processingCalendar).toContain("runAsanaSyncAction('sync_once')");
-  });
-
-  it('keeps Sync now disabled until a successful dry run in the page session', () => {
-    expect(processingCalendar).toContain('const [dryRunReady, setDryRunReady] = useState(false)');
-    expect(processingCalendar).toMatch(/const syncNowDisabled =[\s\S]*?!dryRunReady/);
-    expect(processingCalendar).toMatch(/if \(action === 'dry_run'\)[\s\S]*?setDryRunReady\(true\)/);
-    // Every write action is gated by ITS OWN dry run (WRITE_REQUIRES map):
-    // sync_once needs dry_run; the artifact/activity/attachment imports each
-    // need their dedicated dry run and can never ride the record dry run.
-    expect(processingCalendar).toMatch(/sync_once: 'dry_run'/);
-    expect(processingCalendar).toMatch(/sync_artifacts: 'artifacts_dry_run'/);
-    expect(processingCalendar).toMatch(/sync_activity: 'activity_dry_run'/);
-    expect(processingCalendar).toMatch(/attachment_backfill: 'attachment_dry_run'/);
-    expect(processingCalendar).toMatch(/requiredDryRun === 'dry_run' && !dryRunReady/);
-    expect(processingCalendar).toMatch(/!importReady\[requiredDryRun\]/);
-  });
-
-  it('locks every Asana admin control when asana_sync_enabled is false (cutover)', () => {
-    expect(processingCalendar).toMatch(/asanaSyncEnabled === false/);
-    expect(processingCalendar).toMatch(/const asanaLocked =[\s\S]*?asanaSyncEnabled === false/);
-  });
-});
-
-describe('processing wiring — dry-run report reads the real Edge contract', () => {
-  it('dryRunSummary reports tasksFetched/plannerRows/buckets, not the removed would-insert/update/skip fields', () => {
-    expect(processingCalendar).toContain('p.buckets');
-    expect(processingCalendar).toContain('tasksFetched');
-    expect(processingCalendar).toContain('plannerRows');
-    // The old UI bug (reading fields runDryRun never returns) is gone.
-    expect(processingCalendar).not.toContain('wouldInsert');
-    expect(processingCalendar).not.toContain('wouldUpdate');
-    expect(processingCalendar).not.toContain('wouldSkip');
-  });
-
-  it('renders a read-only DryRunReport panel driven by plan.buckets + review-grade detail', () => {
-    expect(processingCalendar).toContain('function DryRunReport');
-    expect(processingCalendar).toContain('data-processing-dry-run-report="1"');
-    expect(processingCalendar).toContain('plan.buckets');
-    for (const key of [
-      'plan.review',
-      'plan.milestones',
-      'plan.collisions',
-      'plan.pigCandidates',
-      'plan.driftPreview',
+describe('processing wiring — the admin Asana sync surface is gone (UI-simplification lane)', () => {
+  it('renders NO Asana import/maintenance controls or dry-run report on the page', () => {
+    for (const gone of [
+      'data-processing-admin-toggle',
+      'data-processing-admin-panel',
+      'data-processing-asana-dry-run-btn',
+      'data-processing-asana-sync-btn',
+      'data-processing-destination-audit-btn',
+      'data-processing-artifacts-dry-run-btn',
+      'data-processing-sync-artifacts-btn',
+      'data-processing-activity-dry-run-btn',
+      'data-processing-sync-activity-btn',
+      'data-processing-attachment-dry-run-btn',
+      'data-processing-attachment-backfill-btn',
+      'data-processing-reconciliation-btn',
+      'data-processing-sync-status',
+      'data-processing-dry-run-report',
+      'runAsanaSyncAction',
+      'DryRunReport',
+      'dryRunReady',
+      'asanaSyncEnabled',
     ]) {
-      expect(processingCalendar).toContain(key);
+      expect(processingCalendar, `${gone} must be gone`).not.toContain(gone);
     }
-    // Stored from the dry_run result and rendered admin-only.
-    expect(processingCalendar).toContain('setDryRunPlan((result && result.plan) || null)');
-    expect(processingCalendar).toContain('isAdmin && dryRunPlan && <DryRunReport plan={dryRunPlan} />');
   });
 
-  it('the DryRunReport panel is read-only (no write/import affordance inside it)', () => {
-    const start = processingCalendar.indexOf('function DryRunReport');
-    const end = processingCalendar.indexOf('export default function ProcessingCalendarView', start);
-    expect(start).toBeGreaterThan(-1);
-    expect(end).toBeGreaterThan(start);
-    const body = processingCalendar.slice(start, end);
-    expect(body).not.toContain('runAsanaSyncAction');
-    expect(body).not.toContain('sync_once');
-    expect(body).not.toMatch(/onClick=/);
+  it('keeps the direct admin Templates button + the day-to-day flow', () => {
+    expect(processingCalendar).toContain('data-processing-templates-btn="1"');
+    expect(processingCalendar).toContain('data-processing-add-milestone-btn="1"');
+    expect(processingCalendar).toContain('data-processing-show-archived');
   });
 });
 

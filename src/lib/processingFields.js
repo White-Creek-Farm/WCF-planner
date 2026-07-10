@@ -11,13 +11,16 @@
 //     a derived calc / a dedicated RPC and is NOT writable through the generic
 //     set_processing_field path. Everything else is a local Processing-owned
 //     value stored in processing_records.fields keyed by the field id.
-//   • Derived formulas — the three handoff formula fields are implemented HERE
-//     (never authored in the template UI): Actual Time On Farm, Planned Time on
-//     Farm, Time Remaining Until Processing.
+//   • UI-simplification lane (v2 suite): the six retired display fields (Farm,
+//     Planned Processing Date, Actual/Planned Time on Farm, Time Remaining,
+//     Product Pick-up Date) are gone from the defaults and the drawer; their
+//     ids STAY in RESERVED_PROCESSING_FIELD_IDS so the write path keeps
+//     refusing them (SQL lockstep unchanged). Customer is a SINGLE select
+//     sourced from settings.customer_options (mig 162), like Processor.
 //   • resolveFieldDisplay — one precedence chain for every field:
 //     local fields[fid]  >  imported historical_snapshot  >  derived/record.
 //
-// No I/O, no Date.now() (callers pass todayISO), importable by vitest + the UI.
+// No I/O, no Date.now(), importable by vitest + the UI.
 // Server mirror: set_processing_field (mig 164) refuses the RESERVED ids below;
 // keep the two lists in lockstep.
 // ============================================================================
@@ -103,11 +106,6 @@ const STATUS_OPTIONS = [
   {key: 'tbc', label: 'TBC', color: {bg: '#E59CC0', ink: '#6F2A50'}},
   {key: 'goal', label: 'Goal', color: {bg: '#6AA6DD', ink: '#173B5E'}},
 ];
-const CUSTOMER_OPTIONS_DEFAULT = [
-  {key: 'sonnys', label: "Sonny's", color: {bg: '#BFE3CB', ink: '#245737'}},
-  {key: 'coastal_confirmed', label: 'Coastal Pastures - CONFIRMED', color: {bg: '#F0B3A8', ink: '#9F3322'}},
-  {key: 'coastal_potential', label: 'Coastal Pastures - POTENTIAL', color: {bg: '#EFC07E', ink: '#875213'}},
-];
 const ANIMAL_MASTER_OPTIONS = [
   {key: 'scheduled', label: 'Scheduled', color: {bg: '#EDEFF1', ink: '#5B626C'}},
   {key: 'on_farm', label: 'On Farm', color: {bg: '#E7EDF8', ink: '#3B6CB7'}},
@@ -130,12 +128,6 @@ function baseFields() {
       ],
     },
     {id: 'batchName', name: 'Batch Name (Farms)', type: 'text'},
-    {
-      id: 'farm',
-      name: 'Farm',
-      type: 'single',
-      options: [{key: 'wcf', label: 'WCF', color: {bg: '#DDF1EE', ink: '#2E7A73'}}],
-    },
     {id: 'animals', name: 'Animals Processed', type: 'number'},
     {id: 'condemned', name: 'Condemed', type: 'number'}, // Asana's spelling — keep
     {id: 'farmArrival', name: 'Farm Arrival Date', type: 'date'},
@@ -149,11 +141,6 @@ function baseFields() {
       ],
     },
     {id: 'animalMaster', name: 'Status (Animal Master)', type: 'single', options: ANIMAL_MASTER_OPTIONS},
-    {id: 'procPlanned', name: 'Planned Processing Date (SF)', type: 'date'},
-    {id: 'actualTOF', name: 'Actual Time On Farm', type: 'formula'},
-    {id: 'plannedTOF', name: 'Planned Time on Farm', type: 'formula'},
-    {id: 'timeRemaining', name: 'Time Remaining Until Processing', type: 'formula'},
-    {id: 'productPickup', name: 'Product Pick-up Date', type: 'date'},
     // Processor is a TRUE SELECT whose choices come from the server-backed
     // processing_asana_sync_settings.processor_options at runtime (mig 162) —
     // never baked into the template. Legacy/off-list stored values stay visible.
@@ -164,12 +151,15 @@ function baseFields() {
 export function defaultProcessingFields(program) {
   const fields = baseFields();
   if (program === 'broiler') {
-    // Customer is a Broiler-only Processing-owned field (server-enforced).
+    // Customer is a Broiler-only Processing-owned field (server-enforced): a
+    // SINGLE select sourced from settings.customer_options at runtime, exactly
+    // like Processor — no baked options, stored zero-or-one in the existing
+    // array-backed record column.
     fields.splice(fields.length - 1, 0, {
       id: 'customer',
       name: 'Customer (Broiler)',
-      type: 'multi',
-      options: CUSTOMER_OPTIONS_DEFAULT,
+      type: 'single',
+      optionsSource: 'settings.customer_options',
     });
   }
   // Deep-copy so callers can mutate their copy; fields without options carry NO
@@ -257,17 +247,19 @@ export function defaultProcessingChecklist(program) {
 // A field id in RESERVED_PROCESSING_FIELD_IDS is BOUND: its value comes from the
 // record / a derived calc / a dedicated RPC — never from fields[fid]. The mig-164
 // set_processing_field RPC refuses these ids server-side (keep in lockstep).
+// procPlanned/actualTOF/plannedTOF/timeRemaining were retired from the default
+// templates (v2 suite) but STAY reserved so the write path keeps refusing them.
 export const RESERVED_PROCESSING_FIELD_IDS = Object.freeze([
   'procActual', // planner/imported processing date (record.processing_date / snapshot)
-  'procPlanned', // planner/imported planned date (snapshot.planned_proc)
+  'procPlanned', // retired display field (was: imported planned date)
   'status', // display status (deriveDisplayStatus) — Planned / In Process / Complete
   'program', // record.program
   'batchName', // record.title
   'animals', // record.number_processed (source-owned)
   'year', // derived from the processing date (never the Asana Year field)
-  'actualTOF', // derived formula
-  'plannedTOF', // derived formula
-  'timeRemaining', // derived formula
+  'actualTOF', // retired derived formula
+  'plannedTOF', // retired derived formula
+  'timeRemaining', // retired derived formula
   'customer', // dedicated set_processing_customer RPC (broiler only)
   'processor', // dedicated set_processing_processor RPC
 ]);
@@ -280,15 +272,6 @@ export function isReservedProcessingFieldId(id) {
 function isoDateOnly(v) {
   const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v == null ? '' : v).trim());
   return m ? m[1] : null;
-}
-function wholeDaysBetween(laterISO, earlierISO) {
-  const a = isoDateOnly(laterISO);
-  const b = isoDateOnly(earlierISO);
-  if (!a || !b) return null;
-  const ta = Date.parse(`${a}T00:00:00Z`);
-  const tb = Date.parse(`${b}T00:00:00Z`);
-  if (!Number.isFinite(ta) || !Number.isFinite(tb)) return null;
-  return Math.round((ta - tb) / 86400000);
 }
 
 function snapshotVal(record, keys) {
@@ -318,69 +301,13 @@ export function resolveFarmArrival(record) {
   );
 }
 
-// ── The three handoff formula fields ─────────────────────────────────────────
-// Actual Time On Farm (days): server-derived broiler TOF when present, else
-// actual processing date − farm arrival.
-export function deriveActualTofDays(record) {
-  if (!record) return null;
-  if (record.time_on_farm_days != null && Number.isFinite(Number(record.time_on_farm_days))) {
-    return Number(record.time_on_farm_days);
-  }
-  const actual =
-    isoDateOnly(localFieldVal(record, 'procActual')) ||
-    isoDateOnly(snapshotVal(record, ['actual_proc'])) ||
-    isoDateOnly(record.processing_date);
-  const arrival = resolveFarmArrival(record);
-  const d = wholeDaysBetween(actual, arrival);
-  return d != null && d >= 0 ? d : null;
-}
-
-// Planned Time on Farm (days): planned processing date − farm arrival.
-export function derivePlannedTofDays(record) {
-  if (!record) return null;
-  const planned =
-    isoDateOnly(localFieldVal(record, 'procPlanned')) ||
-    isoDateOnly(snapshotVal(record, ['planned_proc'])) ||
-    isoDateOnly(record.processing_date);
-  const arrival = resolveFarmArrival(record);
-  const d = wholeDaysBetween(planned, arrival);
-  return d != null && d >= 0 ? d : null;
-}
-
-// Time Remaining Until Processing (days, signed): processing date − today.
-// Callers pass todayISO (no Date.now() here). Complete records return null.
-export const PROCESSING_DUE_SOON_DAYS = 14;
-export function deriveTimeRemaining(record, todayISO) {
-  if (!record || !todayISO) return null;
-  if (record.completed_at || String(record.status || '').toLowerCase() === 'complete') return null;
-  const target = isoDateOnly(record.processing_date);
-  if (!target) return null;
-  const days = wholeDaysBetween(target, todayISO);
-  if (days == null) return null;
-  return {days, past: days < 0, dueSoon: days >= 0 && days <= PROCESSING_DUE_SOON_DAYS};
-}
-
-export function formatDaysAsWeeks(days) {
-  if (days == null || !Number.isFinite(days) || days < 0) return null;
-  const weeks = Math.floor(days / 7);
-  const rem = days % 7;
-  return `${weeks}w ${rem}d`;
-}
-
-export function formatTimeRemaining(remaining) {
-  if (!remaining) return null;
-  const abs = Math.abs(remaining.days);
-  const base = abs >= 14 ? `${Math.floor(abs / 7)}w ${abs % 7}d` : `${abs}d`;
-  return remaining.past ? `${base} ago` : base;
-}
-
 // ── Field display resolution (one precedence chain) ─────────────────────────
 // Returns {value, readOnly, source} for one template field on one record.
 //   source: 'local' | 'imported' | 'record' | 'derived' | 'none'
 // Bound fields are always readOnly here (their edits go through dedicated RPCs
 // or are Planner-owned facts). Local fields are editable for batch records
 // (milestones don't take templates) by operational roles.
-export function resolveFieldDisplay(field, record, {todayISO = null} = {}) {
+export function resolveFieldDisplay(field, record) {
   const fid = field && field.id;
   if (!fid || !record) return {value: null, readOnly: true, source: 'none'};
 
@@ -389,8 +316,6 @@ export function resolveFieldDisplay(field, record, {todayISO = null} = {}) {
       const local = isoDateOnly(snapshotVal(record, ['actual_proc']));
       return {value: local || isoDateOnly(record.processing_date), readOnly: true, source: 'record'};
     }
-    case 'procPlanned':
-      return {value: isoDateOnly(snapshotVal(record, ['planned_proc'])), readOnly: true, source: 'imported'};
     case 'status':
       return {value: record.status ?? null, readOnly: true, source: 'record'};
     case 'program':
@@ -415,12 +340,6 @@ export function resolveFieldDisplay(field, record, {todayISO = null} = {}) {
       return {value: Array.isArray(record.customer) ? record.customer : [], readOnly: true, source: 'record'};
     case 'processor':
       return {value: record.processor ?? null, readOnly: true, source: 'record'};
-    case 'actualTOF':
-      return {value: formatDaysAsWeeks(deriveActualTofDays(record)), readOnly: true, source: 'derived'};
-    case 'plannedTOF':
-      return {value: formatDaysAsWeeks(derivePlannedTofDays(record)), readOnly: true, source: 'derived'};
-    case 'timeRemaining':
-      return {value: formatTimeRemaining(deriveTimeRemaining(record, todayISO)), readOnly: true, source: 'derived'};
     case 'farmArrival': {
       const local = localFieldVal(record, 'farmArrival');
       if (local != null) return {value: isoDateOnly(local), readOnly: false, source: 'local'};

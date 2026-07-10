@@ -225,20 +225,15 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   ['src/cattle/CattleHerdsView.jsx', 2],
   ['src/equipment/EquipmentDetail.jsx', 1],
   ['src/livestock/WeighInSessionPage.jsx', 5],
-  // Processing drawer (processing-complete lane, per-caller reviewed): 19 sites,
-  // every one an RPC-backed processingApi wrapper — saveProcessor, toggleCustomer,
-  // saveAssignee, saveMilestoneTitle, saveMilestoneDate, saveMilestoneStatus,
-  // saveLocalField (set_processing_field), markComplete, reopen, toggleSubtask,
-  // addSubtask, saveSubtaskLabel, reassignSubtask, deleteSubtask, moveSubtask
-  // (reorder RPC), applyTemplate, doDeleteMilestone, doArchiveRecord,
-  // doRestoreRecord. NO direct .from() table writes.
-  ['src/processing/ProcessingDrawer.jsx', 19],
-  // Reconciliation workbench modal (migs 157/159 + comments lane, per-caller
-  // reviewed): 8 sites — reconcile-planner, populate review queue
-  // (sync_review_queue via Edge), resolve-link, triage, supersede-duplicate,
-  // acknowledge-drift, comments preview, comments import. All RPC/Edge-backed;
-  // NO direct .from() table writes.
-  ['src/processing/ProcessingReconciliationModal.jsx', 8],
+  // Processing drawer (UI-simplification lane, per-caller reviewed): 18 sites,
+  // every one an RPC-backed processingApi wrapper — saveProcessorSelect,
+  // saveCustomerSelect, saveMilestoneTitle, saveMilestoneDate,
+  // saveMilestoneStatus, saveLocalField (set_processing_field), markComplete,
+  // reopen, toggleSubtask, addSubtask, saveSubtaskLabel, reassignSubtask,
+  // deleteSubtask, moveSubtask (reorder RPC), applyTemplate, doDeleteMilestone,
+  // doArchiveRecord, doRestoreRecord. The parent-assignee mutation is retired;
+  // the reconciliation workbench modal is deleted. NO direct .from() writes.
+  ['src/processing/ProcessingDrawer.jsx', 18],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -557,7 +552,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(46);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(37);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

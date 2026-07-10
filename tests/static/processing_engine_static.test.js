@@ -318,13 +318,17 @@ describe('client — engine wiring', () => {
     expect(drawer).toContain('listProcessingTemplates(sb, program)');
   });
 
-  it('people pickers are profile-backed (list_eligible_assignees) — the hardcoded five-name list is gone', () => {
+  it('people pickers are profile-backed (list_eligible_assignees); the parent assignee is retired', () => {
     expect(view).toContain('loadEligibleProfilesById');
     expect(drawer).not.toMatch(/PEOPLE = \[/);
     expect(templatesModal).toContain('loadEligibleProfilesById');
     expect(templatesModal).not.toMatch(/const PEOPLE = \[/);
-    expect(drawer).toContain('setProcessingAssignee');
-    expect(milestoneModal).toContain('data-processing-milestone-assignee');
+    // UI-simplification lane: no parent record Assignee/Owner control anywhere;
+    // checklist/subtask assignees remain profile-backed in the drawer.
+    expect(drawer).not.toContain('setProcessingAssignee');
+    expect(drawer).not.toContain('data-processing-assignee-select');
+    expect(drawer).toContain('reassignSubtask');
+    expect(milestoneModal).not.toContain('data-processing-milestone-assignee');
     expect(milestoneModal).toContain('data-processing-milestone-status');
   });
 

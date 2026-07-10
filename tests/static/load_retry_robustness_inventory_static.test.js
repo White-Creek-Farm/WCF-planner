@@ -44,7 +44,6 @@ const EXPECTED_READY_MARKERS = new Map([
   ['src/pig/PigDailysView.jsx', ['data-pig-dailys-loaded']],
   ['src/pig/SowsView.jsx', ['data-breeding-pig-record-loaded']],
   ['src/processing/ProcessingCalendarView.jsx', ['data-processing-loaded']],
-  ['src/processing/ProcessingReconciliationModal.jsx', ['data-processing-reconciliation-loaded']],
   ['src/shared/Header.jsx', ['data-notifications-panel-loaded']],
   ['src/sheep/SheepBatchPage.jsx', ['data-sheep-batch-record-loaded']],
   ['src/sheep/SheepBatchesView.jsx', ['data-sheep-batches-loaded']],
@@ -96,9 +95,6 @@ const EXPECTED_LOAD_ERROR_SURFACES = new Map([
   ['src/pig/PigDailysView.jsx', {retry: true, inlineNotice: true}],
   ['src/processing/ProcessingCalendarView.jsx', {retry: true, inlineNotice: true}],
   ['src/processing/ProcessingDrawer.jsx', {retry: true, inlineNotice: true}],
-  // Reconciliation crosswalk modal: fail-closed load (clears summary/records) with
-  // a Retry button + InlineNotice on error.
-  ['src/processing/ProcessingReconciliationModal.jsx', {retry: true, inlineNotice: true}],
   ['src/processing/ProcessingTemplatesModal.jsx', {retry: true, inlineNotice: true}],
   ['src/shared/Header.jsx', {retry: true, inlineNotice: true}],
   ['src/sheep/SheepAnimalPage.jsx', {retry: true, inlineNotice: true}],

@@ -6,9 +6,10 @@ import {describe, it, expect} from 'vitest';
 // Static guards for the reconciliation workbench lane:
 //   • migration 159 — reconciliation RPCs (resolve reissue + triage + supersede +
 //     enriched list) — SECDEF, gated, grants, no CHECK/table changes;
-//   • edge sync_review_queue — records + links only (no artifacts / Storage);
-//   • ProcessingReconciliationModal — bucketed one-item workbench + actions;
-//   • processingApi — triage + supersede wrappers over the RPCs.
+//   • edge sync_review_queue — records + links only (no artifacts / Storage).
+// The CLIENT workbench (ProcessingReconciliationModal + its processingApi
+// wrappers) was removed by the UI-simplification lane — the RPCs remain for
+// gated operational use outside the app.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -16,8 +17,6 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const mig = read('supabase-migrations/159_processing_reconciliation_workbench.sql');
 const edgeFn = read('supabase/functions/processing-asana-sync/index.ts');
-const reconModal = read('src/processing/ProcessingReconciliationModal.jsx');
-const api = read('src/lib/processingApi.js');
 
 function fnBody(name) {
   const re = new RegExp('CREATE OR REPLACE FUNCTION public\\.' + name + '\\b[\\s\\S]*?\\$fn\\$;');
@@ -161,63 +160,17 @@ describe('edge sync_review_queue — records + links ONLY (no artifacts / Storag
   });
 });
 
-describe('ProcessingReconciliationModal — bucketed one-item workbench', () => {
-  it('renders the workbench container + all five bucket tabs', () => {
-    expect(reconModal).toContain('data-reconciliation-workbench="1"');
-    expect(reconModal).toContain('data-reconciliation-bucket-tab');
-    for (const key of [
-      "key: 'ambiguous'",
-      "key: 'import_exception'",
-      "key: 'pig'",
-      "key: 'duplicates'",
-      "key: 'drift'",
+describe('client workbench removed (UI-simplification lane)', () => {
+  it('the modal file is gone and no triage/supersede/drift wrappers remain in processingApi', () => {
+    expect(fs.existsSync(path.join(ROOT, 'src/processing/ProcessingReconciliationModal.jsx'))).toBe(false);
+    const api = read('src/lib/processingApi.js');
+    for (const fn of [
+      'triageProcessingAsanaRecord',
+      'supersedeProcessingAsanaDuplicate',
+      'acknowledgeProcessingDrift',
+      'invokeProcessingAsanaSync',
     ]) {
-      expect(reconModal).toContain(key);
+      expect(api, `${fn} wrapper must be gone`).not.toContain(`function ${fn}`);
     }
-  });
-
-  it('exposes every workbench action', () => {
-    for (const marker of [
-      'data-reconciliation-populate-btn="1"', // populate the review queue (sync_review_queue)
-      'data-reconciliation-candidate', // assign to a suggested planner record
-      'data-reconciliation-search="1"', // search-and-assign input
-      'data-reconciliation-search-assign', // search result assign
-      'data-reconciliation-triage-milestone="1"',
-      'data-reconciliation-triage-historical="1"',
-      'data-reconciliation-triage-dismiss="1"',
-      'data-reconciliation-supersede', // block a duplicate
-      'data-reconciliation-ack="1"', // acknowledge drift
-      'data-reconciliation-skip="1"', // local skip/next
-    ]) {
-      expect(reconModal, marker).toContain(marker);
-    }
-  });
-
-  it('the Pig tab is EXCLUSIVE — Ambiguous and Exceptions filter program=pig out', () => {
-    expect(reconModal).toMatch(/bucket === 'ambiguous' && l\.program !== 'pig'/);
-    expect(reconModal).toMatch(/bucket === 'import_exception' && l\.program !== 'pig'/);
-    // The Pig queue is the only one that keeps program='pig' review rows.
-    expect(reconModal).toMatch(/l\.program === 'pig' && notSkipped/);
-  });
-
-  it('drives every action through the RPC wrappers (no raw client table access)', () => {
-    expect(reconModal).toContain('resolveProcessingAsanaLink(sb');
-    expect(reconModal).toContain('triageProcessingAsanaRecord(sb');
-    expect(reconModal).toContain('supersedeProcessingAsanaDuplicate(sb');
-    expect(reconModal).toContain('acknowledgeProcessingDrift(sb');
-    expect(reconModal).toContain("invokeProcessingAsanaSync(sb, {action: 'sync_review_queue'})");
-    // Deny-all RLS boundary: the client never reads/writes a table directly.
-    expect(reconModal).not.toMatch(/\bsb\.from\(/);
-  });
-});
-
-describe('processingApi — triage + supersede wrappers over the mig-159 RPCs', () => {
-  it('exposes triageProcessingAsanaRecord over triage_processing_asana_record', () => {
-    expect(api).toContain('export async function triageProcessingAsanaRecord');
-    expect(api).toContain("sb.rpc('triage_processing_asana_record'");
-  });
-  it('exposes supersedeProcessingAsanaDuplicate over supersede_processing_asana_duplicate', () => {
-    expect(api).toContain('export async function supersedeProcessingAsanaDuplicate');
-    expect(api).toContain("sb.rpc('supersede_processing_asana_duplicate'");
   });
 });

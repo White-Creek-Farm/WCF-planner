@@ -1,6 +1,6 @@
-// Unit tests for the Processing custom-field engine: stable default ids, the
-// ownership matrix (reserved/bound ids), value-precedence resolution, and the
-// three derived handoff formulas.
+// Unit tests for the Processing custom-field engine: stable default ids (v2
+// simplified suite), the ownership matrix (reserved/bound ids), and value-
+// precedence resolution.
 import {describe, expect, it} from 'vitest';
 import {
   PROCESSING_FIELD_PALETTE,
@@ -16,33 +16,41 @@ import {
   RESERVED_PROCESSING_FIELD_IDS,
   isReservedProcessingFieldId,
   resolveFarmArrival,
-  deriveActualTofDays,
-  derivePlannedTofDays,
-  deriveTimeRemaining,
-  formatDaysAsWeeks,
-  formatTimeRemaining,
   resolveFieldDisplay,
   isFieldEditable,
 } from './processingFields.js';
 
-describe('defaults (handoff §6, stable ids)', () => {
-  it('every program carries the stable handoff field ids in order', () => {
+describe('defaults (v2 simplified suite, stable ids)', () => {
+  it('every program carries the kept stable ids, in order, with processor last', () => {
     for (const program of ['broiler', 'cattle', 'pig', 'sheep']) {
       const ids = defaultProcessingFields(program).map((f) => f.id);
-      expect(ids).toContain('procActual');
-      expect(ids).toContain('status');
-      expect(ids).toContain('condemned');
-      expect(ids).toContain('farmArrival');
-      expect(ids).toContain('actualTOF');
-      expect(ids).toContain('plannedTOF');
-      expect(ids).toContain('timeRemaining');
-      expect(ids).toContain('processor');
-      // ordered: actual date first, processor last-ish
       expect(ids[0]).toBe('procActual');
+      expect(ids[ids.length - 1]).toBe('processor');
+      for (const kept of ['status', 'program', 'batchName', 'animals', 'condemned', 'farmArrival', 'year']) {
+        expect(ids, `${program} keeps ${kept}`).toContain(kept);
+      }
     }
   });
-  it('Customer is a broiler-only default field', () => {
-    expect(defaultProcessingFields('broiler').some((f) => f.id === 'customer')).toBe(true);
+  it('the six retired display fields are gone from every program default', () => {
+    for (const program of ['broiler', 'cattle', 'pig', 'sheep']) {
+      const ids = defaultProcessingFields(program).map((f) => f.id);
+      for (const gone of ['farm', 'procPlanned', 'actualTOF', 'plannedTOF', 'timeRemaining', 'productPickup']) {
+        expect(ids, `${program} drops ${gone}`).not.toContain(gone);
+      }
+    }
+  });
+  it('field counts: broiler 11, cattle/pig/sheep 10', () => {
+    expect(defaultProcessingFields('broiler')).toHaveLength(11);
+    for (const program of ['cattle', 'pig', 'sheep']) {
+      expect(defaultProcessingFields(program)).toHaveLength(10);
+    }
+  });
+  it('Customer is a broiler-only SINGLE select sourced from settings.customer_options', () => {
+    const customer = defaultProcessingFields('broiler').find((f) => f.id === 'customer');
+    expect(customer).toBeTruthy();
+    expect(customer.type).toBe('single');
+    expect(customer.optionsSource).toBe('settings.customer_options');
+    expect(customer.options).toBeUndefined();
     expect(defaultProcessingFields('cattle').some((f) => f.id === 'customer')).toBe(false);
   });
   it('keeps the Asana Condemed spelling', () => {
@@ -178,7 +186,7 @@ describe('option/def normalization', () => {
 });
 
 describe('ownership matrix (reserved ids)', () => {
-  it('locks every planner-owned / derived / RPC-owned id', () => {
+  it('locks every planner-owned / derived / RPC-owned id, INCLUDING the retired display ids', () => {
     for (const id of [
       'procActual',
       'procPlanned',
@@ -208,19 +216,7 @@ describe('ownership matrix (reserved ids)', () => {
   });
 });
 
-describe('derived formulas', () => {
-  it('actual TOF prefers the server-derived broiler value', () => {
-    expect(deriveActualTofDays({time_on_farm_days: 49})).toBe(49);
-  });
-  it('actual TOF falls back to processing date − farm arrival', () => {
-    const rec = {processing_date: '2026-06-22', historical_snapshot: {farm_arrival: '2026-05-04'}};
-    expect(deriveActualTofDays(rec)).toBe(49);
-    expect(formatDaysAsWeeks(49)).toBe('7w 0d');
-  });
-  it('planned TOF uses the planned date from the snapshot', () => {
-    const rec = {historical_snapshot: {planned_proc: '2026-06-24', farm_arrival: '2026-05-04'}};
-    expect(derivePlannedTofDays(rec)).toBe(51);
-  });
+describe('farm arrival precedence', () => {
   it('local field edits win over snapshot for farm arrival', () => {
     const rec = {
       fields: {farmArrival: '2026-05-10'},
@@ -228,25 +224,9 @@ describe('derived formulas', () => {
     };
     expect(resolveFarmArrival(rec)).toBe('2026-05-10');
   });
-  it('time remaining: due-soon within 14 days, past negative, complete null', () => {
-    const today = '2026-07-10';
-    expect(deriveTimeRemaining({processing_date: '2026-07-13'}, today)).toEqual({days: 3, past: false, dueSoon: true});
-    expect(deriveTimeRemaining({processing_date: '2026-07-24'}, today)).toEqual({days: 14, past: false, dueSoon: true});
-    expect(deriveTimeRemaining({processing_date: '2026-07-25'}, today)).toEqual({
-      days: 15,
-      past: false,
-      dueSoon: false,
-    });
-    expect(deriveTimeRemaining({processing_date: '2026-07-01'}, today)).toEqual({days: -9, past: true, dueSoon: false});
-    expect(deriveTimeRemaining({processing_date: '2026-07-13', completed_at: 'x'}, today)).toBeNull();
-    expect(deriveTimeRemaining({processing_date: '2026-07-13', status: 'complete'}, today)).toBeNull();
-    expect(deriveTimeRemaining({}, today)).toBeNull();
-  });
-  it('formats time remaining as days, weeks past 14d, and "ago" for overdue', () => {
-    expect(formatTimeRemaining({days: 3, past: false, dueSoon: true})).toBe('3d');
-    expect(formatTimeRemaining({days: 15, past: false, dueSoon: false})).toBe('2w 1d');
-    expect(formatTimeRemaining({days: -9, past: true, dueSoon: false})).toBe('9d ago');
-    expect(formatTimeRemaining(null)).toBeNull();
+  it('snapshot wins over the server-derived column', () => {
+    const rec = {historical_snapshot: {farm_arrival: '2026-05-04'}, farm_arrival: '2026-05-01'};
+    expect(resolveFarmArrival(rec)).toBe('2026-05-04');
   });
 });
 
@@ -269,32 +249,27 @@ describe('resolveFieldDisplay (one precedence chain)', () => {
       animal_master: 'On Farm',
     },
   };
-  const today = '2026-07-10';
 
   it('bound ids read from the record and stay read-only', () => {
-    expect(resolveFieldDisplay({id: 'animals', type: 'number'}, record, {todayISO: today})).toEqual({
+    expect(resolveFieldDisplay({id: 'animals', type: 'number'}, record)).toEqual({
       value: 700,
       readOnly: true,
       source: 'record',
     });
-    expect(resolveFieldDisplay({id: 'batchName', type: 'text'}, record, {todayISO: today}).value).toBe('WCF-B-26-08');
-    expect(resolveFieldDisplay({id: 'procPlanned', type: 'date'}, record, {todayISO: today}).value).toBe('2026-06-24');
-    expect(resolveFieldDisplay({id: 'year', type: 'single'}, record, {todayISO: today}).value).toBe('2026');
+    expect(resolveFieldDisplay({id: 'batchName', type: 'text'}, record).value).toBe('WCF-B-26-08');
+    expect(resolveFieldDisplay({id: 'year', type: 'single'}, record).value).toBe('2026');
+    expect(resolveFieldDisplay({id: 'procActual', type: 'date'}, record).value).toBe('2026-06-22');
   });
   it('local fields[fid] wins over the imported snapshot', () => {
-    const r = resolveFieldDisplay({id: 'condemned', type: 'number'}, record, {todayISO: today});
+    const r = resolveFieldDisplay({id: 'condemned', type: 'number'}, record);
     expect(r).toEqual({value: 4, readOnly: false, source: 'local'});
   });
   it('snapshot value surfaces when no local value exists (snake_case tolerated)', () => {
-    const r = resolveFieldDisplay({id: 'animalMaster', type: 'single'}, record, {todayISO: today});
+    const r = resolveFieldDisplay({id: 'animalMaster', type: 'single'}, record);
     expect(r).toEqual({value: 'On Farm', readOnly: false, source: 'imported'});
   });
-  it('derived formulas resolve read-only', () => {
-    expect(resolveFieldDisplay({id: 'actualTOF', type: 'formula'}, record, {todayISO: today}).value).toBe('7w 0d');
-    expect(resolveFieldDisplay({id: 'timeRemaining', type: 'formula'}, record, {todayISO: today}).readOnly).toBe(true);
-  });
   it('unknown local field with no value resolves to none/editable', () => {
-    expect(resolveFieldDisplay({id: 'killSheet', type: 'text'}, record, {todayISO: today})).toEqual({
+    expect(resolveFieldDisplay({id: 'killSheet', type: 'text'}, record)).toEqual({
       value: null,
       readOnly: false,
       source: 'none',

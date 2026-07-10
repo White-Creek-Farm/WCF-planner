@@ -12,7 +12,6 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const edgeFn = read('supabase/functions/processing-asana-sync/index.ts');
-const reconModal = read('src/processing/ProcessingReconciliationModal.jsx');
 
 // Body of runCommentsImport only (up to the next function declaration).
 function commentsFnBody() {
@@ -86,10 +85,22 @@ describe('Lane A — comments-only import actions', () => {
     expect(syncCommentsIdx).toBeGreaterThan(tokenIdx);
   });
 
-  it('client exposes admin Preview + Import comments controls wired to the two actions', () => {
-    expect(reconModal).toContain('data-reconciliation-comments-preview-btn="1"');
-    expect(reconModal).toContain('data-reconciliation-comments-import-btn="1"');
-    expect(reconModal).toContain("invokeProcessingAsanaSync(sb, {action: 'comments_dry_run'})");
-    expect(reconModal).toContain("invokeProcessingAsanaSync(sb, {action: 'sync_comments'})");
+  it('no client surface triggers the comment import anymore (UI-simplification lane)', () => {
+    // The reconciliation workbench modal (the old trigger) is deleted; the Edge
+    // actions remain for gated operational use outside the app.
+    expect(fs.existsSync(path.join(ROOT, 'src/processing/ProcessingReconciliationModal.jsx'))).toBe(false);
+    const srcFiles = [];
+    (function walk(dir) {
+      for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(jsx?|cjs|mjs)$/.test(entry.name)) srcFiles.push(full);
+      }
+    })(path.join(ROOT, 'src'));
+    for (const file of srcFiles) {
+      expect(fs.readFileSync(file, 'utf8'), `${file} must not invoke Asana sync actions`).not.toContain(
+        'invokeProcessingAsanaSync',
+      );
+    }
   });
 });

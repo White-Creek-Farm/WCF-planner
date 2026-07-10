@@ -11,7 +11,11 @@
 //   • Programs are SECTIONS (no program dropdown); default sort processing_date
 //     asc within each section; default view = current year; completed rows show.
 //   • NO inline table editing — a row opens the drawer.
-//   • Template editing is ADMIN ONLY; Add milestone is any operational role.
+//   • Template editing is ADMIN ONLY via the direct Templates button (the
+//     UI-simplification lane removed the Admin/maintenance panel and every
+//     day-to-day Asana import/reconciliation control — the Edge actions remain
+//     for gated operational use outside this page).
+//   • Add milestone is any operational role.
 //   • Fail-closed loading: data-processing-loaded marker; rows/empty gated behind
 //     !loadError; InlineNotice + Retry on failure; stale rows cleared on error.
 //
@@ -26,15 +30,10 @@
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
-import {
-  listProcessingRecords,
-  getProcessingSettings,
-  invokeProcessingAsanaSync,
-  ensureProcessingFreshness,
-} from '../lib/processingApi.js';
-import {resolveFarmArrival, deriveTimeRemaining, formatTimeRemaining} from '../lib/processingFields.js';
+import {listProcessingRecords, getProcessingSettings, ensureProcessingFreshness} from '../lib/processingApi.js';
+import {resolveFarmArrival} from '../lib/processingFields.js';
 import {loadEligibleProfilesById} from '../lib/tasksCenterApi.js';
-import {resolveSourceForRecord, deriveDisplayStatus, weeksDaysText} from '../lib/processingSourceLink.js';
+import {resolveSourceForRecord, deriveDisplayStatus} from '../lib/processingSourceLink.js';
 import {processingStatusVariantFromLabel, PROCESSING_STATUS_DISPLAY} from '../lib/processingStatusDisplay.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 import {openableProps} from '../shared/openable.js';
@@ -48,10 +47,6 @@ import ProcessingDrawer from './ProcessingDrawer.jsx';
 import AddMilestoneModal from './AddMilestoneModal.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import ProcessingTemplatesModal from './ProcessingTemplatesModal.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use
-import ProcessingReconciliationModal from './ProcessingReconciliationModal.jsx';
-// eslint-disable-next-line no-unused-vars -- JSX-only use
-import ProcessingOptionsModal from './ProcessingOptionsModal.jsx';
 
 // Program sections, in display order. `key` is the stored program string; note
 // the Lamb section maps to the 'sheep' program (Lamb == sheep, CP0).
@@ -111,37 +106,12 @@ function num(value) {
 }
 
 // Unified grid: one global header + per-program rows keep the same columns.
-// Handoff IA restored (check · Batch+checklist meta · Owner · Status · Farm
-// arrival · Processing · Customer · Remaining) PLUS the newer planner facts
-// (Processor · Number · Age/TOF) — nothing useful is dropped; the table scrolls
-// horizontally with the sticky Batch column. Customer is broiler-only; Age/TOF
-// shows time-on-farm for broiler and age for the mammals (CP0).
-const GRID = '20px minmax(190px,1fr) 118px 96px 92px 92px 128px 72px 132px 88px 92px 20px';
-
-// Deterministic avatar colors for owner initials (name-hashed; the prototype's
-// per-person palette generalized to any profile).
-const AVATAR_COLORS = [
-  {bg: '#EAC14B', ink: '#5B4600'},
-  {bg: '#C9B7E8', ink: '#3F2E66'},
-  {bg: '#9FD0C7', ink: '#1C5247'},
-  {bg: '#F2B6C6', ink: '#8A2F4D'},
-  {bg: '#A7D8B9', ink: '#20593A'},
-  {bg: '#B8CDEB', ink: '#2A4A78'},
-];
-function avatarColor(name) {
-  let h = 0;
-  const s = String(name || '');
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-function initialsOf(name) {
-  return String(name || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
-}
+// UI-simplification lane: check · Batch+checklist meta · Status · Farm arrival ·
+// Processing · Processor · Number · Customer · Age · chevron. The parent
+// Owner/Assignee and Remaining columns are retired; Age shows for the mammal
+// programs only (broiler Time-on-Farm is no longer displayed). Customer is
+// broiler-only. The table scrolls horizontally with the sticky Batch column.
+const GRID = '20px minmax(190px,1fr) 96px 92px 92px 128px 72px 132px 88px 20px';
 
 // Sticky Batch/title column: pins to the left edge during horizontal scroll on
 // narrow widths. The 20px completion-check column sits before it, so the check
@@ -203,249 +173,6 @@ function StatCard({label, value, sub, color}) {
   );
 }
 
-// Read the ACTUAL read-only dry_run contract the Edge Function returns
-// (tasksFetched, plannerRows, buckets) — never the write-path insert/update/skip
-// fields, which runDryRun does not compute. The full review packet renders in
-// <DryRunReport/> below; this one-liner is the InlineNotice headline.
-function dryRunSummary(plan) {
-  const p = plan || {};
-  const b = p.buckets || {};
-  return `Dry run: ${Number(p.tasksFetched || 0).toLocaleString()} Asana tasks vs ${Number(
-    p.plannerRows || 0,
-  ).toLocaleString()} planner rows — ${Number(b.matched || 0).toLocaleString()} matched, ${Number(
-    b.historical || 0,
-  ).toLocaleString()} historical, ${Number(b.import_exception || 0).toLocaleString()} exceptions, ${Number(
-    b.needs_review || 0,
-  ).toLocaleString()} needs review, ${Number(b.milestone || 0).toLocaleString()} milestones.`;
-}
-
-function syncSummary(counts) {
-  const c = counts || {};
-  return `Sync complete: ${Number(c.tasks || 0).toLocaleString()} tasks, ${Number(
-    c.recordsInserted || 0,
-  ).toLocaleString()} inserted, ${Number(c.recordsUpdated || 0).toLocaleString()} updated, ${Number(
-    c.errors || 0,
-  ).toLocaleString()} errors.`;
-}
-
-// Read-only review packet for the last dry run (buildDryRunReport shape). Renders
-// the buckets + the review-grade detail (needs-review / import-exception entries,
-// duplicate/collision report, pig match candidates, drift preview) so an admin can
-// review a dry run in-page before ever authorizing a write sync. Nothing here
-// mutates anything — it just displays the Edge Function's read-only plan.
-// eslint-disable-next-line no-unused-vars -- JSX-only use
-function DryRunReport({plan}) {
-  if (!plan || !plan.buckets) return null;
-  const b = plan.buckets;
-  const col = plan.collisions || {};
-  const CAP = 25;
-  const cap = (arr) => (Array.isArray(arr) ? arr.slice(0, CAP) : []);
-  const more = (arr) => (Array.isArray(arr) && arr.length > CAP ? arr.length - CAP : 0);
-
-  const chipStyle = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    fontSize: 12,
-    fontWeight: 700,
-    color: T.ink,
-    background: T.chipBg,
-    border: `1px solid ${T.border}`,
-    borderRadius: 999,
-    padding: '4px 11px',
-  };
-  const rowStyle = {fontSize: 12.5, color: T.ink, padding: '5px 0', borderTop: `1px solid ${T.rowBorder}`};
-  const dim = {color: T.muted};
-  const chips = [
-    ['Tasks', plan.tasksFetched],
-    ['Planner rows', plan.plannerRows],
-    ['Matched', b.matched],
-    ['Historical', b.historical],
-    ['Exceptions', b.import_exception],
-    ['Needs review', b.needs_review],
-    ['Milestones', b.milestone],
-  ];
-
-  const renderSection = (title, count, node) =>
-    count > 0 ? (
-      <div style={{marginTop: 14}}>
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 800,
-            color: T.label,
-            textTransform: 'uppercase',
-            letterSpacing: '.04em',
-            marginBottom: 6,
-          }}
-        >
-          {title} ({Number(count).toLocaleString()})
-        </div>
-        {node}
-      </div>
-    ) : null;
-
-  const review = Array.isArray(plan.review) ? plan.review : [];
-  const needsReview = review.filter((r) => r && r.bucket === 'needs_review');
-  const exceptions = review.filter((r) => r && r.bucket === 'import_exception');
-  const milestones = Array.isArray(plan.milestones) ? plan.milestones : [];
-  const pigs = Array.isArray(plan.pigCandidates) ? plan.pigCandidates : [];
-  const drift = Array.isArray(plan.driftPreview) ? plan.driftPreview : [];
-  const moreNote = (arr) =>
-    more(arr) > 0 ? <div style={{...dim, ...rowStyle}}>+{more(arr).toLocaleString()} more</div> : null;
-
-  return (
-    <div
-      data-processing-dry-run-report="1"
-      style={{
-        background: T.card,
-        border: `1px solid ${T.border}`,
-        borderRadius: 12,
-        padding: '16px 18px',
-        marginBottom: 18,
-      }}
-    >
-      <div style={{fontSize: 14, fontWeight: 800, color: T.ink, marginBottom: 10}}>
-        Dry-run review <span style={{...dim, fontWeight: 600}}>(read-only — nothing was imported)</span>
-      </div>
-      <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
-        {chips.map(([label, value]) => (
-          <span key={label} style={chipStyle}>
-            {label} <span style={dim}>{Number(value || 0).toLocaleString()}</span>
-          </span>
-        ))}
-      </div>
-
-      {renderSection(
-        'Needs review — ambiguous planner match',
-        needsReview.length,
-        <>
-          {cap(needsReview).map((r) => (
-            <div key={r.gid} style={rowStyle}>
-              <span style={{fontWeight: 700}}>{r.code || r.title}</span>{' '}
-              <span style={dim}>
-                · {r.program || '—'} · {r.processing_date || 'no date'} · {r.number_processed ?? '—'} head
-              </span>
-              <div style={{...dim, marginTop: 2}}>
-                candidates: {(r.candidates || []).map((c) => c.title || c.source_id || c.id).join(', ') || '—'}
-              </div>
-            </div>
-          ))}
-          {moreNote(needsReview)}
-        </>,
-      )}
-
-      {renderSection(
-        'Import exceptions — unmatched, need a planner batch',
-        exceptions.length,
-        <>
-          {cap(exceptions).map((r) => (
-            <div key={r.gid} style={rowStyle}>
-              <span style={{fontWeight: 700}}>{r.code || r.title}</span>{' '}
-              <span style={dim}>
-                · {r.program || 'no program'} · {r.processing_date || 'no date'} · {r.reason}
-              </span>
-            </div>
-          ))}
-          {moreNote(exceptions)}
-        </>,
-      )}
-
-      {renderSection(
-        'Milestones (planning placeholders, not batches)',
-        milestones.length,
-        <>
-          {cap(milestones).map((m) => (
-            <div key={m.gid} style={rowStyle}>
-              <span style={{fontWeight: 700}}>{m.title}</span>{' '}
-              <span style={dim}>· {m.program || m.section || 'no program'}</span>
-            </div>
-          ))}
-          {moreNote(milestones)}
-        </>,
-      )}
-
-      {renderSection(
-        'Duplicate Asana codes',
-        (col.duplicateAsanaCodes || []).length,
-        cap(col.duplicateAsanaCodes).map((d) => (
-          <div key={`${d.program}:${d.code}`} style={rowStyle}>
-            <span style={{fontWeight: 700}}>{d.code}</span>{' '}
-            <span style={dim}>
-              · {d.program} · {(d.gids || []).length} tasks
-            </span>
-          </div>
-        )),
-      )}
-
-      {renderSection(
-        'Ambiguous candidate collisions (one task → multiple planner rows)',
-        (col.ambiguousCandidates || []).length,
-        cap(col.ambiguousCandidates).map((a) => (
-          <div key={a.gid} style={rowStyle}>
-            <span style={{fontWeight: 700}}>{a.code || a.title}</span>{' '}
-            <span style={dim}>
-              · {a.program} · {(a.candidateIds || []).length} planner candidates
-            </span>
-          </div>
-        )),
-      )}
-
-      {renderSection(
-        'Planner rows with multiple matches',
-        (col.plannerContested || []).length,
-        cap(col.plannerContested).map((p) => (
-          <div key={p.recordId} style={rowStyle}>
-            <span style={{fontWeight: 700}}>{p.title || p.recordId}</span>{' '}
-            <span style={dim}>
-              · {p.program} · {(p.gids || []).length} Asana tasks {p.source_id ? `· ${p.source_id}` : ''}
-            </span>
-          </div>
-        )),
-      )}
-
-      {renderSection(
-        'Pig match candidates',
-        pigs.length,
-        <>
-          {cap(pigs).map((p) => (
-            <div key={p.gid} style={rowStyle}>
-              <span style={{fontWeight: 700}}>{p.title}</span>{' '}
-              <span style={dim}>
-                · {p.date || 'no date'} · {p.count ?? '—'} head · {p.method} · tokens:{' '}
-                {(p.tokens || []).join(', ') || '—'}
-              </span>
-              <div style={{...dim, marginTop: 2}}>
-                candidates: {(p.candidates || []).map((c) => c.title || c.source_id || c.id).join(', ') || '—'}
-              </div>
-            </div>
-          ))}
-          {moreNote(pigs)}
-        </>,
-      )}
-
-      {renderSection(
-        'Drift preview (Asana vs Planner — informational, never applied)',
-        drift.length,
-        <>
-          {cap(drift).map((d) => (
-            <div key={d.gid} style={rowStyle}>
-              <span style={{fontWeight: 700}}>{d.recordTitle || d.recordId}</span>{' '}
-              <span style={dim}>
-                ·{' '}
-                {Object.entries(d.drift || {})
-                  .map(([k, v]) => `${k}: ${v.asana}≠${v.planner}`)
-                  .join(' · ')}
-              </span>
-            </div>
-          ))}
-          {moreNote(drift)}
-        </>,
-      )}
-    </div>
-  );
-}
-
 // eslint-disable-next-line no-unused-vars -- Header is a JSX-only prop component
 export default function ProcessingCalendarView({Header, authState}) {
   const {useState, useEffect, useMemo, useCallback} = React;
@@ -472,31 +199,12 @@ export default function ProcessingCalendarView({Header, authState}) {
   const [showAddMilestone, setShowAddMilestone] = useState(false);
   const [addMilestoneProgram, setAddMilestoneProgram] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [showReconciliation, setShowReconciliation] = useState(false);
-  const [showOptions, setShowOptions] = useState(false);
   // Server-backed Customer/Processor picker choices (mig 162). Fetched for all
   // operational roles; drives the drawer + Add Milestone pickers.
   const [optionLists, setOptionLists] = useState({processor: [], customer: []});
-  // One-time Asana import + reconciliation controls live behind this collapsed
-  // admin maintenance area so they stay out of the day-to-day scheduling flow.
-  const [adminOpen, setAdminOpen] = useState(false);
-  // Maintenance view of archived (soft-deleted) rows so an admin can open one
+  // Admin-only view of archived (soft-deleted) rows so an admin can open one
   // and Restore it from the drawer.
   const [showArchived, setShowArchived] = useState(false);
-
-  // Admin-only Asana sync guardrail: probe config, dry-run first, then allow the
-  // matching explicit write from the same page session. EVERY write action is
-  // gated by ITS OWN dry run (a record dry run never unlocks attachment bytes);
-  // when asana_sync_enabled is false (final cutover) every Asana action locks.
-  const [asanaSyncEnabled, setAsanaSyncEnabled] = useState(null);
-  const [asanaConfigured, setAsanaConfigured] = useState(null);
-  const [asanaSyncBusy, setAsanaSyncBusy] = useState(null);
-  const [asanaSyncNotice, setAsanaSyncNotice] = useState(null);
-  const [dryRunReady, setDryRunReady] = useState(false);
-  const [dryRunPlan, setDryRunPlan] = useState(null);
-  // Per-action readiness for the OTHER write imports: each write unlocks only
-  // after its own dedicated dry run succeeded in this page session.
-  const [importReady, setImportReady] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -525,9 +233,9 @@ export default function ProcessingCalendarView({Header, authState}) {
     load();
   }, [load]);
 
-  // Profile directory for the Owner column + drawer/milestone people pickers
-  // (list_eligible_assignees: id + full_name only). Best-effort: names degrade
-  // to the imported display-name fallback when unavailable.
+  // Profile directory for the drawer/milestone people pickers (checklist
+  // assignees; list_eligible_assignees: id + full_name only). Best-effort:
+  // names degrade to the imported display-name fallback when unavailable.
   const [profilesById, setProfilesById] = useState({});
   useEffect(() => {
     if (!canOperate) return;
@@ -569,156 +277,24 @@ export default function ProcessingCalendarView({Header, authState}) {
     };
   }, [refreshOptionLists]);
 
-  const refreshAsanaStatus = useCallback(
-    async (cancelledRef = {current: false}) => {
-      if (!isAdmin) return;
-      try {
-        const settings = await getProcessingSettings(sb);
-        if (!cancelledRef.current) setAsanaSyncEnabled(!!(settings && settings.asana_sync_enabled));
-      } catch (_e) {
-        /* leave unknown */
-      }
-      try {
-        const probe = await invokeProcessingAsanaSync(sb, {probe: true});
-        if (!cancelledRef.current) {
-          const configured = probe && (probe.asanaConfigured ?? probe.configured ?? probe.ok);
-          setAsanaConfigured(!!configured);
-        }
-      } catch (_e) {
-        if (!cancelledRef.current) setAsanaConfigured(false);
-      }
-    },
-    [isAdmin],
-  );
-
-  // Best-effort admin sync-status probe. Never blocks or breaks the page.
-  useEffect(() => {
-    if (!isAdmin) return;
-    const cancelledRef = {current: false};
-    refreshAsanaStatus(cancelledRef);
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [isAdmin, refreshAsanaStatus]);
-
-  // Read-only preview/audit actions and the dedicated dry run each write needs.
-  const READ_ONLY_ACTIONS = useMemo(
-    () => new Set(['dry_run', 'destination_audit', 'attachment_dry_run', 'artifacts_dry_run', 'activity_dry_run']),
-    [],
-  );
-  const WRITE_REQUIRES = useMemo(
-    () => ({
-      sync_once: 'dry_run',
-      sync_artifacts: 'artifacts_dry_run',
-      sync_activity: 'activity_dry_run',
-      attachment_backfill: 'attachment_dry_run',
-    }),
-    [],
-  );
-
-  // Compact human summary for the newer report shapes (counts objects).
-  function reportSummary(action, result) {
-    const src = (result && (result.report || result.counts)) || {};
-    const parts = Object.entries(src)
-      .filter(([, v]) => typeof v === 'number' || typeof v === 'boolean')
-      .map(
-        ([k, v]) =>
-          `${k
-            .replace(/([A-Z])/g, ' $1')
-            .replace(/_/g, ' ')
-            .toLowerCase()}: ${v}`,
-      );
-    const unmapped = result && result.report && Array.isArray(result.report.unmapped) ? result.report.unmapped : null;
-    const head = `${action.replace(/_/g, ' ')} — ${parts.join(', ') || 'done'}`;
-    if (unmapped && unmapped.length > 0)
-      return `${head}. UNRESOLVED: ${unmapped.length} unmapped item(s) — writes stay locked.`;
-    return head;
-  }
-
-  async function runAsanaSyncAction(action) {
-    if (!isAdmin || asanaSyncBusy) return;
-    if (asanaSyncEnabled === false) {
-      setAsanaSyncNotice({kind: 'warning', message: 'Asana sync is OFF (final cutover) — Asana imports are locked.'});
-      return;
-    }
-    const requiredDryRun = WRITE_REQUIRES[action];
-    if (requiredDryRun === 'dry_run' && !dryRunReady) {
-      setAsanaSyncNotice({kind: 'warning', message: 'Run a dry run first, then sync.'});
-      return;
-    }
-    if (requiredDryRun && requiredDryRun !== 'dry_run' && !importReady[requiredDryRun]) {
-      setAsanaSyncNotice({
-        kind: 'warning',
-        message: `Run ${requiredDryRun.replace(/_/g, ' ')} first — each import unlocks only after its own dry run.`,
-      });
-      return;
-    }
-    setAsanaSyncBusy(action);
-    setAsanaSyncNotice(null);
-    try {
-      const result = await invokeProcessingAsanaSync(sb, {action});
-      if (action === 'dry_run') {
-        setDryRunReady(true);
-        setDryRunPlan((result && result.plan) || null);
-        setAsanaSyncNotice({kind: 'success', message: dryRunSummary(result && result.plan)});
-      } else if (READ_ONLY_ACTIONS.has(action)) {
-        // A dry run with unresolved destinations does NOT unlock its write.
-        const unmappedCount =
-          result && result.report && Array.isArray(result.report.unmapped) ? result.report.unmapped.length : 0;
-        setImportReady((cur) => ({...cur, [action]: unmappedCount === 0}));
-        setAsanaSyncNotice({kind: unmappedCount === 0 ? 'success' : 'warning', message: reportSummary(action, result)});
-      } else {
-        // Write actions: spend every readiness flag so the next write needs a
-        // fresh dry run against the post-import state.
-        setDryRunReady(false);
-        setDryRunPlan(null);
-        setImportReady({});
-        setAsanaSyncNotice({
-          kind: 'success',
-          message: action === 'sync_once' ? syncSummary(result && result.counts) : reportSummary(action, result),
-        });
-        await load();
-        await refreshAsanaStatus({current: false});
-      }
-    } catch (e) {
-      if (action === 'dry_run') {
-        setDryRunReady(false);
-        setDryRunPlan(null);
-      } else if (READ_ONLY_ACTIONS.has(action)) {
-        setImportReady((cur) => ({...cur, [action]: false}));
-      }
-      setAsanaSyncNotice({kind: 'error', message: `Asana sync failed. ${(e && e.message) || e}`});
-    } finally {
-      setAsanaSyncBusy(null);
-    }
-  }
-
   // Decorate every record with its resolved display facts once.
   const decorated = useMemo(() => {
-    const t0 = todayISO();
     return records.map((rec) => {
       const sourceInfo = resolveSourceForRecord(rec, {}); // no live collections → snapshot fallback
       const statusLabel = deriveDisplayStatus(rec, sourceInfo);
-      const ownerName =
-        (rec.assignee_profile_id && profilesById[rec.assignee_profile_id]?.full_name) || rec.assignee_name || null;
       return {
         ...rec,
         _statusLabel: statusLabel,
         _statusVariant: processingStatusVariantFromLabel(statusLabel),
         _numberProcessed: sourceInfo.numberProcessed,
         _ageText: sourceInfo.ageText,
-        // Prefer the server-derived broiler Time-on-Farm (processing − hatch, from
-        // list_processing_records); fall back to the snapshot for imported/historical.
-        _timeOnFarmText: weeksDaysText(rec.time_on_farm_days) ?? sourceInfo.timeOnFarmText,
         _year: yearOf(rec.processing_date),
-        _ownerName: ownerName,
         _farmArrival: resolveFarmArrival(rec),
-        _remaining: deriveTimeRemaining(rec, t0),
         _isBatch: rec.record_type === 'planner_batch' || rec.record_type === 'asana_historical',
         _isComplete: rec.completed_at != null || statusLabel === PROCESSING_STATUS_DISPLAY.complete,
       };
     });
-  }, [records, profilesById]);
+  }, [records]);
 
   // Year options derived from the data (undated rows ignored), plus the current
   // year so the default is always selectable even on an empty schedule.
@@ -855,13 +431,10 @@ export default function ProcessingCalendarView({Header, authState}) {
     const active = hoveredId === rec.id || openRecordId === rec.id;
     const isMilestone = rec.record_type === 'milestone';
     const isBroiler = (rec.program || rec.source_kind) === 'broiler';
-    const ageTof = isBroiler ? rec._timeOnFarmText : rec._ageText;
+    // Age shows for the mammal programs only — broiler TOF is no longer displayed.
+    const ageText = isBroiler ? null : rec._ageText;
     const numText = num(rec._numberProcessed) != null ? Number(rec._numberProcessed).toLocaleString() : '—';
     const rowBg = active ? (isMilestone ? '#F3F1FB' : T.hover) : T.card;
-    const remaining = rec._remaining;
-    const remainingText = formatTimeRemaining(remaining);
-    const ownerName = rec._ownerName;
-    const av = ownerName ? avatarColor(ownerName) : null;
     const checklistMeta =
       rec.subtask_total > 0 ? `${rec.subtask_total}-step checklist · ${rec.subtask_done}/${rec.subtask_total}` : null;
     return (
@@ -949,45 +522,6 @@ export default function ProcessingCalendarView({Header, authState}) {
             </div>
           )}
         </div>
-        {/* Owner / assignee */}
-        <span style={{display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0}}>
-          {ownerName ? (
-            <>
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: av.bg,
-                  color: av.ink,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  flex: 'none',
-                }}
-              >
-                {initialsOf(ownerName)}
-              </span>
-              <span
-                style={{
-                  fontSize: 12.5,
-                  color: '#3F4650',
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {ownerName}
-              </span>
-            </>
-          ) : (
-            <span style={{color: T.faint}}>—</span>
-          )}
-        </span>
         {/* Status */}
         <span>
           <Badge variant={rec._statusVariant}>{rec._statusLabel}</Badge>
@@ -1034,41 +568,9 @@ export default function ProcessingCalendarView({Header, authState}) {
         </span>
         {/* Customer (broiler only) */}
         <span style={{minWidth: 0}}>{isBroiler ? customerChips(rec) : <span style={{color: T.faint}}>—</span>}</span>
-        {/* Age / Time on farm */}
-        <span style={{fontSize: 13, color: ageTof ? T.ink : T.faint, fontWeight: 600, whiteSpace: 'nowrap'}}>
-          {ageTof || '—'}
-        </span>
-        {/* Time remaining (amber pill when due within 14 days) */}
-        <span style={{justifySelf: 'end'}} data-processing-remaining={remaining && remaining.dueSoon ? 'soon' : ''}>
-          {remainingText == null ? (
-            <span style={{color: T.faint, fontSize: 13, fontWeight: 600}}>—</span>
-          ) : remaining.dueSoon ? (
-            <span
-              style={{
-                background: '#F7EFD6',
-                color: '#8A6A1E',
-                borderRadius: 999,
-                padding: '3px 9px',
-                fontSize: 12,
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {remainingText}
-            </span>
-          ) : (
-            <span
-              style={{
-                color: remaining.past ? T.faint : '#3F4650',
-                fontSize: 13,
-                fontWeight: remaining.past ? 600 : 700,
-                whiteSpace: 'nowrap',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {remainingText}
-            </span>
-          )}
+        {/* Age (mammal programs) */}
+        <span style={{fontSize: 13, color: ageText ? T.ink : T.faint, fontWeight: 600, whiteSpace: 'nowrap'}}>
+          {ageText || '—'}
         </span>
         {/* Chevron (reveal on hover) */}
         <span
@@ -1125,28 +627,6 @@ export default function ProcessingCalendarView({Header, authState}) {
     fontFamily: 'inherit',
     cursor: 'pointer',
   };
-  const syncButtonStyle = (primary, disabled) => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    background: disabled ? '#EEF0F3' : primary ? T.green : T.card,
-    color: disabled ? T.faint : primary ? '#fff' : T.muted,
-    border: primary ? 'none' : `1px solid ${T.border}`,
-    borderRadius: 10,
-    padding: '9px 13px',
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: 'inherit',
-    minHeight: 36,
-    whiteSpace: 'nowrap',
-  });
-  const asanaLocked = asanaConfigured !== true || !!asanaSyncBusy || asanaSyncEnabled === false;
-  const dryRunDisabled = asanaLocked;
-  const syncNowDisabled = asanaLocked || !dryRunReady;
-  const cutoverTitle = asanaSyncEnabled === false ? 'Asana sync is off (final cutover) — imports are locked' : null;
-
   return (
     <div style={{minHeight: '100vh', background: T.page}}>
       <Header />
@@ -1163,14 +643,13 @@ export default function ProcessingCalendarView({Header, authState}) {
           {isAdmin && (
             <button
               type="button"
-              data-processing-admin-toggle="1"
-              aria-expanded={adminOpen}
-              onClick={() => setAdminOpen((v) => !v)}
+              data-processing-templates-btn="1"
+              onClick={() => setShowTemplates(true)}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 7,
-                background: adminOpen ? T.tint : T.card,
+                background: T.card,
                 color: T.muted,
                 border: `1px solid ${T.border}`,
                 borderRadius: 10,
@@ -1181,13 +660,7 @@ export default function ProcessingCalendarView({Header, authState}) {
                 fontFamily: 'inherit',
               }}
             >
-              Admin
-              <span
-                aria-hidden="true"
-                style={{transform: adminOpen ? 'rotate(180deg)' : 'none', transition: 'transform .16s ease'}}
-              >
-                ▾
-              </span>
+              Templates
             </button>
           )}
           {canOperate && (
@@ -1216,266 +689,6 @@ export default function ProcessingCalendarView({Header, authState}) {
             </button>
           )}
         </div>
-        {isAdmin && adminOpen && (
-          <div
-            data-processing-admin-panel="1"
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 14,
-              background: T.tint,
-              padding: '14px 16px',
-              marginBottom: 18,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: '.07em',
-                textTransform: 'uppercase',
-                color: T.label,
-                marginBottom: 10,
-              }}
-            >
-              Admin · maintenance
-            </div>
-            <div style={{display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center'}}>
-              {(asanaSyncEnabled !== null || asanaConfigured !== null) && (
-                <span
-                  data-processing-sync-status="1"
-                  title="Asana sync status (read-only)"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 7,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: T.muted,
-                    background: T.card,
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 999,
-                    padding: '5px 12px',
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: asanaSyncEnabled ? T.green : '#C8CDD3',
-                      flex: 'none',
-                    }}
-                  />
-                  Asana sync {asanaSyncEnabled ? 'on' : 'off'}
-                  {asanaConfigured === false && ' · not configured'}
-                </span>
-              )}
-              <button
-                type="button"
-                data-processing-asana-dry-run-btn="1"
-                disabled={dryRunDisabled}
-                onClick={() => runAsanaSyncAction('dry_run')}
-                style={syncButtonStyle(false, dryRunDisabled)}
-              >
-                {asanaSyncBusy === 'dry_run' ? 'Dry running...' : 'Dry run'}
-              </button>
-              <button
-                type="button"
-                data-processing-asana-sync-btn="1"
-                disabled={syncNowDisabled}
-                onClick={() => runAsanaSyncAction('sync_once')}
-                style={syncButtonStyle(true, syncNowDisabled)}
-                title={cutoverTitle || (dryRunReady ? 'Import the last dry-run set from Asana' : 'Run a dry run first')}
-              >
-                {asanaSyncBusy === 'sync_once' ? 'Syncing...' : 'Sync now'}
-              </button>
-              <button
-                type="button"
-                data-processing-destination-audit-btn="1"
-                disabled={asanaLocked}
-                onClick={() => runAsanaSyncAction('destination_audit')}
-                style={syncButtonStyle(false, asanaLocked)}
-                title={
-                  cutoverTitle ||
-                  'Read-only: enumerate every Asana field/option/user/section/story/dependency and prove each has a destination'
-                }
-              >
-                {asanaSyncBusy === 'destination_audit' ? 'Auditing…' : 'Destination audit'}
-              </button>
-              <button
-                type="button"
-                data-processing-artifacts-dry-run-btn="1"
-                disabled={asanaLocked}
-                onClick={() => runAsanaSyncAction('artifacts_dry_run')}
-                style={syncButtonStyle(false, asanaLocked)}
-                title={cutoverTitle || 'Read-only: count the recursive subtasks a full artifact import would bring in'}
-              >
-                {asanaSyncBusy === 'artifacts_dry_run' ? 'Checking…' : 'Subtasks dry run'}
-              </button>
-              <button
-                type="button"
-                data-processing-sync-artifacts-btn="1"
-                disabled={asanaLocked || !importReady.artifacts_dry_run}
-                onClick={() => runAsanaSyncAction('sync_artifacts')}
-                style={syncButtonStyle(true, asanaLocked || !importReady.artifacts_dry_run)}
-                title={
-                  cutoverTitle ||
-                  (importReady.artifacts_dry_run
-                    ? 'Import recursive subtasks for linked records'
-                    : 'Run the subtasks dry run first')
-                }
-              >
-                {asanaSyncBusy === 'sync_artifacts' ? 'Importing…' : 'Import subtasks'}
-              </button>
-              <button
-                type="button"
-                data-processing-activity-dry-run-btn="1"
-                disabled={asanaLocked}
-                onClick={() => runAsanaSyncAction('activity_dry_run')}
-                style={syncButtonStyle(false, asanaLocked)}
-                title={
-                  cutoverTitle ||
-                  'Read-only: count the Asana system-history events and comment mentions an activity import would bring in'
-                }
-              >
-                {asanaSyncBusy === 'activity_dry_run' ? 'Checking…' : 'Activity dry run'}
-              </button>
-              <button
-                type="button"
-                data-processing-sync-activity-btn="1"
-                disabled={asanaLocked || !importReady.activity_dry_run}
-                onClick={() => runAsanaSyncAction('sync_activity')}
-                style={syncButtonStyle(true, asanaLocked || !importReady.activity_dry_run)}
-                title={
-                  cutoverTitle ||
-                  (importReady.activity_dry_run
-                    ? 'Import Asana system history + mention mapping for linked records'
-                    : 'Run the activity dry run first')
-                }
-              >
-                {asanaSyncBusy === 'sync_activity' ? 'Importing…' : 'Import activity'}
-              </button>
-              <button
-                type="button"
-                data-processing-attachment-dry-run-btn="1"
-                disabled={asanaLocked}
-                onClick={() => runAsanaSyncAction('attachment_dry_run')}
-                style={syncButtonStyle(false, asanaLocked)}
-                title={cutoverTitle || 'Read-only: count new vs already-stored Asana attachments (no bytes move)'}
-              >
-                {asanaSyncBusy === 'attachment_dry_run' ? 'Checking…' : 'Attachments dry run'}
-              </button>
-              <button
-                type="button"
-                data-processing-attachment-backfill-btn="1"
-                disabled={asanaLocked || !importReady.attachment_dry_run}
-                onClick={() => runAsanaSyncAction('attachment_backfill')}
-                style={syncButtonStyle(true, asanaLocked || !importReady.attachment_dry_run)}
-                title={
-                  cutoverTitle ||
-                  (importReady.attachment_dry_run
-                    ? 'Copy Asana attachment bytes into private Storage'
-                    : 'Run the attachments dry run first — a record dry run never unlocks bytes')
-                }
-              >
-                {asanaSyncBusy === 'attachment_backfill' ? 'Copying…' : 'Backfill attachments'}
-              </button>
-              <button
-                type="button"
-                data-processing-reconciliation-btn="1"
-                onClick={() => setShowReconciliation(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  background: T.card,
-                  color: T.muted,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 10,
-                  padding: '9px 14px',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Reconciliation
-              </button>
-              <button
-                type="button"
-                data-processing-templates-btn="1"
-                onClick={() => setShowTemplates(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  background: T.card,
-                  color: T.muted,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 10,
-                  padding: '9px 14px',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Templates
-              </button>
-              <button
-                type="button"
-                data-processing-options-btn="1"
-                onClick={() => setShowOptions(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  background: T.card,
-                  color: T.muted,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 10,
-                  padding: '9px 14px',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Customer &amp; processor choices
-              </button>
-            </div>
-            <label
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                marginTop: 10,
-                fontSize: 12.5,
-                color: T.muted,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
-                data-processing-show-archived
-              />
-              Show archived records (open one to restore it)
-            </label>
-            <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 10, lineHeight: 1.4}}>
-              One-time Asana import + reconciliation controls — not needed for day-to-day scheduling.
-            </div>
-          </div>
-        )}
-        {asanaSyncNotice && (
-          <div style={{marginBottom: 18}}>
-            <InlineNotice notice={asanaSyncNotice} onDismiss={() => setAsanaSyncNotice(null)} />
-          </div>
-        )}
-        {isAdmin && dryRunPlan && <DryRunReport plan={dryRunPlan} />}
 
         {/* Stat cards */}
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22}}>
@@ -1605,6 +818,28 @@ export default function ProcessingCalendarView({Header, authState}) {
             />
             Show completed
           </label>
+          {isAdmin && (
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12.5,
+                color: T.muted,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+              title="Archived records are hidden from the schedule; open one to restore it."
+            >
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                data-processing-show-archived
+              />
+              Show archived
+            </label>
+          )}
           <input
             type="text"
             value={search}
@@ -1654,7 +889,7 @@ export default function ProcessingCalendarView({Header, authState}) {
           <div style={{overflowX: 'auto'}}>
             <div
               style={{
-                minWidth: 1280,
+                minWidth: 1080,
                 background: T.card,
                 border: `1px solid ${T.border}`,
                 borderRadius: 16,
@@ -1675,15 +910,13 @@ export default function ProcessingCalendarView({Header, authState}) {
               >
                 <span style={stickyCheck(T.tint)} aria-hidden="true" />
                 <span style={{...headerCellStyle, ...stickyFirst(T.tint)}}>Batch</span>
-                <span style={headerCellStyle}>Owner</span>
                 <span style={headerCellStyle}>Status</span>
                 <span style={headerCellStyle}>Farm arrival</span>
                 <span style={headerCellStyle}>Processing</span>
                 <span style={headerCellStyle}>Processor</span>
                 <span style={{...headerCellStyle, textAlign: 'right'}}>Number</span>
                 <span style={headerCellStyle}>Customer</span>
-                <span style={headerCellStyle}>Age / TOF</span>
-                <span style={{...headerCellStyle, textAlign: 'right'}}>Remaining</span>
+                <span style={headerCellStyle}>Age</span>
                 <span />
               </div>
 
@@ -1800,7 +1033,6 @@ export default function ProcessingCalendarView({Header, authState}) {
           onClose={() => setShowAddMilestone(false)}
           customerOptions={optionLists.customer}
           processorOptions={optionLists.processor}
-          profilesById={profilesById}
           onCreated={(id) => {
             setShowAddMilestone(false);
             load();
@@ -1808,16 +1040,13 @@ export default function ProcessingCalendarView({Header, authState}) {
           }}
         />
       )}
-      {showTemplates && <ProcessingTemplatesModal authState={authState} onClose={() => setShowTemplates(false)} />}
-      {showReconciliation && (
-        <ProcessingReconciliationModal authState={authState} onClose={() => setShowReconciliation(false)} />
-      )}
-      {showOptions && isAdmin && (
-        <ProcessingOptionsModal
-          processorOptions={optionLists.processor}
+      {showTemplates && (
+        <ProcessingTemplatesModal
+          authState={authState}
+          onClose={() => setShowTemplates(false)}
           customerOptions={optionLists.customer}
-          onClose={() => setShowOptions(false)}
-          onSaved={refreshOptionLists}
+          processorOptions={optionLists.processor}
+          onOptionsSaved={refreshOptionLists}
         />
       )}
     </div>

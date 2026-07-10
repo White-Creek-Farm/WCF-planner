@@ -53,12 +53,14 @@ describe('edge function wires the importer actions', () => {
   });
 });
 
-describe('templates modal triggers the import', () => {
-  it('has an admin preview + apply wired to the Edge actions', () => {
-    expect(templatesModal).toContain('invokeProcessingAsanaSync');
-    expect(templatesModal).toContain("action: 'import_templates_dry_run'");
-    expect(templatesModal).toContain("action: 'import_templates'");
-    expect(templatesModal).toContain('data-processing-template-import-btn');
-    expect(templatesModal).toContain('data-processing-template-import-apply');
+describe('templates modal is LOCAL-ONLY (UI-simplification lane)', () => {
+  it('carries NO Asana import workflow; the Edge actions stay for gated operational use', () => {
+    expect(templatesModal).not.toContain('invokeProcessingAsanaSync');
+    expect(templatesModal).not.toContain('import_templates');
+    expect(templatesModal).not.toContain('data-processing-template-import-btn');
+    expect(templatesModal).not.toContain('data-processing-template-import-apply');
+    expect(templatesModal).not.toMatch(/Import from Asana/i);
+    // Customer & Processor choice management opens from INSIDE Templates.
+    expect(templatesModal).toContain('data-processing-options-btn="1"');
   });
 });

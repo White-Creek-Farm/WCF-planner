@@ -13,19 +13,20 @@
 //     not authored here.
 //   • SUBTASKS tab — the default checklist: drag to reorder, rename, per-step
 //     profile-backed assignee (clearable), add/remove.
-//   • Reset (per tab) restores the handoff §6 defaults for the program.
+//   • Reset (per tab) restores the canonical v2 defaults for the program.
 // Saving calls upsert_processing_template (a new active VERSION supersedes the
 // prior one). Template field changes drive the record drawer's Details layout;
 // the checklist seeds NEW planner records automatically (mig 164) and existing
 // records via the drawer's additive "Apply template".
-// Asana task-template import (dry-run preview + admin apply) stays available.
+// Templates are LOCAL-ONLY (UI-simplification lane): the Asana task-template
+// import workflow is gone from the client. Customer & Processor choice
+// management (ProcessingOptionsModal, mig 162) opens from inside this modal.
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {
   listProcessingTemplates,
   upsertProcessingTemplate,
-  invokeProcessingAsanaSync,
   newProcessingId,
   friendlyProcessingError,
 } from '../lib/processingApi.js';
@@ -44,6 +45,8 @@ import {loadEligibleProfilesById} from '../lib/tasksCenterApi.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import ProcessingOptionsModal from './ProcessingOptionsModal.jsx';
 
 const PROGRAMS = [
   {key: 'broiler', label: 'Broiler'},
@@ -212,7 +215,13 @@ function TemplatePreviewPane({fields, checklist, profilesById}) {
   );
 }
 
-export default function ProcessingTemplatesModal({authState, onClose}) {
+export default function ProcessingTemplatesModal({
+  authState,
+  onClose,
+  customerOptions = [],
+  processorOptions = [],
+  onOptionsSaved,
+}) {
   // Guard: admin-only. Render a small notice (still dismissible) for anyone else.
   if (authState?.role !== 'admin') {
     return (
@@ -263,11 +272,18 @@ export default function ProcessingTemplatesModal({authState, onClose}) {
     );
   }
 
-  return <TemplatesEditor onClose={onClose} />;
+  return (
+    <TemplatesEditor
+      onClose={onClose}
+      customerOptions={customerOptions}
+      processorOptions={processorOptions}
+      onOptionsSaved={onOptionsSaved}
+    />
+  );
 }
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
-function TemplatesEditor({onClose}) {
+function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], onOptionsSaved}) {
   const {useState, useEffect, useCallback, useMemo} = React;
   const [program, setProgram] = useState('broiler');
   const [tab, setTab] = useState('fields');
@@ -288,9 +304,8 @@ function TemplatesEditor({onClose}) {
   const [drag, setDrag] = useState(null);
   // Open color-palette popover: {fieldIndex, optionIndex} or null.
   const [colorPick, setColorPick] = useState(null);
-  // Asana task-template import (admin; behind the ASANA token + Edge deploy gate).
-  const [importBusy, setImportBusy] = useState(false);
-  const [importReport, setImportReport] = useState(null);
+  // Customer & Processor choice management (mig 162) lives INSIDE Templates now.
+  const [showOptions, setShowOptions] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -515,41 +530,6 @@ function TemplatesEditor({onClose}) {
       setNotice({kind: 'error', message: friendlyProcessingError(e)});
     } finally {
       setSaving(false);
-    }
-  }
-
-  // Read-only preview of the Asana task-template import.
-  async function runImportPreview() {
-    setImportBusy(true);
-    setImportReport(null);
-    setNotice(null);
-    try {
-      const r = await invokeProcessingAsanaSync(sb, {action: 'import_templates_dry_run'});
-      setImportReport(r.report || null);
-    } catch (e) {
-      setNotice({kind: 'error', message: friendlyProcessingError(e)});
-    } finally {
-      setImportBusy(false);
-    }
-  }
-  // Apply the import — writes only the 'ready' (single, program-mapped, changed)
-  // templates as new active versions; unchanged/conflict/unmapped are skipped.
-  async function applyImport() {
-    setImportBusy(true);
-    setNotice(null);
-    try {
-      const r = await invokeProcessingAsanaSync(sb, {action: 'import_templates'});
-      const written = (r.report && r.report.written) || [];
-      setNotice({
-        kind: 'success',
-        message: `Imported ${written.length} template${written.length === 1 ? '' : 's'} from Asana.`,
-      });
-      setImportReport(null);
-      await load();
-    } catch (e) {
-      setNotice({kind: 'error', message: friendlyProcessingError(e)});
-    } finally {
-      setImportBusy(false);
     }
   }
 
@@ -779,7 +759,7 @@ function TemplatesEditor({onClose}) {
           </div>
         </div>
 
-        {/* Asana task-template import (admin) */}
+        {/* Customer & Processor choice management (mig 162) — inside Templates */}
         <div
           style={{
             padding: '4px 20px 8px',
@@ -792,9 +772,8 @@ function TemplatesEditor({onClose}) {
         >
           <button
             type="button"
-            onClick={runImportPreview}
-            disabled={importBusy}
-            data-processing-template-import-btn
+            onClick={() => setShowOptions(true)}
+            data-processing-options-btn="1"
             style={{
               background: '#fff',
               border: `1px solid #D2D6DB`,
@@ -803,39 +782,15 @@ function TemplatesEditor({onClose}) {
               padding: '7px 12px',
               fontSize: 12.5,
               fontWeight: 700,
-              cursor: importBusy ? 'default' : 'pointer',
+              cursor: 'pointer',
               fontFamily: 'inherit',
             }}
           >
-            {importBusy ? 'Checking Asana…' : 'Import from Asana'}
+            Customer &amp; processor choices
           </button>
-          {importReport && importReport.summary && (
-            <span style={{fontSize: 12, color: T.muted, fontWeight: 600}}>
-              {importReport.summary.ready} to import · {importReport.summary.unchanged} unchanged ·{' '}
-              {importReport.summary.conflict} conflict · {importReport.summary.no_program} unmapped
-            </span>
-          )}
-          {importReport && importReport.summary && importReport.summary.ready > 0 && (
-            <button
-              type="button"
-              onClick={applyImport}
-              disabled={importBusy}
-              data-processing-template-import-apply
-              style={{
-                background: importBusy ? '#EAECEF' : T.green,
-                color: importBusy ? '#9AA1AB' : '#fff',
-                border: 'none',
-                borderRadius: 10,
-                padding: '7px 14px',
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: importBusy ? 'default' : 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Apply {importReport.summary.ready}
-            </button>
-          )}
+          <span style={{fontSize: 12, color: T.faint, fontWeight: 600}}>
+            The choices behind the Customer + Processor selects in the drawer and Add milestone.
+          </span>
         </div>
 
         {/* Body */}
@@ -1175,6 +1130,14 @@ function TemplatesEditor({onClose}) {
           </div>
         </div>
       </div>
+      {showOptions && (
+        <ProcessingOptionsModal
+          processorOptions={processorOptions}
+          customerOptions={customerOptions}
+          onClose={() => setShowOptions(false)}
+          onSaved={onOptionsSaved}
+        />
+      )}
     </div>
   );
 }

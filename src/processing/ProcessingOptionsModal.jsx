@@ -2,9 +2,9 @@
 // src/processing/ProcessingOptionsModal.jsx  —  admin editor for the Processing
 // Customer / Processor selector choices.
 // ----------------------------------------------------------------------------
-// Admin-only (mounted behind isAdmin in ProcessingCalendarView's maintenance
-// panel). Edits the two server-backed option lists that drive the Customer chip
-// picker and the Processor suggestion datalist in the drawer + Add Milestone:
+// Admin-only (opened from inside ProcessingTemplatesModal, which is itself
+// admin-gated). Edits the two server-backed option lists that drive the
+// Customer + Processor selects in the drawer + Add Milestone:
 //   setProcessingOptionList(sb, 'processor' | 'customer', [...])  (mig 162)
 // Each list is edited locally (add / remove / reorder-by-remove) then saved
 // wholesale; the server trims + de-dupes. Editing a list NEVER rejects or
@@ -275,7 +275,7 @@ export default function ProcessingOptionsModal({processorOptions = [], customerO
           <OptionListEditor
             kind="customer"
             title="Customer choices (broiler)"
-            hint="Shown as chips on broiler records + milestones."
+            hint="The choices in the Customer select on broiler records + milestones."
             initial={customerOptions}
             busy={busy}
             onSave={save}
@@ -283,7 +283,7 @@ export default function ProcessingOptionsModal({processorOptions = [], customerO
           <OptionListEditor
             kind="processor"
             title="Processor choices"
-            hint="Suggested in the Processor field for all programs (free text is still allowed)."
+            hint="The choices in the Processor select for all programs."
             initial={processorOptions}
             busy={busy}
             onSave={save}

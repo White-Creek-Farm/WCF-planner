@@ -18,6 +18,7 @@ const optionsModal = read('src/processing/ProcessingOptionsModal.jsx');
 const drawer = read('src/processing/ProcessingDrawer.jsx');
 const addMilestone = read('src/processing/AddMilestoneModal.jsx');
 const view = read('src/processing/ProcessingCalendarView.jsx');
+const templatesModal = read('src/processing/ProcessingTemplatesModal.jsx');
 
 describe('mig 162 — option lists on the settings singleton', () => {
   it('adds customer_options and an admin-gated setter, without constraining stored values', () => {
@@ -54,44 +55,49 @@ describe('admin options editor', () => {
 });
 
 describe('drawer + Add Milestone read from settings (not hardcoded)', () => {
-  it('drawer renders customer chips from the merged option list + a TRUE processor select', () => {
+  it('drawer renders TRUE SINGLE selects for Customer AND Processor from the option lists', () => {
     expect(drawer).toContain('customerOptions = []');
     expect(drawer).toContain('processorOptions = []');
-    expect(drawer).toContain('customerChoices.map');
-    // Template-suite lane: the free-text/datalist processor is retired — the
-    // control is a select over processor_options; a stored legacy value stays
-    // visible/selectable; arbitrary typing is impossible.
     expect(drawer).toContain('data-processing-processor-select');
-    expect(drawer).not.toContain('processing-processor-choices');
     expect(drawer).not.toContain('datalist');
-    // legacy/off-list stored values are merged back in so they stay toggleable
-    expect(drawer).toMatch(/for \(const c of customerSelected\) if \(c && !merged\.includes\(c\)\)/);
-    // the old hardcoded map is gone (constant kept only as a fetch-failure fallback)
-    expect(drawer).not.toContain('CUSTOMER_OPTIONS.map');
+    // UI-simplification lane: Customer chips are retired — a single select over
+    // customer_options, matching the Processor control. Zero-or-one stored via
+    // the existing array-backed column.
+    expect(drawer).toContain('data-processing-customer-select');
+    expect(drawer).not.toContain('data-processing-customer-chip');
+    expect(drawer).toMatch(/setProcessingCustomer\(sb, record\.id, value \? \[value\] : \[\]\)/);
+    // legacy handling: off-list single value stays selectable; a stored MULTI
+    // set surfaces as ONE sentinel option until deliberately replaced/cleared.
+    expect(drawer).toMatch(/\(legacy\)/);
+    expect(drawer).toContain('(legacy — multiple)');
+    expect(drawer).toContain('LEGACY_MULTI_CUSTOMER');
+    expect(drawer).toMatch(/if \(value === LEGACY_MULTI_CUSTOMER\) return/);
     expect(drawer).toContain('CUSTOMER_OPTIONS_FALLBACK');
   });
 
-  it('Add Milestone uses settings options + a TRUE processor select (not staff names)', () => {
+  it('Add Milestone uses settings options + TRUE selects for Processor and Customer', () => {
     expect(addMilestone).toContain('customerOptions = []');
     expect(addMilestone).toContain('processorOptions = []');
-    expect(addMilestone).toContain('customerChoices.map');
     expect(addMilestone).toMatch(/<select[\s\S]{0,400}data-processing-milestone-processor/);
+    expect(addMilestone).toMatch(/<select[\s\S]{0,400}data-processing-milestone-customer/);
     expect(addMilestone).not.toContain('datalist');
-    // the mislabeled PEOPLE datalist is removed
-    expect(addMilestone).not.toContain('processing-people');
-    expect(addMilestone).not.toMatch(/const PEOPLE =/);
-    expect(addMilestone).not.toContain('CUSTOMER_OPTIONS.map');
+    expect(addMilestone).not.toContain('toggleCustomer');
+    // zero-or-one customer, stored through the existing array-backed column
+    expect(addMilestone).toMatch(/customer: isBroiler && customer \? \[customer\] : \[\]/);
   });
 });
 
-describe('calendar wires the option lists through', () => {
-  it('fetches settings for operational roles and passes options to drawer + modal', () => {
+describe('calendar + Templates wire the option lists through', () => {
+  it('fetches settings for operational roles and passes options through to every consumer', () => {
     expect(view).toContain('refreshOptionLists');
     expect(view).toContain('setOptionLists');
     expect(view).toContain('customerOptions={optionLists.customer}');
     expect(view).toContain('processorOptions={optionLists.processor}');
-    expect(view).toContain('data-processing-options-btn="1"');
-    expect(view).toContain('<ProcessingOptionsModal');
-    expect(view).toContain('onSaved={refreshOptionLists}');
+    expect(view).toContain('onOptionsSaved={refreshOptionLists}');
+    // The options editor moved INSIDE Templates (no separate Admin-page control).
+    expect(view).not.toContain('<ProcessingOptionsModal');
+    expect(templatesModal).toContain('data-processing-options-btn="1"');
+    expect(templatesModal).toContain('<ProcessingOptionsModal');
+    expect(templatesModal).toContain('onSaved={onOptionsSaved}');
   });
 });

@@ -1,10 +1,12 @@
 // ============================================================================
 // src/processing/AddMilestoneModal.jsx  —  create a Processing milestone
 // ----------------------------------------------------------------------------
-// Batches are created by other planner functions / the Asana import; this modal
-// only adds a dated MILESTONE (record_type='milestone', purple-family identity)
-// that drops onto the schedule at the processing date you set. Milestones are
-// fully Processing-owned. Customer applies to broiler only.
+// Batches are created by other planner functions / the historical import; this
+// modal only adds a dated MILESTONE (record_type='milestone', purple-family
+// identity) that drops onto the schedule at the processing date you set.
+// Milestones are fully Processing-owned. Customer applies to broiler only and
+// is a SINGLE select from customer_options (stored as [] or [value]); the
+// parent Assignee is retired (UI-simplification lane).
 //   createProcessingMilestone(sb, {id: newProcessingId('pmile'), ...})
 // The id is minted client-side so the create is idempotent on retry; that same
 // id is handed to onCreated so the caller can open the new record's drawer.
@@ -70,38 +72,23 @@ export default function AddMilestoneModal({
   onCreated,
   customerOptions = [],
   processorOptions = [],
-  profilesById = {},
 }) {
-  const {useState, useMemo} = React;
+  const {useState} = React;
   const validInitial = PROGRAMS.some((p) => p.key === initialProgram) ? initialProgram : 'broiler';
   const [program, setProgram] = useState(validInitial);
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [processor, setProcessor] = useState('');
-  const [customer, setCustomer] = useState([]);
+  const [customer, setCustomer] = useState('');
   const [status, setStatus] = useState('planned');
-  const [assigneeProfileId, setAssigneeProfileId] = useState('');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
 
-  const profileChoices = useMemo(
-    () =>
-      Object.values(profilesById || {})
-        .filter((p) => p && p.id)
-        .sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''))),
-    [profilesById],
-  );
-
   const isBroiler = program === 'broiler';
-  // Customer chips come from the server option list (mig 162), falling back to
-  // the seeded constant; any already-selected off-list value is kept visible.
-  const baseCustomer =
+  // Customer choices come from the server option list (mig 162), falling back
+  // to the seeded constant. Zero-or-one customer, matching the Processor select.
+  const customerChoices =
     Array.isArray(customerOptions) && customerOptions.length ? customerOptions : CUSTOMER_OPTIONS_FALLBACK;
-  const customerChoices = [...baseCustomer, ...customer.filter((c) => c && !baseCustomer.includes(c))];
-
-  function toggleCustomer(opt) {
-    setCustomer((cur) => (cur.includes(opt) ? cur.filter((c) => c !== opt) : [...cur, opt]));
-  }
 
   async function create() {
     if (!name.trim()) {
@@ -118,9 +105,8 @@ export default function AddMilestoneModal({
         title: name.trim(),
         processingDate: date || null,
         processor: processor.trim() || null,
-        customer: isBroiler ? customer : [],
+        customer: isBroiler && customer ? [customer] : [],
         status,
-        assigneeProfileId: assigneeProfileId || null,
       });
       if (onCreated) onCreated(id);
     } catch (e) {
@@ -258,23 +244,6 @@ export default function AddMilestoneModal({
           </div>
 
           <div style={{marginBottom: 14}}>
-            <label style={labelStyle}>Assignee (optional)</label>
-            <select
-              value={assigneeProfileId}
-              onChange={(e) => setAssigneeProfileId(e.target.value)}
-              data-processing-milestone-assignee
-              style={{...inputStyle, width: 240, cursor: 'pointer'}}
-            >
-              <option value="">—</option>
-              {profileChoices.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{marginBottom: 14}}>
             <label style={labelStyle}>Status</label>
             <div style={{display: 'flex', gap: 7, flexWrap: 'wrap'}}>
               {STATUS_CHOICES.map((s) => {
@@ -326,34 +295,21 @@ export default function AddMilestoneModal({
           {isBroiler && (
             <div style={{marginBottom: 6}}>
               <label style={labelStyle}>Customer (optional)</label>
-              <div style={{display: 'flex', gap: 7, flexWrap: 'wrap'}}>
-                {customerChoices.map((opt) => {
-                  const on = customer.includes(opt);
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => toggleCustomer(opt)}
-                      data-processing-milestone-customer={opt}
-                      title={opt}
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        borderRadius: 999,
-                        padding: '6px 12px',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        border: `1px solid ${on ? T.green : T.border}`,
-                        background: on ? '#E6F4EC' : '#fff',
-                        color: on ? '#1F7A4D' : T.muted,
-                      }}
-                    >
-                      {opt.split(' - ')[0]}
-                      {opt.includes(' - ') ? ` (${opt.split(' - ')[1].toLowerCase()})` : ''}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* TRUE SINGLE SELECT from the admin-configured customer_options
+                  (mig 162), matching the Processor control. '—' means none. */}
+              <select
+                value={customer}
+                onChange={(e) => setCustomer(e.target.value)}
+                data-processing-milestone-customer
+                style={{...inputStyle, width: 260, cursor: 'pointer'}}
+              >
+                <option value="">—</option>
+                {customerChoices.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
