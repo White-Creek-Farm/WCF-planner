@@ -120,7 +120,17 @@ describe('edge — comment-media action isolation', () => {
       expect(edge, `report field ${key}`).toContain(key);
     }
     expect(edge).toContain('b2604');
+    expect(edge).toContain('actionableDetails');
     expect(edge).toContain('ambiguousDetails');
+  });
+
+  it('dry-run exposes every actionable media post without leaking comment bodies', () => {
+    expect(edge).toContain('missingComment: !item.alreadyImportedComment');
+    expect(edge).toContain('newAttachmentGids: item.newAttachmentGids');
+    expect(edge).toContain('filenames: item.attachmentGids.map');
+    const detailPush = edge.match(/actionableDetails\.push\(\{([\s\S]*?)\}\);/);
+    expect(detailPush).toBeTruthy();
+    expect(detailPush[1]).not.toMatch(/\bbody\b/);
   });
 
   it('ONE storage-path convention: both byte-copiers route through asanaAttachmentPath', () => {

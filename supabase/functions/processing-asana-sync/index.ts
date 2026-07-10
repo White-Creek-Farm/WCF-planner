@@ -921,7 +921,7 @@ async function runCommentMedia(
   svc: ReturnType<typeof createClient>,
   dryRun: boolean,
   ctx: MappingContext | null,
-): Promise<{counts: CommentMediaCounts; b2604: unknown; ambiguousDetails: unknown[]}> {
+): Promise<{counts: CommentMediaCounts; b2604: unknown; actionableDetails: unknown[]; ambiguousDetails: unknown[]}> {
   const counts: CommentMediaCounts = {
     linkedTasks: 0,
     textComments: 0,
@@ -942,6 +942,7 @@ async function runCommentMedia(
   const {importedCommentGids, storedAttachments} = await loadConversationBaselines(svc);
   const gids = await loadLinkedGids(svc);
   let b2604: unknown = null;
+  const actionableDetails: unknown[] = [];
   const ambiguousDetails: unknown[] = [];
 
   for (const gid of gids) {
@@ -977,6 +978,25 @@ async function runCommentMedia(
     counts.newMediaBytes += plan.counts.newMediaBytes;
     counts.ambiguous += plan.counts.ambiguous;
     for (const a of plan.ambiguous) ambiguousDetails.push({taskGid: gid, ...a});
+    for (const item of plan.items) {
+      if (item.kind !== 'media_comment' && item.kind !== 'file_only_post') continue;
+      if (item.alreadyImportedComment && item.newAttachmentGids.length === 0) continue;
+      actionableDetails.push({
+        taskGid: gid,
+        kind: item.kind,
+        storyGid: item.storyGid,
+        author: item.author,
+        createdAt: item.created_at,
+        association: item.association,
+        missingComment: !item.alreadyImportedComment,
+        attachmentGids: item.attachmentGids,
+        newAttachmentGids: item.newAttachmentGids,
+        filenames: item.attachmentGids.map((attGid: string) => {
+          const att = atts.find((row) => row && String(row.gid) === String(attGid));
+          return att && att.name != null ? String(att.name) : null;
+        }),
+      });
+    }
 
     if (gid === B2604_TASK_GID) {
       b2604 = {taskGid: gid, plan: plan.items, counts: plan.counts, ambiguous: plan.ambiguous};
@@ -1064,7 +1084,7 @@ async function runCommentMedia(
       }
     }
   }
-  return {counts, b2604, ambiguousDetails};
+  return {counts, b2604, actionableDetails, ambiguousDetails};
 }
 
 // ─── sync (write) ────────────────────────────────────────────────────────────
@@ -1633,8 +1653,8 @@ serve(async (req: Request) => {
       } catch (_e) {
         dryCtx = null;
       }
-      const {counts, b2604, ambiguousDetails} = await runCommentMedia(svc, true, dryCtx);
-      return jsonResponse({ok: true, action, report: {...counts, b2604, ambiguousDetails}});
+      const {counts, b2604, actionableDetails, ambiguousDetails} = await runCommentMedia(svc, true, dryCtx);
+      return jsonResponse({ok: true, action, report: {...counts, b2604, actionableDetails, ambiguousDetails}});
     } catch (e) {
       return jsonResponse({ok: false, action, error: e instanceof Error ? e.message : String(e)}, 500);
     }
@@ -1715,9 +1735,9 @@ serve(async (req: Request) => {
     let runId = '';
     try {
       runId = await startRun();
-      const {counts, b2604, ambiguousDetails} = await runCommentMedia(svc, false, ctx);
+      const {counts, b2604, actionableDetails, ambiguousDetails} = await runCommentMedia(svc, false, ctx);
       await finishRun(runId, 'ok', counts, null);
-      return jsonResponse({ok: true, action, runId, counts, b2604, ambiguousDetails});
+      return jsonResponse({ok: true, action, runId, counts, b2604, actionableDetails, ambiguousDetails});
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await finishRun(runId, 'error', {}, msg);
