@@ -282,8 +282,12 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
     expect(pageSrc).toContain('loadSheepWeighInsCached');
     expect(pageSrc).toContain('invalidateSheepWeighInsCache');
   });
-  it('imports detachSheepFromBatch', () => {
-    expect(pageSrc).toContain('detachSheepFromBatch');
+  it('imports the atomic cattle/sheep processing detach wrappers', () => {
+    expect(pageSrc).toContain("from '../lib/processingDetachApi.js'");
+    expect(pageSrc).toContain('detachCattleFromProcessingBatch');
+    expect(pageSrc).toContain('detachSheepFromProcessingBatch');
+    expect(pageSrc).not.toContain('detachCowFromBatch');
+    expect(pageSrc).not.toContain('detachSheepFromBatch');
   });
   it('has FLOCK_LABELS for sheep', () => {
     expect(pageSrc).toContain('FLOCK_LABELS');

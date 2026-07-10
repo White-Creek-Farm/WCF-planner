@@ -10,7 +10,9 @@ const EXPECTED_LITERAL_MUTATION_TOTALS = new Map([
   // +1 delete from savedViewsApi.deleteSavedView (app_saved_views, mig 095).
   ['delete', 29],
   // +1 insert from savedViewsApi.createSavedView (app_saved_views, mig 095).
-  ['insert', 65],
+  // -2 insert: PR3 removes the obsolete cattle/sheep client-side processing-
+  // detach transfer inserts; migration 170 owns both atomically.
+  ['insert', 63],
   // CP2: 12 direct daily-table .update() literals (6 record pages + 6 list
   // views) moved to the update_daily_report SECDEF RPC (mig 091).
   // +1 update from savedViewsApi.updateSavedView (app_saved_views, mig 095).
@@ -18,7 +20,9 @@ const EXPECTED_LITERAL_MUTATION_TOTALS = new Map([
   // -1 update from removing the team-roster → equipment.team_members cascade
   //    in WebformsAdminView (roster teardown).
   // +2 update from pig processing trip source-entry stamping + rollback.
-  ['update', 82],
+  // -6 update: PR3 removes client-side batch/animal/weigh-in detach updates
+  // from the cattle and sheep processing helpers.
+  ['update', 76],
   // -3 upsert from deleting teamMembers.js (2) + teamAvailability.js (1), the
   //    webform_config roster/availability writers (roster teardown).
   // -9 upsert from collapsing main.jsx public-webform mirror writers behind
@@ -77,12 +81,12 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/lib/cattleForecastApi.js|insert', 2],
   ['src/lib/cattleForecastApi.js|update', 2],
   ['src/lib/cattleForecastApi.js|upsert', 1],
-  ['src/lib/cattleProcessingBatch.js|insert', 3],
-  ['src/lib/cattleProcessingBatch.js|update', 7],
+  ['src/lib/cattleProcessingBatch.js|insert', 2],
+  ['src/lib/cattleProcessingBatch.js|update', 4],
   ['src/lib/layerHousing.js|update', 1],
   ['src/lib/notificationsApi.js|update', 2],
-  ['src/lib/sheepProcessingBatch.js|insert', 3],
-  ['src/lib/sheepProcessingBatch.js|update', 6],
+  ['src/lib/sheepProcessingBatch.js|insert', 2],
+  ['src/lib/sheepProcessingBatch.js|update', 3],
   ['src/lib/tasksAdminApi.js|delete', 1],
   ['src/lib/tasksAdminApi.js|insert', 1],
   ['src/lib/tasksAdminApi.js|upsert', 2],
@@ -142,10 +146,10 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['cattle_origins|insert', 2],
   ['cattle_processing_batches|delete', 1],
   ['cattle_processing_batches|insert', 2],
-  ['cattle_processing_batches|update', 8],
-  ['cattle_transfers|insert', 2],
+  ['cattle_processing_batches|update', 7],
+  ['cattle_transfers|insert', 1],
   ['cattle|insert', 3],
-  ['cattle|update', 8],
+  ['cattle|update', 7],
   ['egg_dailys|insert', 3],
   ['equipment_fuelings|delete', 1],
   ['equipment_fuelings|update', 4],
@@ -185,10 +189,10 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['sheep_origins|insert', 1],
   ['sheep_processing_batches|delete', 1],
   ['sheep_processing_batches|insert', 2],
-  ['sheep_processing_batches|update', 5],
-  ['sheep_transfers|insert', 2],
+  ['sheep_processing_batches|update', 4],
+  ['sheep_transfers|insert', 1],
   ['sheep|insert', 2],
-  ['sheep|update', 4],
+  ['sheep|update', 3],
   ['task_instances|insert', 1],
   ['task_system_rules|update', 1],
   ['task_templates|delete', 2],
@@ -200,7 +204,7 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['weigh_in_sessions|update', 7],
   ['weigh_ins|delete', 4],
   ['weigh_ins|insert', 7],
-  ['weigh_ins|update', 17],
+  ['weigh_ins|update', 15],
 ]);
 
 const EXPECTED_DYNAMIC_MUTATIONS = [
@@ -221,14 +225,15 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   ['src/cattle/CattleHerdsView.jsx', 2],
   ['src/equipment/EquipmentDetail.jsx', 1],
   ['src/livestock/WeighInSessionPage.jsx', 5],
-  // Processing drawer batch/milestone lifecycle actions route through the
-  // entityMutations runMutation wrapper (RPC-backed via processingApi.js), not
+  // Processing drawer processor/customer, milestone, completion, subtask,
+  // template, delete, and archive actions route through the local runMutation
+  // wrapper (RPC-backed via processingApi.js), not direct .from() table writes.
+  ['src/processing/ProcessingDrawer.jsx', 14],
+  // Reconciliation workbench: planner reconcile, review-queue sync, link,
+  // triage, duplicate, drift, and comments dry-run/import actions route through
+  // its local runMutation wrapper. They call RPC/Edge wrappers and introduce no
   // direct .from() table writes.
-  ['src/processing/ProcessingDrawer.jsx', 13],
-  // Reconciliation crosswalk modal (mig 157): reconcile-planner / resolve-link /
-  // acknowledge-drift route through its own runMutation wrapper, which calls the
-  // processingApi RPC wrappers — NO direct .from() table writes.
-  ['src/processing/ProcessingReconciliationModal.jsx', 3],
+  ['src/processing/ProcessingReconciliationModal.jsx', 8],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -394,7 +399,7 @@ function expectedTableOperationCounts() {
   if (hasProcessingBatchDeleteRpcs()) {
     expected.delete('cattle_processing_batches|delete');
     expected.delete('sheep_processing_batches|delete');
-    expected.set('sheep|update', 3);
+    expected.set('sheep|update', 2);
   }
   // mig 101: the only literal weigh_in_sessions delete is gone; weigh_ins drops
   // from 4 to 3 (broiler grid clear remains).
@@ -526,7 +531,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(35);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(41);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

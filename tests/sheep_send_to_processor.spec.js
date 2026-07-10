@@ -371,7 +371,7 @@ test('fallback: detach reads from_flock off sheep_transfers when prior_herd_or_f
 // --------------------------------------------------------------------------
 // Test 7 — null from_flock truthy guard blocks
 // --------------------------------------------------------------------------
-test('fallback null-from-flock: truthy guard at sheepProcessingBatch.js:170 blocks detach', async ({
+test('fallback null-from-flock: atomic RPC blocks detach when the audit from_flock is null', async ({
   page,
   sheepPreAttachedScenario,
   supabaseAdmin,

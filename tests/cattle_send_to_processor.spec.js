@@ -254,7 +254,7 @@ test('fallback: detach reads from_herd off cattle_transfers when prior_herd_or_f
 // --------------------------------------------------------------------------
 // Test 7 — null from_herd: truthy guard forces no_prior_herd
 // --------------------------------------------------------------------------
-test('fallback null-from-herd: truthy guard at cattleProcessingBatch.js:177 blocks detach', async ({
+test('fallback null-from-herd: atomic RPC blocks detach when the audit from_herd is null', async ({
   page,
   cattlePreAttachedScenario,
   supabaseAdmin,

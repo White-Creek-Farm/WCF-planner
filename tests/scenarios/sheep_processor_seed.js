@@ -26,8 +26,7 @@
 //     1 sheep already at flock='processed', weigh-in pointing at the batch
 //     but prior_herd_or_flock=null. Mode toggles audit-row state:
 //        mode='with_audit_row'   → from_flock='feeders' → fallback succeeds
-//        mode='null_from_flock'  → from_flock=null → truthy guard at
-//                                   sheepProcessingBatch.js:170 forces block
+//        mode='null_from_flock'  → from_flock=null → atomic RPC forces block
 //        mode='no_audit_row'     → no audit row → blocked with no_prior_flock
 //     Used by Tests 3, 6, 7, 8.
 // ============================================================================

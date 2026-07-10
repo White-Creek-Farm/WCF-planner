@@ -21,8 +21,7 @@ import CattleSendToProcessorModal from '../cattle/CattleSendToProcessorModal.jsx
 import SheepSendToProcessorModal from '../sheep/SheepSendToProcessorModal.jsx';
 import {loadCattleWeighInsCached, invalidateCattleWeighInsCache} from '../lib/cattleCache.js';
 import {loadSheepWeighInsCached, invalidateSheepWeighInsCache} from '../lib/sheepCache.js';
-import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
-import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
+import {detachCattleFromProcessingBatch, detachSheepFromProcessingBatch} from '../lib/processingDetachApi.js';
 import {deleteWeighInEntry, deleteWeighInSession} from '../lib/weighInDeleteApi.js';
 import {runMutation, recordFieldChange, recordStatusChange, recordActivityEvent} from '../lib/entityMutations.js';
 import {buildChanges} from '../lib/activityChangeDiff.js';
@@ -548,10 +547,14 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
             blocked.push({tag: e.tag || '?', reason: 'no_cow_for_tag'});
             continue;
           }
-          const detachFn = session.species === 'sheep' ? detachSheepFromBatch : detachCowFromBatch;
-          const r = await detachFn(sb, cow.id, e.target_processing_batch_id, {
+          const detachArgs = {
+            batchId: e.target_processing_batch_id,
             teamMember: authState && authState.name ? authState.name : null,
-          });
+          };
+          const r =
+            session.species === 'sheep'
+              ? await detachSheepFromProcessingBatch(sb, {...detachArgs, sheepId: cow.id})
+              : await detachCattleFromProcessingBatch(sb, {...detachArgs, cattleId: cow.id});
           if (!r.ok && r.reason !== 'not_in_batch') blocked.push({tag: e.tag || '?', reason: r.reason});
         }
       }
@@ -571,7 +574,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
         // Audit-grade transactional delete (migration 101): the session row,
         // its cascaded weigh_ins, the cattle/sheep weigh-in comments, and the
         // record.deleted Activity event all commit in one transaction. The
-        // detach reverts + "delete anyway?" confirmation above stay client-side.
+        // Atomic detach RPCs run first; the "delete anyway?" decision remains
+        // user-gated here when an animal cannot be safely restored.
         const r = await deleteWeighInSession(sb, {
           sessionId: session.id,
           entityLabel: sessionLabel(),
@@ -681,13 +685,18 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
 
   async function toggleProcessor(e, next) {
     setNotice(null);
+    let detached = false;
     if (!next && e.target_processing_batch_id) {
       const cow = e.tag ? animals.find((c) => c.tag === e.tag) : null;
       if (cow) {
-        const detachFn = session.species === 'sheep' ? detachSheepFromBatch : detachCowFromBatch;
-        const r = await detachFn(sb, cow.id, e.target_processing_batch_id, {
+        const detachArgs = {
+          batchId: e.target_processing_batch_id,
           teamMember: authState && authState.name ? authState.name : null,
-        });
+        };
+        const r =
+          session.species === 'sheep'
+            ? await detachSheepFromProcessingBatch(sb, {...detachArgs, sheepId: cow.id})
+            : await detachCattleFromProcessingBatch(sb, {...detachArgs, cattleId: cow.id});
         if (!r.ok && r.reason !== 'not_in_batch') {
           setNotice({
             kind: 'error',
@@ -703,18 +712,34 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           });
           return;
         }
+        detached = r.ok && r.reason === 'detached';
       }
     }
-    const result = await runMutation(() => sb.from('weigh_ins').update({send_to_processor: !!next}).eq('id', e.id), {
-      activity: () =>
-        recordActivityEvent(sb, {
-          entityType: 'weighin.session',
-          entityId: session.id,
-          eventType: 'field.updated',
-          entityLabel: sessionLabel(),
-          body: (next ? 'Flagged' : 'Unflagged') + ' #' + (e.tag || '?') + ' for processor',
-        }),
-    });
+    const activity = () =>
+      recordActivityEvent(sb, {
+        entityType: 'weighin.session',
+        entityId: session.id,
+        eventType: 'field.updated',
+        entityLabel: sessionLabel(),
+        body: (next ? 'Flagged' : 'Unflagged') + ' #' + (e.tag || '?') + ' for processor',
+      });
+    let result;
+    if (detached) {
+      // The detach RPC already cleared both weigh-in fields atomically. Do not
+      // issue a redundant PATCH that could fail after the detach committed and
+      // misreport the completed operation as a UI error. Preserve the separate
+      // weighin.session summary event with the same best-effort semantics.
+      try {
+        await activity();
+      } catch (_e) {
+        /* best-effort audit trail */
+      }
+      result = {ok: true};
+    } else {
+      result = await runMutation(() => sb.from('weigh_ins').update({send_to_processor: !!next}).eq('id', e.id), {
+        activity,
+      });
+    }
     if (!result.ok) {
       setNotice({kind: 'error', message: 'Could not update: ' + (result.error || 'unknown error')});
       return;
@@ -911,7 +936,8 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       async function finish() {
         // Audit-grade transactional delete (migration 101): the weigh_ins row
         // and its record.deleted Activity event commit in one transaction. The
-        // detach revert + "delete anyway?" confirmation above stay client-side.
+        // Atomic detach runs before this delete; the "delete anyway?" choice
+        // remains user-gated when the RPC cannot safely restore the animal.
         const r = await deleteWeighInEntry(sb, {
           entryId: e.id,
           entityLabel: sessionLabel(),
@@ -927,10 +953,14 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       if (e.target_processing_batch_id) {
         const cow = e.tag ? animals.find((c) => c.tag === e.tag) : null;
         if (cow) {
-          const detachFn2 = session.species === 'sheep' ? detachSheepFromBatch : detachCowFromBatch;
-          const r = await detachFn2(sb, cow.id, e.target_processing_batch_id, {
+          const detachArgs = {
+            batchId: e.target_processing_batch_id,
             teamMember: authState && authState.name ? authState.name : null,
-          });
+          };
+          const r =
+            session.species === 'sheep'
+              ? await detachSheepFromProcessingBatch(sb, {...detachArgs, sheepId: cow.id})
+              : await detachCattleFromProcessingBatch(sb, {...detachArgs, cattleId: cow.id});
           if (!r.ok && r.reason !== 'not_in_batch') {
             window._wcfConfirmDelete(
               '#' + (e.tag || '?') + ' could not be auto-reverted (' + r.reason + '). Delete anyway?',

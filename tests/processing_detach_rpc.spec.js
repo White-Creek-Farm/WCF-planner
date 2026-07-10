@@ -3,10 +3,11 @@ import {createClient} from '@supabase/supabase-js';
 
 // ============================================================================
 // detach_cattle_from_processing_batch / detach_sheep_from_processing_batch
-// — audit-grade transactional processing-detach RPCs (migration 081).
+// — audit-grade transactional processing-detach RPCs (migration 081,
+// authorization completed by migration 170).
 // ============================================================================
-// These move the authenticated CattleBatchPage / SheepBatchPage detach from a
-// best-effort client helper + separate logEvent to a SECDEF RPC that reverts
+// These move every authenticated processing/weigh-in detach from a best-effort
+// client helper + separate logEvent to a SECDEF RPC that reverts
 // the animal, writes the undo transfer audit row, clears the weigh-ins, AND
 // logs the field.updated Activity event in ONE transaction.
 //
