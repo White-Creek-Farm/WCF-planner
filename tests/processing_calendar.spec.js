@@ -15,7 +15,11 @@
 //      add + reorder; Apply template stays additive;
 //   5. attachments — native upload appears; archive → hidden; admin
 //      Show-archived → Restore.
-// Shared TEST DB: run this file ALONE (resetDb truncates shared tables).
+// Shared TEST DB: run this file ALONE (resetDb truncates shared tables), and
+// do NOT relaunch it back-to-back: an aborted invocation's TRUNCATE/reconcile
+// RPCs keep executing server-side after the client disconnects and can land
+// mid-way through the next invocation's seeds (records vanish, links wiped by
+// the CASCADE). Give the previous run ~30s to drain before re-running.
 import {test, expect} from './fixtures.js';
 import {defaultProcessingTemplateSuite} from '../src/lib/processingFields.js';
 
@@ -31,13 +35,44 @@ async function adminProfileId(supabaseAdmin) {
 }
 
 // Force the next /processing load to run the automatic planner reconcile
-// (ensure_processing_freshness debounces on this stamp).
+// (ensure_processing_freshness debounces on this stamp). Use ONLY in tests
+// that seed planner-backed rows: their first load performs the reconcile
+// synchronously before the loaded-marker, so it can never trail into the next
+// test's TRUNCATE (deadlock) or sweep the next test's seeds.
 async function resetFreshnessStamp(supabaseAdmin) {
   const {error} = await supabaseAdmin
     .from('processing_asana_sync_settings')
     .update({last_planner_reconcile_at: null})
     .eq('id', 'singleton');
   expect(error, error && error.message).toBeFalsy();
+}
+
+// The opposite: pin the stamp FRESH so page loads in this test SKIP the
+// reconcile entirely. For tests whose seeds are sweep-immune (milestones,
+// asana_historical records) a reconcile is pure noise — and a stale stamp from
+// an earlier file/run would otherwise fire one mid-test.
+async function stampFreshnessNow(supabaseAdmin) {
+  const {error} = await supabaseAdmin
+    .from('processing_asana_sync_settings')
+    .update({last_planner_reconcile_at: new Date().toISOString()})
+    .eq('id', 'singleton');
+  expect(error, error && error.message).toBeFalsy();
+}
+
+// Open /processing and wait for the given locator, reloading up to three times.
+// ensure_processing_freshness legitimately BUSY-skips when another session's
+// reconcile is mid-flight (an aborted previous page's RPC keeps running
+// server-side) — the product contract is "fresh by the next load", so the test
+// mirrors that instead of failing on the skip window.
+async function gotoProcessingExpecting(page, selector) {
+  await page.goto('/processing');
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.waitForSelector('[data-processing-loaded="1"]');
+    if ((await page.locator(selector).count()) > 0) return;
+    await page.waitForTimeout(1500);
+    await page.reload();
+  }
+  await expect(page.locator(selector).first()).toBeVisible();
 }
 
 // Seed a REAL cattle planner batch + its bridged processing row (same source
@@ -111,8 +146,7 @@ test.describe('Processing Calendar', () => {
     expect(subErr, subErr && subErr.message).toBeFalsy();
 
     await resetFreshnessStamp(supabaseAdmin);
-    await page.goto('/processing');
-    await page.waitForSelector('[data-processing-loaded="1"]');
+    await gotoProcessingExpecting(page, '[data-processing-section="cattle"]');
 
     // Grouped by program — both seeded programs render a section.
     await expect(page.locator('[data-processing-section="cattle"]')).toBeVisible();
@@ -166,8 +200,7 @@ test.describe('Processing Calendar', () => {
     expect(srcErr, srcErr && srcErr.message).toBeFalsy();
     await resetFreshnessStamp(supabaseAdmin);
 
-    await page.goto('/processing');
-    await page.waitForSelector('[data-processing-loaded="1"]');
+    await gotoProcessingExpecting(page, '[data-processing-section="cattle"]');
 
     // The batch was bridged into Processing by the on-load reconcile.
     await expect(page.locator('[data-processing-section="cattle"]')).toBeVisible();
@@ -180,7 +213,7 @@ test.describe('Processing Calendar', () => {
     resetDb,
   }) => {
     await resetDb();
-    await resetFreshnessStamp(supabaseAdmin);
+    await stampFreshnessNow(supabaseAdmin);
     await page.goto('/processing');
     await page.waitForSelector('[data-processing-loaded="1"]');
 
@@ -241,8 +274,7 @@ test.describe('Processing Calendar', () => {
     expect(tplErr, tplErr && tplErr.message).toBeFalsy();
 
     await resetFreshnessStamp(supabaseAdmin);
-    await page.goto('/processing');
-    await page.waitForSelector('[data-processing-loaded="1"]');
+    await gotoProcessingExpecting(page, `[data-processing-row="${BATCH_ID}"]`);
     await page.locator(`[data-processing-row="${BATCH_ID}"]`).click();
     await expect(page.locator(`[data-processing-drawer="${BATCH_ID}"]`)).toBeVisible();
 
@@ -286,6 +318,180 @@ test.describe('Processing Calendar', () => {
     await page.getByRole('button', {name: 'Apply template'}).click();
     await expect(page.locator('[data-processing-subtask]')).toHaveCount(3);
     await expect(page.getByText('TEST template step')).toBeVisible();
+  });
+
+  test('conversation fidelity (B-26-04 equivalent): imported media comments render author/timestamp/thumbnail; attachments index shares the bytes', async ({
+    page,
+    supabaseAdmin,
+    resetDb,
+  }) => {
+    await resetDb();
+    const adminId = await adminProfileId(supabaseAdmin);
+    const REC = 'ptest-b2604';
+    const TASK = 'ptest-task-b2604';
+    // 1x1 JPEG (valid image bytes for real thumbnails).
+    const JPG = Buffer.from(
+      '/9j/4AAQSkZJRgABAQEAAAAAAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
+      'base64',
+    );
+
+    // Seed the record + link. PROD B-26-04 is a planner_batch; here the record
+    // is asana_historical so the on-load planner reconcile can't archive it
+    // (no live ppp-v4 source exists on TEST) — the comments/attachments
+    // behavior under test is identical for both record types.
+    const {error: recErr} = await supabaseAdmin.from('processing_records').upsert(
+      {
+        id: REC,
+        record_type: 'asana_historical',
+        program: 'broiler',
+        title: 'TEST B-26-04',
+        processing_date: '2026-03-20',
+        status: 'planned',
+        match_status: 'unmatched',
+        created_by: adminId,
+      },
+      {onConflict: 'id'},
+    );
+    expect(recErr, recErr && recErr.message).toBeFalsy();
+    const link = await supabaseAdmin.rpc('link_asana_to_processing', {
+      p_row: {asana_gid: TASK, processing_record_id: REC, match_status: 'matched', match_method: 'manual_crosswalk'},
+    });
+    expect(link.error, link.error && link.error.message).toBeFalsy();
+
+    // comments is a SHARED table resetDb intentionally does not truncate —
+    // clear this test's imported gids from any earlier run so the insert paths
+    // are exercised deterministically.
+    await supabaseAdmin
+      .from('comments')
+      .delete()
+      .in('asana_comment_gid', ['ptest-story-text', 'ptest-story-jpg-1', 'ptest-story-jpg-2']);
+
+    // The existing Ronnie text comment (sync_comments shape).
+    const textCmt = await supabaseAdmin.rpc('record_processing_comment', {
+      p_row: {
+        parent_asana_gid: TASK,
+        asana_comment_gid: 'ptest-story-text',
+        body: 'Processor confirmed for Friday',
+        original_author_name: 'Ronnie Jones',
+        created_at: '2026-02-07T14:48:22Z',
+      },
+    });
+    expect(textCmt.error, textCmt.error && textCmt.error.message).toBeFalsy();
+
+    // Two Brian Naide file-only JPG posts: bytes once into the private bucket
+    // at the stable Asana-gid paths, then the atomic comment-media RPC.
+    for (const n of [1, 2]) {
+      const gid = `ptest-att-jpg-${n}`;
+      const storagePath = `${TASK}/${gid}-kill-sheet-${n}.jpg`;
+      const up = await supabaseAdmin.storage
+        .from('processing-attachments')
+        .upload(storagePath, JPG, {contentType: 'image/jpeg', upsert: true});
+      expect(up.error, up.error && up.error.message).toBeFalsy();
+      const media = await supabaseAdmin.rpc('record_processing_comment_media', {
+        p_row: {
+          parent_asana_gid: TASK,
+          asana_comment_gid: `ptest-story-jpg-${n}`,
+          body: '',
+          original_author_name: 'Brian Naide',
+          created_at: `2026-07-08T15:0${n}:00Z`,
+          mentions: [],
+          attachments: [
+            {
+              asana_attachment_gid: gid,
+              filename: `kill-sheet-${n}.jpg`,
+              content_type: 'image/jpeg',
+              size_bytes: JPG.length,
+              storage_path: storagePath,
+              original_created_at: `2026-07-08T15:0${n}:00Z`,
+            },
+          ],
+        },
+      });
+      expect(media.error, media.error && media.error.message).toBeFalsy();
+      expect(media.data.comment_action).toBe('inserted');
+    }
+    // Idempotency: re-running the first import changes nothing.
+    const rerun = await supabaseAdmin.rpc('record_processing_comment_media', {
+      p_row: {
+        parent_asana_gid: TASK,
+        asana_comment_gid: 'ptest-story-jpg-1',
+        body: '',
+        original_author_name: 'Brian Naide',
+        created_at: '2026-07-08T15:01:00Z',
+        mentions: [],
+        attachments: [
+          {
+            asana_attachment_gid: 'ptest-att-jpg-1',
+            filename: 'kill-sheet-1.jpg',
+            content_type: 'image/jpeg',
+            size_bytes: JPG.length,
+            storage_path: `${TASK}/ptest-att-jpg-1-kill-sheet-1.jpg`,
+            original_created_at: '2026-07-08T15:01:00Z',
+          },
+        ],
+      },
+    });
+    expect(rerun.data.comment_action).toBe('reused');
+    expect(rerun.data.attachments_inserted).toBe(0);
+
+    try {
+      await stampFreshnessNow(supabaseAdmin);
+      // Direct evidence on flake: the row must exist (and be unarchived) in the
+      // DB before we even navigate.
+      const {data: preNav} = await supabaseAdmin
+        .from('processing_records')
+        .select('id, archived, processing_date, program')
+        .eq('id', REC)
+        .single();
+      expect(preNav, 'seeded record must exist in DB pre-goto: ' + JSON.stringify(preNav)).toBeTruthy();
+      expect(preNav.archived).toBe(false);
+      await gotoProcessingExpecting(page, `[data-processing-row="${REC}"]`);
+      await page.locator(`[data-processing-row="${REC}"]`).click();
+      const drawer = page.locator(`[data-processing-drawer="${REC}"]`);
+      await expect(drawer).toBeVisible();
+
+      // Comments: the Ronnie text comment + BOTH Brian JPG posts, original
+      // authors visible, image thumbnails signed + rendered full-size links.
+      await expect(drawer.getByText('Processor confirmed for Friday')).toBeVisible();
+      await expect(drawer.getByText('Ronnie Jones')).toBeVisible();
+      await expect(drawer.getByText('Brian Naide')).toHaveCount(2);
+      const thumbs = drawer.locator('[data-comment-attachment] img');
+      await expect(thumbs).toHaveCount(2);
+      // Signed full-size open: the anchor carries a real signed URL.
+      const href = await drawer.locator('[data-comment-attachment]').first().getAttribute('href');
+      expect(href).toMatch(/^https?:\/\/.+token=/);
+
+      // Attachments index shows the SAME two files (same stored objects).
+      await expect(drawer.locator('[data-processing-attachment]')).toHaveCount(2);
+      const {data: attRows} = await supabaseAdmin
+        .from('processing_attachments')
+        .select('storage_path, comment_id, asana_story_gid')
+        .eq('record_id', REC)
+        .order('storage_path');
+      expect(attRows.map((a) => a.storage_path)).toEqual([
+        `${TASK}/ptest-att-jpg-1-kill-sheet-1.jpg`,
+        `${TASK}/ptest-att-jpg-2-kill-sheet-2.jpg`,
+      ]);
+      expect(attRows.every((a) => a.comment_id && a.asana_story_gid)).toBe(true);
+      const {data: mediaCmts} = await supabaseAdmin
+        .from('comments')
+        .select('attachments')
+        .in('asana_comment_gid', ['ptest-story-jpg-1', 'ptest-story-jpg-2']);
+      const commentPaths = mediaCmts.flatMap((c) => c.attachments.map((a) => a.path)).sort();
+      expect(commentPaths).toEqual(attRows.map((a) => a.storage_path)); // same objects, zero duplicate bytes
+
+      // No duplicates: exactly 3 comments total after the rerun.
+      const {count} = await supabaseAdmin
+        .from('comments')
+        .select('id', {count: 'exact', head: true})
+        .eq('entity_id', REC);
+      expect(count).toBe(3);
+    } finally {
+      const {data: objs} = await supabaseAdmin.storage.from('processing-attachments').list(TASK);
+      if (objs && objs.length) {
+        await supabaseAdmin.storage.from('processing-attachments').remove(objs.map((o) => `${TASK}/${o.name}`));
+      }
+    }
   });
 
   test('template suite: all four programs render template Details; Processor is a true select with legacy visibility', async ({
@@ -429,9 +635,15 @@ test.describe('Processing Calendar', () => {
     );
     expect(recErr, recErr && recErr.message).toBeFalsy();
 
-    await resetFreshnessStamp(supabaseAdmin);
-    await page.goto('/processing');
-    await page.waitForSelector('[data-processing-loaded="1"]');
+    await stampFreshnessNow(supabaseAdmin);
+    const {data: preNav} = await supabaseAdmin
+      .from('processing_records')
+      .select('id, archived')
+      .eq('id', 'ptest-hist-1')
+      .single();
+    expect(preNav, 'seeded record must exist in DB pre-goto').toBeTruthy();
+    expect(preNav.archived).toBe(false);
+    await gotoProcessingExpecting(page, '[data-processing-row="ptest-hist-1"]');
     await page.locator('[data-processing-row="ptest-hist-1"]').click();
     const drawer = page.locator('[data-processing-drawer="ptest-hist-1"]');
     await expect(drawer).toBeVisible();

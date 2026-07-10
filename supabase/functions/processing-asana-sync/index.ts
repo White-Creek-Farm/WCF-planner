@@ -87,6 +87,8 @@ import {
   parseAsanaMentionProfileIds,
   retryAfterMs,
   buildDestinationAudit,
+  buildConversationPlan,
+  conversationItemToCommentMediaRow,
 } from '../_shared/processingAsanaShape.js';
 
 // Defensive trim: pasted Dashboard secrets often pick up a trailing newline.
@@ -199,7 +201,15 @@ const SUBTASK_OPT_FIELDS = [
   'start_on',
   'num_subtasks',
 ].join(',');
-const STORY_OPT_FIELDS = ['type', 'text', 'created_at', 'created_by.name'].join(',');
+const STORY_OPT_FIELDS = [
+  'type',
+  'resource_subtype',
+  'text',
+  'html_text',
+  'created_at',
+  'created_by.name',
+  'created_by.gid',
+].join(',');
 const ATTACH_OPT_FIELDS = ['name', 'resource_subtype', 'download_url', 'view_url', 'created_at', 'size', 'host'].join(
   ',',
 );
@@ -368,6 +378,13 @@ async function enforceDestinationPreflight(svc: ReturnType<typeof createClient>)
   return ctx;
 }
 
+// The ONE storage-path convention for Asana attachment bytes — shared by the
+// record-level backfill AND the comment-media importer, so the same file can
+// never be copied twice under two names.
+function asanaAttachmentPath(parentGid: string, gid: string, filename: string): string {
+  return `${parentGid}/${gid}-${filename}`;
+}
+
 // ─── Attachment byte copy (attachment_backfill ONLY) ─────────────────────────
 
 // Copy one Asana attachment's bytes into the private bucket, then record its
@@ -391,7 +408,7 @@ async function backfillAttachment(
     const bytes = new Uint8Array(await res.arrayBuffer());
     const filename = att.name != null ? String(att.name) : `attachment-${gid}`;
     const contentType = res.headers.get('content-type') || 'application/octet-stream';
-    const storagePath = `${parentGid}/${gid}-${filename}`;
+    const storagePath = asanaAttachmentPath(parentGid, gid, filename);
     const up = await svc.storage.from(ATTACHMENT_BUCKET).upload(storagePath, bytes, {
       contentType,
       upsert: true,
@@ -844,6 +861,212 @@ async function runAttachmentBackfill(svc: ReturnType<typeof createClient>): Prom
   return counts;
 }
 
+// ─── conversation fidelity (comment_media_dry_run / sync_comment_media) ─────
+
+// The B-26-04 acceptance task — its per-item plan is always reported verbatim.
+const B2604_TASK_GID = '1211760432273073';
+
+interface CommentMediaCounts {
+  linkedTasks: number;
+  textComments: number;
+  mediaComments: number;
+  fileOnlyPosts: number;
+  taskAttachments: number;
+  alreadyImported: number;
+  missingComments: number;
+  newMediaBytes: number;
+  ambiguous: number;
+  deadParents: number;
+  commentsWritten: number;
+  attachmentRowsWritten: number;
+  bytesCopied: number;
+  errors: number;
+  dryRun: boolean;
+}
+
+// Baselines for idempotent classification: every imported comment gid and every
+// stored Asana attachment gid (with its existing path/mime for byte reuse).
+async function loadConversationBaselines(svc: ReturnType<typeof createClient>): Promise<{
+  importedCommentGids: Set<string>;
+  storedAttachments: Map<string, {storage_path: string; content_type: string | null}>;
+}> {
+  const importedCommentGids = new Set<string>();
+  {
+    const {data, error} = await svc.from('comments').select('asana_comment_gid').not('asana_comment_gid', 'is', null);
+    if (error) throw new Error(`load imported comments: ${error.message}`);
+    for (const r of (data || []) as Array<{asana_comment_gid: string}>) importedCommentGids.add(r.asana_comment_gid);
+  }
+  const storedAttachments = new Map<string, {storage_path: string; content_type: string | null}>();
+  {
+    const {data, error} = await svc
+      .from('processing_attachments')
+      .select('asana_attachment_gid, storage_path, content_type')
+      .not('asana_attachment_gid', 'is', null);
+    if (error) throw new Error(`load stored attachments: ${error.message}`);
+    for (const r of (data || []) as Array<{
+      asana_attachment_gid: string;
+      storage_path: string;
+      content_type: string | null;
+    }>) {
+      storedAttachments.set(r.asana_attachment_gid, {storage_path: r.storage_path, content_type: r.content_type});
+    }
+  }
+  return {importedCommentGids, storedAttachments};
+}
+
+// Shared walker for both the dry run and the write: builds each linked task's
+// conversation plan; the write additionally copies NEW bytes once and records
+// the comment+media atomically via record_processing_comment_media.
+async function runCommentMedia(
+  svc: ReturnType<typeof createClient>,
+  dryRun: boolean,
+  ctx: MappingContext | null,
+): Promise<{counts: CommentMediaCounts; b2604: unknown; ambiguousDetails: unknown[]}> {
+  const counts: CommentMediaCounts = {
+    linkedTasks: 0,
+    textComments: 0,
+    mediaComments: 0,
+    fileOnlyPosts: 0,
+    taskAttachments: 0,
+    alreadyImported: 0,
+    missingComments: 0,
+    newMediaBytes: 0,
+    ambiguous: 0,
+    deadParents: 0,
+    commentsWritten: 0,
+    attachmentRowsWritten: 0,
+    bytesCopied: 0,
+    errors: 0,
+    dryRun,
+  };
+  const {importedCommentGids, storedAttachments} = await loadConversationBaselines(svc);
+  const gids = await loadLinkedGids(svc);
+  let b2604: unknown = null;
+  const ambiguousDetails: unknown[] = [];
+
+  for (const gid of gids) {
+    counts.linkedTasks += 1;
+    let stories: Record<string, unknown>[];
+    let atts: Record<string, unknown>[];
+    try {
+      stories = await asanaGetAll(`/tasks/${gid}/stories`, {opt_fields: STORY_OPT_FIELDS});
+      atts = await asanaGetAll(`/tasks/${gid}/attachments`, {opt_fields: ATTACH_OPT_FIELDS});
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/ 404:/.test(msg)) counts.deadParents += 1;
+      else counts.errors += 1;
+      console.error(`conversation ${gid}: ${msg}`);
+      continue;
+    }
+    const plan = buildConversationPlan({
+      stories,
+      attachments: atts,
+      importedCommentGids,
+      storedAttachmentGids: [...storedAttachments.keys()],
+    }) as {
+      items: Array<Record<string, any>>;
+      ambiguous: Array<Record<string, unknown>>;
+      counts: Record<string, number>;
+    };
+    counts.textComments += plan.counts.textComments;
+    counts.mediaComments += plan.counts.mediaComments;
+    counts.fileOnlyPosts += plan.counts.fileOnlyPosts;
+    counts.taskAttachments += plan.counts.taskAttachments;
+    counts.alreadyImported += plan.counts.alreadyImported;
+    counts.missingComments += plan.counts.missingComments;
+    counts.newMediaBytes += plan.counts.newMediaBytes;
+    counts.ambiguous += plan.counts.ambiguous;
+    for (const a of plan.ambiguous) ambiguousDetails.push({taskGid: gid, ...a});
+
+    if (gid === B2604_TASK_GID) {
+      b2604 = {taskGid: gid, plan: plan.items, counts: plan.counts, ambiguous: plan.ambiguous};
+    }
+    if (dryRun) continue;
+
+    // WRITE: only conversation media items (text comments stay sync_comments').
+    const attsByGid = new Map<string, Record<string, unknown>>();
+    for (const a of atts) if (a && a.gid != null) attsByGid.set(String(a.gid), a);
+    for (const item of plan.items) {
+      if (item.kind !== 'media_comment' && item.kind !== 'file_only_post') continue;
+      try {
+        const mentions = ctx
+          ? parseAsanaMentionProfileIds(String(item.body || ''), ctx.directory, ctx.profilesByEmail)
+          : [];
+        const row = conversationItemToCommentMediaRow(
+          item,
+          gid,
+          attsByGid,
+          (attGid: string, filename: string) => asanaAttachmentPath(gid, attGid, filename),
+          mentions,
+        ) as Record<string, any>;
+        // Bytes: copy each NEW attachment once; reuse the stored path/mime for
+        // already-copied files (attachment_backfill compatibility).
+        let mediaReady = true;
+        for (const meta of row.attachments as Array<Record<string, any>>) {
+          const attGid = String(meta.asana_attachment_gid);
+          const known = storedAttachments.get(attGid);
+          if (known) {
+            meta.storage_path = known.storage_path;
+            meta.content_type = known.content_type;
+            continue;
+          }
+          const att = attsByGid.get(attGid) as Record<string, any> | undefined;
+          const downloadUrl = att && (att.download_url || att.view_url);
+          if (!downloadUrl) {
+            counts.errors += 1;
+            mediaReady = false;
+            console.error(`comment media ${attGid}: no download URL`);
+            break;
+          }
+          const res = await fetch(String(downloadUrl));
+          if (!res.ok) {
+            counts.errors += 1;
+            console.error(`comment media ${attGid} download ${res.status}`);
+            mediaReady = false;
+            break;
+          }
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          const contentType = res.headers.get('content-type') || 'application/octet-stream';
+          const up = await svc.storage.from(ATTACHMENT_BUCKET).upload(meta.storage_path, bytes, {
+            contentType,
+            upsert: true,
+          });
+          if (up.error) {
+            counts.errors += 1;
+            console.error(`comment media ${attGid} upload: ${up.error.message}`);
+            mediaReady = false;
+            break;
+          }
+          meta.content_type = contentType;
+          counts.bytesCopied += 1;
+          storedAttachments.set(attGid, {storage_path: meta.storage_path, content_type: contentType});
+        }
+        // Never create a comment/attachment row whose metadata points at a
+        // missing object. Any bytes copied before a later file failed are safe
+        // retryable orphans at the deterministic upsert path; the next run
+        // repairs the whole item before the atomic DB recorder is called.
+        if (!mediaReady) continue;
+        const {data, error} = await svc.rpc('record_processing_comment_media', {p_row: row});
+        if (error) {
+          counts.errors += 1;
+          console.error(`record_processing_comment_media ${item.storyGid}: ${error.message}`);
+          continue;
+        }
+        const result = data as {comment_action?: string; attachments_inserted?: number};
+        if (result?.comment_action === 'inserted' || result?.comment_action === 'enriched') {
+          counts.commentsWritten += 1;
+        }
+        counts.attachmentRowsWritten += Number(result?.attachments_inserted || 0);
+        if (item.storyGid) importedCommentGids.add(String(item.storyGid));
+      } catch (e) {
+        counts.errors += 1;
+        console.error(`comment media ${gid}/${item.storyGid}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+  return {counts, b2604, ambiguousDetails};
+}
+
 // ─── sync (write) ────────────────────────────────────────────────────────────
 
 interface SyncCounts {
@@ -1244,6 +1467,8 @@ const ACTIONS = new Set([
   'sync_review_queue',
   'comments_dry_run',
   'sync_comments',
+  'comment_media_dry_run',
+  'sync_comment_media',
   'artifacts_dry_run',
   'sync_artifacts',
   'activity_dry_run',
@@ -1260,6 +1485,7 @@ const ACTIONS = new Set([
 const WRITE_ACTIONS = new Set([
   'sync_review_queue',
   'sync_comments',
+  'sync_comment_media',
   'sync_artifacts',
   'sync_activity',
   'sync_once',
@@ -1397,6 +1623,23 @@ serve(async (req: Request) => {
     }
   }
 
+  // comment_media_dry_run: read-only conversation-fidelity plan — per-task
+  // classification, the exact B-26-04 plan, ambiguity, and idempotency deltas.
+  if (action === 'comment_media_dry_run') {
+    try {
+      let dryCtx: MappingContext | null = null;
+      try {
+        dryCtx = await loadMappingContext(svc);
+      } catch (_e) {
+        dryCtx = null;
+      }
+      const {counts, b2604, ambiguousDetails} = await runCommentMedia(svc, true, dryCtx);
+      return jsonResponse({ok: true, action, report: {...counts, b2604, ambiguousDetails}});
+    } catch (e) {
+      return jsonResponse({ok: false, action, error: e instanceof Error ? e.message : String(e)}, 500);
+    }
+  }
+
   // attachment_dry_run: read-only preview of the attachment byte-copy.
   if (action === 'attachment_dry_run') {
     try {
@@ -1458,6 +1701,23 @@ serve(async (req: Request) => {
       const counts = await runCommentsImport(svc, false, ctx);
       await finishRun(runId, 'ok', counts, null);
       return jsonResponse({ok: true, action, runId, counts});
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await finishRun(runId, 'error', {}, msg);
+      return jsonResponse({ok: false, action, error: msg}, 500);
+    }
+  }
+
+  // sync_comment_media: the ONLY action that copies + associates COMMENT media
+  // bytes (attachment_backfill stays record-level and byte-compatible via the
+  // shared path convention + gid skip).
+  if (action === 'sync_comment_media') {
+    let runId = '';
+    try {
+      runId = await startRun();
+      const {counts, b2604, ambiguousDetails} = await runCommentMedia(svc, false, ctx);
+      await finishRun(runId, 'ok', counts, null);
+      return jsonResponse({ok: true, action, runId, counts, b2604, ambiguousDetails});
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await finishRun(runId, 'error', {}, msg);

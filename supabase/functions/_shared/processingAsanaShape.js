@@ -1229,6 +1229,231 @@ export function mapAsanaSystemStory(story, parentGid) {
   };
 }
 
+// ── Conversation fidelity (comments ⇄ attachments) ───────────────────────────
+
+// Extract the attachment gids a comment story references INLINE via its
+// html_text (`<a data-asana-gid="…" data-asana-type="attachment" …>`). This is
+// the STABLE story→attachment relationship Asana supplies for media posted in
+// the conversation; attribute order inside the anchor tag is tolerated.
+export function parseHtmlTextAttachmentGids(htmlText) {
+  const out = [];
+  const seen = new Set();
+  const s = String(htmlText || '');
+  const anchorRe = /<a\b[^>]*>/gi;
+  let m;
+  while ((m = anchorRe.exec(s)) !== null) {
+    const tag = m[0];
+    if (!/data-asana-type="attachment"/i.test(tag)) continue;
+    // gid value taken verbatim; callers constrain it against the task's real
+    // attachment gid set, so the parser doesn't assume Asana's numeric format.
+    const gidMatch = /data-asana-gid="([^"]+)"/i.exec(tag);
+    if (gidMatch && !seen.has(gidMatch[1])) {
+      seen.add(gidMatch[1]);
+      out.push(gidMatch[1]);
+    }
+  }
+  return out;
+}
+
+// Build ONE task's conversation-fidelity plan from its raw stories +
+// attachments and the already-imported baselines. PURE + deterministic.
+//   stories:      GET /tasks/{gid}/stories rows (type, resource_subtype, text,
+//                 html_text, created_at, created_by{gid,name})
+//   attachments:  GET /tasks/{gid}/attachments rows (gid, name, size,
+//                 created_at, download_url, …)
+//   importedCommentGids:   Set/array of comments.asana_comment_gid already in
+//                          the planner
+//   storedAttachmentGids:  Set/array of processing_attachments.asana_attachment_gid
+// Classification:
+//   text_comment    — comment story, no attachment refs (sync_comments owns it)
+//   media_comment   — comment story with text + inline attachment refs
+//   file_only_post  — comment story whose body is empty but references media,
+//                     OR an unreferenced attachment whose author/timestamp is
+//                     carried by exactly ONE 'attachment_added' system story
+//                     (association: 'attachment_story')
+//   task_attachment — attachment with NO conversational context at all
+// Ambiguity is EXPLICIT: an unreferenced attachment matching zero or several
+// attachment_added stories by filename lands in `ambiguous`, never guessed by
+// timestamp alone.
+export function buildConversationPlan(input) {
+  const {stories = [], attachments = [], importedCommentGids = [], storedAttachmentGids = []} = input || {};
+  const imported = importedCommentGids instanceof Set ? importedCommentGids : new Set(importedCommentGids);
+  const stored = storedAttachmentGids instanceof Set ? storedAttachmentGids : new Set(storedAttachmentGids);
+
+  const attsByGid = new Map();
+  for (const a of attachments) {
+    if (a && a.gid != null) attsByGid.set(String(a.gid), a);
+  }
+
+  const items = [];
+  const ambiguous = [];
+  const claimed = new Set(); // attachment gids owned by a comment story
+  const directAmbiguous = new Set();
+
+  // 1. Comment stories: the html_text inline refs are the direct relationship.
+  // Resolve them in two passes so a malformed/duplicated attachment reference
+  // cannot be silently awarded to whichever story happened to sort first.
+  const commentRows = [];
+  const directOwners = new Map();
+  for (const s of stories) {
+    if (!s || s.type !== 'comment') continue;
+    const gid = s.gid != null ? String(s.gid) : null;
+    const refs = parseHtmlTextAttachmentGids(s.html_text).filter((g) => attsByGid.has(g));
+    commentRows.push({story: s, gid, refs});
+    for (const g of refs) {
+      const owners = directOwners.get(g) || [];
+      owners.push(gid);
+      directOwners.set(g, owners);
+    }
+  }
+  for (const [attachmentGid, ownerGids] of directOwners) {
+    if (ownerGids.length <= 1) continue;
+    directAmbiguous.add(attachmentGid);
+    ambiguous.push({
+      attachmentGid,
+      filename: attsByGid.get(attachmentGid)?.name || null,
+      reason: `${ownerGids.length} comment stories reference this attachment — association not inferable`,
+      storyGids: ownerGids,
+    });
+  }
+  for (const {story: s, gid, refs: rawRefs} of commentRows) {
+    const refs = rawRefs.filter((g) => !directAmbiguous.has(g));
+    for (const g of refs) claimed.add(g);
+    const body = cleanStr(s.text) || '';
+    const kind = refs.length === 0 ? 'text_comment' : body ? 'media_comment' : 'file_only_post';
+    items.push({
+      kind,
+      storyGid: gid,
+      body,
+      author: s.created_by && s.created_by.name != null ? String(s.created_by.name) : null,
+      authorGid: s.created_by && s.created_by.gid != null ? String(s.created_by.gid) : null,
+      created_at: s.created_at || null,
+      attachmentGids: refs,
+      association: refs.length ? 'html_ref' : 'none',
+      alreadyImportedComment: gid != null && imported.has(gid),
+      newAttachmentGids: refs.filter((g) => !stored.has(g)),
+    });
+  }
+
+  // 2. Unclaimed attachments: exactly ONE attachment_added system story naming
+  //    the file carries its author/timestamp (association: 'attachment_story').
+  const attachStories = stories.filter((s) => s && s.type === 'system' && s.resource_subtype === 'attachment_added');
+  const fallbackMatches = new Map();
+  const singleStoryClaims = new Map();
+  for (const [gid, att] of attsByGid) {
+    if (claimed.has(gid) || directAmbiguous.has(gid)) continue;
+    const name = cleanStr(att.name) || '';
+    const matches = name ? attachStories.filter((s) => String(s.text || '').includes(name)) : [];
+    fallbackMatches.set(gid, matches);
+    if (matches.length === 1) {
+      const claimers = singleStoryClaims.get(matches[0]) || [];
+      claimers.push(gid);
+      singleStoryClaims.set(matches[0], claimers);
+    }
+  }
+  for (const [gid, att] of attsByGid) {
+    if (claimed.has(gid)) continue;
+    const name = cleanStr(att.name) || '';
+    const matches = fallbackMatches.get(gid) || [];
+    const singleStoryIsUnique = matches.length === 1 && (singleStoryClaims.get(matches[0]) || []).length === 1;
+    if (!directAmbiguous.has(gid) && singleStoryIsUnique) {
+      const s = matches[0];
+      items.push({
+        kind: 'file_only_post',
+        storyGid: s.gid != null ? String(s.gid) : null,
+        body: '',
+        author: s.created_by && s.created_by.name != null ? String(s.created_by.name) : null,
+        authorGid: s.created_by && s.created_by.gid != null ? String(s.created_by.gid) : null,
+        created_at: s.created_at || att.created_at || null,
+        attachmentGids: [gid],
+        association: 'attachment_story',
+        alreadyImportedComment: s.gid != null && imported.has(String(s.gid)),
+        newAttachmentGids: stored.has(gid) ? [] : [gid],
+      });
+      claimed.add(gid);
+      continue;
+    }
+    if (!directAmbiguous.has(gid) && matches.length > 1) {
+      ambiguous.push({
+        attachmentGid: gid,
+        filename: name || null,
+        reason: `${matches.length} attachment_added stories name this file — association not inferable`,
+        storyGids: matches.map((s) => (s.gid != null ? String(s.gid) : null)),
+      });
+    } else if (!directAmbiguous.has(gid) && matches.length === 1 && !singleStoryIsUnique) {
+      const s = matches[0];
+      const claimers = singleStoryClaims.get(s) || [];
+      ambiguous.push({
+        attachmentGid: gid,
+        filename: name || null,
+        reason: `one attachment_added story matches ${claimers.length} attachments — association not inferable`,
+        storyGids: [s.gid != null ? String(s.gid) : null],
+      });
+    }
+    // Zero or many matches → no conversational context is claimed.
+    items.push({
+      kind: 'task_attachment',
+      storyGid: null,
+      body: '',
+      author: null,
+      authorGid: null,
+      created_at: att.created_at || null,
+      attachmentGids: [gid],
+      association: 'none',
+      alreadyImportedComment: false,
+      newAttachmentGids: stored.has(gid) ? [] : [gid],
+    });
+  }
+
+  const count = (kind) => items.filter((i) => i.kind === kind).length;
+  const conversationItems = items.filter((i) => i.kind === 'media_comment' || i.kind === 'file_only_post');
+  return {
+    items,
+    ambiguous,
+    counts: {
+      textComments: count('text_comment'),
+      mediaComments: count('media_comment'),
+      fileOnlyPosts: count('file_only_post'),
+      taskAttachments: count('task_attachment'),
+      alreadyImported: items.filter((i) => i.kind !== 'task_attachment' && i.alreadyImportedComment).length,
+      missingComments: items.filter((i) => i.kind !== 'task_attachment' && !i.alreadyImportedComment).length,
+      newMediaBytes: conversationItems.reduce((s, i) => s + i.newAttachmentGids.length, 0),
+      ambiguous: ambiguous.length,
+    },
+  };
+}
+
+// Map one conversation-plan item (media_comment | file_only_post) plus its
+// fetched attachment objects into the p_row record_processing_comment_media
+// accepts. `storagePathFor(gid, filename)` is injected so the path convention
+// stays owned by the edge layer (and matches attachment_backfill exactly).
+export function conversationItemToCommentMediaRow(item, parentGid, attsByGid, storagePathFor, mentions = []) {
+  const metas = (item.attachmentGids || [])
+    .map((gid) => {
+      const att = attsByGid instanceof Map ? attsByGid.get(gid) : attsByGid && attsByGid[gid];
+      if (!att) return null;
+      const filename = att.name != null ? String(att.name) : `attachment-${gid}`;
+      return {
+        asana_attachment_gid: gid,
+        filename,
+        content_type: null, // resolved at download time by the edge layer
+        size_bytes: att.size != null ? Number(att.size) : null,
+        storage_path: storagePathFor(gid, filename),
+        original_created_at: att.created_at || null,
+      };
+    })
+    .filter(Boolean);
+  return {
+    parent_asana_gid: parentGid != null ? String(parentGid) : null,
+    asana_comment_gid: item.storyGid,
+    body: item.body || '',
+    original_author_name: item.author,
+    created_at: item.created_at,
+    mentions,
+    attachments: metas,
+  };
+}
+
 // HTTP 429 backoff: milliseconds to wait before retry `attempt` (1-based),
 // honoring a numeric Retry-After header (seconds) when present. Exponential
 // fallback capped at 30s. Pure — no clock access.

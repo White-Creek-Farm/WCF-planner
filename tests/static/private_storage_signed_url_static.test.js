@@ -6,8 +6,11 @@ import {describe, expect, it} from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
+// `safeBucket` is the allowlist-coerced comment-attachment bucket variable
+// (see src/lib/commentAttachments.js); a dedicated test below pins it to the
+// closed ALLOWED_COMMENT_ATTACHMENT_BUCKETS coercion.
 const PRIVATE_BUCKET =
-  '(?:DAILY_BUCKET|COMMENT_ATTACHMENT_BUCKET|TASK_PHOTOS_BUCKET|TASK_REQUEST_PHOTOS_BUCKET|PROCESSING_ATTACHMENT_BUCKET|[\'"]daily-photos[\'"]|[\'"]fuel-bills[\'"]|[\'"]comment-photos[\'"]|[\'"]task-photos[\'"]|[\'"]task-request-photos[\'"]|[\'"]processing-attachments[\'"])';
+  '(?:DAILY_BUCKET|COMMENT_ATTACHMENT_BUCKET|TASK_PHOTOS_BUCKET|TASK_REQUEST_PHOTOS_BUCKET|PROCESSING_ATTACHMENT_BUCKET|safeBucket|[\'"]daily-photos[\'"]|[\'"]fuel-bills[\'"]|[\'"]comment-photos[\'"]|[\'"]task-photos[\'"]|[\'"]task-request-photos[\'"]|[\'"]processing-attachments[\'"])';
 
 const EXPECTED_SIGNED_URL_OWNERS = new Map([
   ['src/admin/FuelBillsView.jsx', 1],
@@ -82,5 +85,21 @@ describe('Private storage buckets use signed URLs only', () => {
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
+  });
+
+  it('the coerced safeBucket variable exists ONLY as the closed-allowlist coercion', () => {
+    const users = [];
+    for (const file of listRuntimeSourceFiles(path.join(ROOT, 'src'))) {
+      const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+      const code = stripComments(fs.readFileSync(file, 'utf8'));
+      if (!/\bsafeBucket\b/.test(code)) continue;
+      users.push(rel);
+      // Every module that names safeBucket must define it as the coercion —
+      // client-owned metadata can never steer .from() to an arbitrary bucket.
+      expect(code, `${rel} coerces safeBucket via the allowlist`).toMatch(
+        /safeBucket = ALLOWED_COMMENT_ATTACHMENT_BUCKETS\.includes\(bucket\) \? bucket : COMMENT_ATTACHMENT_BUCKET/,
+      );
+    }
+    expect(users).toEqual(['src/lib/commentAttachments.js']);
   });
 });

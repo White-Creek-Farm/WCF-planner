@@ -682,21 +682,25 @@ export default function CommentsSection({
 }
 
 function CommentAttachmentThumb({sb, att, signedUrls, setSignedUrls}) {
-  const [url, setUrl] = React.useState(signedUrls[att.path] || null);
+  // Metadata may name its source bucket (imported Asana conversation media
+  // lives in processing-attachments); getAttachmentSignedUrl allowlists the
+  // value and falls back to comment-photos, so the cache key carries it too.
+  const cacheKey = `${att.bucket || ''}:${att.path}`;
+  const [url, setUrl] = React.useState(signedUrls[cacheKey] || null);
   const isImage = att.is_image || /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(att.path || '');
 
   React.useEffect(() => {
     if (url || !att.path) return;
     let cancelled = false;
-    getAttachmentSignedUrl(sb, att.path, 600).then((signed) => {
+    getAttachmentSignedUrl(sb, att.path, 600, att.bucket).then((signed) => {
       if (cancelled || !signed) return;
       setUrl(signed);
-      setSignedUrls((prev) => ({...prev, [att.path]: signed}));
+      setSignedUrls((prev) => ({...prev, [cacheKey]: signed}));
     });
     return () => {
       cancelled = true;
     };
-  }, [att.path]);
+  }, [att.path, att.bucket, cacheKey]);
 
   if (!isImage) {
     return (
