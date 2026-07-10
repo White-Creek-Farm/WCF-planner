@@ -258,12 +258,19 @@ describe('mapAsanaSubtask + flattenSubtasks', () => {
       parent_asana_gid: '1214220021394259',
       label: 'Send Weight & Animal Count',
       assignee: 'Ronnie Jones',
+      assignee_gid: null,
       done: true,
       completed_at: '2026-05-01T10:00:00Z',
       due_on: '2026-05-02',
       start_on: null,
       sort_order: 3,
     });
+  });
+
+  it('carries the assignee gid for stable user-directory mapping', () => {
+    const row = mapAsanaSubtask({gid: 's1', name: 'Step', assignee: {name: 'Ronnie Jones', gid: '777'}}, 'p1', 1);
+    expect(row.assignee).toBe('Ronnie Jones');
+    expect(row.assignee_gid).toBe('777');
   });
 
   it('flattens a nested subtask tree with incrementing sort_order (parent first)', () => {

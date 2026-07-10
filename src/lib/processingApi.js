@@ -67,6 +67,18 @@ export async function getProcessingSettings(sb) {
   return data || {};
 }
 
+// ensure_processing_freshness(p_max_age_seconds) -> {ok, ran, fresh?|busy?}.
+// The automatic planner-freshness entry point (mig 164): reconciles the four
+// planner programs into Processing when the last reconcile is stale, debounced
+// server-side and advisory-try-locked. Never calls Asana. The page calls this
+// on load BEFORE listing; failures are the caller's to tolerate (the list still
+// renders from the last reconciled state).
+export async function ensureProcessingFreshness(sb, maxAgeSeconds = 120) {
+  const {data, error} = await sb.rpc('ensure_processing_freshness', {p_max_age_seconds: maxAgeSeconds});
+  if (error) throw new Error(`ensureProcessingFreshness: ${error.message || String(error)}`);
+  return data || {};
+}
+
 // set_processing_option_list(p_kind, p_options) -> {ok, kind, options}. Admin
 // only. kind is 'processor' | 'customer'; replaces that list wholesale (server
 // trims/de-dupes). Never rejects or rewrites stored record values.
@@ -90,11 +102,21 @@ export async function listProcessingTemplates(sb, program = null) {
 // ── Milestone CRUD (Processing-owned records) ────────────────────────────────
 
 // create_processing_milestone(p_id, p_program, p_title, p_processing_date,
-// p_processor, p_customer). id is minted client-side when omitted so the create
-// is idempotent on retry.
+// p_processor, p_customer, p_status, p_assignee_profile_id). id is minted
+// client-side when omitted so the create is idempotent on retry. status is the
+// canonical vocabulary: 'planned' | 'in_process' | 'complete'.
 export async function createProcessingMilestone(
   sb,
-  {id, program, title, processingDate = null, processor = null, customer = []} = {},
+  {
+    id,
+    program,
+    title,
+    processingDate = null,
+    processor = null,
+    customer = [],
+    status = 'planned',
+    assigneeProfileId = null,
+  } = {},
 ) {
   const p_id = id || newProcessingId('prc');
   const {data, error} = await sb.rpc('create_processing_milestone', {
@@ -104,17 +126,30 @@ export async function createProcessingMilestone(
     p_processing_date: processingDate ?? null,
     p_processor: processor ?? null,
     p_customer: customer ?? [],
+    p_status: status ?? 'planned',
+    p_assignee_profile_id: assigneeProfileId ?? null,
   });
   if (error) throw new Error(`createProcessingMilestone: ${error.message || String(error)}`);
   return data;
 }
 
-// update_processing_milestone(p_id, p_title, p_processing_date, p_status,
-// p_processor, p_customer). All fields optional; the server COALESCEs nulls to
-// the existing value (only milestones are editable this way).
+// update_processing_milestone(...). All fields optional; the server COALESCEs
+// nulls to the existing value (only milestones are editable this way).
+// clearDate=true explicitly REMOVES the milestone date (a floating marker);
+// clearAssignee=true explicitly clears the assignee.
 export async function updateProcessingMilestone(
   sb,
-  {id, title = null, processingDate = null, status = null, processor = null, customer = null} = {},
+  {
+    id,
+    title = null,
+    processingDate = null,
+    status = null,
+    processor = null,
+    customer = null,
+    assigneeProfileId = null,
+    clearAssignee = false,
+    clearDate = false,
+  } = {},
 ) {
   const {data, error} = await sb.rpc('update_processing_milestone', {
     p_id: id,
@@ -123,6 +158,9 @@ export async function updateProcessingMilestone(
     p_status: status ?? null,
     p_processor: processor ?? null,
     p_customer: customer ?? null,
+    p_assignee_profile_id: assigneeProfileId ?? null,
+    p_clear_assignee: !!clearAssignee,
+    p_clear_date: !!clearDate,
   });
   if (error) throw new Error(`updateProcessingMilestone: ${error.message || String(error)}`);
   return data;
@@ -144,6 +182,32 @@ export async function archiveProcessingRecord(sb, id, archived = true) {
 }
 
 // ── Processing-owned field edits ─────────────────────────────────────────────
+
+// set_processing_field(p_id, p_field_id, p_value) — typed local custom-field
+// value keyed by the STABLE template field id (mig 164). The server validates
+// the value against the ACTIVE template field type and refuses the reserved
+// bound ids (see src/lib/processingFields.js RESERVED_PROCESSING_FIELD_IDS).
+// Pass value=null to clear.
+export async function setProcessingField(sb, id, fieldId, value) {
+  const {data, error} = await sb.rpc('set_processing_field', {
+    p_id: id,
+    p_field_id: fieldId,
+    p_value: value === undefined ? null : value,
+  });
+  if (error) throw new Error(`setProcessingField: ${error.message || String(error)}`);
+  return data;
+}
+
+// set_processing_assignee(p_id, p_profile_id) — parent record assignee
+// (profile-backed; null clears; also clears the imported display-name fallback).
+export async function setProcessingAssignee(sb, id, profileId) {
+  const {data, error} = await sb.rpc('set_processing_assignee', {
+    p_id: id,
+    p_profile_id: profileId ?? null,
+  });
+  if (error) throw new Error(`setProcessingAssignee: ${error.message || String(error)}`);
+  return data;
+}
 
 // set_processing_processor(p_id, p_processor). Editable on any record (blank
 // clears it, stored as NULL).
@@ -181,27 +245,49 @@ export async function reopenProcessingRecord(sb, id) {
 
 // ── Subtask CRUD ─────────────────────────────────────────────────────────────
 
-// add_processing_subtask(p_id, p_record_id, p_label, p_assignee). Subtask id is
-// minted client-side when omitted (idempotent replay).
-export async function addProcessingSubtask(sb, {id, recordId, label, assignee = null} = {}) {
+// add_processing_subtask(p_id, p_record_id, p_label, p_assignee,
+// p_assignee_profile_id). Subtask id is minted client-side when omitted
+// (idempotent replay). assigneeProfileId is the profile-backed assignment;
+// the text assignee remains the imported-name fallback.
+export async function addProcessingSubtask(sb, {id, recordId, label, assignee = null, assigneeProfileId = null} = {}) {
   const p_id = id || newProcessingId('pst');
   const {data, error} = await sb.rpc('add_processing_subtask', {
     p_id,
     p_record_id: recordId,
     p_label: label,
     p_assignee: assignee ?? null,
+    p_assignee_profile_id: assigneeProfileId ?? null,
   });
   if (error) throw new Error(`addProcessingSubtask: ${error.message || String(error)}`);
   return data;
 }
 
-export async function updateProcessingSubtask(sb, {id, label = null, assignee = null} = {}) {
+// update_processing_subtask(...). clearAssignee=true explicitly clears BOTH the
+// profile-backed and imported text assignee (a subtask has one current assignee).
+export async function updateProcessingSubtask(
+  sb,
+  {id, label = null, assignee = null, assigneeProfileId = null, clearAssignee = false} = {},
+) {
   const {data, error} = await sb.rpc('update_processing_subtask', {
     p_id: id,
     p_label: label ?? null,
     p_assignee: assignee ?? null,
+    p_assignee_profile_id: assigneeProfileId ?? null,
+    p_clear_assignee: !!clearAssignee,
   });
   if (error) throw new Error(`updateProcessingSubtask: ${error.message || String(error)}`);
+  return data;
+}
+
+// reorder_processing_subtasks(p_record_id, p_ids[]) — set the record's subtask
+// order to the given id order (unlisted subtasks keep their relative order
+// after the listed block).
+export async function reorderProcessingSubtasks(sb, recordId, ids) {
+  const {data, error} = await sb.rpc('reorder_processing_subtasks', {
+    p_record_id: recordId,
+    p_ids: Array.isArray(ids) ? ids : [],
+  });
+  if (error) throw new Error(`reorderProcessingSubtasks: ${error.message || String(error)}`);
   return data;
 }
 

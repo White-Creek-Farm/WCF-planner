@@ -84,6 +84,32 @@ const CF = Object.freeze({
   YEAR: 'Year',
   ANIMAL_MASTER: 'Status (Animal Master)',
   FARM_PROGRAMS: 'Farm Programs',
+  FARM_ARRIVAL: 'Farm Arrival Date',
+  CONDEMNED: 'Condemed', // Asana's spelling — keep
+});
+
+// Every Asana custom field on the SF Processing Calendar and its planner
+// destination. The destination audit FAILS CLOSED when a live field name is not
+// in this map (a new Asana field must get a destination before any import).
+// Formula fields export evaluated values; we re-derive them (processingFields).
+export const CF_DESTINATIONS = Object.freeze({
+  'Status (Processing)': 'processing_records.status (normalized display)',
+  'Animals Processed': 'processing_records.number_processed',
+  'Customer (Broiler)': 'processing_records.customer',
+  Processor: 'processing_records.processor',
+  'Planned Processing Date (SF)': 'historical_snapshot.planned_proc',
+  'Actual Processing Date (SF)': 'processing_records.processing_date / historical_snapshot.actual_proc',
+  'Product Pick-up Date': 'historical_snapshot.product_pickup',
+  'Batch Name (Farms)': 'historical_snapshot.batch_name (+ matcher signal)',
+  Farm: 'historical_snapshot.farm',
+  Year: 'historical_snapshot.year (display only; matching derives year from dates)',
+  'Status (Animal Master)': 'historical_snapshot.animal_master',
+  'Farm Programs': 'program (section fallback)',
+  'Farm Arrival Date': 'historical_snapshot.farm_arrival',
+  Condemed: 'historical_snapshot.condemned',
+  'Actual Time On Farm': 'derived (processingFields.deriveActualTofDays; Asana raw minutes ignored)',
+  'Planned Time on Farm': 'derived (processingFields.derivePlannedTofDays)',
+  'Time Remaining Until Processing': 'derived (processingFields.deriveTimeRemaining)',
 });
 
 // Business fields compared by buildDiffPlan. Deliberately EXCLUDES volatile
@@ -288,6 +314,10 @@ function buildHistoricalSnapshot(task, cf) {
     farm: cleanStr(cf[CF.FARM]),
     year: toInt(cf[CF.YEAR]),
     animal_master: cleanStr(cf[CF.ANIMAL_MASTER]),
+    farm_arrival: toDateOnly(cf[CF.FARM_ARRIVAL]),
+    condemned: toInt(cf[CF.CONDEMNED]),
+    notes: cleanStr(task && task.notes),
+    assignee_name: cleanStr(task && task.assignee && task.assignee.name),
   };
   const out = {};
   for (const [k, v] of Object.entries(candidate)) {
@@ -341,6 +371,10 @@ export function mapAsanaTaskToProcessingRow(task, opts = {}) {
     processor: cleanStr(cf[CF.PROCESSOR]),
     number_processed: toInt(cf[CF.ANIMALS]),
     customer: toCustomerArray(cf[CF.CUSTOMER]),
+    // Task-level Asana assignee: display name always; gid so the edge layer can
+    // map to a planner profile via the user directory (email match).
+    assignee_name: cleanStr(task && task.assignee && task.assignee.name),
+    assignee_gid: task && task.assignee && task.assignee.gid != null ? String(task.assignee.gid) : null,
     source_kind: null, // resolved app-side after a match; importer leaves null
     source_id: null,
     asana_project_gid: projectGid || null,
@@ -537,6 +571,8 @@ export function computeDrift(task, plannerRow, opts = {}) {
 // ── Subtask mapping ─────────────────────────────────────────────────────────
 
 // Map one Asana subtask → p_row for upsert_processing_subtask_from_asana.
+// assignee_gid rides along so the edge layer can resolve a profile id through
+// the user directory (stable gid/email — never display name alone).
 export function mapAsanaSubtask(subtask, parentGid, sortOrder) {
   const s = subtask || {};
   return {
@@ -544,6 +580,7 @@ export function mapAsanaSubtask(subtask, parentGid, sortOrder) {
     parent_asana_gid: parentGid != null ? String(parentGid) : null,
     label: s.name != null ? String(s.name) : '(untitled)',
     assignee: s.assignee && s.assignee.name != null ? String(s.assignee.name) : null,
+    assignee_gid: s.assignee && s.assignee.gid != null ? String(s.assignee.gid) : null,
     done: s.completed === true,
     completed_at: s.completed_at || null,
     due_on: toDateOnly(s.due_on),
@@ -932,7 +969,22 @@ export function mapAsanaTemplateToProcessing(templateResponse, opts = {}) {
     const def = customFieldDisplay(cf);
     if (def != null && def !== '') field.default = def;
     if (Array.isArray(cf.enum_options)) {
-      const options = cf.enum_options.map((o) => cleanStr(o && o.name)).filter((x) => x != null);
+      // Normalized option shape {key, label, color:{bg,ink}, asana_gid?} so a
+      // re-import compares equal to what the editor stores (idempotent) and
+      // Asana option colors survive the import (mapped to the locked palette).
+      const options = cf.enum_options
+        .map((o) => {
+          const label = cleanStr(o && o.name);
+          if (!label) return null;
+          const out = {
+            key: optionKeySlug(label),
+            label,
+            color: asanaColorToPalette(o && o.color),
+          };
+          if (o && o.gid != null) out.asana_gid = String(o.gid);
+          return out;
+        })
+        .filter((x) => x != null);
       if (options.length) field.options = options;
     }
     fields.push(field);
@@ -954,21 +1006,101 @@ export function mapAsanaTemplateToProcessing(templateResponse, opts = {}) {
   };
 }
 
-// Stable content key over ONLY the fields upsert_processing_template stores +
-// the editor edits ({name,type} / {label,assignee}). Extra option/color data on
-// a stored field is ignored so a re-import that matches is a no-op (idempotent)
-// and never clobbers hand-authored richness.
+// Normalize ONE template option (string | {label,bg,ink} | {label,color}) into
+// the comparable {key, label, color:{bg,ink}} shape. Colorless legacy options
+// compare as the default grey so an import that only ADDS colors is a change.
+const TEMPLATE_DEFAULT_OPTION_COLOR = Object.freeze({bg: '#C8CDD3', ink: '#3F4650'});
+function optionKeySlug(label) {
+  return String(label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+function normalizeTemplateOption(opt) {
+  if (opt == null) return null;
+  if (typeof opt === 'string') {
+    const label = cleanStr(opt);
+    if (!label) return null;
+    return {key: optionKeySlug(label), label, color: {...TEMPLATE_DEFAULT_OPTION_COLOR}};
+  }
+  const label = cleanStr(opt.label != null ? opt.label : opt.name);
+  if (!label) return null;
+  const bg = (opt.color && opt.color.bg) || opt.bg || TEMPLATE_DEFAULT_OPTION_COLOR.bg;
+  const ink = (opt.color && opt.color.ink) || opt.ink || TEMPLATE_DEFAULT_OPTION_COLOR.ink;
+  return {key: opt.key || optionKeySlug(label), label, color: {bg, ink}};
+}
+
+// Asana enum-option color NAMES → the locked 12-color palette (bg/ink). Unknown
+// or absent colors fall back to the default grey pair.
+const ASANA_COLOR_TO_PALETTE = Object.freeze({
+  red: {bg: '#E07A6E', ink: '#6E1C15'},
+  orange: {bg: '#E4924A', ink: '#6F3711'},
+  'yellow-orange': {bg: '#E4924A', ink: '#6F3711'},
+  yellow: {bg: '#E8B73E', ink: '#5A4304'},
+  'yellow-green': {bg: '#93C896', ink: '#285F33'},
+  green: {bg: '#93C896', ink: '#285F33'},
+  'blue-green': {bg: '#7FC6BE', ink: '#1E5F57'},
+  aqua: {bg: '#7FC6BE', ink: '#1E5F57'},
+  blue: {bg: '#6AA6DD', ink: '#173B5E'},
+  indigo: {bg: '#8E9BE0', ink: '#2A2F66'},
+  purple: {bg: '#C09BE0', ink: '#3F2E66'},
+  magenta: {bg: '#E59CC0', ink: '#6F2A50'},
+  'hot-pink': {bg: '#E59CC0', ink: '#6F2A50'},
+  pink: {bg: '#F0B3A8', ink: '#9F3322'},
+  'cool-gray': {bg: '#C8CDD3', ink: '#3F4650'},
+  gray: {bg: '#C8CDD3', ink: '#3F4650'},
+});
+export function asanaColorToPalette(colorName) {
+  const key = cleanStr(colorName);
+  if (key && Object.prototype.hasOwnProperty.call(ASANA_COLOR_TO_PALETTE, key.toLowerCase())) {
+    return {...ASANA_COLOR_TO_PALETTE[key.toLowerCase()]};
+  }
+  return {...TEMPLATE_DEFAULT_OPTION_COLOR};
+}
+
+// Stable content key over everything MEANINGFUL a template carries: field
+// order, name, type, DEFAULT, and full option lists (label + color, in order),
+// plus checklist step order + labels. A change to any of those can never be
+// classified 'unchanged'. Deliberately EXCLUDED: checklist assignees — the
+// Asana task-template API cannot express them (documented null-assignee
+// behavior), so planner-side step assignments are enrichment the import must
+// neither detect as drift nor clobber (see mergeTemplateChecklistAssignees).
 export function templateContentKey(template) {
   const t = template || {};
   const fields = (Array.isArray(t.fields) ? t.fields : []).map((f) => ({
     name: cleanStr(f && f.name),
     type: cleanStr(f && f.type) || 'text',
+    default: f && f.default != null && f.default !== '' ? f.default : null,
+    options: (Array.isArray(f && f.options) ? f.options : [])
+      .map(normalizeTemplateOption)
+      .filter((x) => x != null)
+      .map((o) => ({label: o.label, color: o.color})),
   }));
   const checklist = (Array.isArray(t.checklist) ? t.checklist : []).map((c) => ({
     label: cleanStr(c && c.label),
-    assignee: cleanStr(c && c.assignee),
   }));
   return stableStringify({fields, checklist});
+}
+
+// Carry planner-side checklist assignees across a template re-import: for each
+// imported step, adopt the assignee/assignee_profile_id of the FIRST unconsumed
+// active step with the same label (order shifts keep assignments; renamed steps
+// intentionally reset). Pure — returns a NEW checklist array.
+export function mergeTemplateChecklistAssignees(importedChecklist, activeChecklist) {
+  const imported = Array.isArray(importedChecklist) ? importedChecklist : [];
+  const pool = (Array.isArray(activeChecklist) ? activeChecklist : []).map((s) => ({step: s, used: false}));
+  return imported.map((step) => {
+    const label = cleanStr(step && step.label);
+    const hit = pool.find((p) => !p.used && cleanStr(p.step && p.step.label) === label);
+    if (!hit) return {...step};
+    hit.used = true;
+    return {
+      ...step,
+      assignee: hit.step.assignee != null ? hit.step.assignee : (step && step.assignee) || null,
+      assignee_profile_id: hit.step.assignee_profile_id || null,
+    };
+  });
 }
 
 // Build the import plan for a set of Asana task-template responses against the
@@ -1023,5 +1155,202 @@ export function buildTemplateImportPlan(rawTemplates, activeByProgram = {}) {
       conflict: count('conflict'),
       no_program: count('no_program'),
     },
+  };
+}
+
+// ── Users, mentions, system stories, rate limits, destination audit ───────────
+// (importer-completeness layer; PURE — the edge function feeds fetched JSON in.)
+
+// Build a user directory from GET /users?workspace=…&opt_fields=name,email —
+// stable gid/email identity, never display name alone.
+//   byGid:   { [gid]: {gid, name, email} }
+//   byEmail: { [lowercased email]: gid }
+export function buildUserDirectory(users) {
+  const byGid = {};
+  const byEmail = {};
+  for (const u of Array.isArray(users) ? users : []) {
+    if (!u || u.gid == null) continue;
+    const gid = String(u.gid);
+    const email = cleanStr(u.email);
+    byGid[gid] = {gid, name: cleanStr(u.name), email};
+    if (email) byEmail[email.toLowerCase()] = gid;
+  }
+  return {byGid, byEmail};
+}
+
+// Resolve an Asana user (by gid) to a planner profile id via email match.
+// profilesByEmail: { [lowercased email]: profileId } (service-role read).
+// Returns {profileId|null, name|null} — a miss keeps the display name as the
+// documented fallback destination.
+export function mapAsanaUserToProfile(assigneeGid, directory, profilesByEmail) {
+  const gid = assigneeGid != null ? String(assigneeGid) : null;
+  const user = gid && directory && directory.byGid ? directory.byGid[gid] : null;
+  if (!user) return {profileId: null, name: null};
+  const email = user.email ? user.email.toLowerCase() : null;
+  const profileId = email && profilesByEmail && profilesByEmail[email] ? profilesByEmail[email] : null;
+  return {profileId, name: user.name || null};
+}
+
+// Extract mentioned planner profile ids from an Asana comment body. Asana
+// renders mentions in story text as profile URLs
+// (https://app.asana.com/0/profile/<user gid>). Every resolvable mention maps
+// gid -> email -> profile id; unresolvable mentions stay display-only text.
+export function parseAsanaMentionProfileIds(text, directory, profilesByEmail) {
+  const out = [];
+  const seen = new Set();
+  const s = String(text || '');
+  const re = /https:\/\/app\.asana\.com\/0\/profile\/(\d+)/g;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const {profileId} = mapAsanaUserToProfile(m[1], directory, profilesByEmail);
+    if (profileId && !seen.has(profileId)) {
+      seen.add(profileId);
+      out.push(profileId);
+    }
+  }
+  return out;
+}
+
+// True for an Asana SYSTEM story (status set, assigned, due date changed…) —
+// the history feed the comments import intentionally skips.
+export function isSystemStory(story) {
+  return !!story && story.type === 'system';
+}
+
+// Map an Asana system story → p_row for record_processing_history_event.
+export function mapAsanaSystemStory(story, parentGid) {
+  const s = story || {};
+  return {
+    parent_asana_gid: parentGid != null ? String(parentGid) : null,
+    asana_story_gid: s.gid != null ? String(s.gid) : null,
+    body: s.text != null ? String(s.text) : '',
+    original_author_name: s.created_by && s.created_by.name != null ? String(s.created_by.name) : null,
+    created_at: s.created_at || null,
+  };
+}
+
+// HTTP 429 backoff: milliseconds to wait before retry `attempt` (1-based),
+// honoring a numeric Retry-After header (seconds) when present. Exponential
+// fallback capped at 30s. Pure — no clock access.
+export function retryAfterMs(retryAfterHeader, attempt) {
+  const n = Number(String(retryAfterHeader == null ? '' : retryAfterHeader).trim());
+  if (Number.isFinite(n) && n > 0) return Math.min(n, 60) * 1000;
+  const a = Math.max(1, Number(attempt) || 1);
+  return Math.min(1000 * Math.pow(2, a - 1), 30000);
+}
+
+// ── Destination audit (fail-closed zero-unmapped report) ─────────────────────
+// Prove EVERY piece of live Asana data has a planner destination BEFORE any
+// write import. Input is raw fetched JSON; output:
+//   {ok, unmapped:[{kind, id, name, reason}], counts, users, fields}
+// A NON-EMPTY unmapped list must block every write action (edge-enforced).
+// Users resolve to a profile (email match) OR the documented display-name
+// fallback — only an identity-less user is unmapped. Dependencies have NO
+// destination (ground truth: zero live dependencies); any appearing → unmapped.
+export function buildDestinationAudit(input) {
+  const {
+    sections = [],
+    customFieldSettings = [],
+    users = [],
+    tasks = [],
+    storyTypeCounts = {},
+    dependencyCount = 0,
+    taskTemplates = [],
+    subtaskCount = null,
+    attachmentCount = null,
+    profilesByEmail = {},
+  } = input || {};
+  const unmapped = [];
+
+  // Sections → programs. Empty/"(no section)" rows classify as milestones by
+  // design; any OTHER unknown section blocks.
+  const sectionReport = [];
+  for (const sec of sections) {
+    const name = cleanStr(sec && sec.name);
+    const program = sectionToProgram(name);
+    sectionReport.push({gid: sec && sec.gid != null ? String(sec.gid) : null, name, program});
+    if (name && !program && !/untitled section/i.test(name)) {
+      unmapped.push({kind: 'section', id: sec && sec.gid, name, reason: 'no program mapping'});
+    }
+  }
+
+  // Custom fields (+ every enum option) → CF_DESTINATIONS.
+  const fieldReport = [];
+  for (const setting of customFieldSettings) {
+    const cf = (setting && setting.custom_field) || setting || {};
+    const name = cleanStr(cf.name);
+    if (!name) continue;
+    const destination = Object.prototype.hasOwnProperty.call(CF_DESTINATIONS, name) ? CF_DESTINATIONS[name] : null;
+    const options = (Array.isArray(cf.enum_options) ? cf.enum_options : []).map((o) => ({
+      gid: o && o.gid != null ? String(o.gid) : null,
+      name: cleanStr(o && o.name),
+      color: cleanStr(o && o.color),
+      palette: asanaColorToPalette(o && o.color),
+    }));
+    fieldReport.push({
+      gid: cf.gid != null ? String(cf.gid) : null,
+      name,
+      type: cleanStr(cf.type || cf.resource_subtype),
+      destination,
+      options,
+    });
+    if (!destination) {
+      unmapped.push({kind: 'field', id: cf.gid, name, reason: 'no destination in CF_DESTINATIONS'});
+    }
+    for (const o of options) {
+      if (!o.name) unmapped.push({kind: 'option', id: o.gid, name: null, reason: 'unnamed option on ' + name});
+    }
+  }
+
+  // Users → profile match or display-name fallback.
+  const directory = buildUserDirectory(users);
+  const userReport = Object.values(directory.byGid).map((u) => ({
+    gid: u.gid,
+    name: u.name,
+    email: u.email,
+    profile_id: u.email && profilesByEmail[u.email.toLowerCase()] ? profilesByEmail[u.email.toLowerCase()] : null,
+  }));
+  for (const u of userReport) {
+    if (!u.name && !u.email) {
+      unmapped.push({kind: 'user', id: u.gid, name: null, reason: 'no name or email identity'});
+    }
+  }
+
+  // Story types: comment + system have destinations; anything else blocks.
+  for (const [type, count] of Object.entries(storyTypeCounts || {})) {
+    if (type !== 'comment' && type !== 'system' && count > 0) {
+      unmapped.push({kind: 'story_type', id: null, name: type, reason: count + ' stories of unmapped type'});
+    }
+  }
+
+  // Dependencies: no planner destination exists — any live dependency blocks.
+  if (Number(dependencyCount) > 0) {
+    unmapped.push({
+      kind: 'dependency',
+      id: null,
+      name: 'dependencies/dependents',
+      reason: dependencyCount + ' live dependency link(s) have no planner destination',
+    });
+  }
+
+  return {
+    ok: unmapped.length === 0,
+    unmapped,
+    counts: {
+      sections: sectionReport.length,
+      fields: fieldReport.length,
+      options: fieldReport.reduce((s, f) => s + f.options.length, 0),
+      users: userReport.length,
+      usersMatched: userReport.filter((u) => u.profile_id).length,
+      tasks: Array.isArray(tasks) ? tasks.length : 0,
+      taskTemplates: Array.isArray(taskTemplates) ? taskTemplates.length : 0,
+      subtasks: subtaskCount,
+      attachments: attachmentCount,
+      dependencyCount: Number(dependencyCount) || 0,
+      storyTypes: storyTypeCounts,
+    },
+    sections: sectionReport,
+    fields: fieldReport,
+    users: userReport,
   };
 }

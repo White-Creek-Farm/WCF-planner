@@ -58,22 +58,39 @@ const inputStyle = {
   boxSizing: 'border-box',
 };
 
+const STATUS_CHOICES = [
+  {value: 'planned', label: 'Planned'},
+  {value: 'in_process', label: 'In Process'},
+  {value: 'complete', label: 'Complete'},
+];
+
 export default function AddMilestoneModal({
   initialProgram,
   onClose,
   onCreated,
   customerOptions = [],
   processorOptions = [],
+  profilesById = {},
 }) {
-  const {useState} = React;
+  const {useState, useMemo} = React;
   const validInitial = PROGRAMS.some((p) => p.key === initialProgram) ? initialProgram : 'broiler';
   const [program, setProgram] = useState(validInitial);
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [processor, setProcessor] = useState('');
   const [customer, setCustomer] = useState([]);
+  const [status, setStatus] = useState('planned');
+  const [assigneeProfileId, setAssigneeProfileId] = useState('');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
+
+  const profileChoices = useMemo(
+    () =>
+      Object.values(profilesById || {})
+        .filter((p) => p && p.id)
+        .sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''))),
+    [profilesById],
+  );
 
   const isBroiler = program === 'broiler';
   // Customer chips come from the server option list (mig 162), falling back to
@@ -102,6 +119,8 @@ export default function AddMilestoneModal({
         processingDate: date || null,
         processor: processor.trim() || null,
         customer: isBroiler ? customer : [],
+        status,
+        assigneeProfileId: assigneeProfileId || null,
       });
       if (onCreated) onCreated(id);
     } catch (e) {
@@ -235,6 +254,53 @@ export default function AddMilestoneModal({
             />
             <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 6}}>
               Drops the milestone onto the schedule at this date.
+            </div>
+          </div>
+
+          <div style={{marginBottom: 14}}>
+            <label style={labelStyle}>Assignee (optional)</label>
+            <select
+              value={assigneeProfileId}
+              onChange={(e) => setAssigneeProfileId(e.target.value)}
+              data-processing-milestone-assignee
+              style={{...inputStyle, width: 240, cursor: 'pointer'}}
+            >
+              <option value="">—</option>
+              {profileChoices.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{marginBottom: 14}}>
+            <label style={labelStyle}>Status</label>
+            <div style={{display: 'flex', gap: 7, flexWrap: 'wrap'}}>
+              {STATUS_CHOICES.map((s) => {
+                const on = status === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => setStatus(s.value)}
+                    data-processing-milestone-status={s.value}
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: on ? 700 : 600,
+                      borderRadius: 999,
+                      padding: '6px 13px',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      border: `1px solid ${on ? T.green : T.border}`,
+                      background: on ? '#E6F4EC' : '#fff',
+                      color: on ? '#1F7A4D' : T.muted,
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

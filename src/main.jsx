@@ -1913,7 +1913,9 @@ function App() {
 
     async function bootAuth() {
       try {
-        const {data: {session}} = await sb.auth.getSession();
+        const {
+          data: {session},
+        } = await sb.auth.getSession();
         if (cancelled) return;
         if (session?.user) {
           bootResolved = true;
@@ -1923,7 +1925,10 @@ function App() {
           return;
         }
 
-        const {data: {user}, error} = await sb.auth.getUser();
+        const {
+          data: {user},
+          error,
+        } = await sb.auth.getUser();
         if (cancelled) return;
         bootResolved = true;
         clearTimeout(authTimeout);
@@ -1935,7 +1940,9 @@ function App() {
       } catch (e) {
         if (cancelled) return;
         try {
-          const {data: {session}} = await sb.auth.getSession();
+          const {
+            data: {session},
+          } = await sb.auth.getSession();
           if (cancelled) return;
           bootResolved = true;
           clearTimeout(authTimeout);
@@ -1972,7 +1979,8 @@ function App() {
       // refresh/user-update events without forcing a fresh login.
       if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event) && session?.user) {
         setAuthState((prev) => {
-          if (prev === false || prev === null || (prev?.user && prev.user.id !== session.user.id)) loadUser(session.user);
+          if (prev === false || prev === null || (prev?.user && prev.user.id !== session.user.id))
+            loadUser(session.user);
           return prev;
         });
       }

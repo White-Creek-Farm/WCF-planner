@@ -6,10 +6,7 @@ import {describe, expect, it} from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
-const EXPECTED_PROFILE_OWNERS = new Map([
-  ['src/auth/UsersModal.jsx', 5],
-  ['src/main.jsx', 2],
-]);
+const EXPECTED_PROFILE_OWNERS = new Map([['src/main.jsx', 2]]);
 
 function stripComments(src) {
   return src.replace(/(^|\s)\/\/[^\n]*/g, '$1').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -35,7 +32,7 @@ function runtimeSourceFiles() {
 }
 
 describe('profiles table boundary', () => {
-  it('keeps direct profiles access in app boot/admin user management owners', () => {
+  it('keeps direct profiles access read-only in the app boot owner', () => {
     const accessRe = /\.from\(\s*['"]profiles['"]\s*\)/g;
     const seen = new Map();
     let total = 0;
@@ -55,7 +52,7 @@ describe('profiles table boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(total).toBe(7);
+    expect(total).toBe(2);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
@@ -69,7 +66,7 @@ describe('profiles table boundary', () => {
     }
   });
 
-  it('keeps profile mutations inside UsersModal only', () => {
+  it('keeps every runtime profile mutation behind RPCs', () => {
     const mutationRe =
       /\.from\(\s*['"]profiles['"]\s*\)(?:(?!\.from\().){0,240}\.(?:insert|upsert|update|delete)\s*\(/gs;
     const offenders = [];
@@ -78,7 +75,7 @@ describe('profiles table boundary', () => {
       const rel = path.relative(ROOT, file).replace(/\\/g, '/');
       const code = stripComments(fs.readFileSync(file, 'utf8'));
       const count = [...code.matchAll(mutationRe)].length;
-      if (count && rel !== 'src/auth/UsersModal.jsx') offenders.push(`${rel}: ${count}`);
+      if (count) offenders.push(`${rel}: ${count}`);
     }
 
     expect(offenders).toEqual([]);

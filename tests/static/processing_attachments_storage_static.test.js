@@ -42,8 +42,10 @@ describe('edge — attachment dry-run (preview before the gated write path)', ()
     expect(edge).toContain('newAttachments');
     expect(edge).toContain('getBucket(ATTACHMENT_BUCKET)');
     // the dry-run helper must NOT write: no upload / record RPC in its body
+    // (slice ends at the next declaration — the separate backfill runner).
     const start = edge.indexOf('async function runAttachmentDryRun');
-    const end = edge.indexOf('// ─── sync (write)', start);
+    const end = edge.indexOf('interface AttachmentBackfillCounts', start);
+    expect(end).toBeGreaterThan(start);
     const body = edge.slice(start, end);
     expect(body).not.toContain('.upload(');
     expect(body).not.toContain('record_processing_attachment');
@@ -53,11 +55,21 @@ describe('edge — attachment dry-run (preview before the gated write path)', ()
     // the WRITE path uploads into the private bucket (only works once mig 163 applied)
     expect(edge).toContain('svc.storage.from(ATTACHMENT_BUCKET).upload(');
     expect(edge).toContain("const ATTACHMENT_BUCKET = 'processing-attachments'");
+    // and it is reachable ONLY through the dedicated runAttachmentBackfill
+    // runner (processing-complete lane: sync_once/sync_since never copy bytes).
+    expect(edge).toContain('async function runAttachmentBackfill');
+    expect(edge).not.toContain('doAttachments');
   });
 });
 
-describe('subtasks stay out of the main calendar table', () => {
-  it('ProcessingCalendarView has no subtask references', () => {
-    expect(view).not.toMatch(/subtask/i);
+describe('subtasks stay out of the main calendar table as a COLUMN', () => {
+  it('ProcessingCalendarView has no Subtasks column; the Batch-cell checklist meta is the only subtask reference', () => {
+    // The handoff-restored Batch cell shows "N-step checklist · done/total"
+    // (WS5); a dedicated Subtasks COLUMN must not return.
+    expect(view).not.toContain('>Subtasks</span>');
+    expect(view).toContain('checklistMeta');
+    // Outside the checklist meta derivation, no other subtask surface exists
+    // in the table (no toggle buttons, no drawer-style subtask rows).
+    expect(view).not.toMatch(/toggleSubtask|data-processing-subtask=/);
   });
 });

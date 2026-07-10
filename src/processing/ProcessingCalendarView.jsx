@@ -26,7 +26,14 @@
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
-import {listProcessingRecords, getProcessingSettings, invokeProcessingAsanaSync} from '../lib/processingApi.js';
+import {
+  listProcessingRecords,
+  getProcessingSettings,
+  invokeProcessingAsanaSync,
+  ensureProcessingFreshness,
+} from '../lib/processingApi.js';
+import {resolveFarmArrival, deriveTimeRemaining, formatTimeRemaining} from '../lib/processingFields.js';
+import {loadEligibleProfilesById} from '../lib/tasksCenterApi.js';
 import {resolveSourceForRecord, deriveDisplayStatus, weeksDaysText} from '../lib/processingSourceLink.js';
 import {processingStatusVariantFromLabel, PROCESSING_STATUS_DISPLAY} from '../lib/processingStatusDisplay.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
@@ -104,17 +111,50 @@ function num(value) {
 }
 
 // Unified grid: one global header + per-program rows keep the same columns.
-// Customer is populated for broiler only; the Age/TOF column shows time-on-farm
-// for broiler and age for the mammals (CP0).
-const GRID = 'minmax(180px,1fr) 104px 96px 150px 84px 150px 108px 20px';
+// Handoff IA restored (check · Batch+checklist meta · Owner · Status · Farm
+// arrival · Processing · Customer · Remaining) PLUS the newer planner facts
+// (Processor · Number · Age/TOF) — nothing useful is dropped; the table scrolls
+// horizontally with the sticky Batch column. Customer is broiler-only; Age/TOF
+// shows time-on-farm for broiler and age for the mammals (CP0).
+const GRID = '20px minmax(190px,1fr) 118px 96px 92px 92px 128px 72px 132px 88px 92px 20px';
 
-// Sticky first (Batch/title) column: pins to the left edge during horizontal
-// scroll on narrow widths. background is supplied per-context (header / row / band)
-// so it stays readable over whatever it slides across.
+// Deterministic avatar colors for owner initials (name-hashed; the prototype's
+// per-person palette generalized to any profile).
+const AVATAR_COLORS = [
+  {bg: '#EAC14B', ink: '#5B4600'},
+  {bg: '#C9B7E8', ink: '#3F2E66'},
+  {bg: '#9FD0C7', ink: '#1C5247'},
+  {bg: '#F2B6C6', ink: '#8A2F4D'},
+  {bg: '#A7D8B9', ink: '#20593A'},
+  {bg: '#B8CDEB', ink: '#2A4A78'},
+];
+function avatarColor(name) {
+  let h = 0;
+  const s = String(name || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function initialsOf(name) {
+  return String(name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+}
+
+// Sticky Batch/title column: pins to the left edge during horizontal scroll on
+// narrow widths. The 20px completion-check column sits before it, so the check
+// pins at left:0 and Batch at left:36 (20px column + 16px gap). background is
+// supplied per-context (header / row / band) so it stays readable over whatever
+// it slides across.
+function stickyCheck(background) {
+  return {position: 'sticky', left: 0, zIndex: 2, background};
+}
 function stickyFirst(background) {
   return {
     position: 'sticky',
-    left: 0,
+    left: 36,
     zIndex: 2,
     background,
     paddingRight: 12,
@@ -440,21 +480,38 @@ export default function ProcessingCalendarView({Header, authState}) {
   // One-time Asana import + reconciliation controls live behind this collapsed
   // admin maintenance area so they stay out of the day-to-day scheduling flow.
   const [adminOpen, setAdminOpen] = useState(false);
+  // Maintenance view of archived (soft-deleted) rows so an admin can open one
+  // and Restore it from the drawer.
+  const [showArchived, setShowArchived] = useState(false);
 
-  // Admin-only Asana sync guardrail: probe config, dry-run first, then allow one
-  // explicit write sync from the same page session.
+  // Admin-only Asana sync guardrail: probe config, dry-run first, then allow the
+  // matching explicit write from the same page session. EVERY write action is
+  // gated by ITS OWN dry run (a record dry run never unlocks attachment bytes);
+  // when asana_sync_enabled is false (final cutover) every Asana action locks.
   const [asanaSyncEnabled, setAsanaSyncEnabled] = useState(null);
   const [asanaConfigured, setAsanaConfigured] = useState(null);
   const [asanaSyncBusy, setAsanaSyncBusy] = useState(null);
   const [asanaSyncNotice, setAsanaSyncNotice] = useState(null);
   const [dryRunReady, setDryRunReady] = useState(false);
   const [dryRunPlan, setDryRunPlan] = useState(null);
+  // Per-action readiness for the OTHER write imports: each write unlocks only
+  // after its own dedicated dry run succeeded in this page session.
+  const [importReady, setImportReady] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const rows = await listProcessingRecords(sb, {year: null, includeArchived: false});
+      // Automatic planner freshness (mig 164): reconcile the four planner
+      // programs when stale so new/changed/removed planner batches appear
+      // without any admin maintenance. Debounced + advisory-locked server-side;
+      // a failure here must NEVER block the list (last reconciled state shows).
+      try {
+        await ensureProcessingFreshness(sb);
+      } catch (_e) {
+        /* tolerated — the list still renders from the last reconciled state */
+      }
+      const rows = await listProcessingRecords(sb, {year: null, includeArchived: showArchived});
       setRecords(Array.isArray(rows) ? rows : []);
     } catch (e) {
       setRecords([]); // clear stale rows on error (fail-closed)
@@ -462,11 +519,28 @@ export default function ProcessingCalendarView({Header, authState}) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Profile directory for the Owner column + drawer/milestone people pickers
+  // (list_eligible_assignees: id + full_name only). Best-effort: names degrade
+  // to the imported display-name fallback when unavailable.
+  const [profilesById, setProfilesById] = useState({});
+  useEffect(() => {
+    if (!canOperate) return;
+    let cancelled = false;
+    loadEligibleProfilesById(sb)
+      .then((map) => {
+        if (!cancelled) setProfilesById(map || {});
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [canOperate]);
 
   // Customer/Processor picker choices come from settings (mig 162). Available to
   // every operational role (get_processing_settings is operational-gated), so the
@@ -527,10 +601,56 @@ export default function ProcessingCalendarView({Header, authState}) {
     };
   }, [isAdmin, refreshAsanaStatus]);
 
+  // Read-only preview/audit actions and the dedicated dry run each write needs.
+  const READ_ONLY_ACTIONS = useMemo(
+    () => new Set(['dry_run', 'destination_audit', 'attachment_dry_run', 'artifacts_dry_run', 'activity_dry_run']),
+    [],
+  );
+  const WRITE_REQUIRES = useMemo(
+    () => ({
+      sync_once: 'dry_run',
+      sync_artifacts: 'artifacts_dry_run',
+      sync_activity: 'activity_dry_run',
+      attachment_backfill: 'attachment_dry_run',
+    }),
+    [],
+  );
+
+  // Compact human summary for the newer report shapes (counts objects).
+  function reportSummary(action, result) {
+    const src = (result && (result.report || result.counts)) || {};
+    const parts = Object.entries(src)
+      .filter(([, v]) => typeof v === 'number' || typeof v === 'boolean')
+      .map(
+        ([k, v]) =>
+          `${k
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/_/g, ' ')
+            .toLowerCase()}: ${v}`,
+      );
+    const unmapped = result && result.report && Array.isArray(result.report.unmapped) ? result.report.unmapped : null;
+    const head = `${action.replace(/_/g, ' ')} — ${parts.join(', ') || 'done'}`;
+    if (unmapped && unmapped.length > 0)
+      return `${head}. UNRESOLVED: ${unmapped.length} unmapped item(s) — writes stay locked.`;
+    return head;
+  }
+
   async function runAsanaSyncAction(action) {
     if (!isAdmin || asanaSyncBusy) return;
-    if (action !== 'dry_run' && !dryRunReady) {
+    if (asanaSyncEnabled === false) {
+      setAsanaSyncNotice({kind: 'warning', message: 'Asana sync is OFF (final cutover) — Asana imports are locked.'});
+      return;
+    }
+    const requiredDryRun = WRITE_REQUIRES[action];
+    if (requiredDryRun === 'dry_run' && !dryRunReady) {
       setAsanaSyncNotice({kind: 'warning', message: 'Run a dry run first, then sync.'});
+      return;
+    }
+    if (requiredDryRun && requiredDryRun !== 'dry_run' && !importReady[requiredDryRun]) {
+      setAsanaSyncNotice({
+        kind: 'warning',
+        message: `Run ${requiredDryRun.replace(/_/g, ' ')} first — each import unlocks only after its own dry run.`,
+      });
       return;
     }
     setAsanaSyncBusy(action);
@@ -541,16 +661,32 @@ export default function ProcessingCalendarView({Header, authState}) {
         setDryRunReady(true);
         setDryRunPlan((result && result.plan) || null);
         setAsanaSyncNotice({kind: 'success', message: dryRunSummary(result && result.plan)});
+      } else if (READ_ONLY_ACTIONS.has(action)) {
+        // A dry run with unresolved destinations does NOT unlock its write.
+        const unmappedCount =
+          result && result.report && Array.isArray(result.report.unmapped) ? result.report.unmapped.length : 0;
+        setImportReady((cur) => ({...cur, [action]: unmappedCount === 0}));
+        setAsanaSyncNotice({kind: unmappedCount === 0 ? 'success' : 'warning', message: reportSummary(action, result)});
       } else {
+        // Write actions: spend every readiness flag so the next write needs a
+        // fresh dry run against the post-import state.
         setDryRunReady(false);
         setDryRunPlan(null);
-        setAsanaSyncNotice({kind: 'success', message: syncSummary(result && result.counts)});
+        setImportReady({});
+        setAsanaSyncNotice({
+          kind: 'success',
+          message: action === 'sync_once' ? syncSummary(result && result.counts) : reportSummary(action, result),
+        });
         await load();
         await refreshAsanaStatus({current: false});
       }
     } catch (e) {
-      setDryRunReady(false);
-      setDryRunPlan(null);
+      if (action === 'dry_run') {
+        setDryRunReady(false);
+        setDryRunPlan(null);
+      } else if (READ_ONLY_ACTIONS.has(action)) {
+        setImportReady((cur) => ({...cur, [action]: false}));
+      }
       setAsanaSyncNotice({kind: 'error', message: `Asana sync failed. ${(e && e.message) || e}`});
     } finally {
       setAsanaSyncBusy(null);
@@ -559,9 +695,12 @@ export default function ProcessingCalendarView({Header, authState}) {
 
   // Decorate every record with its resolved display facts once.
   const decorated = useMemo(() => {
+    const t0 = todayISO();
     return records.map((rec) => {
       const sourceInfo = resolveSourceForRecord(rec, {}); // no live collections → snapshot fallback
       const statusLabel = deriveDisplayStatus(rec, sourceInfo);
+      const ownerName =
+        (rec.assignee_profile_id && profilesById[rec.assignee_profile_id]?.full_name) || rec.assignee_name || null;
       return {
         ...rec,
         _statusLabel: statusLabel,
@@ -572,9 +711,14 @@ export default function ProcessingCalendarView({Header, authState}) {
         // list_processing_records); fall back to the snapshot for imported/historical.
         _timeOnFarmText: weeksDaysText(rec.time_on_farm_days) ?? sourceInfo.timeOnFarmText,
         _year: yearOf(rec.processing_date),
+        _ownerName: ownerName,
+        _farmArrival: resolveFarmArrival(rec),
+        _remaining: deriveTimeRemaining(rec, t0),
+        _isBatch: rec.record_type === 'planner_batch' || rec.record_type === 'asana_historical',
+        _isComplete: rec.completed_at != null || statusLabel === PROCESSING_STATUS_DISPLAY.complete,
       };
     });
-  }, [records]);
+  }, [records, profilesById]);
 
   // Year options derived from the data (undated rows ignored), plus the current
   // year so the default is always selectable even on an empty schedule.
@@ -646,18 +790,22 @@ export default function ProcessingCalendarView({Header, authState}) {
   }, [commonRows]);
 
   // Stat cards (whole selected year, before the interactive filters narrow it).
+  // BATCH rows only (planner_batch + asana_historical): milestones are planning
+  // placeholders and import exceptions never reach the list — neither may count
+  // as a scheduled batch or contribute head count.
   const stats = useMemo(() => {
-    const scheduled = yearRows.length;
-    const completed = yearRows.filter((r) => r._statusLabel === PROCESSING_STATUS_DISPLAY.complete).length;
+    const batchRows = yearRows.filter((r) => r._isBatch);
+    const scheduled = batchRows.length;
+    const completed = batchRows.filter((r) => r._statusLabel === PROCESSING_STATUS_DISPLAY.complete).length;
     const t0 = todayISO();
     const t14 = addDaysISO(t0, 14);
-    const dueSoon = yearRows.filter((r) => {
+    const dueSoon = batchRows.filter((r) => {
       const iso = ymd(r.processing_date)?.iso;
       if (!iso) return false;
       if (r._statusLabel === PROCESSING_STATUS_DISPLAY.complete) return false;
       return iso >= t0 && iso <= t14;
     }).length;
-    const head = yearRows.reduce((s, r) => s + (num(r._numberProcessed) || 0), 0);
+    const head = batchRows.reduce((s, r) => s + (num(r._numberProcessed) || 0), 0);
     return {scheduled, completed, dueSoon, head};
   }, [yearRows]);
 
@@ -710,6 +858,12 @@ export default function ProcessingCalendarView({Header, authState}) {
     const ageTof = isBroiler ? rec._timeOnFarmText : rec._ageText;
     const numText = num(rec._numberProcessed) != null ? Number(rec._numberProcessed).toLocaleString() : '—';
     const rowBg = active ? (isMilestone ? '#F3F1FB' : T.hover) : T.card;
+    const remaining = rec._remaining;
+    const remainingText = formatTimeRemaining(remaining);
+    const ownerName = rec._ownerName;
+    const av = ownerName ? avatarColor(ownerName) : null;
+    const checklistMeta =
+      rec.subtask_total > 0 ? `${rec.subtask_total}-step checklist · ${rec.subtask_done}/${rec.subtask_total}` : null;
     return (
       <div
         key={rec.id}
@@ -737,6 +891,29 @@ export default function ProcessingCalendarView({Header, authState}) {
           transition: 'transform .16s ease, box-shadow .16s ease, background .16s ease',
         }}
       >
+        {/* Completion indicator (read-only; completion itself stays gated in the drawer) */}
+        <span style={stickyCheck(rowBg)}>
+          <span
+            aria-hidden="true"
+            data-processing-row-check={rec._isComplete ? 'done' : 'open'}
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              border: rec._isComplete || isMilestone ? 'none' : `1.6px solid #CDD2D8`,
+              background: rec._isComplete ? T.green : 'transparent',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              visibility: isMilestone ? 'hidden' : 'visible',
+            }}
+          >
+            {rec._isComplete ? '✓' : ''}
+          </span>
+        </span>
         {/* Batch / title */}
         <div style={{minWidth: 0, ...stickyFirst(rowBg)}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
@@ -757,7 +934,7 @@ export default function ProcessingCalendarView({Header, authState}) {
               style={{
                 fontSize: 14,
                 fontWeight: 700,
-                color: isMilestone ? '#4B3FA8' : T.ink,
+                color: isMilestone ? '#4B3FA8' : rec._isComplete ? T.faint : T.ink,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -766,11 +943,65 @@ export default function ProcessingCalendarView({Header, authState}) {
               {rec.title || '(untitled)'}
             </span>
           </div>
-          {isMilestone && <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 3}}>Milestone</div>}
+          {(isMilestone || checklistMeta) && (
+            <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 3}}>
+              {isMilestone ? 'Milestone' : checklistMeta}
+            </div>
+          )}
         </div>
+        {/* Owner / assignee */}
+        <span style={{display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0}}>
+          {ownerName ? (
+            <>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: av.bg,
+                  color: av.ink,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  flex: 'none',
+                }}
+              >
+                {initialsOf(ownerName)}
+              </span>
+              <span
+                style={{
+                  fontSize: 12.5,
+                  color: '#3F4650',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {ownerName}
+              </span>
+            </>
+          ) : (
+            <span style={{color: T.faint}}>—</span>
+          )}
+        </span>
         {/* Status */}
         <span>
           <Badge variant={rec._statusVariant}>{rec._statusLabel}</Badge>
+        </span>
+        {/* Farm arrival */}
+        <span
+          style={{
+            fontSize: 13,
+            color: rec._farmArrival ? T.muted : T.faint,
+            fontWeight: 600,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {rec._farmArrival ? formatDate(rec._farmArrival) : '—'}
         </span>
         {/* Processing date */}
         <span style={{fontSize: 13.5, fontWeight: 700, color: T.ink, fontVariantNumeric: 'tabular-nums'}}>
@@ -806,6 +1037,38 @@ export default function ProcessingCalendarView({Header, authState}) {
         {/* Age / Time on farm */}
         <span style={{fontSize: 13, color: ageTof ? T.ink : T.faint, fontWeight: 600, whiteSpace: 'nowrap'}}>
           {ageTof || '—'}
+        </span>
+        {/* Time remaining (amber pill when due within 14 days) */}
+        <span style={{justifySelf: 'end'}} data-processing-remaining={remaining && remaining.dueSoon ? 'soon' : ''}>
+          {remainingText == null ? (
+            <span style={{color: T.faint, fontSize: 13, fontWeight: 600}}>—</span>
+          ) : remaining.dueSoon ? (
+            <span
+              style={{
+                background: '#F7EFD6',
+                color: '#8A6A1E',
+                borderRadius: 999,
+                padding: '3px 9px',
+                fontSize: 12,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {remainingText}
+            </span>
+          ) : (
+            <span
+              style={{
+                color: remaining.past ? T.faint : '#3F4650',
+                fontSize: 13,
+                fontWeight: remaining.past ? 600 : 700,
+                whiteSpace: 'nowrap',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {remainingText}
+            </span>
+          )}
         </span>
         {/* Chevron (reveal on hover) */}
         <span
@@ -879,8 +1142,10 @@ export default function ProcessingCalendarView({Header, authState}) {
     minHeight: 36,
     whiteSpace: 'nowrap',
   });
-  const dryRunDisabled = asanaConfigured !== true || !!asanaSyncBusy;
-  const syncNowDisabled = asanaConfigured !== true || !!asanaSyncBusy || !dryRunReady;
+  const asanaLocked = asanaConfigured !== true || !!asanaSyncBusy || asanaSyncEnabled === false;
+  const dryRunDisabled = asanaLocked;
+  const syncNowDisabled = asanaLocked || !dryRunReady;
+  const cutoverTitle = asanaSyncEnabled === false ? 'Asana sync is off (final cutover) — imports are locked' : null;
 
   return (
     <div style={{minHeight: '100vh', background: T.page}}>
@@ -1021,9 +1286,100 @@ export default function ProcessingCalendarView({Header, authState}) {
                 disabled={syncNowDisabled}
                 onClick={() => runAsanaSyncAction('sync_once')}
                 style={syncButtonStyle(true, syncNowDisabled)}
-                title={dryRunReady ? 'Import the last dry-run set from Asana' : 'Run a dry run first'}
+                title={cutoverTitle || (dryRunReady ? 'Import the last dry-run set from Asana' : 'Run a dry run first')}
               >
                 {asanaSyncBusy === 'sync_once' ? 'Syncing...' : 'Sync now'}
+              </button>
+              <button
+                type="button"
+                data-processing-destination-audit-btn="1"
+                disabled={asanaLocked}
+                onClick={() => runAsanaSyncAction('destination_audit')}
+                style={syncButtonStyle(false, asanaLocked)}
+                title={
+                  cutoverTitle ||
+                  'Read-only: enumerate every Asana field/option/user/section/story/dependency and prove each has a destination'
+                }
+              >
+                {asanaSyncBusy === 'destination_audit' ? 'Auditing…' : 'Destination audit'}
+              </button>
+              <button
+                type="button"
+                data-processing-artifacts-dry-run-btn="1"
+                disabled={asanaLocked}
+                onClick={() => runAsanaSyncAction('artifacts_dry_run')}
+                style={syncButtonStyle(false, asanaLocked)}
+                title={cutoverTitle || 'Read-only: count the recursive subtasks a full artifact import would bring in'}
+              >
+                {asanaSyncBusy === 'artifacts_dry_run' ? 'Checking…' : 'Subtasks dry run'}
+              </button>
+              <button
+                type="button"
+                data-processing-sync-artifacts-btn="1"
+                disabled={asanaLocked || !importReady.artifacts_dry_run}
+                onClick={() => runAsanaSyncAction('sync_artifacts')}
+                style={syncButtonStyle(true, asanaLocked || !importReady.artifacts_dry_run)}
+                title={
+                  cutoverTitle ||
+                  (importReady.artifacts_dry_run
+                    ? 'Import recursive subtasks for linked records'
+                    : 'Run the subtasks dry run first')
+                }
+              >
+                {asanaSyncBusy === 'sync_artifacts' ? 'Importing…' : 'Import subtasks'}
+              </button>
+              <button
+                type="button"
+                data-processing-activity-dry-run-btn="1"
+                disabled={asanaLocked}
+                onClick={() => runAsanaSyncAction('activity_dry_run')}
+                style={syncButtonStyle(false, asanaLocked)}
+                title={
+                  cutoverTitle ||
+                  'Read-only: count the Asana system-history events and comment mentions an activity import would bring in'
+                }
+              >
+                {asanaSyncBusy === 'activity_dry_run' ? 'Checking…' : 'Activity dry run'}
+              </button>
+              <button
+                type="button"
+                data-processing-sync-activity-btn="1"
+                disabled={asanaLocked || !importReady.activity_dry_run}
+                onClick={() => runAsanaSyncAction('sync_activity')}
+                style={syncButtonStyle(true, asanaLocked || !importReady.activity_dry_run)}
+                title={
+                  cutoverTitle ||
+                  (importReady.activity_dry_run
+                    ? 'Import Asana system history + mention mapping for linked records'
+                    : 'Run the activity dry run first')
+                }
+              >
+                {asanaSyncBusy === 'sync_activity' ? 'Importing…' : 'Import activity'}
+              </button>
+              <button
+                type="button"
+                data-processing-attachment-dry-run-btn="1"
+                disabled={asanaLocked}
+                onClick={() => runAsanaSyncAction('attachment_dry_run')}
+                style={syncButtonStyle(false, asanaLocked)}
+                title={cutoverTitle || 'Read-only: count new vs already-stored Asana attachments (no bytes move)'}
+              >
+                {asanaSyncBusy === 'attachment_dry_run' ? 'Checking…' : 'Attachments dry run'}
+              </button>
+              <button
+                type="button"
+                data-processing-attachment-backfill-btn="1"
+                disabled={asanaLocked || !importReady.attachment_dry_run}
+                onClick={() => runAsanaSyncAction('attachment_backfill')}
+                style={syncButtonStyle(true, asanaLocked || !importReady.attachment_dry_run)}
+                title={
+                  cutoverTitle ||
+                  (importReady.attachment_dry_run
+                    ? 'Copy Asana attachment bytes into private Storage'
+                    : 'Run the attachments dry run first — a record dry run never unlocks bytes')
+                }
+              >
+                {asanaSyncBusy === 'attachment_backfill' ? 'Copying…' : 'Backfill attachments'}
               </button>
               <button
                 type="button"
@@ -1089,6 +1445,26 @@ export default function ProcessingCalendarView({Header, authState}) {
                 Customer &amp; processor choices
               </button>
             </div>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 10,
+                fontSize: 12.5,
+                color: T.muted,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                data-processing-show-archived
+              />
+              Show archived records (open one to restore it)
+            </label>
             <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 10, lineHeight: 1.4}}>
               One-time Asana import + reconciliation controls — not needed for day-to-day scheduling.
             </div>
@@ -1278,7 +1654,7 @@ export default function ProcessingCalendarView({Header, authState}) {
           <div style={{overflowX: 'auto'}}>
             <div
               style={{
-                minWidth: 980,
+                minWidth: 1280,
                 background: T.card,
                 border: `1px solid ${T.border}`,
                 borderRadius: 16,
@@ -1297,13 +1673,17 @@ export default function ProcessingCalendarView({Header, authState}) {
                   borderBottom: `1px solid ${T.border}`,
                 }}
               >
+                <span style={stickyCheck(T.tint)} aria-hidden="true" />
                 <span style={{...headerCellStyle, ...stickyFirst(T.tint)}}>Batch</span>
+                <span style={headerCellStyle}>Owner</span>
                 <span style={headerCellStyle}>Status</span>
+                <span style={headerCellStyle}>Farm arrival</span>
                 <span style={headerCellStyle}>Processing</span>
                 <span style={headerCellStyle}>Processor</span>
                 <span style={{...headerCellStyle, textAlign: 'right'}}>Number</span>
                 <span style={headerCellStyle}>Customer</span>
                 <span style={headerCellStyle}>Age / TOF</span>
+                <span style={{...headerCellStyle, textAlign: 'right'}}>Remaining</span>
                 <span />
               </div>
 
@@ -1411,6 +1791,7 @@ export default function ProcessingCalendarView({Header, authState}) {
           onChanged={load}
           customerOptions={optionLists.customer}
           processorOptions={optionLists.processor}
+          profilesById={profilesById}
         />
       )}
       {showAddMilestone && (
@@ -1419,6 +1800,7 @@ export default function ProcessingCalendarView({Header, authState}) {
           onClose={() => setShowAddMilestone(false)}
           customerOptions={optionLists.customer}
           processorOptions={optionLists.processor}
+          profilesById={profilesById}
           onCreated={(id) => {
             setShowAddMilestone(false);
             load();

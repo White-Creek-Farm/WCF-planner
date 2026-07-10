@@ -15,6 +15,12 @@ describe('processingStatusDisplay', () => {
     expect(processingStatusLabel('complete')).toBe('Complete');
   });
 
+  it('normalizes the real Asana In-Proccess spelling (double-c) to In Process', () => {
+    expect(processingStatusLabel('In-Proccess')).toBe('In Process');
+    expect(processingStatusLabel('in proccess')).toBe('In Process');
+    expect(processingStatusLabel('IN_PROCCESS')).toBe('In Process');
+  });
+
   it('normalizes empty and unknown values conservatively to planned', () => {
     expect(normalizeProcessingStatus(null)).toBe('planned');
     expect(normalizeProcessingStatus('')).toBe('planned');

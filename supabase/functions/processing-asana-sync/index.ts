@@ -12,58 +12,50 @@
 //        x-cron-secret: <PROCESSING_ASANA_CRON_SECRET>
 //        body: {"mode":"cron"}
 //      Cron ALWAYS pins action='sync_once' (body.action is ignored in cron mode).
-//   2. admin — the Processing admin "Sync now / Dry run / Backfill / Reconcile
-//      planner" controls call sb.functions.invoke('processing-asana-sync',
-//      {body:{mode:'admin', action:'dry_run'|'sync_once'|'sync_since'|
-//      'attachment_backfill'|'sync_planner_to_processing', since?}}).
+//   2. admin — the Processing admin controls call
+//      sb.functions.invoke('processing-asana-sync', {body:{mode:'admin', action, since?}}).
 //      The caller's user JWT is in Authorization; verified via rpc('is_admin').
 //
-// Auth boundary (in order; anything else → 401, no work, no run row):
-//   - cron mode:  cronAuthOk(bearer, x-cron-secret,
-//                   PROCESSING_ASANA_CRON_SERVICE_ROLE_KEY,
-//                   PROCESSING_ASANA_CRON_SECRET) — FAILS CLOSED when either
-//                   secret is unconfigured (shared, generic helper).
-//   - admin mode: rpc('is_admin') on the caller JWT returns strict === true.
+// LOCKED MODEL (migration 157) — Planner is senior; match FIRST. The Asana pass
+// NEVER mints planner_batch and never overwrites Planner live facts.
 //
-// LOCKED MODEL (migration 157) — Planner is senior; match FIRST:
-//   Every write sync (1) calls reconcile_planner_to_processing() FIRST so the
-//   planner_batch rows exist, (2) loads those rows, (3) runs the PURE matcher
-//   per top-level Asana task, (4) links via link_asana_to_processing, and (5)
-//   imports subtasks/comments/attachments for LINKED rows (parent resolved via
-//   the link). The Asana pass NEVER mints planner_batch and never overwrites
-//   Planner live facts. Unmatched <2024 → asana_historical; unmatched >=2024 →
-//   import_exception; Asana milestone → milestone (excluded from matching);
-//   ambiguous (>=2 candidates / Name↔Batch-Name disagreement) → needs_review
-//   link with NULL record + candidate_record_ids (defer to manual crosswalk).
+// CUTOVER (asana_sync_enabled): enforced HERE for every Asana-touching action —
+// once the flag is false, dry runs AND writes fail closed with a clear message;
+// only the probe and the planner-only reconcile stay available (native
+// Processing + historical reads live in the DB and are unaffected).
 //
-// Actions:
-//   dry_run                    — read-only preview: fetch Asana + run the matcher
-//                                against the last-reconciled planner rows. NO
-//                                writes, NO reconcile, NO sync-run row.
-//   sync_planner_to_processing — ONLY reconcile_planner_to_processing() (no Asana
-//                                fetch, no Asana token needed). NO sync-run row.
-//   sync_once                  — full sync of every project task (cron pins this).
-//   sync_since                 — incremental sync of tasks modified since
-//                                body.since (ISO timestamp), via modified_since.
-//   attachment_backfill        — like sync_once but also copies attachment BYTES
-//                                into the private 'processing-attachments' bucket
-//                                (gated: skipped-with-log until that bucket exists).
+// DESTINATION SAFETY: destination_audit is the read-only zero-unmapped report
+// (every field / enum option / user / section / story type / dependency must
+// have a planner destination). Every WRITE action runs a mapping preflight and
+// aborts fail-closed when anything is unresolved.
 //
-// ASANA seam:
-//   ASANA_ACCESS_TOKEN is a SERVER-ONLY function secret, provisioned SEPARATELY
-//   (absent right now). It is read via envTrim and NEVER returned to any caller.
-//   While absent, every Asana-touching action returns a clear error and the probe
-//   reports asanaConfigured:false. asanaGet() pages /tasks (opt_fields +
-//   modified_since) and, per task, /subtasks + /stories + /attachments.
+// ACTION ISOLATION (explicit boundaries; one dry run never unlocks another
+// action's write):
+//   probe                       — deploy/auth wiring + asanaConfigured boolean.
+//   sync_planner_to_processing  — reconcile only (no Asana, no token).
+//   destination_audit           — read-only full live-API destination audit.
+//   dry_run                     — read-only record/match preview (no writes).
+//   sync_review_queue           — records + links ONLY.
+//   comments_dry_run / sync_comments        — comments ONLY (+ mention mapping).
+//   artifacts_dry_run / sync_artifacts      — recursive subtasks ONLY.
+//   activity_dry_run / sync_activity        — system stories + mention backfill.
+//   attachment_dry_run / attachment_backfill — attachment BYTES (the ONLY byte
+//                                              copier; sync_once/sync_since can
+//                                              no longer copy bytes).
+//   sync_once / sync_since      — records + links + subtasks + comments +
+//                                 system stories. NEVER attachments.
+//   import_templates_dry_run / import_templates — task templates ONLY.
 //
-// DB boundary: ALL writes go through the migration 156/157 service_role RPCs
-// (reconcile_planner_to_processing / upsert_processing_from_asana /
-// link_asana_to_processing / upsert_processing_subtask_from_asana /
-// record_processing_comment / record_processing_attachment /
-// start_processing_sync_run / finish_processing_sync_run). This fn NEVER
-// raw-writes the processing_* tables. Per-row failures log + continue so one bad
-// task never aborts the batch. The dry_run preview READS processing_records with
-// the service-role client (BYPASSRLS) — reads only, never writes.
+// RATE LIMITS: asanaGet honors HTTP 429 Retry-After (retryAfterMs backoff,
+// max 5 attempts) and follows offset pagination to completion.
+//
+// USERS: mapped by STABLE gid/email through the workspace user directory +
+// auth.users emails (service role) — never display name alone. Unmatched users
+// keep the documented display-name fallback.
+//
+// DB boundary: ALL writes go through the migration 156/157/164/165 service_role
+// RPCs. This fn NEVER raw-writes the processing_* tables. Per-row failures log
+// + continue so one bad task never aborts the batch.
 //
 // Pure matching/mapping/drift lives in ../_shared/processingAsanaShape.js
 // (Node/vitest unit-tested; byte-shared with this Deno fn).
@@ -82,11 +74,19 @@ import {
   flattenSubtasks,
   isRealComment,
   mapAsanaComment,
+  isSystemStory,
+  mapAsanaSystemStory,
   matchAsanaTaskToPlanner,
   normalizeWcfCode,
   computeDrift,
   buildDryRunReport,
   buildTemplateImportPlan,
+  mergeTemplateChecklistAssignees,
+  buildUserDirectory,
+  mapAsanaUserToProfile,
+  parseAsanaMentionProfileIds,
+  retryAfterMs,
+  buildDestinationAudit,
 } from '../_shared/processingAsanaShape.js';
 
 // Defensive trim: pasted Dashboard secrets often pick up a trailing newline.
@@ -98,8 +98,8 @@ const SUPABASE_ANON_KEY = envTrim('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = envTrim('SUPABASE_SERVICE_ROLE_KEY');
 const PROCESSING_ASANA_CRON_SECRET = envTrim('PROCESSING_ASANA_CRON_SECRET');
 const PROCESSING_ASANA_CRON_SERVICE_ROLE_KEY = envTrim('PROCESSING_ASANA_CRON_SERVICE_ROLE_KEY');
-// Server-only Asana PAT. Absent on TEST/PROD until provisioned → Asana actions
-// return a clear error; probe reports asanaConfigured:false. NEVER returned.
+// Server-only Asana PAT. Absent → Asana actions return a clear error; probe
+// reports asanaConfigured:false. NEVER returned.
 const ASANA_ACCESS_TOKEN = envTrim('ASANA_ACCESS_TOKEN');
 
 const ASANA_BASE = 'https://app.asana.com/api/1.0';
@@ -151,7 +151,8 @@ async function authenticateAdmin(req: Request, mode: string): Promise<boolean> {
 // ─── Asana REST ──────────────────────────────────────────────────────────────
 
 // opt_fields kept explicit so responses are small + stable. section/project are
-// resolved from memberships; program derives from the section name.
+// resolved from memberships; program derives from the section name. Assignee +
+// enum gids/colors + dependencies ride along for the user directory / audit.
 const TASK_OPT_FIELDS = [
   'name',
   'resource_subtype',
@@ -164,30 +165,58 @@ const TASK_OPT_FIELDS = [
   'modified_at',
   'notes',
   'assignee.name',
+  'assignee.gid',
+  'num_subtasks',
+  'dependencies.gid',
+  'dependents.gid',
   'memberships.project.gid',
   'memberships.project.name',
   'memberships.section.gid',
   'memberships.section.name',
+  'custom_fields.gid',
   'custom_fields.name',
   'custom_fields.type',
   'custom_fields.display_value',
   'custom_fields.number_value',
   'custom_fields.text_value',
+  'custom_fields.enum_value.gid',
   'custom_fields.enum_value.name',
+  'custom_fields.enum_value.color',
+  'custom_fields.multi_enum_values.gid',
   'custom_fields.multi_enum_values.name',
+  'custom_fields.multi_enum_values.color',
   'custom_fields.date_value.date',
   'custom_fields.date_value.date_time',
 ].join(',');
 
-const SUBTASK_OPT_FIELDS = ['name', 'assignee.name', 'completed', 'completed_at', 'due_on', 'start_on'].join(',');
+const SUBTASK_OPT_FIELDS = [
+  'name',
+  'assignee.name',
+  'assignee.gid',
+  'completed',
+  'completed_at',
+  'due_on',
+  'start_on',
+  'num_subtasks',
+].join(',');
 const STORY_OPT_FIELDS = ['type', 'text', 'created_at', 'created_by.name'].join(',');
 const ATTACH_OPT_FIELDS = ['name', 'resource_subtype', 'download_url', 'view_url', 'created_at', 'size', 'host'].join(
   ',',
 );
+const USER_OPT_FIELDS = ['name', 'email'].join(',');
+const CF_SETTING_OPT_FIELDS = [
+  'custom_field.gid',
+  'custom_field.name',
+  'custom_field.type',
+  'custom_field.resource_subtype',
+  'custom_field.enum_options.gid',
+  'custom_field.enum_options.name',
+  'custom_field.enum_options.color',
+].join(',');
 
 // Task-template recipe fields (dot-notation) — the recipe's subtasks are compact
-// (name + subtype only) and custom_fields carry name/type/default. See
-// mapAsanaTemplateToProcessing in the shared module.
+// (name + subtype only) and custom_fields carry name/type/default + colored
+// enum options. See mapAsanaTemplateToProcessing in the shared module.
 const TEMPLATE_DETAIL_OPT_FIELDS = [
   'name',
   'created_at',
@@ -207,7 +236,9 @@ const TEMPLATE_DETAIL_OPT_FIELDS = [
   'template.custom_fields.display_value',
   'template.custom_fields.number_value',
   'template.custom_fields.text_value',
+  'template.custom_fields.enum_options.gid',
   'template.custom_fields.enum_options.name',
+  'template.custom_fields.enum_options.color',
 ].join(',');
 
 interface AsanaPage {
@@ -215,17 +246,28 @@ interface AsanaPage {
   next_page?: {offset?: string | null} | null;
 }
 
+// One GET with 429 Retry-After handling (retryAfterMs backoff; max 5 attempts).
 async function asanaGet(path: string, params: Record<string, unknown>): Promise<AsanaPage> {
   if (!ASANA_ACCESS_TOKEN) throw new Error('ASANA_ACCESS_TOKEN not configured');
   const url = new URL(ASANA_BASE + path);
   for (const [k, v] of Object.entries(params || {})) {
     if (v != null && v !== '') url.searchParams.set(k, String(v));
   }
-  const res = await fetch(url.toString(), {
-    headers: {Authorization: `Bearer ${ASANA_ACCESS_TOKEN}`, Accept: 'application/json'},
-  });
-  if (!res.ok) throw new Error(`asana GET ${path} ${res.status}: ${await res.text()}`);
-  return (await res.json()) as AsanaPage;
+  let attempt = 0;
+  for (;;) {
+    attempt += 1;
+    const res = await fetch(url.toString(), {
+      headers: {Authorization: `Bearer ${ASANA_ACCESS_TOKEN}`, Accept: 'application/json'},
+    });
+    if (res.status === 429 && attempt < 5) {
+      const waitMs = retryAfterMs(res.headers.get('retry-after'), attempt);
+      await res.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+    if (!res.ok) throw new Error(`asana GET ${path} ${res.status}: ${await res.text()}`);
+    return (await res.json()) as AsanaPage;
+  }
 }
 
 // Follow Asana's cursor pagination (next_page.offset) to completion.
@@ -252,7 +294,81 @@ function resolveSection(task: Record<string, unknown>): {name: string | null; gi
   };
 }
 
-// ─── Attachment byte copy (gated on the storage bucket existing) ─────────────
+// GENUINELY recursive subtask fetch: the direct /subtasks response does NOT
+// embed descendants, so any subtask reporting num_subtasks > 0 gets its own
+// fetch; children attach as node.subtasks for flattenSubtasks. Depth-capped
+// defensively at 5 (the calendar uses 1-2 levels).
+async function fetchSubtasksRecursive(gid: string, depth = 0): Promise<Record<string, unknown>[]> {
+  const subs = await asanaGetAll(`/tasks/${gid}/subtasks`, {opt_fields: SUBTASK_OPT_FIELDS});
+  if (depth >= 5) return subs;
+  for (const sub of subs) {
+    const childGid = sub && sub.gid != null ? String(sub.gid) : null;
+    const n = Number((sub as Record<string, unknown>).num_subtasks ?? 0);
+    if (childGid && Number.isFinite(n) && n > 0) {
+      (sub as Record<string, unknown>).subtasks = await fetchSubtasksRecursive(childGid, depth + 1);
+    }
+  }
+  return subs;
+}
+
+// ─── Directory + profile mapping (stable gid/email identity) ─────────────────
+
+interface MappingContext {
+  directory: ReturnType<typeof buildUserDirectory>;
+  profilesByEmail: Record<string, string>;
+}
+
+// Workspace users via the project's workspace + planner emails via auth.users
+// (service role; emails never leave the function).
+async function loadMappingContext(svc: ReturnType<typeof createClient>): Promise<MappingContext> {
+  const projPage = await asanaGet(`/projects/${ASANA_PROJECT_GID}`, {opt_fields: 'workspace.gid,name'});
+  const workspaceGid =
+    projPage && (projPage as Record<string, any>).data && (projPage as Record<string, any>).data.workspace
+      ? String((projPage as Record<string, any>).data.workspace.gid)
+      : null;
+  const users = workspaceGid ? await asanaGetAll('/users', {workspace: workspaceGid, opt_fields: USER_OPT_FIELDS}) : [];
+  const directory = buildUserDirectory(users);
+
+  const profilesByEmail: Record<string, string> = {};
+  let page = 1;
+  for (;;) {
+    const {data, error} = await svc.auth.admin.listUsers({page, perPage: 200});
+    if (error) throw new Error(`auth listUsers: ${error.message}`);
+    const list = (data && data.users) || [];
+    for (const u of list) {
+      if (u && u.email && u.id) profilesByEmail[String(u.email).toLowerCase()] = String(u.id);
+    }
+    if (list.length < 200) break;
+    page += 1;
+  }
+  return {directory, profilesByEmail};
+}
+
+// Fail-closed mapping preflight for every WRITE action: sections + custom-field
+// settings + users must all resolve. Throws with the unmapped list on failure.
+async function enforceDestinationPreflight(svc: ReturnType<typeof createClient>): Promise<MappingContext> {
+  const sections = await asanaGetAll(`/projects/${ASANA_PROJECT_GID}/sections`, {opt_fields: 'name'});
+  const cfSettings = await asanaGetAll(`/projects/${ASANA_PROJECT_GID}/custom_field_settings`, {
+    opt_fields: CF_SETTING_OPT_FIELDS,
+  });
+  const ctx = await loadMappingContext(svc);
+  const audit = buildDestinationAudit({
+    sections,
+    customFieldSettings: cfSettings,
+    users: Object.values(ctx.directory.byGid),
+    profilesByEmail: ctx.profilesByEmail,
+  }) as {ok: boolean; unmapped: Array<Record<string, unknown>>};
+  if (!audit.ok) {
+    const detail = audit.unmapped
+      .map((u) => `${u.kind}:${u.name ?? u.id ?? '?'} (${u.reason})`)
+      .slice(0, 10)
+      .join('; ');
+    throw new Error(`destination preflight failed — unresolved destinations: ${detail}`);
+  }
+  return ctx;
+}
+
+// ─── Attachment byte copy (attachment_backfill ONLY) ─────────────────────────
 
 // Copy one Asana attachment's bytes into the private bucket, then record its
 // metadata via the importer RPC (parent resolved via the link). Returns true when
@@ -281,7 +397,6 @@ async function backfillAttachment(
       upsert: true,
     });
     if (up.error) {
-      // Bucket not created yet (gated migration) or an upload error → skip.
       console.error(`attachment ${gid} upload skipped: ${up.error.message}`);
       return false;
     }
@@ -357,9 +472,7 @@ async function fetchTasks(sinceISO: string | null): Promise<FetchedTask[]> {
 }
 
 // Load the reconciled planner_batch rows (service_role BYPASSRLS) for matching.
-// archived=false ONLY: reconcile retires stale planner_batch rows (a cleared
-// broiler date, a removed pig trip) by archiving them — a retired row must never
-// be a match candidate, or Asana could resurrect it.
+// archived=false ONLY: a retired row must never be a match candidate.
 async function loadPlannerRows(svc: ReturnType<typeof createClient>): Promise<PlannerRow[]> {
   const {data, error} = await svc
     .from('processing_records')
@@ -372,6 +485,17 @@ async function loadPlannerRows(svc: ReturnType<typeof createClient>): Promise<Pl
   return (data || []) as PlannerRow[];
 }
 
+// Already-linked task gids (non-null processing_record_id) — the base set for
+// every artifact/comment/activity/attachment import.
+async function loadLinkedGids(svc: ReturnType<typeof createClient>): Promise<string[]> {
+  const {data, error} = await svc
+    .from('processing_asana_links')
+    .select('asana_gid, processing_record_id')
+    .not('processing_record_id', 'is', null);
+  if (error) throw new Error(`load linked rows: ${error.message}`);
+  return ((data || []) as Array<{asana_gid: string | null}>).map((l) => l.asana_gid).filter(Boolean) as string[];
+}
+
 // The WCF code for a task: from the Name, else the Batch Name (Farms) captured
 // in the mapped row's historical_snapshot. Null for pig / uncoded tasks.
 function codeForTask(task: Record<string, unknown>, row: Record<string, unknown>): string | null {
@@ -379,61 +503,113 @@ function codeForTask(task: Record<string, unknown>, row: Record<string, unknown>
   return normalizeWcfCode(task.name as string) || normalizeWcfCode(snap.batch_name as string) || null;
 }
 
+// ─── destination_audit (read-only, full live enumeration) ────────────────────
+
+async function runDestinationAudit(svc: ReturnType<typeof createClient>): Promise<Record<string, unknown>> {
+  const sections = await asanaGetAll(`/projects/${ASANA_PROJECT_GID}/sections`, {opt_fields: 'name'});
+  const cfSettings = await asanaGetAll(`/projects/${ASANA_PROJECT_GID}/custom_field_settings`, {
+    opt_fields: CF_SETTING_OPT_FIELDS,
+  });
+  const ctx = await loadMappingContext(svc);
+  const templates = await asanaGetAll('/task_templates', {project: ASANA_PROJECT_GID, opt_fields: 'name'});
+  const tasks = await fetchTasks(null);
+
+  // Recursive enumeration per task: subtasks (genuinely recursive), stories by
+  // type, attachments, dependencies. Read-only throughout.
+  let subtaskCount = 0;
+  let attachmentCount = 0;
+  let dependencyCount = 0;
+  const storyTypeCounts: Record<string, number> = {};
+  for (const t of tasks) {
+    if (!t.gid) continue;
+    const deps = Array.isArray((t.task as Record<string, unknown>).dependencies)
+      ? ((t.task as Record<string, unknown>).dependencies as unknown[]).length
+      : 0;
+    const depd = Array.isArray((t.task as Record<string, unknown>).dependents)
+      ? ((t.task as Record<string, unknown>).dependents as unknown[]).length
+      : 0;
+    dependencyCount += deps + depd;
+    try {
+      const subs = await fetchSubtasksRecursive(t.gid);
+      subtaskCount += flattenSubtasks(subs).length;
+      const stories = await asanaGetAll(`/tasks/${t.gid}/stories`, {opt_fields: STORY_OPT_FIELDS});
+      for (const s of stories) {
+        const type = s && s.type != null ? String(s.type) : 'unknown';
+        storyTypeCounts[type] = (storyTypeCounts[type] || 0) + 1;
+      }
+      const atts = await asanaGetAll(`/tasks/${t.gid}/attachments`, {opt_fields: 'name'});
+      attachmentCount += atts.length;
+    } catch (e) {
+      console.error(`audit ${t.gid}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return buildDestinationAudit({
+    sections,
+    customFieldSettings: cfSettings,
+    users: Object.values(ctx.directory.byGid),
+    tasks,
+    storyTypeCounts,
+    dependencyCount,
+    taskTemplates: templates,
+    subtaskCount,
+    attachmentCount,
+    profilesByEmail: ctx.profilesByEmail,
+  }) as Record<string, unknown>;
+}
+
 // ─── dry_run (read-only match preview) ───────────────────────────────────────
 
 async function runDryRun(svc: ReturnType<typeof createClient>): Promise<Record<string, unknown>> {
   // Read-only review preview: NO reconcile (that writes), NO sync-run row, NO
   // Asana/DB writes. Planner rows are as-of the last reconcile; the classification
-  // uses the SAME matcher rules the write path (runSync) applies. The full review
-  // packet (buckets, review entries, milestones, duplicate/collision report, pig
-  // candidates, drift preview) is assembled by the PURE, unit-tested
-  // buildDryRunReport so the read preview and the write path can never diverge.
+  // uses the SAME matcher rules the write path (runSync) applies via the PURE,
+  // unit-tested buildDryRunReport.
   const plannerRows = await loadPlannerRows(svc);
   const tasks = await fetchTasks(null);
   return buildDryRunReport(tasks, plannerRows) as Record<string, unknown>;
 }
 
-// ─── comments-only import (Lane A) ───────────────────────────────────────────
+// ─── comments (comments_dry_run / sync_comments) ─────────────────────────────
 
 interface CommentImportCounts {
   linkedTasks: number;
   commentsFound: number;
   inserted: number;
   skipped: number;
+  mentionsMapped: number;
   errors: number;
   dryRun: boolean;
 }
 
-// Import Asana COMMENTS ONLY. For each ALREADY-LINKED task (read-only lookup of the
-// existing processing_asana_links rows that have a non-null processing_record_id —
-// NO reconcile, NO rematch), fetch its Asana comment stories and persist them via
-// record_processing_comment (idempotent on asana_comment_gid; parent resolved via
-// the link). Deliberately does NOT touch subtasks, attachments, Storage, or the
-// sync_once artifact path. dryRun scans + counts without writing anything.
-async function runCommentsImport(svc: ReturnType<typeof createClient>, dryRun: boolean): Promise<CommentImportCounts> {
+// Import Asana COMMENTS ONLY for already-linked tasks. Idempotent on
+// asana_comment_gid; mentions map to planner profiles via the user directory
+// (ctx nullable → mentions skipped, e.g. when the preflight was not run).
+// Deliberately does NOT touch subtasks, attachments, Storage, or system stories.
+async function runCommentsImport(
+  svc: ReturnType<typeof createClient>,
+  dryRun: boolean,
+  ctx: MappingContext | null,
+): Promise<CommentImportCounts> {
   const counts: CommentImportCounts = {
     linkedTasks: 0,
     commentsFound: 0,
     inserted: 0,
     skipped: 0,
+    mentionsMapped: 0,
     errors: 0,
     dryRun,
   };
-  const {data: links, error} = await svc
-    .from('processing_asana_links')
-    .select('asana_gid, processing_record_id')
-    .not('processing_record_id', 'is', null);
-  if (error) throw new Error(`load linked rows: ${error.message}`);
-
-  for (const l of (links || []) as Array<{asana_gid: string | null}>) {
-    const gid = l.asana_gid;
-    if (!gid) continue;
+  const gids = await loadLinkedGids(svc);
+  for (const gid of gids) {
     counts.linkedTasks += 1;
     try {
       const stories = await asanaGetAll(`/tasks/${gid}/stories`, {opt_fields: STORY_OPT_FIELDS});
       for (const s of stories) {
         if (!isRealComment(s)) continue;
         counts.commentsFound += 1;
+        const mentions = ctx ? parseAsanaMentionProfileIds(s.text as string, ctx.directory, ctx.profilesByEmail) : [];
+        if (mentions.length > 0) counts.mentionsMapped += 1;
         if (dryRun) continue;
         const c = mapAsanaComment(s);
         const {data, error: cErr} = await svc.rpc('record_processing_comment', {
@@ -443,11 +619,12 @@ async function runCommentsImport(svc: ReturnType<typeof createClient>, dryRun: b
             body: c.body,
             original_author_name: c.original_author_name,
             created_at: c.created_at,
+            mentions,
           },
         });
         if (cErr) counts.errors += 1;
-        else if ((data as {action?: string})?.action === 'skipped') counts.skipped += 1;
-        else counts.inserted += 1;
+        else if ((data as {action?: string})?.action === 'inserted') counts.inserted += 1;
+        else counts.skipped += 1;
       }
     } catch (e) {
       counts.errors += 1;
@@ -457,10 +634,127 @@ async function runCommentsImport(svc: ReturnType<typeof createClient>, dryRun: b
   return counts;
 }
 
-// Read-only attachment preview: for every already-linked task, count the Asana
-// attachments and how many are NEW (not yet in processing_attachments), and
-// report whether the private bucket exists yet. NO byte copy, NO DB write, NO
-// Storage write — the safe preview before attachment_backfill / sync_once.
+// ─── subtasks (artifacts_dry_run / sync_artifacts) ───────────────────────────
+
+interface ArtifactsImportCounts {
+  linkedTasks: number;
+  subtasksFound: number;
+  upserted: number;
+  errors: number;
+  dryRun: boolean;
+}
+
+// Recursive-subtask import for already-linked tasks. Local check-offs and local
+// assignee ownership are preserved server-side (migs 157/165). NO comments,
+// NO attachments, NO Storage.
+async function runArtifactsImport(
+  svc: ReturnType<typeof createClient>,
+  dryRun: boolean,
+  ctx: MappingContext | null,
+): Promise<ArtifactsImportCounts> {
+  const counts: ArtifactsImportCounts = {linkedTasks: 0, subtasksFound: 0, upserted: 0, errors: 0, dryRun};
+  const gids = await loadLinkedGids(svc);
+  for (const gid of gids) {
+    counts.linkedTasks += 1;
+    try {
+      const subs = await fetchSubtasksRecursive(gid);
+      for (const {subtask, sortOrder} of flattenSubtasks(subs)) {
+        counts.subtasksFound += 1;
+        if (dryRun) continue;
+        const p_row = mapAsanaSubtask(subtask, gid, sortOrder) as Record<string, unknown>;
+        if (ctx && p_row.assignee_gid) {
+          const {profileId} = mapAsanaUserToProfile(String(p_row.assignee_gid), ctx.directory, ctx.profilesByEmail);
+          if (profileId) p_row.assignee_profile_id = profileId;
+        }
+        const {error} = await svc.rpc('upsert_processing_subtask_from_asana', {p_row});
+        if (error) counts.errors += 1;
+        else counts.upserted += 1;
+      }
+    } catch (e) {
+      counts.errors += 1;
+      console.error(`subtasks ${gid}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return counts;
+}
+
+// ─── system stories + mention backfill (activity_dry_run / sync_activity) ────
+
+interface ActivityImportCounts {
+  linkedTasks: number;
+  systemStories: number;
+  inserted: number;
+  skipped: number;
+  commentMentionBackfills: number;
+  errors: number;
+  dryRun: boolean;
+}
+
+// Import Asana SYSTEM stories as immutable historical Activity (original
+// timestamps, deterministic ids) and re-offer comment mentions so previously
+// imported comments gain their profile-mapped mentions.
+async function runActivityImport(
+  svc: ReturnType<typeof createClient>,
+  dryRun: boolean,
+  ctx: MappingContext | null,
+): Promise<ActivityImportCounts> {
+  const counts: ActivityImportCounts = {
+    linkedTasks: 0,
+    systemStories: 0,
+    inserted: 0,
+    skipped: 0,
+    commentMentionBackfills: 0,
+    errors: 0,
+    dryRun,
+  };
+  const gids = await loadLinkedGids(svc);
+  for (const gid of gids) {
+    counts.linkedTasks += 1;
+    try {
+      const stories = await asanaGetAll(`/tasks/${gid}/stories`, {opt_fields: STORY_OPT_FIELDS});
+      for (const s of stories) {
+        if (isSystemStory(s)) {
+          counts.systemStories += 1;
+          if (dryRun) continue;
+          const {data, error} = await svc.rpc('record_processing_history_event', {
+            p_row: mapAsanaSystemStory(s, gid),
+          });
+          if (error) counts.errors += 1;
+          else if ((data as {action?: string})?.action === 'inserted') counts.inserted += 1;
+          else counts.skipped += 1;
+          continue;
+        }
+        if (isRealComment(s) && ctx) {
+          const mentions = parseAsanaMentionProfileIds(s.text as string, ctx.directory, ctx.profilesByEmail);
+          if (mentions.length === 0) continue;
+          counts.commentMentionBackfills += 1;
+          if (dryRun) continue;
+          const c = mapAsanaComment(s);
+          // record_processing_comment backfills mentions onto an existing
+          // imported comment (mig 165) — idempotent, display-only.
+          const {error} = await svc.rpc('record_processing_comment', {
+            p_row: {
+              parent_asana_gid: gid,
+              asana_comment_gid: c.asana_comment_gid,
+              body: c.body,
+              original_author_name: c.original_author_name,
+              created_at: c.created_at,
+              mentions,
+            },
+          });
+          if (error) counts.errors += 1;
+        }
+      }
+    } catch (e) {
+      counts.errors += 1;
+      console.error(`activity ${gid}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return counts;
+}
+
+// ─── attachments (attachment_dry_run / attachment_backfill) ──────────────────
+
 interface AttachmentDryRunCounts {
   linkedTasks: number;
   attachmentsFound: number;
@@ -482,7 +776,6 @@ async function runAttachmentDryRun(svc: ReturnType<typeof createClient>): Promis
     dryRun: true,
   };
 
-  // Bucket presence — the gated Storage dependency (migration 163, held).
   try {
     const {data: bucket} = await svc.storage.getBucket(ATTACHMENT_BUCKET);
     counts.bucketReady = !!bucket;
@@ -490,7 +783,6 @@ async function runAttachmentDryRun(svc: ReturnType<typeof createClient>): Promis
     counts.bucketReady = false;
   }
 
-  // Already-stored attachment gids (idempotency baseline).
   const stored = new Set<string>();
   {
     const {data, error} = await svc.from('processing_attachments').select('asana_attachment_gid');
@@ -500,15 +792,8 @@ async function runAttachmentDryRun(svc: ReturnType<typeof createClient>): Promis
     }
   }
 
-  const {data: links, error} = await svc
-    .from('processing_asana_links')
-    .select('asana_gid, processing_record_id')
-    .not('processing_record_id', 'is', null);
-  if (error) throw new Error(`load linked rows: ${error.message}`);
-
-  for (const l of (links || []) as Array<{asana_gid: string | null}>) {
-    const gid = l.asana_gid;
-    if (!gid) continue;
+  const gids = await loadLinkedGids(svc);
+  for (const gid of gids) {
     counts.linkedTasks += 1;
     try {
       const atts = await asanaGetAll(`/tasks/${gid}/attachments`, {opt_fields: ATTACH_OPT_FIELDS});
@@ -518,6 +803,38 @@ async function runAttachmentDryRun(svc: ReturnType<typeof createClient>): Promis
         const agid = a && a.gid != null ? String(a.gid) : null;
         if (agid && stored.has(agid)) counts.alreadyStored += 1;
         else counts.newAttachments += 1;
+      }
+    } catch (e) {
+      counts.errors += 1;
+      console.error(`attachments ${gid}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return counts;
+}
+
+interface AttachmentBackfillCounts {
+  linkedTasks: number;
+  attachmentsFound: number;
+  copied: number;
+  errors: number;
+}
+
+// The ONLY attachment byte-copier. Requires the bucket; idempotent on
+// asana_attachment_gid (record_processing_attachment skips stored gids after
+// upsert:true refreshes bytes at the same path).
+async function runAttachmentBackfill(svc: ReturnType<typeof createClient>): Promise<AttachmentBackfillCounts> {
+  const counts: AttachmentBackfillCounts = {linkedTasks: 0, attachmentsFound: 0, copied: 0, errors: 0};
+  const {data: bucket} = await svc.storage.getBucket(ATTACHMENT_BUCKET);
+  if (!bucket) throw new Error(`storage bucket ${ATTACHMENT_BUCKET} does not exist (gated migration not applied)`);
+  const gids = await loadLinkedGids(svc);
+  for (const gid of gids) {
+    counts.linkedTasks += 1;
+    try {
+      const atts = await asanaGetAll(`/tasks/${gid}/attachments`, {opt_fields: ATTACH_OPT_FIELDS});
+      for (const att of atts) {
+        counts.attachmentsFound += 1;
+        const storedNow = await backfillAttachment(svc, gid, att as Record<string, any>);
+        if (storedNow) counts.copied += 1;
       }
     } catch (e) {
       counts.errors += 1;
@@ -540,7 +857,7 @@ interface SyncCounts {
   needsReview: number;
   subtasks: number;
   comments: number;
-  attachments: number;
+  systemStories: number;
   errors: number;
 }
 
@@ -603,22 +920,25 @@ async function createRecordAndLink(
   return link(svc, {...o, recordId, row});
 }
 
-// Import subtasks + comments + attachments for a LINKED task. Parent is resolved
-// via the link inside each RPC, so this is only called once a link with a
-// non-null processing_record_id exists.
+// Import subtasks + comments + SYSTEM stories for a LINKED task. Parent is
+// resolved via the link inside each RPC. NEVER attachments — bytes move only
+// through the dedicated attachment_backfill action.
 async function importArtifacts(
   svc: ReturnType<typeof createClient>,
   gid: string,
-  doAttachments: boolean,
+  ctx: MappingContext | null,
   counts: SyncCounts,
 ): Promise<void> {
-  // Subtasks (flattened).
+  // Subtasks (genuinely recursive, flattened parent-first).
   try {
-    const subs = await asanaGetAll(`/tasks/${gid}/subtasks`, {opt_fields: SUBTASK_OPT_FIELDS});
+    const subs = await fetchSubtasksRecursive(gid);
     for (const {subtask, sortOrder} of flattenSubtasks(subs)) {
-      const {error} = await svc.rpc('upsert_processing_subtask_from_asana', {
-        p_row: mapAsanaSubtask(subtask, gid, sortOrder),
-      });
+      const p_row = mapAsanaSubtask(subtask, gid, sortOrder) as Record<string, unknown>;
+      if (ctx && p_row.assignee_gid) {
+        const {profileId} = mapAsanaUserToProfile(String(p_row.assignee_gid), ctx.directory, ctx.profilesByEmail);
+        if (profileId) p_row.assignee_profile_id = profileId;
+      }
+      const {error} = await svc.rpc('upsert_processing_subtask_from_asana', {p_row});
       if (error) counts.errors += 1;
       else counts.subtasks += 1;
     }
@@ -627,43 +947,39 @@ async function importArtifacts(
     console.error(`subtasks ${gid}: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // Comments (stories) — persisted via record_processing_comment (idempotent on
-  // asana_comment_gid; parent resolved via the link). Skipped duplicates aren't
-  // counted as new.
+  // Stories: comments (with mapped mentions) + system history (original
+  // timestamps, deterministic ids). Skipped duplicates aren't counted as new.
   try {
     const stories = await asanaGetAll(`/tasks/${gid}/stories`, {opt_fields: STORY_OPT_FIELDS});
     for (const s of stories) {
-      if (!isRealComment(s)) continue;
-      const c = mapAsanaComment(s);
-      const {data, error} = await svc.rpc('record_processing_comment', {
-        p_row: {
-          parent_asana_gid: gid,
-          asana_comment_gid: c.asana_comment_gid,
-          body: c.body,
-          original_author_name: c.original_author_name,
-          created_at: c.created_at,
-        },
-      });
-      if (error) counts.errors += 1;
-      else if ((data as {action?: string})?.action !== 'skipped') counts.comments += 1;
+      if (isRealComment(s)) {
+        const c = mapAsanaComment(s);
+        const mentions = ctx ? parseAsanaMentionProfileIds(s.text as string, ctx.directory, ctx.profilesByEmail) : [];
+        const {data, error} = await svc.rpc('record_processing_comment', {
+          p_row: {
+            parent_asana_gid: gid,
+            asana_comment_gid: c.asana_comment_gid,
+            body: c.body,
+            original_author_name: c.original_author_name,
+            created_at: c.created_at,
+            mentions,
+          },
+        });
+        if (error) counts.errors += 1;
+        else if ((data as {action?: string})?.action === 'inserted') counts.comments += 1;
+        continue;
+      }
+      if (isSystemStory(s)) {
+        const {data, error} = await svc.rpc('record_processing_history_event', {
+          p_row: mapAsanaSystemStory(s, gid),
+        });
+        if (error) counts.errors += 1;
+        else if ((data as {action?: string})?.action === 'inserted') counts.systemStories += 1;
+      }
     }
   } catch (e) {
     counts.errors += 1;
     console.error(`stories ${gid}: ${e instanceof Error ? e.message : String(e)}`);
-  }
-
-  // Attachments (byte copy gated on the storage bucket existing).
-  if (doAttachments) {
-    try {
-      const atts = await asanaGetAll(`/tasks/${gid}/attachments`, {opt_fields: ATTACH_OPT_FIELDS});
-      for (const att of atts) {
-        const stored = await backfillAttachment(svc, gid, att as Record<string, any>);
-        if (stored) counts.attachments += 1;
-      }
-    } catch (e) {
-      counts.errors += 1;
-      console.error(`attachments ${gid}: ${e instanceof Error ? e.message : String(e)}`);
-    }
   }
 }
 
@@ -673,6 +989,7 @@ async function runSync(
   sinceISO: string | null,
   syncRunId: string,
   reviewOnly = false,
+  ctx: MappingContext | null = null,
 ): Promise<SyncCounts> {
   const counts: SyncCounts = {
     reconcile: null,
@@ -685,7 +1002,7 @@ async function runSync(
     needsReview: 0,
     subtasks: 0,
     comments: 0,
-    attachments: 0,
+    systemStories: 0,
     errors: 0,
   };
 
@@ -699,12 +1016,8 @@ async function runSync(
   const plannerRows = await loadPlannerRows(svc);
   counts.plannerRows = plannerRows.length;
 
-  // reviewOnly (sync_review_queue) imports records + links ONLY: no subtasks,
-  // comments, attachments, or Storage writes.
-  const doAttachments =
-    !reviewOnly && (action === 'sync_once' || action === 'sync_since' || action === 'attachment_backfill');
-
   // (3) Fetch every Asana task and (4/5) match → link → import artifacts.
+  // reviewOnly (sync_review_queue) imports records + links ONLY.
   const tasks = await fetchTasks(sinceISO);
   for (const t of tasks) {
     const gid = t.gid;
@@ -721,7 +1034,11 @@ async function runSync(
         customFieldsByName: t.cf,
         sectionGid: t.sectionGid,
         syncRunId,
-      });
+      }) as Record<string, unknown>;
+      if (ctx && row.assignee_gid) {
+        const {profileId} = mapAsanaUserToProfile(String(row.assignee_gid), ctx.directory, ctx.profilesByEmail);
+        if (profileId) row.assignee_profile_id = profileId;
+      }
       const program = row.program as string | null;
       const code = codeForTask(t.task, row);
       const base = {gid, program, code, syncRunId};
@@ -741,7 +1058,7 @@ async function runSync(
           continue;
         }
         counts.milestones += 1;
-        if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
+        if (!reviewOnly) await importArtifacts(svc, gid, ctx, counts);
         continue;
       }
 
@@ -768,7 +1085,7 @@ async function runSync(
           continue;
         }
         counts.matched += 1;
-        if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
+        if (!reviewOnly) await importArtifacts(svc, gid, ctx, counts);
         continue;
       }
 
@@ -787,7 +1104,7 @@ async function runSync(
           continue;
         }
         counts.historical += 1;
-        if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
+        if (!reviewOnly) await importArtifacts(svc, gid, ctx, counts);
         continue;
       }
 
@@ -825,7 +1142,7 @@ async function runSync(
         continue;
       }
       counts.exceptions += 1;
-      if (!reviewOnly) await importArtifacts(svc, gid, doAttachments, counts);
+      if (!reviewOnly) await importArtifacts(svc, gid, ctx, counts);
     } catch (e) {
       counts.errors += 1;
       console.error(`task ${gid}: ${e instanceof Error ? e.message : String(e)}`);
@@ -834,7 +1151,7 @@ async function runSync(
   return counts;
 }
 
-// ─── Task-template import (sub-lane 5) ───────────────────────────────────────
+// ─── Task-template import ────────────────────────────────────────────────────
 
 // A caller-JWT client so template WRITES run as the admin user (auth.uid()
 // present) — upsert_processing_template is admin-gated, so the service-role
@@ -849,7 +1166,7 @@ function userClientFromReq(req: Request): ReturnType<typeof createClient> | null
 }
 
 // Fetch every task template on the SF Processing Calendar project, then GET each
-// one's full recipe (subtasks + custom fields). Read-only.
+// one's full recipe (subtasks + custom fields incl. option colors). Read-only.
 async function fetchAsanaTemplates(): Promise<Record<string, unknown>[]> {
   const compact = await asanaGetAll('/task_templates', {project: ASANA_PROJECT_GID, opt_fields: 'name'});
   const out: Record<string, unknown>[] = [];
@@ -881,10 +1198,9 @@ async function loadActiveTemplatesByProgram(
 }
 
 // Read-only preview (apply=false) or admin write (apply=true). The write upserts
-// ONLY 'ready' items (single template per program, program inferred, content
-// changed) via the caller's admin JWT. upsert_processing_template auto-versions,
-// so re-importing an unchanged template is a no-op. Never touches
-// batch/link/subtask/attachment writes.
+// ONLY 'ready' items via the caller's admin JWT, MERGING the active template's
+// checklist assignees by label (the Asana template API cannot carry assignees,
+// so planner-side assignments survive a re-import).
 async function runTemplateImport(
   svc: ReturnType<typeof createClient>,
   userClient: ReturnType<typeof createClient> | null,
@@ -903,10 +1219,15 @@ async function runTemplateImport(
   const errors: Array<Record<string, unknown>> = [];
   for (const item of plan.items) {
     if (item.status !== 'ready') continue;
+    const active = activeByProgram[String(item.program)] || null;
+    const mergedChecklist = mergeTemplateChecklistAssignees(
+      item.checklist as unknown[],
+      active ? (active.checklist as unknown[]) : [],
+    );
     const {data, error} = await userClient.rpc('upsert_processing_template', {
       p_program: item.program,
       p_fields: item.fields,
-      p_checklist: item.checklist,
+      p_checklist: mergedChecklist,
     });
     if (error) errors.push({program: item.program, error: error.message});
     else written.push({program: item.program, version: (data as {version?: number})?.version ?? null});
@@ -917,16 +1238,33 @@ async function runTemplateImport(
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 const ACTIONS = new Set([
+  'destination_audit',
   'dry_run',
   'sync_planner_to_processing',
   'sync_review_queue',
   'comments_dry_run',
   'sync_comments',
+  'artifacts_dry_run',
+  'sync_artifacts',
+  'activity_dry_run',
+  'sync_activity',
   'sync_once',
   'sync_since',
   'attachment_backfill',
   'attachment_dry_run',
   'import_templates_dry_run',
+  'import_templates',
+]);
+
+// Every write action runs the fail-closed destination preflight first.
+const WRITE_ACTIONS = new Set([
+  'sync_review_queue',
+  'sync_comments',
+  'sync_artifacts',
+  'sync_activity',
+  'sync_once',
+  'sync_since',
+  'attachment_backfill',
   'import_templates',
 ]);
 
@@ -967,7 +1305,8 @@ serve(async (req: Request) => {
     return jsonResponse({ok: false, error: `action must be one of: ${Array.from(ACTIONS).join(', ')}`}, 400);
   }
 
-  // Planner-only reconcile: no Asana fetch, no token, no sync-run row.
+  // Planner-only reconcile: no Asana fetch, no token, no sync-run row, and
+  // AVAILABLE AFTER CUTOVER (it never touches Asana).
   if (action === 'sync_planner_to_processing') {
     try {
       const {data, error} = await svc.rpc('reconcile_planner_to_processing');
@@ -978,10 +1317,52 @@ serve(async (req: Request) => {
     }
   }
 
-  // Every Asana-touching action needs the token. Absent → clear error (the probe
-  // already told the UI).
+  // CUTOVER ENFORCEMENT: asana_sync_enabled=false locks EVERY remaining action
+  // (they all touch Asana) — reads and writes alike fail closed.
+  try {
+    const {data: settings, error: setErr} = await svc
+      .from('processing_asana_sync_settings')
+      .select('asana_sync_enabled')
+      .eq('id', 'singleton')
+      .maybeSingle();
+    if (setErr) throw new Error(setErr.message);
+    if (!settings || settings.asana_sync_enabled !== true) {
+      return jsonResponse(
+        {ok: false, action, error: 'asana_sync_enabled is false — Asana sync/import is locked (final cutover)'},
+        423,
+      );
+    }
+  } catch (e) {
+    return jsonResponse(
+      {ok: false, action, error: `could not verify asana_sync_enabled: ${e instanceof Error ? e.message : String(e)}`},
+      500,
+    );
+  }
+
+  // Every remaining action needs the token. Absent → clear error.
   if (!ASANA_ACCESS_TOKEN) {
     return jsonResponse({ok: false, error: 'ASANA_ACCESS_TOKEN not configured', asanaConfigured: false}, 503);
+  }
+
+  // Fail-closed destination preflight before ANY write import; the mapping
+  // context doubles as the user directory for assignee/mention resolution.
+  let ctx: MappingContext | null = null;
+  if (WRITE_ACTIONS.has(action)) {
+    try {
+      ctx = await enforceDestinationPreflight(svc);
+    } catch (e) {
+      return jsonResponse({ok: false, action, error: e instanceof Error ? e.message : String(e)}, 409);
+    }
+  }
+
+  // destination_audit: the full read-only zero-unmapped enumeration.
+  if (action === 'destination_audit') {
+    try {
+      const report = await runDestinationAudit(svc);
+      return jsonResponse({ok: true, action, report});
+    } catch (e) {
+      return jsonResponse({ok: false, action, error: e instanceof Error ? e.message : String(e)}, 500);
+    }
   }
 
   // dry_run: no writes, no reconcile, no sync-run row.
@@ -994,20 +1375,29 @@ serve(async (req: Request) => {
     }
   }
 
-  // comments_dry_run: read-only preview — scan already-linked tasks + count Asana
-  // comments, no DB write, no sync-run row.
-  if (action === 'comments_dry_run') {
+  // Read-only per-lane dry runs (no DB writes, no sync-run rows). Each loads
+  // the mapping context best-effort so mention/assignee counts are real.
+  if (action === 'comments_dry_run' || action === 'artifacts_dry_run' || action === 'activity_dry_run') {
     try {
-      const report = await runCommentsImport(svc, true);
+      let dryCtx: MappingContext | null = null;
+      try {
+        dryCtx = await loadMappingContext(svc);
+      } catch (_e) {
+        dryCtx = null;
+      }
+      const report =
+        action === 'comments_dry_run'
+          ? await runCommentsImport(svc, true, dryCtx)
+          : action === 'artifacts_dry_run'
+            ? await runArtifactsImport(svc, true, dryCtx)
+            : await runActivityImport(svc, true, dryCtx);
       return jsonResponse({ok: true, action, report});
     } catch (e) {
       return jsonResponse({ok: false, action, error: e instanceof Error ? e.message : String(e)}, 500);
     }
   }
 
-  // attachment_dry_run: read-only preview of the attachment byte-copy — counts
-  // new vs already-stored attachments per linked task + whether the bucket
-  // exists. No byte copy, no DB/Storage write, no sync-run row.
+  // attachment_dry_run: read-only preview of the attachment byte-copy.
   if (action === 'attachment_dry_run') {
     try {
       const report = await runAttachmentDryRun(svc);
@@ -1017,8 +1407,7 @@ serve(async (req: Request) => {
     }
   }
 
-  // import_templates_dry_run: read-only preview of the Asana task-template import
-  // (fetch + map + diff vs active templates). No writes, no sync-run row.
+  // import_templates_dry_run: read-only preview of the Asana task-template import.
   if (action === 'import_templates_dry_run') {
     try {
       const report = await runTemplateImport(svc, null, false);
@@ -1028,92 +1417,116 @@ serve(async (req: Request) => {
     }
   }
 
-  // import_templates: admin write — upsert changed templates via the caller's
-  // admin JWT (upsert_processing_template auto-versions). Admin-only; bracketed
-  // in a sync-run row. Kept separate from batch/link/artifact writes.
+  // WRITE actions from here down — every one bracketed in a sync-run row.
+  const startRun = async (): Promise<string> => {
+    const {data: run, error: startErr} = await svc.rpc('start_processing_sync_run', {p_action: action});
+    if (startErr) throw new Error(`start_processing_sync_run: ${startErr.message}`);
+    return (run as {id?: string})?.id || '';
+  };
+  const finishRun = async (runId: string, status: string, counts: object, error: string | null) => {
+    if (!runId) return;
+    await svc.rpc('finish_processing_sync_run', {
+      p_run_id: runId,
+      p_status: status,
+      p_counts: counts,
+      p_error: error,
+    });
+  };
+
+  // import_templates: admin write via the caller's JWT.
   if (action === 'import_templates') {
     if (mode !== 'admin') return jsonResponse({ok: false, error: 'import_templates is admin-only'}, 403);
     const userClient = userClientFromReq(req);
     let tRunId = '';
     try {
-      const {data: run, error: startErr} = await svc.rpc('start_processing_sync_run', {p_action: action});
-      if (startErr) throw new Error(`start_processing_sync_run: ${startErr.message}`);
-      tRunId = (run as {id?: string})?.id || '';
+      tRunId = await startRun();
       const report = await runTemplateImport(svc, userClient, true);
-      await svc.rpc('finish_processing_sync_run', {
-        p_run_id: tRunId,
-        p_status: 'ok',
-        p_counts: (report.summary as Record<string, number>) || {},
-        p_error: null,
-      });
+      await finishRun(tRunId, 'ok', (report.summary as Record<string, number>) || {}, null);
       return jsonResponse({ok: true, action, runId: tRunId, report});
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (tRunId) {
-        await svc.rpc('finish_processing_sync_run', {p_run_id: tRunId, p_status: 'error', p_counts: {}, p_error: msg});
-      }
+      await finishRun(tRunId, 'error', {}, msg);
       return jsonResponse({ok: false, action, error: msg}, 500);
     }
   }
 
-  // sync_comments: COMMENTS ONLY — record_processing_comment for already-linked
-  // tasks. NO subtasks/attachments/Storage; never the sync_once artifact path.
-  // Bracketed in a sync-run row for observability.
+  // sync_comments: COMMENTS ONLY (record_processing_comment; mentions mapped).
   if (action === 'sync_comments') {
-    let commentsRunId = '';
+    let runId = '';
     try {
-      const {data: run, error: startErr} = await svc.rpc('start_processing_sync_run', {p_action: action});
-      if (startErr) throw new Error(`start_processing_sync_run: ${startErr.message}`);
-      commentsRunId = (run as {id?: string})?.id || '';
-      const counts = await runCommentsImport(svc, false);
-      await svc.rpc('finish_processing_sync_run', {
-        p_run_id: commentsRunId,
-        p_status: 'ok',
-        p_counts: counts,
-        p_error: null,
-      });
-      return jsonResponse({ok: true, action, runId: commentsRunId, counts});
+      runId = await startRun();
+      const counts = await runCommentsImport(svc, false, ctx);
+      await finishRun(runId, 'ok', counts, null);
+      return jsonResponse({ok: true, action, runId, counts});
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (commentsRunId) {
-        await svc.rpc('finish_processing_sync_run', {
-          p_run_id: commentsRunId,
-          p_status: 'error',
-          p_counts: {},
-          p_error: msg,
-        });
-      }
+      await finishRun(runId, 'error', {}, msg);
       return jsonResponse({ok: false, action, error: msg}, 500);
     }
   }
 
+  // sync_artifacts: recursive SUBTASKS ONLY.
+  if (action === 'sync_artifacts') {
+    let runId = '';
+    try {
+      runId = await startRun();
+      const counts = await runArtifactsImport(svc, false, ctx);
+      await finishRun(runId, 'ok', counts, null);
+      return jsonResponse({ok: true, action, runId, counts});
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await finishRun(runId, 'error', {}, msg);
+      return jsonResponse({ok: false, action, error: msg}, 500);
+    }
+  }
+
+  // sync_activity: SYSTEM stories + comment-mention backfill ONLY.
+  if (action === 'sync_activity') {
+    let runId = '';
+    try {
+      runId = await startRun();
+      const counts = await runActivityImport(svc, false, ctx);
+      await finishRun(runId, 'ok', counts, null);
+      return jsonResponse({ok: true, action, runId, counts});
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await finishRun(runId, 'error', {}, msg);
+      return jsonResponse({ok: false, action, error: msg}, 500);
+    }
+  }
+
+  // attachment_backfill: the ONLY attachment byte-copier.
+  if (action === 'attachment_backfill') {
+    let runId = '';
+    try {
+      runId = await startRun();
+      const counts = await runAttachmentBackfill(svc);
+      await finishRun(runId, 'ok', counts, null);
+      return jsonResponse({ok: true, action, runId, counts});
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await finishRun(runId, 'error', {}, msg);
+      return jsonResponse({ok: false, action, error: msg}, 500);
+    }
+  }
+
+  // sync_once / sync_since / sync_review_queue: records + links (+ subtasks /
+  // comments / system stories for the full syncs). NEVER attachment bytes.
   if (action === 'sync_since' && !String(body.since || '').trim()) {
     return jsonResponse({ok: false, error: 'sync_since requires body.since (ISO timestamp)'}, 400);
   }
   const sinceISO = action === 'sync_since' ? String(body.since).trim() : null;
-  // sync_review_queue = records + links ONLY (reconcile + match + link, no
-  // subtasks/comments/attachments, no Storage) — the gated first queue population.
   const reviewOnly = action === 'sync_review_queue';
 
-  // Write actions: bracket the work in a sync-run row.
   let runId = '';
   try {
-    const {data: run, error: startErr} = await svc.rpc('start_processing_sync_run', {p_action: action});
-    if (startErr) throw new Error(`start_processing_sync_run: ${startErr.message}`);
-    runId = (run as {id?: string})?.id || '';
-    const counts = await runSync(svc, action, sinceISO, runId, reviewOnly);
-    await svc.rpc('finish_processing_sync_run', {
-      p_run_id: runId,
-      p_status: 'ok',
-      p_counts: counts,
-      p_error: null,
-    });
+    runId = await startRun();
+    const counts = await runSync(svc, action, sinceISO, runId, reviewOnly, ctx);
+    await finishRun(runId, 'ok', counts, null);
     return jsonResponse({ok: true, action, runId, counts});
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (runId) {
-      await svc.rpc('finish_processing_sync_run', {p_run_id: runId, p_status: 'error', p_counts: {}, p_error: msg});
-    }
+    await finishRun(runId, 'error', {}, msg);
     return jsonResponse({ok: false, action, error: msg}, 500);
   }
 });

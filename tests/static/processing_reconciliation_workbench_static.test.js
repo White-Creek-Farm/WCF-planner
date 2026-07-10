@@ -128,13 +128,22 @@ describe('edge sync_review_queue — records + links ONLY (no artifacts / Storag
   it('is a known action and runs review-only (reviewOnly flag routed into runSync)', () => {
     expect(edgeFn).toContain("'sync_review_queue'");
     expect(edgeFn).toContain("const reviewOnly = action === 'sync_review_queue';");
-    expect(edgeFn).toContain('runSync(svc, action, sinceISO, runId, reviewOnly)');
-    expect(edgeFn).toMatch(/async function runSync\([\s\S]*?reviewOnly = false,\s*\)/);
+    expect(edgeFn).toContain('runSync(svc, action, sinceISO, runId, reviewOnly, ctx)');
+    expect(edgeFn).toMatch(/async function runSync\([\s\S]*?reviewOnly = false,/);
   });
 
-  it('review-only skips every artifact import and forces attachments off', () => {
-    // doAttachments can never be true in review-only mode.
-    expect(edgeFn).toMatch(/const doAttachments =\s*\n?\s*!reviewOnly &&/);
+  it('review-only skips every artifact import; attachments never ride runSync at all', () => {
+    // The processing-complete lane REMOVED attachment bytes from runSync
+    // entirely: no doAttachments switch remains, importArtifacts carries no
+    // Storage/byte work, and the only byte-copier is runAttachmentBackfill.
+    expect(edgeFn).not.toContain('doAttachments');
+    const importStart = edgeFn.indexOf('async function importArtifacts(');
+    expect(importStart).toBeGreaterThan(-1);
+    const importEnd = edgeFn.indexOf('\nasync function ', importStart + 1);
+    const importBody = edgeFn.slice(importStart, importEnd);
+    expect(importBody).not.toContain('backfillAttachment');
+    expect(importBody).not.toContain('ATTACHMENT_BUCKET');
+    expect(importBody).not.toMatch(/\.storage\b/);
     // EVERY importArtifacts call is guarded by !reviewOnly (none can run in review-only).
     const total = (edgeFn.match(/await importArtifacts\(/g) || []).length;
     const guarded = (edgeFn.match(/if \(!reviewOnly\) await importArtifacts\(/g) || []).length;
@@ -143,8 +152,10 @@ describe('edge sync_review_queue — records + links ONLY (no artifacts / Storag
   });
 
   it('dry_run stays read-only and Storage backfill stays a separate write action', () => {
-    // sync_review_queue does not enable attachments; only sync_once/sync_since/backfill do.
-    expect(edgeFn).toMatch(/action === 'sync_once' \|\| action === 'sync_since' \|\| action === 'attachment_backfill'/);
+    // Attachment bytes move ONLY through the dedicated attachment_backfill
+    // action → runAttachmentBackfill (never sync_once/sync_since/review queue).
+    expect(edgeFn).toMatch(/if \(action === 'attachment_backfill'\)[\s\S]*?runAttachmentBackfill\(svc\)/);
+    expect((edgeFn.match(/await runAttachmentBackfill\(svc\)/g) || []).length).toBe(1);
     // The read-only dry_run is untouched (still returns a plan, no writes).
     expect(edgeFn).toMatch(/if \(action === 'dry_run'\)[\s\S]*?runDryRun\(svc\)/);
   });

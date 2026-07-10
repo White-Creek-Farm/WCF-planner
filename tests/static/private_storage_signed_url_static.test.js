@@ -7,11 +7,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const PRIVATE_BUCKET =
-  '(?:DAILY_BUCKET|COMMENT_ATTACHMENT_BUCKET|TASK_PHOTOS_BUCKET|TASK_REQUEST_PHOTOS_BUCKET|[\'"]daily-photos[\'"]|[\'"]fuel-bills[\'"]|[\'"]comment-photos[\'"]|[\'"]task-photos[\'"]|[\'"]task-request-photos[\'"])';
+  '(?:DAILY_BUCKET|COMMENT_ATTACHMENT_BUCKET|TASK_PHOTOS_BUCKET|TASK_REQUEST_PHOTOS_BUCKET|PROCESSING_ATTACHMENT_BUCKET|[\'"]daily-photos[\'"]|[\'"]fuel-bills[\'"]|[\'"]comment-photos[\'"]|[\'"]task-photos[\'"]|[\'"]task-request-photos[\'"]|[\'"]processing-attachments[\'"])';
 
 const EXPECTED_SIGNED_URL_OWNERS = new Map([
   ['src/admin/FuelBillsView.jsx', 1],
   ['src/lib/commentAttachments.js', 1],
+  // Processing attachments (migs 163/166): private processing-attachments
+  // bucket; short-lived signed open/download for the record drawer.
+  ['src/lib/processingAttachmentsApi.js', 1],
   ['src/lib/tasksCenterMutationsApi.js', 2],
   ['src/lib/tasksUserApi.js', 2],
   // To Do photos (mig 115): private task-photos bucket, todo/<id>/ prefix.
@@ -75,7 +78,7 @@ describe('Private storage buckets use signed URLs only', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(signedUrlCount).toBe(9);
+    expect(signedUrlCount).toBe(10);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

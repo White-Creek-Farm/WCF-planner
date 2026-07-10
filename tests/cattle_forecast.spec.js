@@ -102,7 +102,9 @@ async function ensureCleanForecastSeed(supabaseAdmin) {
     ids.length === BASE_FORECAST_CATTLE_IDS.length && BASE_FORECAST_CATTLE_IDS.every((id, idx) => ids[idx] === id);
   const cleanRows = (data || []).every(
     (row) =>
-      BASE_FORECAST_HERDS[row.id] === row.herd && !row.processing_batch_id && (row.id !== 'M-HEIFER' || !row.breeding_status),
+      BASE_FORECAST_HERDS[row.id] === row.herd &&
+      !row.processing_batch_id &&
+      (row.id !== 'M-HEIFER' || !row.breeding_status),
   );
   const clean = cleanIds && cleanRows && !batches.data?.length && !includes.data?.length && !hidden.data?.length;
   if (clean) return;

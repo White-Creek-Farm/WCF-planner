@@ -42,10 +42,14 @@ describe('Lane A — comments-only import actions', () => {
     const body = commentsFnBody();
     // The only write RPC it calls is record_processing_comment.
     expect(body).toContain("svc.rpc('record_processing_comment'");
-    // Reads existing linked rows only (read-only lookup; non-null record).
-    expect(body).toContain("from('processing_asana_links')");
-    expect(body).toContain('processing_record_id');
-    expect(body).toMatch(/\.not\('processing_record_id', 'is', null\)/);
+    // Reads existing linked rows only via the shared loadLinkedGids helper,
+    // which is itself a read-only non-null-record link lookup.
+    expect(body).toContain('loadLinkedGids(svc)');
+    const helperStart = edgeFn.indexOf('async function loadLinkedGids(');
+    expect(helperStart).toBeGreaterThan(-1);
+    const helper = edgeFn.slice(helperStart, helperStart + 600);
+    expect(helper).toContain("from('processing_asana_links')");
+    expect(helper).toMatch(/\.not\('processing_record_id', 'is', null\)/);
     // Absolutely no artifact/Storage/reconcile work.
     expect(body).not.toContain('upsert_processing_subtask_from_asana');
     expect(body).not.toContain('record_processing_attachment');
@@ -63,11 +67,17 @@ describe('Lane A — comments-only import actions', () => {
   });
 
   it('the dispatch branches route to runCommentsImport, never runSync', () => {
-    const dry = branch('comments_dry_run');
-    expect(dry).toContain('runCommentsImport(svc, true)');
+    // comments_dry_run shares the read-only per-lane dry-run branch (comments /
+    // artifacts / activity) — it must route to runCommentsImport(svc, true, …).
+    const dryStart = edgeFn.indexOf("if (action === 'comments_dry_run'");
+    expect(dryStart).toBeGreaterThan(-1);
+    const dryRest = edgeFn.slice(dryStart + 1);
+    const dryNext = dryRest.indexOf('if (action === ');
+    const dry = dryNext === -1 ? edgeFn.slice(dryStart) : edgeFn.slice(dryStart, dryStart + 1 + dryNext);
+    expect(dry).toMatch(/runCommentsImport\(svc, true/);
     expect(dry).not.toContain('runSync');
     const write = branch('sync_comments');
-    expect(write).toContain('runCommentsImport(svc, false)');
+    expect(write).toMatch(/runCommentsImport\(svc, false/);
     expect(write).not.toContain('runSync');
     // sync_comments is still gated behind the Asana token (it sits after the token check).
     const tokenIdx = edgeFn.indexOf("error: 'ASANA_ACCESS_TOKEN not configured'");

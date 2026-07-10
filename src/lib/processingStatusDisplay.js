@@ -9,7 +9,19 @@ export const PROCESSING_STATUS_DISPLAY = Object.freeze({
 });
 
 const COMPLETE_VALUES = new Set(['complete', 'completed', 'processed', 'done']);
-const IN_PROCESS_VALUES = new Set(['active', 'in_process', 'in-process', 'in process', 'processing']);
+// 'in-proccess' / 'in proccess' are the REAL Asana "Status (Processing)" option
+// spelling (double-c) on the SF Processing Calendar — normalize, don't correct
+// the stored value.
+const IN_PROCESS_VALUES = new Set([
+  'active',
+  'in_process',
+  'in-process',
+  'in process',
+  'processing',
+  'in-proccess',
+  'in proccess',
+  'in_proccess',
+]);
 const PLANNED_VALUES = new Set(['planned', 'scheduled', 'reserved', 'tbc', 'goal']);
 
 export function normalizeProcessingStatus(value) {

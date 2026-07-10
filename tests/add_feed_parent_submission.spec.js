@@ -377,9 +377,7 @@ test('UI: /addfeed broiler 2-batch submit creates 1 parent + 2 poultry_dailys vi
   // first batch select is now combobox index 0.
   await expect(page.locator('[data-locked-submitter="1"]')).toContainText('signed in');
   const firstBatchSelect = page.getByRole('combobox').first();
-  await expect
-    .poll(async () => await firstBatchSelect.locator('option').count(), {timeout: 10_000})
-    .toBeGreaterThan(1);
+  await expect.poll(async () => await firstBatchSelect.locator('option').count(), {timeout: 10_000}).toBeGreaterThan(1);
   await firstBatchSelect.selectOption('B-26-01');
   await page.getByRole('button', {name: 'STARTER'}).first().click();
   await page.locator('input[type="number"]').first().fill('100');

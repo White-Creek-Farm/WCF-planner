@@ -18,6 +18,10 @@ const EXPECTED_UPLOAD_OWNERS = new Map([
   ['src/lib/cattleLogOffline.js', 1],
   ['src/lib/commentAttachments.js', 1],
   ['src/lib/dailyPhotos.js', 2],
+  // Processing attachments (migs 163/166): native "Add files" upload into the
+  // PRIVATE processing-attachments bucket under native/<record id>/ (append-only,
+  // upsert:false, duplicate-as-success), registered via add_processing_attachment.
+  ['src/lib/processingAttachmentsApi.js', 1],
   // Newsletter photos (mig 145): upload into the PRIVATE newsletter-staging
   // bucket, then a same-path byte copy into PUBLIC newsletter-public on approval
   // (two .upload sites: staging upload + staging->public copy).
@@ -73,7 +77,7 @@ describe('Storage upload owner boundary', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(uploadCount).toBe(20);
+    expect(uploadCount).toBe(21);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

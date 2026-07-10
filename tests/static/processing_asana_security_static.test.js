@@ -46,6 +46,9 @@ const IMPORTER_RPCS = [
   'upsert_processing_subtask_from_asana',
   'record_processing_comment',
   'record_processing_attachment',
+  // mig 165: imported Asana SYSTEM stories → immutable historical Activity
+  // (deterministic ae-asana-<gid> ids, original timestamps, service_role only).
+  'record_processing_history_event',
   'start_processing_sync_run',
   'finish_processing_sync_run',
 ];

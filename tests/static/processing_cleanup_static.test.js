@@ -20,12 +20,17 @@ const mig160 = read('supabase-migrations/160_processing_broiler_tof.sql');
 const mig161 = read('supabase-migrations/161_processing_archive_record.sql');
 
 describe('sub-lane 1 — main table cleanup', () => {
-  it('removes the Subtasks column (header + row cell + 8-col grid)', () => {
+  it('keeps the Subtasks COLUMN out; checklist meta lives inside the Batch cell', () => {
+    // A dedicated Subtasks column must not return. The processing-complete lane
+    // restored the handoff Batch-cell meta line ("N-step checklist · done/total"),
+    // which is the ONLY sanctioned subtask surface in the table.
     expect(view).not.toContain('>Subtasks</span>');
-    expect(view).not.toContain('subtask_total');
-    expect(view).not.toContain('subtask_done');
-    // GRID dropped the 74px subtasks track (8 tracks + trailing chevron).
-    expect(view).toContain("const GRID = 'minmax(180px,1fr) 104px 96px 150px 84px 150px 108px 20px'");
+    expect(view).toMatch(/const checklistMeta =[\s\S]*?-step checklist/);
+    // processing-complete GRID: check · Batch · Owner · Status · Farm arrival ·
+    // Processing · Processor · Number · Customer · Age/TOF · Remaining · chevron.
+    expect(view).toContain(
+      "const GRID = '20px minmax(190px,1fr) 118px 96px 92px 92px 128px 72px 132px 88px 92px 20px'",
+    );
   });
 
   it('makes the title/batch column sticky (header, rows, group-header label)', () => {

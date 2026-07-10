@@ -31,9 +31,8 @@
 //                                  Detach should fall back to the audit row and
 //                                  revert the cow to 'finishers'.
 //        mode='null_from_herd'  → cattle_transfers row exists but from_herd is
-//                                  NULL. Exercises the truthy guard at
-//                                  cattleProcessingBatch.js:177; detach must
-//                                  return reason='no_prior_herd'.
+//                                  NULL. The atomic detach RPC must return
+//                                  reason='no_prior_herd'.
 //        mode='no_audit_row'    → no audit row at all. Detach blocks with
 //                                  reason='no_prior_herd' and the UI surfaces
 //                                  the alert.
@@ -381,8 +380,8 @@ export async function seedCattlePreAttachedForFallback(supabaseAdmin, {mode} = {
   );
 
   // Audit-row variants. The detach helper reads from_herd off the most-recent
-  // matching row (cattleProcessingBatch.js:170-180); 'no_audit_row' skips
-  // insertion entirely so step 1b returns nothing and detach lands on
+  // matching row (migration 170 fallback); 'no_audit_row' skips insertion
+  // entirely so step 1b returns nothing and detach lands on
   // reason='no_prior_herd'.
   if (mode === 'with_audit_row' || mode === 'null_from_herd') {
     must(

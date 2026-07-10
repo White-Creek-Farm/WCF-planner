@@ -42,7 +42,20 @@ describe('processing wiring - admin Asana sync controls', () => {
     expect(processingCalendar).toContain('const [dryRunReady, setDryRunReady] = useState(false)');
     expect(processingCalendar).toMatch(/const syncNowDisabled =[\s\S]*?!dryRunReady/);
     expect(processingCalendar).toMatch(/if \(action === 'dry_run'\)[\s\S]*?setDryRunReady\(true\)/);
-    expect(processingCalendar).toMatch(/action !== 'dry_run'[\s\S]*?!dryRunReady/);
+    // Every write action is gated by ITS OWN dry run (WRITE_REQUIRES map):
+    // sync_once needs dry_run; the artifact/activity/attachment imports each
+    // need their dedicated dry run and can never ride the record dry run.
+    expect(processingCalendar).toMatch(/sync_once: 'dry_run'/);
+    expect(processingCalendar).toMatch(/sync_artifacts: 'artifacts_dry_run'/);
+    expect(processingCalendar).toMatch(/sync_activity: 'activity_dry_run'/);
+    expect(processingCalendar).toMatch(/attachment_backfill: 'attachment_dry_run'/);
+    expect(processingCalendar).toMatch(/requiredDryRun === 'dry_run' && !dryRunReady/);
+    expect(processingCalendar).toMatch(/!importReady\[requiredDryRun\]/);
+  });
+
+  it('locks every Asana admin control when asana_sync_enabled is false (cutover)', () => {
+    expect(processingCalendar).toMatch(/asanaSyncEnabled === false/);
+    expect(processingCalendar).toMatch(/const asanaLocked =[\s\S]*?asanaSyncEnabled === false/);
   });
 });
 

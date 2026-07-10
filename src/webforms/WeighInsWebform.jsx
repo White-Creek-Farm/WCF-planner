@@ -27,8 +27,7 @@ import {recordActivityEvent, recordFieldChange, recordStatusChange} from '../lib
 import {buildChanges} from '../lib/activityChangeDiff.js';
 import CattleSendToProcessorModal from '../cattle/CattleSendToProcessorModal.jsx';
 import SheepSendToProcessorModal from '../sheep/SheepSendToProcessorModal.jsx';
-import {detachCowFromBatch} from '../lib/cattleProcessingBatch.js';
-import {detachSheepFromBatch} from '../lib/sheepProcessingBatch.js';
+import {detachCattleFromProcessingBatch, detachSheepFromProcessingBatch} from '../lib/processingDetachApi.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import PlannerIcon, {PlannerIconLabel} from '../components/PlannerIcon.jsx';
 import {ANIMAL_ICON_KEYS} from '../lib/plannerIcons.js';
@@ -623,10 +622,13 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
   // batch.cows_detail and cow.processing_batch_id stay in sync. Detach uses
   // the prior_herd_or_flock fallback hierarchy and surfaces any block reason.
   async function toggleProcessor(entry, next) {
+    let detached = false;
     if (!next && entry.target_processing_batch_id && species === 'cattle') {
       const cow = entry.tag ? cattleList.find((c) => c.tag === entry.tag) : null;
       if (cow) {
-        const r = await detachCowFromBatch(sb, cow.id, entry.target_processing_batch_id, {
+        const r = await detachCattleFromProcessingBatch(sb, {
+          cattleId: cow.id,
+          batchId: entry.target_processing_batch_id,
           teamMember: teamMember || null,
         });
         if (!r.ok && r.reason !== 'not_in_batch') {
@@ -640,12 +642,15 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
           );
           return;
         }
+        detached = r.ok && r.reason === 'detached';
       }
     }
     if (!next && entry.target_processing_batch_id && species === 'sheep') {
       const sh = entry.tag ? sheepList.find((s) => s.tag === entry.tag) : null;
       if (sh) {
-        const r = await detachSheepFromBatch(sb, sh.id, entry.target_processing_batch_id, {
+        const r = await detachSheepFromProcessingBatch(sb, {
+          sheepId: sh.id,
+          batchId: entry.target_processing_batch_id,
           teamMember: teamMember || null,
         });
         if (!r.ok && r.reason !== 'not_in_batch') {
@@ -659,14 +664,27 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
           );
           return;
         }
+        detached = r.ok && r.reason === 'detached';
       }
     }
-    const {error} = await sb.from('weigh_ins').update({send_to_processor: !!next}).eq('id', entry.id);
-    if (error) {
-      setErr('Could not update: ' + error.message);
-      return;
+    if (!detached) {
+      const {error} = await sb.from('weigh_ins').update({send_to_processor: !!next}).eq('id', entry.id);
+      if (error) {
+        setErr('Could not update: ' + error.message);
+        return;
+      }
     }
-    setEntries((prev) => prev.map((e) => (e.id === entry.id ? {...e, send_to_processor: !!next} : e)));
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.id === entry.id
+          ? {
+              ...e,
+              send_to_processor: !!next,
+              target_processing_batch_id: detached ? null : e.target_processing_batch_id,
+            }
+          : e,
+      ),
+    );
   }
   // Find a cow by prior tag, walking through current tag → import old_tags →
   // weigh_in old_tags, in that order (per the retag spec from Ronnie).
@@ -1056,9 +1074,9 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     setBusy(false);
   }
   async function deleteEntry(entry) {
-    // Webform is anon-accessible -- _wcfConfirmDelete (App-scoped) isn't
-    // mounted here, so destructive flows use the local typed-confirm modal
-    // wired through confirmDelete() above.
+    // This login-gated webform does not mount the App-scoped
+    // _wcfConfirmDelete helper, so destructive flows use the local typed-
+    // confirm modal wired through confirmDelete() above.
     if (!(await confirmDelete('Delete this entry? This cannot be undone.'))) return;
 
     // Phase 1C-D — pig fresh: drop from local entries[] only, no DB call.
@@ -1075,7 +1093,9 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     if (species === 'cattle' && entry.target_processing_batch_id) {
       const cow = entry.tag ? cattleList.find((c) => c.tag === entry.tag) : null;
       if (cow) {
-        const r = await detachCowFromBatch(sb, cow.id, entry.target_processing_batch_id, {
+        const r = await detachCattleFromProcessingBatch(sb, {
+          cattleId: cow.id,
+          batchId: entry.target_processing_batch_id,
           teamMember: teamMember || null,
         });
         if (!r.ok && r.reason !== 'not_in_batch') {
@@ -1092,7 +1112,9 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
     if (species === 'sheep' && entry.target_processing_batch_id) {
       const sh = entry.tag ? sheepList.find((s) => s.tag === entry.tag) : null;
       if (sh) {
-        const r = await detachSheepFromBatch(sb, sh.id, entry.target_processing_batch_id, {
+        const r = await detachSheepFromProcessingBatch(sb, {
+          sheepId: sh.id,
+          batchId: entry.target_processing_batch_id,
           teamMember: teamMember || null,
         });
         if (!r.ok && r.reason !== 'not_in_batch') {

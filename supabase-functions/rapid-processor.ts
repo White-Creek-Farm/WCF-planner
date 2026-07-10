@@ -576,9 +576,17 @@ serve(async (req) => {
 
       const email = String(data?.email || '').trim();
       const name = String(data?.name || '').trim();
-      const role = data?.role || 'farm_team';
+      const role = String(data?.role || 'farm_team')
+        .trim()
+        .toLowerCase();
       if (!email) {
         return new Response(JSON.stringify({error: 'email required', step: 'input'}), {
+          status: 400,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      if (!['admin', 'management', 'farm_team', 'equipment_tech', 'light'].includes(role)) {
+        return new Response(JSON.stringify({error: 'invalid assignable role', step: 'input'}), {
           status: 400,
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
@@ -872,12 +880,11 @@ serve(async (req) => {
     }
 
     // ─── USER DELETE — admin hard-deletes an auth account ───
-    // Source restored to repo as part of C4 (was deploy-only artifact;
-    // archive/SESSION_LOG.md:1397+1436+1539 confirm "Ronnie pasted that
-    // block in mid-session, deployed it"). UsersModal.jsx:131-148 is
-    // the live caller. NO email sent — this just frees the email so
-    // it can be re-invited; the JS caller deletes the profiles row
-    // afterward.
+    // Migration 171 owns the profile-side boundary. Preflight proves that the
+    // auth.users -> profiles cascade will not be blocked by retained farm
+    // records and writes immutable intent. Auth deletion is then the ONLY
+    // delete; the browser must not issue a second profiles.delete(). A terminal
+    // audit row records success/failure after the cross-service call.
     //
     // Codex C4 re-review BLOCKER 1: rapid-processor is deployed with
     // --no-verify-jwt so the platform does NOT enforce authentication
@@ -886,7 +893,6 @@ serve(async (req) => {
     // the standard Supabase pattern for resolving auth.uid() inside
     // SECURITY DEFINER helpers). 401 on no header / 403 on non-admin.
     if (type === 'user_delete') {
-      if (!data.id) throw new Error('id required');
       const authHeader = req.headers.get('authorization');
       if (!authHeader) {
         return new Response(JSON.stringify({error: 'unauthorized'}), {
@@ -905,12 +911,141 @@ serve(async (req) => {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       }
-      const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      const {error} = await admin.auth.admin.deleteUser(data.id);
-      if (error) throw new Error(error.message);
-      return new Response(JSON.stringify({ok: true, deleted: data.email || null}), {
-        headers: {...corsHeaders, 'Content-Type': 'application/json'},
+
+      const profileId = String(data?.id || '').trim();
+      const expectedEmail = String(data?.email || '')
+        .trim()
+        .toLowerCase();
+      if (!profileId || !expectedEmail) {
+        return new Response(JSON.stringify({error: 'id and email required', step: 'input'}), {
+          status: 400,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+
+      let {data: prepareData, error: prepareError} = await userClient.rpc('admin_prepare_user_delete', {
+        p_profile_id: profileId,
+        p_expected_email: expectedEmail,
       });
+
+      // A stale preflight is terminalized in its own database transaction.
+      // Retry prepare exactly once so any fresh last-admin/FK failure cannot
+      // roll that recovery row back.
+      if (!prepareError && prepareData?.retry_required === true) {
+        const retried = await userClient.rpc('admin_prepare_user_delete', {
+          p_profile_id: profileId,
+          p_expected_email: expectedEmail,
+        });
+        prepareData = retried.data;
+        prepareError = retried.error;
+      }
+
+      if (prepareError || !prepareData?.request_id) {
+        return new Response(
+          JSON.stringify({
+            error: prepareError?.message || 'delete preflight returned no request id',
+            step: 'deletePreflight',
+          }),
+          {status: 409, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+
+      // Idempotent recovery: Auth + profile are already absent and the RPC
+      // either appended the missing success terminal or found an existing one.
+      // Do not issue a second Auth delete.
+      if (prepareData.already_deleted === true) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            deleted: expectedEmail,
+            alreadyDeleted: true,
+            auditFinalized: true,
+            auditRecovered: prepareData.audit_recovered === true,
+          }),
+          {headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+
+      const requestId = prepareData.request_id;
+      const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const {error: deleteError} = await admin.auth.admin.deleteUser(profileId);
+      if (deleteError) {
+        const {data: auditData, error: auditError} = await userClient.rpc('admin_finalize_user_delete', {
+          p_request_id: requestId,
+          p_succeeded: false,
+          p_error_message: deleteError.message || String(deleteError),
+        });
+
+        // The Auth API can surface an ambiguous transport error after its
+        // remote delete committed. Finalize checks both auth + profile; when
+        // both are absent it records authoritative success instead of a false
+        // failure terminal.
+        if (!auditError && auditData?.event_type === 'profile.deleted') {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              deleted: expectedEmail,
+              alreadyDeleted: true,
+              auditFinalized: true,
+              auditRecovered: true,
+            }),
+            {headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            error: `deleteUser: ${deleteError.message || String(deleteError)}`,
+            step: 'deleteUser',
+            auditFinalized: !auditError,
+          }),
+          {status: 409, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+
+      const {error: auditError} = await userClient.rpc('admin_finalize_user_delete', {
+        p_request_id: requestId,
+        p_succeeded: true,
+        p_error_message: null,
+      });
+
+      // If finalization itself failed after Auth success, immediately invoke
+      // prepare's missing-target reconciliation path before returning. This
+      // keeps recovery reachable even though the UI correctly removes the now-
+      // deleted row after a successful response.
+      let reconciliationError = auditError;
+      let auditRecovered = false;
+      if (auditError) {
+        const reconciled = await userClient.rpc('admin_prepare_user_delete', {
+          p_profile_id: profileId,
+          p_expected_email: expectedEmail,
+        });
+        if (!reconciled.error && reconciled.data?.already_deleted === true) {
+          reconciliationError = null;
+          auditRecovered = reconciled.data.audit_recovered === true;
+        } else if (reconciled.error) {
+          reconciliationError = reconciled.error;
+        }
+      }
+      if (reconciliationError) {
+        return new Response(
+          JSON.stringify({
+            error: `deleteAudit: ${reconciliationError.message || String(reconciliationError)}`,
+            step: 'deleteAudit',
+            auditFinalized: false,
+          }),
+          {status: 409, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          deleted: expectedEmail,
+          auditFinalized: true,
+          auditRecovered,
+        }),
+        {headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+      );
     }
 
     // ─── TASKS WEEKLY SUMMARY — branded list of one assignee's open tasks ───
