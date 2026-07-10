@@ -34,9 +34,9 @@ describe('UsersModal self name editing', () => {
 
     expect(updateNameBody).toMatch(/userId\s*===\s*authState\?\.user\?\.id/);
     expect(updateNameBody).toMatch(
-      /profile:\s*prev\.profile\s*\?\s*{\s*\.\.\.prev\.profile,\s*full_name:\s*fullName\s*}/,
+      /profile:\s*prev\.profile\s*\?\s*{\s*\.\.\.prev\.profile,\s*full_name:\s*savedName\s*}/,
     );
-    expect(updateNameBody).toMatch(/name:\s*fullName\s*\|\|\s*prev\.user\?\.email/);
+    expect(updateNameBody).toMatch(/name:\s*savedName\s*\|\|\s*prev\.user\?\.email/);
   });
 
   it('renders the edit-name button without excluding the current user', () => {
@@ -49,14 +49,16 @@ describe('UsersModal self name editing', () => {
   });
 
   it('keeps self role changes disabled', () => {
-    expect(code).toMatch(/disabled={u\.id\s*===\s*authState\?\.user\?\.id}/);
-    expect(code).toMatch(/cursor:\s*u\.id\s*===\s*authState\?\.user\?\.id\s*\?\s*'not-allowed'/);
+    expect(code).toMatch(/disabled={u\.id\s*===\s*authState\?\.user\?\.id\s*\|\|\s*userMutationBusy}/);
+    expect(code).toMatch(
+      /cursor:\s*u\.id\s*===\s*authState\?\.user\?\.id\s*\|\|\s*userMutationBusy\s*\?\s*'not-allowed'/,
+    );
   });
 
   it('keeps self program access and destructive account actions hidden', () => {
     expect(code).toMatch(/u\.id\s*!==\s*authState\?\.user\?\.id\s*&&\s*u\.role\s*!==\s*'admin'/);
     expect(code).toMatch(/u\.id\s*!==\s*authState\?\.user\?\.id\s*&&\s*\(/);
-    expect(code).toMatch(/sendPasswordReset\(u\.email,\s*u\.full_name\)/);
+    expect(code).toMatch(/sendPasswordReset\(u\.id,\s*u\.email,\s*u\.full_name\)/);
     expect(code).toMatch(/deactivateUser\(u\.id,\s*u\.email\)/);
     expect(code).toMatch(/deleteUser\(u\.id,\s*u\.email\)/);
   });

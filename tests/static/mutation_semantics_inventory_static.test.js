@@ -224,11 +224,13 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   // Processing drawer batch/milestone lifecycle actions route through the
   // entityMutations runMutation wrapper (RPC-backed via processingApi.js), not
   // direct .from() table writes.
-  ['src/processing/ProcessingDrawer.jsx', 13],
+  // Processing finish-out added one reviewed drawer mutation wrapper (14).
+  ['src/processing/ProcessingDrawer.jsx', 14],
   // Reconciliation crosswalk modal (mig 157): reconcile-planner / resolve-link /
   // acknowledge-drift route through its own runMutation wrapper, which calls the
   // processingApi RPC wrappers — NO direct .from() table writes.
-  ['src/processing/ProcessingReconciliationModal.jsx', 3],
+  // Rich dry-run/import actions added five reviewed RPC-backed wrappers (8).
+  ['src/processing/ProcessingReconciliationModal.jsx', 8],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -304,6 +306,13 @@ function hasFeedInputDeleteRpc() {
   );
 }
 
+function hasAuditedUserManagementRpcs() {
+  return (
+    fs.existsSync(path.join(ROOT, 'src/lib/userManagementApi.js')) &&
+    fs.existsSync(path.join(ROOT, 'supabase-migrations/171_audited_user_management.sql'))
+  );
+}
+
 function expectedLiteralMutationTotals() {
   const expected = new Map(EXPECTED_LITERAL_MUTATION_TOTALS);
   // The two literal calving deletes (CattleAnimalPage + CattleHerdsView) route
@@ -349,6 +358,12 @@ function expectedLiteralMutationTotals() {
   if (hasFeedInputDeleteRpc()) {
     expected.set('delete', expected.get('delete') - 1);
   }
+  // mig 171 moves UsersModal's four profile updates + redundant profile delete
+  // behind audited SECDEF RPCs / the Auth-owned cascade.
+  if (hasAuditedUserManagementRpcs()) {
+    expected.set('delete', expected.get('delete') - 1);
+    expected.set('update', expected.get('update') - 4);
+  }
   return expected;
 }
 
@@ -384,6 +399,10 @@ function expectedOwnerOperationCounts() {
   // cattle_feed_tests delete remains; deleteFeedPermanently moves to the RPC).
   if (hasFeedInputDeleteRpc()) {
     expected.set('src/admin/LivestockFeedInputsPanel.jsx|delete', 1);
+  }
+  if (hasAuditedUserManagementRpcs()) {
+    expected.delete('src/auth/UsersModal.jsx|delete');
+    expected.delete('src/auth/UsersModal.jsx|update');
   }
   return expected;
 }
@@ -422,6 +441,10 @@ function expectedTableOperationCounts() {
   // deleteTest is unaffected).
   if (hasFeedInputDeleteRpc()) {
     expected.delete('cattle_feed_inputs|delete');
+  }
+  if (hasAuditedUserManagementRpcs()) {
+    expected.delete('profiles|delete');
+    expected.delete('profiles|update');
   }
   return expected;
 }
@@ -526,7 +549,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(35);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(41);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

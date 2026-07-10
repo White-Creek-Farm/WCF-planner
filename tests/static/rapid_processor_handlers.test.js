@@ -135,11 +135,12 @@ describe('rapid-processor.ts — user_delete admin gate (Codex C4 re-review BLOC
   // does NOT enforce auth for us. user_delete MUST verify the caller
   // is admin in-function before calling admin.auth.admin.deleteUser.
   const branchIdx = code.indexOf("if (type === 'user_delete')");
-  const branchSlice = branchIdx >= 0 ? code.slice(branchIdx, branchIdx + 3000) : '';
+  const branchEnd = code.indexOf("if (type === 'tasks_weekly_summary')", branchIdx + 1);
+  const branchSlice = branchIdx >= 0 ? code.slice(branchIdx, branchEnd) : '';
 
-  it('admin.auth.admin.deleteUser(data.id) is the live call', () => {
+  it('admin.auth.admin.deleteUser(profileId) is the live call', () => {
     expect(branchIdx).toBeGreaterThan(-1);
-    expect(branchSlice).toMatch(/admin\.auth\.admin\.deleteUser\(\s*data\.id\s*\)/);
+    expect(branchSlice).toMatch(/admin\.auth\.admin\.deleteUser\(\s*profileId\s*\)/);
   });
 
   it('returns 401 (unauthorized) when no Authorization header is present', () => {

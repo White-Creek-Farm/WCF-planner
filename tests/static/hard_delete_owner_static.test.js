@@ -44,6 +44,13 @@ function hasFeedInputDeleteRpc() {
   );
 }
 
+function hasAuditedUserManagementRpcs() {
+  return (
+    fs.existsSync(path.join(ROOT, 'src/lib/userManagementApi.js')) &&
+    fs.existsSync(path.join(ROOT, 'supabase-migrations/171_audited_user_management.sql'))
+  );
+}
+
 const EXPECTED_DELETE_OWNERS = new Map([
   ['src/admin/EquipmentMaterialsEditor.jsx', 2],
   ['src/admin/FuelBillsView.jsx', 2],
@@ -168,6 +175,9 @@ function expectedDeleteOwners() {
   // delete_feed_input; only the deleteTest cattle_feed_tests delete remains
   // (2 -> 1).
   if (hasFeedInputDeleteRpc()) expected.set('src/admin/LivestockFeedInputsPanel.jsx', 1);
+  // mig 171: UsersModal no longer deletes profiles after the Auth API call;
+  // auth.users owns the profile cascade and its database trigger audit.
+  if (hasAuditedUserManagementRpcs()) expected.delete('src/auth/UsersModal.jsx');
   return expected;
 }
 
@@ -184,6 +194,7 @@ function expectedDeleteTables() {
   // mig 108: the feed-input root delete moves to the RPC; no runtime client
   // delete remains on cattle_feed_inputs (the cattle_feed_tests delete stays).
   if (hasFeedInputDeleteRpc()) expected.delete('cattle_feed_inputs');
+  if (hasAuditedUserManagementRpcs()) expected.delete('profiles');
   return expected;
 }
 
@@ -196,6 +207,8 @@ function expectedDeleteTotal() {
   if (hasLayerBatchDeleteRpc()) total -= 2;
   if (hasFuelBillDeleteRpc()) total -= 1;
   if (hasFeedInputDeleteRpc()) total -= 1;
+  // UsersModal's redundant profiles.delete moved behind the Auth cascade.
+  if (hasAuditedUserManagementRpcs()) total -= 1;
   return total;
 }
 

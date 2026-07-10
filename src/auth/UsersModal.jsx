@@ -1,9 +1,9 @@
 // Phase 2 Round 3 extraction (verbatim).
-import React, {useState} from 'react';
-import {sb} from '../lib/supabase.js';
+import React from 'react';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {unwrapEdgeFunctionError} from '../lib/edgeErrors.js';
+import {setUserName, setUserProgramAccess, setUserRole} from '../lib/userManagementApi.js';
 function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUsers}) {
   const {setAuthState} = useAuth() || {};
   const [umTab, setUmTab] = React.useState('users');
@@ -16,11 +16,14 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   const [editingUser, setEditingUser] = React.useState(null);
   const [addPassword, setAddPassword] = React.useState('');
   const [addPasswordConfirm, setAddPasswordConfirm] = React.useState('');
+  const [userActionId, setUserActionId] = React.useState(null);
+  const userMutationBusy = umLoading || userActionId !== null;
 
   const ROLES = [
     {v: 'farm_team', l: 'Farm Team'},
     {v: 'management', l: 'Management'},
     {v: 'admin', l: 'Admin'},
+    {v: 'equipment_tech', l: 'Equipment Tech'},
     {v: 'light', l: 'Light'},
   ];
 
@@ -98,10 +101,11 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     setUmLoading(false);
   }
 
-  async function sendPasswordReset(email, name) {
+  async function sendPasswordReset(userId, email, name) {
     window._wcfConfirm(
       'Send a password reset email to ' + email + '?',
       async () => {
+        setUserActionId(userId);
         setUmErr('');
         setUmMsg('');
         try {
@@ -113,6 +117,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
         } catch (e) {
           const msg = await unwrapEdgeFunctionError(e);
           setUmErr('Error sending reset email: ' + msg);
+        } finally {
+          setUserActionId(null);
         }
       },
       'Send',
@@ -120,58 +126,79 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   }
 
   async function updateRole(userId, newRole) {
-    await sb.from('profiles').update({role: newRole}).eq('id', userId);
-    setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, role: newRole} : p)));
-    setEditingUser(null);
+    setUserActionId(userId);
+    setUmErr('');
+    setUmMsg('');
+    try {
+      const result = await setUserRole(sb, userId, newRole);
+      setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, role: result.role} : p)));
+      setEditingUser(null);
+    } catch (e) {
+      setUmErr(e.message || 'Could not update the user role.');
+    } finally {
+      setUserActionId(null);
+    }
   }
 
   async function updateName(userId, newName) {
     const fullName = (newName || '').trim();
-    await sb.from('profiles').update({full_name: fullName}).eq('id', userId);
-    setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, full_name: fullName} : p)));
-    if (userId === authState?.user?.id && typeof setAuthState === 'function') {
-      setAuthState((prev) => {
-        if (!prev || prev === false || prev.user?.id !== userId) return prev;
-        return {
-          ...prev,
-          profile: prev.profile ? {...prev.profile, full_name: fullName} : prev.profile,
-          name: fullName || prev.user?.email || prev.name || '',
-        };
-      });
+    setUserActionId(userId);
+    setUmErr('');
+    setUmMsg('');
+    try {
+      const result = await setUserName(sb, userId, fullName);
+      const savedName = result.full_name || '';
+      setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, full_name: savedName} : p)));
+      if (userId === authState?.user?.id && typeof setAuthState === 'function') {
+        setAuthState((prev) => {
+          if (!prev || prev === false || prev.user?.id !== userId) return prev;
+          return {
+            ...prev,
+            profile: prev.profile ? {...prev.profile, full_name: savedName} : prev.profile,
+            name: savedName || prev.user?.email || prev.name || '',
+          };
+        });
+      }
+      setEditingUser(null);
+    } catch (e) {
+      setUmErr(e.message || 'Could not update the user name.');
+    } finally {
+      setUserActionId(null);
     }
-    setEditingUser(null);
   }
 
   async function deactivateUser(userId, email) {
     window._wcfConfirm(
       'Deactivate ' + email + '? They will no longer be able to log in.',
       async () => {
-        await sb.from('profiles').update({role: 'inactive'}).eq('id', userId);
-        setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, role: 'inactive'} : p)));
+        await updateRole(userId, 'inactive');
       },
       'Deactivate',
     );
   }
 
-  // Hard delete: removes the auth.users row (via service-role edge function)
-  // AND the profiles row. After this the email is fully recyclable for a
-  // fresh invite. Deactivate keeps the user but blocks login.
+  // Hard delete is owned by rapid-processor. Migration 171 preflights retained
+  // profile references and writes audit intent before the Edge function deletes
+  // auth.users; profiles then cascades from that one delete.
   async function deleteUser(userId, email) {
     window._wcfConfirmDelete(
       'PERMANENTLY DELETE ' +
         email +
         '? This removes the auth account so the email can be re-invited from scratch. Deactivate instead if you just want to block login.',
       async () => {
+        setUserActionId(userId);
         setUmErr('');
         setUmMsg('');
         try {
-          const {error: fnErr} = await sb.functions.invoke('rapid-processor', {
+          const {data: fnData, error: fnErr} = await sb.functions.invoke('rapid-processor', {
             body: {type: 'user_delete', data: {id: userId, email}},
           });
           if (fnErr) throw fnErr;
-          await sb.from('profiles').delete().eq('id', userId);
           setAllUsers((prev) => prev.filter((p) => p.id !== userId));
           setUmMsg('\u2705 Deleted ' + email + '. Email is now free to re-invite.');
+          if (fnData?.auditFinalized === false) {
+            setUmErr('The account was deleted, but final audit confirmation failed. Contact support before retrying.');
+          }
         } catch (e) {
           const msg = await unwrapEdgeFunctionError(e);
           setUmErr(
@@ -179,8 +206,10 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               email +
               ': ' +
               msg +
-              '. The auth account stays. Add the user_delete handler to your rapid-processor edge function to enable hard delete.',
+              '. Reload Users before retrying. If the user is still listed, deactivate them instead.',
           );
+        } finally {
+          setUserActionId(null);
         }
       },
     );
@@ -189,21 +218,40 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   async function updateProgramAccess(userId, newList) {
     // Empty array → null (means "all programs"). Avoids empty-array ambiguity.
     const value = newList && newList.length > 0 ? newList : null;
-    await sb.from('profiles').update({program_access: value}).eq('id', userId);
-    setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, program_access: value} : p)));
+    setUserActionId(userId);
+    setUmErr('');
+    setUmMsg('');
+    try {
+      const result = await setUserProgramAccess(sb, userId, value);
+      const savedAccess = Array.isArray(result.program_access) ? result.program_access : null;
+      setAllUsers((prev) => prev.map((p) => (p.id === userId ? {...p, program_access: savedAccess} : p)));
+    } catch (e) {
+      setUmErr(e.message || 'Could not update program access.');
+    } finally {
+      setUserActionId(null);
+    }
   }
 
   const roleColor = {
     admin: '#b91c1c',
     management: '#1d4ed8',
     farm_team: '#085041',
+    equipment_tech: '#6b7280',
     light: '#7c3aed',
     inactive: '#9ca3af',
   };
-  const roleBg = {admin: '#fef2f2', management: '#eff6ff', farm_team: '#ecfdf5', light: '#f5f3ff', inactive: '#f3f4f6'};
+  const roleBg = {
+    admin: '#fef2f2',
+    management: '#eff6ff',
+    farm_team: '#ecfdf5',
+    equipment_tech: '#f3f4f6',
+    light: '#f5f3ff',
+    inactive: '#f3f4f6',
+  };
 
   return (
     <div
+      data-user-management-modal="1"
       onClick={() => setShowUsers(false)}
       style={{
         position: 'fixed',
@@ -294,6 +342,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
         <div style={{padding: '16px 20px'}}>
           {umMsg && (
             <div
+              data-user-management-message="success"
               style={{
                 background: '#ecfdf5',
                 border: '1px solid #a7f3d0',
@@ -309,6 +358,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
           )}
           {umErr && (
             <div
+              data-user-management-message="error"
               style={{
                 background: '#fef2f2',
                 border: '1px solid #fecaca',
@@ -360,6 +410,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               {allUsers.map((u) => (
                 <div
                   key={u.id}
+                  data-user-management-row={u.id}
                   style={{
                     border: '1px solid var(--border)',
                     borderRadius: 10,
@@ -388,11 +439,13 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         ? '👑'
                         : u.role === 'management'
                           ? '🔑'
-                          : u.role === 'inactive'
-                            ? '🚫'
-                            : u.role === 'light'
-                              ? '📋'
-                              : '🌾'}
+                          : u.role === 'equipment_tech'
+                            ? '🚜'
+                            : u.role === 'inactive'
+                              ? '🚫'
+                              : u.role === 'light'
+                                ? '📋'
+                                : '🌾'}
                     </div>
                     {/* Name + email */}
                     <div style={{flex: 1, minWidth: 0, overflow: 'hidden'}}>
@@ -403,8 +456,13 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                           onChange={(e) => setEditingUser({...editingUser, full_name: e.target.value})}
                           onBlur={() => updateName(u.id, editingUser.full_name || '')}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') updateName(u.id, editingUser.full_name || '');
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            }
                           }}
+                          disabled={userMutationBusy}
+                          data-user-management-name-input={u.id}
                           style={{
                             fontSize: 13,
                             fontWeight: 600,
@@ -450,6 +508,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                             type="button"
                             title="Edit name"
                             aria-label={`Edit name for ${u.full_name || u.email || 'user'}`}
+                            data-user-management-edit-name={u.id}
+                            disabled={userMutationBusy}
                             onClick={() => setEditingUser({id: u.id, full_name: u.full_name || ''})}
                             style={{
                               fontSize: 11,
@@ -481,7 +541,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     <select
                       value={u.role || 'farm_team'}
                       onChange={(e) => updateRole(u.id, e.target.value)}
-                      disabled={u.id === authState?.user?.id}
+                      disabled={u.id === authState?.user?.id || userMutationBusy}
+                      data-user-management-role={u.id}
                       style={{
                         fontSize: 12,
                         padding: '5px 10px',
@@ -490,10 +551,10 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         color: roleColor[u.role] || '#374151',
                         fontWeight: 600,
                         flexShrink: 0,
-                        width: '130px',
+                        width: '140px',
                         background: roleBg[u.role] || '#f9fafb',
-                        opacity: u.id === authState?.user?.id ? 0.6 : 1,
-                        cursor: u.id === authState?.user?.id ? 'not-allowed' : 'pointer',
+                        opacity: u.id === authState?.user?.id || userMutationBusy ? 0.6 : 1,
+                        cursor: u.id === authState?.user?.id || userMutationBusy ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {ROLES.map((r) => (
@@ -534,6 +595,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                             <button
                               key={k}
                               type="button"
+                              data-user-management-program={`${u.id}:${k}`}
+                              disabled={userMutationBusy}
                               onClick={() => {
                                 const cur =
                                   Array.isArray(u.program_access) && u.program_access.length > 0
@@ -581,7 +644,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                     >
                       {u.role !== 'inactive' ? (
                         <button
-                          onClick={() => sendPasswordReset(u.email, u.full_name)}
+                          onClick={() => sendPasswordReset(u.id, u.email, u.full_name)}
+                          disabled={userMutationBusy}
                           style={{
                             fontSize: 11,
                             color: 'var(--brand)',
@@ -600,6 +664,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         {u.role !== 'inactive' ? (
                           <button
                             onClick={() => deactivateUser(u.id, u.email)}
+                            data-user-management-deactivate={u.id}
+                            disabled={userMutationBusy}
                             style={{
                               fontSize: 11,
                               color: '#b91c1c',
@@ -614,6 +680,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         ) : (
                           <button
                             onClick={() => updateRole(u.id, 'farm_team')}
+                            data-user-management-reactivate={u.id}
+                            disabled={userMutationBusy}
                             style={{
                               fontSize: 11,
                               color: '#085041',
@@ -628,6 +696,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                         )}
                         <button
                           onClick={() => deleteUser(u.id, u.email)}
+                          data-user-management-delete={u.id}
+                          disabled={userMutationBusy}
                           style={{
                             fontSize: 11,
                             color: '#7f1d1d',
@@ -817,7 +887,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               </div>
               <button
                 onClick={createUser}
-                disabled={umLoading}
+                disabled={userMutationBusy}
                 style={{
                   width: '100%',
                   marginTop: 16,

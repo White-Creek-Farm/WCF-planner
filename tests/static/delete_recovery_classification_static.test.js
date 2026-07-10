@@ -167,6 +167,13 @@ function hasFeedInputDeleteRpc() {
   );
 }
 
+function hasAuditedUserManagementRpcs() {
+  return (
+    fs.existsSync(path.join(ROOT, 'src/lib/userManagementApi.js')) &&
+    fs.existsSync(path.join(ROOT, 'supabase-migrations/171_audited_user_management.sql'))
+  );
+}
+
 function expectedDeleteTableCounts() {
   const expected = new Map(EXPECTED_DELETE_TABLE_COUNTS);
   if (hasTransactionalCalvingDeleteRpc()) expected.delete('cattle_calving_records');
@@ -207,6 +214,9 @@ function expectedDeleteTableCounts() {
   if (hasFeedInputDeleteRpc()) {
     expected.delete('cattle_feed_inputs');
   }
+  // mig 171: the browser no longer hard-deletes profiles. Auth owns the
+  // cascade after an audited FK-safe preflight.
+  if (hasAuditedUserManagementRpcs()) expected.delete('profiles');
   return expected;
 }
 
@@ -235,6 +245,7 @@ function expectedDeleteRecoveryClass() {
   if (hasFeedInputDeleteRpc()) {
     expected.delete('cattle_feed_inputs');
   }
+  if (hasAuditedUserManagementRpcs()) expected.delete('profiles');
   return expected;
 }
 
