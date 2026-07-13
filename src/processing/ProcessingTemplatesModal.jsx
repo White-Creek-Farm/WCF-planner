@@ -19,7 +19,7 @@
 // and existing records via the drawer's additive "Apply template".
 // Templates are LOCAL-ONLY (UI-simplification lane): the Asana task-template
 // import workflow is gone from the client. Customer & Processor choice
-// management (ProcessingOptionsModal, mig 162/175) opens from inside this modal.
+// management (ProcessingOptionsEditor, mig 162/175) renders inside this modal.
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
@@ -30,7 +30,7 @@ import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
-import ProcessingOptionsModal from './ProcessingOptionsModal.jsx';
+import {ProcessingOptionsEditor} from './ProcessingOptionsModal.jsx';
 
 const PROGRAMS = [
   {key: 'broiler', label: 'Broiler'},
@@ -176,8 +176,6 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
   const [activeSurface, setActiveSurface] = useState('tasks');
   // HTML5 drag state: the dragged step index, or null.
   const [drag, setDrag] = useState(null);
-  // Customer & Processor choice management (mig 162/175) lives INSIDE Templates.
-  const [showOptions, setShowOptions] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -523,10 +521,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
           </button>
           <button
             type="button"
-            onClick={() => {
-              setActiveSurface('fields');
-              setShowOptions(true);
-            }}
+            onClick={() => setActiveSurface('fields')}
             data-processing-template-surface="fields"
             aria-pressed={activeSurface === 'fields'}
             style={{
@@ -549,13 +544,15 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
         <div style={{flex: 1, overflow: 'auto', padding: '14px 20px 10px'}}>
           <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
 
-          {!loading && !loadError && showPreview && (
+          {activeSurface === 'tasks' && !loading && !loadError && showPreview && (
             <TemplatePreviewPane checklist={checklist} profilesById={profilesById} />
           )}
 
-          {loading && <div style={{color: T.faint, fontSize: 13, fontWeight: 600}}>Loading template…</div>}
+          {activeSurface === 'tasks' && loading && (
+            <div style={{color: T.faint, fontSize: 13, fontWeight: 600}}>Loading template…</div>
+          )}
 
-          {loadError && (
+          {activeSurface === 'tasks' && loadError && (
             <div>
               <InlineNotice notice={{kind: 'error', message: loadError.message}} />
               <button type="button" onClick={load} style={{...rowInput, cursor: 'pointer', fontWeight: 700}}>
@@ -564,7 +561,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
             </div>
           )}
 
-          {!loading && !loadError && (
+          {activeSurface === 'tasks' && !loading && !loadError && (
             <div>
               {checklist.map((c, i) => (
                 <div
@@ -612,6 +609,15 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
               </button>
             </div>
           )}
+          {activeSurface === 'fields' && (
+            <div data-processing-template-fields-panel="1">
+              <ProcessingOptionsEditor
+                processorOptions={processorOptions}
+                customerOptions={customerOptions}
+                onSaved={onOptionsSaved}
+              />
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -645,40 +651,31 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
             >
               Close
             </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving || loading}
-              data-processing-template-save
-              style={{
-                background: saving || loading ? '#EAECEF' : T.green,
-                color: saving || loading ? '#9AA1AB' : '#fff',
-                border: 'none',
-                borderRadius: 10,
-                padding: '10px 20px',
-                fontSize: 13.5,
-                fontWeight: 700,
-                cursor: saving || loading ? 'default' : 'pointer',
-                fontFamily: 'inherit',
-                boxShadow: '0 1px 2px rgba(20,30,40,.12)',
-              }}
-            >
-              {saving ? 'Saving…' : 'Save template'}
-            </button>
+            {activeSurface === 'tasks' && (
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving || loading}
+                data-processing-template-save
+                style={{
+                  background: saving || loading ? '#EAECEF' : T.green,
+                  color: saving || loading ? '#9AA1AB' : '#fff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '10px 20px',
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  cursor: saving || loading ? 'default' : 'pointer',
+                  fontFamily: 'inherit',
+                  boxShadow: '0 1px 2px rgba(20,30,40,.12)',
+                }}
+              >
+                {saving ? 'Saving?' : 'Save template'}
+              </button>
+            )}
           </div>
         </div>
       </div>
-      {showOptions && (
-        <ProcessingOptionsModal
-          processorOptions={processorOptions}
-          customerOptions={customerOptions}
-          onClose={() => {
-            setShowOptions(false);
-            setActiveSurface('tasks');
-          }}
-          onSaved={onOptionsSaved}
-        />
-      )}
     </div>
   );
 }

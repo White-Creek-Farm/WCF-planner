@@ -301,7 +301,7 @@ function OptionListEditor({kind, title, initial, busy, onSave}) {
   );
 }
 
-export default function ProcessingOptionsModal({processorOptions = [], customerOptions = [], onClose, onSaved}) {
+export function ProcessingOptionsEditor({processorOptions = [], customerOptions = [], onSaved}) {
   const {useState} = React;
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -324,6 +324,28 @@ export default function ProcessingOptionsModal({processorOptions = [], customerO
     }
   }
 
+  return (
+    <>
+      <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
+      <OptionListEditor
+        kind="customer"
+        title="Customer choices (broiler)"
+        initial={customerOptions}
+        busy={busy}
+        onSave={save}
+      />
+      <OptionListEditor
+        kind="processor"
+        title="Processor choices"
+        initial={processorOptions}
+        busy={busy}
+        onSave={save}
+      />
+    </>
+  );
+}
+
+export default function ProcessingOptionsModal({processorOptions = [], customerOptions = [], onClose, onSaved}) {
   return (
     <div
       style={{
@@ -389,20 +411,10 @@ export default function ProcessingOptionsModal({processorOptions = [], customerO
         </div>
 
         <div style={{flex: 1, overflow: 'auto', padding: '18px 20px 4px'}}>
-          <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
-          <OptionListEditor
-            kind="customer"
-            title="Customer choices (broiler)"
-            initial={customerOptions}
-            busy={busy}
-            onSave={save}
-          />
-          <OptionListEditor
-            kind="processor"
-            title="Processor choices"
-            initial={processorOptions}
-            busy={busy}
-            onSave={save}
+          <ProcessingOptionsEditor
+            processorOptions={processorOptions}
+            customerOptions={customerOptions}
+            onSaved={onSaved}
           />
         </div>
 

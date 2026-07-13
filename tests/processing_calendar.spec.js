@@ -800,7 +800,8 @@ test.describe('Processing Calendar', () => {
       // Customer & processor choices editor (mig 175 semantics): a persisted
       // option row renders a rename input + Deactivate; no delete exists.
       await modal.locator('[data-processing-template-surface="fields"]').click();
-      const options = page.locator('[data-processing-options-modal]');
+      await expect(page.locator('[data-processing-options-modal]')).toHaveCount(0);
+      const options = modal.locator('[data-processing-template-fields-panel]');
       await expect(options).toBeVisible();
       await expect(options.locator('[data-processing-option-row="opt-ptest-mp1"]')).toBeVisible();
       await expect(options.locator('input[aria-label="Rename Atlanta Poultry Processing"]')).toBeVisible();

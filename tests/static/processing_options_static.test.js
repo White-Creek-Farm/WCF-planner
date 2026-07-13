@@ -97,7 +97,8 @@ describe('calendar + Templates wire the option lists through', () => {
     // The options editor moved INSIDE Templates (no separate Admin-page control).
     expect(view).not.toContain('<ProcessingOptionsModal');
     expect(templatesModal).toContain('data-processing-template-surface="fields"');
-    expect(templatesModal).toContain('<ProcessingOptionsModal');
+    expect(templatesModal).toContain('data-processing-template-fields-panel="1"');
+    expect(templatesModal).toContain('<ProcessingOptionsEditor');
     expect(templatesModal).toContain('onSaved={onOptionsSaved}');
   });
 });
