@@ -927,17 +927,6 @@ export default function ProcessingCalendarView({Header, authState}) {
               <span style={{fontSize: 11, opacity: 0.85}}>{programCounts[p.key]}</span>
             </button>
           ))}
-          <span
-            style={{
-              marginLeft: 'auto',
-              fontSize: 12.5,
-              color: T.faint,
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Sorted In Process → Planned → Complete
-          </span>
         </div>
 
         {/* Secondary filter row */}
