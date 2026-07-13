@@ -19,15 +19,19 @@ const EXPECTED_LITERAL_MUTATION_TOTALS = new Map([
   // -1 update from retiring per-equipment team_members assignment.
   // -1 update from removing the team-roster → equipment.team_members cascade
   //    in WebformsAdminView (roster teardown).
-  // +2 update from pig processing trip source-entry stamping + rollback.
   // -6 update: PR3 removes client-side batch/animal/weigh-in detach updates
   // from the cattle and sheep processing helpers.
-  ['update', 76],
+  // -4 update: mig 176 moves the pig send-to-trip weigh_ins stamping (stamp +
+  //    two rollbacks) and the undo-send stamp clear into the pig_send_to_trip /
+  //    pig_undo_send SECDEF RPCs.
+  ['update', 72],
   // -3 upsert from deleting teamMembers.js (2) + teamAvailability.js (1), the
   //    webform_config roster/availability writers (roster teardown).
   // -9 upsert from collapsing main.jsx public-webform mirror writers behind
   //    a compare-before-write helper (Disk IO budget protection).
-  ['upsert', 31],
+  // -2 upsert: mig 176 moves the WeighInSessionPage send/undo ppp-feeders-v1
+  //    writes into the pig planner SECDEF RPCs.
+  ['upsert', 29],
 ]);
 
 const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
@@ -93,10 +97,13 @@ const EXPECTED_OWNER_OPERATION_COUNTS = new Map([
   ['src/lib/tasksCenterMutationsApi.js|delete', 1],
   ['src/lib/tasksCenterMutationsApi.js|update', 2],
   ['src/lib/tasksCenterMutationsApi.js|upsert', 1],
+  // Mig 176: the pig send-to-trip stamping (+rollbacks) and undo-send clear
+  // moved into SECDEF RPCs (-4 update), as did the two send/undo ppp-feeders-v1
+  // writes (-2 upsert). The remaining upserts are the breeding-transfer flows.
   ['src/livestock/WeighInSessionPage.jsx|delete', 3],
   ['src/livestock/WeighInSessionPage.jsx|insert', 3],
-  ['src/livestock/WeighInSessionPage.jsx|update', 15],
-  ['src/livestock/WeighInSessionPage.jsx|upsert', 6],
+  ['src/livestock/WeighInSessionPage.jsx|update', 11],
+  ['src/livestock/WeighInSessionPage.jsx|upsert', 4],
   ['src/main.jsx|update', 1],
   ['src/main.jsx|upsert', 5],
   ['src/pig/PigBatchesView.jsx|upsert', 1],
@@ -123,7 +130,9 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['app_saved_views|delete', 1],
   ['app_saved_views|insert', 1],
   ['app_saved_views|update', 1],
-  ['app_store|upsert', 17],
+  // Mig 176: -2 app_store upserts (WeighInSessionPage send/undo feeders writes
+  // moved into the pig planner SECDEF RPCs).
+  ['app_store|upsert', 15],
   ['cattle_breeds|insert', 1],
   ['cattle_calving_records|delete', 2],
   ['cattle_calving_records|insert', 3],
@@ -204,7 +213,9 @@ const EXPECTED_TABLE_OPERATION_COUNTS = new Map([
   ['weigh_in_sessions|update', 7],
   ['weigh_ins|delete', 4],
   ['weigh_ins|insert', 7],
-  ['weigh_ins|update', 15],
+  // Mig 176: -4 weigh_ins updates (send-to-trip stamp + rollbacks, undo-send
+  // clear) moved into pig_send_to_trip / pig_undo_send SECDEF RPCs.
+  ['weigh_ins|update', 11],
 ]);
 
 const EXPECTED_DYNAMIC_MUTATIONS = [
@@ -225,15 +236,17 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   ['src/cattle/CattleHerdsView.jsx', 2],
   ['src/equipment/EquipmentDetail.jsx', 1],
   ['src/livestock/WeighInSessionPage.jsx', 5],
-  // Processing drawer (UI-simplification lane, per-caller reviewed): 18 sites,
-  // every one an RPC-backed processingApi wrapper — saveProcessorSelect,
+  // Processing drawer (planner-integration lane, per-caller reviewed): 17
+  // sites, every one an RPC-backed processingApi wrapper — saveProcessorSelect,
   // saveCustomerSelect, saveMilestoneTitle, saveMilestoneDate,
-  // saveMilestoneStatus, saveLocalField (set_processing_field), markComplete,
-  // reopen, toggleSubtask, addSubtask, saveSubtaskLabel, reassignSubtask,
-  // deleteSubtask, moveSubtask (reorder RPC), applyTemplate, doDeleteMilestone,
-  // doArchiveRecord, doRestoreRecord. The parent-assignee mutation is retired;
-  // the reconciliation workbench modal is deleted. NO direct .from() writes.
-  ['src/processing/ProcessingDrawer.jsx', 18],
+  // saveMilestoneStatus, markComplete, reopen, toggleSubtask, addSubtask,
+  // saveSubtaskLabel, reassignSubtask, deleteSubtask, moveSubtask (reorder
+  // RPC), confirmApplyTemplate, doDeleteMilestone, doArchiveRecord,
+  // doRestoreRecord. saveLocalField is retired with set_processing_field
+  // (record fields are fixed/planner-owned now); the parent-assignee mutation
+  // stays retired; the reconciliation workbench modal stays deleted. NO direct
+  // .from() writes.
+  ['src/processing/ProcessingDrawer.jsx', 17],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -552,7 +565,7 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(37);
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(36);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

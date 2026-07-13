@@ -198,8 +198,12 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
   it('imports PigSendToTripModal', () => {
     expect(pageSrc).toContain('PigSendToTripModal');
   });
-  it('imports reconcilePlannedTripsForSend', () => {
-    expect(pageSrc).toContain('reconcilePlannedTripsForSend');
+  it('imports the mig-176 pig planner RPC wrappers (send/undo moved server-side)', () => {
+    expect(pageSrc).toContain("import {pigSendToTrip, pigUndoSend} from '../lib/pigPlannerApi.js'");
+    // The read-only send preview stays in PigSendToTripModal; this page no
+    // longer imports or calls reconcilePlannedTripsForSend for the mutation
+    // (a comment may still reference it).
+    expect(pageSrc).not.toMatch(/reconcilePlannedTripsForSend[,(]/);
   });
   it('has send-to-trip flow', () => {
     expect(pageSrc).toContain('sendEntriesToTrip');
@@ -234,16 +238,16 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
     expect(pageSrc).toMatch(/pigBatchNameMatches\(g\.batchName, batchId\)/);
     expect(pageSrc).toMatch(/pigBatchNameMatches\(s\.name, batchId\)/);
   });
-  it('sendEntriesToTrip stamps source weigh-ins before recording the processing trip', () => {
-    expect(pageSrc).toMatch(/sendEntriesToTrip[\s\S]*?sent_to_trip_id: newTripId[\s\S]*?upsertErr/);
-  });
-  it('sendEntriesToTrip throws on stamp failure instead of recording the trip', () => {
-    expect(pageSrc).toMatch(/stampErr[\s\S]*?throw new Error\('Send failed \(stamp source entry\): '/);
-  });
-  it('sendEntriesToTrip clears source stamps if app_store upsert fails before closing the modal', () => {
-    expect(pageSrc).toMatch(
-      /upsertErr[\s\S]*?update\(\{sent_to_trip_id: null, sent_to_group_id: null\}\)[\s\S]*?throw new Error[\s\S]*?setTripModal\(null\)/,
-    );
+  it('sendEntriesToTrip routes the whole send through the pig_send_to_trip SECDEF RPC (mig 176)', () => {
+    const fn = pageSrc.match(/async function sendEntriesToTrip[\s\S]*?await loadAll\(\);\s*\}/);
+    expect(fn).not.toBeNull();
+    expect(fn[0]).toMatch(/await pigSendToTrip\(sb, \{/);
+    // No client-side stamping / trip mint / feeders upsert remains: the RPC
+    // stamps the weigh_ins, PROMOTES the target planned trip id into
+    // processingTrips, and writes ppp-feeders-v1 in ONE transaction.
+    expect(fn[0]).not.toMatch(/from\(['"]weigh_ins['"]\)/);
+    expect(fn[0]).not.toMatch(/from\(['"]app_store['"]\)/);
+    expect(fn[0]).not.toMatch(/sent_to_trip_id:/);
   });
   it('sendEntriesToTrip throws on all pre-mutation validation failures', () => {
     const fn = pageSrc.match(/async function sendEntriesToTrip[\s\S]*?await loadAll\(\);\s*\}/);
@@ -251,14 +255,18 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
     const body = fn[0];
     expect(body).not.toMatch(/\breturn;/);
   });
-  it('undoSendToTrip surfaces notice and returns on clearErr', () => {
-    expect(pageSrc).toMatch(/undoSendToTrip[\s\S]*?clearErr[\s\S]*?setNotice[\s\S]*?return/);
+  it('undoSendToTrip surfaces notice and returns on RPC failure', () => {
+    expect(pageSrc).toMatch(/undoSendToTrip[\s\S]*?pigUndoSend\(sb, entry\.id\)[\s\S]*?setNotice[\s\S]*?return/);
   });
-  it('undoSendToTrip reconciles stored subAttributions after removing one source entry', () => {
-    expect(pageSrc).toMatch(/undoSendToTrip[\s\S]*?resolveBatchAndSub\(session && session\.batch_id\)\.sub/);
-    expect(pageSrc).toMatch(
-      /undoSendToTrip[\s\S]*?subAttributions[\s\S]*?Math\.max\(0, \(parseInt\(a\.count\) \|\| 0\) - 1\)/,
-    );
+  it('undoSendToTrip delegates the trip/plan reconciliation to the pig_undo_send RPC (no client trip surgery)', () => {
+    const fn = pageSrc.match(/async function undoSendToTrip[\s\S]*?await loadAll\(\);\s*\}/);
+    expect(fn).not.toBeNull();
+    expect(fn[0]).toMatch(/await pigUndoSend\(sb, entry\.id\)/);
+    // Count/weight/subAttributions decrements + the emptied-trip revert to a
+    // planned trip (same id) all happen server-side (mig 176).
+    expect(fn[0]).not.toMatch(/subAttributions/);
+    expect(fn[0]).not.toMatch(/from\(['"]app_store['"]\)/);
+    expect(fn[0]).not.toMatch(/from\(['"]weigh_ins['"]\)/);
   });
   it('transferToBreeding checks breeders and feeders upserts', () => {
     expect(pageSrc).toMatch(/transferToBreeding[\s\S]*?brUpsertErr[\s\S]*?fgUpsertErr/);

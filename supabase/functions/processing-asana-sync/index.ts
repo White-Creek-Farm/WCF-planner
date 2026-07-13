@@ -461,6 +461,7 @@ interface PlannerRow {
   source_kind: string | null;
   source_id: string | null;
   sub_batch_attribution: unknown;
+  source_phase: string | null;
 }
 
 // Fetch every project task. `sinceISO` (optional) requests only tasks modified
@@ -489,17 +490,22 @@ async function fetchTasks(sinceISO: string | null): Promise<FetchedTask[]> {
 }
 
 // Load the reconciled planner_batch rows (service_role BYPASSRLS) for matching.
-// archived=false ONLY: a retired row must never be a match candidate.
+// archived=false ONLY: a retired row must never be a match candidate. PLANNED
+// pig rows (source_phase='planned', mig 176) are forecast trips, not fulfilled
+// processing — excluded too; NULL (non-pig / legacy) and 'actual' stay eligible.
 async function loadPlannerRows(svc: ReturnType<typeof createClient>): Promise<PlannerRow[]> {
   const {data, error} = await svc
     .from('processing_records')
     .select(
-      'id, program, title, processing_date, status, number_processed, source_kind, source_id, sub_batch_attribution',
+      'id, program, title, processing_date, status, number_processed, source_kind, source_id, sub_batch_attribution, source_phase',
     )
     .eq('record_type', 'planner_batch')
     .eq('archived', false);
   if (error) throw new Error(`load planner_batch rows: ${error.message}`);
-  return (data || []) as PlannerRow[];
+  // Planned pig rows are not fulfilled planner rows: filter in JS (explicit, no
+  // PostgREST .or() NULL-handling subtlety). source_phase stays on the row so
+  // the pure matcher can re-apply the same guard (defense-in-depth).
+  return ((data || []) as PlannerRow[]).filter((r) => r.source_phase !== 'planned');
 }
 
 // Already-linked task gids (non-null processing_record_id) — the base set for

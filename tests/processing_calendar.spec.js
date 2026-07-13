@@ -1,36 +1,48 @@
-// Processing Calendar — browser TEST proof (UI-simplification lane).
+// ============================================================================
+// REQUIRES supabase-migrations 175-177 applied to TEST — run only after the
+// gated apply; run this file ALONE.
+// ============================================================================
+// Processing Calendar — browser TEST proof (planner-integration lane).
 //
 // Seeds planner sources + native processing rows via the service-role admin
 // client (bypasses deny-all RLS), then drives the real /processing page as the
 // authenticated admin. Covers:
-//   1. load + grouping + drawer + gated completion; the admin sees a DIRECT
-//      Templates button and NO Admin toggle/panel or Asana import controls;
-//   2. AUTOMATIC planner freshness — a new cattle batch seeded ONLY in the
-//      planner source table appears on /processing on plain page load, no
-//      admin maintenance action (WS1);
-//   3. milestone lifecycle — create with initial status (no parent assignee
-//      control exists), explicit date clear, delete;
-//   4. template-driven Details fields — typed local edit persists; subtask
-//      add + reorder; Apply template stays additive;
-//   5. conversation fidelity (unchanged by this lane);
-//   6. v2 template suite — four programs render simplified Details (retired
-//      fields absent); Customer + Processor are TRUE selects; customer
-//      save/clear + legacy single/multiple handling DB-verified; a broiler
-//      milestone takes zero-or-one customer through the select;
-//   7. attachments — native upload appears; archive → hidden; admin
-//      Show-archived (filter row) → Restore.
+//   1. load + per-program sections + FIXED program column sets ('Count'
+//      visible, 'Farm arrival' absent, broiler 'Hatch date', pig 'Trip');
+//      direct Templates button, no Admin panel (UI-simplification survivals);
+//   2. drawer — read-only Source details (live planner projection) + source
+//      back-link; NO template-field Details editor; subtask add/done;
+//      SERVER-gated completion: a future-dated record is blocked ('has not
+//      begun') while a past-dated record with processor + positive count +
+//      zero open subtasks completes;
+//   3. deep link — /processing?record=<id> opens that record's drawer;
+//   4. milestone lifecycle — create with initial status, explicit date clear,
+//      delete (attrs unchanged by this lane);
+//   5. conversation fidelity (imported media comments — unchanged surface);
+//   6. Customer + Processor TRUE selects over the mig-175 stable option
+//      objects (inactive options withheld; legacy stored values surface);
+//   7. Templates modal — CHECKLIST-ONLY (no Fields surface), preview pane,
+//      Customer & processor choices editor (rename/deactivate visible);
+//   8. attachments upload + archive → Show archived → Restore round-trip;
+//   9. apply-template preview → confirm flow (additive, then up-to-date).
+//
 // Shared TEST DB: run this file ALONE (resetDb truncates shared tables), and
 // do NOT relaunch it back-to-back: an aborted invocation's TRUNCATE/reconcile
 // RPCs keep executing server-side after the client disconnects and can land
 // mid-way through the next invocation's seeds (records vanish, links wiped by
 // the CASCADE). Give the previous run ~30s to drain before re-running.
 import {test, expect} from './fixtures.js';
-import {defaultProcessingTemplateSuite} from '../src/lib/processingFields.js';
 
 const BATCH_ID = 'ptest-batch-1';
 const SUB_ID = 'ptest-sub-1';
 const MILE_ID = 'ptest-mile-1';
 const SRC_ID = 'srctest-1';
+const DONE_BATCH_ID = 'ptest-batch-done';
+const DONE_SRC_ID = 'srctest-done';
+
+function isoDaysFromNow(days) {
+  return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+}
 
 async function adminProfileId(supabaseAdmin) {
   const {data: prof, error} = await supabaseAdmin.from('profiles').select('id').eq('role', 'admin').limit(1).single();
@@ -81,29 +93,43 @@ async function gotoProcessingExpecting(page, selector) {
 
 // Seed a REAL cattle planner batch + its bridged processing row (same source
 // key), so the on-load reconcile re-stamps the row (update branch) and the
-// fixed id + any seeded subtasks survive.
-async function seedCattleBatchWithProcessingRow(supabaseAdmin, adminId) {
+// fixed id + any seeded subtasks survive. cows_detail drives the live source
+// count (completion gate: Count must be > 0).
+async function seedCattleBatchWithProcessingRow(
+  supabaseAdmin,
+  adminId,
+  {
+    id = BATCH_ID,
+    srcId = SRC_ID,
+    name = 'TEST Cattle Steers',
+    date = isoDaysFromNow(60),
+    cowsDetail = [],
+    processor = null,
+  } = {},
+) {
   const {error: srcErr} = await supabaseAdmin.from('cattle_processing_batches').upsert(
     {
-      id: SRC_ID,
-      name: 'TEST Cattle Steers',
-      planned_process_date: '2026-09-15',
+      id: srcId,
+      name,
+      planned_process_date: date,
       status: 'scheduled',
+      cows_detail: cowsDetail,
     },
     {onConflict: 'id'},
   );
   expect(srcErr, srcErr && srcErr.message).toBeFalsy();
   const {error: recErr} = await supabaseAdmin.from('processing_records').upsert(
     {
-      id: BATCH_ID,
+      id,
       record_type: 'planner_batch',
       program: 'cattle',
-      title: 'TEST Cattle Steers',
-      processing_date: '2026-09-15',
+      title: name,
+      processing_date: date,
       status: 'planned',
       source_kind: 'cattle',
-      source_id: SRC_ID,
-      number_processed: 3,
+      source_id: srcId,
+      number_processed: cowsDetail.length,
+      processor,
       created_by: adminId,
     },
     {onConflict: 'id'},
@@ -111,8 +137,28 @@ async function seedCattleBatchWithProcessingRow(supabaseAdmin, adminId) {
   expect(recErr, recErr && recErr.message).toBeFalsy();
 }
 
+// Sweep-immune historical record (asana_historical is never enumerated or
+// swept by the planner reconcile).
+async function seedHistoricalRecord(supabaseAdmin, adminId, {id, program, title, date, extra = {}} = {}) {
+  const {error} = await supabaseAdmin.from('processing_records').upsert(
+    {
+      id,
+      record_type: 'asana_historical',
+      program,
+      title,
+      processing_date: date,
+      status: 'planned',
+      match_status: 'unmatched',
+      created_by: adminId,
+      ...extra,
+    },
+    {onConflict: 'id'},
+  );
+  expect(error, error && error.message).toBeFalsy();
+}
+
 test.describe('Processing Calendar', () => {
-  test('loads, groups by program, opens the drawer with subtasks + a gated completion; direct Templates button, no Admin panel', async ({
+  test('loads the FIXED per-program tables; direct Templates button, no Admin panel', async ({
     page,
     supabaseAdmin,
     resetDb,
@@ -120,6 +166,18 @@ test.describe('Processing Calendar', () => {
     await resetDb();
     const adminId = await adminProfileId(supabaseAdmin);
     await seedCattleBatchWithProcessingRow(supabaseAdmin, adminId);
+    await seedHistoricalRecord(supabaseAdmin, adminId, {
+      id: 'ptest-hist-broiler',
+      program: 'broiler',
+      title: 'TEST Broiler Historical',
+      date: '2026-03-02',
+    });
+    await seedHistoricalRecord(supabaseAdmin, adminId, {
+      id: 'ptest-hist-pig',
+      program: 'pig',
+      title: 'TEST Pig Historical',
+      date: '2026-03-05',
+    });
 
     const {error: mileErr} = await supabaseAdmin.from('processing_records').upsert(
       {
@@ -152,13 +210,30 @@ test.describe('Processing Calendar', () => {
     await resetFreshnessStamp(supabaseAdmin);
     await gotoProcessingExpecting(page, '[data-processing-section="cattle"]');
 
-    // Grouped by program — both seeded programs render a section.
-    await expect(page.locator('[data-processing-section="cattle"]')).toBeVisible();
-    await expect(page.locator('[data-processing-section="pig"]')).toBeVisible();
+    // Grouped by program — every seeded program renders a section.
+    const cattleSection = page.locator('[data-processing-section="cattle"]');
+    const pigSection = page.locator('[data-processing-section="pig"]');
+    const broilerSection = page.locator('[data-processing-section="broiler"]');
+    await expect(cattleSection).toBeVisible();
+    await expect(pigSection).toBeVisible();
+    await expect(broilerSection).toBeVisible();
 
-    // Both seeded rows are visible; admin sees the Add-milestone control and a
-    // DIRECT Templates button — the old Admin toggle/panel and every Asana
-    // import/maintenance control are gone (UI-simplification lane).
+    // FIXED per-program headers: broiler carries Hatch date + Customer (no
+    // Age); pig leads with Trip; cattle carries Age; the count column is
+    // labelled 'Count' in every section; 'Farm arrival' and 'Number' never
+    // render anywhere.
+    await expect(broilerSection.getByText('Hatch date', {exact: true})).toBeVisible();
+    await expect(broilerSection.getByText('Customer', {exact: true})).toBeVisible();
+    await expect(broilerSection.getByText('Age', {exact: true})).toHaveCount(0);
+    await expect(pigSection.getByText('Trip', {exact: true})).toBeVisible();
+    await expect(cattleSection.getByText('Age', {exact: true})).toBeVisible();
+    await expect(page.getByText('Count', {exact: true})).toHaveCount(3); // one per rendered section
+    await expect(page.getByText('Farm arrival', {exact: true})).toHaveCount(0);
+    await expect(page.getByText('Number', {exact: true})).toHaveCount(0);
+
+    // Both cattle-batch row + milestone row render; admin sees Add-milestone
+    // and the DIRECT Templates button — the old Admin toggle/panel and every
+    // Asana import/maintenance control stay gone (UI-simplification lane).
     const row = page.locator(`[data-processing-row="${BATCH_ID}"]`);
     await expect(row).toBeVisible();
     await expect(page.locator(`[data-processing-row="${MILE_ID}"]`)).toBeVisible();
@@ -182,63 +257,121 @@ test.describe('Processing Calendar', () => {
     ]) {
       await expect(page.locator(gone)).toHaveCount(0);
     }
-    // The Templates button opens the manager directly; it is LOCAL-ONLY (no
-    // Asana import workflow) and hosts the Customer & processor choices editor.
-    await page.locator('[data-processing-templates-btn]').click();
-    await expect(page.locator('[data-processing-templates-modal]')).toBeVisible();
-    await expect(page.locator('[data-processing-template-import-btn]')).toHaveCount(0);
-    await expect(page.locator('[data-processing-options-btn]')).toBeVisible();
-    await page.locator('[data-processing-options-btn]').click();
-    await expect(page.locator('[data-processing-options-modal]')).toBeVisible();
-    await page.locator('[data-processing-options-modal]').getByRole('button', {name: 'Done'}).click();
-    await expect(page.locator('[data-processing-options-modal]')).toHaveCount(0);
-    // Footer Close (the header ✕ shares the accessible name).
-    await page.locator('[data-processing-templates-modal]').getByRole('button', {name: 'Close'}).last().click();
-    await expect(page.locator('[data-processing-templates-modal]')).toHaveCount(0);
 
-    // Row shows the read-only completion indicator + checklist meta.
+    // Row shows the read-only completion indicator + checklist meta inside
+    // the Batch cell (the only sanctioned subtask surface in the table).
     await expect(row.locator('[data-processing-row-check="open"]')).toHaveCount(1);
     await expect(row).toContainText('1-step checklist');
-
-    // Open the drawer.
-    await row.click();
-    const drawer = page.locator(`[data-processing-drawer="${BATCH_ID}"]`);
-    await expect(drawer).toBeVisible();
-
-    // Subtask renders inside the drawer.
-    await expect(page.locator(`[data-processing-subtask="${SUB_ID}"]`)).toBeVisible();
-
-    // Completion is gated: processor missing + an open subtask ⇒ Mark complete
-    // is present but disabled (the blocker list is what disables it).
-    const markBtn = page.locator('[data-processing-mark-complete]');
-    await expect(markBtn).toBeVisible();
-    await expect(markBtn).toBeDisabled();
   });
 
-  test('AUTOMATIC planner freshness: a new planner batch appears on plain page load (no admin action)', async ({
+  test('drawer: read-only Source details + server-gated completion (blocked future vs completable past)', async ({
     page,
     supabaseAdmin,
     resetDb,
   }) => {
     await resetDb();
-    // Seed ONLY the planner source — no processing_records row exists for it.
-    const {error: srcErr} = await supabaseAdmin.from('cattle_processing_batches').upsert(
-      {
-        id: 'srctest-fresh-1',
-        name: 'TEST Fresh Steers',
-        planned_process_date: '2026-10-20',
-        status: 'scheduled',
-      },
-      {onConflict: 'id'},
-    );
-    expect(srcErr, srcErr && srcErr.message).toBeFalsy();
+    const adminId = await adminProfileId(supabaseAdmin);
+    // Future-dated batch, no processor, empty cows_detail → BLOCKED.
+    await seedCattleBatchWithProcessingRow(supabaseAdmin, adminId, {date: isoDaysFromNow(45)});
+    // Past-dated batch with processor + 2 head + zero subtasks → COMPLETABLE.
+    await seedCattleBatchWithProcessingRow(supabaseAdmin, adminId, {
+      id: DONE_BATCH_ID,
+      srcId: DONE_SRC_ID,
+      name: 'TEST Cattle Done',
+      date: isoDaysFromNow(-10),
+      cowsDetail: [
+        {cattle_id: 'ptest-cow-1', hanging_weight: '250'},
+        {cattle_id: 'ptest-cow-2', hanging_weight: '245'},
+      ],
+      processor: 'Atlanta Poultry Processing',
+    });
+
     await resetFreshnessStamp(supabaseAdmin);
+    await gotoProcessingExpecting(page, `[data-processing-row="${BATCH_ID}"]`);
 
-    await gotoProcessingExpecting(page, '[data-processing-section="cattle"]');
+    // ── Blocked record ──
+    await page.locator(`[data-processing-row="${BATCH_ID}"]`).click();
+    const drawer = page.locator(`[data-processing-drawer="${BATCH_ID}"]`);
+    await expect(drawer).toBeVisible();
 
-    // The batch was bridged into Processing by the on-load reconcile.
-    await expect(page.locator('[data-processing-section="cattle"]')).toBeVisible();
-    await expect(page.getByText('TEST Fresh Steers')).toBeVisible();
+    // Read-only Source details from the LIVE planner projection + back-link;
+    // the retired template-field Details editor may not return.
+    await expect(drawer.locator('[data-processing-source-section="cattle"]')).toBeVisible();
+    await expect(drawer.locator('[data-processing-source-link="cattle"]')).toBeVisible();
+    await expect(drawer.getByText('read-only here')).toBeVisible();
+    await expect(drawer.locator('[data-processing-details-section]')).toHaveCount(0);
+    await expect(drawer.locator('[data-processing-field-input]')).toHaveCount(0);
+
+    // Server-authoritative blockers: future date has not begun; no processor;
+    // zero count. Mark complete stays disabled while ANY blocker exists.
+    await expect(drawer.getByText(/has not begun/)).toBeVisible();
+    await expect(drawer.getByText('Processor is required')).toBeVisible();
+    await expect(drawer.getByText('Count must be greater than zero')).toBeVisible();
+    const markBtn = drawer.locator('[data-processing-mark-complete]');
+    await expect(markBtn).toBeVisible();
+    await expect(markBtn).toBeDisabled();
+
+    // Subtasks: add one, then toggle it done; the open-subtask blocker follows.
+    const addInput = drawer.locator('[data-processing-add-subtask]');
+    await addInput.fill('TEST checklist step');
+    await addInput.press('Enter');
+    const newSub = drawer.locator('[data-processing-subtask]').filter({hasText: 'TEST checklist step'});
+    await expect(newSub).toHaveCount(1);
+    await expect(drawer.getByText('1 subtask(s) still open')).toBeVisible();
+    await newSub.locator('button[aria-label="Mark subtask done"]').click();
+    await expect(newSub.locator('button[aria-label="Mark subtask not done"]')).toBeVisible();
+    await expect(drawer.getByText('1 subtask(s) still open')).toHaveCount(0);
+    // Still blocked — the date/processor/count blockers are server-owned.
+    await expect(markBtn).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+
+    // ── Completable record ──
+    await page.locator(`[data-processing-row="${DONE_BATCH_ID}"]`).click();
+    const doneDrawer = page.locator(`[data-processing-drawer="${DONE_BATCH_ID}"]`);
+    await expect(doneDrawer).toBeVisible();
+    await expect(doneDrawer.getByText('All requirements met.')).toBeVisible();
+    const doneBtn = doneDrawer.locator('[data-processing-mark-complete]');
+    await expect(doneBtn).toBeEnabled();
+    await doneBtn.click();
+    await expect(doneDrawer.getByText('✓ Completed')).toBeVisible();
+    await expect(doneDrawer.locator('[data-processing-reopen]')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const {data} = await supabaseAdmin
+          .from('processing_records')
+          .select('completed_at, completed_by, status')
+          .eq('id', DONE_BATCH_ID)
+          .single();
+        return data && data.completed_at != null && data.completed_by != null && data.status === 'complete';
+      })
+      .toBe(true);
+  });
+
+  test('deep link: /processing?record=<id> opens the drawer after the first load', async ({
+    page,
+    supabaseAdmin,
+    resetDb,
+  }) => {
+    await resetDb();
+    const adminId = await adminProfileId(supabaseAdmin);
+    await seedHistoricalRecord(supabaseAdmin, adminId, {
+      id: 'ptest-deep-1',
+      program: 'broiler',
+      title: 'TEST Deep Link Broilers',
+      date: '2026-03-10',
+    });
+    await stampFreshnessNow(supabaseAdmin);
+
+    await page.goto('/processing?record=ptest-deep-1');
+    await page.waitForSelector('[data-processing-deeplink-ready="1"]');
+    await expect(page.locator('[data-processing-drawer="ptest-deep-1"]')).toBeVisible();
+    // The open drawer stays mirrored into the ?record param.
+    await expect(page).toHaveURL(/\/processing\?record=ptest-deep-1/);
+    // Closing the drawer retires the param (replaceState, pathname intact).
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-processing-drawer="ptest-deep-1"]')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/processing$/);
   });
 
   test('milestone lifecycle: create with status (no parent assignee control), explicit date clear, delete', async ({
@@ -279,81 +412,6 @@ test.describe('Processing Calendar', () => {
     await expect(drawer).toHaveCount(0);
   });
 
-  test('template-driven Details: typed local field edit persists; subtasks add + reorder; Apply template additive', async ({
-    page,
-    supabaseAdmin,
-    resetDb,
-  }) => {
-    await resetDb();
-    const adminId = await adminProfileId(supabaseAdmin);
-    await seedCattleBatchWithProcessingRow(supabaseAdmin, adminId);
-
-    // Active cattle template: one local number field + one local date field +
-    // a one-step checklist for the additive Apply.
-    const {error: tplErr} = await supabaseAdmin.from('processing_templates').upsert(
-      {
-        id: 'ptest-tpl-1',
-        program: 'cattle',
-        version: 1,
-        fields: [
-          {id: 'condemned', name: 'Condemed', type: 'number'},
-          {id: 'farmArrival', name: 'Farm Arrival Date', type: 'date'},
-        ],
-        checklist: [{label: 'TEST template step', assignee: null}],
-        is_active: true,
-        created_by: adminId,
-      },
-      {onConflict: 'id'},
-    );
-    expect(tplErr, tplErr && tplErr.message).toBeFalsy();
-
-    await resetFreshnessStamp(supabaseAdmin);
-    await gotoProcessingExpecting(page, `[data-processing-row="${BATCH_ID}"]`);
-    await page.locator(`[data-processing-row="${BATCH_ID}"]`).click();
-    await expect(page.locator(`[data-processing-drawer="${BATCH_ID}"]`)).toBeVisible();
-
-    // Details section renders the template fields; edit the number field.
-    await expect(page.locator('[data-processing-details-section]')).toBeVisible();
-    const condemned = page.locator('[data-processing-field-input="condemned"]');
-    await condemned.fill('4');
-    await condemned.blur();
-    // runMutation persists then reloads the drawer — poll the DB for the
-    // committed value (the input can briefly show the pre-commit draft).
-    await expect
-      .poll(
-        async () => {
-          const {data: recRow} = await supabaseAdmin
-            .from('processing_records')
-            .select('fields')
-            .eq('id', BATCH_ID)
-            .single();
-          return recRow && recRow.fields ? recRow.fields.condemned : undefined;
-        },
-        {timeout: 10_000},
-      )
-      .toBe(4);
-    await expect(page.locator('[data-processing-field-input="condemned"]')).toHaveValue('4');
-
-    // Add two subtasks, then reorder with the arrows.
-    const addInput = page.locator('[data-processing-add-subtask]');
-    await addInput.fill('Step A');
-    await addInput.press('Enter');
-    await expect(page.locator('[data-processing-subtask]')).toHaveCount(1);
-    await addInput.fill('Step B');
-    await addInput.press('Enter');
-    await expect(page.locator('[data-processing-subtask]')).toHaveCount(2);
-    const firstSub = page.locator('[data-processing-subtask]').first();
-    await expect(firstSub).toContainText('Step A');
-    const secondId = await page.locator('[data-processing-subtask]').nth(1).getAttribute('data-processing-subtask');
-    await page.locator(`[data-processing-subtask-up="${secondId}"]`).click();
-    await expect(page.locator('[data-processing-subtask]').first()).toContainText('Step B');
-
-    // Apply template adds ONLY the missing step (additive).
-    await page.getByRole('button', {name: 'Apply template'}).click();
-    await expect(page.locator('[data-processing-subtask]')).toHaveCount(3);
-    await expect(page.getByText('TEST template step')).toBeVisible();
-  });
-
   test('conversation fidelity (B-26-04 equivalent): imported media comments render author/timestamp/thumbnail; attachments index shares the bytes', async ({
     page,
     supabaseAdmin,
@@ -373,20 +431,12 @@ test.describe('Processing Calendar', () => {
     // is asana_historical so the on-load planner reconcile can't archive it
     // (no live ppp-v4 source exists on TEST) — the comments/attachments
     // behavior under test is identical for both record types.
-    const {error: recErr} = await supabaseAdmin.from('processing_records').upsert(
-      {
-        id: REC,
-        record_type: 'asana_historical',
-        program: 'broiler',
-        title: 'TEST B-26-04',
-        processing_date: '2026-03-20',
-        status: 'planned',
-        match_status: 'unmatched',
-        created_by: adminId,
-      },
-      {onConflict: 'id'},
-    );
-    expect(recErr, recErr && recErr.message).toBeFalsy();
+    await seedHistoricalRecord(supabaseAdmin, adminId, {
+      id: REC,
+      program: 'broiler',
+      title: 'TEST B-26-04',
+      date: '2026-03-20',
+    });
     const link = await supabaseAdmin.rpc('link_asana_to_processing', {
       p_row: {asana_gid: TASK, processing_record_id: REC, match_status: 'matched', match_method: 'manual_crosswalk'},
     });
@@ -528,7 +578,7 @@ test.describe('Processing Calendar', () => {
     }
   });
 
-  test('v2 template suite: simplified Details on all four programs; Customer + Processor are true selects with DB-verified save/clear + legacy handling', async ({
+  test('Customer + Processor are TRUE selects over stable option objects; inactive withheld; legacy values surface', async ({
     page,
     supabaseAdmin,
     resetDb,
@@ -536,26 +586,8 @@ test.describe('Processing Calendar', () => {
     await resetDb();
     const adminId = await adminProfileId(supabaseAdmin);
 
-    // Seed the CANONICAL v2 suite (same JSON migration 174 activates) as the
-    // active template for every program.
-    const suite = defaultProcessingTemplateSuite();
-    for (const program of ['broiler', 'cattle', 'pig', 'sheep']) {
-      const {error} = await supabaseAdmin.from('processing_templates').upsert(
-        {
-          id: `ptpl-default-${program}-v2`,
-          program,
-          version: 2,
-          fields: suite[program].fields,
-          checklist: suite[program].checklist,
-          is_active: true,
-          created_by: adminId,
-        },
-        {onConflict: 'id'},
-      );
-      expect(error, error && error.message).toBeFalsy();
-    }
-
-    // Known processor + customer choices (restore the shared singleton after).
+    // Known stable-object choices (mig 175 shape) incl. one INACTIVE processor
+    // — restore the shared singleton after.
     const {data: baseSettings} = await supabaseAdmin
       .from('processing_asana_sync_settings')
       .select('processor_options, customer_options')
@@ -564,89 +596,49 @@ test.describe('Processing Calendar', () => {
     await supabaseAdmin
       .from('processing_asana_sync_settings')
       .update({
-        processor_options: ['Atlanta Poultry Processing', 'Springer Mountain'],
-        customer_options: ["Sonny's", 'Fresh Farms Co'],
+        processor_options: [
+          {id: 'opt-ptest-p1', label: 'Atlanta Poultry Processing', active: true},
+          {id: 'opt-ptest-p2', label: 'Springer Mountain', active: true},
+          {id: 'opt-ptest-p3', label: 'Retired Processors Inc', active: false},
+        ],
+        customer_options: [
+          {id: 'opt-ptest-c1', label: "Sonny's", active: true},
+          {id: 'opt-ptest-c2', label: 'Fresh Farms Co', active: true},
+        ],
       })
       .eq('id', 'singleton');
 
     try {
-      // One historical record per program; the broiler one carries a LEGACY
-      // off-list processor + a LEGACY single off-list customer; a second
-      // broiler record carries an old MULTI-customer set.
-      const rows = ['broiler', 'cattle', 'pig', 'sheep'].map((program) => ({
-        id: `ptest-suite-${program}`,
-        record_type: 'asana_historical',
-        program,
-        title: `TEST Suite ${program}`,
-        processing_date: '2026-04-01',
-        status: 'planned',
-        processor: program === 'broiler' ? 'Old Legacy Processors LLC' : null,
-        customer: program === 'broiler' ? ['Old Partner LLC'] : [],
-        match_status: 'unmatched',
-        created_by: adminId,
-      }));
-      rows.push({
+      // Broiler historical records: one with a LEGACY off-list processor +
+      // LEGACY single off-list customer; one with an old MULTI-customer set.
+      await seedHistoricalRecord(supabaseAdmin, adminId, {
+        id: 'ptest-suite-broiler',
+        program: 'broiler',
+        title: 'TEST Suite broiler',
+        date: '2026-04-01',
+        extra: {processor: 'Old Legacy Processors LLC', customer: ['Old Partner LLC']},
+      });
+      await seedHistoricalRecord(supabaseAdmin, adminId, {
         id: 'ptest-suite-broiler-multi',
-        record_type: 'asana_historical',
         program: 'broiler',
         title: 'TEST Suite broiler multi-customer',
-        processing_date: '2026-04-02',
-        status: 'planned',
-        customer: ["Sonny's", 'Coastal Pastures - CONFIRMED'],
-        match_status: 'unmatched',
-        created_by: adminId,
+        date: '2026-04-02',
+        extra: {customer: ["Sonny's", 'Coastal Pastures - CONFIRMED']},
       });
-      const {error: recErr} = await supabaseAdmin.from('processing_records').upsert(rows, {onConflict: 'id'});
-      expect(recErr, recErr && recErr.message).toBeFalsy();
 
-      await resetFreshnessStamp(supabaseAdmin);
-      await page.goto('/processing');
-      await page.waitForSelector('[data-processing-loaded="1"]');
-
-      // Every program's record opens with the SIMPLIFIED template Details:
-      // Condemed + Farm Arrival Date render; every retired field is absent.
-      for (const program of ['broiler', 'cattle', 'pig', 'sheep']) {
-        await page.locator(`[data-processing-row="ptest-suite-${program}"]`).click();
-        const drawer = page.locator(`[data-processing-drawer="ptest-suite-${program}"]`);
-        await expect(drawer).toBeVisible();
-        await expect(drawer.locator('[data-processing-details-section]')).toBeVisible();
-        await expect(drawer.locator('[data-processing-field-input="condemned"]')).toBeVisible();
-        await expect(drawer.locator('[data-processing-field-input="farmArrival"]')).toBeVisible();
-        for (const gone of ['farm', 'procPlanned', 'productPickup']) {
-          await expect(drawer.locator(`[data-processing-field-input="${gone}"]`)).toHaveCount(0);
-        }
-        for (const goneLabel of [
-          'Planned Processing Date (SF)',
-          'Actual Time On Farm',
-          'Planned Time on Farm',
-          'Time Remaining Until Processing',
-          'Product Pick-up Date',
-          'Time on farm',
-        ]) {
-          await expect(drawer.getByText(goneLabel, {exact: true})).toHaveCount(0);
-        }
-        // Customer is a broiler-only TRUE SELECT; Processor a select everywhere.
-        const custSelect = drawer.locator('[data-processing-customer-select]');
-        if (program === 'broiler') {
-          await expect(custSelect).toBeVisible();
-          expect(await custSelect.evaluate((el) => el.tagName)).toBe('SELECT');
-        } else {
-          await expect(custSelect).toHaveCount(0);
-        }
-        await expect(drawer.locator('[data-processing-customer-chip]')).toHaveCount(0);
-        const procSelect = drawer.locator('[data-processing-processor-select]');
-        await expect(procSelect).toBeVisible();
-        expect(await procSelect.evaluate((el) => el.tagName)).toBe('SELECT');
-        await page.keyboard.press('Escape');
-        await expect(drawer).toHaveCount(0);
-      }
+      await stampFreshnessNow(supabaseAdmin);
+      await gotoProcessingExpecting(page, '[data-processing-row="ptest-suite-broiler"]');
 
       // ── broiler record: processor + customer legacy/save/clear, DB-verified ──
       await page.locator('[data-processing-row="ptest-suite-broiler"]').click();
       const drawer = page.locator('[data-processing-drawer="ptest-suite-broiler"]');
       const procSelect = drawer.locator('[data-processing-processor-select]');
+      await expect(procSelect).toBeVisible();
+      expect(await procSelect.evaluate((el) => el.tagName)).toBe('SELECT');
       await expect(procSelect).toHaveValue('Old Legacy Processors LLC');
       await expect(procSelect.locator('option', {hasText: 'Old Legacy Processors LLC (legacy)'})).toHaveCount(1);
+      // A deactivated option is NOT offered as a choice.
+      await expect(procSelect.locator('option', {hasText: 'Retired Processors Inc'})).toHaveCount(0);
       // Pick a configured choice — persists server-side.
       await procSelect.selectOption('Springer Mountain');
       await expect
@@ -677,6 +669,8 @@ test.describe('Processing Calendar', () => {
       // Customer: the stored off-list single value shows as (legacy) and is the
       // current selection; replacing it stores exactly [choice]; clearing → [].
       const custSelect = drawer.locator('[data-processing-customer-select]');
+      await expect(custSelect).toBeVisible();
+      expect(await custSelect.evaluate((el) => el.tagName)).toBe('SELECT');
       await expect(custSelect).toHaveValue('Old Partner LLC');
       await expect(custSelect.locator('option', {hasText: 'Old Partner LLC (legacy)'})).toHaveCount(1);
       await custSelect.selectOption('Fresh Farms Co');
@@ -724,26 +718,98 @@ test.describe('Processing Calendar', () => {
         })
         .toBe(JSON.stringify(["Sonny's"]));
       await expect(multiSelect.locator('option', {hasText: '(legacy — multiple)'})).toHaveCount(0);
-      await page.keyboard.press('Escape');
-      await expect(multiDrawer).toHaveCount(0);
+    } finally {
+      await supabaseAdmin
+        .from('processing_asana_sync_settings')
+        .update({
+          processor_options: baseSettings.processor_options,
+          customer_options: baseSettings.customer_options,
+        })
+        .eq('id', 'singleton');
+    }
+  });
 
-      // ── Add Milestone: broiler Customer is a select; stores zero-or-one ──
-      await page.locator('[data-processing-add-milestone-btn]').click();
-      await page.locator('[data-processing-milestone-program="broiler"]').click();
-      await page.locator('[data-processing-milestone-name]').fill('TEST Broiler customer milestone');
-      const mileCust = page.locator('[data-processing-milestone-customer]');
-      await expect(mileCust).toBeVisible();
-      expect(await mileCust.evaluate((el) => el.tagName)).toBe('SELECT');
-      await mileCust.selectOption('Fresh Farms Co');
-      await page.locator('[data-processing-milestone-create]').click();
-      await expect(page.locator('[data-processing-drawer]')).toBeVisible();
-      const {data: mileRow} = await supabaseAdmin
-        .from('processing_records')
-        .select('customer, assignee_profile_id')
-        .eq('title', 'TEST Broiler customer milestone')
-        .single();
-      expect(mileRow.customer).toEqual(['Fresh Farms Co']);
-      expect(mileRow.assignee_profile_id).toBeNull();
+  test('Templates modal is CHECKLIST-ONLY; Customer & processor choices editor offers rename/deactivate', async ({
+    page,
+    supabaseAdmin,
+    resetDb,
+  }) => {
+    await resetDb();
+    const adminId = await adminProfileId(supabaseAdmin);
+    // An active template so the modal loads an Active vN checklist.
+    const {error: tplErr} = await supabaseAdmin.from('processing_templates').upsert(
+      {
+        id: 'ptest-tpl-modal',
+        program: 'broiler',
+        version: 1,
+        fields: [],
+        checklist: [{id: 'stp-ptest-modal-1', label: 'TEST modal step', assignee: null, assignee_profile_id: null}],
+        is_active: true,
+        created_by: adminId,
+      },
+      {onConflict: 'id'},
+    );
+    expect(tplErr, tplErr && tplErr.message).toBeFalsy();
+
+    // Stable-object choices so the options editor shows a persisted row with a
+    // Deactivate control (restore the shared singleton after).
+    const {data: baseSettings} = await supabaseAdmin
+      .from('processing_asana_sync_settings')
+      .select('processor_options, customer_options')
+      .eq('id', 'singleton')
+      .single();
+    await supabaseAdmin
+      .from('processing_asana_sync_settings')
+      .update({
+        processor_options: [{id: 'opt-ptest-mp1', label: 'Atlanta Poultry Processing', active: true}],
+        customer_options: [{id: 'opt-ptest-mc1', label: "Sonny's", active: true}],
+      })
+      .eq('id', 'singleton');
+
+    try {
+      await stampFreshnessNow(supabaseAdmin);
+      await page.goto('/processing');
+      await page.waitForSelector('[data-processing-loaded="1"]');
+
+      await page.locator('[data-processing-templates-btn]').click();
+      const modal = page.locator('[data-processing-templates-modal]');
+      await expect(modal).toBeVisible();
+
+      // Checklist-only surface: the loaded step renders, steps can be added,
+      // the reset is checklist-scoped, and there is NO Fields editor (type
+      // pickers / color palette / field rows) and NO Asana import workflow.
+      await expect(modal.getByText('checklist template')).toBeVisible();
+      await expect(modal.locator('[data-processing-template-state]')).toBeVisible();
+      // React controls set the value PROPERTY (not the attribute) — assert via
+      // toHaveValue on the first step row's label input.
+      await expect(modal.locator('[data-processing-template-step="0"] input').first()).toHaveValue('TEST modal step');
+      await expect(modal.locator('[data-processing-template-add-step]')).toBeVisible();
+      await expect(modal.getByText('Reset checklist')).toBeVisible();
+      await expect(modal.locator('[data-processing-color-palette]')).toHaveCount(0);
+      await expect(modal.locator('[data-processing-template-import-btn]')).toHaveCount(0);
+      await expect(modal.getByText('Add field')).toHaveCount(0);
+      await expect(modal.getByText('Field type')).toHaveCount(0);
+
+      // Draft preview pane (checklist as the drawer would list it).
+      await modal.locator('[data-processing-template-preview-toggle]').click();
+      await expect(modal.locator('[data-processing-template-preview="1"]')).toBeVisible();
+      await expect(modal.locator('[data-processing-template-preview="1"]')).toContainText('TEST modal step');
+
+      // Customer & processor choices editor (mig 175 semantics): a persisted
+      // option row renders a rename input + Deactivate; no delete exists.
+      await expect(modal.locator('[data-processing-options-btn]')).toBeVisible();
+      await modal.locator('[data-processing-options-btn]').click();
+      const options = page.locator('[data-processing-options-modal]');
+      await expect(options).toBeVisible();
+      await expect(options.locator('[data-processing-option-row="opt-ptest-mp1"]')).toBeVisible();
+      await expect(options.locator('input[aria-label="Rename Atlanta Poultry Processing"]')).toBeVisible();
+      await expect(options.locator('[data-processing-option-deactivate="opt-ptest-mp1"]')).toBeVisible();
+      await options.getByRole('button', {name: 'Done'}).click();
+      await expect(options).toHaveCount(0);
+
+      // Footer Close (the header ✕ shares the accessible name).
+      await modal.getByRole('button', {name: 'Close'}).last().click();
+      await expect(modal).toHaveCount(0);
     } finally {
       await supabaseAdmin
         .from('processing_asana_sync_settings')
@@ -759,21 +825,13 @@ test.describe('Processing Calendar', () => {
     await resetDb();
     const adminId = await adminProfileId(supabaseAdmin);
     // An Asana-historical record: archivable, and never swept by the reconcile.
-    const {error: recErr} = await supabaseAdmin.from('processing_records').upsert(
-      {
-        id: 'ptest-hist-1',
-        record_type: 'asana_historical',
-        program: 'broiler',
-        title: 'TEST Historical Broilers',
-        processing_date: '2026-03-02',
-        status: 'complete',
-        completed_at: '2026-03-02T12:00:00Z',
-        match_status: 'unmatched',
-        created_by: adminId,
-      },
-      {onConflict: 'id'},
-    );
-    expect(recErr, recErr && recErr.message).toBeFalsy();
+    await seedHistoricalRecord(supabaseAdmin, adminId, {
+      id: 'ptest-hist-1',
+      program: 'broiler',
+      title: 'TEST Historical Broilers',
+      date: '2026-03-02',
+      extra: {status: 'complete', completed_at: '2026-03-02T12:00:00Z'},
+    });
 
     await stampFreshnessNow(supabaseAdmin);
     const {data: preNav} = await supabaseAdmin
@@ -801,7 +859,7 @@ test.describe('Processing Calendar', () => {
     await expect(drawer).toHaveCount(0);
     await expect(page.locator('[data-processing-row="ptest-hist-1"]')).toHaveCount(0);
 
-    // Admin: the Show archived checkbox lives in the filter row now.
+    // Admin: the Show archived checkbox lives in the filter row.
     await page.locator('[data-processing-show-archived]').check();
     await page.waitForSelector('[data-processing-loaded="1"]');
     const archivedRow = page.locator('[data-processing-row="ptest-hist-1"]');
@@ -823,5 +881,66 @@ test.describe('Processing Calendar', () => {
         .from('processing-attachments')
         .remove(objs.map((o) => `native/ptest-hist-1/${o.name}`));
     }
+  });
+
+  test('apply-template: preview shows the additive diff behind Confirm; reapply reads up to date', async ({
+    page,
+    supabaseAdmin,
+    resetDb,
+  }) => {
+    await resetDb();
+    const adminId = await adminProfileId(supabaseAdmin);
+    await seedCattleBatchWithProcessingRow(supabaseAdmin, adminId);
+    // Active cattle template with ONE stable-id checklist step. The record
+    // pre-exists (planner update branch), so no auto-seed ran — Apply is the
+    // only path that can add the step.
+    const {error: tplErr} = await supabaseAdmin.from('processing_templates').upsert(
+      {
+        id: 'ptest-tpl-apply',
+        program: 'cattle',
+        version: 1,
+        fields: [],
+        checklist: [{id: 'stp-ptest-apply-1', label: 'TEST template step', assignee: null, assignee_profile_id: null}],
+        is_active: true,
+        created_by: adminId,
+      },
+      {onConflict: 'id'},
+    );
+    expect(tplErr, tplErr && tplErr.message).toBeFalsy();
+
+    await resetFreshnessStamp(supabaseAdmin);
+    await gotoProcessingExpecting(page, `[data-processing-row="${BATCH_ID}"]`);
+    await page.locator(`[data-processing-row="${BATCH_ID}"]`).click();
+    const drawer = page.locator(`[data-processing-drawer="${BATCH_ID}"]`);
+    await expect(drawer).toBeVisible();
+    await expect(drawer.locator('[data-processing-subtask]')).toHaveCount(0);
+
+    // Preview first: the server's read-only diff renders behind Confirm.
+    await drawer.locator('[data-processing-apply-template]').click();
+    const preview = drawer.locator('[data-processing-apply-template-preview]');
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText('1 addition');
+    await expect(preview).toContainText('TEST template step');
+
+    // Confirm applies additively and closes the preview.
+    await drawer.locator('[data-processing-apply-template-confirm]').click();
+    await expect(drawer.locator('[data-processing-apply-template-preview]')).toHaveCount(0);
+    const applied = drawer.locator('[data-processing-subtask]').filter({hasText: 'TEST template step'});
+    await expect(applied).toHaveCount(1);
+    // The linked subtask carries the stable template step id server-side.
+    await expect
+      .poll(async () => {
+        const {data} = await supabaseAdmin
+          .from('processing_subtasks')
+          .select('template_step_id')
+          .eq('record_id', BATCH_ID);
+        return (data || []).map((s) => s.template_step_id).join(',');
+      })
+      .toBe('stp-ptest-apply-1');
+
+    // Idempotent: a second preview reads up to date (no confirm offered).
+    await drawer.locator('[data-processing-apply-template]').click();
+    await expect(drawer.getByText('Checklist is up to date.')).toBeVisible();
+    await expect(drawer.locator('[data-processing-apply-template-confirm]')).toHaveCount(0);
   });
 });

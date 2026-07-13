@@ -6,6 +6,8 @@
 // mig 062) carries a parallel CASE expression. Adding a new entity_type
 // means touching BOTH: register here + add a CASE branch in the SQL.
 
+import {processingRecordRoute} from './processingNav.js';
+
 export const ENTITY_TYPES = {
   TASK_INSTANCE: 'task.instance',
   TODO_ITEM: 'todo.item',
@@ -84,12 +86,13 @@ export const ACTIVITY_REGISTRY = {
     route: null,
     program: null,
   },
-  // Processing Calendar records. Native Activity begins post-cutover. Routes to
-  // the flat /processing page (the drawer opens in-page, not via a URL sub-path
-  // for v1); deep-link-to-specific-record is a documented follow-up.
+  // Processing Calendar records. Native Activity begins post-cutover. Routes
+  // to the per-record deep link /processing?record=<id> (planner-integration
+  // lane) — ProcessingCalendarView opens that record's drawer on load. A
+  // missing id degrades to the flat /processing page.
   [ENTITY_TYPES.PROCESSING_RECORD]: {
     displayLabel: (id, ctx) => (ctx && ctx.title ? ctx.title : id),
-    route: () => '/processing',
+    route: (id) => processingRecordRoute(id),
     program: null,
   },
   [ENTITY_TYPES.PIG_BATCH]: {
@@ -202,6 +205,28 @@ export function resolveNotificationRoute(notification, eventEntityType, eventEnt
       }
     }
     return '/tasks/todo';
+  }
+  // Processing work assignment (mig 177). The notification links the
+  // processing.record Activity event the assignment emitted, so
+  // list_recent_notifications attaches activity_entity_type='processing.record'
+  // + activity_entity_id=<record id>; route through the registry to the
+  // per-record deep link (/processing?record=<id>). Falls back to the flat
+  // /processing page when event resolution is missing (event insert is
+  // best-effort server-side).
+  if (notification && notification.type === 'processing_subtask_assigned') {
+    const et = notification.activity_entity_type || eventEntityType;
+    const eid = notification.activity_entity_id || eventEntityId;
+    if (et && eid) {
+      const meta = getActivityEntityMeta(et);
+      if (meta && typeof meta.route === 'function') {
+        try {
+          return meta.route(eid);
+        } catch (_e) {
+          /* fall through */
+        }
+      }
+    }
+    return '/processing';
   }
   if (notification && notification.type === 'comment_mention') {
     const et = notification.activity_entity_type;

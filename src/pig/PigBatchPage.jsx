@@ -1,6 +1,8 @@
 import React from 'react';
+import {useNavigate, useLocation} from 'react-router-dom';
 import {sb} from '../lib/supabase.js';
 import {openableProps} from '../shared/openable.js';
+import {navigateToProcessingRoute, processingSourceRoute} from '../lib/processingNav.js';
 import {fmt, fmtS, todayISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {
@@ -61,6 +63,8 @@ import {usePig} from '../contexts/PigContext.jsx';
 // here. PigBatchesView remains the hub/router and renders this only when
 // recordGroup exists.
 export default function PigBatchPage({Header, group, view, recordSeq = null, recordId = null, onNavigateSeq, onBack}) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const {authState} = useAuth();
   const {
     breedingCycles,
@@ -142,6 +146,42 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
     closeTripForm,
     deleteTrip,
   } = view;
+
+  // Exact-trip deep-link focus: /pig/batches/<groupId>?trip=<tripId> (the
+  // Processing drawer's "View pig trip" back-link, processingSourceLink.js)
+  // scrolls to and briefly outlines the matching planned OR actual trip
+  // element (both carry data-pig-trip={t.id} anchors). This mirrors the
+  // comment deep-link pattern on the other record pages (#comment-<id>:
+  // setTimeout + scrollIntoView block:'center'); there is no shared flash
+  // primitive in the app, so the pulse is a temporary outline — outline is
+  // not part of any React-managed style prop here, so re-renders can't
+  // clobber or resurrect it.
+  const focusTripId = React.useMemo(() => {
+    try {
+      return new URLSearchParams(location.search).get('trip');
+    } catch (_e) {
+      return null;
+    }
+  }, [location.search]);
+  const focusTripDoneRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!focusTripId || focusTripDoneRef.current === focusTripId) return;
+    const timer = setTimeout(() => {
+      const esc =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(focusTripId) : focusTripId;
+      const el = document.querySelector(`[data-pig-trip="${esc}"]`);
+      if (!el) return; // not rendered yet — group/planned data still settling; retried via deps
+      focusTripDoneRef.current = focusTripId;
+      if (el.scrollIntoView) el.scrollIntoView({behavior: 'smooth', block: 'center'});
+      el.style.outline = '2px solid var(--brand)';
+      el.style.outlineOffset = '2px';
+      setTimeout(() => {
+        el.style.outline = '';
+        el.style.outlineOffset = '';
+      }, 2400);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [focusTripId, group]);
 
   // Local view-scoped derivations (were inline in PigBatchesView).
   // CP0 WI-4: batch/sub-batch status -> <Badge>; pig active display derives
@@ -1532,6 +1572,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                   <div
                                     key={t.id}
                                     data-planned-trip-id={t.id}
+                                    data-pig-trip={t.id}
                                     data-planned-trip-sex={t.sex}
                                     data-planned-trip-locked={tripLocked ? 'true' : 'false'}
                                     style={{
@@ -1708,6 +1749,27 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                                           Over {PLANNED_TRIP_OVER_WEIGHT_WARN_LBS}
                                         </Badge>
                                       )}
+                                      {/* Quiet deep link to this trip's Processing record
+                                          (source key pig:<groupId>:<tripId>). */}
+                                      <button
+                                        type="button"
+                                        data-pig-trip-processing-link={t.id}
+                                        onClick={() =>
+                                          navigateToProcessingRoute(navigate, processingSourceRoute('pig', g.id, t.id))
+                                        }
+                                        style={{
+                                          fontSize: 10,
+                                          color: 'var(--brand)',
+                                          background: 'none',
+                                          border: 'none',
+                                          cursor: 'pointer',
+                                          fontFamily: 'inherit',
+                                          padding: 0,
+                                          marginLeft: 'auto',
+                                        }}
+                                      >
+                                        Processing →
+                                      </button>
                                     </div>
                                     {/* Move arrows + delete (admin/management).
                                           ← back: send 1 pig from this trip to the PREVIOUS
@@ -2068,7 +2130,13 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       </div>
                       {editTripId && (
                         <div
-                          style={{padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8}}
+                          style={{
+                            padding: '12px 20px',
+                            borderTop: '1px solid var(--border)',
+                            display: 'flex',
+                            gap: 8,
+                            alignItems: 'center',
+                          }}
                         >
                           <button
                             onClick={() => {
@@ -2079,6 +2147,29 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                             style={S.btnDanger}
                           >
                             Delete
+                          </button>
+                          {/* Quiet deep link to this trip's Processing record.
+                              Close the modal first so it isn't left floating
+                              over the Processing view. */}
+                          <button
+                            type="button"
+                            data-pig-trip-processing-link-modal={editTripId}
+                            onClick={() => {
+                              const tripId = editTripId;
+                              closeTripForm();
+                              navigateToProcessingRoute(navigate, processingSourceRoute('pig', g.id, tripId));
+                            }}
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--brand)',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                              marginLeft: 'auto',
+                            }}
+                          >
+                            Processing →
                           </button>
                         </div>
                       )}
@@ -2111,6 +2202,7 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                   return (
                     <div
                       key={t.id}
+                      data-pig-trip={t.id}
                       style={{
                         borderTop: '1px solid var(--border)',
                         padding: '8px 0',
@@ -2153,6 +2245,21 @@ export default function PigBatchPage({Header, group, view, recordSeq = null, rec
                       )}
                       {t.notes && <span style={{color: 'var(--ink-faint)', fontStyle: 'italic'}}>{t.notes}</span>}
                       <div style={{marginLeft: 'auto', display: 'flex', gap: 8}}>
+                        {/* Quiet deep link to this trip's Processing record
+                            (source key pig:<groupId>:<tripId>). */}
+                        <button
+                          data-pig-trip-processing-link={t.id}
+                          onClick={() => navigateToProcessingRoute(navigate, processingSourceRoute('pig', g.id, t.id))}
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--brand)',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Processing
+                        </button>
                         <button
                           onClick={() => {
                             setTripForm({

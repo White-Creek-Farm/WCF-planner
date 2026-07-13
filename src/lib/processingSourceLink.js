@@ -1,249 +1,120 @@
 // ============================================================================
-// src/lib/processingSourceLink.js  —  Processing → source resolution (mig 156)
+// src/lib/processingSourceLink.js — Processing <-> native planner link helpers
 // ----------------------------------------------------------------------------
-// Pure, read-only resolution of a processing record's SOURCE-owned display data
-// from already-loaded planner source collections. The Processing domain stores
-// a read-only (source_kind, source_id) link on planner_batch rows; the source
-// facts (live status, number processed, on-farm age) are NEVER copied into the
-// processing tables — they are resolved app-side from the live source so the
-// drawer never drifts from the batch record. See src/lib/production.js for the
-// canonical field names / key spellings this mirrors:
-//   • broiler  — app_store 'ppp-v4' batches, keyed by batch.name
-//                (Time On Farm = round((processingDate - hatchDate)/86400000))
-//   • cattle   — cattle_processing_batches, keyed by batch.id
-//                (number processed = length of cows_detail)
-//   • sheep    — sheep_processing_batches, keyed by batch.id
-//                (number processed = length of sheep_detail)
-//   • pig      — app_store 'ppp-feeders-v1' feeder groups, keyed by the
-//                composite 'groupId:tripId' (number processed = trip.pigCount)
+// Planner-integration lane: source facts arrive on each Processing record as
+// the server-side LIVE projection (`record.source`, mig 176) — this module no
+// longer resolves facts from client planner collections or stale snapshots.
+// What remains client-side is presentation: exact two-way navigation routes and
+// the program-specific age/date/count formatting used by the fixed Processing
+// tables and drawer.
 //
-// When the source row can't be found (imported historical rows, a deleted
-// batch, a stale link) we fall back to the snapshot the record already carries
-// (record columns + historical_snapshot) and NEVER throw. Route links point at
-// the same record pages production.js's eventRecordPath uses.
+// Route contracts (two-way navigation):
+//   broiler -> /broiler/batches/<encoded batch NAME> (the record page resolves
+//              by name then pins batch.id; the projection carries the live
+//              name — source_id itself is the immutable ppp-v4 batch id).
+//   cattle  -> /cattle/batches/<source_id>
+//   sheep   -> /sheep/batches/<source_id>
+//   pig     -> /pig/batches/<groupId>?trip=<tripId> (focuses the EXACT trip).
 // ============================================================================
 
-import {
-  processingStatusLabel,
-  pigBatchProcessingStatusLabel,
-  PROCESSING_STATUS_DISPLAY,
-} from './processingStatusDisplay.js';
+export const NOT_RECORDED = 'Not recorded';
 
-// ── Small local pure helpers (kept in-module so this stays dependency-light) ─
-
-function numeric(value) {
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  const parsed = Number(String(value).replace(/,/g, '').trim());
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function jsonArrayLength(value) {
-  if (Array.isArray(value)) return value.length;
-  if (!value) return 0;
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed.length : 0;
-    } catch {
-      return 0;
-    }
+// Native planner route for a Processing record, or null when the record has no
+// live source (unmatched historical rows, milestones).
+export function sourceRouteForRecord(record) {
+  if (!record || !record.source_kind || !record.source_id) return null;
+  const src = record.source || null;
+  if (record.source_kind === 'broiler') {
+    const name = src && src.batch_name ? String(src.batch_name) : null;
+    return name ? `/broiler/batches/${encodeURIComponent(name)}` : null;
   }
-  return 0;
-}
-
-function isoDate(value) {
-  if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
-  const match = String(value)
-    .trim()
-    .match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
-}
-
-// Whole-day gap between two ISO dates (later minus earlier), or null when either
-// side is unparseable. Matches production.js's round((a - b)/86400000).
-function wholeDaysBetween(laterISO, earlierISO) {
-  const a = isoDate(laterISO);
-  const b = isoDate(earlierISO);
-  if (!a || !b) return null;
-  const ta = Date.parse(`${a}T00:00:00Z`);
-  const tb = Date.parse(`${b}T00:00:00Z`);
-  if (!Number.isFinite(ta) || !Number.isFinite(tb)) return null;
-  return Math.round((ta - tb) / 86400000);
-}
-
-// Format a whole-day count as 'Nw Nd' (weeks + remainder days). Negative /
-// null day counts return null (nothing sensible to display). Exported so the
-// Processing table/drawer can format the server-derived time_on_farm_days the
-// same way the client fallback formats it.
-export function weeksDaysText(days) {
-  if (days === null || days === undefined || !Number.isFinite(days) || days < 0) return null;
-  const weeks = Math.floor(days / 7);
-  const rem = days % 7;
-  return `${weeks}w ${rem}d`;
-}
-
-// Read a fallback value from the record's carried snapshot. Imported historical
-// rows keep a historical_snapshot jsonb; we accept a small set of key spellings
-// (camelCase + snake_case) since the snapshot is authored by the importer, not a
-// frozen client contract. Returns the first defined, non-empty value or null.
-function snapshotValue(record, keys) {
-  const snap = record && record.historical_snapshot;
-  if (!snap || typeof snap !== 'object') return null;
-  for (const k of keys) {
-    const v = snap[k];
-    if (v !== null && v !== undefined && v !== '') return v;
+  if (record.source_kind === 'cattle') return `/cattle/batches/${record.source_id}`;
+  if (record.source_kind === 'sheep') return `/sheep/batches/${record.source_id}`;
+  if (record.source_kind === 'pig') {
+    const sep = String(record.source_id).indexOf(':');
+    if (sep <= 0) return null;
+    const groupId = String(record.source_id).slice(0, sep);
+    const tripId = String(record.source_id).slice(sep + 1);
+    return `/pig/batches/${groupId}?trip=${encodeURIComponent(tripId)}`;
   }
   return null;
 }
 
-function firstBatchName(batch) {
-  return batch && (batch.name || batch.batchName || batch.batch_name);
+// Label for the back-link ("View <program> batch" / "View pig trip").
+export function sourceLinkLabel(record) {
+  if (!record || !record.source_kind) return null;
+  if (record.source_kind === 'pig') return 'View pig trip';
+  const names = {broiler: 'broiler', cattle: 'cattle', sheep: 'sheep'};
+  return `View ${names[record.source_kind] || 'source'} batch`;
 }
 
-// ── Per-program resolvers ────────────────────────────────────────────────────
-// Each returns the shared shape {status, numberProcessed, ageText,
-// timeOnFarmText, sourceRoute, matched} or null when no live source row is found
-// (caller then falls back to the snapshot).
+// ── Age / duration formatting ────────────────────────────────────────────────
 
-function resolveBroiler(record, broilerBatches) {
-  const sourceId = record.source_id;
-  if (!sourceId) return null;
-  const batch = (broilerBatches || []).find((b) => firstBatchName(b) === sourceId);
-  if (!batch) return null;
-  const processingDate = batch.processingDate || batch.processing_date;
-  const hatchDate = batch.hatchDate || batch.hatch_date;
-  // Birds arrive as day-old chicks at hatch, so Time On Farm IS their age.
-  const tof = weeksDaysText(wholeDaysBetween(processingDate, hatchDate));
-  const name = firstBatchName(batch);
-  return {
-    status: batch.status ?? record.status ?? null,
-    numberProcessed: numeric(batch.totalToProcessor ?? batch.total_to_processor),
-    ageText: tof ?? snapshotValue(record, ['ageText', 'age_text', 'age']) ?? null,
-    timeOnFarmText:
-      tof ?? snapshotValue(record, ['timeOnFarmText', 'time_on_farm_text', 'timeOnFarm', 'time_on_farm']) ?? null,
-    sourceRoute: name ? `/broiler/batches/${encodeURIComponent(name)}` : null,
-    matched: true,
-  };
+// Whole days -> "Nw Nd" (broiler age from hatch to processing).
+export function weeksDaysText(days) {
+  const d = parseInt(days);
+  if (!Number.isFinite(d) || d < 0) return null;
+  return `${Math.floor(d / 7)}w ${d % 7}d`;
 }
 
-function resolveCattleOrSheep(record, batches, {detailKey, route}) {
-  const sourceId = record.source_id;
-  if (!sourceId) return null;
-  const batch = (batches || []).find((b) => String(b.id) === String(sourceId));
-  if (!batch) return null;
-  return {
-    status: batch.status ?? record.status ?? null,
-    numberProcessed: jsonArrayLength(batch[detailKey]),
-    // Cattle/sheep aren't hatched on-farm, so there's no computable Time On Farm
-    // here; age/time-on-farm come from the imported snapshot when present.
-    ageText: snapshotValue(record, ['ageText', 'age_text', 'age']) ?? null,
-    timeOnFarmText:
-      snapshotValue(record, ['timeOnFarmText', 'time_on_farm_text', 'timeOnFarm', 'time_on_farm']) ?? null,
-    sourceRoute: `${route}/${encodeURIComponent(batch.id)}`,
-    matched: true,
-  };
+// Whole days -> "Ny Mm" (cattle/sheep age at processing; mirrors the batch
+// record pages' ageAtProcessing formatting).
+export function yearsMonthsText(days) {
+  const d = parseInt(days);
+  if (!Number.isFinite(d) || d < 0) return null;
+  const years = Math.floor(d / 365);
+  const months = Math.floor((d % 365) / 30);
+  return `${years}y ${months}m`;
 }
 
-function resolvePig(record, feederGroups) {
-  const sourceId = record.source_id;
-  if (!sourceId) return null;
-  const sep = String(sourceId).indexOf(':');
-  if (sep < 0) return null;
-  const groupId = String(sourceId).slice(0, sep);
-  const tripId = String(sourceId).slice(sep + 1);
-  const group = (feederGroups || []).find((g) => String(g.id) === groupId);
-  if (!group) return null;
-  const trip = (group.processingTrips || []).find((t) => String(t.id) === tripId);
-  if (!trip) return null;
-  return {
-    // Pig feeder trips carry no per-trip status field; the record's own status
-    // is the authority (deriveDisplayStatus applies the zero-head exception).
-    status: record.status ?? null,
-    numberProcessed: numeric(trip.pigCount),
-    ageText: snapshotValue(record, ['ageText', 'age_text', 'age']) ?? null,
-    timeOnFarmText:
-      snapshotValue(record, ['timeOnFarmText', 'time_on_farm_text', 'timeOnFarm', 'time_on_farm']) ?? null,
-    sourceRoute: `/pig/batches/${encodeURIComponent(group.id)}`,
-    matched: true,
-  };
+// Whole days -> "Nm Nw" (pig age; mirrors the pig planner's month/week style).
+export function monthsWeeksText(days) {
+  const d = parseInt(days);
+  if (!Number.isFinite(d) || d < 0) return null;
+  const months = Math.floor(d / 30);
+  const weeks = Math.floor((d % 30) / 7);
+  return `${months}m ${weeks}w`;
 }
 
-// Snapshot-only fallback: no live source row was found (or none linked). Read
-// everything from the record columns + carried snapshot; never throws.
-function snapshotFallback(record) {
-  return {
-    status: record.status ?? null,
-    numberProcessed:
-      record.number_processed != null
-        ? record.number_processed
-        : numeric(snapshotValue(record, ['numberProcessed', 'number_processed', 'count'])),
-    ageText: snapshotValue(record, ['ageText', 'age_text', 'age']) ?? null,
-    timeOnFarmText:
-      snapshotValue(record, ['timeOnFarmText', 'time_on_farm_text', 'timeOnFarm', 'time_on_farm']) ?? null,
-    sourceRoute: null,
-    matched: false,
-  };
+// {min_days, max_days, estimated?} -> range text with a single formatter, or
+// null when the range is unusable. min==max collapses to one value.
+export function ageRangeText(age, formatDays) {
+  if (!age) return null;
+  const min = parseInt(age.min_days);
+  const max = parseInt(age.max_days);
+  const fmt = typeof formatDays === 'function' ? formatDays : yearsMonthsText;
+  const minText = Number.isFinite(min) ? fmt(min) : null;
+  const maxText = Number.isFinite(max) ? fmt(max) : null;
+  if (!minText && !maxText) return null;
+  const core = minText && maxText && minText !== maxText ? `${minText} – ${maxText}` : maxText || minText;
+  return age.estimated ? `${core} (est.)` : core;
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────
-
-// Resolve a processing record's source-owned display data from the loaded
-// planner collections. Returns
-//   {status, numberProcessed, ageText, timeOnFarmText, sourceRoute, matched}
-// where `status` is the RAW source/record status (feed it through
-// deriveDisplayStatus for the Planned/In Process/Complete label). `matched`
-// tells the caller whether a live source row backed the values (true) or they
-// came from the record snapshot (false). Never throws.
-export function resolveSourceForRecord(record, {broilerBatches, cattleBatches, sheepBatches, feederGroups} = {}) {
-  if (!record) return snapshotFallback({});
-  const program = record.source_kind || record.program;
-  let resolved = null;
-  try {
-    if (program === 'broiler') {
-      resolved = resolveBroiler(record, broilerBatches);
-    } else if (program === 'cattle') {
-      resolved = resolveCattleOrSheep(record, cattleBatches, {
-        detailKey: 'cows_detail',
-        route: '/cattle/batches',
-      });
-    } else if (program === 'sheep') {
-      resolved = resolveCattleOrSheep(record, sheepBatches, {
-        detailKey: 'sheep_detail',
-        route: '/sheep/batches',
-      });
-    } else if (program === 'pig') {
-      resolved = resolvePig(record, feederGroups);
-    }
-  } catch (_e) {
-    // Any unexpected shape in the source collections must not break the drawer;
-    // fall through to the snapshot.
-    resolved = null;
-  }
-  return resolved || snapshotFallback(record);
+// Program-aware Age cell for the fixed tables. Broiler ages render from the
+// projection's single age_days; cattle/sheep/pig render their age range.
+export function recordAgeText(record) {
+  if (!record || !record.source) return null;
+  const src = record.source;
+  if (record.source_kind === 'broiler') return weeksDaysText(src.age_days);
+  if (record.source_kind === 'pig') return ageRangeText(src.age, monthsWeeksText);
+  return ageRangeText(src.age, yearsMonthsText);
 }
 
-// Derive the display status label (Planned / In Process / Complete) for a
-// record given its resolved source info. Rules:
-//   • completed_at set (or the record is complete) => Complete, always.
-//   • planner_batch => derive from the SOURCE status; pig applies the zero-head
-//     exception (an "active" pig batch with 0 head still reads Planned).
-//   • milestone / asana_historical / import_exception => use the record status.
-export function deriveDisplayStatus(record, sourceInfo = null) {
-  if (!record) return PROCESSING_STATUS_DISPLAY.planned;
-  if (record.completed_at) return PROCESSING_STATUS_DISPLAY.complete;
-  if (String(record.status || '').toLowerCase() === 'complete') return PROCESSING_STATUS_DISPLAY.complete;
+// Display helper: any nullish/blank value renders the canonical placeholder.
+// Never estimate missing values.
+export function displayOrNotRecorded(value) {
+  if (value === null || value === undefined) return NOT_RECORDED;
+  const text = String(value).trim();
+  return text === '' ? NOT_RECORDED : text;
+}
 
-  if (record.record_type === 'planner_batch') {
-    const program = record.source_kind || record.program;
-    const rawStatus = (sourceInfo && sourceInfo.status != null ? sourceInfo.status : record.status) ?? null;
-    if (program === 'pig') {
-      const started =
-        sourceInfo && sourceInfo.numberProcessed != null ? sourceInfo.numberProcessed : record.number_processed;
-      return pigBatchProcessingStatusLabel(rawStatus, {started});
-    }
-    return processingStatusLabel(rawStatus);
-  }
-  return processingStatusLabel(record.status);
+// ── Soft signals (pig planned trips) ─────────────────────────────────────────
+// 'Auto-planned' until the native trip is locked/scheduled with the processor,
+// then 'Processor scheduled'. Secondary text, NOT lifecycle status.
+export function pigPlanSignal(record) {
+  if (!record || record.source_kind !== 'pig') return null;
+  const src = record.source || {};
+  const phase = src.phase || record.source_phase;
+  if (phase !== 'planned') return null;
+  return src.scheduled_with_processor ? 'Processor scheduled' : 'Auto-planned';
 }

@@ -3,9 +3,13 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {describe, it, expect} from 'vitest';
 
-// Static guards for the Processing finish-out cleanup sub-lanes:
-//   1) main-table Subtasks column removed + sticky title column + admin maintenance area
-//   2) server-derived broiler Time-on-Farm (mig 160)
+// Static guards for the Processing finish-out cleanup sub-lanes, updated for
+// the planner-integration lane's FIXED per-program tables:
+//   1) main table — per-program fixed column sets (PROGRAM_TABLES), no
+//      Subtasks column, checklist meta inside the Batch cell, sticky first
+//      columns, admin maintenance area still gone
+//   2) server-derived broiler Time-on-Farm (mig 160) kept as DATA; the client
+//      DISPLAYS broiler age from the live projection instead
 //   3) soft archive_processing_record (mig 161) + drawer control
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,16 +30,46 @@ describe('sub-lane 1 — main table cleanup', () => {
     // which is the ONLY sanctioned subtask surface in the table.
     expect(view).not.toContain('>Subtasks</span>');
     expect(view).toMatch(/const checklistMeta =[\s\S]*?-step checklist/);
-    // UI-simplification GRID: check · Batch · Status · Farm arrival ·
-    // Processing · Processor · Number · Customer · Age · chevron (the parent
-    // Owner and Remaining columns are retired).
-    expect(view).toContain("const GRID = '20px minmax(190px,1fr) 96px 92px 92px 128px 72px 132px 88px 20px'");
   });
 
-  it('makes the title/batch column sticky (header, rows, group-header label)', () => {
-    expect(view).toContain('function stickyFirst(');
-    expect(view).toContain('...stickyFirst(T.tint)'); // header
-    expect(view).toContain('...stickyFirst(rowBg)'); // data row
+  it('renders FIXED per-program column sets (PROGRAM_TABLES) — the single shared GRID is retired', () => {
+    // Planner-integration lane: one column vocabulary composed per program.
+    //   broiler  Batch · Status · Hatch date · Processing date · Processor ·
+    //            Count · Customer
+    //   cattle   Batch · Status · Processing date · Processor · Count · Age
+    //   sheep    (as cattle; section labelled 'Lamb')
+    //   pig      Trip · Batch · Status · Processing date · Processor · Count ·
+    //            Age
+    expect(view).not.toMatch(/const GRID = '/);
+    expect(view).toContain("broiler: ['batch', 'status', 'hatch', 'processing', 'processor', 'count', 'customer']");
+    expect(view).toContain("cattle: ['batch', 'status', 'processing', 'processor', 'count', 'age']");
+    expect(view).toContain("pig: ['trip', 'batch', 'status', 'processing', 'processor', 'count', 'age']");
+    expect(view).toContain("sheep: ['batch', 'status', 'processing', 'processor', 'count', 'age']");
+    // The count column is labelled 'Count' — the old 'Number' label may not
+    // return as a column label, and no 'Farm arrival' column exists anywhere
+    // (label-level assertions: the header comment documents the retirement).
+    expect(view).toMatch(/label: 'Count'/);
+    expect(view).not.toMatch(/label: 'Number'/);
+    expect(view).not.toMatch(/label: 'Farm arrival'/);
+    // The pig Trip column + broiler Hatch date column exist in the vocabulary.
+    expect(view).toMatch(/label: 'Trip'/);
+    expect(view).toMatch(/label: 'Hatch date'/);
+    // Every missing source value renders the canonical 'Not recorded' text.
+    expect(view).toContain('NOT_RECORDED');
+    expect(view).toMatch(/displayOrNotRecorded\(/);
+    // Search runs over the server-built search_text with a title fallback.
+    expect(view).toContain('r.search_text');
+  });
+
+  it('keeps the leading columns sticky per program (check cell, sticky cols, group-header label)', () => {
+    // stickyCellStyle pins the 20px check column at left:0 and each
+    // PROGRAM_TABLES column marked sticky at its accumulated left offset; the
+    // LAST sticky column carries the divider shadow.
+    expect(view).toContain('function stickyCellStyle(');
+    expect(view).toContain('stickyCellStyle(0, rowBg)'); // check cell (data row)
+    expect(view).toContain('stickyCellStyle(0, T.tint)'); // check cell (header)
+    expect(view).toMatch(/col\.sticky \? stickyCellStyle\(col\.left, rowBg, col\.lastSticky\)/);
+    expect(view).toMatch(/col\.sticky \? stickyCellStyle\(col\.left, T\.tint, col\.lastSticky\)/);
     expect(view).toMatch(/position: 'sticky',\s*\n\s*left: 16/); // group-header label
   });
 
@@ -67,15 +101,22 @@ describe('sub-lane 2 — broiler Time-on-Farm (server derivation kept, display r
     );
   });
 
-  it('the client no longer DISPLAYS broiler TOF (table + drawer show mammal Age only)', () => {
-    expect(sourceLink).toContain('export function weeksDaysText'); // still used for mammal age text
-    expect(view).not.toContain('weeksDaysText(rec.time_on_farm_days)');
+  it('the client never renders time_on_farm_days; Age comes from the LIVE source projection', () => {
+    // 'Time on farm' as a display concept stays retired. The broiler Age that
+    // replaced it derives from the live planner projection (source.age_days),
+    // never the record's backward-compatible time_on_farm_days data column.
+    expect(sourceLink).toContain('export function weeksDaysText');
+    expect(view).not.toContain('time_on_farm_days');
     expect(view).not.toContain('_timeOnFarmText');
-    expect(drawer).not.toContain('weeksDaysText(record.time_on_farm_days)');
+    expect(drawer).not.toContain('time_on_farm_days');
     expect(drawer).not.toContain('Time on farm');
-    // Age remains for the mammal programs.
-    expect(view).toMatch(/isBroiler \? null : rec\._ageText/);
-    expect(drawer).toMatch(/!isBroiler && sourceInfo\?\.ageText/);
+    // Table: one program-aware Age cell (recordAgeText reads the projection);
+    // the broiler layout carries no Age column at all (see PROGRAM_TABLES).
+    expect(view).toMatch(/recordAgeText\(rec\)/);
+    // Drawer: broiler Age renders weeks/days from the projection; cattle/sheep
+    // render the live age range.
+    expect(drawer).toContain('weeksDaysText(source.age_days)');
+    expect(drawer).toContain('ageRangeText(source.age, yearsMonthsText)');
   });
 });
 

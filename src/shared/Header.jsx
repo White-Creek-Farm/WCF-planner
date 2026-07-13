@@ -32,6 +32,7 @@ import {getProgramColor} from '../lib/programColors.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 import {resolveNotificationRoute, routeToView} from '../lib/activityRegistry.js';
+import {navigateToProcessingRoute} from '../lib/processingNav.js';
 import {useBatches} from '../contexts/BatchesContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {countMyOpenDueOrPastTasks} from '../lib/tasksCenterApi.js';
@@ -767,6 +768,22 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                                   /* soft-fail */
                                 }
                                 const route = resolveNotificationRoute(n, n.activity_entity_type, n.activity_entity_id);
+                                if (route.startsWith('/processing')) {
+                                  // Processing deep links (/processing?record=<id>)
+                                  // must keep their query string. go('processing')
+                                  // can't — the view→URL adapter writes the bare
+                                  // VIEW_TO_PATH path — and raw history.pushState
+                                  // desyncs react-router (see main.jsx). react-router
+                                  // navigation works end-to-end: main.jsx's URL
+                                  // adapter is keyed on location.pathname, so the
+                                  // pathname change flips view='processing' while
+                                  // ?record= survives for the view to read on load.
+                                  // For the already-mounted-view case (pathname
+                                  // unchanged → no remount) the helper also
+                                  // dispatches 'wcf-processing-open-record'.
+                                  navigateToProcessingRoute(headerNavigate, route);
+                                  return;
+                                }
                                 const isRecordPageRoute =
                                   n.type === 'comment_mention' ||
                                   route.startsWith('/tasks/') ||
@@ -785,8 +802,7 @@ export default function Header({sb, signOut, loadUsers, DeleteConfirmModal, Conf
                                   route.startsWith('/pig/dailys/') ||
                                   route.startsWith('/cattle/dailys/') ||
                                   route.startsWith('/sheep/dailys/') ||
-                                  route.startsWith('/weigh-in-sessions/') ||
-                                  route.startsWith('/processing/');
+                                  route.startsWith('/weigh-in-sessions/');
                                 if (isRecordPageRoute && route.startsWith('/')) {
                                   headerNavigate(route);
                                   setNotifOpen(false);

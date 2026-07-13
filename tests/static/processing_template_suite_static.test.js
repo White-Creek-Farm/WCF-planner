@@ -19,9 +19,11 @@ import {
 //     active checklist, and never deletes template rows or touches records;
 //   • 172 stays insert-if-absent only; set_processing_field checkbox/url kept;
 //   • Customer + Processor are TRUE SELECTS everywhere (no free-text path);
-//   • the Templates manager validates before activation, shows Active/Draft
-//     state, and previews the draft;
-//   • no field renders twice between core rows and template Details.
+//   • the Templates manager (checklist-only since the planner-integration
+//     lane) validates via validateChecklistDraft before activation, shows
+//     Active/Draft state, and previews the draft checklist;
+//   • the retired template-field Details surface may not return to the drawer
+//     (source facts render once, in the fixed core rows + Source details).
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -29,6 +31,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const mig = read('supabase-migrations/172_processing_template_suite.sql');
 const mig174 = read('supabase-migrations/174_processing_template_suite_v2.sql');
+const mig177 = read('supabase-migrations/177_processing_workflow_integration.sql');
 const drawer = read('src/processing/ProcessingDrawer.jsx');
 const milestoneModal = read('src/processing/AddMilestoneModal.jsx');
 const templatesModal = read('src/processing/ProcessingTemplatesModal.jsx');
@@ -169,23 +172,30 @@ describe('control ownership — Customer AND Processor are true selects everywhe
     expect(fieldsLib).toMatch(/id: 'customer',[\s\S]{0,200}optionsSource: 'settings\.customer_options'/);
     expect(fieldsLib).toMatch(/id: 'customer',[\s\S]{0,120}type: 'single'/);
   });
-  it('no field renders twice: core-covered ids stay excluded from template Details', () => {
-    expect(drawer).toMatch(
-      /CORE_COVERED_FIELD_IDS = \['status', 'program', 'batchName', 'animals', 'customer', 'processor'\]/,
-    );
-    expect(drawer).toMatch(/\.filter\(\(f\) => !CORE_COVERED_FIELD_IDS\.includes\(f\.id\)\)/);
+  it('no field renders twice: the template-field Details surface stays retired from the drawer', () => {
+    // Planner-integration lane: the configurable Details section is gone, so
+    // the fixed core rows + read-only Source details are the ONLY render of
+    // each fact — the double-render class of bug is structurally impossible.
+    expect(drawer).not.toContain('data-processing-details-section');
+    expect(drawer).not.toContain('CORE_COVERED_FIELD_IDS');
+    expect(drawer).not.toContain('resolveFieldDisplay');
+    expect(drawer).not.toContain('data-processing-field-input');
+    expect(drawer).toContain('data-processing-source-section');
   });
 });
 
-describe('field engine — new control types', () => {
-  it('checkbox + url are supported types with drawer renderers', () => {
+describe('field engine — control types survive as pure data (no drawer renderers)', () => {
+  it('checkbox + url stay supported types (preserved fields data must keep validating)', () => {
+    // The engine remains importable/pure: server-preserved historical fields
+    // (mig 177 rides the active fields along on every save) can carry these
+    // types, so the vocabulary may not shrink even though the drawer no
+    // longer renders field editors and the modal no longer offers type pickers.
     expect(PROCESSING_FIELD_TYPES).toContain('checkbox');
     expect(PROCESSING_FIELD_TYPES).toContain('url');
-    expect(drawer).toMatch(/field\.type === 'checkbox'/);
-    expect(drawer).toMatch(/field\.type === 'url'/);
-    expect(drawer).toMatch(/data-processing-field-link/);
-    expect(templatesModal).toMatch(/\{value: 'checkbox', label: 'Checkbox'\}/);
-    expect(templatesModal).toMatch(/\{value: 'url', label: 'URL'\}/);
+    expect(drawer).not.toMatch(/field\.type === 'checkbox'/);
+    expect(drawer).not.toMatch(/field\.type === 'url'/);
+    expect(templatesModal).not.toMatch(/\{value: 'checkbox', label: 'Checkbox'\}/);
+    expect(templatesModal).not.toMatch(/\{value: 'url', label: 'URL'\}/);
   });
 });
 
@@ -197,17 +207,31 @@ describe('Templates manager — Active/Draft state, preview, publish validation'
     expect(templatesModal).toMatch(/Active v\$\{activeVersion\}/);
     expect(templatesModal).toMatch(/Draft \(unsaved\)/);
   });
-  it('publish validation blocks invalid drafts before the RPC call', () => {
-    expect(templatesModal).toContain('validateTemplateDraft(draftFields, draftChecklist)');
+  it('publish validation blocks invalid drafts before the RPC call (checklist-only path)', () => {
+    // The modal edits ONLY the checklist now; it validates through the
+    // dedicated checklist path, and the full validateTemplateDraft keeps
+    // delegating to the SAME rules so both paths can never drift.
+    expect(templatesModal).toContain('validateChecklistDraft(draftChecklist)');
+    expect(templatesModal).not.toContain('validateTemplateDraft');
     expect(templatesModal).toMatch(/if \(!verdict\.ok\)[\s\S]*?return;/);
     // Cannot activate messaging references the problems list.
     expect(templatesModal).toContain('Cannot activate this template');
+    expect(fieldsLib).toMatch(/problems\.push\(\.\.\.validateChecklistDraft\(checklist\)\.problems\);/);
   });
-  it('Reset produces the approved full program template (canonical defaults)', () => {
-    expect(templatesModal).toContain('defaultProcessingFields(program)');
+  it('Reset restores the canonical default CHECKLIST only (fields are server-preserved)', () => {
     expect(templatesModal).toContain('defaultProcessingChecklist(program)');
+    expect(templatesModal).not.toContain('defaultProcessingFields');
   });
-  it('saves preserve the settings-source marker so Processor never loses its choices source', () => {
-    expect(templatesModal).toMatch(/if \(f\.optionsSource\) out\.optionsSource = f\.optionsSource;/);
+  it('saves preserve the fields (incl. the settings-source markers) verbatim: fields:null + server keep', () => {
+    // The client can no longer author fields, so Processor/Customer can never
+    // lose their optionsSource markers through this modal: every save sends
+    // fields:null and mig 177's upsert keeps the active version's fields.
+    expect(templatesModal).toMatch(
+      /upsertProcessingTemplate\(sb, \{program, fields: null, checklist: cleanChecklist\}\)/,
+    );
+    expect(mig177).toMatch(
+      /IF p_fields IS NULL THEN\s*\n\s*SELECT fields INTO v_fields FROM public\.processing_templates/,
+    );
+    expect(mig177).toMatch(/WHERE program = p_program AND is_active = true;/);
   });
 });

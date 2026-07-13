@@ -46,6 +46,15 @@ describe('reconciler server surface stays; client workbench is gone', () => {
     const edge = read('supabase/functions/processing-asana-sync/index.ts');
     expect(edge).toMatch(/loadPlannerRows[\s\S]*?record_type', 'planner_batch'\)[\s\S]*?\.eq\('archived', false\)/);
   });
+  it('edge loadPlannerRows excludes PLANNED pig rows (mig-176 source_phase) and the matcher re-guards', () => {
+    const edge = read('supabase/functions/processing-asana-sync/index.ts');
+    // source_phase is selected AND planned rows are filtered out post-fetch.
+    expect(edge).toMatch(/loadPlannerRows[\s\S]*?sub_batch_attribution, source_phase/);
+    expect(edge).toMatch(/loadPlannerRows[\s\S]*?source_phase !== 'planned'/);
+    // Defense-in-depth: the pure matcher's pig branch applies the same guard.
+    const matcher = read('supabase/functions/_shared/processingAsanaShape.js');
+    expect(matcher).toMatch(/source_phase === 'planned'\) return false/);
+  });
 });
 
 describe('pure matcher module (deterministic, no code-match for pigs)', () => {
