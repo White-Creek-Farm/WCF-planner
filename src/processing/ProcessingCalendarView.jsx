@@ -39,7 +39,7 @@
 // InlineNotice + Retry fail-closed load (stale rows cleared on error),
 // ensureProcessingFreshness BEFORE list, program sections ('WCF <X> Processing'
 // titles, collapsible, sheep labelled 'Lamb'), admin Templates button, Add
-// milestone (global + per-section), program filter chips, year select, search,
+// milestone (global), program filter chips, year select, search,
 // stat cards, openableProps row-open + drawer mount pattern, sticky Batch
 // column inside the horizontal scroller.
 // ============================================================================
@@ -1108,26 +1108,6 @@ export default function ProcessingCalendarView({Header, authState}) {
                         </div>
                       )}
                       {!isCollapsed && sec.rows.map((rec) => renderRow(rec, sec.table))}
-                      {!isCollapsed && canOperate && (
-                        <div
-                          {...openableProps(() => openAddMilestone(sec.key))}
-                          data-processing-section-add={sec.key}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 9,
-                            padding: '11px 16px',
-                            borderTop: `1px solid ${T.rowBorder}`,
-                            cursor: 'pointer',
-                            color: T.faint,
-                            fontSize: 13,
-                            fontWeight: 600,
-                            outline: 'none',
-                          }}
-                        >
-                          + Add milestone…
-                        </div>
-                      )}
                     </div>
                   );
                 })}
