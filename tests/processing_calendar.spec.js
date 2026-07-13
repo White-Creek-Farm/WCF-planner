@@ -23,7 +23,7 @@
 //      objects (inactive options withheld; legacy stored values surface);
 //   7. Templates modal — CHECKLIST-ONLY (no Fields surface), preview pane,
 //      Customer & processor choices editor (rename/deactivate visible);
-//   8. attachments upload + archive → Show archived → Restore round-trip;
+//   8. attachments upload + archive hides the row from the schedule;
 //   9. apply-template preview → confirm flow (additive, then up-to-date).
 //
 // Shared TEST DB: run this file ALONE (resetDb truncates shared tables), and
@@ -823,7 +823,7 @@ test.describe('Processing Calendar', () => {
     }
   });
 
-  test('attachments upload + archive/restore round-trip', async ({page, supabaseAdmin, resetDb}) => {
+  test('attachments upload + archive hides the row from the schedule', async ({page, supabaseAdmin, resetDb}) => {
     await resetDb();
     const adminId = await adminProfileId(supabaseAdmin);
     // An Asana-historical record: archivable, and never swept by the reconcile.
@@ -861,20 +861,13 @@ test.describe('Processing Calendar', () => {
     await expect(drawer).toHaveCount(0);
     await expect(page.locator('[data-processing-row="ptest-hist-1"]')).toHaveCount(0);
 
-    // Admin: the Show archived checkbox lives in the filter row.
-    await page.locator('[data-processing-show-archived]').check();
-    await page.waitForSelector('[data-processing-loaded="1"]');
-    const archivedRow = page.locator('[data-processing-row="ptest-hist-1"]');
-    await expect(archivedRow).toBeVisible();
-    await archivedRow.click();
-    await page.locator('[data-processing-record-restore]').click();
-    await expect(page.locator('[data-processing-record-restore]')).toHaveCount(0);
-    const {data: restored} = await supabaseAdmin
+    await expect(page.locator('[data-processing-show-archived]')).toHaveCount(0);
+    const {data: archived} = await supabaseAdmin
       .from('processing_records')
       .select('archived')
       .eq('id', 'ptest-hist-1')
       .single();
-    expect(restored.archived).toBe(false);
+    expect(archived.archived).toBe(true);
 
     // Cleanup the uploaded object (shared TEST bucket hygiene).
     const {data: objs} = await supabaseAdmin.storage.from('processing-attachments').list('native/ptest-hist-1');

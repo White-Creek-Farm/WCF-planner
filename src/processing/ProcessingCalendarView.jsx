@@ -40,9 +40,9 @@
 // InlineNotice + Retry fail-closed load (stale rows cleared on error),
 // ensureProcessingFreshness BEFORE list, program sections ('WCF <X> Processing'
 // titles, collapsible, sheep labelled 'Lamb'), admin Templates button, Add
-// milestone (global + per-section), admin Show archived, program filter chips,
-// status/processor filters, year select, stat cards, openableProps row-open +
-// drawer mount pattern, sticky Batch column inside the horizontal scroller.
+// milestone (global + per-section), program filter chips, year select, search,
+// stat cards, openableProps row-open + drawer mount pattern, sticky Batch
+// column inside the horizontal scroller.
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
@@ -480,8 +480,6 @@ export default function ProcessingCalendarView({Header, authState}) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [programFilter, setProgramFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [processorFilter, setProcessorFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState({});
   const [hoveredId, setHoveredId] = useState(null);
@@ -494,10 +492,6 @@ export default function ProcessingCalendarView({Header, authState}) {
   // objects (mig 175). Passed RAW to the drawer + modals; each consumer reads
   // them through the shape-tolerant helpers in processingFields.js.
   const [optionLists, setOptionLists] = useState({processor: [], customer: []});
-  // Admin-only view of archived (soft-deleted) rows so an admin can open one
-  // and Restore it from the drawer.
-  const [showArchived, setShowArchived] = useState(false);
-
   // Deep-link params are captured ONCE, synchronously on first render (before
   // any load resolves), then consumed by the first successful load.
   const pendingDeepLink = useRef(undefined);
@@ -517,7 +511,7 @@ export default function ProcessingCalendarView({Header, authState}) {
       } catch (_e) {
         /* tolerated — the list still renders from the last reconciled state */
       }
-      const rows = await listProcessingRecords(sb, {year: null, includeArchived: showArchived});
+      const rows = await listProcessingRecords(sb, {year: null, includeArchived: false});
       const list = Array.isArray(rows) ? rows : [];
       setRecords(list);
       // Apply the one-shot deep link after the FIRST successful load. A
@@ -542,7 +536,7 @@ export default function ProcessingCalendarView({Header, authState}) {
     } finally {
       setLoading(false);
     }
-  }, [showArchived]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -651,20 +645,12 @@ export default function ProcessingCalendarView({Header, authState}) {
   // they never vanish). This is the base set for the stat cards.
   const yearRows = useMemo(() => decorated.filter((r) => r._year == null || r._year === year), [decorated, year]);
 
-  const processorOptions = useMemo(() => {
-    const set = new Set();
-    for (const r of yearRows) if (r.processor) set.add(r.processor);
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [yearRows]);
-
   // Apply the non-program filters (status / processor / search) — program is
   // applied per-section so the chip counts stay honest. Search runs against
   // the server-built search_text (title / batch / trip / tags / processor /
   // customer, lowercased) with a title fallback.
   const passesCommon = useCallback(
     (r) => {
-      if (statusFilter !== 'all' && r._statusLabel !== statusFilter) return false;
-      if (processorFilter !== 'all' && (r.processor || '') !== processorFilter) return false;
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         const hay =
@@ -673,7 +659,7 @@ export default function ProcessingCalendarView({Header, authState}) {
       }
       return true;
     },
-    [statusFilter, processorFilter, search],
+    [search],
   );
 
   const commonRows = useMemo(() => yearRows.filter(passesCommon), [yearRows, passesCommon]);
@@ -981,52 +967,6 @@ export default function ProcessingCalendarView({Header, authState}) {
               ))}
             </select>
           </label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={selectStyle}
-            data-processing-status-filter
-          >
-            <option value="all">All statuses</option>
-            <option value={PROCESSING_STATUS_DISPLAY.planned}>Planned</option>
-            <option value={PROCESSING_STATUS_DISPLAY.inProcess}>In Process</option>
-            <option value={PROCESSING_STATUS_DISPLAY.complete}>Complete</option>
-          </select>
-          <select
-            value={processorFilter}
-            onChange={(e) => setProcessorFilter(e.target.value)}
-            style={selectStyle}
-            data-processing-processor-filter
-          >
-            <option value="all">All processors</option>
-            {processorOptions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-          {isAdmin && (
-            <label
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12.5,
-                color: T.muted,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-              title="Archived records are hidden from the schedule; open one to restore it."
-            >
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
-                data-processing-show-archived
-              />
-              Show archived
-            </label>
-          )}
           <input
             type="text"
             value={search}
@@ -1042,7 +982,8 @@ export default function ProcessingCalendarView({Header, authState}) {
               background: T.card,
               color: T.ink,
               fontFamily: 'inherit',
-              minWidth: 200,
+              minWidth: 260,
+              flex: '1 1 320px',
             }}
           />
         </div>

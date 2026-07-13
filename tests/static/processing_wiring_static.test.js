@@ -65,7 +65,8 @@ describe('processing wiring — the admin Asana sync surface is gone (UI-simplif
   it('keeps the direct admin Templates button + the day-to-day flow', () => {
     expect(processingCalendar).toContain('data-processing-templates-btn="1"');
     expect(processingCalendar).toContain('data-processing-add-milestone-btn="1"');
-    expect(processingCalendar).toContain('data-processing-show-archived');
+    expect(processingCalendar).toContain('data-processing-search');
+    expect(processingCalendar).not.toContain('data-processing-show-archived');
   });
 });
 

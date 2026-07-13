@@ -73,14 +73,16 @@ describe('sub-lane 1 — main table cleanup', () => {
     expect(view).toMatch(/position: 'sticky',\s*\n\s*left: 16/); // group-header label
   });
 
-  it('the Admin maintenance panel is gone; Templates is a direct admin button; Show archived survives', () => {
+  it('the Admin maintenance panel is gone; Templates is direct; retired filters stay removed', () => {
     // UI-simplification lane: no collapsed Admin area, no Asana import controls.
     expect(view).not.toContain('data-processing-admin-toggle');
     expect(view).not.toContain('data-processing-admin-panel');
     expect(view).not.toContain('adminOpen');
     expect(view).toContain('data-processing-templates-btn="1"');
-    // The soft-archive restore path keeps its admin-only entry point.
-    expect(view).toContain('data-processing-show-archived');
+    expect(view).not.toContain('data-processing-show-archived');
+    expect(view).not.toContain('data-processing-status-filter');
+    expect(view).not.toContain('data-processing-processor-filter');
+    expect(view).toContain('data-processing-search');
     // "+ Add milestone" stays in the normal workflow.
     expect(view).toContain('data-processing-add-milestone-btn="1"');
   });
