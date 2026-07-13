@@ -59,7 +59,9 @@ export default function FuelingHub({sb, sessionSubmitter}) {
   };
   const logoEl = (
     <div style={{textAlign: 'center', marginBottom: 20}}>
-      <div
+      <a
+        data-public-hub-main-link="equipment"
+        href="/"
         style={{
           fontSize: 18,
           fontWeight: 800,
@@ -68,11 +70,12 @@ export default function FuelingHub({sb, sessionSubmitter}) {
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
+          textDecoration: 'none',
         }}
       >
         <PlannerIcon iconKey="fueling" size={22} />
         <span>WCF Planner</span>
-      </div>
+      </a>
       <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>Fueling Log</div>
     </div>
   );

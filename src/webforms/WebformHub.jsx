@@ -1370,7 +1370,19 @@ const WebformHub = ({
   };
   const logo = (
     <div style={{textAlign: 'center', marginBottom: 20}}>
-      <div style={{fontSize: 18, fontWeight: 800, color: '#085041', letterSpacing: -0.3}}>🌾 WCF Planner</div>
+      <a
+        data-public-hub-main-link="dailys"
+        href="/"
+        style={{
+          fontSize: 18,
+          fontWeight: 800,
+          color: '#085041',
+          letterSpacing: -0.3,
+          textDecoration: 'none',
+        }}
+      >
+        🌾 WCF Planner
+      </a>
       <div style={{fontSize: 12, color: '#000000', marginTop: 2}}>Daily Report</div>
     </div>
   );

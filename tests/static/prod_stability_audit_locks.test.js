@@ -241,6 +241,20 @@ describe('§4 Report/form surfaces are login-required and auth-decoupled', () =>
       expect(src, 'no useAuth() call').not.toMatch(/\buseAuth\s*\(/);
     });
   }
+
+  it('public /dailys hub exposes a direct Planner Home link', () => {
+    const src = read('src/webforms/WebformHub.jsx');
+    expect(src).toContain('data-public-hub-main-link="dailys"');
+    expect(src).toMatch(/href=["']\/["']/);
+    expect(src).toContain('🌾 WCF Planner');
+  });
+
+  it('public /equipment hub exposes a direct Planner Home link', () => {
+    const src = read('src/webforms/FuelingHub.jsx');
+    expect(src).toContain('data-public-hub-main-link="equipment"');
+    expect(src).toMatch(/href=["']\/["']/);
+    expect(src).toContain('<span>WCF Planner</span>');
+  });
 });
 
 // ── §5: Route map preservation (VIEW_TO_PATH + ALIASES_EXACT) ─────────────
