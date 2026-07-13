@@ -14,6 +14,7 @@
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {createProcessingMilestone, newProcessingId, friendlyProcessingError} from '../lib/processingApi.js';
+import {activeOptionLabels} from '../lib/processingFields.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
@@ -85,10 +86,13 @@ export default function AddMilestoneModal({
   const [notice, setNotice] = useState(null);
 
   const isBroiler = program === 'broiler';
-  // Customer choices come from the server option list (mig 162), falling back
-  // to the seeded constant. Zero-or-one customer, matching the Processor select.
-  const customerChoices =
-    Array.isArray(customerOptions) && customerOptions.length ? customerOptions : CUSTOMER_OPTIONS_FALLBACK;
+  // Option lists are stable objects [{id,label,active}] (mig 175); the pickers
+  // offer ACTIVE labels only (activeOptionLabels also tolerates the legacy
+  // string-array shape). Customer falls back to the seeded constant when the
+  // settings list is empty/unfetched. Zero-or-one customer, matching Processor.
+  const customerLabels = activeOptionLabels(customerOptions);
+  const customerChoices = customerLabels.length ? customerLabels : CUSTOMER_OPTIONS_FALLBACK;
+  const processorChoices = activeOptionLabels(processorOptions);
 
   async function create() {
     if (!name.trim()) {
@@ -284,7 +288,7 @@ export default function AddMilestoneModal({
               style={{...inputStyle, width: 260, cursor: 'pointer'}}
             >
               <option value="">—</option>
-              {(Array.isArray(processorOptions) ? processorOptions : []).map((p) => (
+              {processorChoices.map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>

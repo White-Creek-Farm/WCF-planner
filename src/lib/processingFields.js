@@ -19,6 +19,10 @@
 //     sourced from settings.customer_options (mig 162), like Processor.
 //   • resolveFieldDisplay — one precedence chain for every field:
 //     local fields[fid]  >  imported historical_snapshot  >  derived/record.
+//   • Option-list helpers (mig 175): the server-backed Customer/Processor
+//     choice lists are stable objects [{id,label,active}] (options rename /
+//     deactivate but never delete). activeOptionLabels + optionLabelState are
+//     the ONE shape-tolerant read path for every picker consumer.
 //
 // No I/O, no Date.now(), importable by vitest + the UI.
 // Server mirror: set_processing_field (mig 164) refuses the RESERVED ids below;
@@ -268,6 +272,49 @@ export function isReservedProcessingFieldId(id) {
   return RESERVED_PROCESSING_FIELD_IDS.includes(id);
 }
 
+// ── Server-backed option lists (mig 175: Customer/Processor choices) ────────
+// settings.processor_options / settings.customer_options are stable objects
+// [{id,label,active}]; pre-175 payloads were plain string arrays. Both shapes
+// are tolerated everywhere so a stale client / cached settings row can never
+// blank a picker. Entry-level tolerance: a bare string is an ACTIVE option.
+function normalizeOptionEntry(opt) {
+  if (opt == null) return null;
+  if (typeof opt === 'string') {
+    const label = opt.trim();
+    return label ? {id: null, label, active: true} : null;
+  }
+  if (typeof opt !== 'object') return null;
+  const label = String(opt.label ?? '').trim();
+  if (!label) return null;
+  return {id: opt.id ?? null, label, active: opt.active !== false};
+}
+
+// Labels of the ACTIVE options, in list order — the choices a picker offers.
+export function activeOptionLabels(options) {
+  return (Array.isArray(options) ? options : [])
+    .map(normalizeOptionEntry)
+    .filter((o) => o && o.active)
+    .map((o) => o.label);
+}
+
+// Classify a label already stored on a record against the option list:
+//   {known: false, active: false} — legacy/off-list value (or blank)
+//   {known: true,  active: false} — a deactivated option (renders as legacy)
+//   {known: true,  active: true}  — a current picker choice
+// Matching is trim + case-insensitive, mirroring the server's label de-dupe;
+// stored record labels are never rewritten from these lists.
+export function optionLabelState(options, storedLabel) {
+  const needle = String(storedLabel ?? '')
+    .trim()
+    .toLocaleLowerCase();
+  if (!needle) return {known: false, active: false};
+  for (const raw of Array.isArray(options) ? options : []) {
+    const o = normalizeOptionEntry(raw);
+    if (o && o.label.toLocaleLowerCase() === needle) return {known: true, active: o.active};
+  }
+  return {known: false, active: false};
+}
+
 // ── Small date helpers (pure) ────────────────────────────────────────────────
 function isoDateOnly(v) {
   const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(v == null ? '' : v).trim());
@@ -433,8 +480,24 @@ export function validateTemplateDraft(fields, checklist) {
       }
     }
   }
+  problems.push(...validateChecklistDraft(checklist).problems);
+  return {ok: problems.length === 0, problems};
+}
+
+// Checklist-only validation path (the Templates manager edits ONLY the
+// checklist now — fields ride along server-preserved). Steps carry STABLE
+// server-minted ids (mig 177): an existing id must never repeat; id-less
+// steps are new (the server mints 'stp-<uuid>'). Same {ok, problems} contract.
+export function validateChecklistDraft(checklist) {
+  const problems = [];
+  const seenStepIds = new Set();
   for (const [i, c] of (Array.isArray(checklist) ? checklist : []).entries()) {
     if (!c || !String(c.label || '').trim()) problems.push(`Checklist step #${i + 1}: label is required`);
+    const sid = c && c.id != null ? String(c.id).trim() : '';
+    if (sid) {
+      if (seenStepIds.has(sid)) problems.push(`Checklist step #${i + 1}: duplicate step id "${sid}"`);
+      seenStepIds.add(sid);
+    }
   }
   return {ok: problems.length === 0, problems};
 }

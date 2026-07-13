@@ -149,9 +149,15 @@ describe('Commit 4a — Persisted shape stays minimal', () => {
 describe('Commit 4b — date edit + count move handler hard gates', () => {
   // Anchor on the handler bodies so unrelated JSX doesn't false-match. As of
   // CP9 the handlers live in usePigPlannedTrips; the JSX (data-attrs, isManager
-  // gating) stays in PigBatchesView and is asserted against viewSrc below.
-  const dateHandler = plannedHookSrc.match(/function setPlannedTripDateById\([\s\S]*?persistFeeders\(nb\);\s*\}/);
-  const moveHandler = plannedHookSrc.match(/function movePlannedTripPigsById\([\s\S]*?persistFeeders\(nb\);\s*\}/);
+  // gating) stays in PigBatchesView and is asserted against viewSrc below. As
+  // of mig 176 the PERSISTED mutation is the SECDEF RPC (pigPlannerApi.js);
+  // the pure cores remain for instant pre-validation only.
+  const dateHandler = plannedHookSrc.match(
+    /function setPlannedTripDateById\([\s\S]*?pigSetPlannedTripDate\(sb, \{groupId, tripId, date: newDate\}\)[\s\S]*?\n {2}\}/,
+  );
+  const moveHandler = plannedHookSrc.match(
+    /function movePlannedTripPigsById\([\s\S]*?pigMovePlannedPigs\(sb, \{groupId, fromTripId, toTripId, count: 1\}\)[\s\S]*?\n {2}\}/,
+  );
 
   it('setPlannedTripDateById exists', () => {
     expect(dateHandler, 'expected setPlannedTripDateById handler').not.toBeNull();
@@ -161,17 +167,22 @@ describe('Commit 4b — date edit + count move handler hard gates', () => {
     expect(moveHandler, 'expected movePlannedTripPigsById handler').not.toBeNull();
   });
 
-  it('both handlers persist via persistFeeders only — never to processingTrips/weigh_ins', () => {
+  it('both handlers persist via the mig-176 SECDEF RPCs only — never to processingTrips/weigh_ins/app_store', () => {
     for (const body of [dateHandler[0], moveHandler[0]]) {
       expect(body).not.toMatch(/processingTrips:/);
       expect(body).not.toMatch(/sent_to_trip_id/);
       expect(body).not.toMatch(/sent_to_group_id/);
       expect(body).not.toMatch(/from\(['"]weigh_ins['"]\)/);
+      expect(body).not.toMatch(/from\(['"]app_store['"]\)/);
+      expect(body).not.toMatch(/persistFeeders\(/);
     }
   });
 
-  it('setPlannedTripDateById preserves all six persistable fields via {...t}', () => {
-    expect(dateHandler[0]).toMatch(/\{\.\.\.t,\s*date:\s*newDate\s*\}/);
+  it('setPlannedTripDateById routes the persisted date edit through the SECDEF RPC (six-key shape preserved server-side)', () => {
+    // Mig 176: pig_set_planned_trip_date performs the JSON surgery server-side
+    // (trip || {date}), so the six persistable fields (id, date, sex,
+    // subBatchId, plannedCount, order) survive without a client-side map.
+    expect(dateHandler[0]).toMatch(/pigSetPlannedTripDate\(sb, \{groupId, tripId, date: newDate\}\)/);
     // Negative lock: must NOT introduce projection/warning/ready fields
     // into the persisted shape.
     expect(dateHandler[0]).not.toMatch(/projectedMinLbs:/);
@@ -182,10 +193,12 @@ describe('Commit 4b — date edit + count move handler hard gates', () => {
     expect(dateHandler[0]).not.toMatch(/daysUntil:/);
   });
 
-  it('movePlannedTripPigsById delegates to movePigsBetweenTrips (preserves shape and rejects cross-pair)', () => {
+  it('movePlannedTripPigsById pre-validates with movePigsBetweenTrips (shape + cross-pair rules) before the RPC', () => {
     expect(moveHandler[0]).toMatch(/movePigsBetweenTrips\(/);
-    // Single-pig moves only (Codex W1) — count arg literal is 1.
+    // Single-pig moves only (Codex W1) — count arg literal is 1 in both the
+    // pre-validation and the persisted RPC call.
     expect(moveHandler[0]).toMatch(/movePigsBetweenTrips\([\s\S]*?,\s*1\s*\)/);
+    expect(moveHandler[0]).toMatch(/count: 1/);
   });
 
   it('Calendar / date-step / move / delete / add controls all gate on isManager (admin OR management)', () => {
@@ -294,10 +307,14 @@ describe('Pig planned-trip locks — sidecar persistence', () => {
 describe('Pig planned-trip locks — neighbor mutation guards live in handlers', () => {
   // Codex's correction: the locked state must block mutations end-to-end,
   // not just hide JSX affordances. Each handler refuses early before
-  // touching feederGroups.
-  const dateHandler = plannedHookSrc.match(/function setPlannedTripDateById\([\s\S]*?persistFeeders\(nb\);\s*\}/);
+  // touching feederGroups (the mig-176 RPCs re-check the locks server-side).
+  const dateHandler = plannedHookSrc.match(
+    /function setPlannedTripDateById\([\s\S]*?pigSetPlannedTripDate\(sb, \{groupId, tripId, date: newDate\}\)[\s\S]*?\n {2}\}/,
+  );
   const shiftHandler = plannedHookSrc.match(/function shiftPlannedTripDateById\([\s\S]*?\}\s*\n/);
-  const moveHandler = plannedHookSrc.match(/function movePlannedTripPigsById\([\s\S]*?persistFeeders\(nb\);\s*\}/);
+  const moveHandler = plannedHookSrc.match(
+    /function movePlannedTripPigsById\([\s\S]*?pigMovePlannedPigs\(sb, \{groupId, fromTripId, toTripId, count: 1\}\)[\s\S]*?\n {2}\}/,
+  );
   const addHandler = plannedHookSrc.match(/function addPlannedTripById\([\s\S]*?return \{ok: true\};\s*\}/);
   const deleteHandler = plannedHookSrc.match(/function deletePlannedTripById\([\s\S]*?return \{ok: true\};\s*\}/);
 
@@ -638,7 +655,9 @@ describe('CP8 — sub-batch workflow extracted to usePigSubBatches', () => {
 describe('CP9 — planned-trip workflow extracted to usePigPlannedTrips', () => {
   it('PigBatchesView imports and wires the usePigPlannedTrips hook', () => {
     expect(viewSrc).toMatch(/import \{usePigPlannedTrips\} from '\.\/usePigPlannedTrips\.js'/);
-    expect(viewSrc).toMatch(/usePigPlannedTrips\(\{feederGroups, persistFeeders, authState, isManager\}\)/);
+    // Mig 176: persistFeeders is no longer threaded (mutations are RPC-backed);
+    // setFeederGroups feeds the hook's post-RPC ppp-feeders-v1 reload.
+    expect(viewSrc).toMatch(/usePigPlannedTrips\(\{feederGroups, setFeederGroups, authState, isManager\}\)/);
   });
 
   it('PigBatchesView no longer declares the moved planned-trip state/handlers/lock-load', () => {
@@ -655,15 +674,26 @@ describe('CP9 — planned-trip workflow extracted to usePigPlannedTrips', () => 
 
   it('the hook keeps the explicit dependency signature (React-context-free)', () => {
     expect(plannedHookSrc).toMatch(
-      /export function usePigPlannedTrips\(\{feederGroups, persistFeeders, authState, isManager\}\)/,
+      /export function usePigPlannedTrips\(\{feederGroups, setFeederGroups, authState, isManager\}\)/,
     );
   });
 
-  it('the hook still uses the pigForecast pure cores for add/move/delete/reconcile', () => {
+  it('the hook still uses the pigForecast pure cores for add/move/delete/reconcile pre-validation', () => {
     expect(plannedHookSrc).toMatch(
       /import \{[\s\S]*?addPlannedTrip,[\s\S]*?movePigsBetweenTrips,[\s\S]*?deletePlannedTripWithReconciliation,[\s\S]*?deleteReconciliationRecipient,[\s\S]*?\} from '\.\.\/lib\/pigForecast\.js'/,
     );
     expect(plannedHookSrc).toMatch(/plannedProcessingTrips/);
+  });
+
+  it('the hook persists planned-trip mutations through the mig-176 SECDEF RPC wrappers', () => {
+    expect(plannedHookSrc).toMatch(
+      /import \{[\s\S]*?pigAddPlannedTrip,[\s\S]*?pigSetPlannedTripDate,[\s\S]*?pigMovePlannedPigs,[\s\S]*?pigDeletePlannedTrip,[\s\S]*?\} from '\.\.\/lib\/pigPlannerApi\.js'/,
+    );
+    // Post-RPC re-sync reloads ppp-feeders-v1 rather than writing optimistically;
+    // the hook no longer holds a persistFeeders path for trip mutations (the
+    // lock sidecar keeps its own direct upsert).
+    expect(plannedHookSrc).toMatch(/async function reloadFeeders\(\)/);
+    expect(plannedHookSrc).not.toMatch(/persistFeeders/);
   });
 });
 
@@ -699,15 +729,22 @@ describe('CP10 — processing-trip workflow extracted to usePigProcessingTrips',
     expect(procHookSrc).toMatch(/else delete next\.fcrCached;/);
   });
 
-  it('preserves subAttributions via the existing-trip spread + source-derived actuals with legacy fallback', () => {
-    expect(procHookSrc).toMatch(/const trip = \{\.\.\.existing, \.\.\.tripFormNum, id: tripId\}/);
+  it('routes trip edit/delete through the mig-176 SECDEF RPCs with the legacy pigCount/liveWeights fallback', () => {
+    // The RPC preserves fields it is not sent (subAttributions, ad-hoc keys)
+    // and recomputes pigCount/liveWeights from the linked weigh-ins itself —
+    // explicit values only ride along on the legacy (unlinked) path, where the
+    // stored values still win over the form (unchanged rule).
+    expect(procHookSrc).toMatch(
+      /import \{pigUpdateProcessingTrip, pigDeleteProcessingTrip\} from '\.\.\/lib\/pigPlannerApi\.js'/,
+    );
+    expect(procHookSrc).toMatch(/await pigUpdateProcessingTrip\(sb, \{/);
+    expect(procHookSrc).toMatch(/await pigDeleteProcessingTrip\(sb, \{groupId: batchId, tripId\}\)/);
     expect(procHookSrc).toContain('const sourceWeights = tripSourceWeights(currentTripId)');
-    expect(procHookSrc).toMatch(/pigCount:\s*hasLinkedSource \? sourceWeights\.length : parseInt\(existing\.pigCount/);
-    expect(procHookSrc).toMatch(/liveWeights:\s*hasLinkedSource \? sourceWeights\.join\(' '\) : existing\.liveWeights/);
+    expect(procHookSrc).toMatch(/pigCount:\s*hasLinkedSource \? null : parseInt\(existing\.pigCount/);
+    expect(procHookSrc).toMatch(/liveWeights:\s*hasLinkedSource \? null : existing\.liveWeights/);
     expect(procHookSrc).toMatch(/\['hangingWeight'\]\.forEach/);
     expect(procHookSrc).toMatch(/if \(!formSnapshot\.date\) return;/);
     expect(procHookSrc).toMatch(/if \(!currentTripId\) return;/);
-    expect(procHookSrc).toMatch(/updated\.sort\(\(a, b\) => a\.date\.localeCompare\(b\.date\)\)/);
   });
 
   it('preserves the delete confirmation + the sent_to_trip_id source-count/weight load path', () => {

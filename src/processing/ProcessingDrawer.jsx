@@ -3,37 +3,42 @@
 // ----------------------------------------------------------------------------
 // Right-side slide-in (scrim + ~460px panel) opened by a row on the calendar.
 // Loads get_processing_record (record + subtasks[] + attachments[] +
-// completion_blockers[]) plus the record program's ACTIVE template, and renders
-// the Asana-style record page:
-//   • OWNERSHIP MATRIX: source-owned facts (title / date / status / number
-//     processed) mirror the live planner batch / imported snapshot and are
-//     READ-ONLY. Processing-owned edits: Processor, Customer (broiler, SINGLE
-//     select), local template fields (set_processing_field), and subtasks.
-//     The parent record Assignee/Owner is retired (UI-simplification lane) —
-//     checklist/subtask assignees remain fully editable. Milestones are fully
-//     Processing-owned (title + date incl. explicit clear + canonical status +
-//     processor + customer) and deletable.
-//   • DETAILS: the active template's fields render in configured order through
-//     src/lib/processingFields.js — bound ids resolve from the record/derived
-//     formulas (read-only), local ids edit typed values into record.fields.
+// completion_blockers[]) and renders the FIXED record page (planner-integration
+// lane — the configurable template-field Details section is retired along with
+// set_processing_field):
+//   • OWNERSHIP MATRIX: source facts arrive as the server's LIVE planner
+//     projection (record.source + record.animals) and are READ-ONLY here — the
+//     'Source details' section renders them per program with the canonical
+//     'Not recorded' for anything missing (never estimated). Processing-owned
+//     edits: Processor, Customer (broiler, SINGLE select), and subtasks.
+//     Milestones stay fully Processing-owned (title + date incl. explicit
+//     clear + canonical status + processor + customer) and deletable. Batch
+//     title and status are never directly editable (planner-owned).
+//   • Source back-link: sourceRouteForRecord navigates to the exact native
+//     planner page (pig links focus the exact trip) via react-router navigate
+//     — the same mechanism every cross-record link in the app uses.
+//   • Option lists are stable {id,label,active} objects (mig 175): pickers
+//     offer ACTIVE labels; a stored value matching an inactive/off-list label
+//     renders as '<label> (legacy)' until deliberately replaced.
 //   • Subtasks: toggle done, add (with assignee), rename, profile-backed
-//     reassign incl. clear, delete, reorder (up/down), imported start/due dates
-//     shown; "Apply template" stays additive.
-//   • Completion is a GATED manual action (computeCompletionBlockers mirrors
-//     the server gate); Complete rows show Reopen instead.
-//   • Attachments: list (filename / size_bytes per the DB contract), signed
-//     open/download via processingAttachmentsApi, and an operational "Add
-//     files" upload into the native/ namespace.
+//     reassign incl. clear, delete, reorder (up/down). 'Apply template' first
+//     fetches preview_latest_template and shows a compact diff (additions /
+//     renames / assignment changes / removed-step note) behind Confirm/Cancel;
+//     an up-to-date checklist shows 'Checklist is up to date.' and no confirm.
+//   • Completion is a GATED manual action driven by the SERVER's
+//     completion_blockers only (no client mirror) — the button disables while
+//     blockers exist and every mutation reloads them.
+//   • Attachments: list (filename / size_bytes), signed open/download, and an
+//     operational "Add files" upload into the native/ namespace.
 //   • Comments + activity via the shared RecordCollaborationSection.
 // Every mutation reloads the drawer AND calls onChanged so the list refreshes.
 // ============================================================================
 import React from 'react';
+import {useNavigate} from 'react-router-dom';
 import {
   getProcessingRecord,
-  listProcessingTemplates,
   setProcessingProcessor,
   setProcessingCustomer,
-  setProcessingField,
   markProcessingComplete,
   reopenProcessingRecord,
   addProcessingSubtask,
@@ -42,6 +47,7 @@ import {
   deleteProcessingSubtask,
   reorderProcessingSubtasks,
   applyCurrentTemplate,
+  previewLatestTemplate,
   updateProcessingMilestone,
   deleteProcessingMilestone,
   archiveProcessingRecord,
@@ -49,12 +55,22 @@ import {
   friendlyProcessingError,
 } from '../lib/processingApi.js';
 import {uploadProcessingAttachment, getProcessingAttachmentUrl} from '../lib/processingAttachmentsApi.js';
-import {resolveSourceForRecord, deriveDisplayStatus} from '../lib/processingSourceLink.js';
-import {processingStatusVariantFromLabel, PROCESSING_STATUS_DISPLAY} from '../lib/processingStatusDisplay.js';
-import {computeCompletionBlockers} from '../lib/processingCompletion.js';
-import {normalizeFieldDef, resolveFieldDisplay, isFieldEditable} from '../lib/processingFields.js';
+import {
+  sourceRouteForRecord,
+  sourceLinkLabel,
+  weeksDaysText,
+  yearsMonthsText,
+  ageRangeText,
+  displayOrNotRecorded,
+  pigPlanSignal,
+  NOT_RECORDED,
+} from '../lib/processingSourceLink.js';
+import {processingStatusLabel, processingStatusVariantFromLabel} from '../lib/processingStatusDisplay.js';
+import {activeOptionLabels} from '../lib/processingFields.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import StatusText from '../shared/StatusText.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -62,19 +78,18 @@ import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx
 
 const OPERATIONAL_ROLES = ['admin', 'management', 'farm_team'];
 // Fallback only if the settings-backed customer_options can't be fetched; the
-// live list comes from get_processing_settings (mig 162) via the customerOptions
+// live list comes from get_processing_settings (mig 175) via the customerOptions
 // prop. See ProcessingOptionsModal (inside Templates) for editing.
 const CUSTOMER_OPTIONS_FALLBACK = ["Sonny's", 'Coastal Pastures - CONFIRMED', 'Coastal Pastures - POTENTIAL'];
 // Sentinel select value representing a stored MULTI-customer set on an old
 // record — never persisted; selecting anything else replaces the whole set.
 const LEGACY_MULTI_CUSTOMER = '__legacy_multi_customer__';
-// Field ids already rendered by the core rows above the Details section.
-const CORE_COVERED_FIELD_IDS = ['status', 'program', 'batchName', 'animals', 'customer', 'processor'];
 
 const T = {
   card: '#fff',
   border: '#E6E8EB',
   rowBorder: '#F0F1F3',
+  tint: '#FAFBFB',
   ink: '#222933',
   muted: '#6B7280',
   label: '#7A828D',
@@ -86,7 +101,7 @@ const T = {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function formatDate(value) {
   const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${MONTHS[+m[2] - 1]} ${+m[3]}, ${m[1]}` : '—';
+  return m ? `${MONTHS[+m[2] - 1]} ${+m[3]}, ${m[1]}` : null;
 }
 function isoDateInput(value) {
   const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -97,6 +112,14 @@ function kbText(bytes) {
   if (!Number.isFinite(n) || n <= 0) return null;
   if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+function countText(value) {
+  const n = Number(value);
+  return value !== null && value !== undefined && Number.isFinite(n) ? n.toLocaleString() : null;
+}
+function weightText(value) {
+  const n = Number(value);
+  return value !== null && value !== undefined && Number.isFinite(n) ? `${n.toLocaleString()} lb` : null;
 }
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -119,259 +142,90 @@ function FieldRow({label, children}) {
   );
 }
 
-// One template-driven Details row. Bound/derived fields render read-only;
-// local fields edit typed values through set_processing_field. MODULE-LEVEL on
-// purpose: a component type declared inside the drawer would be re-minted on
-// every render, remounting the input mid-keystroke and dropping focus (which
-// also swallows the commit-on-blur).
+// Read-only source-owned value: any missing value renders the canonical
+// 'Not recorded' in supporting gray — never an estimate.
 // eslint-disable-next-line no-unused-vars -- JSX-only use
-function DetailFieldRow({
-  field,
-  record,
-  canOperate,
-  busy,
-  profilesById,
-  profileChoices,
-  profileName,
-  fieldDrafts,
-  setFieldDrafts,
-  saveLocalField,
-  setNotice,
-  inputStyle,
-}) {
-  const resolved = resolveFieldDisplay(field, record);
-  const editable = canOperate && isFieldEditable(field, record) && !resolved.readOnly;
-  const value = resolved.value;
+function SourceValue({value}) {
+  const text = displayOrNotRecorded(value);
+  const missing = text === NOT_RECORDED;
+  return (
+    <span style={{fontSize: 13.5, color: missing ? T.faint : T.ink, fontWeight: missing ? 600 : 700}}>{text}</span>
+  );
+}
 
-  if (!editable) {
-    let text = value;
-    if (field.type === 'date') text = value ? formatDate(value) : null;
-    if (Array.isArray(value)) text = value.join(', ');
-    if (field.type === 'people' && value) text = profileName(value) || String(value);
-    if (field.type === 'checkbox') text = value === true ? 'Yes' : value === false ? 'No' : null;
-    if (field.type === 'url' && value && /^https?:\/\/\S+$/i.test(String(value))) {
-      return (
-        <FieldRow label={field.name}>
-          <a
-            href={String(value)}
-            target="_blank"
-            rel="noreferrer noopener"
-            style={{fontSize: 13, color: T.green, fontWeight: 700}}
-            data-processing-field-link={field.id}
+// Compact read-only animals table (Source details). Columns are provided as
+// {key, label, align?, render(row, index)}; every missing cell value renders
+// 'Not recorded'.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function AnimalsTable({columns, rows}) {
+  const grid = columns.map((c, i) => (i === 0 ? 'minmax(64px,1.2fr)' : 'minmax(70px,1fr)')).join(' ');
+  return (
+    <div
+      data-processing-animals-table={rows.length}
+      style={{border: `1px solid ${T.rowBorder}`, borderRadius: 12, overflow: 'hidden', marginTop: 10}}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: grid,
+          columnGap: 10,
+          padding: '7px 12px',
+          background: T.tint,
+        }}
+      >
+        {columns.map((c) => (
+          <span
+            key={c.key}
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              letterSpacing: '.06em',
+              textTransform: 'uppercase',
+              color: T.faint,
+              ...(c.align === 'right' ? {textAlign: 'right'} : {}),
+            }}
           >
-            {String(value)
-              .replace(/^https?:\/\//i, '')
-              .slice(0, 40)}{' '}
-            ↗
-          </a>
-        </FieldRow>
-      );
-    }
-    return (
-      <FieldRow label={field.name}>
-        <span style={{fontSize: 13, color: text ? T.ink : T.faint, fontWeight: 600}}>{text || '—'}</span>
-      </FieldRow>
-    );
-  }
-
-  if (field.type === 'date') {
-    return (
-      <FieldRow label={field.name}>
-        <input
-          type="date"
-          value={isoDateInput(value)}
-          disabled={busy}
-          onChange={(e) => saveLocalField(field, e.target.value || null)}
-          data-processing-field-input={field.id}
-          style={{...inputStyle, textAlign: 'right'}}
-        />
-      </FieldRow>
-    );
-  }
-  if (field.type === 'single') {
-    const options = Array.isArray(field.options) ? field.options : [];
-    const current = value == null ? '' : String(value);
-    return (
-      <FieldRow label={field.name}>
-        <select
-          value={options.some((o) => o.label === current) ? current : current ? '__current' : ''}
-          disabled={busy}
-          onChange={(e) => saveLocalField(field, e.target.value === '' ? null : e.target.value)}
-          data-processing-field-input={field.id}
-          style={{...inputStyle, maxWidth: 200}}
+            {c.label}
+          </span>
+        ))}
+      </div>
+      {rows.map((row, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: grid,
+            columnGap: 10,
+            padding: '7px 12px',
+            borderTop: `1px solid ${T.rowBorder}`,
+            alignItems: 'center',
+          }}
         >
-          <option value="">—</option>
-          {current && !options.some((o) => o.label === current) && <option value="__current">{current}</option>}
-          {options.map((o) => (
-            <option key={o.key} value={o.label}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </FieldRow>
-    );
-  }
-  if (field.type === 'multi') {
-    const options = Array.isArray(field.options) ? field.options : [];
-    const selected = Array.isArray(value) ? value.map(String) : [];
-    const labels = options.map((o) => o.label);
-    const merged = [...labels, ...selected.filter((s) => !labels.includes(s))];
-    return (
-      <FieldRow label={field.name}>
-        <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end'}}>
-          {merged.map((label) => {
-            const on = selected.includes(label);
-            const opt = options.find((o) => o.label === label);
+          {columns.map((c) => {
+            const text = displayOrNotRecorded(c.render(row, i));
+            const missing = text === NOT_RECORDED;
             return (
-              <button
-                key={label}
-                type="button"
-                disabled={busy}
-                data-processing-field-chip={`${field.id}:${label}`}
-                onClick={() => saveLocalField(field, on ? selected.filter((s) => s !== label) : [...selected, label])}
+              <span
+                key={c.key}
                 style={{
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  borderRadius: 999,
-                  padding: '4px 10px',
-                  cursor: busy ? 'default' : 'pointer',
-                  fontFamily: 'inherit',
-                  border: `1px solid ${on ? T.green : T.border}`,
-                  background: on && opt ? opt.color.bg : on ? '#E6F4EC' : '#fff',
-                  color: on && opt ? opt.color.ink : on ? '#1F7A4D' : T.muted,
+                  fontSize: 12.5,
+                  fontWeight: missing ? 600 : 700,
+                  color: missing ? T.faint : T.ink,
+                  fontVariantNumeric: 'tabular-nums',
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  ...(c.align === 'right' ? {textAlign: 'right'} : {}),
                 }}
               >
-                {label}
-              </button>
+                {text}
+              </span>
             );
           })}
         </div>
-      </FieldRow>
-    );
-  }
-  if (field.type === 'people') {
-    const current = value == null ? '' : String(value);
-    return (
-      <FieldRow label={field.name}>
-        <select
-          value={profilesById[current] ? current : ''}
-          disabled={busy}
-          onChange={(e) => saveLocalField(field, e.target.value || null)}
-          data-processing-field-input={field.id}
-          style={{...inputStyle, maxWidth: 200}}
-        >
-          <option value="">{current && !profilesById[current] ? String(current) : '—'}</option>
-          {profileChoices.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.full_name}
-            </option>
-          ))}
-        </select>
-      </FieldRow>
-    );
-  }
-  if (field.type === 'checkbox') {
-    return (
-      <FieldRow label={field.name}>
-        <input
-          type="checkbox"
-          checked={value === true}
-          disabled={busy}
-          onChange={(e) => saveLocalField(field, e.target.checked)}
-          data-processing-field-input={field.id}
-          aria-label={field.name}
-          style={{width: 16, height: 16, cursor: busy ? 'default' : 'pointer'}}
-        />
-      </FieldRow>
-    );
-  }
-  if (field.type === 'url') {
-    // Editable link: draft-buffered input (commit on blur) + an open button
-    // when a valid http(s) value is stored.
-    const draft = fieldDrafts[field.id] !== undefined ? fieldDrafts[field.id] : value == null ? '' : String(value);
-    const commitUrl = () => {
-      const raw = fieldDrafts[field.id];
-      if (raw === undefined) return;
-      setFieldDrafts((d) => {
-        const next = {...d};
-        delete next[field.id];
-        return next;
-      });
-      const trimmed = String(raw).trim();
-      const prev = value == null ? '' : String(value);
-      if (trimmed === prev) return;
-      if (trimmed !== '' && !/^https?:\/\/\S+$/i.test(trimmed)) {
-        setNotice({kind: 'error', message: `${field.name} expects an http(s) link.`});
-        return;
-      }
-      saveLocalField(field, trimmed === '' ? null : trimmed);
-    };
-    return (
-      <FieldRow label={field.name}>
-        <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
-          {value && /^https?:\/\/\S+$/i.test(String(value)) && (
-            <a
-              href={String(value)}
-              target="_blank"
-              rel="noreferrer noopener"
-              style={{fontSize: 12, color: T.green, fontWeight: 700, textDecoration: 'none'}}
-              data-processing-field-link={field.id}
-            >
-              Open ↗
-            </a>
-          )}
-          <input
-            type="url"
-            value={draft}
-            disabled={busy}
-            placeholder="https://…"
-            onChange={(e) => setFieldDrafts((d) => ({...d, [field.id]: e.target.value}))}
-            onBlur={commitUrl}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            data-processing-field-input={field.id}
-            style={{...inputStyle, textAlign: 'right', width: 190, maxWidth: '52vw'}}
-          />
-        </span>
-      </FieldRow>
-    );
-  }
-  // text / number: draft-buffered input, commit on blur / Enter.
-  const draft = fieldDrafts[field.id] !== undefined ? fieldDrafts[field.id] : value == null ? '' : String(value);
-  const commit = () => {
-    const raw = fieldDrafts[field.id];
-    if (raw === undefined) return;
-    setFieldDrafts((d) => {
-      const next = {...d};
-      delete next[field.id];
-      return next;
-    });
-    const trimmed = String(raw).trim();
-    const prev = value == null ? '' : String(value);
-    if (trimmed === prev) return;
-    if (field.type === 'number') {
-      const n = trimmed === '' ? null : Number(trimmed);
-      if (trimmed !== '' && !Number.isFinite(n)) {
-        setNotice({kind: 'error', message: `${field.name} expects a number.`});
-        return;
-      }
-      saveLocalField(field, n);
-    } else {
-      saveLocalField(field, trimmed === '' ? null : trimmed);
-    }
-  };
-  return (
-    <FieldRow label={field.name}>
-      <input
-        type={field.type === 'number' ? 'number' : 'text'}
-        value={draft}
-        disabled={busy}
-        onChange={(e) => setFieldDrafts((d) => ({...d, [field.id]: e.target.value}))}
-        onBlur={commit}
-        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-        data-processing-field-input={field.id}
-        style={{...inputStyle, textAlign: 'right', width: field.type === 'number' ? 110 : 190, maxWidth: '52vw'}}
-      />
-    </FieldRow>
+      ))}
+    </div>
   );
 }
 
@@ -386,6 +240,7 @@ export default function ProcessingDrawer({
   profilesById = {},
 }) {
   const {useState, useEffect, useCallback, useRef, useMemo} = React;
+  const navigate = useNavigate();
   const role = authState?.role;
   const canOperate = OPERATIONAL_ROLES.includes(role);
 
@@ -394,7 +249,6 @@ export default function ProcessingDrawer({
   const [loadError, setLoadError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [template, setTemplate] = useState(null); // active template for record.program
 
   // Local editable buffers.
   const [titleDraft, setTitleDraft] = useState('');
@@ -405,8 +259,11 @@ export default function ProcessingDrawer({
   const [editingSubtaskLabel, setEditingSubtaskLabel] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
-  const [fieldDrafts, setFieldDrafts] = useState({}); // {fieldId: draft string} for text/number
   const [uploadBusy, setUploadBusy] = useState(false);
+  // Apply-template preview: null = closed; otherwise the server's read-only
+  // diff from preview_latest_template.
+  const [templatePreview, setTemplatePreview] = useState(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const notifyRef = useRef(onChanged);
   notifyRef.current = onChanged;
   const fileInputRef = useRef(null);
@@ -414,6 +271,9 @@ export default function ProcessingDrawer({
   const record = data?.record || null;
   const subtasks = Array.isArray(data?.subtasks) ? data.subtasks : [];
   const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
+  // SERVER-authoritative completion gate — no client mirror. Mutations reload
+  // the drawer, refreshing the blockers alongside everything else.
+  const blockers = Array.isArray(data?.completion_blockers) ? data.completion_blockers : [];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -424,7 +284,6 @@ export default function ProcessingDrawer({
       if (d && d.record) {
         setTitleDraft(d.record.title || '');
         setDateDraft(isoDateInput(d.record.processing_date));
-        setFieldDrafts({});
       }
     } catch (e) {
       setData(null);
@@ -437,31 +296,6 @@ export default function ProcessingDrawer({
   useEffect(() => {
     load();
   }, [load]);
-
-  // Active template for the record's program drives the Details field layout.
-  // Best-effort sidecar: a template load failure never blocks the record.
-  useEffect(() => {
-    let cancelled = false;
-    async function loadTemplate() {
-      const program = record?.program;
-      if (!program || record?.record_type === 'milestone') {
-        setTemplate(null);
-        return;
-      }
-      try {
-        const templates = await listProcessingTemplates(sb, program);
-        if (cancelled) return;
-        const active = (Array.isArray(templates) ? templates : []).find((t) => t.is_active) || templates[0] || null;
-        setTemplate(active || null);
-      } catch (_e) {
-        if (!cancelled) setTemplate(null);
-      }
-    }
-    loadTemplate();
-    return () => {
-      cancelled = true;
-    };
-  }, [sb, record?.program, record?.record_type]);
 
   // Esc closes the drawer.
   useEffect(() => {
@@ -498,18 +332,25 @@ export default function ProcessingDrawer({
 
   const isMilestone = record?.record_type === 'milestone';
   const isBroiler = record ? (record.program || record.source_kind) === 'broiler' : false;
-  const sourceInfo = record ? resolveSourceForRecord(record, {}) : null;
-  const statusLabel = record ? deriveDisplayStatus(record, sourceInfo) : '';
-  const isComplete = record ? record.completed_at != null || statusLabel === PROCESSING_STATUS_DISPLAY.complete : false;
-  const blockers = record ? computeCompletionBlockers(record, subtasks) : [];
-  // Customer (broiler) — SINGLE select over customer_options (mig 162), stored
-  // in the existing array-backed column as [] or [value]. A stored off-list
-  // value stays visible/selectable as "(legacy)"; MULTIPLE stored values (old
-  // records) surface as ONE "(legacy — multiple)" option until deliberately
-  // replaced with a real choice or cleared.
+  const statusLabel = record ? processingStatusLabel(record.effective_status) : '';
+  const displayVariant = processingStatusVariantFromLabel(statusLabel);
+  const isComplete = record ? record.completed_at != null || record.effective_status === 'complete' : false;
+  // Live planner projection (mig 176): null / matched:false means the source
+  // row is gone or was never linked — no Source details, no back-link.
+  const source = record && record.source && record.source.matched !== false ? record.source : null;
+  const animals = Array.isArray(record?.animals) ? record.animals : [];
+  const sourceRoute = source ? sourceRouteForRecord(record) : null;
+
+  // Picker choices: ACTIVE option labels only (stable {id,label,active}
+  // objects, shape-tolerant of the legacy string arrays). A stored value that
+  // is off-list OR matches an INACTIVE option's label renders as '(legacy)'.
+  const processorChoices = useMemo(() => activeOptionLabels(processorOptions), [processorOptions]);
+  const customerActiveLabels = useMemo(() => activeOptionLabels(customerOptions), [customerOptions]);
+  const customerBaseOptions = customerActiveLabels.length ? customerActiveLabels : CUSTOMER_OPTIONS_FALLBACK;
+  // Customer (broiler) — SINGLE select stored in the array-backed column as []
+  // or [value]. MULTIPLE stored values (old records) surface as ONE
+  // "(legacy — multiple)" option until deliberately replaced or cleared.
   const customerSelected = useMemo(() => (Array.isArray(record?.customer) ? record.customer : []), [record?.customer]);
-  const customerBaseOptions =
-    Array.isArray(customerOptions) && customerOptions.length ? customerOptions : CUSTOMER_OPTIONS_FALLBACK;
   const customerLegacyMulti = customerSelected.length > 1;
   const customerCurrent = customerSelected.length === 1 ? customerSelected[0] : '';
   const customerSelectValue = customerLegacyMulti ? LEGACY_MULTI_CUSTOMER : customerCurrent;
@@ -525,17 +366,7 @@ export default function ProcessingDrawer({
     [profilesById],
   );
 
-  // Template fields for the Details section (configured order; core ids skipped).
-  const detailFields = useMemo(() => {
-    if (!template || isMilestone) return [];
-    const list = Array.isArray(template.fields) ? template.fields : [];
-    return list
-      .map(normalizeFieldDef)
-      .filter(Boolean)
-      .filter((f) => !CORE_COVERED_FIELD_IDS.includes(f.id));
-  }, [template, isMilestone]);
-
-  // ── field mutations ────────────────────────────────────────────────────────
+  // ── field mutations (Processing-owned) ─────────────────────────────────────
   function saveProcessorSelect(value) {
     if ((record.processor || '') === (value || '')) return;
     runMutation(() => setProcessingProcessor(sb, record.id, value || null));
@@ -568,11 +399,8 @@ export default function ProcessingDrawer({
     if (!isMilestone || !status) return;
     runMutation(() => updateProcessingMilestone(sb, {id: record.id, status}));
   }
-  function saveLocalField(field, value) {
-    runMutation(() => setProcessingField(sb, record.id, field.id, value));
-  }
 
-  // ── completion ─────────────────────────────────────────────────────────────
+  // ── completion (server-gated) ──────────────────────────────────────────────
   function markComplete() {
     runMutation(() => markProcessingComplete(sb, record.id));
   }
@@ -622,8 +450,29 @@ export default function ProcessingDrawer({
     ids.splice(to, 0, st.id);
     runMutation(() => reorderProcessingSubtasks(sb, record.id, ids));
   }
-  function applyTemplate() {
-    runMutation(() => applyCurrentTemplate(sb, record.id));
+
+  // ── apply template: preview first, then confirm ────────────────────────────
+  async function openTemplatePreview() {
+    setPreviewBusy(true);
+    setNotice(null);
+    try {
+      const preview = await previewLatestTemplate(sb, record.id);
+      setTemplatePreview(preview || {});
+    } catch (e) {
+      setNotice({
+        kind: 'error',
+        message: isProcessingValidationError(e)
+          ? friendlyProcessingError(e)
+          : `Could not preview the template. Please retry. (${(e && e.message) || e})`,
+      });
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+  function confirmApplyTemplate() {
+    runMutation(() => applyCurrentTemplate(sb, record.id)).then((ok) => {
+      if (ok) setTemplatePreview(null);
+    });
   }
 
   // ── milestone delete ───────────────────────────────────────────────────────
@@ -722,7 +571,238 @@ export default function ProcessingDrawer({
     fontFamily: 'inherit',
   });
 
-  const displayVariant = processingStatusVariantFromLabel(statusLabel);
+  // ── Source details rows per program (read-only; planner-owned) ─────────────
+  function renderSourceDetails() {
+    if (isMilestone || !record || !source) return null;
+    const kind = record.source_kind;
+    const programName = kind === 'sheep' ? 'sheep' : kind; // planner names; Lamb == sheep planner
+    const pigSignal = pigPlanSignal(record);
+    const isPigActual = kind === 'pig' && (source.phase || record.source_phase) === 'actual';
+    const processingDateText = formatDate(source.processing_date);
+    return (
+      <div style={{marginTop: 22}} data-processing-source-section={kind}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2}}>
+          <span style={{fontSize: 14, fontWeight: 800, color: T.ink}}>Source details</span>
+          {sourceRoute && (
+            <button
+              type="button"
+              data-processing-source-link={kind}
+              onClick={() => navigate(sourceRoute)}
+              style={{
+                marginLeft: 'auto',
+                background: 'none',
+                border: 'none',
+                color: T.green,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                padding: 0,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {sourceLinkLabel(record)} ↗
+            </button>
+          )}
+        </div>
+        <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginBottom: 6}}>
+          Source facts are owned by the {programName} planner and read-only here.
+        </div>
+
+        {kind === 'broiler' && (
+          <div>
+            <FieldRow label="Batch">
+              <SourceValue value={source.batch_name} />
+            </FieldRow>
+            <FieldRow label="Hatch date">
+              <SourceValue value={formatDate(source.hatch_date)} />
+            </FieldRow>
+            <FieldRow label="Processing date">
+              <SourceValue value={processingDateText} />
+            </FieldRow>
+            <FieldRow label="Age">
+              <SourceValue value={weeksDaysText(source.age_days)} />
+            </FieldRow>
+            <FieldRow label="Count">
+              <SourceValue value={countText(record.live_count)} />
+            </FieldRow>
+            <FieldRow label="Processor">
+              <SourceValue value={record.processor} />
+            </FieldRow>
+            <FieldRow label="Customer">
+              <SourceValue value={customerSelected.length ? customerSelected.join(', ') : null} />
+            </FieldRow>
+          </div>
+        )}
+
+        {(kind === 'cattle' || kind === 'sheep') && (
+          <div>
+            <FieldRow label="Batch">
+              <SourceValue value={source.batch_name} />
+            </FieldRow>
+            <FieldRow label="Processing date">
+              <SourceValue
+                value={
+                  processingDateText
+                    ? source.is_actual_date === false
+                      ? `${processingDateText} (planned)`
+                      : processingDateText
+                    : null
+                }
+              />
+            </FieldRow>
+            <FieldRow label="Count">
+              <SourceValue value={countText(record.live_count)} />
+            </FieldRow>
+            <FieldRow label="Age">
+              <SourceValue value={ageRangeText(source.age, yearsMonthsText)} />
+            </FieldRow>
+            {animals.length > 0 ? (
+              <AnimalsTable
+                rows={animals}
+                columns={[
+                  {key: 'tag', label: 'Tag', render: (a) => a.tag},
+                  {key: 'age', label: 'Age', render: (a) => yearsMonthsText(a.age_days)},
+                  {key: 'live', label: 'Live weight', align: 'right', render: (a) => weightText(a.live_weight)},
+                  {key: 'hang', label: 'Hanging weight', align: 'right', render: (a) => weightText(a.hanging_weight)},
+                ]}
+              />
+            ) : (
+              <div style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '8px 0 2px'}}>
+                No animals recorded on the source batch.
+              </div>
+            )}
+          </div>
+        )}
+
+        {kind === 'pig' && (
+          <div>
+            <FieldRow label="Batch">
+              <SourceValue value={source.batch_name} />
+            </FieldRow>
+            <FieldRow label="Trip">
+              <SourceValue value={record.trip_ordinal != null ? `Trip ${record.trip_ordinal}` : null} />
+            </FieldRow>
+            {pigSignal && (
+              <FieldRow label="Phase">
+                <StatusText tone="muted" style={{fontSize: 12.5}}>
+                  {pigSignal}
+                </StatusText>
+              </FieldRow>
+            )}
+            <FieldRow label="Processing date">
+              <SourceValue value={processingDateText} />
+            </FieldRow>
+            <FieldRow label="Count">
+              <SourceValue value={countText(record.live_count)} />
+            </FieldRow>
+            {/* Planned trips have no animal rows — only ACTUAL trips list the
+                linked weigh-in live weights, labelled Pig 1..N in order. */}
+            {isPigActual &&
+              (animals.length > 0 ? (
+                <AnimalsTable
+                  rows={animals}
+                  columns={[
+                    {key: 'pig', label: 'Pig', render: (_a, i) => `Pig ${i + 1}`},
+                    {key: 'live', label: 'Live weight', align: 'right', render: (a) => weightText(a.live_weight)},
+                  ]}
+                />
+              ) : (
+                <div style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '8px 0 2px'}}>
+                  No live weights recorded on this trip.
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Apply-template preview panel ───────────────────────────────────────────
+  function renderTemplatePreview() {
+    if (!templatePreview) return null;
+    const additions = Array.isArray(templatePreview.additions) ? templatePreview.additions : [];
+    const renames = Array.isArray(templatePreview.renames) ? templatePreview.renames : [];
+    const assignments = Array.isArray(templatePreview.assignment_changes) ? templatePreview.assignment_changes : [];
+    const removedBlocked = Array.isArray(templatePreview.removed_blocked) ? templatePreview.removed_blocked : [];
+    const upToDate = !!templatePreview.up_to_date;
+    const listStyle = {margin: '4px 0 8px', paddingLeft: 18, fontSize: 12.5, color: T.ink, fontWeight: 600};
+    return (
+      <div
+        data-processing-apply-template-preview="1"
+        style={{
+          border: `1px solid ${T.border}`,
+          borderRadius: 12,
+          background: T.tint,
+          padding: '10px 12px',
+          margin: '4px 0 10px',
+        }}
+      >
+        {upToDate ? (
+          <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+            <span style={{fontSize: 12.5, color: '#1F7A4D', fontWeight: 700}}>Checklist is up to date.</span>
+            <button type="button" onClick={() => setTemplatePreview(null)} style={{...ghostBtn, marginLeft: 'auto'}}>
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{fontSize: 12.5, color: T.ink, fontWeight: 700, marginBottom: 4}}>
+              {`Template v${templatePreview.template_version ?? '—'}: `}
+              {additions.length} addition{additions.length === 1 ? '' : 's'}, {renames.length} rename
+              {renames.length === 1 ? '' : 's'}, {assignments.length} assignment change
+              {assignments.length === 1 ? '' : 's'}.
+            </div>
+            {additions.length > 0 && (
+              <ul style={listStyle}>
+                {additions.map((a, i) => (
+                  <li key={`add-${i}`}>+ {a.label}</li>
+                ))}
+              </ul>
+            )}
+            {renames.length > 0 && (
+              <ul style={listStyle}>
+                {renames.map((r, i) => (
+                  <li key={`ren-${i}`}>
+                    {r.from} → {r.to}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {assignments.length > 0 && (
+              <ul style={listStyle}>
+                {assignments.map((a, i) => (
+                  <li key={`asg-${i}`}>
+                    {a.label} → {profileName(a.assignee_profile_id) || 'assigned user'}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {removedBlocked.length > 0 && (
+              <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginBottom: 8}}>
+                {removedBlocked.length} previously removed step{removedBlocked.length === 1 ? '' : 's'} stay
+                {removedBlocked.length === 1 ? 's' : ''} removed: {removedBlocked.map((r) => r.label).join(', ')}
+              </div>
+            )}
+            <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+              <button
+                type="button"
+                onClick={confirmApplyTemplate}
+                disabled={busy}
+                data-processing-apply-template-confirm
+                style={primaryBtn(busy)}
+              >
+                Apply changes
+              </button>
+              <button type="button" onClick={() => setTemplatePreview(null)} disabled={busy} style={ghostBtn}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{position: 'fixed', inset: 0, zIndex: 6000}} data-processing-drawer={recordId}>
@@ -831,7 +911,7 @@ export default function ProcessingDrawer({
             <>
               <InlineNotice notice={notice} onDismiss={() => setNotice(null)} />
 
-              {/* Title */}
+              {/* Title — batch titles are planner-owned and read-only */}
               {isMilestone && canOperate ? (
                 <div style={{marginBottom: 14}}>
                   <input
@@ -854,17 +934,15 @@ export default function ProcessingDrawer({
                 </div>
               )}
 
-              {/* Core fields */}
+              {/* Core fields — status is not directly editable on batches */}
               <div>
                 <FieldRow label="Status">
                   {isMilestone && canOperate ? (
                     <select
                       value={
-                        statusLabel === PROCESSING_STATUS_DISPLAY.complete
-                          ? 'complete'
-                          : statusLabel === PROCESSING_STATUS_DISPLAY.inProcess
-                            ? 'in_process'
-                            : 'planned'
+                        ['planned', 'in_process', 'complete'].includes(record.effective_status)
+                          ? record.effective_status
+                          : 'planned'
                       }
                       disabled={busy}
                       onChange={(e) => saveMilestoneStatus(e.target.value)}
@@ -880,46 +958,41 @@ export default function ProcessingDrawer({
                   )}
                 </FieldRow>
 
-                <FieldRow label="Processing date">
-                  {isMilestone && canOperate ? (
-                    <input
-                      type="date"
-                      value={dateDraft}
-                      onChange={(e) => setDateDraft(e.target.value)}
-                      onBlur={saveMilestoneDate}
-                      style={{...inputStyle, textAlign: 'right'}}
-                      data-processing-milestone-date
-                    />
-                  ) : (
-                    <span style={{fontSize: 13.5, color: T.ink, fontWeight: 700}}>
-                      {formatDate(record.processing_date)}
-                    </span>
-                  )}
-                </FieldRow>
-
-                {!isMilestone && (
-                  <FieldRow label="Number processed">
-                    <span style={{fontSize: 13.5, color: T.ink, fontWeight: 700, fontVariantNumeric: 'tabular-nums'}}>
-                      {sourceInfo && sourceInfo.numberProcessed != null
-                        ? Number(sourceInfo.numberProcessed).toLocaleString()
-                        : record.number_processed != null
-                          ? Number(record.number_processed).toLocaleString()
-                          : '—'}
-                    </span>
+                {/* Milestone date is Processing-owned; a source-linked batch
+                    shows its date inside Source details. Unlinked batches keep
+                    a read-only date + count row here so nothing is lost. */}
+                {isMilestone ? (
+                  <FieldRow label="Processing date">
+                    {canOperate ? (
+                      <input
+                        type="date"
+                        value={dateDraft}
+                        onChange={(e) => setDateDraft(e.target.value)}
+                        onBlur={saveMilestoneDate}
+                        style={{...inputStyle, textAlign: 'right'}}
+                        data-processing-milestone-date
+                      />
+                    ) : (
+                      <SourceValue value={formatDate(record.processing_date)} />
+                    )}
                   </FieldRow>
+                ) : (
+                  !source && (
+                    <>
+                      <FieldRow label="Processing date">
+                        <SourceValue value={formatDate(record.processing_date)} />
+                      </FieldRow>
+                      <FieldRow label="Count">
+                        <SourceValue value={countText(record.live_count ?? record.number_processed)} />
+                      </FieldRow>
+                    </>
+                  )
                 )}
 
-                {/* Age — mammal programs only (broiler Time-on-Farm is retired) */}
-                {!isBroiler && sourceInfo?.ageText && (
-                  <FieldRow label="Age">
-                    <span style={{fontSize: 13.5, color: T.ink, fontWeight: 700}}>{sourceInfo.ageText}</span>
-                  </FieldRow>
-                )}
-
-                {/* Processor — TRUE SELECT from the admin-configured
-                    processor_options (mig 162). Arbitrary typing is impossible;
-                    a stored legacy/off-list value stays visible + selectable
-                    until deliberately replaced; '—' clears. */}
+                {/* Processor — TRUE SELECT from the admin-configured ACTIVE
+                    processor options. Arbitrary typing is impossible; a stored
+                    off-list or deactivated value stays visible + selectable as
+                    (legacy) until deliberately replaced; '—' clears. */}
                 <FieldRow label="Processor">
                   {canOperate ? (
                     <select
@@ -931,11 +1004,10 @@ export default function ProcessingDrawer({
                       style={{...inputStyle, maxWidth: 220}}
                     >
                       <option value="">—</option>
-                      {record.processor &&
-                        !(Array.isArray(processorOptions) ? processorOptions : []).includes(record.processor) && (
-                          <option value={record.processor}>{record.processor} (legacy)</option>
-                        )}
-                      {(Array.isArray(processorOptions) ? processorOptions : []).map((p) => (
+                      {record.processor && !processorChoices.includes(record.processor) && (
+                        <option value={record.processor}>{record.processor} (legacy)</option>
+                      )}
+                      {processorChoices.map((p) => (
                         <option key={p} value={p}>
                           {p}
                         </option>
@@ -948,10 +1020,10 @@ export default function ProcessingDrawer({
                   )}
                 </FieldRow>
 
-                {/* Customer — broiler only, TRUE SINGLE SELECT from the
-                    admin-configured customer_options (mig 162), matching the
-                    Processor control. '—' clears; a stored off-list value shows
-                    as (legacy); an old multi-customer set shows as ONE
+                {/* Customer — broiler only, TRUE SINGLE SELECT from the ACTIVE
+                    customer options, matching the Processor control. '—'
+                    clears; a stored off-list/deactivated value shows as
+                    (legacy); an old multi-customer set shows as ONE
                     (legacy — multiple) option until deliberately replaced. */}
                 {isBroiler && (
                   <FieldRow label="Customer">
@@ -988,29 +1060,8 @@ export default function ProcessingDrawer({
                 )}
               </div>
 
-              {/* Details — the active template's fields in configured order */}
-              {detailFields.length > 0 && (
-                <div style={{marginTop: 22}} data-processing-details-section="1">
-                  <div style={{fontSize: 14, fontWeight: 800, color: T.ink, marginBottom: 4}}>Details</div>
-                  {detailFields.map((f) => (
-                    <DetailFieldRow
-                      key={f.id}
-                      field={f}
-                      record={record}
-                      canOperate={canOperate}
-                      busy={busy}
-                      profilesById={profilesById}
-                      profileChoices={profileChoices}
-                      profileName={profileName}
-                      fieldDrafts={fieldDrafts}
-                      setFieldDrafts={setFieldDrafts}
-                      saveLocalField={saveLocalField}
-                      setNotice={setNotice}
-                      inputStyle={inputStyle}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* Source details — live planner projection, read-only */}
+              {renderSourceDetails()}
 
               {/* Subtasks */}
               {!isMilestone && (
@@ -1033,14 +1084,17 @@ export default function ProcessingDrawer({
                     {canOperate && (
                       <button
                         type="button"
-                        onClick={applyTemplate}
-                        disabled={busy}
+                        onClick={openTemplatePreview}
+                        disabled={busy || previewBusy}
+                        data-processing-apply-template
                         style={{...ghostBtn, marginLeft: 'auto'}}
                       >
-                        Apply template
+                        {previewBusy ? 'Checking…' : 'Apply template'}
                       </button>
                     )}
                   </div>
+
+                  {canOperate && renderTemplatePreview()}
 
                   {subtasks.length === 0 && (
                     <div style={{fontSize: 12.5, color: T.faint, fontWeight: 600, padding: '6px 0'}}>
@@ -1049,11 +1103,7 @@ export default function ProcessingDrawer({
                   )}
 
                   {subtasks.map((st, idx) => {
-                    const dates = [
-                      st.start_on ? `starts ${formatDate(st.start_on)}` : null,
-                      st.due_on ? `due ${formatDate(st.due_on)}` : null,
-                      st.done && st.completed_at ? `done ${formatDate(st.completed_at)}` : null,
-                    ].filter(Boolean);
+                    const doneDate = st.done && st.completed_at ? `done ${formatDate(st.completed_at)}` : null;
                     const assigneeValue =
                       st.assignee_profile_id && profilesById[st.assignee_profile_id] ? st.assignee_profile_id : '';
                     const importedAssignee = !st.assignee_profile_id && st.assignee ? st.assignee : null;
@@ -1127,11 +1177,11 @@ export default function ProcessingDrawer({
                               {st.label}
                             </span>
                           )}
-                          {dates.length > 0 && (
+                          {doneDate && (
                             <span
                               style={{display: 'block', fontSize: 11, color: T.faint, fontWeight: 600, marginTop: 2}}
                             >
-                              {dates.join(' · ')}
+                              {doneDate}
                             </span>
                           )}
                         </div>
@@ -1244,7 +1294,8 @@ export default function ProcessingDrawer({
                 </div>
               )}
 
-              {/* Completion gate */}
+              {/* Completion gate — the server's completion_blockers are the
+                  ONLY source of truth; the button disables while any exist. */}
               {canOperate && (
                 <div style={{marginTop: 22, borderTop: `1px solid ${T.rowBorder}`, paddingTop: 16}}>
                   <div style={{fontSize: 14, fontWeight: 800, color: T.ink, marginBottom: 8}}>Completion</div>

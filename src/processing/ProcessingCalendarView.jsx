@@ -1,44 +1,67 @@
 // ============================================================================
 // src/processing/ProcessingCalendarView.jsx  —  Processing Calendar main page
 // ----------------------------------------------------------------------------
-// The native "Processing" page (Asana → WCF Planner). Every processing batch
-// (Broiler / Cattle / Pig / Lamb) grouped by program section, sorted by planned
-// processing date, opening a right-side record drawer. CP0-locked decisions
-// override the HTML prototype where they conflict:
-//   • Status is EXACTLY Planned / In Process / Complete via processingStatusDisplay,
-//     rendered with the closed-set <Badge> (Planned→warn, In Process→ok,
-//     Complete→neutral) — never the prototype's per-status hex chips.
-//   • Programs are SECTIONS (no program dropdown); default sort processing_date
-//     asc within each section; default view = current year; completed rows show.
-//   • NO inline table editing — a row opens the drawer.
-//   • Template editing is ADMIN ONLY via the direct Templates button (the
-//     UI-simplification lane removed the Admin/maintenance panel and every
-//     day-to-day Asana import/reconciliation control — the Edge actions remain
-//     for gated operational use outside this page).
-//   • Add milestone is any operational role.
-//   • Fail-closed loading: data-processing-loaded marker; rows/empty gated behind
-//     !loadError; InlineNotice + Retry on failure; stale rows cleared on error.
+// The native "Processing" page. Every processing batch (Broiler / Cattle /
+// Pig / Lamb) grouped by program section, opening a right-side record drawer.
 //
-// Data loads via listProcessingRecords (all years, one read) so the year dropdown
-// can be DERIVED FROM the data and year switching is instant client-side; the
-// selected year defaults to the current calendar year. Source-owned display
-// (live status / number processed / age / time-on-farm) is resolved app-side via
-// resolveSourceForRecord + deriveDisplayStatus; the live source collections are
-// not loaded here (out of scope for the calendar), so resolution falls back to
-// each row's stored columns + historical_snapshot — which is exactly what
-// list_processing_records already returns.
+// Planner-integration lane: the generic configurable column grid is replaced
+// by FIXED program-specific tables. Source facts render from each row's
+// `record.source` LIVE planner projection (mig 176) with record-column
+// fallback; status is the server-derived `effective_status`; every missing
+// source value renders the canonical 'Not recorded' (never estimated).
+//   • Columns per program (no Farm arrival column anywhere; the count column
+//     is labelled 'Count' — 'Number' never appears):
+//       broiler  Batch · Status · Hatch date · Processing date · Processor ·
+//                Count · Customer
+//       cattle   Batch · Status · Processing date · Processor · Count · Age
+//       sheep    (as cattle; section labelled 'Lamb')
+//       pig      Trip · Batch · Status · Processing date · Processor · Count ·
+//                Age
+//   • Status is the closed <Badge> set via processingStatusDisplay; pig
+//     PLANNED rows add the soft pigPlanSignal ('Auto-planned' / 'Processor
+//     scheduled') as muted <StatusText> under the badge — never a Badge.
+//   • Processor renders as an outlined neutral pill, Customer (broiler-only)
+//     as a soft gray-filled pill — neither is a Badge, neither takes program
+//     accent color.
+//   • Default order inside each section: In Process (oldest date first), then
+//     Planned (nearest date first), then Complete (newest completed first) —
+//     sortProcessingRecordsForDisplay.
+//   • Search filters on the server-provided record.search_text (batch / trip /
+//     tags / processor / customer), falling back to the title.
+//   • Deep links (contract shared with src/lib/processingNav.js):
+//     ?record=<id> opens that drawer after the first successful load;
+//     ?source=<kind>:<sourceId> (pig source ids contain ':') opens the matching
+//     record; the 'wcf-processing-open-record' CustomEvent opens a drawer
+//     without a remount. Opening/closing the drawer history.replaceState's the
+//     ?record param on/off (pathname + other params intact);
+//     data-processing-deeplink-ready="1" is set once param handling has run.
+//
+// Kept from the previous surface: page shell, data-processing-loaded marker,
+// InlineNotice + Retry fail-closed load (stale rows cleared on error),
+// ensureProcessingFreshness BEFORE list, program sections ('WCF <X> Processing'
+// titles, collapsible, sheep labelled 'Lamb'), admin Templates button, Add
+// milestone (global + per-section), admin Show archived, program filter chips,
+// status/processor filters, year select, stat cards, openableProps row-open +
+// drawer mount pattern, sticky Batch column inside the horizontal scroller.
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
 import {listProcessingRecords, getProcessingSettings, ensureProcessingFreshness} from '../lib/processingApi.js';
-import {resolveFarmArrival} from '../lib/processingFields.js';
 import {loadEligibleProfilesById} from '../lib/tasksCenterApi.js';
-import {resolveSourceForRecord, deriveDisplayStatus} from '../lib/processingSourceLink.js';
-import {processingStatusVariantFromLabel, PROCESSING_STATUS_DISPLAY} from '../lib/processingStatusDisplay.js';
+import {recordAgeText, displayOrNotRecorded, pigPlanSignal, NOT_RECORDED} from '../lib/processingSourceLink.js';
+import {
+  processingStatusLabel,
+  processingStatusVariantFromLabel,
+  PROCESSING_STATUS_DISPLAY,
+} from '../lib/processingStatusDisplay.js';
+import {sortProcessingRecordsForDisplay} from '../lib/processingDisplaySort.js';
+import {PROCESSING_OPEN_RECORD_EVENT} from '../lib/processingNav.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 import {openableProps} from '../shared/openable.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import Badge from '../shared/Badge.jsx';
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+import StatusText from '../shared/StatusText.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import InlineNotice from '../shared/InlineNotice.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -81,7 +104,7 @@ function ymd(value) {
 }
 function formatDate(value) {
   const p = ymd(value);
-  return p ? `${MONTHS[p.mo - 1]} ${p.d}` : '—';
+  return p ? `${MONTHS[p.mo - 1]} ${p.d}` : null;
 }
 function yearOf(value) {
   const p = ymd(value);
@@ -105,31 +128,301 @@ function num(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Unified grid: one global header + per-program rows keep the same columns.
-// UI-simplification lane: check · Batch+checklist meta · Status · Farm arrival ·
-// Processing · Processor · Number · Customer · Age · chevron. The parent
-// Owner/Assignee and Remaining columns are retired; Age shows for the mammal
-// programs only (broiler Time-on-Farm is no longer displayed). Customer is
-// broiler-only. The table scrolls horizontally with the sticky Batch column.
-const GRID = '20px minmax(190px,1fr) 96px 92px 92px 128px 72px 132px 88px 20px';
+// ── Fixed per-program tables ─────────────────────────────────────────────────
+// One column vocabulary, composed per program. Sticky columns pin during
+// horizontal scroll: the 20px completion-check pins at left:0; each sticky
+// column's left offset accumulates fixed widths + the 16px column gap (only
+// fixed-px columns may precede another sticky column). The LAST sticky column
+// carries the divider shadow.
+const COLS = {
+  trip: {key: 'trip', label: 'Trip', width: '64px', sticky: true},
+  batch: {key: 'batch', label: 'Batch', width: 'minmax(190px,1fr)', sticky: true},
+  status: {key: 'status', label: 'Status', width: '112px'},
+  hatch: {key: 'hatch', label: 'Hatch date', width: '92px'},
+  processing: {key: 'processing', label: 'Processing date', width: '96px'},
+  processor: {key: 'processor', label: 'Processor', width: '140px'},
+  count: {key: 'count', label: 'Count', width: '64px', align: 'right'},
+  customer: {key: 'customer', label: 'Customer', width: '150px'},
+  age: {key: 'age', label: 'Age', width: '140px'},
+};
 
-// Sticky Batch/title column: pins to the left edge during horizontal scroll on
-// narrow widths. The 20px completion-check column sits before it, so the check
-// pins at left:0 and Batch at left:36 (20px column + 16px gap). background is
-// supplied per-context (header / row / band) so it stays readable over whatever
-// it slides across.
-function stickyCheck(background) {
-  return {position: 'sticky', left: 0, zIndex: 2, background};
-}
-function stickyFirst(background) {
+const PROGRAM_TABLES = (() => {
+  const layouts = {
+    broiler: ['batch', 'status', 'hatch', 'processing', 'processor', 'count', 'customer'],
+    cattle: ['batch', 'status', 'processing', 'processor', 'count', 'age'],
+    pig: ['trip', 'batch', 'status', 'processing', 'processor', 'count', 'age'],
+    sheep: ['batch', 'status', 'processing', 'processor', 'count', 'age'],
+  };
+  const out = {};
+  for (const [program, keys] of Object.entries(layouts)) {
+    let left = 36; // 20px check column + 16px column gap
+    const columns = keys.map((k) => {
+      const col = {...COLS[k]};
+      if (col.sticky) {
+        col.left = left;
+        const px = /^\d+(\.\d+)?px$/.test(col.width) ? parseFloat(col.width) : null;
+        if (px != null) left += px + 16;
+      }
+      return col;
+    });
+    for (let i = columns.length - 1; i >= 0; i--) {
+      if (columns[i].sticky) {
+        columns[i].lastSticky = true;
+        break;
+      }
+    }
+    out[program] = {columns, grid: `20px ${columns.map((c) => c.width).join(' ')} 20px`};
+  }
+  return out;
+})();
+
+function stickyCellStyle(left, background, lastSticky) {
   return {
     position: 'sticky',
-    left: 36,
+    left,
     zIndex: 2,
     background,
-    paddingRight: 12,
-    boxShadow: `1px 0 0 ${'#ECEEF0'}`,
+    ...(lastSticky ? {paddingRight: 12, boxShadow: `1px 0 0 ${T.rowBorder}`} : {}),
   };
+}
+
+// ── cell renderers (module-level; every missing batch value = 'Not recorded') ─
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function NotRecordedText() {
+  return <span style={{fontSize: 12, color: T.faint, fontWeight: 600}}>{NOT_RECORDED}</span>;
+}
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function DashText() {
+  return <span style={{color: T.faint}}>—</span>;
+}
+
+function renderDateCell(value, {milestone = false, strong = false} = {}) {
+  const text = formatDate(value);
+  if (!text) return milestone ? <DashText /> : <NotRecordedText />;
+  return (
+    <span
+      style={{
+        fontSize: strong ? 13.5 : 13,
+        fontWeight: strong ? 700 : 600,
+        color: strong ? T.ink : T.muted,
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+// Processor: outlined neutral pill (NOT a Badge, no program accent).
+function renderProcessorCell(rec) {
+  if (!rec.processor) return rec._isMilestone ? <DashText /> : <NotRecordedText />;
+  return (
+    <span
+      title={String(rec.processor)}
+      style={{
+        display: 'inline-block',
+        fontSize: 11,
+        fontWeight: 600,
+        color: T.muted,
+        background: T.card,
+        border: `1px solid ${T.border}`,
+        borderRadius: 10,
+        padding: '2px 8px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        maxWidth: '100%',
+      }}
+    >
+      {rec.processor}
+    </span>
+  );
+}
+
+// Customer (broiler-only): soft gray-filled pills (NOT a Badge, no accent).
+function renderCustomerCell(rec) {
+  const list = Array.isArray(rec.customer) ? rec.customer : [];
+  if (list.length === 0) return rec._isMilestone ? <DashText /> : <NotRecordedText />;
+  return (
+    <div style={{display: 'flex', gap: 5, minWidth: 0, overflow: 'hidden'}}>
+      {list.map((c, i) => (
+        <span
+          key={i}
+          title={String(c)}
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: T.muted,
+            background: T.chipBg,
+            borderRadius: 10,
+            padding: '2px 8px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: 140,
+          }}
+        >
+          {String(c).split(' - ')[0]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function renderStatusCell(rec) {
+  const signal = rec._isMilestone ? null : pigPlanSignal(rec);
+  return (
+    <span style={{minWidth: 0}}>
+      <Badge variant={rec._statusVariant}>{rec._statusLabel}</Badge>
+      {signal && (
+        <span data-processing-pig-signal={rec.id} style={{display: 'block', marginTop: 3}}>
+          <StatusText tone="muted" style={{fontSize: 11}}>
+            {signal}
+          </StatusText>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function renderTripCell(rec) {
+  if (rec._isMilestone) return <DashText />;
+  if (rec.trip_ordinal == null) return <NotRecordedText />;
+  return (
+    <span
+      style={{fontSize: 13, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap'}}
+    >{`Trip ${rec.trip_ordinal}`}</span>
+  );
+}
+
+function renderCountCell(rec) {
+  if (rec._isMilestone) return <DashText />;
+  const n = num(rec._count);
+  if (n == null) return <NotRecordedText />;
+  return (
+    <span style={{fontSize: 13, color: T.ink, fontWeight: 600, fontVariantNumeric: 'tabular-nums'}}>
+      {n.toLocaleString()}
+    </span>
+  );
+}
+
+function renderAgeCell(rec) {
+  if (rec._isMilestone) return <DashText />;
+  const text = recordAgeText(rec);
+  if (!text) return <NotRecordedText />;
+  return (
+    <span
+      title={text}
+      style={{
+        display: 'inline-block',
+        fontSize: 13,
+        color: T.ink,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        maxWidth: '100%',
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function renderBatchCell(rec) {
+  const isMilestone = rec._isMilestone;
+  const name = isMilestone ? rec.title || '(untitled)' : displayOrNotRecorded(rec._src?.batch_name ?? rec.title);
+  const checklistMeta =
+    !isMilestone && rec.subtask_total > 0
+      ? `${rec.subtask_total}-step checklist · ${rec.subtask_done}/${rec.subtask_total}`
+      : null;
+  return (
+    <>
+      <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+        {isMilestone && (
+          <span
+            aria-hidden="true"
+            style={{
+              width: 11,
+              height: 11,
+              borderRadius: 3 /* radius-allow: milestone diamond marker */,
+              background: '#6B5BD0',
+              transform: 'rotate(45deg)',
+              flex: 'none',
+            }}
+          />
+        )}
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: isMilestone ? '#4B3FA8' : rec._isComplete ? T.faint : T.ink,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {name}
+        </span>
+      </div>
+      {(isMilestone || checklistMeta) && (
+        <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 3}}>
+          {isMilestone ? 'Milestone' : checklistMeta}
+        </div>
+      )}
+    </>
+  );
+}
+
+function renderCell(col, rec) {
+  switch (col.key) {
+    case 'trip':
+      return renderTripCell(rec);
+    case 'batch':
+      return renderBatchCell(rec);
+    case 'status':
+      return renderStatusCell(rec);
+    case 'hatch':
+      return renderDateCell(rec._isMilestone ? null : rec._src?.hatch_date, {milestone: rec._isMilestone});
+    case 'processing':
+      return renderDateCell(
+        rec._isMilestone ? rec.processing_date : (rec._src?.processing_date ?? rec.processing_date),
+        {
+          milestone: rec._isMilestone,
+          strong: true,
+        },
+      );
+    case 'processor':
+      return renderProcessorCell(rec);
+    case 'count':
+      return renderCountCell(rec);
+    case 'customer':
+      return renderCustomerCell(rec);
+    case 'age':
+      return renderAgeCell(rec);
+    default:
+      return <DashText />;
+  }
+}
+
+// ── deep-link param reader (?record=<id> / ?source=<kind>:<sourceId>) ────────
+// The source value splits on the FIRST colon only — pig source ids themselves
+// contain a colon (groupId:tripId).
+function readDeepLinkParams() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const record = params.get('record');
+    if (record) return {recordId: record};
+    const source = params.get('source') || '';
+    const sep = source.indexOf(':');
+    if (sep > 0 && sep < source.length - 1) {
+      return {sourceKind: source.slice(0, sep), sourceId: source.slice(sep + 1)};
+    }
+  } catch (_e) {
+    /* malformed URL — treated as no deep link */
+  }
+  return null;
 }
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -175,7 +468,7 @@ function StatCard({label, value, sub, color}) {
 
 // eslint-disable-next-line no-unused-vars -- Header is a JSX-only prop component
 export default function ProcessingCalendarView({Header, authState}) {
-  const {useState, useEffect, useMemo, useCallback} = React;
+  const {useState, useEffect, useMemo, useCallback, useRef} = React;
   const role = authState?.role;
   const isAdmin = role === 'admin';
   const canOperate = OPERATIONAL_ROLES.includes(role);
@@ -189,8 +482,6 @@ export default function ProcessingCalendarView({Header, authState}) {
   const [programFilter, setProgramFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [processorFilter, setProcessorFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [showCompleted, setShowCompleted] = useState(true);
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState({});
   const [hoveredId, setHoveredId] = useState(null);
@@ -199,18 +490,25 @@ export default function ProcessingCalendarView({Header, authState}) {
   const [showAddMilestone, setShowAddMilestone] = useState(false);
   const [addMilestoneProgram, setAddMilestoneProgram] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
-  // Server-backed Customer/Processor picker choices (mig 162). Fetched for all
-  // operational roles; drives the drawer + Add Milestone pickers.
+  // Server-backed Customer/Processor picker choices — stable {id,label,active}
+  // objects (mig 175). Passed RAW to the drawer + modals; each consumer reads
+  // them through the shape-tolerant helpers in processingFields.js.
   const [optionLists, setOptionLists] = useState({processor: [], customer: []});
   // Admin-only view of archived (soft-deleted) rows so an admin can open one
   // and Restore it from the drawer.
   const [showArchived, setShowArchived] = useState(false);
 
+  // Deep-link params are captured ONCE, synchronously on first render (before
+  // any load resolves), then consumed by the first successful load.
+  const pendingDeepLink = useRef(undefined);
+  if (pendingDeepLink.current === undefined) pendingDeepLink.current = readDeepLinkParams();
+  const [deeplinkReady, setDeeplinkReady] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      // Automatic planner freshness (mig 164): reconcile the four planner
+      // Automatic planner freshness (mig 164/176): reconcile the four planner
       // programs when stale so new/changed/removed planner batches appear
       // without any admin maintenance. Debounced + advisory-locked server-side;
       // a failure here must NEVER block the list (last reconciled state shows).
@@ -220,7 +518,24 @@ export default function ProcessingCalendarView({Header, authState}) {
         /* tolerated — the list still renders from the last reconciled state */
       }
       const rows = await listProcessingRecords(sb, {year: null, includeArchived: showArchived});
-      setRecords(Array.isArray(rows) ? rows : []);
+      const list = Array.isArray(rows) ? rows : [];
+      setRecords(list);
+      // Apply the one-shot deep link after the FIRST successful load. A
+      // ?record id opens directly (the drawer fetches by id); a ?source link
+      // must resolve to a loaded record's id.
+      const pending = pendingDeepLink.current;
+      if (pending) {
+        pendingDeepLink.current = null;
+        if (pending.recordId) {
+          setOpenRecordId(pending.recordId);
+        } else {
+          const match = list.find(
+            (r) => r.source_kind === pending.sourceKind && String(r.source_id) === pending.sourceId,
+          );
+          if (match) setOpenRecordId(match.id);
+        }
+      }
+      setDeeplinkReady(true);
     } catch (e) {
       setRecords([]); // clear stale rows on error (fail-closed)
       setLoadError({message: `Could not load the processing schedule. Please retry. (${(e && e.message) || e})`});
@@ -232,6 +547,32 @@ export default function ProcessingCalendarView({Header, authState}) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Drawer-open deep links from an already-mounted view (Header notification
+  // rows, My Tasks, native batch pages — see src/lib/processingNav.js).
+  useEffect(() => {
+    const onOpen = (e) => {
+      const id = e && e.detail && e.detail.recordId;
+      if (id) setOpenRecordId(String(id));
+    };
+    window.addEventListener(PROCESSING_OPEN_RECORD_EVENT, onOpen);
+    return () => window.removeEventListener(PROCESSING_OPEN_RECORD_EVENT, onOpen);
+  }, []);
+
+  // Mirror the open drawer into the ?record param (replaceState — no history
+  // spam) once the inbound params have been consumed. Pathname and unrelated
+  // params stay intact; the one-shot ?source inbound param is retired here.
+  useEffect(() => {
+    if (!deeplinkReady) return;
+    const url = new URL(window.location.href);
+    if (openRecordId) url.searchParams.set('record', String(openRecordId));
+    else url.searchParams.delete('record');
+    url.searchParams.delete('source');
+    const qs = url.searchParams.toString();
+    const next = url.pathname + (qs ? `?${qs}` : '') + url.hash;
+    const current = window.location.pathname + window.location.search + window.location.hash;
+    if (next !== current) window.history.replaceState(window.history.state, '', next);
+  }, [openRecordId, deeplinkReady]);
 
   // Profile directory for the drawer/milestone people pickers (checklist
   // assignees; list_eligible_assignees: id + full_name only). Best-effort:
@@ -250,9 +591,8 @@ export default function ProcessingCalendarView({Header, authState}) {
     };
   }, [canOperate]);
 
-  // Customer/Processor picker choices come from settings (mig 162). Available to
-  // every operational role (get_processing_settings is operational-gated), so the
-  // drawer + Add Milestone can render the authored lists.
+  // Customer/Processor picker choices come from settings (mig 175). Available
+  // to every operational role (get_processing_settings is operational-gated).
   const refreshOptionLists = useCallback(
     async (cancelledRef = {current: false}) => {
       if (!canOperate) return;
@@ -277,21 +617,24 @@ export default function ProcessingCalendarView({Header, authState}) {
     };
   }, [refreshOptionLists]);
 
-  // Decorate every record with its resolved display facts once.
+  // Decorate every record with its resolved display facts once. `_src` is the
+  // LIVE planner projection when it matched; a matched:false projection (the
+  // source row vanished) renders record-column fallbacks like an unlinked row.
   const decorated = useMemo(() => {
     return records.map((rec) => {
-      const sourceInfo = resolveSourceForRecord(rec, {}); // no live collections → snapshot fallback
-      const statusLabel = deriveDisplayStatus(rec, sourceInfo);
+      const src = rec.source && rec.source.matched !== false ? rec.source : null;
+      const statusLabel = processingStatusLabel(rec.effective_status);
       return {
         ...rec,
+        _src: src,
         _statusLabel: statusLabel,
         _statusVariant: processingStatusVariantFromLabel(statusLabel),
-        _numberProcessed: sourceInfo.numberProcessed,
-        _ageText: sourceInfo.ageText,
-        _year: yearOf(rec.processing_date),
-        _farmArrival: resolveFarmArrival(rec),
-        _isBatch: rec.record_type === 'planner_batch' || rec.record_type === 'asana_historical',
-        _isComplete: rec.completed_at != null || statusLabel === PROCESSING_STATUS_DISPLAY.complete,
+        _count: rec.live_count ?? rec.number_processed,
+        _displayDate: src?.processing_date ?? rec.processing_date,
+        _year: yearOf(src?.processing_date ?? rec.processing_date),
+        _isMilestone: rec.record_type === 'milestone',
+        _isBatch: rec.record_type !== 'milestone',
+        _isComplete: rec.completed_at != null || rec.effective_status === 'complete',
       };
     });
   }, [records]);
@@ -314,47 +657,33 @@ export default function ProcessingCalendarView({Header, authState}) {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [yearRows]);
 
-  const typeOptions = useMemo(() => {
-    const set = new Set();
-    for (const r of yearRows) if (r.record_type) set.add(r.record_type);
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [yearRows]);
-
-  // Apply the non-program filters (status / processor / type / completed /
-  // search) — program is applied per-section so the chip counts stay honest.
+  // Apply the non-program filters (status / processor / search) — program is
+  // applied per-section so the chip counts stay honest. Search runs against
+  // the server-built search_text (title / batch / trip / tags / processor /
+  // customer, lowercased) with a title fallback.
   const passesCommon = useCallback(
     (r) => {
       if (statusFilter !== 'all' && r._statusLabel !== statusFilter) return false;
-      if (!showCompleted && r._statusLabel === PROCESSING_STATUS_DISPLAY.complete) return false;
       if (processorFilter !== 'all' && (r.processor || '') !== processorFilter) return false;
-      if (typeFilter !== 'all' && r.record_type !== typeFilter) return false;
       if (search.trim()) {
         const q = search.trim().toLowerCase();
-        if (
-          !String(r.title || '')
-            .toLowerCase()
-            .includes(q)
-        )
-          return false;
+        const hay =
+          typeof r.search_text === 'string' && r.search_text ? r.search_text : String(r.title || '').toLowerCase();
+        if (!hay.includes(q)) return false;
       }
       return true;
     },
-    [statusFilter, showCompleted, processorFilter, typeFilter, search],
+    [statusFilter, processorFilter, search],
   );
 
   const commonRows = useMemo(() => yearRows.filter(passesCommon), [yearRows, passesCommon]);
 
-  // Per-program section buckets (sorted processing_date asc; undated last).
+  // Per-program section buckets in the locked display order: In Process
+  // (oldest first) -> Planned (nearest first) -> Complete (newest first).
   const sections = useMemo(() => {
     return PROGRAMS.map((p) => {
-      const rows = commonRows
-        .filter((r) => (r.program || r.source_kind) === p.key)
-        .sort((a, b) => {
-          const ai = ymd(a.processing_date)?.iso || '9999-99-99';
-          const bi = ymd(b.processing_date)?.iso || '9999-99-99';
-          return ai.localeCompare(bi);
-        });
-      return {...p, rows};
+      const rows = sortProcessingRecordsForDisplay(commonRows.filter((r) => (r.program || r.source_kind) === p.key));
+      return {...p, rows, table: PROGRAM_TABLES[p.key]};
     });
   }, [commonRows]);
 
@@ -366,9 +695,8 @@ export default function ProcessingCalendarView({Header, authState}) {
   }, [commonRows]);
 
   // Stat cards (whole selected year, before the interactive filters narrow it).
-  // BATCH rows only (planner_batch + asana_historical): milestones are planning
-  // placeholders and import exceptions never reach the list — neither may count
-  // as a scheduled batch or contribute head count.
+  // BATCH rows only — milestones are planning placeholders and never count as
+  // a scheduled batch or contribute head count.
   const stats = useMemo(() => {
     const batchRows = yearRows.filter((r) => r._isBatch);
     const scheduled = batchRows.length;
@@ -376,12 +704,12 @@ export default function ProcessingCalendarView({Header, authState}) {
     const t0 = todayISO();
     const t14 = addDaysISO(t0, 14);
     const dueSoon = batchRows.filter((r) => {
-      const iso = ymd(r.processing_date)?.iso;
+      const iso = ymd(r._displayDate)?.iso;
       if (!iso) return false;
       if (r._statusLabel === PROCESSING_STATUS_DISPLAY.complete) return false;
       return iso >= t0 && iso <= t14;
     }).length;
-    const head = batchRows.reduce((s, r) => s + (num(r._numberProcessed) || 0), 0);
+    const head = batchRows.reduce((s, r) => s + (num(r._count) || 0), 0);
     return {scheduled, completed, dueSoon, head};
   }, [yearRows]);
 
@@ -397,46 +725,11 @@ export default function ProcessingCalendarView({Header, authState}) {
     setShowAddMilestone(true);
   }
 
-  // ── row + cell renderers ────────────────────────────────────────────────────
-  function customerChips(rec) {
-    const list = Array.isArray(rec.customer) ? rec.customer : [];
-    if (list.length === 0) return <span style={{color: T.faint}}>—</span>;
-    return (
-      <div style={{display: 'flex', gap: 5, minWidth: 0, overflow: 'hidden'}}>
-        {list.map((c, i) => (
-          <span
-            key={i}
-            title={String(c)}
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: T.muted,
-              background: T.chipBg,
-              borderRadius: 10,
-              padding: '2px 7px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: 140,
-            }}
-          >
-            {String(c).split(' - ')[0]}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  function renderRow(rec) {
+  // ── row renderer (per-program fixed columns) ───────────────────────────────
+  function renderRow(rec, table) {
     const active = hoveredId === rec.id || openRecordId === rec.id;
-    const isMilestone = rec.record_type === 'milestone';
-    const isBroiler = (rec.program || rec.source_kind) === 'broiler';
-    // Age shows for the mammal programs only — broiler TOF is no longer displayed.
-    const ageText = isBroiler ? null : rec._ageText;
-    const numText = num(rec._numberProcessed) != null ? Number(rec._numberProcessed).toLocaleString() : '—';
+    const isMilestone = rec._isMilestone;
     const rowBg = active ? (isMilestone ? '#F3F1FB' : T.hover) : T.card;
-    const checklistMeta =
-      rec.subtask_total > 0 ? `${rec.subtask_total}-step checklist · ${rec.subtask_done}/${rec.subtask_total}` : null;
     return (
       <div
         key={rec.id}
@@ -448,7 +741,7 @@ export default function ProcessingCalendarView({Header, authState}) {
         onBlur={() => setHoveredId((h) => (h === rec.id ? null : h))}
         style={{
           display: 'grid',
-          gridTemplateColumns: GRID,
+          gridTemplateColumns: table.grid,
           alignItems: 'center',
           columnGap: 16,
           padding: '12px 16px',
@@ -465,7 +758,7 @@ export default function ProcessingCalendarView({Header, authState}) {
         }}
       >
         {/* Completion indicator (read-only; completion itself stays gated in the drawer) */}
-        <span style={stickyCheck(rowBg)}>
+        <span style={stickyCellStyle(0, rowBg)}>
           <span
             aria-hidden="true"
             data-processing-row-check={rec._isComplete ? 'done' : 'open'}
@@ -487,91 +780,18 @@ export default function ProcessingCalendarView({Header, authState}) {
             {rec._isComplete ? '✓' : ''}
           </span>
         </span>
-        {/* Batch / title */}
-        <div style={{minWidth: 0, ...stickyFirst(rowBg)}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
-            {isMilestone && (
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 11,
-                  height: 11,
-                  borderRadius: 3 /* radius-allow: milestone diamond marker */,
-                  background: '#6B5BD0',
-                  transform: 'rotate(45deg)',
-                  flex: 'none',
-                }}
-              />
-            )}
-            <span
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: isMilestone ? '#4B3FA8' : rec._isComplete ? T.faint : T.ink,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {rec.title || '(untitled)'}
-            </span>
+        {table.columns.map((col) => (
+          <div
+            key={col.key}
+            style={{
+              minWidth: 0,
+              ...(col.sticky ? stickyCellStyle(col.left, rowBg, col.lastSticky) : {}),
+              ...(col.align === 'right' ? {textAlign: 'right'} : {}),
+            }}
+          >
+            {renderCell(col, rec)}
           </div>
-          {(isMilestone || checklistMeta) && (
-            <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 3}}>
-              {isMilestone ? 'Milestone' : checklistMeta}
-            </div>
-          )}
-        </div>
-        {/* Status */}
-        <span>
-          <Badge variant={rec._statusVariant}>{rec._statusLabel}</Badge>
-        </span>
-        {/* Farm arrival */}
-        <span
-          style={{
-            fontSize: 13,
-            color: rec._farmArrival ? T.muted : T.faint,
-            fontWeight: 600,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {rec._farmArrival ? formatDate(rec._farmArrival) : '—'}
-        </span>
-        {/* Processing date */}
-        <span style={{fontSize: 13.5, fontWeight: 700, color: T.ink, fontVariantNumeric: 'tabular-nums'}}>
-          {formatDate(rec.processing_date)}
-        </span>
-        {/* Processor */}
-        <span
-          style={{
-            fontSize: 13,
-            color: rec.processor ? T.ink : T.faint,
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {rec.processor || '—'}
-        </span>
-        {/* Number processed */}
-        <span
-          style={{
-            fontSize: 13,
-            color: numText === '—' ? T.faint : T.ink,
-            fontWeight: 600,
-            textAlign: 'right',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {numText}
-        </span>
-        {/* Customer (broiler only) */}
-        <span style={{minWidth: 0}}>{isBroiler ? customerChips(rec) : <span style={{color: T.faint}}>—</span>}</span>
-        {/* Age (mammal programs) */}
-        <span style={{fontSize: 13, color: ageText ? T.ink : T.faint, fontWeight: 600, whiteSpace: 'nowrap'}}>
-          {ageText || '—'}
-        </span>
+        ))}
         {/* Chevron (reveal on hover) */}
         <span
           aria-hidden="true"
@@ -633,6 +853,7 @@ export default function ProcessingCalendarView({Header, authState}) {
       <main
         data-surface="processing.calendar"
         data-processing-loaded={loaded ? '1' : '0'}
+        data-processing-deeplink-ready={deeplinkReady ? '1' : '0'}
         style={{maxWidth: 1180, margin: '0 auto', padding: '26px 24px 70px'}}
       >
         {/* Title row */}
@@ -730,7 +951,7 @@ export default function ProcessingCalendarView({Header, authState}) {
               whiteSpace: 'nowrap',
             }}
           >
-            Sorted by planned processing date
+            Sorted In Process → Planned → Complete
           </span>
         </div>
 
@@ -784,40 +1005,6 @@ export default function ProcessingCalendarView({Header, authState}) {
               </option>
             ))}
           </select>
-          {typeOptions.length > 1 && (
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              style={selectStyle}
-              data-processing-type-filter
-            >
-              <option value="all">All record types</option>
-              {typeOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          )}
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12.5,
-              color: T.muted,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={showCompleted}
-              onChange={(e) => setShowCompleted(e.target.checked)}
-              data-processing-show-completed
-            />
-            Show completed
-          </label>
           {isAdmin && (
             <label
               style={{
@@ -844,7 +1031,7 @@ export default function ProcessingCalendarView({Header, authState}) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search title…"
+            placeholder="Search batch, trip, tag, processor…"
             data-processing-search
             style={{
               marginLeft: 'auto',
@@ -855,7 +1042,7 @@ export default function ProcessingCalendarView({Header, authState}) {
               background: T.card,
               color: T.ink,
               fontFamily: 'inherit',
-              minWidth: 180,
+              minWidth: 200,
             }}
           />
         </div>
@@ -897,29 +1084,6 @@ export default function ProcessingCalendarView({Header, authState}) {
                 overflow: 'hidden',
               }}
             >
-              {/* Column header */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: GRID,
-                  columnGap: 16,
-                  padding: '12px 16px',
-                  background: T.tint,
-                  borderBottom: `1px solid ${T.border}`,
-                }}
-              >
-                <span style={stickyCheck(T.tint)} aria-hidden="true" />
-                <span style={{...headerCellStyle, ...stickyFirst(T.tint)}}>Batch</span>
-                <span style={headerCellStyle}>Status</span>
-                <span style={headerCellStyle}>Farm arrival</span>
-                <span style={headerCellStyle}>Processing</span>
-                <span style={headerCellStyle}>Processor</span>
-                <span style={{...headerCellStyle, textAlign: 'right'}}>Number</span>
-                <span style={headerCellStyle}>Customer</span>
-                <span style={headerCellStyle}>Age</span>
-                <span />
-              </div>
-
               {loading && (
                 <div style={{padding: '28px 16px', textAlign: 'center', color: T.faint, fontSize: 13, fontWeight: 600}}>
                   Loading the processing schedule…
@@ -986,7 +1150,35 @@ export default function ProcessingCalendarView({Header, authState}) {
                           {'▾'}
                         </span>
                       </div>
-                      {!isCollapsed && sec.rows.map((rec) => renderRow(rec))}
+                      {/* Per-program fixed column header */}
+                      {!isCollapsed && (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: sec.table.grid,
+                            columnGap: 16,
+                            padding: '10px 16px',
+                            background: T.tint,
+                            borderTop: `1px solid ${T.rowBorder}`,
+                          }}
+                        >
+                          <span style={stickyCellStyle(0, T.tint)} aria-hidden="true" />
+                          {sec.table.columns.map((col) => (
+                            <span
+                              key={col.key}
+                              style={{
+                                ...headerCellStyle,
+                                ...(col.sticky ? stickyCellStyle(col.left, T.tint, col.lastSticky) : {}),
+                                ...(col.align === 'right' ? {textAlign: 'right'} : {}),
+                              }}
+                            >
+                              {col.label}
+                            </span>
+                          ))}
+                          <span />
+                        </div>
+                      )}
+                      {!isCollapsed && sec.rows.map((rec) => renderRow(rec, sec.table))}
                       {!isCollapsed && canOperate && (
                         <div
                           {...openableProps(() => openAddMilestone(sec.key))}

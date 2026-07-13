@@ -13,6 +13,9 @@ import {
   defaultProcessingChecklist,
   defaultProcessingTemplateSuite,
   validateTemplateDraft,
+  validateChecklistDraft,
+  activeOptionLabels,
+  optionLabelState,
   RESERVED_PROCESSING_FIELD_IDS,
   isReservedProcessingFieldId,
   resolveFarmArrival,
@@ -153,6 +156,79 @@ describe('validateTemplateDraft (publish validation)', () => {
     expect(text).toContain('option #2 needs a label');
     expect(text).toContain('missing a stable id');
     expect(text).toContain('Checklist step #1: label is required');
+  });
+});
+
+describe('validateChecklistDraft (checklist-only path — mig 177 stable step ids)', () => {
+  it('accepts steps with and without ids (id-less steps are new; the server mints ids)', () => {
+    expect(
+      validateChecklistDraft([
+        {id: 'stp-1', label: 'Existing step', assignee: null, assignee_profile_id: null},
+        {label: 'Brand new step'},
+        {id: null, label: 'Also new'},
+      ]),
+    ).toEqual({ok: true, problems: []});
+  });
+  it('rejects blank labels and duplicate step ids', () => {
+    const verdict = validateChecklistDraft([
+      {id: 'stp-1', label: 'A'},
+      {id: 'stp-1', label: 'B'}, // duplicate stable id
+      {label: '  '}, // blank label
+    ]);
+    expect(verdict.ok).toBe(false);
+    const text = verdict.problems.join(' | ');
+    expect(text).toContain('duplicate step id "stp-1"');
+    expect(text).toContain('Checklist step #3: label is required');
+  });
+  it('validateTemplateDraft delegates its checklist path (no weakening)', () => {
+    const verdict = validateTemplateDraft([], [{id: 'x', label: 'A'}, {id: 'x', label: 'B'}, {label: ''}]);
+    expect(verdict.ok).toBe(false);
+    const text = verdict.problems.join(' | ');
+    expect(text).toContain('duplicate step id "x"');
+    expect(text).toContain('label is required');
+  });
+  it('tolerates a non-array', () => {
+    expect(validateChecklistDraft(null)).toEqual({ok: true, problems: []});
+  });
+});
+
+describe('option-list helpers (mig 175: [{id,label,active}] Customer/Processor choices)', () => {
+  const OPTS = [
+    {id: 'opt-1', label: "Sonny's", active: true},
+    {id: 'opt-2', label: 'Old Processor', active: false},
+    {id: 'opt-3', label: '  Padded Label  ', active: true},
+  ];
+
+  it('activeOptionLabels returns ACTIVE labels only, trimmed, in list order', () => {
+    expect(activeOptionLabels(OPTS)).toEqual(["Sonny's", 'Padded Label']);
+  });
+  it('activeOptionLabels accepts the legacy plain-string shape (all active)', () => {
+    expect(activeOptionLabels(['A', ' B ', ''])).toEqual(['A', 'B']);
+  });
+  it('activeOptionLabels tolerates mixed/garbage input and non-arrays', () => {
+    expect(activeOptionLabels(['A', {id: 'x', label: 'B', active: false}, {label: 'C'}, null, 42])).toEqual(['A', 'C']);
+    expect(activeOptionLabels(null)).toEqual([]);
+    expect(activeOptionLabels(undefined)).toEqual([]);
+    expect(activeOptionLabels('nope')).toEqual([]);
+  });
+  it('activeOptionLabels: object entries without an explicit active flag count as active', () => {
+    expect(activeOptionLabels([{id: 'x', label: 'Implicit'}])).toEqual(['Implicit']);
+  });
+
+  it('optionLabelState classifies current, deactivated, and off-list stored labels', () => {
+    expect(optionLabelState(OPTS, "Sonny's")).toEqual({known: true, active: true});
+    expect(optionLabelState(OPTS, 'Old Processor')).toEqual({known: true, active: false});
+    expect(optionLabelState(OPTS, 'Never Configured')).toEqual({known: false, active: false});
+  });
+  it('optionLabelState matches trim + case-insensitively (mirrors the server label de-dupe)', () => {
+    expect(optionLabelState(OPTS, "  sonny's ")).toEqual({known: true, active: true});
+    expect(optionLabelState(OPTS, 'padded label')).toEqual({known: true, active: true});
+  });
+  it('optionLabelState treats blank/null stored values and legacy string lists sanely', () => {
+    expect(optionLabelState(OPTS, '')).toEqual({known: false, active: false});
+    expect(optionLabelState(OPTS, null)).toEqual({known: false, active: false});
+    expect(optionLabelState(['Legacy A'], 'legacy a')).toEqual({known: true, active: true});
+    expect(optionLabelState(null, 'anything')).toEqual({known: false, active: false});
   });
 });
 

@@ -461,7 +461,8 @@ function pigSubBatchOverlap(a, b) {
 //   program      resolved WCF program (broiler|cattle|pig|sheep)
 //   code         caller's normalized WCF code hint (coded programs; optional)
 //   plannerRows  loaded record_type='planner_batch' rows: {id, program, title,
-//                processing_date, status, number_processed, sub_batch_attribution}
+//                processing_date, status, number_processed, sub_batch_attribution,
+//                source_phase}
 //   customFieldsByName  pre-indexed CF map (else derived from the task)
 // Returns { method, recordId|null, candidateIds[], confidence }:
 //   'milestone'   — task is an Asana milestone (excluded from batch matching)
@@ -489,11 +490,15 @@ export function matchAsanaTaskToPlanner(task, opts = {}) {
     );
 
   // PIG: no code — match on program + date + count + sub-batch overlap.
+  // PLANNED pig rows (source_phase='planned', mig 176) are forecast trips, not
+  // fulfilled processing — never match candidates. Absent/NULL source_phase
+  // stays eligible (legacy rows predate the column). Mirrors loadPlannerRows.
   if (program === 'pig') {
     const date = toDateOnly(firstNonEmpty(cf[CF.ACTUAL_PROC], cf[CF.PLANNED_PROC], task && task.due_on));
     const count = toInt(cf[CF.ANIMALS]);
     const taskTokens = pigSubBatchTokens(cf[CF.BATCH_NAME]);
     const candidates = rows.filter((r) => {
+      if (r.source_phase === 'planned') return false;
       if (date == null || toDateOnly(r.processing_date) !== date) return false;
       if (count == null || toInt(r.number_processed) !== count) return false;
       return pigSubBatchOverlap(taskTokens, pigSubBatchTokens(r.sub_batch_attribution));

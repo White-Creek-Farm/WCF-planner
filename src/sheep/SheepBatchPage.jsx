@@ -11,6 +11,7 @@ import RecordPageLoadError from '../shared/RecordPageLoadError.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import Badge from '../shared/Badge.jsx';
 import {processingStatusLabel} from '../lib/processingStatusDisplay.js';
+import {navigateToProcessingRoute, processingSourceRoute} from '../lib/processingNav.js';
 /* eslint-disable no-unused-vars -- shell primitives are used in JSX only */
 import {
   RecordPageFrame,
@@ -375,6 +376,27 @@ export default function SheepBatchPage({sb, fmt, authState, Header}) {
           )}
           {yieldPct && (
             <span style={{fontSize: 12, fontWeight: 600, color: 'var(--text-primary)'}}>{yieldPct + '% yield'}</span>
+          )}
+          {/* Deep link into the Processing Calendar record for this batch —
+              only meaningful once a planned or actual process date exists. */}
+          {(batch.actual_process_date || batch.planned_process_date) && (
+            <button
+              type="button"
+              data-processing-source-link="sheep"
+              onClick={() => navigateToProcessingRoute(navigate, processingSourceRoute('sheep', batch.id))}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--brand)',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                padding: 0,
+              }}
+            >
+              View in Processing →
+            </button>
           )}
         </div>
 

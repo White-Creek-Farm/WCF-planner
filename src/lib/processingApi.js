@@ -39,8 +39,12 @@ export function newProcessingId(prefix = 'prc') {
 
 // list_processing_records(p_year, p_program, p_include_archived) -> jsonb array.
 // Each row: id, record_type, program, title, processing_date, status,
-// completed_at, processor, number_processed, customer, source_kind, source_id,
-// archived, fields, historical_snapshot, subtask_total, subtask_done.
+// effective_status (derived server-side in America/Chicago), completed_at,
+// processor, number_processed, customer, source_kind, source_id, source_phase,
+// trip_ordinal, archived, source_removed_at, fields, historical_snapshot,
+// subtask_total, subtask_done, live_count, search_text, and `source` — the
+// normalized LIVE planner projection (mig 176) the UI renders instead of any
+// stale Processing snapshot.
 export async function listProcessingRecords(sb, {year = null, program = null, includeArchived = false} = {}) {
   const {data, error} = await sb.rpc('list_processing_records', {
     p_year: Number.isFinite(year) ? year : year == null ? null : Number(year) || null,
@@ -51,8 +55,11 @@ export async function listProcessingRecords(sb, {year = null, program = null, in
   return Array.isArray(data) ? data : [];
 }
 
-// get_processing_record(p_id) -> the record columns + subtasks[] + attachments[]
-// + completion_blockers[] (text). Returns null when the id resolves to nothing.
+// get_processing_record(p_id) -> the record columns (+ effective_status,
+// `source` live projection, live_count, and `animals` per-animal detail for
+// cattle/sheep tags/ages/weights and pig linked weigh-in weights) + subtasks[]
+// + attachments[] + completion_blockers[] (text; server-authoritative).
+// Returns null when the id resolves to nothing.
 export async function getProcessingRecord(sb, id) {
   const {data, error} = await sb.rpc('get_processing_record', {p_id: id});
   if (error) throw new Error(`getProcessingRecord: ${error.message || String(error)}`);
@@ -80,8 +87,11 @@ export async function ensureProcessingFreshness(sb, maxAgeSeconds = 120) {
 }
 
 // set_processing_option_list(p_kind, p_options) -> {ok, kind, options}. Admin
-// only. kind is 'processor' | 'customer'; replaces that list wholesale (server
-// trims/de-dupes). Never rejects or rewrites stored record values.
+// only. kind is 'processor' | 'customer'. Options are stable objects
+// {id, label, active} (mig 175): send the full list back — existing ids may be
+// renamed (same id, new label) or deactivated (active:false) but NEVER dropped
+// (the server refuses deletion); entries without an id are added as new
+// options. Never rejects or rewrites stored record values.
 export async function setProcessingOptionList(sb, kind, options) {
   const {data, error} = await sb.rpc('set_processing_option_list', {
     p_kind: kind,
@@ -182,21 +192,10 @@ export async function archiveProcessingRecord(sb, id, archived = true) {
 }
 
 // ── Processing-owned field edits ─────────────────────────────────────────────
-
-// set_processing_field(p_id, p_field_id, p_value) — typed local custom-field
-// value keyed by the STABLE template field id (mig 164). The server validates
-// the value against the ACTIVE template field type and refuses the reserved
-// bound ids (see src/lib/processingFields.js RESERVED_PROCESSING_FIELD_IDS).
-// Pass value=null to clear.
-export async function setProcessingField(sb, id, fieldId, value) {
-  const {data, error} = await sb.rpc('set_processing_field', {
-    p_id: id,
-    p_field_id: fieldId,
-    p_value: value === undefined ? null : value,
-  });
-  if (error) throw new Error(`setProcessingField: ${error.message || String(error)}`);
-  return data;
-}
+// NOTE (planner-integration lane): the generic set_processing_field wrapper was
+// removed with the configurable Field-template surface. Processing fields are
+// fixed; source facts are planner-owned and read-only here. The server RPC
+// remains deployed for backward compatibility but has no client caller.
 
 // set_processing_processor(p_id, p_processor). Editable on any record (blank
 // clears it, stored as NULL).
@@ -295,22 +294,48 @@ export async function deleteProcessingSubtask(sb, id) {
   return data;
 }
 
-// apply_current_template(p_record_id). Additive — adds only checklist steps not
-// already present; never destructive, never auto-completes.
+// apply_current_template(p_record_id). Idempotent merge-by-stable-step-id
+// (mig 177): adds new non-removed template steps, applies renames + current
+// assignments to OPEN linked steps only; never duplicates, reopens completed
+// work, or touches manual steps / removed-step tombstones.
 export async function applyCurrentTemplate(sb, recordId) {
   const {data, error} = await sb.rpc('apply_current_template', {p_record_id: recordId});
   if (error) throw new Error(`applyCurrentTemplate: ${error.message || String(error)}`);
   return data;
 }
 
+// preview_latest_template(p_record_id) -> {template_version, additions[],
+// renames[], assignment_changes[], removed_blocked[], up_to_date}. Read-only
+// diff of the active template against the record's linked subtasks.
+export async function previewLatestTemplate(sb, recordId) {
+  const {data, error} = await sb.rpc('preview_latest_template', {p_record_id: recordId});
+  if (error) throw new Error(`previewLatestTemplate: ${error.message || String(error)}`);
+  return data || {};
+}
+
+// list_my_processing_subtasks() -> the CURRENT USER's open Processing subtasks
+// (caller-scoped server-side) for the no-due-date "Processing work" section in
+// My Tasks. Each: subtask_id, label, sort_order, record_id, record_title,
+// program, processing_date, record_type. Link-only display data — Processing
+// work is NOT task_instances and has no due dates.
+export async function listMyProcessingSubtasks(sb) {
+  const {data, error} = await sb.rpc('list_my_processing_subtasks');
+  if (error) throw new Error(`listMyProcessingSubtasks: ${error.message || String(error)}`);
+  return Array.isArray(data) ? data : [];
+}
+
 // ── Admin-only ───────────────────────────────────────────────────────────────
 
 // upsert_processing_template(p_program, p_fields, p_checklist) — admin only.
-// Creates a new active version superseding the prior one.
-export async function upsertProcessingTemplate(sb, {program, fields = [], checklist = []} = {}) {
+// Creates a new active version superseding the prior one. Checklist steps
+// carry STABLE ids across versions (mig 177): send each existing step with its
+// id; new steps without an id are minted one server-side. fields=null keeps
+// the active version's fields verbatim (the configurable Fields editor is
+// retired — the client only edits checklists now).
+export async function upsertProcessingTemplate(sb, {program, fields = null, checklist = []} = {}) {
   const {data, error} = await sb.rpc('upsert_processing_template', {
     p_program: program,
-    p_fields: fields ?? [],
+    p_fields: fields ?? null,
     p_checklist: checklist ?? [],
   });
   if (error) throw new Error(`upsertProcessingTemplate: ${error.message || String(error)}`);

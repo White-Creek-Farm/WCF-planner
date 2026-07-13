@@ -16,8 +16,11 @@ import {describe, it, expect} from 'vitest';
 //     UPDATE/DELETE policies, add_processing_attachment);
 //   • edge — cutover enforcement, fail-closed destination preflight before
 //     every write, per-lane action isolation, recursive subtasks, 429 backoff;
-//   • client — freshness on load, template-driven Details, profile-backed
-//     people, attachment field-name fix + signed open + upload owner.
+//   • client — freshness on load, profile-backed people, attachment
+//     field-name fix + signed open + upload owner. The template-driven
+//     Details editor is RETIRED (planner-integration lane): record fields are
+//     fixed/planner-owned; the drawer renders the read-only Source details
+//     projection instead and no client path calls set_processing_field.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -310,12 +313,24 @@ describe('client — engine wiring', () => {
     expect(api).toContain("sb.rpc('ensure_processing_freshness'");
   });
 
-  it('the drawer renders the ACTIVE template Details in configured order via the pure field engine', () => {
-    expect(drawer).toContain('data-processing-details-section="1"');
-    expect(drawer).toContain('resolveFieldDisplay');
-    expect(drawer).toContain('isFieldEditable');
-    expect(drawer).toContain('setProcessingField(sb, record.id, field.id');
-    expect(drawer).toContain('listProcessingTemplates(sb, program)');
+  it('the generic Details editor is RETIRED: no details section, no set_processing_field caller anywhere', () => {
+    // Planner-integration lane: record fields are fixed. The drawer renders the
+    // read-only Source details projection; the configurable field engine and
+    // its write path must not return to the client.
+    expect(drawer).not.toContain('data-processing-details-section');
+    expect(drawer).not.toContain('resolveFieldDisplay');
+    expect(drawer).not.toContain('isFieldEditable');
+    expect(drawer).not.toContain('setProcessingField');
+    expect(drawer).toContain('data-processing-source-section');
+    expect(drawer).toContain('data-processing-source-link');
+    // No file under src/processing/ calls setProcessingField, and the client
+    // API no longer exports it (the server RPC stays deployed, caller-less).
+    const processingDir = path.join(ROOT, 'src', 'processing');
+    for (const file of fs.readdirSync(processingDir)) {
+      const src = read(path.join('src', 'processing', file));
+      expect(src, `${file} must not reference setProcessingField`).not.toContain('setProcessingField');
+    }
+    expect(api).not.toMatch(/export (async )?function setProcessingField\b/);
   });
 
   it('people pickers are profile-backed (list_eligible_assignees); the parent assignee is retired', () => {
@@ -332,14 +347,27 @@ describe('client — engine wiring', () => {
     expect(milestoneModal).toContain('data-processing-milestone-status');
   });
 
-  it('templates manager: drag reorder, stable ids, option palette, reset-to-default', () => {
+  it('templates manager is CHECKLIST-ONLY: stable step ids, id-less new steps, fields:null save, checklist reset', () => {
+    // The configurable Fields editor is retired with the Details section: no
+    // field-id minting, no color palette, no fields reset.
+    expect(templatesModal).not.toContain("newProcessingId('fld')");
+    expect(templatesModal).not.toContain('PROCESSING_FIELD_PALETTE');
+    expect(templatesModal).not.toContain('data-processing-color-palette');
+    expect(templatesModal).not.toContain('defaultProcessingFields');
+    // Drag reorder survives on checklist steps.
     expect(templatesModal).toContain('draggable: true');
-    expect(templatesModal).toContain("newProcessingId('fld')");
-    expect(templatesModal).toContain('PROCESSING_FIELD_PALETTE');
-    expect(templatesModal).toContain('data-processing-color-palette="1"');
+    // Stable ids (mig 177): existing step ids are preserved verbatim on save;
+    // NEW steps go up WITHOUT an id (the server mints 'stp-<uuid>').
+    expect(templatesModal).toMatch(/if \(c\.id\) out\.id = c\.id;/);
+    expect(templatesModal).toMatch(/\{id: null, label: '', assignee: null, assignee_profile_id: null\}/);
+    // Save never touches fields — the server preserves the active version's
+    // fields verbatim on fields:null.
+    expect(templatesModal).toMatch(
+      /upsertProcessingTemplate\(sb, \{program, fields: null, checklist: cleanChecklist\}\)/,
+    );
+    // Reset restores the canonical default CHECKLIST only (id-less steps).
     expect(templatesModal).toContain('data-processing-template-reset');
-    expect(templatesModal).toContain('defaultProcessingFields(program)');
-    expect(templatesModal).toContain('defaultProcessingChecklist(program)');
+    expect(templatesModal).toMatch(/defaultProcessingChecklist\(program\)\.map\(\(c\) => \(\{id: null, \.\.\.c\}\)\)/);
   });
 
   it('attachments: DB field names (filename/size_bytes), signed open, native upload through the single owner', () => {
@@ -359,6 +387,9 @@ describe('client — engine wiring', () => {
 
   it('metrics count BATCH rows only (milestones excluded)', () => {
     expect(view).toMatch(/const batchRows = yearRows\.filter\(\(r\) => r\._isBatch\)/);
-    expect(view).toMatch(/_isBatch: rec\.record_type === 'planner_batch' \|\| rec\.record_type === 'asana_historical'/);
+    // Planner-integration lane: batch == anything that is not a milestone
+    // (list_processing_records already excludes import_exception rows), so a
+    // future record_type can never silently vanish from the stat cards.
+    expect(view).toMatch(/_isBatch: rec\.record_type !== 'milestone'/);
   });
 });

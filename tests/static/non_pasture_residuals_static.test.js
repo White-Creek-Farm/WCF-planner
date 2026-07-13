@@ -41,8 +41,12 @@ describe('Non-pasture residuals - P3 durability cleanup tails', () => {
     expect(mortality).toContain("eventType: 'record.deleted'");
     expect(mortality).toContain('catch (_e)');
 
+    // Mig 176: trip edit/delete persist through the pigPlannerApi SECDEF RPCs
+    // (server preserves subAttributions/ad-hoc keys); fcrCached remains the
+    // client-persisted display cache via persistFeeders.
     expect(trips).toContain('persistFeeders(nb)');
-    expect(trips).toContain('const trip = {...existing, ...tripFormNum, id: tripId};');
+    expect(trips).toContain('await pigUpdateProcessingTrip(sb, {');
+    expect(trips).toContain('await pigDeleteProcessingTrip(sb, {groupId: batchId, tripId});');
     expect(trips).toContain('if (!currentTripId) return;');
     expect(trips).toContain('else delete next.fcrCached');
     expect(trips).toContain('recordActivityEvent(sb');

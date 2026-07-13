@@ -6,15 +6,22 @@ import {describe, expect, it} from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
+// Mig 176 moved the pig planned-trip mutations, weigh-in Send-to-Trip,
+// undo-send, and processing-trip edit/delete into transactional SECDEF RPCs:
+// WeighInSessionPage lost its two ppp-feeders-v1 upserts (send + undo), while
+// usePigPlannedTrips / usePigProcessingTrips each gained ONE read-only
+// post-RPC reload of ppp-feeders-v1 (plus usePigProcessingTrips keeps its
+// client-owned fcrCached persist via persistFeeders, counted under main.jsx).
 const EXPECTED_APP_STORE_OWNERS = new Map([
   ['src/dashboard/HomeDashboard.jsx', 2],
   ['src/lib/broiler.js', 4],
   ['src/lib/productionApi.js', 1],
-  ['src/livestock/WeighInSessionPage.jsx', 10],
+  ['src/livestock/WeighInSessionPage.jsx', 8],
   ['src/main.jsx', 4],
   ['src/pig/PigBatchesView.jsx', 2],
   ['src/pig/usePigMortality.js', 2],
-  ['src/pig/usePigPlannedTrips.js', 2],
+  ['src/pig/usePigPlannedTrips.js', 3],
+  ['src/pig/usePigProcessingTrips.js', 1],
 ]);
 
 const ALLOWED_APP_STORE_KEYS = new Set([
@@ -97,7 +104,9 @@ describe('app_store boundary', () => {
       }
     }
 
-    expect(keys).toHaveLength(8);
+    // 8 pre-mig-176 keyed reads + the two post-RPC ppp-feeders-v1 reloads in
+    // usePigPlannedTrips / usePigProcessingTrips.
+    expect(keys).toHaveLength(10);
     expect(offenders).toEqual([]);
   });
 });

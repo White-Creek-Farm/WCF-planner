@@ -88,7 +88,7 @@ function pigTask(o = {}) {
 }
 
 function planner(id, o = {}) {
-  return {
+  const row = {
     id,
     program: o.program || 'broiler',
     title: o.title != null ? o.title : id,
@@ -99,6 +99,10 @@ function planner(id, o = {}) {
     source_id: o.source_id || null,
     sub_batch_attribution: o.sub_batch_attribution != null ? o.sub_batch_attribution : [],
   };
+  // Included only when passed so default rows genuinely LACK the key, like
+  // legacy rows that predate the mig-176 source_phase column.
+  if (o.source_phase !== undefined) row.source_phase = o.source_phase;
+  return row;
 }
 
 // ── normalizeWcfCode ─────────────────────────────────────────────────────────
@@ -395,6 +399,73 @@ describe('matchAsanaTaskToPlanner (pig)', () => {
     const res = matchAsanaTaskToPlanner(task, {program: 'pig', plannerRows: rows});
     expect(res.method).toBe('historical');
     expect(res.recordId).toBeNull();
+  });
+});
+
+// ── matchAsanaTaskToPlanner — pig planned vs actual (mig-176 source_phase) ────
+
+describe('matchAsanaTaskToPlanner (pig source_phase)', () => {
+  const signals = {
+    program: 'pig',
+    processing_date: '2026-05-01',
+    number_processed: 40,
+    sub_batch_attribution: ['SubA'],
+  };
+
+  it('a PLANNED pig row is never matched, even on perfect date+count+sub-batch signals', () => {
+    const task = pigTask({actual: '2026-05-01', animals: 40, batchName: 'SubA'});
+    const rows = [planner('pig-planned', {...signals, source_phase: 'planned'})];
+    const res = matchAsanaTaskToPlanner(task, {program: 'pig', plannerRows: rows});
+    expect(res.method).toBe('needs_review'); // unmatched >=2024 — NOT auto_exact
+    expect(res.recordId).toBeNull();
+    expect(res.candidateIds).toEqual([]); // not even a review candidate
+  });
+
+  it('the SAME row with source_phase=actual IS matched auto_exact (control)', () => {
+    const task = pigTask({actual: '2026-05-01', animals: 40, batchName: 'SubA'});
+    const rows = [planner('pig-actual', {...signals, source_phase: 'actual'})];
+    const res = matchAsanaTaskToPlanner(task, {program: 'pig', plannerRows: rows});
+    expect(res.method).toBe('auto_exact');
+    expect(res.recordId).toBe('pig-actual');
+    expect(res.confidence).toBe('high');
+  });
+
+  it('a planned twin never contests its actual row → auto_exact to the actual row alone', () => {
+    const task = pigTask({actual: '2026-05-01', animals: 40, batchName: 'SubA'});
+    const rows = [
+      planner('pig-planned', {...signals, source_phase: 'planned'}),
+      planner('pig-actual', {...signals, source_phase: 'actual'}),
+    ];
+    const res = matchAsanaTaskToPlanner(task, {program: 'pig', plannerRows: rows});
+    expect(res.method).toBe('auto_exact');
+    expect(res.recordId).toBe('pig-actual');
+    expect(res.candidateIds).toEqual(['pig-actual']);
+  });
+
+  it('planned rows are excluded from needs_review candidate lists too', () => {
+    const task = pigTask({actual: '2026-05-01', animals: 40, batchName: null});
+    const rows = [
+      planner('pig-actual-a', {...signals, sub_batch_attribution: ['SubA'], source_phase: 'actual'}),
+      planner('pig-actual-b', {...signals, sub_batch_attribution: ['SubB'], source_phase: 'actual'}),
+      planner('pig-planned', {...signals, source_phase: 'planned'}),
+    ];
+    const res = matchAsanaTaskToPlanner(task, {program: 'pig', plannerRows: rows});
+    expect(res.method).toBe('needs_review');
+    expect(res.candidateIds.sort()).toEqual(['pig-actual-a', 'pig-actual-b']);
+  });
+
+  it('legacy rows without source_phase (key absent or explicit null) still match (back-compat)', () => {
+    const task = pigTask({actual: '2026-05-01', animals: 40, batchName: 'SubA'});
+    const absent = planner('pig-legacy', signals); // no source_phase key at all
+    expect(absent).not.toHaveProperty('source_phase');
+    const resAbsent = matchAsanaTaskToPlanner(task, {program: 'pig', plannerRows: [absent]});
+    expect(resAbsent.method).toBe('auto_exact');
+    expect(resAbsent.recordId).toBe('pig-legacy');
+
+    const nullRow = planner('pig-null', {...signals, source_phase: null});
+    const resNull = matchAsanaTaskToPlanner(task, {program: 'pig', plannerRows: [nullRow]});
+    expect(resNull.method).toBe('auto_exact');
+    expect(resNull.recordId).toBe('pig-null');
   });
 });
 

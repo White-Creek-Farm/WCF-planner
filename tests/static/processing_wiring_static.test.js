@@ -18,11 +18,17 @@ describe('processing wiring — activityRegistry', () => {
     expect(ENTITY_TYPES.PROCESSING_RECORD).toBe('processing.record');
   });
 
-  it('has a registry entry whose route resolves to /processing', () => {
+  it('has a registry entry whose route deep-links to /processing?record=<id> (flat /processing without an id)', () => {
+    // Planner-integration lane: processing.record routes carry the record id
+    // so Activity/notification clicks open the exact drawer. A missing id
+    // degrades to the flat page — never '?record=undefined'.
     const entry = ACTIVITY_REGISTRY['processing.record'];
     expect(entry).toBeTruthy();
     expect(typeof entry.route).toBe('function');
+    expect(entry.route('prc-abc-123')).toBe('/processing?record=prc-abc-123');
+    expect(entry.route('id with spaces')).toBe('/processing?record=id%20with%20spaces');
     expect(entry.route()).toBe('/processing');
+    expect(entry.route('')).toBe('/processing');
   });
 
   it('routeToView(/processing) resolves to the processing view', () => {

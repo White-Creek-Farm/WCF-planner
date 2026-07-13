@@ -196,13 +196,16 @@ export default function PigBatchesView({
   // and the later JSX share one source.
   const isManager = !!(authState && (authState.role === 'admin' || authState.role === 'management'));
   // Planned-processing-trip workflow — state + lock sidecar + handlers live in
-  // usePigPlannedTrips (CP9). Planned-trip JSX below consumes these.
-  const plannedTrips = usePigPlannedTrips({feederGroups, persistFeeders, authState, isManager});
+  // usePigPlannedTrips (CP9). Planned-trip JSX below consumes these. Mutations
+  // route through the mig-176 SECDEF RPCs; setFeederGroups feeds the hook's
+  // post-RPC reload of ppp-feeders-v1.
+  const plannedTrips = usePigPlannedTrips({feederGroups, setFeederGroups, authState, isManager});
   // Processing-trip workflow — trip-source tracking + add/edit/close/delete live
   // in usePigProcessingTrips (CP10). Trip FORM state stays owned by PigContext
   // (threaded in). dailysForName is hoisted (function decl) so it's available here.
   const processingTrips = usePigProcessingTrips({
     feederGroups,
+    setFeederGroups,
     persistFeeders,
     confirmDelete,
     tripAutoSaveTimer,

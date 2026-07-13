@@ -23,6 +23,7 @@ import RecordSequenceNav from '../shared/RecordSequenceNav.jsx';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
 import {loadBroilerBatchWeekAverages} from '../lib/broiler.js';
 import {processingStatusLabel} from '../lib/processingStatusDisplay.js';
+import {navigateToProcessingRoute, processingSourceRoute} from '../lib/processingNav.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import BatchForm from './BatchForm.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
@@ -283,6 +284,27 @@ export default function BroilerBatchPage({
           <BroilerMetaItem label="Hatchery" value={batch.hatchery} />
           <BroilerMetaItem label="Hatched" value={fmt(batch.hatchDate)} />
           <BroilerMetaItem label="Target processing" value={fmt(batch.processingDate)} />
+          {/* Deep link into the Processing Calendar record for this batch.
+              source key is batch.id (immutable), NOT the URL's batch name. */}
+          {batch.processingDate && (
+            <button
+              type="button"
+              data-processing-source-link="broiler"
+              onClick={() => navigateToProcessingRoute(navigate, processingSourceRoute('broiler', batch.id))}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--brand)',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                padding: 0,
+              }}
+            >
+              View in Processing →
+            </button>
+          )}
         </div>
 
         {formReady && (

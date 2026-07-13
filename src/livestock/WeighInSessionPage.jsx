@@ -32,9 +32,8 @@ import {
   formatGroupAdg,
   formatAvgWeight,
   computeRankMatchedPigEntryADG,
-  reconcilePlannedTripsForSend,
 } from '../lib/pigForecast.js';
-import {todayCentralISO} from '../lib/dateUtils.js';
+import {pigSendToTrip, pigUndoSend} from '../lib/pigPlannerApi.js';
 import PigSendToTripModal from './PigSendToTripModal.jsx';
 import {writeBroilerBatchAvg, recomputeBroilerBatchWeekAvg} from '../lib/broiler.js';
 import {LockedTeamMemberField, recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
@@ -1191,7 +1190,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     setTripModal({session, entries: selected});
   }
 
-  async function sendEntriesToTrip({groupId, sourceSubId, sourceSubSex, sendCount}) {
+  async function sendEntriesToTrip({groupId, sourceSubId, sourceSubSex}) {
     if (!tripModal || !canManagePigPlannedTrips) {
       throw new Error('Permission denied or no active modal.');
     }
@@ -1199,121 +1198,53 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     if (!groupId || !sourceSubId || !sourceSubSex || !selEntries || selEntries.length === 0) {
       throw new Error('Missing required send parameters.');
     }
-    const groups = feederGroups.slice();
-    const gi = groups.findIndex((g) => g.id === groupId);
-    if (gi < 0) throw new Error('Feeder group not found.');
-    const g = {...groups[gi]};
-    const recon = reconcilePlannedTripsForSend(g.plannedProcessingTrips || [], {
+    // ONE transactional SECDEF RPC (mig 176) replaces the former client
+    // reconcile + trip mint + weigh_ins stamping + app_store upsert. The modal
+    // still PREVIEWS with reconcilePlannedTripsForSend (read-only); the SERVER
+    // is authoritative and re-runs the reconcile under a row lock. One
+    // locked-spec difference from the preview helper: the target planned
+    // trip's id is PROMOTED into processingTrips (its Processing record keeps
+    // its identity), so an under-send remainder always moves forward — onto
+    // the next planned trip, or a NEW planned trip when no next trip exists
+    // (the preview's remainderStayedOnTarget case).
+    const result = await pigSendToTrip(sb, {
+      groupId,
       subBatchId: sourceSubId,
       sex: sourceSubSex,
-      sendCount,
-      today: todayCentralISO(),
+      weighInIds: selEntries.map((e) => e.id),
     });
-    if (recon.error) {
-      throw new Error('Reconciliation refused: ' + recon.error);
-    }
-    const sourceSub = (g.subBatches || []).find((s) => s.id === sourceSubId);
-    if (!sourceSub) throw new Error('Source sub-batch not found.');
-    const trips = (g.processingTrips || []).slice();
-    const addWeights = selEntries.map((e) => parseFloat(e.weight) || 0).filter((w) => w > 0);
-    const sexLabel = sourceSubSex === 'boar' ? 'Boars' : 'Gilts';
-    const newTripId = String(Date.now()) + Math.random().toString(36).slice(2, 6);
-    for (const e of selEntries) {
-      const {error: stampErr} = await sb
-        .from('weigh_ins')
-        .update({sent_to_trip_id: newTripId, sent_to_group_id: groupId})
-        .eq('id', e.id);
-      if (stampErr) {
-        await sb
-          .from('weigh_ins')
-          .update({sent_to_trip_id: null, sent_to_group_id: null})
-          .eq('sent_to_trip_id', newTripId);
-        throw new Error('Send failed (stamp source entry): ' + stampErr.message);
-      }
-    }
-    trips.push({
-      id: newTripId,
-      date: recon.targetTripDate,
-      pigCount: selEntries.length,
-      liveWeights: addWeights.join(' '),
-      hangingWeight: 0,
-      notes: '',
-      subAttributions: [{subId: sourceSub.id, subBatchName: sourceSub.name, sex: sexLabel, count: selEntries.length}],
-    });
-    trips.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    g.processingTrips = trips;
-    g.plannedProcessingTrips = recon.updatedPlannedTrips;
-    groups[gi] = g;
-    const {error: upsertErr} = await sb
-      .from('app_store')
-      .upsert({key: 'ppp-feeders-v1', data: groups}, {onConflict: 'key'});
-    if (upsertErr) {
-      await sb
-        .from('weigh_ins')
-        .update({sent_to_trip_id: null, sent_to_group_id: null})
-        .eq('sent_to_trip_id', newTripId);
-      throw new Error('Send failed (app_store): ' + upsertErr.message);
-    }
     try {
       await recordActivityEvent(sb, {
         entityType: 'weighin.session',
         entityId: session.id,
         eventType: 'field.updated',
         entityLabel: sessionLabel(),
-        body: 'Sent ' + selEntries.length + ' entries to trip ' + recon.targetTripDate,
+        body: 'Sent ' + selEntries.length + ' entries to trip ' + result.trip_date,
       });
     } catch (_e) {
       /* best-effort */
     }
-    setFeederGroups(groups);
     setSelectedEntryIds(new Set());
     setTripModal(null);
+    // loadAll re-reads the weigh-in entries AND ppp-feeders-v1 (pig branch),
+    // so local state syncs with the server-owned row.
     await loadAll();
   }
 
   async function undoSendToTrip(entry) {
     if (!entry || !entry.sent_to_trip_id || !entry.sent_to_group_id) return;
     if (!canManagePigPlannedTrips) return;
-    const groups = feederGroups.slice();
-    const gi = groups.findIndex((g) => g.id === entry.sent_to_group_id);
-    const sourceSub = resolveBatchAndSub(session && session.batch_id).sub;
-    if (gi >= 0) {
-      const g = {...groups[gi]};
-      g.processingTrips = (g.processingTrips || []).map((t) => {
-        if (t.id !== entry.sent_to_trip_id) return t;
-        const nt = {...t};
-        nt.pigCount = Math.max(0, (parseInt(nt.pigCount) || 0) - 1);
-        const targetW = parseFloat(entry.weight);
-        const parts = (nt.liveWeights || '').split(/\s+/).filter(Boolean);
-        const idx = parts.findIndex((p) => parseFloat(p) === targetW);
-        if (idx >= 0) parts.splice(idx, 1);
-        nt.liveWeights = parts.join(' ');
-        if (sourceSub && Array.isArray(nt.subAttributions)) {
-          nt.subAttributions = nt.subAttributions
-            .map((a) => {
-              if (!a || a.subId !== sourceSub.id) return a;
-              return {...a, count: Math.max(0, (parseInt(a.count) || 0) - 1)};
-            })
-            .filter((a) => (parseInt(a && a.count) || 0) > 0);
-        }
-        return nt;
-      });
-      groups[gi] = g;
-      const {error: undoUpsertErr} = await sb
-        .from('app_store')
-        .upsert({key: 'ppp-feeders-v1', data: groups}, {onConflict: 'key'});
-      if (undoUpsertErr) {
-        setNotice({kind: 'error', message: 'Undo send failed (app_store): ' + undoUpsertErr.message});
-        return;
-      }
-      setFeederGroups(groups);
-    }
-    const {error: clearErr} = await sb
-      .from('weigh_ins')
-      .update({sent_to_trip_id: null, sent_to_group_id: null})
-      .eq('id', entry.id);
-    if (clearErr) {
-      setNotice({kind: 'error', message: 'Undo send failed (clear stamp): ' + clearErr.message});
+    // ONE transactional SECDEF RPC (mig 176) replaces the former client trip
+    // surgery + app_store upsert + stamp clear: the server decrements the
+    // actual trip (count / weight instance / sub-attributions), returns the
+    // pig to the planned chain, and clears the entry's stamps in one
+    // transaction.
+    // When the LAST entry is undone the actual trip reverts to a PLANNED trip
+    // with the SAME id, so its Processing record flips back to Planned.
+    try {
+      await pigUndoSend(sb, entry.id);
+    } catch (e) {
+      setNotice({kind: 'error', message: 'Undo send failed: ' + (e.message || 'unknown error')});
       return;
     }
     try {
