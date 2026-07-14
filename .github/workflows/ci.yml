@@ -193,11 +193,14 @@ jobs:
         # timeout-minutes marks the in-flight step 'cancelled', not 'failed',
         # and an if: failure() upload is skipped — proven by run 29151368480
         # (0 artifacts despite 30 failing tests). cancelled() keeps artifacts
-        # flowing in every non-green ending.
+        # flowing in every non-green ending. run_attempt is in the name because
+        # upload-artifact v4 artifacts are immutable per run and reruns reuse
+        # run_id — without it, a rerun's upload 409-conflicts with the prior
+        # attempt's artifact.
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-shard1-${{ github.run_id }}
+          name: playwright-report-shard1-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/
@@ -259,7 +262,7 @@ jobs:
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-shard2-${{ github.run_id }}
+          name: playwright-report-shard2-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/
@@ -321,7 +324,7 @@ jobs:
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: pasture-playwright-report-${{ github.run_id }}
+          name: pasture-playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/
