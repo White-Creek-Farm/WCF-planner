@@ -95,7 +95,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -129,21 +129,24 @@ jobs:
   # idempotent and already ran per-job in the old verify/pasture-e2e layout.
   #
   # Budgets (measured 2026-07-11, run 29151368480): shard 1 is fully measured at
-  # ~17.5 min of test time (~19 min with warm-cache job setup) — 30 is ample.
-  # Shard 2 is ~20-24 min PROJECTED: 21 of its 44 files (~51% of its runtime)
-  # never ran before the old layout's cancellation and are estimated at a
-  # conservative 5.5 s/test vs the 4.4 s/test measured mean, so its job budget
-  # is 35 for headroom — which costs nothing when green because the job ends
-  # when the tests end. Each Playwright step also carries its own step-level
-  # timeout BELOW the job budget: a step timeout is a step FAILURE, so the
+  # ~17.5 min of test time (~19 min with warm-cache job setup); shard 2 is
+  # ~20-24 min PROJECTED: 21 of its 44 files (~51% of its runtime) never ran
+  # before the old layout's cancellation and are estimated at a conservative
+  # 5.5 s/test vs the 4.4 s/test measured mean. The STEP timeout is the real
+  # test budget (27/32 min): a step timeout is a step FAILURE, so the
   # failure-artifact upload still runs and the job concludes as a red X instead
-  # of a cancelled job. Re-measure both shards after meaningful suite growth —
-  # --shard balances by test COUNT, not runtime, and today's heavy cattle_*
-  # files all happen to sit in shard 1.
+  # of a cancelled job. The JOB budget sits ~8 min ABOVE the step budget on
+  # purpose — cold-cache setup (npm ci + chromium download) can take 4-5 min
+  # and the post-failure report/video upload needs room too; a smaller gap
+  # would let the job budget preempt the step timeout and end the job
+  # 'cancelled' (inconclusive) instead of failed. Headroom costs nothing when
+  # green because the job ends when the tests end. Re-measure both shards
+  # after meaningful suite growth — --shard balances by test COUNT, not
+  # runtime, and today's heavy cattle_* files all happen to sit in shard 1.
   e2e-shard-1:
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       # Preserves the assertTestDatabase guard. Tests refuse to run without this.
       WCF_TEST_DATABASE: '1'
@@ -161,7 +164,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -179,9 +182,9 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: E2E tests (Playwright shard 1/2)
-        # Step timeout below the 30-min job budget: an overrun FAILS the step
-        # (failure() stays true for the artifact upload) instead of cancelling
-        # the whole job, which would skip every later step.
+        # Step timeout well below the 35-min job budget: an overrun FAILS the
+        # step (failure() stays true for the artifact upload) instead of
+        # cancelling the whole job, which would skip every later step.
         timeout-minutes: 27
         run: npm run test:e2e:ci -- --shard=1/2
 
@@ -210,10 +213,11 @@ jobs:
     needs: e2e-shard-1
     if: ${{ !cancelled() && needs.e2e-shard-1.result != 'skipped' }}
     runs-on: ubuntu-latest
-    # 35, not 30: ~51% of this shard's runtime is projected rather than measured
-    # (see the budget comment above e2e-shard-1). Ends when tests end, so the
-    # extra headroom is free on green runs.
-    timeout-minutes: 35
+    # Step budget 32 (vs shard 1's 27) because ~51% of this shard's runtime is
+    # projected rather than measured; job budget = step + ~8 min setup/upload
+    # slack (see the budget comment above e2e-shard-1). Ends when tests end,
+    # so the extra headroom is free on green runs.
+    timeout-minutes: 40
     env:
       WCF_TEST_DATABASE: '1'
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -228,7 +232,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -246,8 +250,8 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: E2E tests (Playwright shard 2/2)
-        # Step timeout below the 35-min job budget so an overrun fails the step
-        # and the artifact upload still runs (see shard 1).
+        # Step timeout well below the 40-min job budget so an overrun fails the
+        # step and the artifact upload still runs (see shard 1).
         timeout-minutes: 32
         run: npm run test:e2e:ci -- --shard=2/2
 
@@ -273,7 +277,9 @@ jobs:
     needs: [changes, e2e-shard-2]
     if: ${{ !cancelled() && needs.changes.outputs.pasture == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Job budget = 17-min step budget + ~8 min setup/upload slack so a step
+    # timeout concludes as a red failure, not a cancelled job (see e2e-shard-1).
+    timeout-minutes: 25
     env:
       WCF_TEST_DATABASE: '1'
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -288,7 +294,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -306,8 +312,8 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Pasture Map E2E (isolated config)
-        # Step timeout below the 20-min job budget so an overrun fails the step
-        # and the artifact upload still runs (see shard 1).
+        # Step timeout well below the 25-min job budget so an overrun fails the
+        # step and the artifact upload still runs (see shard 1).
         timeout-minutes: 17
         run: npx playwright test --config playwright.pasture.config.js
 
