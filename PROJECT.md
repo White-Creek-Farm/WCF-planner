@@ -8,11 +8,10 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
 Last updated: 2026-07-14.
-Product checkpoint covered by this wrap: `5354a79` (Processing planner integration
-through migrations `175`-`177`, final-stage workflow, production correction,
-public hub header polish, and the simplified Processing schedule UI). Last
-code/product checkpoint: `5354a79`. This documentation-only wrap follows that
-product commit and records the remaining build queue.
+Product checkpoint covered by this wrap: `cb604fd` (sharded whole-app CI plus
+Processing checklist no-reload behavior, option autosave, and source-detail
+deduplication). Last code/product checkpoint: `cb604fd`. This documentation-only
+wrap follows that product commit and records the measured regression-test debt.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -69,10 +68,8 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`. The latest product
-  code is `5354a79`; this documentation-only wrap follows it without changing
-  runtime code. The public `/processing` route and its `5354a79` production
-  bundle were verified after deploy. There are no open GitHub pull requests at
-  this wrap.
+  code is `cb604fd`; this documentation-only wrap follows it without changing
+  runtime code. There are no open GitHub pull requests at this wrap.
 - Supabase live high-water: all repository migrations through `166` and
   `170`-`177` are PROD-applied; numbers `167`-`169` are intentionally unused.
   Current PROD Edge versions are `rapid-processor` v29,
@@ -153,6 +150,14 @@ Design/function invariants that govern cross-surface behavior live in
   drawer. Checklist-step assignees remain supported. The four active template v2
   rows have 11/10/10/10 fields and preserve their 8/16/11/16-item checklists; v1
   rows remain inactive for history.
+- Processing checklist completion is an optimistic in-place mutation: checking
+  or unchecking a step never reloads the drawer or schedule. The drawer silently
+  reconciles server-owned completion blockers, and the schedule row receives
+  confirmed subtask counts only, including when different toggles overlap and
+  one fails. Broiler Source details no longer repeat the editable Processor or
+  Customer fields. Processor/Customer option-list add, rename, deactivate,
+  reactivate, and undo actions autosave after a 500 ms debounce; every modal or
+  surface exit flushes pending edits, and a failed flush keeps the editor open.
 - Processing status labels are normalized to `Planned` / `In Process` / `Complete`
   via `src/lib/processingStatusDisplay.js` (display-only; stored values are
   unchanged). See the Processing Calendar contract for the mapping and the
@@ -196,23 +201,24 @@ Design/function invariants that govern cross-surface behavior live in
 - Dependency hardening is complete: Vite/Vitest/plugin-react majors upgraded,
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
-- Validation baseline at the shipped checkpoint: Prettier passes (the former
-  three-file drift was fixed by `c38a07c`), lint has 0 errors, 296 Vitest files /
-  7,156 tests pass (re-verified on `5354a79` at this wrap), production build
-  passes, migration `175`-`177` TEST apply
-  proofs passed 32/32 checks, and the migrated-TEST Processing Playwright suite
-  passed `processing_calendar` 11/11, `processing_planner_lifecycle` 3/3, and
-  `processing_my_tasks` 4/4. The GitHub whole-app Playwright step previously
-  exceeded the workflow's 30-minute budget; CI segmentation/runtime remains an
-  explicit defect in Build Queue item 6 rather than a product-test success.
-- Worktree inventory at wrap start: `C:/Users/Ronni/WCF-planner-main-release`
-  was the clean `main`/`origin/main` release worktree at `5354a79`; this wrap
-  changes only `PROJECT.md`. Seven clean merged/superseded satellite worktrees
-  were pruned during wrap: detach, materials-needed-order, public-hub-link,
-  user-management-audit, customer-fields, planner-integration, and template
-  suite. Remaining registered worktrees are the primary
-  `C:/Users/Ronni/WCF-planner` on merged `feature/processing-ui-simplify`, CC2's
-  unmerged CI branch `C:/Users/Ronni/WCF-planner-cc2-ci`, dirty draft
+- Validation baseline at the shipped checkpoint: Prettier passes, lint has 0
+  errors, 297 Vitest files / 7,168 tests pass, and the production build passes.
+  The focused Processing Calendar file passed 12/12 in a CI-quiet window; the
+  exact autosave scenario also passed independently after PR #62's full-suite
+  timing failure. Whole-app CI now runs the DB-free quality gate followed by two
+  sequential root Playwright shards and path-gated Pasture Playwright, with
+  workers=1, bounded jobs, independent later-shard signal, and rerun-safe
+  failure artifacts. Two consecutive representative main runs concluded rather
+  than timing out and exposed the existing regression debt tracked in Build
+  Queue item 6. The second ran all 265 + 255 root tests to verdict in 16m41s +
+  26m51s; Pasture correctly skipped because the Processing-only diff did not
+  match its path gate.
+- Worktree inventory at wrap: `C:/Users/Ronni/WCF-planner-main-release`
+  is the clean `main`/`origin/main` release worktree at `cb604fd`; this wrap
+  changes only `PROJECT.md`. The clean, merged CI and Processing UX worktrees
+  were pruned and their local lane branches deleted. Remaining registered
+  worktrees are the primary `C:/Users/Ronni/WCF-planner` on merged
+  `feature/processing-ui-simplify`, dirty draft
   `C:/Users/Ronni/WCF-planner-codex-user-management-residuals`, dirty draft
   `C:/Users/Ronni/WCF-planner-codex-validation`, and this clean main-release
   worktree. The now-unregistered
@@ -232,10 +238,9 @@ Per-PR shipped history is not maintained here. For what shipped and when, read
 Durable behavior lives in the Load-Bearing Contracts below; current migration and
 live state lives in Current State and Backend And Data State.
 
-Most recent session: Processing planner integration (`522e448`), public hub
-header/link polish (`037693d`/`2f87380`/`58973d8`), Processing template/schedule
-UI hotfixes (`312fce8` through `5354a79`), and the `175`-`177` PROD migration +
-Edge deploy/correction bundle. Earlier durable checkpoints remain in `git log`.
+Most recent session: sharded CI (`feb9224`) and Processing checklist/option UX
+(`cb604fd`). The earlier Processing planner integration, UI hotfixes, and
+`175`-`177` PROD migration + Edge deploy/correction bundle remain in `git log`.
 
 ---
 
@@ -283,10 +288,11 @@ This is the canonical home for outstanding build/design work.
      duplicate writes on rerun and representative Broiler/Cattle/Pig/Sheep
      checks; final cutover occurs only after explicit approval.
 
-3. Processing post-integration polish and stale Pig test debt
-   - Status: SMALL FOLLOW-UP AFTER SHIPPED PLANNER INTEGRATION. The main
-     Processing planner integration is live through migration `177`; this item is
-     only for residual copy/test cleanup.
+3. Processing post-integration Pig copy/test debt
+   - Status: SMALL FOLLOW-UP AFTER SHIPPED PLANNER INTEGRATION. Processing
+     checklist no-reload behavior, option autosave, Source-detail deduplication,
+     and the stale Templates assertion are closed by `cb604fd`; this item is only
+     for the remaining Pig copy/test cleanup.
    - Class: `DEFECT`/`UX`/`TEST`.
    - Scope:
      - Update `PigSendToTripModal` preview copy for under-send remainder handling:
@@ -330,22 +336,31 @@ This is the canonical home for outstanding build/design work.
    - Gate: TEST concurrency/RPC proof first; PROD SQL only after explicit
      approval. Do not change role gates or lifecycle semantics incidentally.
 
-6. CI whole-app Playwright runtime
-   - Status: DEFECT. The `029899c` main workflow passed change detection,
-     install, formatting, lint, all Vitest tests, and production build, then the
-     serialized whole-app Playwright step exceeded the 30-minute job budget and
-     was cancelled. Several preceding main runs show the same timeout pattern.
-     CC2 has an unmerged draft branch/worktree at
-     `feature/ci-playwright-runtime-cc2` / `C:/Users/Ronni/WCF-planner-cc2-ci`
-     (`e277a3b`) that splits serialized Playwright runtime across shards; verify
-     and merge only after review.
-   - Class: `DEFECT`/`CI`/`TEST-INFRA`.
-   - Scope: profile spec/runtime cost, split or path-gate independent suites
-     without racing the shared TEST database, preserve workers=1 for reset-heavy
-     specs, and retain failure artifacts.
-   - Success criteria: at least two consecutive representative main runs finish
-     with a real success/failure conclusion inside the configured budget; no
-     suite is silently dropped.
+6. Whole-app Playwright regression debt and TEST isolation
+   - Status: RUNTIME DEFECT CLOSED; REGRESSION DEBT NOW MEASURED. `feb9224`
+     splits root Playwright into two sequential shards after a DB-free quality
+     gate, keeps Pasture path-gated and sequential, preserves workers=1, uploads
+     rerun-safe artifacts, and concludes inside budget without dropping tests.
+     Two clean PR measurements reproduced a stable 39-failure baseline plus four
+     lower-confidence flakes. Two consecutive post-merge main runs also
+     concluded inside budget with no root suite omitted, formally closing the
+     runtime-measurement gate. GitHub concurrency serializes repository
+     workflows, but it cannot see local Playwright processes; one contaminated
+     run proved that local and GitHub TEST execution must not overlap.
+   - Class: `DEFECT`/`TEST`/`TEST-INFRA`.
+   - Scope:
+     - Triage the stable clusters rather than treating all failures as product
+       defects: cattle calf/heifer/herd/sequence/delete, offline weigh-ins, Pig
+       planned-trip/metrics/breeding, Tasks/To Do/navigation, Processing/My
+       Tasks, weigh-in RPC/records, and Pasture state/modal coverage.
+     - Build an enforceable TEST-DB lease/preflight so local Playwright cannot
+       collide with GitHub CI; process/port sampling is evidence, not a lock.
+     - Separate stale assertions from genuine runtime defects, starting with
+       Build Queue item 3's five Pig planned-trip failures.
+   - Success criteria: each stable cluster is classified and repaired/retired
+     with focused proof; flaky specs have deterministic setup/readiness; local
+     and GitHub TEST runs fail closed on lease contention; the full workflow is
+     green or carries only explicitly quarantined, owner-tracked failures.
 
 ---
 
@@ -1350,14 +1365,25 @@ Workflow/worktable entities:
 - Customer and Processor selector options are server-backed Processing settings.
   Both are true single selects; Customer stores zero-or-one value in its legacy
   array-backed record column. Admins edit choices inside Templates through
-  `set_processing_option_list`; stored off-list values remain visible and old
-  multi-customer rows show one explicit legacy state until deliberately replaced.
+  `set_processing_option_list`; add/rename/deactivate/reactivate/undo edits
+  autosave after a 500 ms debounce, and every editor exit flushes pending work.
+  A failed flush keeps the editor open with its draft intact. Stored off-list
+  values remain visible and old multi-customer rows show one explicit legacy
+  state until deliberately replaced.
 - Templates are local-only in the product UI. The active canonical v2 suite is
   Broiler 11 fields and Cattle/Pig/Sheep 10 fields, with checklists 8/16/11/16.
   The template modal uses a Tasks/Fields toggle; Fields edit inline rather than
   opening a second modal. The six retired field ids stay server-reserved so
   generic writes cannot revive them. Template saves version active rows; reset
   uses the same guarded defaults as migration `174`.
+- Checklist completion toggles are dedicated optimistic mutations, not generic
+  drawer reloads. The clicked checkbox changes in place, the drawer silently
+  refetches server-authoritative completion blockers, and the schedule patches
+  only confirmed `subtask_done`/`subtask_total` counts. Failed writes roll back
+  without refreshing either surface; pending writes on different subtasks may
+  overlap without publishing an unconfirmed neighbour count. Processor and
+  Customer remain editable above Source details and must not be duplicated as
+  read-only source rows.
 - Asana operations are out-of-UI gated operations. Planner freshness still runs
   automatically. Read-only audits/dry runs, artifact import, attachment backfill,
   historical Activity import, and `asana_sync_enabled` cutover require explicit
@@ -1792,7 +1818,10 @@ Workflow/worktable entities:
 - Offline RPC replay goes through `useOfflineRpcSubmit` where needed.
 - Ownership stamping is server-side on replay.
 - Shared TEST DB Playwright specs that reset/seed the DB must run one file at a
-  time.
+  time. GitHub CI serializes its two root shards and path-gated Pasture job, but
+  local Playwright is outside that concurrency group: check active GitHub runs
+  and obtain the TEST-DB execution window before starting any local browser
+  spec. Never overlap local TEST Playwright with GitHub CI.
 
 ### Storage And File Inputs
 
@@ -1899,7 +1928,7 @@ Focused starting points:
 | Record pages | `tests/static/record_page_*.test.js`, per-entity static tests, `tests/*_sequence_nav.spec.js` |
 | Home / dashboard alerts | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js` |
 | Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
-| Processing Calendar | `tests/static/processing_calendar_migration_static.test.js`, `tests/static/processing_wiring_static.test.js`, `tests/static/processing_asana_security_static.test.js`, `tests/static/processing_reconciler_migration_static.test.js`, `tests/static/processing_reconciler_wiring_static.test.js`, `tests/static/processing_reconciliation_workbench_static.test.js`, `tests/static/processing_comments_import_static.test.js`, `tests/static/processing_conversation_fidelity_static.test.js`, `tests/static/processing_engine_static.test.js`, `tests/static/processing_cleanup_static.test.js`, `tests/static/processing_options_static.test.js`, `tests/static/processing_template_suite_static.test.js`, `tests/static/processing_templates_import_static.test.js`, `tests/static/processing_attachments_storage_static.test.js`, `tests/processing_calendar.spec.js`, `tests/processing_asana_importer.test.js`, `tests/processing_conversation_fidelity.test.js`, `tests/processing_asana_shape.test.js`, `tests/processing_asana_matcher.test.js`, `tests/processing_asana_templates.test.js`, `scripts/apply_test_mig_156.cjs` through `scripts/apply_test_mig_162.cjs`, `scripts/apply_test_mig_164.cjs` through `scripts/apply_test_mig_166.cjs`, `scripts/apply_test_mig_170.cjs` through `scripts/apply_test_mig_177.cjs`, `scripts/proof_reconciler_blockers.cjs`, `scripts/proof_reconciler_enumeration.cjs` |
+| Processing Calendar | `tests/static/processing_calendar_migration_static.test.js`, `tests/static/processing_wiring_static.test.js`, `tests/static/processing_asana_security_static.test.js`, `tests/static/processing_reconciler_migration_static.test.js`, `tests/static/processing_reconciler_wiring_static.test.js`, `tests/static/processing_reconciliation_workbench_static.test.js`, `tests/static/processing_comments_import_static.test.js`, `tests/static/processing_conversation_fidelity_static.test.js`, `tests/static/processing_engine_static.test.js`, `tests/static/processing_cleanup_static.test.js`, `tests/static/processing_options_static.test.js`, `tests/static/processing_checklist_toggle_static.test.js`, `tests/static/processing_template_suite_static.test.js`, `tests/static/processing_templates_import_static.test.js`, `tests/static/processing_attachments_storage_static.test.js`, `tests/processing_calendar.spec.js`, `tests/processing_asana_importer.test.js`, `tests/processing_conversation_fidelity.test.js`, `tests/processing_asana_shape.test.js`, `tests/processing_asana_matcher.test.js`, `tests/processing_asana_templates.test.js`, `scripts/apply_test_mig_156.cjs` through `scripts/apply_test_mig_162.cjs`, `scripts/apply_test_mig_164.cjs` through `scripts/apply_test_mig_166.cjs`, `scripts/apply_test_mig_170.cjs` through `scripts/apply_test_mig_177.cjs`, `scripts/proof_reconciler_blockers.cjs`, `scripts/proof_reconciler_enumeration.cjs` |
 | User management | `src/lib/userManagementApi.test.js`, `tests/static/user_management_audit_static.test.js`, `tests/static/users_modal_self_name_edit.test.js`, `tests/static/rapid_processor_handlers.test.js`, `tests/user_management_audit.spec.js`, `scripts/apply_test_mig_171.cjs` |
 | Newsletter | `tests/static/newsletter_boundary_static.test.js`, `tests/static/newsletter_shared_parity.test.js`, `src/lib/newsletterApi.test.js`, `src/lib/newsletterFacts.test.js`, `src/lib/newsletterProductionYoy.test.js`, `src/newsletter/NewsletterBlocks.test.js`, `tests/newsletter_public.spec.js`, `scripts/apply_test_mig_144_145.cjs`, `scripts/apply_test_mig_153.cjs` |
 | Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_placement.spec.js`, `tests/pasture_map_reports_records.spec.js`, `tests/pasture_map_reset_history.spec.js`, `tests/pasture_map_light_access.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_tweaks2.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `tests/pasture_map_tile_hover.spec.js`, `tests/pasture_map_open_line_edit.spec.js`, `playwright.pasture.config.js`, `scripts/apply_test_mig_147.cjs`, `scripts/apply_test_mig_148.cjs`, `scripts/apply_test_mig_150.cjs` |
@@ -1919,6 +1948,9 @@ Focused starting points:
 Playwright notes:
 
 - Specs that reset the shared TEST DB must run one file at a time.
+- Do not run local TEST-backed Playwright while a GitHub CI workflow is active;
+  local processes are invisible to GitHub's `wcf-test-db` concurrency group and
+  will corrupt both runs' seed/reset state.
 - Local dev-server cold-start can hang if stray node/vite processes remain in
   old worktrees. Clear stale processes before diagnosing product flake.
 
