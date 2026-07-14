@@ -541,6 +541,16 @@ export default function ProcessingCalendarView({Header, authState}) {
     load();
   }, [load]);
 
+  // Narrow checklist patch from the drawer: update ONE row's subtask counts in
+  // place. A checkbox toggle must never reload the schedule or flip
+  // data-processing-loaded back to its loading state — the full load() stays
+  // reserved for mutations that change enumeration (add/complete/archive/…).
+  const patchRecordSubtaskCounts = useCallback((recordId, counts) => {
+    setRecords((rows) =>
+      rows.map((r) => (r.id === recordId ? {...r, subtask_done: counts.done, subtask_total: counts.total} : r)),
+    );
+  }, []);
+
   // Drawer-open deep links from an already-mounted view (Header notification
   // rows, My Tasks, native batch pages — see src/lib/processingNav.js).
   useEffect(() => {
@@ -1123,6 +1133,7 @@ export default function ProcessingCalendarView({Header, authState}) {
           recordId={openRecordId}
           onClose={() => setOpenRecordId(null)}
           onChanged={load}
+          onSubtaskCountsChanged={patchRecordSubtaskCounts}
           customerOptions={optionLists.customer}
           processorOptions={optionLists.processor}
           profilesById={profilesById}

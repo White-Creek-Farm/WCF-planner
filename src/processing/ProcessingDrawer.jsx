@@ -27,11 +27,15 @@
 //     an up-to-date checklist shows 'Checklist is up to date.' and no confirm.
 //   • Completion is a GATED manual action driven by the SERVER's
 //     completion_blockers only (no client mirror) — the button disables while
-//     blockers exist and every mutation reloads them.
+//     blockers exist; checklist toggles reconcile them SILENTLY, every other
+//     mutation reloads them.
 //   • Attachments: list (filename / size_bytes), signed open/download, and an
 //     operational "Add files" upload into the native/ namespace.
 //   • Comments + activity via the shared RecordCollaborationSection.
-// Every mutation reloads the drawer AND calls onChanged so the list refreshes.
+// Every mutation reloads the drawer AND calls onChanged so the list refreshes —
+// EXCEPT checklist toggles: those patch the clicked subtask in place, silently
+// refetch the record (no visible loading state), and patch ONLY the parent
+// row's subtask counts through onSubtaskCountsChanged (never a full reload).
 // ============================================================================
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
@@ -79,7 +83,7 @@ import RecordCollaborationSection from '../shared/RecordCollaborationSection.jsx
 const OPERATIONAL_ROLES = ['admin', 'management', 'farm_team'];
 // Fallback only if the settings-backed customer_options can't be fetched; the
 // live list comes from get_processing_settings (mig 175) via the customerOptions
-// prop. See ProcessingOptionsModal (inside Templates) for editing.
+// prop. See ProcessingOptionsEditor (inside Templates) for editing.
 const CUSTOMER_OPTIONS_FALLBACK = ["Sonny's", 'Coastal Pastures - CONFIRMED', 'Coastal Pastures - POTENTIAL'];
 // Sentinel select value representing a stored MULTI-customer set on an old
 // record — never persisted; selecting anything else replaces the whole set.
@@ -235,6 +239,7 @@ export default function ProcessingDrawer({
   recordId,
   onClose,
   onChanged,
+  onSubtaskCountsChanged,
   customerOptions = [],
   processorOptions = [],
   profilesById = {},
@@ -266,36 +271,85 @@ export default function ProcessingDrawer({
   const [previewBusy, setPreviewBusy] = useState(false);
   const notifyRef = useRef(onChanged);
   notifyRef.current = onChanged;
+  const countsChangedRef = useRef(onSubtaskCountsChanged);
+  countsChangedRef.current = onSubtaskCountsChanged;
   const fileInputRef = useRef(null);
+  // Checklist toggle plumbing (dedicated no-reload path):
+  //   • fetchSeqRef — monotonic token bumped by EVERY record fetch (load or
+  //     silent); a response applies only while its token is still current, so
+  //     stale/out-of-order responses can never overwrite fresher data.
+  //   • recordIdRef — the drawer's live record id; a silent refetch started
+  //     for a record the drawer has moved away from is skipped.
+  //   • pendingSubtasksRef — subtask id -> optimistic done value while its RPC
+  //     is in flight. A Map ref (not state) so async continuations always see
+  //     the live set; the state Set mirrors it only to disable that checkbox.
+  const fetchSeqRef = useRef(0);
+  const recordIdRef = useRef(recordId);
+  recordIdRef.current = recordId;
+  const pendingSubtasksRef = useRef(new Map());
+  const [pendingSubtaskIds, setPendingSubtaskIds] = useState(() => new Set());
+
+  // Live view of the latest rendered payload for async continuations (the
+  // checklist fallback count) — same render-sync pattern as recordIdRef.
+  const dataRef = useRef(null);
+  dataRef.current = data;
 
   const record = data?.record || null;
   const subtasks = Array.isArray(data?.subtasks) ? data.subtasks : [];
   const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
-  // SERVER-authoritative completion gate — no client mirror. Mutations reload
-  // the drawer, refreshing the blockers alongside everything else.
+  // SERVER-authoritative completion gate — no client mirror. Generic mutations
+  // reload the drawer; checklist toggles silently refetch — either way the
+  // blockers refresh alongside the record.
   const blockers = Array.isArray(data?.completion_blockers) ? data.completion_blockers : [];
 
+  // Re-apply in-flight optimistic checkbox values over a fresh server payload
+  // so a fetch that raced an unresolved toggle can never flicker it back.
+  const withPendingSubtaskOverrides = useCallback((d) => {
+    const pending = pendingSubtasksRef.current;
+    if (!d || !pending.size || !Array.isArray(d.subtasks)) return d;
+    return {...d, subtasks: d.subtasks.map((s) => (pending.has(s.id) ? {...s, done: pending.get(s.id)} : s))};
+  }, []);
+
   const load = useCallback(async () => {
+    const seq = ++fetchSeqRef.current;
     setLoading(true);
     setLoadError(null);
     try {
       const d = await getProcessingRecord(sb, recordId);
-      setData(d);
+      if (seq !== fetchSeqRef.current) return; // superseded by a newer fetch
+      setData(withPendingSubtaskOverrides(d));
       if (d && d.record) {
         setTitleDraft(d.record.title || '');
         setDateDraft(isoDateInput(d.record.processing_date));
       }
     } catch (e) {
+      if (seq !== fetchSeqRef.current) return;
       setData(null);
       setLoadError({message: `Could not load this record. Please retry. (${(e && e.message) || e})`});
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
-  }, [sb, recordId]);
+  }, [sb, recordId, withPendingSubtaskOverrides]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Silent server reconcile for the checklist path: refetch the record WITHOUT
+  // the drawer's visible loading state so subtasks (counts, completed_at) and
+  // the server-owned completion_blockers stay authoritative while the drawer
+  // stays mounted and stable. Skipped once the drawer has moved to another
+  // record; a superseded response is discarded, never applied.
+  const silentRefreshRecord = useCallback(async () => {
+    if (recordId !== recordIdRef.current) return null;
+    const seq = ++fetchSeqRef.current;
+    const d = await getProcessingRecord(sb, recordId);
+    if (seq !== fetchSeqRef.current || recordId !== recordIdRef.current) return null;
+    setData(withPendingSubtaskOverrides(d));
+    setLoadError(null);
+    setLoading(false); // no-op normally; completes a superseded visible load
+    return d;
+  }, [sb, recordId, withPendingSubtaskOverrides]);
 
   // Esc closes the drawer.
   useEffect(() => {
@@ -409,8 +463,82 @@ export default function ProcessingDrawer({
   }
 
   // ── subtasks ───────────────────────────────────────────────────────────────
-  function toggleSubtask(st) {
-    runMutation(() => setProcessingSubtaskDone(sb, st.id, !st.done));
+  // Checklist toggle — DEDICATED no-reload path (NOT runMutation): patch the
+  // clicked subtask in place, lock only that checkbox while its RPC is in
+  // flight, then silently reconcile the record (subtasks + completion_blockers)
+  // and narrowly patch the parent row's counts. The drawer never shows its
+  // loading state and the schedule never reloads for a checkbox. Completing the
+  // last subtask never auto-completes the record — completion stays a separate
+  // gated action.
+  async function toggleSubtask(st) {
+    if (!canOperate || busy) return;
+    if (pendingSubtasksRef.current.has(st.id)) return; // one in-flight write per subtask
+    const nextDone = !st.done;
+    pendingSubtasksRef.current.set(st.id, nextDone);
+    setPendingSubtaskIds(new Set(pendingSubtasksRef.current.keys()));
+    setNotice(null);
+    setData((d) => {
+      if (!d || !Array.isArray(d.subtasks)) return d;
+      return {...d, subtasks: d.subtasks.map((s) => (s.id === st.id ? {...s, done: nextDone} : s))};
+    });
+    try {
+      await setProcessingSubtaskDone(sb, st.id, nextDone);
+      // The write landed. A reconcile failure must NOT roll the toggle back —
+      // the optimistic state already matches the server.
+      let fresh = null;
+      try {
+        fresh = await silentRefreshRecord();
+      } catch (_e) {
+        /* tolerated — blockers refresh on the next mutation/load */
+      }
+      // Publish CONFIRMED counts only — an unconfirmed pending toggle must
+      // never reach the schedule row (it would stick if that write failed;
+      // pending optimism stays drawer-local and each toggle publishes its own
+      // outcome when it resolves).
+      if (countsChangedRef.current) {
+        let list;
+        if (Array.isArray(fresh?.subtasks)) {
+          // Authoritative: the RAW server payload (confirmed writes only —
+          // no pending overrides applied here, unlike the drawer display).
+          list = fresh.subtasks;
+        } else {
+          // Fallback (refresh failed/skipped/superseded): latest drawer data
+          // normalized to confirmed values — every OTHER still-pending toggle
+          // reverts to its prior value (toggles flip booleans, so prior is
+          // the negation) and only THIS known-landed write is added.
+          const overrides = pendingSubtasksRef.current;
+          const base = Array.isArray(dataRef.current?.subtasks) ? dataRef.current.subtasks : subtasks;
+          list = base.map((s) => {
+            if (s.id === st.id) return {...s, done: nextDone};
+            const pend = overrides.get(s.id);
+            return pend === undefined ? s : {...s, done: !pend};
+          });
+        }
+        countsChangedRef.current(recordId, {done: list.filter((s) => s.done).length, total: list.length});
+      }
+    } catch (e) {
+      // The write failed: restore the prior state for THIS subtask only, with
+      // the existing inline error treatment. Unregister the pending value
+      // FIRST so a concurrent refetch cannot re-apply the failed optimism.
+      // The schedule row needs no correction — unconfirmed optimism is never
+      // published to the parent, so it never saw this toggle.
+      pendingSubtasksRef.current.delete(st.id);
+      setData((d) => {
+        if (!d || !Array.isArray(d.subtasks)) return d;
+        return {
+          ...d,
+          subtasks: d.subtasks.map((s) => (s.id === st.id ? {...s, done: st.done, completed_at: st.completed_at} : s)),
+        };
+      });
+      if (isProcessingValidationError(e)) {
+        setNotice({kind: 'error', message: friendlyProcessingError(e)});
+      } else {
+        setNotice({kind: 'error', message: `Something went wrong. Please retry. (${(e && e.message) || e})`});
+      }
+    } finally {
+      pendingSubtasksRef.current.delete(st.id);
+      setPendingSubtaskIds(new Set(pendingSubtasksRef.current.keys()));
+    }
   }
   function addSubtask() {
     const label = newSubtask.trim();
@@ -626,12 +754,8 @@ export default function ProcessingDrawer({
             <FieldRow label="Count">
               <SourceValue value={countText(record.live_count)} />
             </FieldRow>
-            <FieldRow label="Processor">
-              <SourceValue value={record.processor} />
-            </FieldRow>
-            <FieldRow label="Customer">
-              <SourceValue value={customerSelected.length ? customerSelected.join(', ') : null} />
-            </FieldRow>
+            {/* Processor/Customer are Processing-owned and already editable in
+                the core fields above — never repeated as source rows. */}
           </div>
         )}
 
@@ -1069,6 +1193,7 @@ export default function ProcessingDrawer({
                   <div style={{display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8}}>
                     <span style={{fontSize: 14, fontWeight: 800, color: T.ink}}>Subtasks</span>
                     <span
+                      data-processing-subtask-count
                       style={{
                         fontSize: 12,
                         fontWeight: 700,
@@ -1122,7 +1247,7 @@ export default function ProcessingDrawer({
                         <button
                           type="button"
                           onClick={() => canOperate && toggleSubtask(st)}
-                          disabled={!canOperate || busy}
+                          disabled={!canOperate || busy || pendingSubtaskIds.has(st.id)}
                           aria-label={st.done ? 'Mark subtask not done' : 'Mark subtask done'}
                           style={{
                             width: 18,

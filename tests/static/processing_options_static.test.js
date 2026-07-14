@@ -45,12 +45,60 @@ describe('api wrapper', () => {
   });
 });
 
-describe('admin options editor', () => {
-  it('ProcessingOptionsModal saves both lists via the wrapper', () => {
-    expect(optionsModal).toContain('data-processing-options-modal="1"');
+describe('admin options editor — AUTOSAVE (UX lane)', () => {
+  it('the editor autosaves both lists via the wrapper — the option Save/Saved button is gone', () => {
     expect(optionsModal).toContain('setProcessingOptionList(sb, kind, items)');
-    expect(optionsModal).toContain('data-processing-option-save');
     expect(optionsModal).toContain('data-processing-option-add-input');
+    expect(optionsModal).not.toContain('data-processing-option-save');
+    expect(optionsModal).not.toMatch(/'Save' : 'Saved'|Save<\/button>/);
+    // The dead standalone modal wrapper (with its Done footer) is removed;
+    // the editor renders only inside the Templates modal's Fields surface.
+    expect(optionsModal).not.toContain('data-processing-options-modal');
+    expect(optionsModal).not.toMatch(/export default function ProcessingOptionsModal/);
+  });
+
+  it('debounced autosave engine: 400-700ms debounce, single in-flight chain, skip-duplicate, id reconcile', () => {
+    const debounce = optionsModal.match(/AUTOSAVE_DEBOUNCE_MS = (\d+)/);
+    expect(debounce, 'AUTOSAVE_DEBOUNCE_MS constant').toBeTruthy();
+    expect(Number(debounce[1])).toBeGreaterThanOrEqual(400);
+    expect(Number(debounce[1])).toBeLessThanOrEqual(700);
+    // Every mutation schedules the debounced save (add/rename/active/withdraw).
+    expect((optionsModal.match(/scheduleAutosave\(\);/g) || []).length).toBeGreaterThanOrEqual(4);
+    // One RPC max in flight; the loop re-serializes the newest list after each
+    // save, so an edit during a request persists right after it.
+    expect(optionsModal).toMatch(/if \(!engine\.chain\) \{/);
+    expect(optionsModal).toMatch(/const snapshot = itemsRef\.current;/);
+    // Skip-duplicate contract.
+    expect(optionsModal).toMatch(/if \(key === engine\.lastSavedKey\)/);
+    // Server-minted ids reconcile through client-only temp keys (never sent).
+    expect(optionsModal).toContain('tempKey');
+    expect(optionsModal).toMatch(/payloadFor[\s\S]{0,200}if \(o\.id != null\) out\.id = o\.id;/);
+    // Blank labels never autosave (mig 175 raises); flush blocks instead.
+    expect(optionsModal).toContain('hasBlankLabel');
+    // Withdraw-during-flight converts to deactivation (stored ids survive).
+    expect(optionsModal).toMatch(/active: false\}\);/);
+  });
+
+  it('host flush contract: Templates modal awaits the flush on every exit path', () => {
+    expect(optionsModal).toContain('registerFlush');
+    expect(templatesModal).toContain('registerFlush={registerOptionsFlush}');
+    // Close (X / footer / scrim / Escape) waits for the final save; a failed
+    // flush keeps the modal open with the editor's inline error.
+    expect(templatesModal).toMatch(/if \(await flushOptions\(\)\) onClose\(\);/);
+    expect(templatesModal).toMatch(/onClick=\{requestClose\}/);
+    // Inside the admin TemplatesEditor no exit path bypasses the flush; the
+    // only raw onClose handlers left are the non-admin guard's (no editor).
+    const editorBody = templatesModal.slice(templatesModal.indexOf('function TemplatesEditor'));
+    expect(editorBody).not.toMatch(/onClick=\{onClose\}/);
+    expect(templatesModal).toMatch(/e\.key === 'Escape'\) requestClose\(\);/);
+    // Leaving the Fields surface (which unmounts the editor) is flush-guarded.
+    expect(templatesModal).toMatch(/if \(activeSurface === 'fields' && !\(await flushOptions\(\)\)\) return;/);
+    expect(templatesModal).toMatch(/onClick=\{\(\) => requestSurface\(opt\.key\)\}/);
+    // Program switches flush too (editor stays mounted, so never blocking).
+    expect(templatesModal).toMatch(/onClick=\{\(\) => requestProgram\(p\.key\)\}/);
+    // The checklist's own Save template button remains on the Tasks surface.
+    expect(templatesModal).toContain('data-processing-template-save');
+    expect(templatesModal).toContain('Save template');
   });
 });
 

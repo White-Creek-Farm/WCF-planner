@@ -19,7 +19,11 @@
 // and existing records via the drawer's additive "Apply template".
 // Templates are LOCAL-ONLY (UI-simplification lane): the Asana task-template
 // import workflow is gone from the client. Customer & Processor choice
-// management (ProcessingOptionsEditor, mig 162/175) renders inside this modal.
+// management (ProcessingOptionsEditor, mig 162/175) renders inside this modal
+// and AUTOSAVES (no option Save button — 'Save template' stays for the
+// checklist only); every exit path that unmounts the editor or closes the
+// modal awaits the editor's registered flush first, and a failed flush keeps
+// the surface open with the inline error (see requestClose/requestSurface).
 // ============================================================================
 import React from 'react';
 import {sb} from '../lib/supabase.js';
@@ -160,7 +164,7 @@ export default function ProcessingTemplatesModal({
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], onOptionsSaved}) {
-  const {useState, useEffect, useCallback, useMemo} = React;
+  const {useState, useEffect, useCallback, useMemo, useRef} = React;
   const [program, setProgram] = useState('broiler');
   const [checklist, setChecklist] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -176,6 +180,64 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
   const [activeSurface, setActiveSurface] = useState('tasks');
   // HTML5 drag state: the dragged step index, or null.
   const [drag, setDrag] = useState(null);
+
+  // ── options autosave flush contract ─────────────────────────────────────────
+  // The Fields surface's ProcessingOptionsEditor registers a flush here. Every
+  // exit path that would unmount the editor or close the modal (surface switch
+  // to Tasks, X, footer Close, scrim click, Escape) AWAITS it first: pending
+  // debounced option edits are persisted before leaving. A failed flush keeps
+  // the surface/modal open — the editor shows the inline error and retains the
+  // edits (clicking Close again is the retry). Program switches also flush
+  // (the editor stays mounted, so a failure there blocks nothing).
+  const optionsFlushRef = useRef(null);
+  const exitBusyRef = useRef(false);
+  const registerOptionsFlush = useCallback((fn) => {
+    optionsFlushRef.current = fn;
+  }, []);
+  const flushOptions = useCallback(async () => {
+    const fn = optionsFlushRef.current;
+    return fn ? await fn() : true;
+  }, []);
+  const requestClose = useCallback(async () => {
+    if (exitBusyRef.current) return;
+    exitBusyRef.current = true;
+    try {
+      if (await flushOptions()) onClose();
+    } finally {
+      exitBusyRef.current = false;
+    }
+  }, [flushOptions, onClose]);
+  const requestSurface = useCallback(
+    async (next) => {
+      if (next === activeSurface || exitBusyRef.current) return;
+      exitBusyRef.current = true;
+      try {
+        // Leaving Fields unmounts the options editor — persist first, and stay
+        // put if the flush fails so nothing is discarded.
+        if (activeSurface === 'fields' && !(await flushOptions())) return;
+        setActiveSurface(next);
+      } finally {
+        exitBusyRef.current = false;
+      }
+    },
+    [activeSurface, flushOptions],
+  );
+  const requestProgram = useCallback(
+    async (key) => {
+      if (activeSurface === 'fields') await flushOptions();
+      setProgram(key);
+    },
+    [activeSurface, flushOptions],
+  );
+
+  // Esc closes the modal through the same flush-guarded path.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') requestClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [requestClose]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -379,7 +441,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
       data-processing-templates-modal="1"
     >
       <style>{`@keyframes wcfProcModalIn{from{transform:translateY(10px) scale(.985);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}`}</style>
-      <div onClick={onClose} style={{position: 'absolute', inset: 0, background: 'rgba(20,28,24,.34)'}} />
+      <div onClick={requestClose} style={{position: 'absolute', inset: 0, background: 'rgba(20,28,24,.34)'}} />
       <div
         style={{
           position: 'relative',
@@ -444,7 +506,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
           </button>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             style={{
               width: 30,
@@ -478,7 +540,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
               <button
                 key={p.key}
                 type="button"
-                onClick={() => setProgram(p.key)}
+                onClick={() => requestProgram(p.key)}
                 data-processing-template-program={p.key}
                 style={progPill(program === p.key, getProgramColor(p.key))}
               >
@@ -521,7 +583,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
                   {i > 0 && <div style={{width: 1, background: 'var(--border-strong)', flexShrink: 0}} />}
                   <button
                     type="button"
-                    onClick={() => setActiveSurface(opt.key)}
+                    onClick={() => requestSurface(opt.key)}
                     data-processing-template-surface={opt.key}
                     aria-pressed={selected}
                     style={{
@@ -619,6 +681,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
                 processorOptions={processorOptions}
                 customerOptions={customerOptions}
                 onSaved={onOptionsSaved}
+                registerFlush={registerOptionsFlush}
               />
             </div>
           )}
@@ -640,7 +703,7 @@ function TemplatesEditor({onClose, customerOptions = [], processorOptions = [], 
           <div style={{display: 'flex', gap: 10}}>
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               style={{
                 background: '#fff',
                 border: `1px solid #D2D6DB`,

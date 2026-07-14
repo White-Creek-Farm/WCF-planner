@@ -236,17 +236,19 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   ['src/cattle/CattleHerdsView.jsx', 2],
   ['src/equipment/EquipmentDetail.jsx', 1],
   ['src/livestock/WeighInSessionPage.jsx', 5],
-  // Processing drawer (planner-integration lane, per-caller reviewed): 17
+  // Processing drawer (planner-integration lane, per-caller reviewed): 16
   // sites, every one an RPC-backed processingApi wrapper — saveProcessorSelect,
   // saveCustomerSelect, saveMilestoneTitle, saveMilestoneDate,
-  // saveMilestoneStatus, markComplete, reopen, toggleSubtask, addSubtask,
+  // saveMilestoneStatus, markComplete, reopen, addSubtask,
   // saveSubtaskLabel, reassignSubtask, deleteSubtask, moveSubtask (reorder
   // RPC), confirmApplyTemplate, doDeleteMilestone, doArchiveRecord,
-  // doRestoreRecord. saveLocalField is retired with set_processing_field
-  // (record fields are fixed/planner-owned now); the parent-assignee mutation
-  // stays retired; the reconciliation workbench modal stays deleted. NO direct
-  // .from() writes.
-  ['src/processing/ProcessingDrawer.jsx', 17],
+  // doRestoreRecord. toggleSubtask left runMutation for a dedicated
+  // optimistic no-reload path (still the setProcessingSubtaskDone RPC — see
+  // processing_checklist_toggle_static.test.js). saveLocalField is retired
+  // with set_processing_field (record fields are fixed/planner-owned now); the
+  // parent-assignee mutation stays retired; the reconciliation workbench modal
+  // stays deleted. NO direct .from() writes.
+  ['src/processing/ProcessingDrawer.jsx', 16],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -565,7 +567,9 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(36);
+    // 36 -> 35: the Processing drawer's toggleSubtask left runMutation for its
+    // dedicated optimistic no-reload path (same setProcessingSubtaskDone RPC).
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(35);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
