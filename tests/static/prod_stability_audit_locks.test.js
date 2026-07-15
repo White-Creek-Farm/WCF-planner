@@ -160,10 +160,11 @@ describe('§3 Account vs. report email senders (rapid-processor.ts)', () => {
     expect(rpSrc).toMatch(/const\s+AUTH_FROM\s*=\s*'WCF Planner <noreply@wcfplanner\.com>'/);
   });
 
-  it('user_create + user_welcome + password_reset all send from AUTH_FROM (per-branch)', () => {
+  it('user_create + password_reset both send from AUTH_FROM (per-branch)', () => {
     // Each branch body bounded to its own handler — a later handler's
     // `from: AUTH_FROM` must not be allowed to satisfy an earlier branch.
-    for (const type of ['user_create', 'user_welcome', 'password_reset']) {
+    // (The legacy user_welcome branch was removed by the CC#8 takeover hotfix.)
+    for (const type of ['user_create', 'password_reset']) {
       const body = extractHandlerBranch(rpSrc, type);
       expect(body, `branch ${type} body present`).not.toBe('');
       expect(body, `${type} must send from AUTH_FROM`).toMatch(/from:\s*AUTH_FROM/);
@@ -375,10 +376,14 @@ describe('§8 Prod deploy readiness — aggregate gate', () => {
       errors.push('reports sender drifted off reports@');
     if (!/const\s+AUTH_FROM\s*=\s*'WCF Planner <noreply@wcfplanner\.com>'/.test(rp))
       errors.push('account-email sender drifted off noreply@');
-    for (const h of ['user_create', 'user_delete', 'user_welcome', 'password_reset', 'tasks_weekly_summary']) {
+    for (const h of ['user_create', 'user_delete', 'password_reset', 'tasks_weekly_summary']) {
       if (!new RegExp(`if\\s*\\(\\s*type\\s*===\\s*'${h}'\\s*\\)`).test(rp))
         errors.push(`rapid-processor handler missing: ${h}`);
     }
+    // The user_welcome handler was intentionally removed (CC#8 takeover
+    // hotfix F2); assert it stays gone so a redeploy can't resurrect it.
+    if (/if\s*\(\s*type\s*===\s*'user_welcome'\s*\)/.test(rp))
+      errors.push('rapid-processor resurrected the removed user_welcome handler');
 
     const routes = read('src/lib/routes.js');
     for (const [view, p] of [

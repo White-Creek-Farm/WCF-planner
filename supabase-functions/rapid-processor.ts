@@ -750,39 +750,66 @@ serve(async (req) => {
       );
     }
 
-    // ─── USER WELCOME — sent when admin creates a new user ───
-    if (type === 'user_welcome') {
-      if (!data.email) throw new Error('email required');
-      const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      // Generate a magic recovery link so they can set their password
-      const {data: linkData, error: linkError} = await admin.auth.admin.generateLink({
-        type: 'recovery',
-        email: data.email,
-        options: {redirectTo: 'https://wcfplanner.com'},
-      });
-      if (linkError) throw new Error(linkError.message);
-      const resetLink = linkData.properties?.action_link || 'https://wcfplanner.com';
+    // ─── USER WELCOME (removed) ───
+    // CC#8 hotfix F2: the legacy `user_welcome` branch was unauthenticated
+    // (deployed --no-verify-jwt) and honored a caller-supplied test_to, so an
+    // anonymous request could have a victim's real recovery link mailed to an
+    // attacker-controlled address. It had no live client caller. The branch is
+    // deleted; `type=user_welcome` now falls through to the Unknown type 400
+    // and can no longer generate a recovery link or send email. The new-user
+    // welcome email is owned solely by the admin-gated `user_create` branch.
 
-      const res = await sendEmail({
-        from: AUTH_FROM,
-        to: test_to ? [test_to] : [data.email],
-        ...(test_to ? {} : {bcc: ['ronnie@whitecreek.farm']}),
-        subject: test_to ? `[TEST] Welcome to WCF Planner` : `Welcome to WCF Planner`,
-        html: welcomeEmailHtml(data.name || '', data.email, data.role || 'farm_team', resetLink, !!test_to),
-      });
-      const result = await res.json();
-      return new Response(JSON.stringify({ok: true, result}), {
-        headers: {...corsHeaders, 'Content-Type': 'application/json'},
-      });
-    }
-
-    // ─── PASSWORD RESET — admin triggered or user forgot ───
+    // ─── PASSWORD RESET — admin triggered (truthful) or public forgot (uniform) ───
+    //
+    // SECURITY (CC#8 hotfix F1/F3): rapid-processor is deployed --no-verify-jwt,
+    // so this branch gates itself. It NEVER honors a caller-supplied test_to —
+    // an attacker could otherwise have a victim's genuine recovery link mailed
+    // to an address they control (account takeover). The recovery email is sent
+    // ONLY to the email the Auth API resolves for the account, and the [TEST]
+    // redirect/subject path is unreachable here.
+    //
+    // Admin callers (verified via is_admin on their own bearer, never a
+    // caller-supplied mode) get truthful unknown-account and delivery-failure
+    // reporting. Anonymous/public callers always get one identical 200 body
+    // regardless of whether the account exists, the provider failed, or
+    // delivery succeeded, so the endpoint is not an enumeration oracle and
+    // never leaks provider data.
     if (type === 'password_reset') {
+      // One fixed public acknowledgement. Unknown account, provider failure,
+      // and successful delivery must all return this identical body/status so
+      // the endpoint cannot be used to enumerate accounts or read provider
+      // errors. Admin callers get truthful reporting instead.
+      const PUBLIC_ACCEPTED = {ok: true, message: 'If an account exists, a reset link has been sent.'};
+      const publicResponse = () =>
+        new Response(JSON.stringify(PUBLIC_ACCEPTED), {
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+
+      // Verified identity ONLY — never a caller-supplied mode. is_admin
+      // resolves auth.uid() from the caller's bearer; an anon-key bearer yields
+      // a NULL uid and therefore false. A missing header or any non-admin
+      // caller is treated as public.
+      const authHeader = req.headers.get('authorization');
+      let isAdmin = false;
+      if (authHeader && SUPABASE_URL && SUPABASE_ANON_KEY) {
+        try {
+          const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {persistSession: false, autoRefreshToken: false},
+            global: {headers: {Authorization: authHeader}},
+          });
+          const {data: isAdminData} = await userClient.rpc('is_admin');
+          isAdmin = isAdminData === true;
+        } catch (_e) {
+          isAdmin = false;
+        }
+      }
+
       const missingEnv: string[] = [];
       if (!SUPABASE_URL) missingEnv.push('SUPABASE_URL');
       if (!SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
       if (!RESEND_API_KEY) missingEnv.push('RESEND_API_KEY');
       if (missingEnv.length > 0) {
+        if (!isAdmin) return publicResponse();
         return new Response(JSON.stringify({error: `config: missing env ${missingEnv.join(', ')}`, step: 'config'}), {
           status: 500,
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
@@ -794,6 +821,7 @@ serve(async (req) => {
         .toLowerCase();
       const name = String(data?.name || '').trim();
       if (!email) {
+        if (!isAdmin) return publicResponse();
         return new Response(JSON.stringify({error: 'email required', step: 'input'}), {
           status: 400,
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
@@ -802,7 +830,11 @@ serve(async (req) => {
 
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-      let resetLink = 'https://wcfplanner.com';
+      // Step 1: resolve the account + recovery link. The recipient is ALWAYS
+      // the Auth-resolved email (linkData.user.email), never the request input
+      // and never test_to.
+      let resetLink: string | null = null;
+      let resolvedEmail: string | null = null;
       try {
         const {data: linkData, error: linkError} = await admin.auth.admin.generateLink({
           type: 'recovery',
@@ -810,8 +842,10 @@ serve(async (req) => {
           options: {redirectTo: 'https://wcfplanner.com'},
         });
         if (linkError) throw new Error(linkError.message || String(linkError));
-        resetLink = linkData.properties?.action_link || resetLink;
+        resetLink = linkData?.properties?.action_link || null;
+        resolvedEmail = linkData?.user?.email ? String(linkData.user.email).trim() : null;
       } catch (e) {
+        if (!isAdmin) return publicResponse();
         const msg = e instanceof Error ? e.message : String(e);
         const lower = msg.toLowerCase();
         const missingAccount =
@@ -827,6 +861,18 @@ serve(async (req) => {
         );
       }
 
+      // Fail closed: a link with no Auth-resolved recipient must never be sent
+      // to the raw request email.
+      if (!resetLink || !resolvedEmail) {
+        if (!isAdmin) return publicResponse();
+        return new Response(
+          JSON.stringify({error: 'generateLink: resolved no account email; cannot send reset', step: 'generateLink'}),
+          {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+        );
+      }
+
+      // Step 2: send ONLY to the resolved Auth email. No test_to, no [TEST]
+      // subject, no isTest banner.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10_000);
       try {
@@ -835,9 +881,9 @@ serve(async (req) => {
           headers: {Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json'},
           body: JSON.stringify({
             from: AUTH_FROM,
-            to: test_to ? [test_to] : [email],
-            subject: test_to ? `[TEST] Reset your WCF Planner password` : `Reset your WCF Planner password`,
-            html: passwordResetHtml(name, resetLink, !!test_to),
+            to: [resolvedEmail],
+            subject: 'Reset your WCF Planner password',
+            html: passwordResetHtml(name, resetLink, false),
           }),
           signal: controller.signal,
         });
@@ -849,6 +895,7 @@ serve(async (req) => {
           result = bodyText;
         }
         if (!res.ok) {
+          if (!isAdmin) return publicResponse();
           const parsedMsg =
             (result && typeof result === 'object' && typeof result.message === 'string' && result.message) ||
             (result && typeof result === 'object' && typeof result.error === 'string' && result.error) ||
@@ -862,10 +909,12 @@ serve(async (req) => {
             },
           );
         }
+        if (!isAdmin) return publicResponse();
         return new Response(JSON.stringify({ok: true, result}), {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       } catch (e) {
+        if (!isAdmin) return publicResponse();
         const isAbort = e instanceof Error && e.name === 'AbortError';
         const msg = isAbort
           ? 'Resend timed out after 10s'
