@@ -27,6 +27,10 @@ async function seedPlannedTrips(supabaseAdmin, subAId, plannedTrips) {
   await supabaseAdmin.from('app_store').upsert({key: 'ppp-feeders-v1', data: feeders}, {onConflict: 'key'});
 }
 
+// Current record-page contract (table redesign): the /pig/weighins list row
+// navigates to the session record page; unsent draft rows carry a leftmost
+// [data-pig-send-select] checkbox; checking rows reveals the
+// [data-pig-send-bar] "Send N to Trip" action button that opens the modal.
 async function openSessionAndSelectAll(page, {status = /draft/i} = {}) {
   await page.goto('/pig/weighins');
   const sessionRow = page
@@ -36,10 +40,14 @@ async function openSessionAndSelectAll(page, {status = /draft/i} = {}) {
     .first();
   await expect(sessionRow).toBeVisible({timeout: 15_000});
   await sessionRow.click();
-  const selectAllBtn = page.getByText(/Select all unsent \(5\)/);
-  await expect(selectAllBtn).toBeVisible({timeout: 5_000});
-  await selectAllBtn.click();
-  await page.getByText(/→ Send 5 to Processor/).click();
+  const selects = page.locator('[data-pig-send-select="1"]');
+  await expect(selects).toHaveCount(5, {timeout: 10_000});
+  for (const checkbox of await selects.all()) {
+    await checkbox.check();
+  }
+  const sendBar = page.locator('[data-pig-send-bar="1"]');
+  await expect(sendBar).toHaveText(/Send 5 to Trip/);
+  await sendBar.click();
 }
 
 async function setRoleOverride(page, role) {
@@ -50,7 +58,7 @@ async function setRoleOverride(page, role) {
 }
 
 test.describe('pig planned trips — Send-to-Trip integration', () => {
-  test('under-pull with no later trip leaves a residual planned trip and creates the actual processing trip', async ({
+  test('under-pull with no later trip promotes the trip and moves the remainder to a new planned trip', async ({
     page,
     p2601Scenario,
     supabaseAdmin,
@@ -58,7 +66,9 @@ test.describe('pig planned trips — Send-to-Trip integration', () => {
     const {subAId} = p2601Scenario;
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     // Single planned trip with plannedCount=8. Send count=5 (under-pull).
-    // No NEXT trip → expect residual on the same trip with plannedCount=3.
+    // Server contract (mig 176): the planned trip id is PROMOTED into the
+    // actual trip (identity follows the work) and the remaining 3 pigs move
+    // onto a NEW planned trip in the same chain.
     await seedPlannedTrips(supabaseAdmin, subAId, [
       {id: 'pt-resi-1', date: tomorrow, sex: 'gilt', subBatchId: subAId, plannedCount: 8, order: 0},
     ]);
@@ -66,12 +76,12 @@ test.describe('pig planned trips — Send-to-Trip integration', () => {
     await openSessionAndSelectAll(page);
     const modal = page.locator('[data-pig-send-modal="1"]');
     await expect(modal).toBeVisible({timeout: 5_000});
-    // Residual-aware copy: under-pull with no next trip should NOT say
-    // "push forward" — that would mislead the operator. The helper
-    // surfaces remainderStayedOnTarget=true and the modal renders the
-    // "stay on this planned trip" wording.
+    // Under-pull with no next trip: the copy must say the remainder MOVES to
+    // a new planned trip — never that it stays on the original trip, and not
+    // the "push forward" wording reserved for an existing next trip.
     const summary = modal.locator('[data-pig-send-summary="1"]');
-    await expect(summary).toContainText(/stay on this planned trip for a later send/i);
+    await expect(summary).toContainText(/move to a new planned trip for a later send/i);
+    await expect(summary).not.toContainText(/stay on this planned trip/i);
     await expect(summary).not.toContainText(/push forward/i);
     await modal.locator('[data-pig-send-confirm="1"]').click();
     await expect(modal).toHaveCount(0, {timeout: 10_000});
@@ -80,11 +90,16 @@ test.describe('pig planned trips — Send-to-Trip integration', () => {
     const batch = feeders[0];
     expect(batch.processingTrips).toHaveLength(1);
     expect(batch.processingTrips[0].pigCount).toBe(5);
-    // Planned trip remains with plannedCount = 8 - 5 = 3 (residual; no
-    // next trip existed to absorb the remainder).
-    const residual = batch.plannedProcessingTrips.find((t) => t.id === 'pt-resi-1');
-    expect(residual).toBeDefined();
+    // Promoted identity: the actual trip keeps the planned trip's id.
+    expect(batch.processingTrips[0].id).toBe('pt-resi-1');
+    // The remainder (8 - 5 = 3) lives on a NEW planned trip in the same
+    // (subBatchId, sex) chain — the original planned id must NOT remain.
+    expect(batch.plannedProcessingTrips).toHaveLength(1);
+    const residual = batch.plannedProcessingTrips[0];
+    expect(residual.id).not.toBe('pt-resi-1');
     expect(residual.plannedCount).toBe(3);
+    expect(residual.subBatchId).toBe(subAId);
+    expect(residual.sex).toBe('gilt');
   });
 
   test('completed pig weigh-in still exposes the send-to-processor action bar', async ({
@@ -113,6 +128,8 @@ test.describe('pig planned trips — Send-to-Trip integration', () => {
     const batch = feeders[0];
     expect(batch.processingTrips).toHaveLength(1);
     expect(batch.processingTrips[0].pigCount).toBe(5);
+    // Exact fulfill promotes the planned id into the actual trip.
+    expect(batch.processingTrips[0].id).toBe('pt-complete-1');
     expect(batch.plannedProcessingTrips.find((t) => t.id === 'pt-complete-1')).toBeUndefined();
 
     const {data: stamped} = await supabaseAdmin
@@ -152,9 +169,11 @@ test.describe('pig planned trips — Send-to-Trip integration', () => {
     const survivor = batch.plannedProcessingTrips.find((t) => t.id === 'pt-cas-2');
     expect(survivor).toBeDefined();
     expect(survivor.plannedCount).toBe(2);
-    // Actual processing trip created with all 5 pigs.
+    // Actual processing trip created with all 5 pigs under the promoted
+    // target-trip identity.
     expect(batch.processingTrips).toHaveLength(1);
     expect(batch.processingTrips[0].pigCount).toBe(5);
+    expect(batch.processingTrips[0].id).toBe('pt-cas-1');
 
     // weigh_ins stamping: every selected entry gets sent_to_trip_id +
     // sent_to_group_id pointing at the new actual trip + its group.

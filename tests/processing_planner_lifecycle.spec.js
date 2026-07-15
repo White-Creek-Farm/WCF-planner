@@ -76,8 +76,8 @@ async function gotoProcessingExpecting(page, selector) {
 // unsent entries. Selection is the per-row leftmost checkbox
 // (data-pig-send-select, PROJECT.md pig weigh-in contract) and the send bar
 // appears once any entry is selected. (The old "Select all unsent" button no
-// longer exists — tests/pig_send_to_planned_trip.spec.js still references it
-// and is pre-existing main test debt.)
+// longer exists; tests/pig_send_to_planned_trip.spec.js now drives the same
+// per-row checkbox + send-bar contract.)
 async function openSessionAndSelectAll(page) {
   await page.goto('/pig/weighins');
   const sessionRow = page

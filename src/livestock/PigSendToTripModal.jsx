@@ -12,10 +12,12 @@
 //   - No planned trip exists for the (subBatchId, sex) chain.
 //   - Selected count > total chain plannedCount (over-pull exhausted).
 //
-// Under-pull with no next trip does NOT block — the helper leaves a
-// residual on the target trip and surfaces remainderStayedOnTarget=true
-// so this modal can render the residual-aware copy instead of the
-// "push forward" wording used when a next trip exists.
+// Under-pull with no next trip does NOT block. The preview helper surfaces
+// remainderStayedOnTarget=true for that branch, but the authoritative
+// server reconcile (mig 176 pig_send_to_trip) PROMOTES the target planned
+// trip's id into the actual trip and moves the remainder onto a NEW
+// planned trip — so the copy for this branch must say the remainder moves
+// to a new planned trip, never that it stays on the original one.
 //
 // onConfirm receives {groupId, sourceSubId, sourceSubSex, sendCount}.
 // The parent (LivestockWeighInsView) re-runs reconcilePlannedTripsForSend
@@ -55,7 +57,7 @@ function describeReconciliation(sendCount, targetCount, pushedRemainder, remaind
   }
   if (sendCount < targetCount) {
     if (remainderStayedOnTarget) {
-      return `Sending ${sendCount} of the planned ${targetCount}; the remaining ${pushedRemainder} pigs will stay on this planned trip for a later send.`;
+      return `Sending ${sendCount} of the planned ${targetCount}; the remaining ${pushedRemainder} pigs will move to a new planned trip for a later send.`;
     }
     return `Sending ${sendCount} of the planned ${targetCount}; the remaining ${pushedRemainder} pigs will push forward to the next planned trip.`;
   }

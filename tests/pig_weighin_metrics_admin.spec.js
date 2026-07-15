@@ -3,20 +3,21 @@ import {test, expect} from './fixtures.js';
 // ============================================================================
 // Admin /pig/weighins metrics row + descending-by-weight display lock
 // ============================================================================
-// Commit 3 wires pig_session_metrics RPC (mig 049) into the admin
-// LivestockWeighInsView so each pig session tile carries the four metrics
-// (age at weigh-in, feed/pig, group ADG, avg weight). The expanded view
-// renders entries by descending weight while the persisted entered_at order
-// stays unchanged.
+// The pig_session_metrics RPC (mig 049) feeds the admin
+// LivestockWeighInsView, where the pig session DataTable carries the four
+// metrics as COLUMNS (Age at weigh-in, Feed/pig, Group ADG, Avg weight,
+// plus Rank-matched pig ADG). Clicking a session row navigates to the
+// session record page, which renders entries by descending weight while
+// the persisted entered_at order stays unchanged.
 //
 // This spec seeds a complete pig session via supabaseAdmin (direct inserts
 // into weigh_in_sessions + weigh_ins + app_store), navigates to
 // /pig/weighins, and verifies:
-//   1. The collapsed pig tile renders the four metrics with the documented
-//      labels (Age at weigh-in, Feed/pig, Group ADG, Avg weight).
-//   2. The standalone avg-weight badge does NOT appear on pig tiles
-//      (Codex W3 — single source of truth).
-//   3. Expanded pig view orders entries by weight descending.
+//   1. The pig session row renders the four metric column values.
+//   2. The legacy standalone "avg N lb" badge does NOT appear for pig
+//      (Codex W3 — single source of truth; the pig Avg weight column
+//      renders the bare "<N> lb" value instead).
+//   3. The session record page orders entries by weight descending.
 //
 // Public-form coverage: the W1 gating + RPC wiring + descending sort all
 // exercise the same code paths through the formatter helpers (unit tested
@@ -122,7 +123,7 @@ async function seedPigSession(supabaseAdmin, {sessionId, date, status, weights})
   }
 }
 
-test('pig collapsed tile renders the four metrics; admin avg badge is absent for pig', async ({
+test('pig session row renders the four metric columns; admin avg badge is absent for pig', async ({
   supabaseAdmin,
   resetDb,
   page,
@@ -139,26 +140,27 @@ test('pig collapsed tile renders the four metrics; admin avg badge is absent for
   await page.goto('/pig/weighins');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  // Wait for the metrics row to land (RPC fan-out is async).
-  const metricsRow = page.locator('[data-pig-metrics-row="s-admin-current"]');
-  await expect(metricsRow).toBeVisible({timeout: 15_000});
+  // The pig list is a DataTable whose header carries the metric labels.
+  for (const label of ['Age at weigh-in', 'Feed/pig', 'Group ADG', 'Avg weight', 'Rank-matched pig ADG']) {
+    await expect(page.getByRole('columnheader', {name: label})).toBeVisible({timeout: 15_000});
+  }
 
-  // Each metric label appears with its formatted value.
-  await expect(metricsRow.locator('[data-pig-metric="age"]')).toContainText('Age at weigh-in');
+  // The session row carries the metric VALUES (RPC fan-out is async, so
+  // wait on the avg value rather than the row shell).
+  const sessionRow = page.locator('tr[data-weighin-session-tile="s-admin-current"]');
+  await expect(sessionRow).toBeVisible({timeout: 15_000});
   // 111 days → daysToMWD: floor(111/30)=3 months, floor((111-90)/7)=3 weeks.
-  await expect(metricsRow.locator('[data-pig-metric="age"]')).toContainText('3m 3w');
-  await expect(metricsRow.locator('[data-pig-metric="feed"]')).toContainText('Feed/pig');
-  await expect(metricsRow.locator('[data-pig-metric="adg"]')).toContainText('Group ADG');
-  // No prior session seeded → ADG falls back to the no-prior label.
-  await expect(metricsRow.locator('[data-pig-metric="adg"]')).toContainText('— no prior weigh-in');
-  await expect(metricsRow.locator('[data-pig-metric="avg"]')).toContainText('Avg weight');
-  await expect(metricsRow.locator('[data-pig-metric="avg"]')).toContainText('260 lb');
+  await expect(sessionRow).toContainText('3m 3w', {timeout: 15_000});
+  // No prior session seeded → Group ADG falls back to the no-prior label.
+  await expect(sessionRow).toContainText('— no prior weigh-in');
+  // Feed/pig: 50 legacy lbs across 10 pigs → 5 lb.
+  await expect(sessionRow).toContainText('5 lb');
+  await expect(sessionRow).toContainText('260 lb');
 
-  // Codex W3: pig tiles should NOT show the standalone avg-weight badge —
-  // the metrics row is the single source. Looking for the legacy
-  // "avg <N> lb" pill text directly in the page should miss for pig
-  // (cattle/sheep/broiler tiles still render it; this test only seeds
-  // pig sessions).
+  // Codex W3: pig rows must NOT show the legacy standalone "avg <N> lb"
+  // badge — the Avg weight column renders the bare value instead
+  // (cattle/sheep/broiler tables still render the badge; this test only
+  // seeds pig sessions).
   const pageText = await page.textContent('body');
   expect(pageText).not.toMatch(/\bavg\s+260\s+lb\b/);
 });
@@ -187,12 +189,13 @@ test('pig group ADG returns from the RPC when a prior pig session exists for the
   await page.goto('/pig/weighins');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  const metricsRow = page.locator('[data-pig-metrics-row="s-admin-current2"]');
-  await expect(metricsRow).toBeVisible({timeout: 15_000});
-  await expect(metricsRow.locator('[data-pig-metric="adg"]')).toContainText('+1.00 lb/day');
+  const sessionRow = page.locator('tr[data-weighin-session-tile="s-admin-current2"]');
+  await expect(sessionRow).toBeVisible({timeout: 15_000});
+  // Group ADG column value from the RPC (mean 200 → 230 over 30 days).
+  await expect(sessionRow).toContainText('+1.00 lb/day', {timeout: 15_000});
 });
 
-test('expanded pig view sorts entries by weight DESC while persisted order stays entered_at ASC', async ({
+test('session record page sorts entries by weight DESC while persisted order stays entered_at ASC', async ({
   supabaseAdmin,
   resetDb,
   page,
@@ -201,9 +204,6 @@ test('expanded pig view sorts entries by weight DESC while persisted order stays
   await seedFeederGraph(supabaseAdmin);
   // Insert in a deliberately scrambled weight order. Persisted entered_at
   // ASC is the load order; the display must rearrange to descending weight.
-  // Seed weights chosen so the avg (252 lb) does NOT collide with any
-  // single entry — keeps the per-entry locator filter unambiguous when
-  // the metrics row also renders an "Avg weight" cell.
   await seedPigSession(supabaseAdmin, {
     sessionId: 's-admin-sort',
     date: '2026-08-04',
@@ -214,25 +214,24 @@ test('expanded pig view sorts entries by weight DESC while persisted order stays
   await page.goto('/pig/weighins');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 
-  // Expand the tile. The collapsed tile shows session.batch_id (the slug
-  // form) as the prominent text, not the human sub name.
-  const tileHeader = page.locator('text="p-26-09a"').first();
-  await expect(tileHeader).toBeVisible({timeout: 15_000});
-  await tileHeader.click();
+  // Open the session record page through the list row (row IS the target).
+  const sessionRow = page.locator('tr[data-weighin-session-tile="s-admin-sort"]');
+  await expect(sessionRow).toBeVisible({timeout: 15_000});
+  await sessionRow.click();
+  await expect(page).toHaveURL(/\/weigh-in-sessions\/s-admin-sort$/, {timeout: 10_000});
 
-  // Read the rendered weight cells in DOM order. The expanded view shows
-  // each entry's weight in a "<N> lb" span (read-only path because the
-  // session is complete).
-  const weightSpans = page.locator('text=/^\\d+(?:\\.\\d+)?\\s+lb$/');
-  await expect(weightSpans.first()).toBeVisible({timeout: 10_000});
-
-  // Pull the rendered text in DOM order; pig admin view shows numbers
-  // in "<weight> lb" format. Filter to just our seeded values; the
-  // metrics-row avg of 252 is intentionally not in the seeded list so
-  // it cannot leak into the assertion.
-  const rendered = await weightSpans.allTextContents();
-  const seeded = rendered.map((s) => parseFloat(s)).filter((n) => [221, 244, 250, 263, 282].includes(n));
-  expect(seeded).toEqual([282, 263, 250, 244, 221]);
+  // The dense pig entry table renders unsent rows with an editable weight
+  // input (placeholder "lb"); read the values in DOM order. No row is
+  // sent/transferred here, so every seeded entry renders the input path.
+  const entryRows = page.locator('tr[data-pig-entry-row]');
+  await expect(entryRows).toHaveCount(5, {timeout: 15_000});
+  const weightInputs = page.locator('tr[data-pig-entry-row] input[placeholder="lb"]');
+  await expect(weightInputs).toHaveCount(5);
+  const rendered = [];
+  for (const input of await weightInputs.all()) {
+    rendered.push(parseFloat(await input.inputValue()));
+  }
+  expect(rendered).toEqual([282, 263, 250, 244, 221]);
 
   // DB persistence stayed in insertion order.
   const {data: dbEntries} = await supabaseAdmin

@@ -168,6 +168,26 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
   it('locks sent/transferred pig entries as read-only', () => {
     expect(pageSrc).toContain('isLocked');
   });
+  it('allows pig send selection on BOTH draft and complete sessions (5cd008a), locked only per-row', () => {
+    // Restored product decision (5cd008a): completing a weigh-in must not
+    // strand unsent pigs. Eligibility = per-row lock + draft-or-complete
+    // session + manager role. A future redesign that regresses this back to
+    // session.status === 'draft' alone must fail here.
+    expect(pigEntryBranch).toMatch(
+      /const canSelect =\s*!isLocked &&\s*\(session\.status === 'draft' \|\| session\.status === 'complete'\) &&\s*canManagePigPlannedTrips;/,
+    );
+  });
+  it('gates the Send-to-Trip bar with the same draft-or-complete eligibility', () => {
+    expect(pageSrc).toMatch(
+      /\{isPig &&\s*\(session\.status === 'draft' \|\| session\.status === 'complete'\) &&\s*canManagePigPlannedTrips &&\s*selectedEntryIds\.size > 0 && \(/,
+    );
+    expect(pageSrc).toContain('data-pig-send-bar');
+  });
+  it('excludes farm_team from send-to-trip through canManagePigPlannedTrips', () => {
+    expect(pageSrc).toMatch(
+      /const canManagePigPlannedTrips = !!\(authState && \(authState\.role === 'admin' \|\| authState\.role === 'management'\)\);/,
+    );
+  });
   it('pig entry edits autosave weight and note without tag or new_tag_flag writes', () => {
     expect(pageSrc).toContain('setPigEntryField');
     expect(pageSrc).toContain('scheduleEntryAutosave');

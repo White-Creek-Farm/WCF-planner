@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import {test, expect} from './fixtures.js';
 
 const breeders = [
@@ -49,39 +48,33 @@ async function seedBreedingPigs(supabaseAdmin) {
 }
 
 test.describe('Pig breeding-pig records', () => {
-  test('hub search/export and record sequence navigation work end to end', async ({page, supabaseAdmin, resetDb}) => {
+  test('hub search and record sequence navigation work end to end', async ({page, supabaseAdmin, resetDb}) => {
     await resetDb();
     await seedBreedingPigs(supabaseAdmin);
 
     await page.goto('/pig/sows');
     const search = page.locator('[data-breeding-pig-search="1"]');
     await expect(search).toBeVisible({timeout: 15_000});
-    await expect(page.locator('[data-breeding-pig-record-link="sow-101"]')).toBeVisible();
-    await expect(page.locator('[data-breeding-pig-record-link="sow-102"]')).toBeVisible();
+    await expect(page.locator('[data-breeding-pig-row="sow-101"]')).toBeVisible();
+    await expect(page.locator('[data-breeding-pig-row="sow-102"]')).toBeVisible();
 
     await search.fill('Tamworth');
-    await expect(page.locator('[data-breeding-pig-record-link="sow-101"]')).toBeVisible();
-    await expect(page.locator('[data-breeding-pig-record-link="sow-102"]')).toHaveCount(0);
+    await expect(page.locator('[data-breeding-pig-row="sow-101"]')).toBeVisible();
+    await expect(page.locator('[data-breeding-pig-row="sow-102"]')).toHaveCount(0);
 
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.locator('[data-breeding-pigs-export-csv="1"]').click(),
-    ]);
-    expect(download.suggestedFilename()).toMatch(/^pig-breeding-pigs-\d{4}-\d{2}-\d{2}\.csv$/);
-    const csvPath = await download.path();
-    const csv = await fs.readFile(csvPath, 'utf8');
-    expect(csv).toContain('Tag,Sex,Group,Status,Breed');
-    expect(csv).toContain('101,Sow,Group 1,Sow Group,Tamworth');
-    expect(csv).not.toContain('Duroc');
+    // Export CSV / Print are compacted away on this hub
+    // (EXTENDED_LIST_CONTROLS_ENABLED=false since 64f3cb7); the controls must
+    // stay absent rather than render dead buttons.
+    await expect(page.locator('[data-breeding-pigs-export-csv="1"]')).toHaveCount(0);
+    await expect(page.locator('[data-breeding-pigs-print="1"]')).toHaveCount(0);
 
     await search.fill('no matching breeder');
     await expect(page.locator('[data-empty-state="breeding-pigs"]')).toContainText(
       'No breeding pigs match the current search',
     );
-    await expect(page.locator('[data-breeding-pigs-export-csv="1"]')).toBeDisabled();
     await page.locator('[data-breeding-pig-search-clear="1"]').click();
 
-    await page.locator('[data-breeding-pig-record-link="sow-101"]').click();
+    await page.locator('[data-breeding-pig-row="sow-101"]').click();
     await expect(page).toHaveURL(/\/pig\/sows\/sow-101$/, {timeout: 10_000});
     await expect(page.locator('[data-breeding-pig-record-loaded="true"]')).toBeVisible({timeout: 15_000});
     await expect(page.getByRole('button', {name: /Back to Breeding Pigs/})).toBeVisible();

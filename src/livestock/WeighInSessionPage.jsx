@@ -1864,25 +1864,32 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           >
             Delete Session
           </button>
-          {isPig && session.status === 'draft' && canManagePigPlannedTrips && selectedEntryIds.size > 0 && (
-            <button
-              data-pig-send-bar="1"
-              onClick={openTripModal}
-              style={{
-                padding: '10px 16px',
-                borderRadius: 10,
-                border: '1px solid #047857',
-                background: '#047857',
-                color: 'white',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Send {selectedEntryIds.size} to Trip
-            </button>
-          )}
+          {/* Send-to-Trip stays available on COMPLETED sessions too (5cd008a
+              product decision): completing a weigh-in must not strand unsent
+              pigs behind a reopen. Entry locking is per-row (sent/transferred),
+              not session-status based. */}
+          {isPig &&
+            (session.status === 'draft' || session.status === 'complete') &&
+            canManagePigPlannedTrips &&
+            selectedEntryIds.size > 0 && (
+              <button
+                data-pig-send-bar="1"
+                onClick={openTripModal}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 10,
+                  border: '1px solid #047857',
+                  background: '#047857',
+                  color: 'white',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Send {selectedEntryIds.size} to Trip
+              </button>
+            )}
         </div>
 
         {isBroiler && gridLabels.length > 0 && (
@@ -2084,7 +2091,12 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                           : autosaveState && autosaveState.status === 'saved'
                             ? {color: '#065f46', background: '#ecfdf5', border: '#a7f3d0'}
                             : {color: '#6b7280', background: '#f9fafb', border: '#e5e7eb'};
-                      const canSelect = !isLocked && session.status === 'draft' && canManagePigPlannedTrips;
+                      // Selectable on draft AND complete sessions (5cd008a):
+                      // only sent/transferred rows lock out of send-to-trip.
+                      const canSelect =
+                        !isLocked &&
+                        (session.status === 'draft' || session.status === 'complete') &&
+                        canManagePigPlannedTrips;
                       const td = {
                         padding: '4px 6px',
                         verticalAlign: 'top',
