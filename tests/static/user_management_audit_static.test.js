@@ -12,6 +12,7 @@ const modal = read('src/auth/UsersModal.jsx');
 const api = read('src/lib/userManagementApi.js');
 const edge = read('supabase-functions/rapid-processor.ts');
 const proof = read('scripts/apply_test_mig_171.cjs');
+const edgeProof = read('scripts/proof_test_user_delete_edge.cjs');
 
 function functionBody(name) {
   const start = migration.indexOf(`FUNCTION public.${name}`);
@@ -212,11 +213,50 @@ describe('UsersModal — RPC-only profile mutations', () => {
     expect(modal).toContain('data-user-management-message="error"');
   });
 
-  it('globally locks user mutations while any row or create action is active', () => {
-    expect(modal).toMatch(/const userMutationBusy = umLoading \|\| userActionId !== null/);
-    expect(modal).not.toMatch(/disabled=\{userActionId === u\.id\}/);
-    expect(modal).toMatch(/sendPasswordReset\(userId, email, name\)[\s\S]*?setUserActionId\(userId\)/);
-    expect((modal.match(/disabled=\{userMutationBusy\}/g) || []).length).toBeGreaterThanOrEqual(8);
+  it('locks every mutation behind the deterministic single-flight lock', () => {
+    expect(modal).toContain("import {createUserMutationLock} from './usersModalMutationLock.js'");
+    expect(modal).toMatch(/const userMutationBusy = umLoading \|\| activeUserMutation !== null/);
+    expect(modal).not.toMatch(/userActionId/);
+
+    // The ref guard is synchronous; the state mirror only drives disabling.
+    expect(modal).toMatch(/userMutationLockRef\.current\.begin\(kind, targetId\)/);
+    expect(modal).toMatch(/if \(userMutationLockRef\.current\.release\(token\)\) setActiveUserMutation\(null\)/);
+
+    // Every mutation path claims the lock, bails out silently when refused
+    // (so it cannot clear another operation's notices), and releases in
+    // finally with its own token.
+    expect(modal).toContain("beginUserMutation('create')");
+    for (const kind of ['password_reset', 'role', 'name', 'delete', 'program_access']) {
+      expect(modal).toContain(`beginUserMutation('${kind}', userId)`);
+    }
+    expect((modal.match(/if \(!token\) return;/g) || []).length).toBe(6);
+    expect((modal.match(/endUserMutation\(token\);/g) || []).length).toBe(6);
+    expect(modal).toMatch(/finally \{\s*setUmLoading\(false\);\s*endUserMutation\(token\);/);
+  });
+
+  it('routes backdrop and X closing through the mutation-guarded close', () => {
+    // The guarded close refuses while a mutation is in flight, so unmounting
+    // cannot destroy an active lock and allow overlap across close/reopen.
+    expect(modal).toMatch(
+      /function requestCloseUsers\(\) \{\s*if \(userMutationBusy\) return;\s*setShowUsers\(false\);\s*\}/,
+    );
+    expect(modal).toMatch(/data-user-management-modal="1"\s*onClick=\{requestCloseUsers\}/);
+    expect(modal).toMatch(
+      /aria-label="Close user management"\s*data-user-management-close="1"\s*disabled=\{userMutationBusy\}\s*onClick=\{requestCloseUsers\}/,
+    );
+    // No close path bypasses the guard.
+    expect(modal).not.toMatch(/onClick=\{\(\) => setShowUsers\(false\)\}/);
+  });
+
+  it('disables tab switching, create inputs, and row actions while locked', () => {
+    expect(modal).toMatch(/key=\{t\}\s*disabled=\{userMutationBusy\}/);
+    expect(modal).toMatch(/if \(userMutationBusy\) return;\s*setUmTab\(t\)/);
+    expect(modal).toMatch(/value=\{addName\}\s*disabled=\{userMutationBusy\}/);
+    expect(modal).toMatch(/value=\{addEmail\}\s*disabled=\{userMutationBusy\}/);
+    expect(modal).toMatch(/value=\{addPassword\}\s*disabled=\{userMutationBusy\}/);
+    expect(modal).toMatch(/value=\{addPasswordConfirm\}\s*disabled=\{userMutationBusy\}/);
+    expect(modal).toMatch(/key=\{r\.v\}\s*type="button"\s*disabled=\{userMutationBusy\}/);
+    expect((modal.match(/disabled=\{userMutationBusy\}/g) || []).length).toBeGreaterThanOrEqual(14);
   });
 });
 
@@ -255,6 +295,35 @@ describe('rapid-processor — coordinated Auth deletion', () => {
       expect(allowlist).toContain(`'${role}'`);
     }
     expect(allowlist).not.toContain("'inactive'");
+  });
+});
+
+describe('user_delete real Edge proof safety', () => {
+  it('invokes the deployed function fail-closed and asserts cleanup', () => {
+    // Fail-closed TEST targeting, mirroring apply_test_mig_171.cjs.
+    expect(edgeProof).toContain("'..', '..', 'WCF-planner', '.env.test.local'");
+    expect(edgeProof).toMatch(/WCF_TEST_DATABASE !== '1'/);
+    expect(edgeProof).toMatch(/url\.includes\(PROD_REF\)/);
+
+    // It must exercise the DEPLOYED function over HTTP, not a browser mock.
+    expect(edgeProof).toContain('/functions/v1/rapid-processor');
+    expect(edgeProof).toMatch(/type: 'user_delete'/);
+    expect(edgeProof).not.toMatch(/page\.route|fulfill\(/);
+
+    // The six required scenarios stay present.
+    expect(edgeProof).toMatch(/status !== 401/);
+    expect(edgeProof).toMatch(/status !== 403/);
+    expect(edgeProof).toMatch(/retained farm records/);
+    expect(edgeProof).toMatch(/deactivate/i);
+    expect(edgeProof).toMatch(/alreadyDeleted !== true/);
+    expect(edgeProof).toMatch(/admin_prepare_user_delete/);
+
+    // Cleanup is asserted and runs after failures.
+    expect(edgeProof).toMatch(/const errors = \[\]/);
+    expect(edgeProof).toMatch(/if \(targetAuditError\) errors\.push/);
+    expect(edgeProof).toMatch(/if \(actorAuditError\) errors\.push/);
+    expect(edgeProof).toMatch(/if \(errors\.length\) throw new Error/);
+    expect(edgeProof).toMatch(/\.finally\(async \(\) => \{/);
   });
 });
 

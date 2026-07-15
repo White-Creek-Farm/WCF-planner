@@ -101,8 +101,15 @@ test.describe.serial('audited user management', () => {
     }
 
     // Browser failure behavior is deterministic and does not require deploying
-    // rapid-processor into TEST for this source-code lane.
+    // rapid-processor into TEST for this source-code lane. The mock is gated
+    // on a promise so the request stays pending until this test has proven
+    // the locked-while-in-flight contract.
+    let releaseDelete;
+    const deleteGate = new Promise((resolve) => {
+      releaseDelete = resolve;
+    });
     await page.route('**/functions/v1/rapid-processor', async (route) => {
+      await deleteGate;
       await route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -117,9 +124,29 @@ test.describe.serial('audited user management', () => {
     const deleteModal = page.locator('[data-delete-modal="1"]');
     await deleteModal.getByLabel('Type delete to confirm').fill('delete');
     await deleteModal.getByRole('button', {name: 'Delete', exact: true}).click();
+    await expect(deleteModal).toHaveCount(0);
+
+    // While the delete request is pending: the X is disabled, the backdrop
+    // cannot unmount User Management, and no second mutation can start.
+    const usersModal = page.locator('[data-user-management-modal="1"]');
+    const closeButton = page.locator('[data-user-management-close="1"]');
+    await expect(closeButton).toBeDisabled();
+    await usersModal.click({position: {x: 10, y: 10}});
+    await expect(usersModal).toBeVisible();
+    await expect(row.locator(`[data-user-management-reactivate="${target.id}"]`)).toBeDisabled();
+    await expect(row.locator(`[data-user-management-delete="${target.id}"]`)).toBeDisabled();
+    await expect(row.locator(`[data-user-management-role="${target.id}"]`)).toBeDisabled();
+
+    releaseDelete();
     await expect(page.locator('[data-user-management-message="error"]')).toContainText(/Could not delete/i);
     await expect(row).toBeVisible();
     expect((await profileRow(supabaseAdmin, target.id))?.role).toBe('inactive');
+
+    // After the failure settles, controls re-enable and normal closing works.
+    await expect(closeButton).toBeEnabled();
+    await expect(row.locator(`[data-user-management-delete="${target.id}"]`)).toBeEnabled();
+    await closeButton.click();
+    await expect(usersModal).toHaveCount(0);
   });
 
   test('non-admin browser never receives the Users management entry', async ({browser, supabaseAdmin}) => {

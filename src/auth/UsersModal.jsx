@@ -4,6 +4,7 @@ import {useAuth} from '../contexts/AuthContext.jsx';
 import {renderCattleIconLabel} from '../components/CattleIcon.jsx';
 import {unwrapEdgeFunctionError} from '../lib/edgeErrors.js';
 import {setUserName, setUserProgramAccess, setUserRole} from '../lib/userManagementApi.js';
+import {createUserMutationLock} from './usersModalMutationLock.js';
 function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUsers}) {
   const {setAuthState} = useAuth() || {};
   const [umTab, setUmTab] = React.useState('users');
@@ -16,8 +17,31 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   const [editingUser, setEditingUser] = React.useState(null);
   const [addPassword, setAddPassword] = React.useState('');
   const [addPasswordConfirm, setAddPasswordConfirm] = React.useState('');
-  const [userActionId, setUserActionId] = React.useState(null);
-  const userMutationBusy = umLoading || userActionId !== null;
+  // Every mutation must claim this lock before touching notices, list state,
+  // or the network. The ref guards synchronously (before React re-renders);
+  // the state mirror drives the disabled controls.
+  const userMutationLockRef = React.useRef(null);
+  if (userMutationLockRef.current === null) userMutationLockRef.current = createUserMutationLock();
+  const [activeUserMutation, setActiveUserMutation] = React.useState(null);
+  const userMutationBusy = umLoading || activeUserMutation !== null;
+
+  function beginUserMutation(kind, targetId = null) {
+    const token = userMutationLockRef.current.begin(kind, targetId);
+    if (token) setActiveUserMutation(token);
+    return token;
+  }
+
+  function endUserMutation(token) {
+    if (userMutationLockRef.current.release(token)) setActiveUserMutation(null);
+  }
+
+  // Closing unmounts the modal and destroys the lock, so reopening during an
+  // in-flight request could start an overlapping mutation. Both close paths
+  // (backdrop and the header X) must refuse while a mutation holds the lock.
+  function requestCloseUsers() {
+    if (userMutationBusy) return;
+    setShowUsers(false);
+  }
 
   const ROLES = [
     {v: 'farm_team', l: 'Farm Team'},
@@ -52,6 +76,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
         return;
       }
     }
+    const token = beginUserMutation('create');
+    if (!token) return;
     setUmLoading(true);
     setUmErr('');
     setUmMsg('');
@@ -97,15 +123,18 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     } catch (e) {
       const msg = await unwrapEdgeFunctionError(e);
       setUmErr('Error: ' + msg);
+    } finally {
+      setUmLoading(false);
+      endUserMutation(token);
     }
-    setUmLoading(false);
   }
 
   async function sendPasswordReset(userId, email, name) {
     window._wcfConfirm(
       'Send a password reset email to ' + email + '?',
       async () => {
-        setUserActionId(userId);
+        const token = beginUserMutation('password_reset', userId);
+        if (!token) return;
         setUmErr('');
         setUmMsg('');
         try {
@@ -118,7 +147,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
           const msg = await unwrapEdgeFunctionError(e);
           setUmErr('Error sending reset email: ' + msg);
         } finally {
-          setUserActionId(null);
+          endUserMutation(token);
         }
       },
       'Send',
@@ -126,7 +155,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   }
 
   async function updateRole(userId, newRole) {
-    setUserActionId(userId);
+    const token = beginUserMutation('role', userId);
+    if (!token) return;
     setUmErr('');
     setUmMsg('');
     try {
@@ -136,13 +166,14 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     } catch (e) {
       setUmErr(e.message || 'Could not update the user role.');
     } finally {
-      setUserActionId(null);
+      endUserMutation(token);
     }
   }
 
   async function updateName(userId, newName) {
     const fullName = (newName || '').trim();
-    setUserActionId(userId);
+    const token = beginUserMutation('name', userId);
+    if (!token) return;
     setUmErr('');
     setUmMsg('');
     try {
@@ -163,7 +194,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     } catch (e) {
       setUmErr(e.message || 'Could not update the user name.');
     } finally {
-      setUserActionId(null);
+      endUserMutation(token);
     }
   }
 
@@ -186,7 +217,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
         email +
         '? This removes the auth account so the email can be re-invited from scratch. Deactivate instead if you just want to block login.',
       async () => {
-        setUserActionId(userId);
+        const token = beginUserMutation('delete', userId);
+        if (!token) return;
         setUmErr('');
         setUmMsg('');
         try {
@@ -209,7 +241,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
               '. Reload Users before retrying. If the user is still listed, deactivate them instead.',
           );
         } finally {
-          setUserActionId(null);
+          endUserMutation(token);
         }
       },
     );
@@ -218,7 +250,8 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   async function updateProgramAccess(userId, newList) {
     // Empty array → null (means "all programs"). Avoids empty-array ambiguity.
     const value = newList && newList.length > 0 ? newList : null;
-    setUserActionId(userId);
+    const token = beginUserMutation('program_access', userId);
+    if (!token) return;
     setUmErr('');
     setUmMsg('');
     try {
@@ -228,7 +261,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
     } catch (e) {
       setUmErr(e.message || 'Could not update program access.');
     } finally {
-      setUserActionId(null);
+      endUserMutation(token);
     }
   }
 
@@ -252,7 +285,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
   return (
     <div
       data-user-management-modal="1"
-      onClick={() => setShowUsers(false)}
+      onClick={requestCloseUsers}
       style={{
         position: 'fixed',
         top: 0,
@@ -294,15 +327,20 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
         >
           <div style={{fontSize: 15, fontWeight: 700}}>User Management</div>
           <button
-            onClick={() => setShowUsers(false)}
+            type="button"
+            aria-label="Close user management"
+            data-user-management-close="1"
+            disabled={userMutationBusy}
+            onClick={requestCloseUsers}
             style={{
               background: 'none',
               border: 'none',
               fontSize: 22,
-              cursor: 'pointer',
+              cursor: userMutationBusy ? 'not-allowed' : 'pointer',
               color: 'var(--ink-faint)',
               lineHeight: 1,
               padding: '0 4px',
+              opacity: userMutationBusy ? 0.6 : 1,
             }}
           >
             ×
@@ -316,7 +354,9 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
           ].map(([t, l]) => (
             <button
               key={t}
+              disabled={userMutationBusy}
               onClick={() => {
+                if (userMutationBusy) return;
                 setUmTab(t);
                 setUmErr('');
                 setUmMsg('');
@@ -330,8 +370,9 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                 fontWeight: umTab === t ? 700 : 400,
                 color: umTab === t ? '#085041' : '#6b7280',
                 borderBottom: umTab === t ? '2px solid #085041' : '2px solid transparent',
-                cursor: 'pointer',
+                cursor: userMutationBusy ? 'not-allowed' : 'pointer',
                 marginBottom: -1,
+                opacity: userMutationBusy ? 0.6 : 1,
               }}
             >
               {l}
@@ -750,6 +791,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   </label>
                   <input
                     value={addName}
+                    disabled={userMutationBusy}
                     onChange={(e) => setAddName(e.target.value)}
                     placeholder="e.g. Simon Jones"
                     style={{
@@ -776,6 +818,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   <input
                     type="email"
                     value={addEmail}
+                    disabled={userMutationBusy}
                     onChange={(e) => setAddEmail(e.target.value)}
                     placeholder="user@whitecreek.farm"
                     style={{
@@ -812,6 +855,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                       <button
                         key={r.v}
                         type="button"
+                        disabled={userMutationBusy}
                         onClick={() => setAddRole(r.v)}
                         style={{
                           padding: '9px 0',
@@ -820,9 +864,10 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                           fontFamily: 'inherit',
                           fontSize: 12,
                           fontWeight: 600,
-                          cursor: 'pointer',
+                          cursor: userMutationBusy ? 'not-allowed' : 'pointer',
                           background: 'white',
                           color: addRole === r.v ? 'var(--brand)' : 'var(--ink-muted)',
+                          opacity: userMutationBusy ? 0.6 : 1,
                         }}
                       >
                         {r.l}
@@ -845,6 +890,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   <input
                     type="password"
                     value={addPassword}
+                    disabled={userMutationBusy}
                     onChange={(e) => setAddPassword(e.target.value)}
                     placeholder="Optional"
                     autoComplete="new-password"
@@ -872,6 +918,7 @@ function UsersModal({sb, authState, allUsers, setAllUsers, setShowUsers, loadUse
                   <input
                     type="password"
                     value={addPasswordConfirm}
+                    disabled={userMutationBusy}
                     onChange={(e) => setAddPasswordConfirm(e.target.value)}
                     placeholder="Optional"
                     autoComplete="new-password"
