@@ -113,7 +113,11 @@ describe('drawer + Add Milestone read from settings (not hardcoded)', () => {
     // the existing array-backed column.
     expect(drawer).toContain('data-processing-customer-select');
     expect(drawer).not.toContain('data-processing-customer-chip');
-    expect(drawer).toMatch(/setProcessingCustomer\(sb, record\.id, value \? \[value\] : \[\]\)/);
+    // Quiet-autosave lane: the dedicated no-reload path builds next = [] /
+    // [value] and calls the RPC wrapper directly (full contract in
+    // processing_quiet_autosave_static.test.js).
+    expect(drawer).toContain('const next = value ? [value] : [];');
+    expect(drawer).toContain('await setProcessingCustomer(sb, rid, next);');
     // legacy handling: off-list single value stays selectable; a stored MULTI
     // set surfaces as ONE sentinel option until deliberately replaced/cleared.
     expect(drawer).toMatch(/\(legacy\)/);

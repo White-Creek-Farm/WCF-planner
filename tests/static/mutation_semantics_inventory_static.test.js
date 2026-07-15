@@ -237,18 +237,21 @@ const EXPECTED_RUN_MUTATION_CALLERS = new Map([
   ['src/equipment/EquipmentDetail.jsx', 1],
   ['src/livestock/WeighInSessionPage.jsx', 5],
   // Processing drawer (planner-integration lane, per-caller reviewed): 16
-  // sites, every one an RPC-backed processingApi wrapper — saveProcessorSelect,
-  // saveCustomerSelect, saveMilestoneTitle, saveMilestoneDate,
+  // sites, every one an RPC-backed processingApi wrapper —
+  // saveMilestoneTitle, saveMilestoneDate,
   // saveMilestoneStatus, markComplete, reopen, addSubtask,
-  // saveSubtaskLabel, reassignSubtask, deleteSubtask, moveSubtask (reorder
+  // saveSubtaskLabel, deleteSubtask, moveSubtask (reorder
   // RPC), confirmApplyTemplate, doDeleteMilestone, doArchiveRecord,
-  // doRestoreRecord. toggleSubtask left runMutation for a dedicated
-  // optimistic no-reload path (still the setProcessingSubtaskDone RPC — see
-  // processing_checklist_toggle_static.test.js). saveLocalField is retired
+  // doRestoreRecord. toggleSubtask, saveProcessorSelect, saveCustomerSelect,
+  // and reassignSubtask left runMutation for dedicated optimistic no-reload
+  // paths (still the setProcessingSubtaskDone / setProcessingProcessor /
+  // setProcessingCustomer / updateProcessingSubtask RPCs — see
+  // processing_checklist_toggle_static.test.js and
+  // processing_quiet_autosave_static.test.js). saveLocalField is retired
   // with set_processing_field (record fields are fixed/planner-owned now); the
   // parent-assignee mutation stays retired; the reconciliation workbench modal
   // stays deleted. NO direct .from() writes.
-  ['src/processing/ProcessingDrawer.jsx', 16],
+  ['src/processing/ProcessingDrawer.jsx', 13],
   ['src/sheep/SheepAnimalPage.jsx', 1],
 ]);
 
@@ -567,9 +570,12 @@ describe('mutation semantics inventory', () => {
     const callers = collectRunMutationCallers();
     const {unexpected, missing, wrongCounts} = diffMap(EXPECTED_RUN_MUTATION_CALLERS, callers);
 
-    // 36 -> 35: the Processing drawer's toggleSubtask left runMutation for its
-    // dedicated optimistic no-reload path (same setProcessingSubtaskDone RPC).
-    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(35);
+    // 36 -> 35 -> 32: the Processing drawer's toggleSubtask, then
+    // saveProcessorSelect + saveCustomerSelect + reassignSubtask, left
+    // runMutation for dedicated optimistic no-reload paths (same
+    // setProcessingSubtaskDone / setProcessingProcessor /
+    // setProcessingCustomer / updateProcessingSubtask RPCs).
+    expect([...callers.values()].reduce((sum, count) => sum + count, 0)).toBe(32);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);

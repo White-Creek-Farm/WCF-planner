@@ -38,13 +38,20 @@ describe('sub-lane 1 — main table cleanup', () => {
     //            Count · Customer
     //   cattle   Batch · Status · Processing date · Processor · Count · Age
     //   sheep    (as cattle; section labelled 'Lamb')
-    //   pig      Trip · Batch · Status · Processing date · Processor · Count ·
-    //            Age
+    //   pig      Batch · Trip · Status · Processing date · Processor · Count ·
+    //            Age (Batch leads and is the sticky identity column)
     expect(view).not.toMatch(/const GRID = '/);
     expect(view).toContain("broiler: ['batch', 'status', 'hatch', 'processing', 'processor', 'count', 'customer']");
     expect(view).toContain("cattle: ['batch', 'status', 'processing', 'processor', 'count', 'age']");
-    expect(view).toContain("pig: ['trip', 'batch', 'status', 'processing', 'processor', 'count', 'age']");
+    expect(view).toContain("pig: ['batch', 'trip', 'status', 'processing', 'processor', 'count', 'age']");
     expect(view).toContain("sheep: ['batch', 'status', 'processing', 'processor', 'count', 'age']");
+    // Program sections render in the locked order Broiler · Cattle ·
+    // Sheep/Lamb · Pig; Trip is a regular (non-sticky) column because it
+    // follows the flexible-width Batch column.
+    expect(view).toMatch(
+      /const PROGRAMS = \[\s*\{key: 'broiler'[\s\S]*?\{key: 'cattle'[\s\S]*?\{key: 'sheep'[\s\S]*?\{key: 'pig'[\s\S]*?\];/,
+    );
+    expect(view).toMatch(/trip: \{key: 'trip', label: 'Trip', width: '64px'\}/);
     // The count column is labelled 'Count' — the old 'Number' label may not
     // return as a column label, and no 'Farm arrival' column exists anywhere
     // (label-level assertions: the header comment documents the retirement).
