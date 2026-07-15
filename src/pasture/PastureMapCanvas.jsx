@@ -403,6 +403,8 @@ export default function PastureMapCanvas({
   isTouch = false,
   onSaveMeasurement,
   measurements = [],
+  selectedMeasurementId = null,
+  onSelectMeasurement,
   online = true,
 }) {
   const elRef = React.useRef(null);
@@ -418,7 +420,7 @@ export default function PastureMapCanvas({
   const editLayerRef = React.useRef(null);
   const fitSignatureRef = React.useRef('');
   const cbRef = React.useRef({});
-  cbRef.current = {onSelect, onDrawComplete, onEditGeometry};
+  cbRef.current = {onSelect, onDrawComplete, onEditGeometry, onSelectMeasurement};
   const modeRef = React.useRef(mode);
   modeRef.current = mode;
   // Set when an area feature is clicked so the subsequent map-background click
@@ -524,6 +526,7 @@ export default function PastureMapCanvas({
       }
       if (['draw', 'edit', 'measure', 'track', 'droppin'].includes(modeRef.current)) return;
       if (cbRef.current.onSelect) cbRef.current.onSelect(null);
+      if (cbRef.current.onSelectMeasurement) cbRef.current.onSelectMeasurement(null);
     });
     // Panning pauses GPS follow (the user took manual control); tapping My Location
     // re-engages it. The map itself never rotates (north-up in v1).
@@ -871,7 +874,31 @@ export default function PastureMapCanvas({
       if (latlngs.length < 2) return;
       const color =
         typeof mm.line_color === 'string' && /^#[0-9a-f]{6}$/i.test(mm.line_color) ? mm.line_color : '#7c3aed';
-      L.polyline(latlngs, {color, weight: 3, dashArray: '4,6', interactive: false}).addTo(group);
+      L.polyline(latlngs, {
+        color,
+        weight: mm.id === selectedMeasurementId ? 5 : 3,
+        dashArray: '4,6',
+        interactive: false,
+        className: `pm-measurement-line pm-measurement-line-${mm.id}`,
+      }).addTo(group);
+      // Measurements used to be explicitly non-interactive, so the only delete
+      // control lived in a hidden Field panel. A transparent, finger-sized stroke
+      // now owns map clicks without making the purple line visually thicker.
+      L.polyline(latlngs, {
+        color: '#000000',
+        opacity: 0,
+        weight: 24,
+        interactive: true,
+        bubblingMouseEvents: false,
+        className: `pm-measurement-hit pm-measurement-hit-${mm.id}`,
+      })
+        .on('click', () => {
+          featureClickRef.current = true;
+          if (!['draw', 'edit', 'measure', 'track', 'droppin'].includes(modeRef.current)) {
+            if (cbRef.current.onSelectMeasurement) cbRef.current.onSelectMeasurement(mm.id);
+          }
+        })
+        .addTo(group);
       const mid = latlngs[Math.floor(latlngs.length / 2)];
       L.marker(mid, {
         interactive: false,
@@ -880,7 +907,7 @@ export default function PastureMapCanvas({
     });
     group.addTo(map);
     measureLayerRef.current = group;
-  }, [measurements, appMode]);
+  }, [measurements, selectedMeasurementId, appMode]);
 
   // Transient hover/focus preview: highlight a Current-group's CURRENT area on an
   // amber overlay and surface its name, WITHOUT touching selection. Distinct from

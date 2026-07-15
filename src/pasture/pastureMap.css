@@ -725,6 +725,14 @@
   transform: translate(-50%, -130%);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
+/* Transparent Leaflet hit strokes must receive events across their full width.
+   SVG's default visiblePainted behavior can otherwise pass an opacity:0 stroke
+   through to an underlying paddock, opening the wrong record. */
+.pm-measurement-hit,
+.pm-line-hit-target {
+  pointer-events: stroke !important;
+  cursor: pointer;
+}
 .pm-measurement-row {
   display: flex;
   align-items: center;
