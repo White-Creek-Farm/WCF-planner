@@ -377,6 +377,17 @@ export async function createPastureMeasurement({id, name, geometry, distanceFt =
   );
 }
 
+export async function updatePastureMeasurement({id, name, lineColor = null}) {
+  return unwrap(
+    await sb.rpc('update_pasture_measurement', {
+      p_id: id,
+      p_name: name,
+      p_line_color: lineColor,
+    }),
+    'update_pasture_measurement',
+  );
+}
+
 export async function deletePastureMeasurement(id) {
   return unwrap(await sb.rpc('delete_pasture_measurement', {p_id: id}), 'delete_pasture_measurement');
 }

@@ -29,6 +29,8 @@ const mig140 = read('supabase-migrations/140_pasture_map_rotations.sql');
 const mig140Code = mig140.replace(/--[^\n]*/g, '');
 const mig141 = read('supabase-migrations/141_pasture_map_measurements.sql');
 const mig141Code = mig141.replace(/--[^\n]*/g, '');
+const mig181 = read('supabase-migrations/181_pasture_measurement_edit.sql');
+const mig181Code = mig181.replace(/--[^\n]*/g, '');
 const mig143 = read('supabase-migrations/143_pasture_map_reset_area_history.sql');
 const mig143Code = mig143.replace(/--[^\n]*/g, '');
 const mig147 = read('supabase-migrations/147_pasture_map_grazing_entry_delete_and_parent_overlap.sql');
@@ -279,6 +281,36 @@ describe('V1 reset — saved distance measurements client (CP-E)', () => {
     expect(canvasSrc).toContain('data-pasture-measure-save');
     expect(canvasSrc).toContain('measureLayerRef');
     expect(canvasSrc).toMatch(/if \(!measurements\.length\) return/);
+  });
+
+  it('map measurements have a wide click target and an edit/delete modal', () => {
+    expect(canvasSrc).toContain('pm-measurement-hit');
+    expect(canvasSrc).toMatch(/weight: 24[\s\S]*?pm-measurement-hit/);
+    expect(pastureCss).toMatch(/\.pm-measurement-hit,[\s\S]*?pointer-events: stroke !important/);
+    expect(canvasSrc).toContain('onSelectMeasurement(mm.id)');
+    expect(viewSrc).toContain('data-pasture-measurement-modal');
+    expect(viewSrc).toContain('data-pasture-measurement-edit-save');
+    expect(viewSrc).toContain('data-pasture-measurement-modal-delete');
+    expect(apiSrc).toContain("sb.rpc('update_pasture_measurement'");
+  });
+});
+
+describe('Migration 181 - saved measurement editing', () => {
+  it('adds an owner-or-management name/color update RPC without widening table access', () => {
+    expect(mig181).toContain('CREATE OR REPLACE FUNCTION public.update_pasture_measurement');
+    expect(mig181Code).toContain(
+      "v_role NOT IN ('management', 'admin') AND v_row.created_by IS DISTINCT FROM v_caller",
+    );
+    expect(mig181).toContain('SET name = btrim(p_name)');
+    expect(mig181).toContain('line_color = p_line_color');
+    expect(mig181).toMatch(
+      /REVOKE ALL ON FUNCTION public\.update_pasture_measurement\(text, text, text\) FROM PUBLIC, anon/,
+    );
+    expect(mig181).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.update_pasture_measurement\(text, text, text\) TO authenticated/,
+    );
+    expect(mig181Code).not.toMatch(/GRANT[\s\S]*?TO light/i);
+    expect(mig181).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/);
   });
 });
 

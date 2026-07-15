@@ -34,6 +34,7 @@ import {
   clearPastureRotation,
   listPastureMeasurements,
   createPastureMeasurement,
+  updatePastureMeasurement,
   deletePastureMeasurement,
   newPastureMeasurementId,
   createTempLandArea,
@@ -789,6 +790,10 @@ export default function PastureMapView({Header, authState}) {
   const [serverRotations, setServerRotations] = React.useState([]);
   const [measurements, setMeasurements] = React.useState([]);
   const [measureForm, setMeasureForm] = React.useState(null);
+  const [selectedMeasurementId, setSelectedMeasurementId] = React.useState(null);
+  const [measurementDraft, setMeasurementDraft] = React.useState({name: '', lineColor: '#7c3aed'});
+  const [measurementBusy, setMeasurementBusy] = React.useState(false);
+  const [confirmDeleteMeasurementId, setConfirmDeleteMeasurementId] = React.useState(null);
   const [imageryStatus, setImageryStatus] = React.useState({state: 'missing'});
   const [imageryProgress, setImageryProgress] = React.useState(null);
   const [activeGroupId, setActiveGroupId] = React.useState(null);
@@ -1154,6 +1159,7 @@ export default function PastureMapView({Header, authState}) {
     [activeAreas, occupantsByArea],
   );
   const selectedArea = areas.find((a) => a.id === selectedId) || null;
+  const selectedMeasurement = measurements.find((m) => m.id === selectedMeasurementId) || null;
   // Parent-pasture assignment: permanent paddocks live UNDER a permanent pasture
   // (land_areas.parent_id). Eligible parents are the permanent pastures (never a
   // temp paddock, never the area itself). update_land_area validates existence,
@@ -1246,6 +1252,15 @@ export default function PastureMapView({Header, authState}) {
   React.useEffect(() => {
     setStyleDraft(styleDraftFromArea(selectedArea));
   }, [selectedArea]);
+
+  React.useEffect(() => {
+    if (!selectedMeasurement) return;
+    setMeasurementDraft({
+      name: selectedMeasurement.name || '',
+      lineColor: selectedMeasurement.line_color || '#7c3aed',
+    });
+    setConfirmDeleteMeasurementId(null);
+  }, [selectedMeasurement]);
 
   React.useEffect(
     () => () => {
@@ -1738,13 +1753,41 @@ export default function PastureMapView({Header, authState}) {
     }
   }
 
+  function selectMeasurement(id) {
+    setSelectedId(null);
+    setSelectedMeasurementId(id || null);
+  }
+
+  async function saveMeasurementEdits() {
+    if (!selectedMeasurement || !measurementDraft.name.trim()) return;
+    setMeasurementBusy(true);
+    setErr('');
+    try {
+      await updatePastureMeasurement({
+        id: selectedMeasurement.id,
+        name: measurementDraft.name.trim(),
+        lineColor: measurementDraft.lineColor,
+      });
+      await reload();
+    } catch (e) {
+      setErr(e.message || 'Could not update the measurement.');
+    } finally {
+      setMeasurementBusy(false);
+    }
+  }
+
   async function deleteMeasurement(id) {
+    setMeasurementBusy(true);
     setErr('');
     try {
       await deletePastureMeasurement(id);
+      if (selectedMeasurementId === id) setSelectedMeasurementId(null);
+      setConfirmDeleteMeasurementId(null);
       await reload();
     } catch (e) {
       setErr(e.message || 'Could not delete the measurement.');
+    } finally {
+      setMeasurementBusy(false);
     }
   }
 
@@ -2005,6 +2048,7 @@ export default function PastureMapView({Header, authState}) {
       appendToRotation(activeGroup.id, id);
       return;
     }
+    setSelectedMeasurementId(null);
     setSelectedId(id);
     if (appMode === 'reports') setAppMode('view');
   }
@@ -3355,6 +3399,97 @@ export default function PastureMapView({Header, authState}) {
     );
   }
 
+  function renderMeasurementModal() {
+    const measurement = selectedMeasurement;
+    if (!measurement) return null;
+    const savedColor = measurement.line_color || '#7c3aed';
+    const changed =
+      measurementDraft.name.trim() !== (measurement.name || '') ||
+      measurementDraft.lineColor.toLowerCase() !== savedColor.toLowerCase();
+    const confirming = confirmDeleteMeasurementId === measurement.id;
+    return (
+      <PastureAreaModal
+        areaId={`measurement-${measurement.id}`}
+        title={measurement.name || 'Saved measurement'}
+        subtitle={`Saved measurement · ${formatDistanceFt(measurement.distance_ft)}`}
+        onClose={() => setSelectedMeasurementId(null)}
+        closeDisabled={measurementBusy}
+      >
+        <div className="pm-area-record" data-pasture-measurement-modal={measurement.id}>
+          <section className="pm-modal-section">
+            <div className="pm-modal-section-label">Measurement</div>
+            <label className="pm-field">
+              <span>Name</span>
+              <input
+                type="text"
+                value={measurementDraft.name}
+                maxLength={200}
+                onChange={(e) => setMeasurementDraft((d) => ({...d, name: e.target.value}))}
+                disabled={measurementBusy}
+                data-pasture-measurement-edit-name={measurement.id}
+              />
+            </label>
+            <label className="pm-field">
+              <span>Line color</span>
+              <input
+                type="color"
+                value={measurementDraft.lineColor}
+                onChange={(e) => setMeasurementDraft((d) => ({...d, lineColor: e.target.value}))}
+                disabled={measurementBusy}
+                data-pasture-measurement-edit-color={measurement.id}
+              />
+            </label>
+            <div className="pm-track-actions">
+              <button
+                type="button"
+                className="pm-btn pm-btn-primary"
+                onClick={saveMeasurementEdits}
+                disabled={measurementBusy || !measurementDraft.name.trim() || !changed}
+                data-pasture-measurement-edit-save={measurement.id}
+              >
+                {measurementBusy ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </section>
+          <section className="pm-modal-section pm-modal-section-danger">
+            {confirming ? (
+              <div className="pm-record-stay-confirm" data-pasture-measurement-delete-confirm={measurement.id}>
+                Delete this saved measurement? This cannot be undone.
+                <button
+                  type="button"
+                  className="pm-btn pm-btn-sm pm-btn-danger"
+                  onClick={() => deleteMeasurement(measurement.id)}
+                  disabled={measurementBusy}
+                  data-pasture-measurement-delete-yes={measurement.id}
+                >
+                  Delete measurement
+                </button>
+                <button
+                  type="button"
+                  className="pm-btn pm-btn-sm"
+                  onClick={() => setConfirmDeleteMeasurementId(null)}
+                  disabled={measurementBusy}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="pm-btn pm-btn-sm pm-btn-danger"
+                onClick={() => setConfirmDeleteMeasurementId(measurement.id)}
+                disabled={measurementBusy}
+                data-pasture-measurement-modal-delete={measurement.id}
+              >
+                Delete measurement
+              </button>
+            )}
+          </section>
+        </div>
+      </PastureAreaModal>
+    );
+  }
+
   // Reports keep spatial/status context: every row is tagged Permanent / Temp /
   // Archived / Archived temp, or Deleted when only a text snapshot survives
   // (the area is gone from the live list). Archived areas are included.
@@ -4336,6 +4471,8 @@ export default function PastureMapView({Header, authState}) {
                 appMode,
                 isTouch,
                 measurements,
+                selectedMeasurementId,
+                onSelectMeasurement: selectMeasurement,
                 onSaveMeasurement,
                 online,
                 draftLinesVisible,
@@ -4359,6 +4496,10 @@ export default function PastureMapView({Header, authState}) {
         !addMode &&
         !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode) &&
         renderAreaModal()}
+      {(appMode === 'view' || appMode === 'field') &&
+        selectedMeasurement &&
+        !['draw', 'edit', 'measure', 'track', 'droppin'].includes(mapMode) &&
+        renderMeasurementModal()}
       <div className="pm-hidden-compat">
         <span data-mode="select" />
         <span data-pasture-style-weight="1" />
