@@ -59,6 +59,11 @@ const EXPECTED_READY_MARKERS = new Map([
   ['src/tasks/TaskInstancePage.jsx', ['data-task-instance-record-loaded']],
   ['src/tasks/TodoItemPage.jsx', ['data-todo-record-loaded']],
   ['src/tasks/TodoListTab.jsx', ['data-todo-list-loaded']],
+  // Broiler select stage exposes when the webform_config schooner mirror has
+  // resolved: startNewSession refuses a broiler start until labels resolve,
+  // so tests/deploy checks need this readiness signal instead of racing the
+  // second (meta) fetch behind the batch-options fetch.
+  ['src/webforms/WeighInsWebform.jsx', ['data-weighins-broiler-meta-loaded']],
 ]);
 
 const EXPECTED_LOAD_ERROR_SURFACES = new Map([

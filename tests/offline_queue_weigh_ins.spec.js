@@ -116,6 +116,11 @@ async function broilerStartFreshSession(page) {
   await page.getByRole('combobox').first().selectOption('B-26-01');
   // Week 4 is the default selected; tap explicitly to be safe.
   await page.getByRole('button', {name: 'Week 4'}).click();
+  // The batch options and the schooner mirror load on separate reads.
+  // startNewSession refuses to start until the mirror resolved, so wait for
+  // the select stage's readiness marker instead of racing that fetch (route
+  // interception latency made CI lose the race deterministically).
+  await expect(page.locator('[data-weighins-broiler-meta-loaded="1"]')).toHaveCount(1, {timeout: 10_000});
   await page.getByRole('button', {name: 'Start Session'}).click();
   // Grid header is the marker for session stage in broiler.
   await expect(page.getByText('Bird weights (lbs)')).toBeVisible({timeout: 10_000});
@@ -272,9 +277,11 @@ test('pig recovery: queued submission replays on reload + lands 1 session + 3 en
 
   await expect.poll(async () => (await readQueue(page)).length, {timeout: 15_000}).toBe(0);
 
+  // team_member must be in the select list — asserting on a column the
+  // query never fetched compares against undefined and can never pass.
   const {data: sessions} = await supabaseAdmin
     .from('weigh_in_sessions')
-    .select('id, client_submission_id, species, status')
+    .select('id, client_submission_id, species, status, team_member')
     .eq('client_submission_id', queuedCsid);
   expect(sessions).toHaveLength(1);
   expect(sessions[0].species).toBe('pig');
@@ -318,7 +325,7 @@ test('pig idempotent replay: pre-seeded parent at queued csid → queue drains w
   {
     const {data: sessions} = await supabaseAdmin
       .from('weigh_in_sessions')
-      .select('id')
+      .select('id, team_member')
       .eq('client_submission_id', queued.csid);
     expect(sessions).toHaveLength(1);
     expect(sessions[0].team_member).toBe(lockedSubmitter);
@@ -336,7 +343,7 @@ test('pig idempotent replay: pre-seeded parent at queued csid → queue drains w
   // Still exactly 1 session + 2 entries.
   const {data: sessions} = await supabaseAdmin
     .from('weigh_in_sessions')
-    .select('id')
+    .select('id, team_member')
     .eq('client_submission_id', queued.csid);
   expect(sessions).toHaveLength(1);
   expect(sessions[0].team_member).toBe(lockedSubmitter);
@@ -636,11 +643,14 @@ test('broiler synced → Complete: status=complete + no second RPC fired', async
 
   expect(rpcCallCount).toBe(1); // one RPC call for the fresh save
 
+  // weigh_in_sessions has no created_at column (001_cattle_module.sql);
+  // started_at is the session timestamp. Ordering by created_at made
+  // PostgREST 42703 the whole response and sessions came back null.
   const {data: sessions} = await supabaseAdmin
     .from('weigh_in_sessions')
     .select('id, team_member')
     .eq('species', 'broiler')
-    .order('created_at', {ascending: false});
+    .order('started_at', {ascending: false});
   expect(sessions).toBeTruthy();
   expect(sessions.length).toBeGreaterThan(0);
   expect(sessions[0].team_member).toBe(lockedSubmitter);
@@ -683,9 +693,23 @@ test('stuck modal renders on species picker (not only on session screen)', async
     await new Promise((resolve, reject) => {
       const open = indexedDB.open('wcf-offline-queue', 1);
       open.onupgradeneeded = () => {
+        // Mirror src/lib/offlineQueue.js getDb() v1 EXACTLY (both stores, all
+        // indexes). Since /weighins became login-gated, this evaluate can win
+        // the DB-creation race against the app's deferred getDb(); an
+        // index-less store created here is then frozen at v1 forever and
+        // listStuck's getAllFromIndex('by_form_kind_status') throws, so the
+        // stuck modal can never render.
         const db = open.result;
         if (!db.objectStoreNames.contains('submissions')) {
-          db.createObjectStore('submissions', {keyPath: 'csid'});
+          const s = db.createObjectStore('submissions', {keyPath: 'csid'});
+          s.createIndex('by_form_kind', 'form_kind', {unique: false});
+          s.createIndex('by_status', 'status', {unique: false});
+          s.createIndex('by_form_kind_status', ['form_kind', 'status'], {unique: false});
+        }
+        if (!db.objectStoreNames.contains('photo_blobs')) {
+          const p = db.createObjectStore('photo_blobs', {keyPath: 'key'});
+          p.createIndex('by_csid', 'csid', {unique: false});
+          p.createIndex('by_form_kind', 'form_kind', {unique: false});
         }
       };
       open.onsuccess = () => {

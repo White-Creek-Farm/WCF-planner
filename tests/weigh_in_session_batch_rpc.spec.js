@@ -222,12 +222,17 @@ test('atomicity: bad child rolls back session + every prior child', async ({supa
 });
 
 // --------------------------------------------------------------------------
-// Test 6 — Anon EXECUTE works; no new RLS introduced
+// Test 6 — Anon EXECUTE works; anon table SELECT stays dropped (mig 138)
 // --------------------------------------------------------------------------
-// Note: weigh_in_sessions and weigh_ins already have anon SELECT policies
-// (mig 001). This test just confirms the RPC is callable from anon —
-// nothing in this migration broadens or restricts table-level RLS.
-test('anon: EXECUTE grant lets anon call the RPC; existing anon SELECT untouched', async ({supabaseAdmin, resetDb}) => {
+// Mig 001 originally gave weigh_in_sessions anon SELECT; migration 138's
+// Tier-1 anon write-boundary hardening deliberately dropped every
+// weigh_in_sessions anon policy (weigh_in_sessions_anon_select included).
+// The durable contract is now: the SECDEF RPC stays anon-EXECUTE callable,
+// while direct anon table reads fail closed.
+test('anon: EXECUTE grant lets anon call the RPC; anon table SELECT stays dropped (mig 138)', async ({
+  supabaseAdmin,
+  resetDb,
+}) => {
   await resetDb();
 
   const anonClient = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY, {
@@ -245,16 +250,20 @@ test('anon: EXECUTE grant lets anon call the RPC; existing anon SELECT untouched
   expect(data.idempotent_replay).toBe(false);
   expect(data.entry_count).toBe(2);
 
-  // Anon SELECT on weigh_in_sessions is allowed by the existing mig 001
-  // policy (this RPC didn't add or remove any policy). Verify the row
-  // is reachable to anon — locks "no RLS broadening AND no RLS narrowing".
-  const {data: anonRead} = await anonClient.from('weigh_in_sessions').select('*').eq('id', parent.id).maybeSingle();
-  expect(anonRead).not.toBeNull();
-  expect(anonRead.species).toBe('broiler');
+  // Direct anon SELECT is fail-closed since migration 138 dropped the
+  // legacy weigh_in_sessions_anon_select policy: no error, no row.
+  const {data: anonRead, error: anonReadError} = await anonClient
+    .from('weigh_in_sessions')
+    .select('*')
+    .eq('id', parent.id)
+    .maybeSingle();
+  expect(anonReadError).toBeNull();
+  expect(anonRead).toBeNull();
 
   // Service-role read confirms the row really landed (sanity).
   const {data: adminRead} = await supabaseAdmin.from('weigh_in_sessions').select('*').eq('id', parent.id).maybeSingle();
   expect(adminRead.broiler_week).toBe(6);
+  expect(adminRead.species).toBe('broiler');
 });
 
 // --------------------------------------------------------------------------

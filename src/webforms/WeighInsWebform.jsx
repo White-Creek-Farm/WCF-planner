@@ -84,6 +84,11 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
   // weigh-ins view has its own authenticated read of the canonical batch
   // store; the public form never touches it (anon RLS).
   const [broilerBatchMeta, setBroilerBatchMeta] = React.useState([]);
+  // Readiness marker for the mirror above. startNewSession refuses a broiler
+  // start until schooner labels resolve, so the select stage must expose when
+  // that read has settled (data-weighins-broiler-meta-loaded) for deterministic
+  // waits instead of racing the fetch.
+  const [broilerBatchMetaLoaded, setBroilerBatchMetaLoaded] = React.useState(false);
   const [pigBatchId, setPigBatchId] = React.useState('');
   const [broilerBatchId, setBroilerBatchId] = React.useState('');
   const [broilerBatchLabel, setBroilerBatchLabel] = React.useState('');
@@ -226,13 +231,24 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
       // (mirrored by admin-app load + syncWebformConfig). The previous direct
       // read of the canonical batch store was anon-blocked under prod RLS
       // and silently produced "(no schooner)" fallbacks.
+      // Fail closed across retries: clear the previous mirror before each
+      // read so a failed refresh cannot reuse stale schooner metadata and
+      // let Start Session proceed on outdated columns.
+      setBroilerBatchMeta([]);
+      setBroilerBatchMetaLoaded(false);
       sb.from('webform_config')
         .select('data')
         .eq('key', 'broiler_batch_meta')
         .maybeSingle()
         .then(({data}) => {
           if (data && Array.isArray(data.data)) setBroilerBatchMeta(data.data);
-        });
+        })
+        .catch(() => {
+          // Marker means "the request settled", not "valid metadata exists".
+          // A failed read keeps broilerBatchMeta empty, so startNewSession
+          // still fails closed with the no-schooners message.
+        })
+        .finally(() => setBroilerBatchMetaLoaded(true));
     }
     // Look for existing draft sessions in the last 7 days
     const cutoff = centralISOFor(new Date(Date.now() - 7 * 86400000));
@@ -1822,8 +1838,15 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
             {species === 'cattle' && (
               <React.Fragment>
                 <div style={{marginBottom: 10}}>
-                  <label style={lblS}>Herd *</label>
-                  <select value={cattleHerd} onChange={(e) => setCattleHerd(e.target.value)} style={inpS}>
+                  <label style={lblS} htmlFor="weighins-cattle-herd">
+                    Herd *
+                  </label>
+                  <select
+                    id="weighins-cattle-herd"
+                    value={cattleHerd}
+                    onChange={(e) => setCattleHerd(e.target.value)}
+                    style={inpS}
+                  >
                     <option value="">Select herd...</option>
                     <option value="mommas">Mommas</option>
                     <option value="backgrounders">Backgrounders</option>
@@ -1860,8 +1883,15 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
             {species === 'pig' && (
               <React.Fragment>
                 <div style={{marginBottom: 10}}>
-                  <label style={lblS}>Pig Batch *</label>
-                  <select value={pigBatchId} onChange={(e) => setPigBatchId(e.target.value)} style={inpS}>
+                  <label style={lblS} htmlFor="weighins-pig-batch">
+                    Pig Batch *
+                  </label>
+                  <select
+                    id="weighins-pig-batch"
+                    value={pigBatchId}
+                    onChange={(e) => setPigBatchId(e.target.value)}
+                    style={inpS}
+                  >
                     <option value="">Select batch...</option>
                     {pigBatches.map((b) => (
                       <option key={b} value={b}>
@@ -1893,9 +1923,15 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
 
             {species === 'broiler' && (
               <React.Fragment>
-                <div style={{marginBottom: 10}}>
-                  <label style={lblS}>Broiler Batch *</label>
+                <div
+                  style={{marginBottom: 10}}
+                  data-weighins-broiler-meta-loaded={broilerBatchMetaLoaded ? '1' : undefined}
+                >
+                  <label style={lblS} htmlFor="weighins-broiler-batch">
+                    Broiler Batch *
+                  </label>
                   <select
+                    id="weighins-broiler-batch"
                     value={broilerBatchLabel}
                     onChange={(e) => {
                       setBroilerBatchLabel(e.target.value);
@@ -1967,8 +2003,15 @@ const WeighInsWebform = ({sb, sessionSubmitter}) => {
             {species === 'sheep' && (
               <React.Fragment>
                 <div style={{marginBottom: 10}}>
-                  <label style={lblS}>Flock *</label>
-                  <select value={sheepFlock} onChange={(e) => setSheepFlock(e.target.value)} style={inpS}>
+                  <label style={lblS} htmlFor="weighins-sheep-flock">
+                    Flock *
+                  </label>
+                  <select
+                    id="weighins-sheep-flock"
+                    value={sheepFlock}
+                    onChange={(e) => setSheepFlock(e.target.value)}
+                    style={inpS}
+                  >
                     <option value="">Select flock...</option>
                     <option value="rams">Rams</option>
                     <option value="ewes">Ewes</option>
