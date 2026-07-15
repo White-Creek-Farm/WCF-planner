@@ -263,9 +263,17 @@ test.describe('Tasks v2 T5 — System Tasks tab', () => {
     // T9 added an admin Edit Rule button. The other forbidden controls
     // (Save/Generate/Delete/Assign) must NOT appear at the tab level —
     // they only show up inside the rule edit modal once admin clicks
-    // Edit Rule. Until then the tab body stays inspect-only.
+    // Edit Rule. Until then the tab body stays inspect-only, with ONE
+    // sanctioned exception: the orphan section's per-instance
+    // "Delete orphan" cleanup button (the fixture seeds an orphan row).
     await expect(tab.locator('[data-system-rule-edit-button="broiler-4wk-weighin"]')).toBeVisible();
-    await expect(tab.getByRole('button', {name: /^delete/i})).toHaveCount(0);
+    // The fixture seeds exactly ONE orphan, so exactly ONE delete control
+    // exists in the whole tab — the orphan section's sanctioned per-instance
+    // cleanup button — and no rule card ever hosts a delete control.
+    const deleteButtons = tab.getByRole('button', {name: /^delete/i});
+    await expect(deleteButtons).toHaveCount(1);
+    await expect(deleteButtons.first()).toHaveAttribute('data-system-orphan-delete-button', /.+/);
+    await expect(tab.locator('[data-system-rule] button', {hasText: /^delete/i})).toHaveCount(0);
     await expect(tab.getByRole('button', {name: /^save/i})).toHaveCount(0);
     await expect(tab.getByRole('button', {name: /^generate/i})).toHaveCount(0);
     await expect(tab.getByRole('button', {name: /^assign/i})).toHaveCount(0);
@@ -297,6 +305,10 @@ test.describe('Tasks v2 T5 — System Tasks tab', () => {
     await page.getByPlaceholder('••••••••').fill('apply_test_mig_052_placeholder_password');
     await page.getByRole('button', {name: /^sign in$/i}).click();
     await expect(page.locator('[data-login-screen]')).toHaveCount(0, {timeout: 15_000});
+    // Wait out the app's fail-closed cold-boot data load BEFORE navigating —
+    // the /tasks assertions otherwise race the farm-data fetch on a fresh
+    // (storage-cleared) session and burn the test budget on the boot screen.
+    await expect(page.getByText('Loading your farm data...')).toHaveCount(0, {timeout: 15_000});
 
     await page.goto('/tasks');
 

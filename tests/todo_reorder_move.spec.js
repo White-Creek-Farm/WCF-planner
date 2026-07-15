@@ -235,6 +235,11 @@ test('move into a SPARSE section still lands at the bottom (vacated sort_order s
     .order('sort_order', {ascending: true});
   expect(rows.map((r) => r.sort_order)).toEqual([0, 1, 2, 3]);
 
-  const titles = await page.locator('[data-todo-section="general"] [data-todo-row]').allTextContents();
-  expect(titles[3]).toContain('Incoming from cattle');
+  // Web-first retrying assertion: the UI refetch after the move RPC is
+  // asynchronous, so a one-shot allTextContents() read can race it even
+  // though the DB polls above already passed (the CI failure snapshot shows
+  // the row present milliseconds later). Same expectation, retry-safe form.
+  await expect(page.locator('[data-todo-section="general"] [data-todo-row]').nth(3)).toContainText(
+    'Incoming from cattle',
+  );
 });

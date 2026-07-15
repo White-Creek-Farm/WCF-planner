@@ -50,7 +50,7 @@ async function seedHiddenAssignees(supabaseAdmin, hiddenProfileIds) {
 }
 
 test.describe('Header — Webforms grouping + Equipment rename + Tasks divider', () => {
-  test('renders Webforms label, Dailys + Equipment buttons, and a divider before Tasks', async ({
+  test('Webforms lives in the burger menu (Dailys + Equipment entries); Tasks stays a dark-bar icon button', async ({
     page,
     supabaseAdmin,
     resetDb,
@@ -60,27 +60,30 @@ test.describe('Header — Webforms grouping + Equipment rename + Tasks divider',
 
     await page.goto('/');
 
-    // Webforms group + label.
-    const group = page.locator('[data-header-webforms-group="1"]');
-    await expect(group).toBeVisible();
-    await expect(page.locator('[data-header-webforms-label="1"]')).toHaveText(/^Webforms$/);
+    // Header redesign (white icon buttons + hamburger): the old top-bar
+    // Webforms group/label/divider markers are retired — the Webforms group
+    // moved INTO the burger menu as a labeled section.
+    await expect(page.locator('[data-header-webforms-group="1"]')).toHaveCount(0);
+    await expect(page.locator('[data-header-webforms-label="1"]')).toHaveCount(0);
+    await expect(page.locator('[data-header-tasks-divider="1"]')).toHaveCount(0);
 
-    // Dailys still present (we didn't rename it). Equipment renamed.
-    await expect(group.getByText('📝 Dailys')).toBeVisible();
-    const equipmentBtn = page.locator('[data-header-webforms-equipment="1"]');
-    await expect(equipmentBtn).toBeVisible();
-    // Equipment button now uses an inline PlannerIcon PNG instead of the
-    // 🚜 tractor emoji. The accessible text content is just "Equipment".
-    await expect(equipmentBtn).toHaveText(/^\s*Equipment\s*$/);
+    // Dark-bar Tasks icon button still present.
+    await expect(page.locator('[data-tasks-header-link="1"]').first()).toBeVisible();
 
-    // Equipment routes to fuelingHub (i.e. /equipment) after the label change.
-    await equipmentBtn.click();
+    // Burger menu: Webforms section label + Dailys and Equipment entries.
+    await page.getByRole('button', {name: 'Menu'}).click();
+    await expect(page.getByText('Webforms', {exact: true})).toBeVisible();
+    const dailysItem = page.locator('[data-header-menu-item="dailys"]');
+    const equipmentItem = page.locator('[data-header-menu-item="equipment"]');
+    await expect(dailysItem).toBeVisible();
+    await expect(dailysItem).toContainText('Dailys');
+    await expect(equipmentItem).toBeVisible();
+    // Equipment uses an inline PlannerIcon PNG; accessible text is Equipment.
+    await expect(equipmentItem).toHaveText(/^\s*Equipment\s*$/);
+
+    // Equipment routes to fuelingHub (i.e. /equipment).
+    await equipmentItem.click();
     await expect(page).toHaveURL(/\/equipment\b/);
-
-    // Back to home so the divider + Tasks button are still in the dark bar.
-    await page.goto('/');
-    await expect(page.locator('[data-header-tasks-divider="1"]')).toBeVisible();
-    await expect(page.locator('[data-tasks-header-link="1"]')).toBeVisible();
   });
 });
 
@@ -172,9 +175,11 @@ test.describe('Tasks v2 — assignee availability filter on Task Center mutation
       .click();
     await expect(page.locator('[data-assign-task-modal="1"]')).toHaveCount(0);
 
-    // 3) Recurring template modal.
+    // 3) Recurring template modal. The seeded template is INACTIVE, and the
+    // inactive sub-section is collapsed by default — expand it first.
     await page.locator('[data-tasks-tab-button="recurring"]').click();
     const recurringTab = page.locator('[data-tasks-tab="recurring"]');
+    await recurringTab.locator('[data-recurring-inactive-toggle="1"]').click();
     await recurringTab.locator('[data-recurring-template="tpl-hav-mak"] button').first().click();
     await recurringTab.locator('[data-recurring-edit-button="tpl-hav-mak"]').click();
     await expect(page.locator('[data-recurring-template-modal="1"]')).toBeVisible();
@@ -239,7 +244,7 @@ test.describe('Tasks v2 — assignee availability filter on Task Center mutation
 });
 
 test.describe('Tasks v2 — photo icon size on My Tasks and Completed', () => {
-  test('paperclip 📎 button is at least 32px on both tabs', async ({page, supabaseAdmin, resetDb}) => {
+  test('photo thumbnail button keeps a ≥32px tap target on both tabs', async ({page, supabaseAdmin, resetDb}) => {
     await resetDb();
     const adminId = await seedAdminProfile(supabaseAdmin);
 
@@ -273,19 +278,23 @@ test.describe('Tasks v2 — photo icon size on My Tasks and Completed', () => {
 
     await page.goto('/tasks');
 
-    // My Tasks: paperclip button on the open row.
+    // My Tasks: photo THUMBNAIL button on the open row. The old ≥32px 📎
+    // emoji became a real thumbnail button (48×38) — the tap-target intent
+    // is preserved by asserting the rendered box, not a glyph font size.
     const openBtn = page.locator('[data-task-row="tic-photo-open"] [data-task-photo-open="1"]').first();
     await expect(openBtn).toBeVisible();
-    const openSize = await openBtn.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(openSize).toBeGreaterThanOrEqual(32);
+    const openBox = await openBtn.boundingBox();
+    expect(openBox.width).toBeGreaterThanOrEqual(32);
+    expect(openBox.height).toBeGreaterThanOrEqual(32);
 
-    // Completed tab: paperclip button on the completed row.
+    // Completed tab: thumbnail button on the completed row.
     await page.locator('[data-tasks-tab-button="completed"]').click();
     const completedBtn = page
       .locator('[data-tasks-tab="completed"] [data-task-row="tic-photo-completed"] [data-task-photo-open="1"]')
       .first();
     await expect(completedBtn).toBeVisible();
-    const completedSize = await completedBtn.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(completedSize).toBeGreaterThanOrEqual(32);
+    const completedBox = await completedBtn.boundingBox();
+    expect(completedBox.width).toBeGreaterThanOrEqual(32);
+    expect(completedBox.height).toBeGreaterThanOrEqual(32);
   });
 });

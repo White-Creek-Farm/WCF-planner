@@ -101,8 +101,9 @@ test.describe('Tasks v2 T11 — legacy route retirement', () => {
     await expect(page.locator('[data-tasks-header-link="1"]').first()).toBeVisible();
 
     // Open the burger menu (admin sees Users + Sign Out only — no
-    // Tasks/My Tasks entries).
-    await page.getByRole('button', {name: /^☰$/}).click();
+    // Tasks/My Tasks entries). The button's accessible NAME is "Menu"
+    // (aria-label) — the ☰ glyph is its visual content, not its name.
+    await page.getByRole('button', {name: 'Menu'}).click();
     // The burger no longer shows "My Tasks" or "Tasks Center" entries.
     await expect(page.getByRole('button', {name: /My Tasks/})).toHaveCount(0);
     await expect(page.getByRole('button', {name: /Tasks Center/})).toHaveCount(0);

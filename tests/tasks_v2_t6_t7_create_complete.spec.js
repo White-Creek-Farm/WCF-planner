@@ -280,9 +280,15 @@ test.describe('Tasks v2 T7 — Complete Task modal', () => {
 
     const modal = page.locator('[data-complete-task-modal="1"]');
     await modal.locator('[data-complete-task-field="note"]').fill('Done — photos attached.');
-    await modal
-      .locator('[data-complete-task-field="photos"]')
-      .setInputFiles([tinyImageFile('c1.png'), tinyImageFile('c2.png')]);
+    // The photos input stays DISABLED until the modal's async photo-slot
+    // count loads; a real user cannot pick files before then. setInputFiles
+    // bypasses the disabled affordance and the selection is dropped by the
+    // slot guard — wait for the enabled state exactly like a real user.
+    const photosInput = modal.locator('[data-complete-task-field="photos"]');
+    await expect(photosInput).toBeEnabled();
+    await photosInput.setInputFiles([tinyImageFile('c1.png'), tinyImageFile('c2.png')]);
+    // Two selected files register before save (guards against silent drops).
+    await expect(modal.locator('[data-complete-task-photo]')).toHaveCount(2);
     await modal.locator('[data-complete-task-save="1"]').click();
     await expect(modal).toHaveCount(0);
 

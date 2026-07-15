@@ -67,8 +67,10 @@ test.describe('Task record-page sequence navigation', () => {
     await page.goto('/tasks');
     await expect(page.locator('[data-task-row]').first()).toBeVisible({timeout: 15_000});
 
-    // Click the first rendered task's title link → its record page (position 1).
-    await page.locator('[data-task-row]').first().locator('[role="link"]').first().click();
+    // Open the first rendered task → its record page (position 1). Task rows
+    // are whole-row openables (.hoverable-tile + openableProps role="button");
+    // the old inner [role="link"] title anchor is retired.
+    await page.locator('[data-task-row]').first().click();
 
     await expect(page).toHaveURL(/\/tasks\/tseq-/, {timeout: 10_000});
     await expect(page.locator('[data-record-seq-nav="1"]')).toBeVisible();
@@ -112,7 +114,8 @@ test.describe('Task record-page sequence navigation', () => {
 
     await page.goto('/tasks');
     await expect(page.locator('[data-task-row="tseq-mine"]')).toBeVisible({timeout: 15_000});
-    await page.locator('[data-task-row="tseq-mine"]').locator('[role="link"]').first().click();
+    // Whole-row openable (openableProps role="button") — no inner link anchor.
+    await page.locator('[data-task-row="tseq-mine"]').click();
 
     await expect(page).toHaveURL(/\/tasks\/tseq-mine/, {timeout: 10_000});
     // Mak's task sits in a collapsed solo group (not rendered), so the visible
