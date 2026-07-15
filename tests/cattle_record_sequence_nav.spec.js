@@ -28,9 +28,15 @@ async function waitForCattleLoaded(page) {
   await expect(page.locator('[data-cattle-match-count]')).not.toHaveText(/^0 /, {timeout: 15_000});
 }
 
-async function expandHerd(page) {
-  // Default results group by herd. Just wait for the grouped list to settle.
+// Herd tiles on /cattle/herds default to collapsed and cow rows mount only
+// when a tile is expanded (fdfd1dc). Wait for the grouped view, then click
+// each collapsed toggle until every herd table is open.
+async function expandAllHerds(page) {
   await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible({timeout: 15_000});
+  const collapsed = page.locator('[data-cattle-herd-toggle][data-cattle-herd-collapsed="1"]');
+  for (let n = await collapsed.count(); n > 0; n = await collapsed.count()) {
+    await collapsed.first().click();
+  }
 }
 
 test.describe('Cattle record-page sequence navigation', () => {
@@ -46,7 +52,7 @@ test.describe('Cattle record-page sequence navigation', () => {
 
     await page.goto('/cattle/herds');
     await waitForCattleLoaded(page);
-    await expandHerd(page, 'mommas');
+    await expandAllHerds(page);
 
     // Click the SEQ-A row (sorts first by tag, so it opens at position 1).
     await expect(page.locator('[data-cow-row-tag="SEQ-A"]')).toBeVisible();

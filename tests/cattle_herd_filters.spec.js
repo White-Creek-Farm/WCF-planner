@@ -261,8 +261,8 @@ test('age sort youngest-first orders newest birth_date first', async ({page, cat
   const ageRule = page.locator('[data-sort-rule="age"]');
   await expect(ageRule).toHaveAttribute('data-sort-dir', 'asc');
 
-  // Mommas seed: M001 (2020-04), M002 (2021-03), M003 (2024-06 — youngest),
-  // M004 (2019-02 — oldest), M005 (2022-08).
+  // Mommas seed ages (runtime-relative): M001 ~73mo, M002 ~61mo,
+  // M003 ~23mo (youngest), M004 ~87mo (oldest), M005 ~44mo.
   // Youngest-first asc order: M003, M005, M002, M001, M004.
   await expect(flatRows(page)).toHaveCount(5);
   expect(await readTagsInOrder(flatRows(page))).toEqual(['M003', 'M005', 'M002', 'M001', 'M004']);

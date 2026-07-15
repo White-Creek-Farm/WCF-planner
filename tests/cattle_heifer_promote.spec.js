@@ -73,6 +73,17 @@ BEGIN
 END $$;
 `;
 
+// Herd tiles on /cattle/herds default to collapsed and cow rows mount only
+// when a tile is expanded (fdfd1dc). Wait for the grouped view, then click
+// each collapsed toggle until every herd table is open.
+async function expandAllHerds(page) {
+  await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible({timeout: 15_000});
+  const collapsed = page.locator('[data-cattle-herd-toggle][data-cattle-herd-collapsed="1"]');
+  for (let n = await collapsed.count(); n > 0; n = await collapsed.count()) {
+    await collapsed.first().click();
+  }
+}
+
 // --------------------------------------------------------------------------
 // Test 1 — Calf count = SUM(total_born) with twins double-counting
 // --------------------------------------------------------------------------
@@ -102,6 +113,7 @@ test('momma tile shows Calves: SUM(total_born) — twins double-count', async ({
 
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await expandAllHerds(page);
 
   // The momma row renders with its Calf Count column (on by default).
   const cowTile = page.locator(`#cow-${MOMMA.id}`).first();
@@ -121,6 +133,7 @@ test('momma tile shows Calves: 0 when no calving records', async ({page, supabas
 
   await page.goto('/cattle/herds');
   await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await expandAllHerds(page);
 
   const cowTile = page.locator(`#cow-cow-zero`).first();
   await expect(cowTile).toBeVisible({timeout: 10_000});

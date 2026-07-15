@@ -8,7 +8,12 @@
 //   (active + historical) / lineage / outcome herd visibility / weigh-in
 //   freshness for stale/no/has-weight tiers.
 //
-// Date math anchors against 2026-05-02 (today's date when the spec runs).
+// Age-bearing dates are RUNTIME-RELATIVE (offsets from wall-clock now), not
+// fixed. A fixed birth_date rots: it eventually crosses an age-filter
+// threshold as real time advances (B203's fixed 2025-01-15 birth date crossed
+// ageMonths >= 18 on 2026-07-08 and broke the sex+age compose test). Calving
+// dates stay fixed because the spec compares them against fixed cutoff dates,
+// never against now.
 // Stale-weight threshold default is 90 days; STALE_DATE is set ~150 days ago.
 // ============================================================================
 
@@ -46,12 +51,28 @@ async function ensureAdminProfile(supabaseAdmin) {
   return adminEmail;
 }
 
-// Reference dates against the spec's notional "today" — admin tests run
-// against the test DB which doesn't care about wall clock. The age sort
-// direction test reads birth_date strings directly so it is timezone-stable.
-const TODAY_ISO = '2026-05-02';
-const FRESH_DATE = '2026-04-25T12:00:00Z'; // ~7 days ago — within stale threshold
-const STALE_DATE = '2025-12-01T12:00:00Z'; // ~150 days ago — beyond 90-day default
+// Reference dates are computed from wall-clock now so seeded ages and
+// weigh-in freshness never rot. The age sort direction test reads birth_date
+// strings directly, and relative offsets preserve the strict ordering, so it
+// stays timezone-stable. UTC keeps the date strings host-timezone-independent.
+const NOW = new Date();
+
+function isoDaysAgo(days) {
+  return new Date(NOW.getTime() - days * 86400000).toISOString().slice(0, 10);
+}
+
+// Approximate calendar months; the product ageMonths metric is
+// floor(days / 30), so every offset below keeps >= 2 months of margin from
+// the age thresholds the spec filters on (18mo min, 30mo maturity).
+function isoMonthsAgo(months) {
+  const d = new Date(NOW.getTime());
+  d.setUTCMonth(d.getUTCMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
+
+const TODAY_ISO = NOW.toISOString().slice(0, 10);
+const FRESH_DATE = isoDaysAgo(7) + 'T12:00:00Z'; // ~7 days ago — within stale threshold
+const STALE_DATE = isoDaysAgo(150) + 'T12:00:00Z'; // ~150 days ago — beyond 90-day default
 
 const COWS = [
   // ── mommas — calving-status spread ─────────────────────────────────────
@@ -63,7 +84,7 @@ const COWS = [
     breed: 'Angus',
     breeding_blacklist: false,
     origin: 'Smith Ranch',
-    birth_date: '2020-04-01', // ~6yr — old momma
+    birth_date: isoMonthsAgo(73), // ~6yr — old momma
     dam_tag: 'D-001',
     sire_tag: 'S-001',
     old_tags: [],
@@ -81,7 +102,7 @@ const COWS = [
     breed: 'Angus',
     breeding_blacklist: false,
     origin: 'Smith Ranch',
-    birth_date: '2021-03-15',
+    birth_date: isoMonthsAgo(61),
     dam_tag: 'D-002',
     sire_tag: null, // sire missing
     old_tags: [],
@@ -99,7 +120,7 @@ const COWS = [
     breed: 'Hereford',
     breeding_blacklist: false,
     origin: 'Jones Ranch',
-    birth_date: '2024-06-01', // ~23mo
+    birth_date: isoMonthsAgo(23), // ~23mo — over the 18mo filter floor, under 30mo maturity
     dam_tag: null, // both parents missing
     sire_tag: null,
     old_tags: [],
@@ -117,7 +138,7 @@ const COWS = [
     breed: 'Angus',
     breeding_blacklist: true,
     origin: 'Smith Ranch',
-    birth_date: '2019-02-10',
+    birth_date: isoMonthsAgo(87),
     dam_tag: 'D-004',
     sire_tag: 'S-004',
     old_tags: [],
@@ -137,7 +158,7 @@ const COWS = [
     breed: 'Heritage Wagyu',
     breeding_blacklist: false,
     origin: 'Smith Ranch',
-    birth_date: '2022-08-20',
+    birth_date: isoMonthsAgo(44),
     pct_wagyu: 75,
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
@@ -154,7 +175,7 @@ const COWS = [
     herd: 'backgrounders',
     breed: 'Angus',
     breeding_blacklist: false,
-    birth_date: '2024-09-01', // ~20mo
+    birth_date: isoMonthsAgo(20), // ~20mo — over the 18mo filter floor
     dam_tag: 'D-201',
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
@@ -170,7 +191,7 @@ const COWS = [
     herd: 'backgrounders',
     breed: 'Angus',
     breeding_blacklist: false,
-    birth_date: '2024-08-01', // ~21mo
+    birth_date: isoMonthsAgo(21), // ~21mo — over the 18mo filter floor
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
     // state into the exact intended (active, unattached) shape.
@@ -185,7 +206,7 @@ const COWS = [
     herd: 'backgrounders',
     breed: 'Hereford',
     breeding_blacklist: false,
-    birth_date: '2025-01-15', // ~16mo
+    birth_date: isoMonthsAgo(16), // ~16mo — stays under the 18mo filter floor
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
     // state into the exact intended (active, unattached) shape.
@@ -201,7 +222,7 @@ const COWS = [
     herd: 'finishers',
     breed: 'Angus',
     breeding_blacklist: false,
-    birth_date: '2024-02-01', // ~27mo
+    birth_date: isoMonthsAgo(27), // ~27mo
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
     // state into the exact intended (active, unattached) shape.
@@ -217,7 +238,7 @@ const COWS = [
     herd: 'bulls',
     breed: 'Angus',
     breeding_blacklist: false,
-    birth_date: '2021-05-01', // ~5yr
+    birth_date: isoMonthsAgo(60), // ~5yr
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
     // state into the exact intended (active, unattached) shape.
@@ -233,7 +254,7 @@ const COWS = [
     herd: 'processed',
     breed: 'Angus',
     breeding_blacklist: false,
-    birth_date: '2022-01-01',
+    birth_date: isoMonthsAgo(52),
     old_tags: [],
     // Explicit resets so an upsert overwrites a stale worker row's mutable
     // state into the exact intended (active, unattached) shape.
@@ -248,7 +269,7 @@ const COWS = [
     herd: 'sold',
     breed: 'Angus',
     breeding_blacklist: false,
-    birth_date: '2020-02-01',
+    birth_date: isoMonthsAgo(75),
     sale_date: '2026-04-10',
     old_tags: [],
     deleted_at: null,
@@ -262,7 +283,7 @@ const COWS = [
     herd: 'deceased',
     breed: 'Hereford',
     breeding_blacklist: false,
-    birth_date: '2019-01-01',
+    birth_date: isoMonthsAgo(88),
     death_date: '2026-03-15',
     old_tags: [],
     deleted_at: null,

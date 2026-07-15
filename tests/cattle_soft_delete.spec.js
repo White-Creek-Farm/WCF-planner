@@ -77,9 +77,19 @@ async function waitForCattleLoaded(page) {
   await expect(page.locator('[data-cattle-match-count]')).not.toHaveText(/^0 /, {timeout: 15_000});
 }
 
-async function expandHerd(page) {
-  // Default results group by herd. Just wait for the grouped list to settle.
+// Herd tiles on /cattle/herds default to collapsed and cow rows mount only
+// when a tile is expanded (fdfd1dc). Wait for the grouped view, then click
+// each collapsed toggle until every herd table is open. Expanding ALL herds
+// (not one target herd) matters here: an empty herd renders no section at
+// all, so after deleting the only momma there is no mommas tile to expand,
+// and a row-absence assertion is only meaningful once every rendered herd
+// table is open.
+async function expandAllHerds(page) {
   await expect(page.locator('[data-cattle-grouped-herds="1"]')).toBeVisible({timeout: 15_000});
+  const collapsed = page.locator('[data-cattle-herd-toggle][data-cattle-herd-collapsed="1"]');
+  for (let n = await collapsed.count(); n > 0; n = await collapsed.count()) {
+    await collapsed.first().click();
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -103,7 +113,7 @@ test('admin delete: cow disappears from active herds', async ({page, cattleSoftD
 
   await expect(page).toHaveURL(/\/cattle\/herds$/);
   await waitForCattleLoaded(page);
-  await expandHerd(page, 'mommas');
+  await expandAllHerds(page);
 
   // Cow disappears from herds list.
   await expect(page.locator('[data-cow-row-tag="SD-100"]')).toHaveCount(0, {timeout: 10_000});
@@ -135,6 +145,7 @@ test('deleted cow is admin-queryable and hidden from active herds', async ({page
 
   await page.goto('/cattle/herds');
   await waitForCattleLoaded(page);
+  await expandAllHerds(page);
 
   await expect(page.locator('[data-cow-row-tag="SD-100"]')).toHaveCount(0);
   await expect(page.getByRole('button', {name: /Recently Deleted/})).toHaveCount(0);
@@ -163,7 +174,7 @@ test('admin restore: cow reappears in active herds', async ({page, cattleSoftDel
   // Cow reappears in mommas.
   await page.goto('/cattle/herds');
   await waitForCattleLoaded(page);
-  await expandHerd(page, 'mommas');
+  await expandAllHerds(page);
   await expect(page.locator('[data-cow-row-tag="SD-100"]')).toBeVisible({timeout: 10_000});
 });
 
