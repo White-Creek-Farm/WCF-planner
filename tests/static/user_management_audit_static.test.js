@@ -262,7 +262,7 @@ describe('UsersModal — RPC-only profile mutations', () => {
 
 describe('rapid-processor — coordinated Auth deletion', () => {
   const deleteBranch = edgeBranch('user_delete', 'tasks_weekly_summary');
-  const createBranch = edgeBranch('user_create', 'user_welcome');
+  const createBranch = edgeBranch('user_create', 'password_reset');
 
   it('preflights before Auth delete and finalizes both outcomes', () => {
     const prepare = deleteBranch.indexOf("rpc('admin_prepare_user_delete'");

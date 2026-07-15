@@ -149,12 +149,12 @@ function LoginScreen({onLogin}) {
             {resetSent ? (
               <div style={{textAlign: 'center', color: '#085041', fontSize: 13}}>
                 <div style={{fontSize: 32, marginBottom: 8}}>✓</div>
-                Check your email for a password reset link.
+                If an account exists, a reset link has been sent. Check your email.
               </div>
             ) : (
               <>
                 <div style={{fontSize: 13, color: '#4b5563'}}>
-                  Enter your WCF Planner account email and we'll send a reset link.
+                  Enter your WCF Planner account email. If an account exists, we'll send a reset link.
                 </div>
                 <input
                   type="email"

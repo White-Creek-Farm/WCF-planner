@@ -40,12 +40,11 @@ const src = fs.readFileSync(path.join(ROOT, 'supabase-functions/rapid-processor.
 // survive the strip.
 const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*/gm, '');
 
-describe('rapid-processor.ts — seven handler branches present', () => {
+describe('rapid-processor.ts — six handler branches present', () => {
   const handlers = [
     'egg_report',
     'starter_feed_check',
     'user_create',
-    'user_welcome',
     'password_reset',
     'user_delete',
     'tasks_weekly_summary',
@@ -56,6 +55,13 @@ describe('rapid-processor.ts — seven handler branches present', () => {
       expect(code).toMatch(re);
     });
   }
+
+  // CC#8 takeover hotfix F2: the legacy user_welcome branch was removed
+  // (unauthenticated recovery-link generator honoring caller test_to). Lock
+  // it out so a future redeploy from source can't resurrect it.
+  it("branch removed: type === 'user_welcome' is gone", () => {
+    expect(code).not.toMatch(/if\s*\(\s*type\s*===\s*'user_welcome'\s*\)/);
+  });
 });
 
 describe('rapid-processor.ts — account emails use noreply and admin-created users skip Supabase signup mail', () => {
@@ -66,10 +72,10 @@ describe('rapid-processor.ts — account emails use noreply and admin-created us
   // branch length. The downstream from:AUTH_FROM / Resend assertions
   // still need to fall inside the slice.
   const userCreateSlice = userCreateIdx >= 0 ? code.slice(userCreateIdx, userCreateIdx + 9000) : '';
-  const userWelcomeIdx = code.indexOf("if (type === 'user_welcome')");
-  const userWelcomeSlice = userWelcomeIdx >= 0 ? code.slice(userWelcomeIdx, userWelcomeIdx + 1600) : '';
   const passwordResetIdx = code.indexOf("if (type === 'password_reset')");
-  const passwordResetSlice = passwordResetIdx >= 0 ? code.slice(passwordResetIdx, passwordResetIdx + 5200) : '';
+  // Widened after the CC#8 hotfix split password_reset into identity gate +
+  // link resolve + guarded send; the AUTH_FROM / step labels sit near the end.
+  const passwordResetSlice = passwordResetIdx >= 0 ? code.slice(passwordResetIdx, passwordResetIdx + 9000) : '';
   const eggReportIdx = code.indexOf("if (type === 'egg_report')");
   const eggReportSlice = eggReportIdx >= 0 ? code.slice(eggReportIdx, eggReportIdx + 1200) : '';
   const starterFeedIdx = code.indexOf("if (type === 'starter_feed_check')");
@@ -106,11 +112,10 @@ describe('rapid-processor.ts — account emails use noreply and admin-created us
 
   it('welcome and password reset emails send from AUTH_FROM', () => {
     expect(userCreateSlice).toMatch(/from:\s*AUTH_FROM/);
-    expect(userWelcomeSlice).toMatch(/from:\s*AUTH_FROM/);
     expect(passwordResetSlice).toMatch(/from:\s*AUTH_FROM/);
   });
 
-  it('password_reset labels account/config/send failures instead of throwing a generic 500', () => {
+  it('password_reset labels account/config/send failures for admins instead of throwing a generic 500', () => {
     expect(passwordResetSlice).toMatch(/missingEnv\.push\('SUPABASE_URL'\)/);
     expect(passwordResetSlice).toMatch(/missingEnv\.push\('SUPABASE_SERVICE_ROLE_KEY'\)/);
     expect(passwordResetSlice).toMatch(/missingEnv\.push\('RESEND_API_KEY'\)/);
