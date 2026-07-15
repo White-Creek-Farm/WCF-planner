@@ -62,71 +62,127 @@ function MonthlyPrecipTable({monthlyPrecip}) {
 }
 
 export default function HomeWeatherCard() {
+  // The collapsed card is a stable shell: it renders on the first Home paint
+  // and never unmounts for loading/failure, so the dashboard layout cannot
+  // shift when the forecast arrives late or not at all.
   const [forecast, setForecast] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
+  const [status, setStatus] = React.useState('loading'); // 'loading' | 'ready' | 'unavailable'
   const [expanded, setExpanded] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
+  const forecastRef = React.useRef(null);
+  const inFlightRef = React.useRef(false);
+  const mountedRef = React.useRef(true);
 
-  const load = React.useCallback(async (force) => {
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const load = React.useCallback(async ({force = false} = {}) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
       const data = await loadForecast({force});
-      setForecast(data);
+      if (!mountedRef.current) return;
+      if (data && data.current && data.today) {
+        forecastRef.current = data;
+        setForecast(data);
+        setStatus('ready');
+      } else {
+        // Unusable response: keep the last valid forecast if we have one so a
+        // failed explicit refresh does not blank the card.
+        setStatus(forecastRef.current ? 'ready' : 'unavailable');
+      }
     } catch (_e) {
-      /* soft-fail */
+      if (mountedRef.current) setStatus(forecastRef.current ? 'ready' : 'unavailable');
+    } finally {
+      inFlightRef.current = false;
     }
-    setLoading(false);
   }, []);
 
   React.useEffect(() => {
-    load(true);
+    load({force: false});
   }, [load]);
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    await load(true);
-    setRefreshing(false);
+  function handleCollapsedClick() {
+    if (status === 'ready') {
+      setExpanded(true);
+    } else if (status === 'unavailable') {
+      setStatus('loading');
+      load({force: true});
+    }
+    // While loading, clicks are inert: never open an empty modal or stack requests.
   }
 
-  if (loading) return null;
-  if (!forecast) return null;
+  async function handleRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await load({force: true});
+    } finally {
+      if (mountedRef.current) setRefreshing(false);
+    }
+  }
 
-  const {current, today, daily, monthlyPrecip, sources = {}, location} = forecast;
-  if (!current || !today) return null;
-
+  const {current, today, daily, monthlyPrecip, sources = {}, location} = forecast || {};
+  const ready = status === 'ready' && current && today;
   const radarUrl = officialRadarUrl(forecast);
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => setExpanded(true)}
+        onClick={handleCollapsedClick}
         data-weather-card="collapsed"
+        data-weather-state={status}
+        aria-busy={status === 'loading'}
         className="card weather-card lift"
         style={{width: '100%', textAlign: 'left', color: 'inherit', flexWrap: 'nowrap'}}
       >
-        <span className="wx-ic" aria-hidden="true">
-          {weatherIcon(current.weatherCode)}
-        </span>
-        <span className="wx-temp">{round(current.temp)}&deg;</span>
-        <span className="wx-hilo">
-          H:{round(today.high)}&deg; L:{round(today.low)}&deg;
-        </span>
-        <span className="wx-rain-pill">Rain {percent(today.precipProb)}</span>
-        <svg
-          className="go"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M9 6l6 6-6 6" />
-        </svg>
+        {ready ? (
+          <>
+            <span className="wx-ic" aria-hidden="true">
+              {weatherIcon(current.weatherCode)}
+            </span>
+            <span className="wx-temp">{round(current.temp)}&deg;</span>
+            <span className="wx-hilo">
+              H:{round(today.high)}&deg; L:{round(today.low)}&deg;
+            </span>
+            <span className="wx-rain-pill">Rain {percent(today.precipProb)}</span>
+            <svg
+              className="go"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </>
+        ) : status === 'loading' ? (
+          <>
+            <span className="wx-ic" aria-hidden="true">
+              ☁️
+            </span>
+            <span className="wx-hilo">Loading weather...</span>
+          </>
+        ) : (
+          <>
+            <span className="wx-ic" aria-hidden="true">
+              ☁️
+            </span>
+            <span className="wx-hilo">Weather unavailable</span>
+            <span className="wx-rain-pill">Retry</span>
+          </>
+        )}
       </button>
 
-      {expanded && (
+      {expanded && ready && (
         <div
           data-weather-card="expanded"
           className="wx-modal-backdrop"

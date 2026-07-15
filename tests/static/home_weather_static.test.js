@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {describe, it, expect} from 'vitest';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
 import {officialRadarUrl, weatherIcon, weatherLabel} from '../../src/lib/weather.js';
+import HomeWeatherCard from '../../src/weather/HomeWeatherCard.jsx';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -140,9 +143,66 @@ describe('HomeWeatherCard component', () => {
     expect(css).toContain('height: 66px');
     expect(css).toContain('.home .field-map-card');
   });
+});
 
-  it('soft-fails hidden when no forecast data', () => {
-    expect(cardSrc).toMatch(/if \(!forecast\) return null/);
+describe('HomeWeatherCard immediate stable shell contract', () => {
+  it('never returns null: no hidden-loading or hidden-failure path', () => {
+    // The collapsed card must exist from the first Home render onward.
+    expect(cardSrc).not.toMatch(/return null/);
+    expect(cardSrc).not.toMatch(/if \(loading\) return/);
+    expect(cardSrc).not.toMatch(/if \(!forecast\) return/);
+  });
+
+  it('renders the collapsed card shell during the initial pending request', () => {
+    // Server render = the component's very first paint: effects have not run,
+    // so the request is still pending. The collapsed button must already exist
+    // in its loading state with the approved card treatment.
+    const html = renderToStaticMarkup(React.createElement(HomeWeatherCard));
+    expect(html).toContain('data-weather-card="collapsed"');
+    expect(html).toContain('data-weather-state="loading"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('Loading weather');
+    expect(html).toContain('card weather-card lift');
+    expect(html).not.toContain('data-weather-card="expanded"');
+  });
+
+  it('exposes distinguishable loading, ready, and unavailable states on one stable button', () => {
+    expect(cardSrc).toContain('data-weather-state={status}');
+    expect(cardSrc).toContain("aria-busy={status === 'loading'}");
+    expect(cardSrc).toContain('Loading weather...');
+    expect(cardSrc).toContain('Weather unavailable');
+    expect(cardSrc).toContain('Retry');
+    // One collapsed button node: exactly one data-weather-card="collapsed" in source,
+    // with state-dependent content inside it rather than sibling replacement cards.
+    expect(cardSrc.match(/data-weather-card="collapsed"/g)).toHaveLength(1);
+  });
+
+  it('failure keeps the card and routes retry through the stable control', () => {
+    expect(cardSrc).toMatch(/status === 'unavailable'/);
+    expect(cardSrc).toMatch(/setStatus\('loading'\);\s*\n\s*load\(\{force: true\}\)/);
+  });
+
+  it('initial load is non-forced; refresh and retry are forced', () => {
+    expect(cardSrc).toContain('load({force: false})');
+    expect(cardSrc).toContain('load({force: true})');
+    // The mount effect must use the non-forced path so HTTP/server caching helps.
+    expect(cardSrc).toMatch(/useEffect\(\(\) => \{\s*\n\s*load\(\{force: false\}\);/);
+  });
+
+  it('guards against duplicate concurrent requests and settles loading in finally', () => {
+    expect(cardSrc).toMatch(/if \(inFlightRef\.current\) return;/);
+    expect(cardSrc).toMatch(/finally \{\s*\n\s*inFlightRef\.current = false;/);
+    expect(cardSrc).toContain('mountedRef');
+  });
+
+  it('loading clicks are inert and the modal only renders when ready', () => {
+    expect(cardSrc).toContain('{expanded && ready && (');
+    // The collapsed click handler expands only from ready; loading is a no-op.
+    expect(cardSrc).toMatch(/if \(status === 'ready'\) \{\s*\n\s*setExpanded\(true\);/);
+  });
+
+  it('a failed explicit refresh retains the last valid forecast instead of blanking the card', () => {
+    expect(cardSrc).toMatch(/setStatus\(forecastRef\.current \? 'ready' : 'unavailable'\)/);
   });
 });
 
