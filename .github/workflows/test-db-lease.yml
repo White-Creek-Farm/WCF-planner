@@ -1,0 +1,85 @@
+name: TEST DB lease
+
+# Manually dispatched ONLY — never runs on push/PR. Holds the wcf-test-db
+# concurrency slot so a LOCAL Playwright run can safely reset/seed the shared
+# TEST database without racing CI. ci.yml serializes its own DB-touching jobs
+# through this same group, but a local runner is invisible to GitHub
+# concurrency unless it holds a run in the group — this workflow is that run.
+#
+# The job does NOTHING except sleep: no checkout, no install, no DB access,
+# no secrets, no repository mutation. Holding the slot IS the feature.
+#
+# Lifecycle (driven by scripts/test_db_lease_run.cjs):
+#   1. The wrapper dispatches this workflow with a unique lease_id.
+#   2. GitHub queues the run in the wcf-test-db group. While CI is running
+#      the lease waits its turn — it never bypasses an active CI run.
+#   3. When the run reaches in_progress, the wrapper starts local Playwright.
+#   4. The wrapper cancels this run in its finally block — cancellation IS the
+#      normal release path. A 'cancelled' conclusion here is expected, not an
+#      error.
+#   5. If the wrapper dies without releasing (power loss, kill -9), the
+#      bounded sleep + job timeout below free the slot automatically instead
+#      of holding it for GitHub's 6-hour default.
+#
+# One-pending-run caveat (same as ci.yml): GitHub keeps only ONE pending run
+# per concurrency group. A pending lease displaced by a newer queued run
+# completes as 'cancelled' with zero jobs — the wrapper detects "completed
+# before ever in_progress" and fails closed rather than running unleased.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lease_id:
+        description: 'Unique lease id minted by scripts/test_db_lease_run.cjs (echoed in run-name for run matching)'
+        required: true
+        type: string
+      hold_minutes:
+        description: 'Max minutes to hold the slot before auto-expiring (clamped to 1-120)'
+        required: false
+        type: string
+        default: '90'
+
+# The lease id in the run name is how the local wrapper finds its own run
+# among concurrent dispatches.
+run-name: TEST DB lease ${{ inputs.lease_id }}
+
+# No API permissions at all — the job only sleeps.
+permissions: {}
+
+concurrency:
+  group: wcf-test-db
+  cancel-in-progress: false
+
+jobs:
+  hold:
+    runs-on: ubuntu-latest
+    # Hard ceiling just above the max clamped hold (120 min) so a wedged step
+    # can never hold the shared slot for GitHub's 6-hour default.
+    timeout-minutes: 125
+    steps:
+      - name: Hold wcf-test-db concurrency slot
+        # Inputs are read via env, never interpolated into the script body —
+        # a ${{ }} inside run: would be a shell-injection vector.
+        env:
+          LEASE_ID: ${{ inputs.lease_id }}
+          HOLD_MINUTES: ${{ inputs.hold_minutes }}
+        run: |
+          case "$HOLD_MINUTES" in
+            '' | *[!0-9]*) HOLD_MINUTES=90 ;;
+          esac
+          if [ "$HOLD_MINUTES" -lt 1 ]; then HOLD_MINUTES=1; fi
+          if [ "$HOLD_MINUTES" -gt 120 ]; then HOLD_MINUTES=120; fi
+          echo "Holding TEST DB lease $LEASE_ID for up to $HOLD_MINUTES minute(s)."
+          echo "Normal release is cancellation by scripts/test_db_lease_run.cjs."
+          held=0
+          total=$((HOLD_MINUTES * 60))
+          while [ "$held" -lt "$total" ]; do
+            sleep 30
+            held=$((held + 30))
+            if [ $((held % 300)) -eq 0 ]; then
+              echo "Lease $LEASE_ID still held after $((held / 60)) minute(s)."
+            fi
+          done
+          echo "Lease $LEASE_ID EXPIRED after $HOLD_MINUTES minute(s) without release." >&2
+          echo "The local wrapper should have cancelled this run; treat that local run's results as suspect." >&2
+          exit 1

@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ci": "playwright test --grep-invert ux-audit",
+    "test:e2e:leased": "node scripts/test_db_lease_run.cjs --",
     "test:e2e:ui": "playwright test --ui",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
