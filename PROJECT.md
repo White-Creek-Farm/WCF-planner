@@ -67,15 +67,16 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
-- Production deploy: Netlify auto-deploys from GitHub `main`. The latest product
-  code is `6636d2b`; this documentation-only wrap follows it without changing
-  runtime code. There are no open GitHub pull requests at this wrap.
+- Production deploy: Netlify auto-deploys from GitHub `main`. The CC#1-CC#8
+  regression/security/operations release is merged through `7fc73ba`; this
+  documentation wrap follows it without changing runtime code. There are no
+  open GitHub pull requests at this wrap.
 - Supabase live high-water: all repository migrations through `166` and
-  `170`-`181` are PROD-applied; numbers `167`-`169` are intentionally unused.
-  Current PROD Edge versions are `rapid-processor` v29,
-  `processing-asana-sync` v11, `tasks-cron` v6, `tasks-summary` v8, and
-  `newsletter-harvest` v6. TEST has `rapid-processor` v3 and
-  `newsletter-harvest` v1; no TEST `processing-asana-sync` deploy exists.
+  `170`-`182` are PROD-applied; numbers `167`-`169` are intentionally unused.
+  `rapid-processor` takeover/enumeration hardening is deployed to PROD v30 and
+  TEST v4. The filename-independent `processing-asana-sync` attachment build is
+  deployed to PROD v12 and TEST v1. Other current PROD versions are `tasks-cron`
+  v6, `tasks-summary` v8, and `newsletter-harvest` v6.
 - Newsletter live state: Autopilot + direction-first redesign + fact fixes +
   archive-link gating + the UX polish pass are merged. The polish pass adds
   debounced/autosaved admin direction, prevents local direction clobbering during
@@ -260,13 +261,14 @@ Per-PR shipped history is not maintained here. For what shipped and when, read
 Durable behavior lives in the Load-Bearing Contracts below; current migration and
 live state lives in Current State and Backend And Data State.
 
-Most recent session: Processing live-read/quiet-save/layout fixes and lifecycle
-lock hardening, Pasture rest/history and map click/manage fixes, serialized user
-management, and the immediate Home Weather shell (`6d0c861` through `6636d2b`).
-Migrations `178`-`181` are PROD-applied. Migration `182` (zero-cow cattle
-forecast months do not consume batch sequence numbers; later populated months
-close the gap atomically) is TEST-applied and proven; PROD apply is pending the
-explicit migration-182 `psql` gate. The stale remote UI-cleanup branches
+Most recent session: Processing live-read/quiet-save/layout and lock-order
+hardening, Pasture rest/history and map manage fixes, serialized user management,
+the immediate Home Weather shell, all measured Tasks/Pig/Weigh-in/Cattle/UI
+regression repairs, the shared TEST lease, filename-safe Processing attachments,
+password-reset takeover/enumeration hardening, and zero-cow cattle batch
+sequencing (`6d0c861` through `7fc73ba`). Migrations `178`-`182` are
+PROD-applied; the live cattle schedule was reconciled so September is `C-26-05`
+and later populated months are sequential. The stale remote UI-cleanup branches
 were retired; their only unique WIP snapshot is preserved at tag
 `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 
@@ -294,88 +296,82 @@ This is the canonical home for outstanding build/design work.
      archive works, source coverage/numbers are checked, and no private or
      unapproved media is exposed.
 
-2. Processing remaining artifact volume and final Asana cutover
-   - Status: CORE IMPORT COMPLETE; THREE EXPLICIT DATA DECISIONS REMAIN. Planner
-     reconcile, manual crosswalk resolution, 1,104 subtasks, 129 comments, and 8
-     conversation-media files are live. Canonical local v2 templates are active;
-     Asana template import is no longer part of the product UI or required.
-   - Class: `DECISION`/`DATA-IMPORT`/`STORAGE`/`CUTOVER`.
+2. Processing historical Activity decision and final Asana cutover
+   - Status: CORE + ATTACHMENT IMPORT COMPLETE; TWO EXPLICIT DECISIONS REMAIN.
+     Planner reconciliation, manual crosswalk resolution, 1,104 subtasks, 129
+     comments, 8 conversation-media files, and all 68 ordinary imported
+     attachment rows are live. The 55 filename-truncated `#` paths were copied,
+     hash/size verified, repointed to canonical `<parent-gid>/<attachment-gid>`
+     keys, reverified through signed URLs, and the obsolete objects deleted.
+     The hardened Edge function is live in PROD v12 and TEST v1; the final PROD
+     apply copied one attachment added after the original repair, and an
+     idempotence dry run reported 68 already stored / 0 new. Three deleted Asana
+     cards remain explicit source-404 skips. Canonical local v2 templates are
+     active; Asana template import is retired.
+   - Class: `DECISION`/`DATA-IMPORT`/`CUTOVER`.
    - Decisions:
-     - Ordinary attachment backfill: the last broad dry run enumerated 67 Asana
-       task attachments before the 8 conversation-media imports. Re-run the dry
-       plan to establish new/already-stored counts; expect the three known
-       deleted-card 404 skips. Apply only with explicit volume/storage approval,
-       then prove idempotence and representative signed URLs.
      - Historical Activity: the dry run found about 16,855 Asana system stories.
        Default recommendation is to keep the Planner history lean and leave
        these unimported unless Ronnie explicitly wants field-churn history.
-     - Final cutover: after the two decisions above, optionally set
+     - Final cutover: after the Activity decision, optionally set
        `asana_sync_enabled=false` through its separate gate. Do not infer this
        from removal of the historical-import UI.
-   - Success criteria: each decision is recorded; any approved import has zero
-     duplicate writes on rerun and representative Broiler/Cattle/Pig/Sheep
-     checks; final cutover occurs only after explicit approval.
+   - Success criteria: the Activity decision is recorded and final cutover
+     occurs only after explicit approval.
 
-3. Processing post-integration Pig copy/test debt
-   - Status: SMALL FOLLOW-UP AFTER SHIPPED PLANNER INTEGRATION. Processing
-     checklist no-reload behavior, option autosave, Source-detail deduplication,
-     and the stale Templates assertion are closed; this item is only
-     for the remaining Pig copy/test cleanup.
-   - Class: `DEFECT`/`UX`/`TEST`.
-   - Scope:
-     - Update `PigSendToTripModal` preview copy for under-send remainder handling:
-       the server now moves the remainder to a new/next planned trip; copy must
-       not say it stays on the original planned trip.
-     - Repair or retire stale `tests/pig_send_to_planned_trip.spec.js`, which
-       still references dead UI strings such as `Select all unsent`. Keep any
-       replacement aligned with the current per-row checkbox and Send-to-Trip bar.
-   - Validation: focused Pig send-to-trip unit/static coverage plus the repaired
-     Playwright spec if retained.
-
-4. User-management audit-scope decisions
-   - Status: IMPLEMENTATION AND REQUIRED PROOFS SHIPPED. Migration `171`, the
+3. User-management audit/throttle scope decisions
+   - Status: DELETE AUDIT + CRITICAL RESET HARDENING SHIPPED. Migration `171`, the
      audited RPCs, immutable ledger, guarded `rapid-processor` delete flow, and
      deterministic whole-modal mutation serialization are live. Real Edge and
      browser proofs are complete. Retained farm-record foreign keys still
-     intentionally require deactivation instead of hard delete.
+     intentionally require deactivation instead of hard delete. Password reset
+     now ignores `test_to`, sends only to the Auth-resolved account, returns one
+     uniform public response, and has no dead `user_welcome` branch; PROD v30 and
+     TEST v4 are live.
    - Class: `SECURITY`/`DECISION`/`ENH`.
    - Decisions:
      - Packet A: decide whether `user_create` and admin password-reset actions
        belong in the audit ledger. Reset events must distinguish request from
-       delivery outcome and must never claim "sent" when delivery failed. The
-       anonymous reset enumeration/rate-limit boundary is outside this packet
-       and remains untouched without a separate prompt.
-     - Packet B: decide whether the service-role/support boundary for pending
-       delete requests needs additional documentation or enforcement beyond the
-       current browser/RPC threat model.
+       delivery outcome and must never claim "sent" when delivery failed.
+     - Anonymous throttle: decide whether to add email/IP rate limiting (and
+       optional CAPTCHA). Body/status enumeration is closed; throttling also
+       closes email-bombing/Resend-cost abuse and reduces the residual timing
+       signal for real accounts.
+     - Service-role/CORS boundary: decide whether branch-gate enforcement,
+       origin restrictions, and support-boundary documentation need hardening
+       beyond the current browser/RPC threat model.
    - Gate: any resulting SQL/RPC/Edge change needs focused TEST proof and a
      separate PROD migration/function-deploy approval.
 
-5. Whole-app Playwright regression debt and TEST isolation
-   - Status: RUNTIME DEFECT CLOSED; REGRESSION DEBT NOW MEASURED. `feb9224`
+4. Final Playwright closure
+   - Status: MEASURED REGRESSION CLUSTERS + TEST ISOLATION CLOSED. `feb9224`
      splits root Playwright into two sequential shards after a DB-free quality
      gate, keeps Pasture path-gated and sequential, preserves workers=1, uploads
-     rerun-safe artifacts, and concludes inside budget without dropping tests.
-     PR #63's terminal measurement produced 42 failures (10 in shard 1 and 32 in
-     shard 2) while 479 tests passed. The new Processing assertions passed; the
-     failures remain concentrated in the known cross-app regression clusters.
-     GitHub concurrency serializes repository
-     workflows, but it cannot see local Playwright processes; one contaminated
-     run proved that local and GitHub TEST execution must not overlap.
-   - Class: `DEFECT`/`TEST`/`TEST-INFRA`.
+     rerun-safe artifacts, and concludes inside budget. CC#1-CC#4 and CC#6
+     classified/repaired the Tasks, Pig, offline Weigh-ins, UI/readiness, and
+     Cattle clusters with focused serial TEST proofs. CC#5 adds a real
+     `wcf-test-db` workflow lease so local Playwright queues behind CI and loses
+     the lease fail-closed; its first live acquire/deploy/release proof passed.
+     The final post-merge workflow passed 516 browser tests and failed 7. Three
+     failures share leaked `wcf-test-admin` role state (`farm_team` instead of
+     admin), one is a stale case-sensitive To Do copy assertion, and three need
+     product/readiness follow-up: the known Processing Templates renderer
+     live-lock, Header remount losing a notification-panel click during a Home
+     update, and Pig weigh-in note autosave not persisting while weight did.
+   - Class: `DEFECT`/`TEST`.
    - Scope:
-     - Triage the stable clusters rather than treating all failures as product
-       defects: cattle calf/heifer/herd/sequence/delete, offline weigh-ins, Pig
-       planned-trip/metrics/breeding, Tasks/To Do/navigation, Processing/My
-       Tasks, weigh-in RPC/records, and Pasture state/modal coverage.
-     - Build an enforceable TEST-DB lease/preflight so local Playwright cannot
-       collide with GitHub CI; process/port sampling is evidence, not a lock.
-     - Separate stale assertions from genuine runtime defects, starting with
-       Build Queue item 3's Pig planned-trip failures.
-   - Success criteria: each stable cluster is classified and repaired/retired
-     with focused proof; flaky specs have deterministic setup/readiness; local
-     and GitHub TEST runs fail closed on lease contention; the full workflow is
-     green or carries only explicitly quarantined, owner-tracked failures.
+     - Use the preserved trace/video in
+       `C:\Users\Ronni\cc-research\processing-templates-wedge-2026-07-15` and
+       an instrumented/CDP pause run to locate the exact render/microtask loop.
+     - Fix without timeout inflation or weakening flush-on-surface-switch.
+     - Make the shared admin fixture restore role/profile state before every
+       dependent spec, then repair the stale To Do capitalization assertion.
+     - Stabilize the App-bound Header component identity so background parent
+       renders cannot discard Header-local overlay state.
+     - Diagnose the Pig record-page note autosave path where the weight persisted
+       but the note remained at its original value.
+   - Success criteria: the focused Templates test passes repeatedly and the
+     final whole-app workflow carries no unowned failure.
 
 ---
 
@@ -569,7 +565,7 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all repository migrations through `166` and
-`170` through `181`; `167`-`169` are intentionally unused. Recent load-bearing
+`170` through `182`; `167`-`169` are intentionally unused. Recent load-bearing
 migrations:
 
 - `100` processing batch lifecycle RPCs.
