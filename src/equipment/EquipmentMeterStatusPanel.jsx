@@ -30,6 +30,15 @@ export default function EquipmentMeterStatusPanel({equipment, fuelings, fmt, onR
   const [notice, setNotice] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const eq = equipment;
+  // The detail page keeps this panel MOUNTED while the prev/next arrows swap
+  // the equipment prop, so a sync success/error notice from one machine would
+  // otherwise keep rendering on every neighbour ("Synced… 5,437 h" leaking
+  // onto other ATVs). Clear it whenever the panel starts showing a different
+  // equipment row.
+  const eqId = eq?.id;
+  React.useEffect(() => {
+    setNotice(null);
+  }, [eqId]);
   const unit = eq?.tracking_unit === 'km' ? 'km' : 'hours';
   const currentField = unit === 'km' ? 'current_km' : 'current_hours';
   const readingField = unit === 'km' ? 'km_reading' : 'hours_reading';

@@ -125,6 +125,15 @@ describe('EquipmentMeterStatusPanel — sync scope', () => {
     const bareCalls = panelSrc.match(/onReload\(\)/g);
     expect(bareCalls).toBeNull();
   });
+
+  test('the sync notice is cleared when the panel switches to another equipment row', () => {
+    // The detail page keeps the panel MOUNTED while prev/next navigation
+    // swaps the equipment prop, so a per-machine sync notice must reset on
+    // eq.id change — otherwise "Synced… <N> h" from one machine keeps
+    // rendering on every neighbour (the ATV-1 5,437h leak incident).
+    expect(panelSrc).toMatch(/const eqId = eq\?\.id;/);
+    expect(panelSrc).toMatch(/React\.useEffect\(\(\) => \{\s*\n\s*setNotice\(null\);\s*\n\s*\}, \[eqId\]\);/);
+  });
 });
 
 describe('EquipmentHome.loadAll — quiet reload option', () => {
