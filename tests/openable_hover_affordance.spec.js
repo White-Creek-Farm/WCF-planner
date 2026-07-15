@@ -61,14 +61,17 @@ test('fleet tile: pointer cursor, hover wash + lift, keyboard focus + Enter open
 
   const restingBg = await tile.evaluate((el) => getComputedStyle(el).backgroundColor);
   await tile.hover();
+  // WI-6 ratified lift is translateY(-3px)/300ms (global .hoverable-tile:hover,
+  // index.html): poll until the transition settles at -3, then band it so a
+  // larger drift still fails.
   await expect
     .poll(async () => matrixTranslateY(await tile.evaluate((el) => getComputedStyle(el).transform)), {timeout: 3_000})
-    .toBeLessThanOrEqual(-1.9);
+    .toBeLessThanOrEqual(-2.9);
   const hovered = await tile.evaluate((el) => {
     const cs = getComputedStyle(el);
     return {transform: cs.transform, boxShadow: cs.boxShadow, backgroundColor: cs.backgroundColor};
   });
-  expect(matrixTranslateY(hovered.transform)).toBeGreaterThanOrEqual(-2.1);
+  expect(matrixTranslateY(hovered.transform)).toBeGreaterThanOrEqual(-3.1);
   expect(hovered.boxShadow).not.toBe('none');
   expect(hovered.backgroundColor).toBe(restingBg);
 
@@ -183,9 +186,12 @@ test('home weather card: button with card/lift treatment, hover lift, click open
   expect(await card.evaluate((el) => getComputedStyle(el).transform)).toBe('none');
 
   await card.hover();
+  // Same WI-6 settled lift as the fleet tile (.home .lift:hover is -3px too):
+  // poll to the settled -3px, then band it so a larger drift still fails.
   await expect
     .poll(async () => matrixTranslateY(await card.evaluate((el) => getComputedStyle(el).transform)), {timeout: 3_000})
-    .toBeLessThanOrEqual(-1.9);
+    .toBeLessThanOrEqual(-2.9);
+  expect(matrixTranslateY(await card.evaluate((el) => getComputedStyle(el).transform))).toBeGreaterThanOrEqual(-3.1);
   expect(await card.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
 
   await card.click();

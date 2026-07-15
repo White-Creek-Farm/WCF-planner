@@ -8,8 +8,7 @@ const A_ID = 'pm-meas-a';
 const MEAS_ID = 'pm-meas-saved';
 const SQUARE_A =
   '{"type":"Polygon","coordinates":[[[-86.44,30.84],[-86.435,30.84],[-86.435,30.845],[-86.44,30.845],[-86.44,30.84]]]}';
-const MEASURE_LINE =
-  '{"type":"LineString","coordinates":[[-86.439,30.841],[-86.437,30.843],[-86.434,30.844]]}';
+const MEASURE_LINE = '{"type":"LineString","coordinates":[[-86.439,30.841],[-86.437,30.843],[-86.434,30.844]]}';
 
 async function seed() {
   const c = getTestAdminClient();
