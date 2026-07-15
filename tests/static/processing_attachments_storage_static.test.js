@@ -62,6 +62,36 @@ describe('edge — attachment dry-run (preview before the gated write path)', ()
   });
 });
 
+describe('edge — backfill rerun safety (CC#7 repair contract)', () => {
+  it('skips stored gids BEFORE download/upload and reports them as skipped', () => {
+    const start = edge.indexOf('async function runAttachmentBackfill');
+    const end = edge.indexOf('// ─── conversation fidelity', start);
+    expect(end).toBeGreaterThan(start);
+    const body = edge.slice(start, end);
+    // Preloads the stored-gid idempotency baseline...
+    expect(body).toContain("select('asana_attachment_gid')");
+    expect(body).toContain('counts.skipped += 1');
+    // ...and the skip happens before the byte-copier can download anything.
+    const skipIdx = body.indexOf('stored.has(agid)');
+    const copyIdx = body.indexOf('await backfillAttachment(');
+    expect(skipIdx).toBeGreaterThan(-1);
+    expect(copyIdx).toBeGreaterThan(skipIdx);
+  });
+
+  it('counts individual per-file failures as errors — no silent false returns', () => {
+    const start = edge.indexOf('async function runAttachmentBackfill');
+    const end = edge.indexOf('// ─── conversation fidelity', start);
+    const body = edge.slice(start, end);
+    expect(body).toMatch(/else \{\s*counts\.errors \+= 1;/);
+    // The single-attachment copier logs every failure path before returning
+    // false (missing url/gid included).
+    const copierStart = edge.indexOf('async function backfillAttachment');
+    const copierEnd = edge.indexOf('// ─── Fetch (shared by dry_run and the write actions)', copierStart);
+    const copier = edge.slice(copierStart, copierEnd);
+    expect(copier).toContain('missing download url or gid');
+  });
+});
+
 describe('subtasks stay out of the main calendar table as a COLUMN', () => {
   it('ProcessingCalendarView has no Subtasks column; the Batch-cell checklist meta is the only subtask reference', () => {
     // The handoff-restored Batch cell shows "N-step checklist · done/total"

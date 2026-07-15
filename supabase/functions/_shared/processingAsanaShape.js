@@ -1234,6 +1234,30 @@ export function mapAsanaSystemStory(story, parentGid) {
   };
 }
 
+// ── Attachment storage keys ───────────────────────────────────────────────────
+
+// Strict safe-segment validation for storage-key parts: a plain Asana numeric
+// gid and nothing else. Anything unexpected throws instead of producing a key.
+export function safeAsanaKeySegment(value, label = 'gid') {
+  const s = String(value == null ? '' : value);
+  if (!/^\d{1,32}$/.test(s)) {
+    throw new Error(`unsafe ${label} for storage key: must be a plain Asana numeric gid`);
+  }
+  return s;
+}
+
+// The ONE storage-key convention for Asana attachment bytes:
+// <parent_asana_gid>/<asana_attachment_gid>. Keys are built from Asana
+// identifiers ONLY — filenames never participate, so unsafe filename
+// characters (#, ?, slashes, control characters, Unicode forms, length) can
+// never truncate or mangle an object key. The original filename lives only in
+// metadata (processing_attachments.filename) and stays what the UI displays.
+// (Pre-repair imports embedded the filename; the 2026-07-15 PROD repair moved
+// those objects to this convention.)
+export function asanaAttachmentStorageKey(parentGid, attachmentGid) {
+  return `${safeAsanaKeySegment(parentGid, 'parent gid')}/${safeAsanaKeySegment(attachmentGid, 'attachment gid')}`;
+}
+
 // ── Conversation fidelity (comments ⇄ attachments) ───────────────────────────
 
 // Extract the attachment gids a comment story references INLINE via its

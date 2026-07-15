@@ -89,6 +89,7 @@ import {
   buildDestinationAudit,
   buildConversationPlan,
   conversationItemToCommentMediaRow,
+  asanaAttachmentStorageKey,
 } from '../_shared/processingAsanaShape.js';
 
 // Defensive trim: pasted Dashboard secrets often pick up a trailing newline.
@@ -380,17 +381,21 @@ async function enforceDestinationPreflight(svc: ReturnType<typeof createClient>)
 
 // The ONE storage-path convention for Asana attachment bytes — shared by the
 // record-level backfill AND the comment-media importer, so the same file can
-// never be copied twice under two names.
-function asanaAttachmentPath(parentGid: string, gid: string, filename: string): string {
-  return `${parentGid}/${gid}-${filename}`;
+// never be copied twice under two names. Keys are Asana gids ONLY: the
+// filename is metadata, never part of the key (unsafe characters like '#'
+// truncated upload keys before the 2026-07-15 repair). The filename parameter
+// is retained so every call site still hands it over for metadata use.
+function asanaAttachmentPath(parentGid: string, gid: string, _filename: string): string {
+  return asanaAttachmentStorageKey(parentGid, gid);
 }
 
 // ─── Attachment byte copy (attachment_backfill ONLY) ─────────────────────────
 
-// Copy one Asana attachment's bytes into the private bucket, then record its
-// metadata via the importer RPC (parent resolved via the link). Returns true when
-// a NEW attachment was stored. Best-effort: a missing bucket / download failure
-// logs + returns false (the caller counts it as skipped, never an abort).
+// Copy one NEW Asana attachment's bytes into the private bucket, then record
+// its metadata via the importer RPC (parent resolved via the link). The caller
+// has already skipped stored gids. Returns true when the attachment was
+// stored; every failure path (missing url/gid, download, upload, record RPC)
+// logs and returns false so the caller counts it as an ERROR — never silent.
 async function backfillAttachment(
   svc: ReturnType<typeof createClient>,
   parentGid: string,
@@ -398,7 +403,10 @@ async function backfillAttachment(
 ): Promise<boolean> {
   const downloadUrl = att.download_url || att.view_url;
   const gid = att.gid != null ? String(att.gid) : null;
-  if (!downloadUrl || !gid) return false;
+  if (!downloadUrl || !gid) {
+    console.error(`attachment ${gid || '(no gid)'} skipped: missing download url or gid`);
+    return false;
+  }
   try {
     const res = await fetch(String(downloadUrl));
     if (!res.ok) {
@@ -839,16 +847,26 @@ interface AttachmentBackfillCounts {
   linkedTasks: number;
   attachmentsFound: number;
   copied: number;
+  skipped: number;
   errors: number;
 }
 
 // The ONLY attachment byte-copier. Requires the bucket; idempotent on
-// asana_attachment_gid (record_processing_attachment skips stored gids after
-// upsert:true refreshes bytes at the same path).
+// asana_attachment_gid: stored gids are skipped BEFORE any download/upload
+// (reruns never refresh already-imported bytes) and reported as `skipped`.
+// Individual download/upload/record failures count as `errors`.
 async function runAttachmentBackfill(svc: ReturnType<typeof createClient>): Promise<AttachmentBackfillCounts> {
-  const counts: AttachmentBackfillCounts = {linkedTasks: 0, attachmentsFound: 0, copied: 0, errors: 0};
+  const counts: AttachmentBackfillCounts = {linkedTasks: 0, attachmentsFound: 0, copied: 0, skipped: 0, errors: 0};
   const {data: bucket} = await svc.storage.getBucket(ATTACHMENT_BUCKET);
   if (!bucket) throw new Error(`storage bucket ${ATTACHMENT_BUCKET} does not exist (gated migration not applied)`);
+  const stored = new Set<string>();
+  {
+    const {data, error} = await svc.from('processing_attachments').select('asana_attachment_gid');
+    if (error) throw new Error(`load stored attachments: ${error.message}`);
+    for (const r of (data || []) as Array<{asana_attachment_gid: string | null}>) {
+      if (r.asana_attachment_gid) stored.add(String(r.asana_attachment_gid));
+    }
+  }
   const gids = await loadLinkedGids(svc);
   for (const gid of gids) {
     counts.linkedTasks += 1;
@@ -856,8 +874,19 @@ async function runAttachmentBackfill(svc: ReturnType<typeof createClient>): Prom
       const atts = await asanaGetAll(`/tasks/${gid}/attachments`, {opt_fields: ATTACH_OPT_FIELDS});
       for (const att of atts) {
         counts.attachmentsFound += 1;
-        const storedNow = await backfillAttachment(svc, gid, att as Record<string, any>);
-        if (storedNow) counts.copied += 1;
+        const a = att as Record<string, any>;
+        const agid = a && a.gid != null ? String(a.gid) : null;
+        if (agid && stored.has(agid)) {
+          counts.skipped += 1;
+          continue;
+        }
+        const storedNow = await backfillAttachment(svc, gid, a);
+        if (storedNow) {
+          counts.copied += 1;
+          if (agid) stored.add(agid);
+        } else {
+          counts.errors += 1;
+        }
       }
     } catch (e) {
       counts.errors += 1;

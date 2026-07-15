@@ -133,11 +133,14 @@ describe('edge — comment-media action isolation', () => {
     expect(detailPush[1]).not.toMatch(/\bbody\b/);
   });
 
-  it('ONE storage-path convention: both byte-copiers route through asanaAttachmentPath', () => {
+  it('ONE storage-path convention: both byte-copiers route through asanaAttachmentPath (gids only)', () => {
     expect(edge).toContain('function asanaAttachmentPath(');
     expect((edge.match(/asanaAttachmentPath\(/g) || []).length).toBeGreaterThanOrEqual(3);
-    // The literal template appears exactly ONCE — inside the helper itself.
-    expect((edge.match(/\$\{parentGid\}\/\$\{gid\}-/g) || []).length).toBe(1);
+    // Keys are Asana gids ONLY (CC#7 repair, 2026-07-15): the helper delegates
+    // to the shared strict builder, and the old filename-bearing literal —
+    // whose '#' filenames truncated upload keys — must never return.
+    expect(edge).toContain('return asanaAttachmentStorageKey(parentGid, gid);');
+    expect((edge.match(/\$\{parentGid\}\/\$\{gid\}-/g) || []).length).toBe(0);
     // sync_comment_media reuses stored paths for known gids (no double copy).
     expect(edge).toMatch(
       /const known = storedAttachments\.get\(attGid\);[\s\S]*?meta\.storage_path = known\.storage_path/,
