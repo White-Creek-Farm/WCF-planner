@@ -89,6 +89,10 @@ const CUSTOMER_OPTIONS_FALLBACK = ["Sonny's", 'Coastal Pastures - CONFIRMED', 'C
 // record — never persisted; selecting anything else replaces the whole set.
 const LEGACY_MULTI_CUSTOMER = '__legacy_multi_customer__';
 
+// Stable comparison for the legacy array-backed customer column ([] / [value]
+// / old multi-value sets) — used to roll back only our own optimistic value.
+const canonCustomer = (v) => JSON.stringify(Array.isArray(v) ? v : []);
+
 const T = {
   card: '#fff',
   border: '#E6E8EB',
@@ -240,6 +244,8 @@ export default function ProcessingDrawer({
   onClose,
   onChanged,
   onSubtaskCountsChanged,
+  onProcessorChanged,
+  onCustomerChanged,
   customerOptions = [],
   processorOptions = [],
   profilesById = {},
@@ -273,8 +279,13 @@ export default function ProcessingDrawer({
   notifyRef.current = onChanged;
   const countsChangedRef = useRef(onSubtaskCountsChanged);
   countsChangedRef.current = onSubtaskCountsChanged;
+  const processorChangedRef = useRef(onProcessorChanged);
+  processorChangedRef.current = onProcessorChanged;
+  const customerChangedRef = useRef(onCustomerChanged);
+  customerChangedRef.current = onCustomerChanged;
   const fileInputRef = useRef(null);
-  // Checklist toggle plumbing (dedicated no-reload path):
+  // Quiet-autosave plumbing (dedicated no-reload paths — checklist toggle,
+  // Processor select, Customer select, subtask Assignee select):
   //   • fetchSeqRef — monotonic token bumped by EVERY record fetch (load or
   //     silent); a response applies only while its token is still current, so
   //     stale/out-of-order responses can never overwrite fresher data.
@@ -283,11 +294,22 @@ export default function ProcessingDrawer({
   //   • pendingSubtasksRef — subtask id -> optimistic done value while its RPC
   //     is in flight. A Map ref (not state) so async continuations always see
   //     the live set; the state Set mirrors it only to disable that checkbox.
+  //   • pendingAssigneesRef — subtask id -> optimistic {assignee_profile_id,
+  //     assignee} while its assignment RPC is in flight; the state Set mirrors
+  //     it only to disable that subtask's Assignee select.
+  //   • pendingProcessorRef — {recordId, value} while a Processor write is in
+  //     flight (one at a time); the state boolean disables only that select.
   const fetchSeqRef = useRef(0);
   const recordIdRef = useRef(recordId);
   recordIdRef.current = recordId;
   const pendingSubtasksRef = useRef(new Map());
   const [pendingSubtaskIds, setPendingSubtaskIds] = useState(() => new Set());
+  const pendingAssigneesRef = useRef(new Map());
+  const [pendingAssigneeIds, setPendingAssigneeIds] = useState(() => new Set());
+  const pendingProcessorRef = useRef(null);
+  const [processorPending, setProcessorPending] = useState(false);
+  const pendingCustomerRef = useRef(null);
+  const [customerPending, setCustomerPending] = useState(false);
 
   // Live view of the latest rendered payload for async continuations (the
   // checklist fallback count) — same render-sync pattern as recordIdRef.
@@ -302,12 +324,39 @@ export default function ProcessingDrawer({
   // blockers refresh alongside the record.
   const blockers = Array.isArray(data?.completion_blockers) ? data.completion_blockers : [];
 
-  // Re-apply in-flight optimistic checkbox values over a fresh server payload
-  // so a fetch that raced an unresolved toggle can never flicker it back.
+  // Re-apply in-flight optimistic values (checkbox done state, subtask
+  // assignee, record Processor) over a fresh server payload so a fetch that
+  // raced an unresolved write can never flicker the control back. Each map is
+  // consulted independently, so a simultaneous checkbox write and assignee
+  // write — on the same or different subtasks — both survive any refetch.
   const withPendingSubtaskOverrides = useCallback((d) => {
-    const pending = pendingSubtasksRef.current;
-    if (!d || !pending.size || !Array.isArray(d.subtasks)) return d;
-    return {...d, subtasks: d.subtasks.map((s) => (pending.has(s.id) ? {...s, done: pending.get(s.id)} : s))};
+    if (!d) return d;
+    let out = d;
+    const pendingDone = pendingSubtasksRef.current;
+    const pendingAssign = pendingAssigneesRef.current;
+    if ((pendingDone.size || pendingAssign.size) && Array.isArray(out.subtasks)) {
+      out = {
+        ...out,
+        subtasks: out.subtasks.map((s) => {
+          let next = s;
+          if (pendingDone.has(s.id)) next = {...next, done: pendingDone.get(s.id)};
+          const assign = pendingAssign.get(s.id);
+          if (assign) {
+            next = {...next, assignee_profile_id: assign.assignee_profile_id, assignee: assign.assignee};
+          }
+          return next;
+        }),
+      };
+    }
+    const pendingProcessor = pendingProcessorRef.current;
+    if (pendingProcessor && out.record && out.record.id === pendingProcessor.recordId) {
+      out = {...out, record: {...out.record, processor: pendingProcessor.value}};
+    }
+    const pendingCustomer = pendingCustomerRef.current;
+    if (pendingCustomer && out.record && out.record.id === pendingCustomer.recordId) {
+      out = {...out, record: {...out.record, customer: pendingCustomer.value}};
+    }
+    return out;
   }, []);
 
   const load = useCallback(async () => {
@@ -421,15 +470,108 @@ export default function ProcessingDrawer({
   );
 
   // ── field mutations (Processing-owned) ─────────────────────────────────────
-  function saveProcessorSelect(value) {
-    if ((record.processor || '') === (value || '')) return;
-    runMutation(() => setProcessingProcessor(sb, record.id, value || null));
+  // Processor — DEDICATED no-reload autosave path (NOT runMutation), same
+  // contract as the checklist toggle: patch the select optimistically, save
+  // through the existing RPC wrapper, silently reconcile the record so the
+  // server-owned completion_blockers update, and narrowly patch the parent
+  // schedule row's processor after CONFIRMED success. The drawer never shows
+  // its loading state and the schedule never reloads for a Processor pick; a
+  // failure rolls this select back with the existing inline error treatment
+  // and publishes nothing to the parent.
+  async function saveProcessorSelect(value) {
+    if (!canOperate || !record) return;
+    if (pendingProcessorRef.current) return; // one in-flight Processor write
+    const rid = record.id;
+    const prior = record.processor || null;
+    const next = value || null;
+    if ((prior || '') === (next || '')) return;
+    pendingProcessorRef.current = {recordId: rid, value: next};
+    setProcessorPending(true);
+    setNotice(null);
+    setData((d) => (d && d.record && d.record.id === rid ? {...d, record: {...d.record, processor: next}} : d));
+    try {
+      await setProcessingProcessor(sb, rid, next);
+      // The write landed — publish the CONFIRMED value to the matching
+      // schedule row only (processor filtering derives from that field).
+      if (processorChangedRef.current) processorChangedRef.current(rid, next);
+      try {
+        await silentRefreshRecord();
+      } catch (_e) {
+        /* tolerated — blockers refresh on the next mutation/load */
+      }
+    } catch (e) {
+      // The write failed: unregister the pending value FIRST so a racing
+      // refetch cannot re-apply the failed optimism, then roll back ONLY our
+      // own still-displayed optimistic value on this record. The parent was
+      // never patched for a failed write.
+      pendingProcessorRef.current = null;
+      if (recordIdRef.current === rid) {
+        setData((d) =>
+          d && d.record && d.record.id === rid && (d.record.processor || null) === next
+            ? {...d, record: {...d.record, processor: prior}}
+            : d,
+        );
+      }
+      if (isProcessingValidationError(e)) {
+        setNotice({kind: 'error', message: friendlyProcessingError(e)});
+      } else {
+        setNotice({kind: 'error', message: `Something went wrong. Please retry. (${(e && e.message) || e})`});
+      }
+    } finally {
+      pendingProcessorRef.current = null;
+      setProcessorPending(false);
+    }
   }
-  function saveCustomerSelect(value) {
+  // Customer — same DEDICATED no-reload autosave contract as Processor
+  // (broiler-only TRUE single select stored in the legacy array-backed
+  // column): optimistic [] / [value] patch, direct RPC, silent reconcile,
+  // narrow parent row patch after CONFIRMED success, rollback + inline error
+  // on failure. The legacy-multiple sentinel stays a pure no-op.
+  async function saveCustomerSelect(value) {
+    if (!canOperate || !record) return;
     // The legacy-multiple option IS the stored state — picking it changes nothing.
     if (value === LEGACY_MULTI_CUSTOMER) return;
     if (!customerLegacyMulti && (customerCurrent || '') === (value || '')) return;
-    runMutation(() => setProcessingCustomer(sb, record.id, value ? [value] : []));
+    if (pendingCustomerRef.current) return; // one in-flight Customer write
+    const rid = record.id;
+    const prior = customerSelected;
+    const next = value ? [value] : [];
+    pendingCustomerRef.current = {recordId: rid, value: next};
+    setCustomerPending(true);
+    setNotice(null);
+    setData((d) => (d && d.record && d.record.id === rid ? {...d, record: {...d.record, customer: next}} : d));
+    try {
+      await setProcessingCustomer(sb, rid, next);
+      // The write landed — publish the CONFIRMED value to the matching
+      // schedule row only.
+      if (customerChangedRef.current) customerChangedRef.current(rid, next);
+      try {
+        await silentRefreshRecord();
+      } catch (_e) {
+        /* tolerated — blockers refresh on the next mutation/load */
+      }
+    } catch (e) {
+      // The write failed: unregister the pending value FIRST so a racing
+      // refetch cannot re-apply the failed optimism, then roll back ONLY our
+      // own still-displayed optimistic value on this record. The parent was
+      // never patched for a failed write.
+      pendingCustomerRef.current = null;
+      if (recordIdRef.current === rid) {
+        setData((d) =>
+          d && d.record && d.record.id === rid && canonCustomer(d.record.customer) === canonCustomer(next)
+            ? {...d, record: {...d.record, customer: prior}}
+            : d,
+        );
+      }
+      if (isProcessingValidationError(e)) {
+        setNotice({kind: 'error', message: friendlyProcessingError(e)});
+      } else {
+        setNotice({kind: 'error', message: `Something went wrong. Please retry. (${(e && e.message) || e})`});
+      }
+    } finally {
+      pendingCustomerRef.current = null;
+      setCustomerPending(false);
+    }
   }
   function saveMilestoneTitle() {
     if (!isMilestone || (record.title || '') === titleDraft.trim()) return;
@@ -558,13 +700,59 @@ export default function ProcessingDrawer({
     if (!label || label === st.label) return;
     runMutation(() => updateProcessingSubtask(sb, {id: st.id, label}));
   }
-  function reassignSubtask(st, profileId) {
-    runMutation(() =>
-      updateProcessingSubtask(
-        sb,
-        profileId ? {id: st.id, assigneeProfileId: profileId} : {id: st.id, clearAssignee: true},
-      ),
-    );
+  // Assignee — DEDICATED no-reload autosave path (NOT runMutation), same
+  // contract as the checklist toggle: patch ONLY the selected subtask
+  // optimistically (assigning a profile also clears an imported-name fallback,
+  // mirroring the server's column semantics; clearing nulls both), save
+  // through the existing RPC (server-owned Activity + assignment notification
+  // rules unchanged), then silently reconcile the record. No parent patch —
+  // assignment never changes schedule summary counts. A failure restores the
+  // exact prior assignment with the existing inline error treatment.
+  async function reassignSubtask(st, profileId) {
+    if (!canOperate || !record) return;
+    if (pendingAssigneesRef.current.has(st.id)) return; // one in-flight assignment per subtask
+    const rid = record.id;
+    const next = profileId || null;
+    const prior = {assignee_profile_id: st.assignee_profile_id ?? null, assignee: st.assignee ?? null};
+    if ((prior.assignee_profile_id || null) === next && (next !== null || !prior.assignee)) return;
+    const optimistic = {assignee_profile_id: next, assignee: null};
+    pendingAssigneesRef.current.set(st.id, optimistic);
+    setPendingAssigneeIds(new Set(pendingAssigneesRef.current.keys()));
+    setNotice(null);
+    setData((d) => {
+      if (!d || !Array.isArray(d.subtasks)) return d;
+      return {...d, subtasks: d.subtasks.map((s) => (s.id === st.id ? {...s, ...optimistic} : s))};
+    });
+    try {
+      await updateProcessingSubtask(sb, next ? {id: st.id, assigneeProfileId: next} : {id: st.id, clearAssignee: true});
+      // The write landed. A reconcile failure must NOT roll the value back —
+      // the optimistic state already matches the server.
+      try {
+        await silentRefreshRecord();
+      } catch (_e) {
+        /* tolerated — the next mutation/load reconciles */
+      }
+    } catch (e) {
+      // The write failed: unregister the pending value FIRST so a racing
+      // refetch cannot re-apply the failed optimism, then restore the exact
+      // prior assignment (profile id AND imported text) on THIS subtask only,
+      // and only while the drawer still shows this record.
+      pendingAssigneesRef.current.delete(st.id);
+      if (recordIdRef.current === rid) {
+        setData((d) => {
+          if (!d || !Array.isArray(d.subtasks)) return d;
+          return {...d, subtasks: d.subtasks.map((s) => (s.id === st.id ? {...s, ...prior} : s))};
+        });
+      }
+      if (isProcessingValidationError(e)) {
+        setNotice({kind: 'error', message: friendlyProcessingError(e)});
+      } else {
+        setNotice({kind: 'error', message: `Something went wrong. Please retry. (${(e && e.message) || e})`});
+      }
+    } finally {
+      pendingAssigneesRef.current.delete(st.id);
+      setPendingAssigneeIds(new Set(pendingAssigneesRef.current.keys()));
+    }
   }
   function deleteSubtask(st) {
     runMutation(() => deleteProcessingSubtask(sb, st.id));
@@ -1121,7 +1309,7 @@ export default function ProcessingDrawer({
                   {canOperate ? (
                     <select
                       value={record.processor || ''}
-                      disabled={busy}
+                      disabled={busy || processorPending}
                       onChange={(e) => saveProcessorSelect(e.target.value)}
                       aria-label="Processor"
                       data-processing-processor-select
@@ -1154,7 +1342,7 @@ export default function ProcessingDrawer({
                     {canOperate ? (
                       <select
                         value={customerSelectValue}
-                        disabled={busy}
+                        disabled={busy || customerPending}
                         onChange={(e) => saveCustomerSelect(e.target.value)}
                         aria-label="Customer"
                         data-processing-customer-select
@@ -1319,7 +1507,7 @@ export default function ProcessingDrawer({
                           <select
                             value={assigneeValue}
                             onChange={(e) => reassignSubtask(st, e.target.value || null)}
-                            disabled={busy}
+                            disabled={busy || pendingAssigneeIds.has(st.id)}
                             aria-label="Assignee"
                             style={{...inputStyle, padding: '4px 6px', fontSize: 11.5, maxWidth: 120}}
                           >

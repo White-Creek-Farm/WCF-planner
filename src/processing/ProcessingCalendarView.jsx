@@ -75,8 +75,8 @@ import ProcessingTemplatesModal from './ProcessingTemplatesModal.jsx';
 const PROGRAMS = [
   {key: 'broiler', label: 'Broiler', section: 'WCF Broiler Processing'},
   {key: 'cattle', label: 'Cattle', section: 'WCF Cattle Processing'},
-  {key: 'pig', label: 'Pig', section: 'WCF Pig Processing'},
   {key: 'sheep', label: 'Lamb', section: 'WCF Lamb Processing'},
+  {key: 'pig', label: 'Pig', section: 'WCF Pig Processing'},
 ];
 const OPERATIONAL_ROLES = ['admin', 'management', 'farm_team'];
 
@@ -121,6 +121,25 @@ function addDaysISO(iso, days) {
   const p = (n) => String(n).padStart(2, '0');
   return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
 }
+// Rebuild one row's search_text from its CURRENT live fields after a quiet
+// drawer autosave. Mirrors the server recipe in list_processing_records
+// (title / processor / customers / live batch name / pig trip label / animal
+// tags, lowercased), so an active search matches a newly saved
+// Processor/Customer immediately and stops matching the replaced value —
+// without calling list_processing_records or entering the loading state.
+function rebuildRowSearchText(r) {
+  return [
+    r.title,
+    r.processor,
+    ...(Array.isArray(r.customer) ? r.customer : []),
+    r.source && r.source.batch_name,
+    r.source_kind === 'pig' ? `trip ${r.trip_ordinal ?? 0}` : null,
+    r.source && r.source.animal_tags,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
 function num(value) {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
@@ -134,7 +153,10 @@ function num(value) {
 // fixed-px columns may precede another sticky column). The LAST sticky column
 // carries the divider shadow.
 const COLS = {
-  trip: {key: 'trip', label: 'Trip', width: '64px', sticky: true},
+  // Trip renders AFTER the flexible-width Batch column (Batch leads every
+  // program), so it cannot be sticky itself — only fixed-px columns may
+  // precede another sticky column in the offset accumulation below.
+  trip: {key: 'trip', label: 'Trip', width: '64px'},
   batch: {key: 'batch', label: 'Batch', width: 'minmax(190px,1fr)', sticky: true},
   status: {key: 'status', label: 'Status', width: '112px'},
   hatch: {key: 'hatch', label: 'Hatch date', width: '92px'},
@@ -149,7 +171,7 @@ const PROGRAM_TABLES = (() => {
   const layouts = {
     broiler: ['batch', 'status', 'hatch', 'processing', 'processor', 'count', 'customer'],
     cattle: ['batch', 'status', 'processing', 'processor', 'count', 'age'],
-    pig: ['trip', 'batch', 'status', 'processing', 'processor', 'count', 'age'],
+    pig: ['batch', 'trip', 'status', 'processing', 'processor', 'count', 'age'],
     sheep: ['batch', 'status', 'processing', 'processor', 'count', 'age'],
   };
   const out = {};
@@ -548,6 +570,32 @@ export default function ProcessingCalendarView({Header, authState}) {
   const patchRecordSubtaskCounts = useCallback((recordId, counts) => {
     setRecords((rows) =>
       rows.map((r) => (r.id === recordId ? {...r, subtask_done: counts.done, subtask_total: counts.total} : r)),
+    );
+  }, []);
+
+  // Narrow Processor patch from the drawer: a quiet select autosave updates
+  // ONE row's processor in place after a CONFIRMED write (the Processor filter
+  // derives from this field), without reloading the schedule or touching its
+  // loading state.
+  const patchRecordProcessor = useCallback((recordId, processor) => {
+    setRecords((rows) =>
+      rows.map((r) => {
+        if (r.id !== recordId) return r;
+        const next = {...r, processor: processor || null};
+        return {...next, search_text: rebuildRowSearchText(next)};
+      }),
+    );
+  }, []);
+
+  // Narrow Customer patch from the drawer — same contract as the Processor
+  // patch for the broiler-only Customer select ([] or [value]).
+  const patchRecordCustomer = useCallback((recordId, customer) => {
+    setRecords((rows) =>
+      rows.map((r) => {
+        if (r.id !== recordId) return r;
+        const next = {...r, customer: Array.isArray(customer) ? customer : []};
+        return {...next, search_text: rebuildRowSearchText(next)};
+      }),
     );
   }, []);
 
@@ -1134,6 +1182,8 @@ export default function ProcessingCalendarView({Header, authState}) {
           onClose={() => setOpenRecordId(null)}
           onChanged={load}
           onSubtaskCountsChanged={patchRecordSubtaskCounts}
+          onProcessorChanged={patchRecordProcessor}
+          onCustomerChanged={patchRecordCustomer}
           customerOptions={optionLists.customer}
           processorOptions={optionLists.processor}
           profilesById={profilesById}

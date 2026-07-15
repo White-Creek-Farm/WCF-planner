@@ -221,6 +221,12 @@ test.describe('Processing Calendar', () => {
       title: 'TEST Pig Historical',
       date: '2026-03-05',
     });
+    await seedHistoricalRecord(supabaseAdmin, adminId, {
+      id: 'ptest-hist-sheep',
+      program: 'sheep',
+      title: 'TEST Sheep Historical',
+      date: '2026-03-06',
+    });
 
     const {error: mileErr} = await supabaseAdmin.from('processing_records').upsert(
       {
@@ -257,24 +263,38 @@ test.describe('Processing Calendar', () => {
     await resetFreshnessStamp(supabaseAdmin);
     await gotoProcessingExpecting(page, '[data-processing-section="cattle"]');
 
-    // Grouped by program — every seeded program renders a section.
+    // Grouped by program — every seeded program renders a section, in the
+    // LOCKED order Broiler · Cattle · Sheep/Lamb · Pig.
     const cattleSection = page.locator('[data-processing-section="cattle"]');
     const pigSection = page.locator('[data-processing-section="pig"]');
     const broilerSection = page.locator('[data-processing-section="broiler"]');
+    const sheepSection = page.locator('[data-processing-section="sheep"]');
     await expect(cattleSection).toBeVisible();
     await expect(pigSection).toBeVisible();
     await expect(broilerSection).toBeVisible();
+    await expect(sheepSection).toBeVisible();
+    expect(
+      await page.$$eval('[data-processing-section]', (els) =>
+        els.map((el) => el.getAttribute('data-processing-section')),
+      ),
+    ).toEqual(['broiler', 'cattle', 'sheep', 'pig']);
 
     // FIXED per-program headers: broiler carries Hatch date + Customer (no
-    // Age); pig leads with Trip; cattle carries Age; the count column is
+    // Age); pig leads Batch then Trip; cattle carries Age; the count column is
     // labelled 'Count' in every section; 'Farm arrival' and 'Number' never
     // render anywhere.
     await expect(broilerSection.getByText('Hatch date', {exact: true})).toBeVisible();
     await expect(broilerSection.getByText('Customer', {exact: true})).toBeVisible();
     await expect(broilerSection.getByText('Age', {exact: true})).toHaveCount(0);
     await expect(pigSection.getByText('Trip', {exact: true})).toBeVisible();
+    {
+      // Pig column ORDER: Batch renders to the LEFT of Trip.
+      const batchBox = await pigSection.getByText('Batch', {exact: true}).boundingBox();
+      const tripBox = await pigSection.getByText('Trip', {exact: true}).boundingBox();
+      expect(batchBox && tripBox && batchBox.x < tripBox.x).toBe(true);
+    }
     await expect(cattleSection.getByText('Age', {exact: true})).toBeVisible();
-    await expect(page.getByText('Count', {exact: true})).toHaveCount(3); // one per rendered section
+    await expect(page.getByText('Count', {exact: true})).toHaveCount(4); // one per rendered section
     await expect(page.getByText('Farm arrival', {exact: true})).toHaveCount(0);
     await expect(page.getByText('Number', {exact: true})).toHaveCount(0);
 
@@ -1337,5 +1357,260 @@ test.describe('Processing Calendar', () => {
     await drawer.locator('[data-processing-apply-template]').click();
     await expect(drawer.getByText('Checklist is up to date.')).toBeVisible();
     await expect(drawer.locator('[data-processing-apply-template-confirm]')).toHaveCount(0);
+  });
+
+  test('quiet autosave: Processor + subtask Assignee save with NO drawer/schedule reload; failures roll back inline', async ({
+    page,
+    supabaseAdmin,
+    resetDb,
+  }) => {
+    await resetDb();
+    const adminId = await adminProfileId(supabaseAdmin);
+
+    // Two active processor + customer choices — restore the singleton after.
+    const {data: baseSettings} = await supabaseAdmin
+      .from('processing_asana_sync_settings')
+      .select('processor_options, customer_options')
+      .eq('id', 'singleton')
+      .single();
+    await supabaseAdmin
+      .from('processing_asana_sync_settings')
+      .update({
+        processor_options: [
+          {id: 'opt-ptest-qa1', label: 'Quiet Processor A', active: true},
+          {id: 'opt-ptest-qa2', label: 'Quiet Processor B', active: true},
+        ],
+        customer_options: [
+          {id: 'opt-ptest-qc1', label: 'Quiet Customer A', active: true},
+          {id: 'opt-ptest-qc2', label: 'Quiet Customer B', active: true},
+        ],
+      })
+      .eq('id', 'singleton');
+
+    const seedAll = async () => {
+      // Future-dated cattle batch, no processor -> 'Processor is required'
+      // blocker; one open subtask for the Assignee select; a sweep-immune
+      // broiler historical record for the (broiler-only) Customer select.
+      await seedCattleBatchWithProcessingRow(supabaseAdmin, adminId, {});
+      await supabaseAdmin.from('processing_subtasks').upsert(
+        {
+          id: SUB_ID,
+          record_id: BATCH_ID,
+          label: 'QA assignee step',
+          done: false,
+          sort_order: 1,
+          created_by: adminId,
+        },
+        {onConflict: 'id'},
+      );
+      await seedHistoricalRecord(supabaseAdmin, adminId, {
+        id: 'ptest-qa-broiler',
+        program: 'broiler',
+        title: 'QA Broiler Customer',
+        date: isoDaysFromNow(2),
+      });
+    };
+    try {
+      await seedAll();
+      await resetFreshnessStamp(supabaseAdmin);
+      await ensureProcessingSeedStable(supabaseAdmin, BATCH_ID, [SUB_ID], seedAll);
+
+      // Count the autosave RPCs (pass-through). A later route registration
+      // (the failure-mode abort below) takes precedence, so aborted attempts
+      // are never counted here.
+      let processorCalls = 0;
+      let subtaskCalls = 0;
+      await page.route('**/rest/v1/rpc/set_processing_processor*', (route) => {
+        processorCalls++;
+        route.continue();
+      });
+      await page.route('**/rest/v1/rpc/update_processing_subtask*', (route) => {
+        subtaskCalls++;
+        route.continue();
+      });
+
+      await gotoProcessingExpecting(page, `[data-processing-row="${BATCH_ID}"]`);
+      const scheduleRow = page.locator(`[data-processing-row="${BATCH_ID}"]`);
+      await scheduleRow.click();
+      const drawer = page.locator(`[data-processing-drawer="${BATCH_ID}"]`);
+      await expect(drawer).toBeVisible();
+      await expect(drawer.getByText('Processor is required')).toBeVisible();
+      const urlBefore = page.url();
+
+      // Node-identity marks: a visible drawer reload or a schedule reload
+      // would unmount these subtrees and the marks would die with them.
+      const subtaskNode = drawer.locator(`[data-processing-subtask="${SUB_ID}"]`);
+      await expect(subtaskNode).toBeVisible();
+      await subtaskNode.evaluate((el) => {
+        el.__wcfKeepAlive = 'drawer';
+      });
+      await scheduleRow.evaluate((el) => {
+        el.__wcfKeepAlive = 'schedule';
+      });
+      // Scroll stability: scroll the drawer's scrollable ancestor to a
+      // non-zero offset and remember the exact position.
+      const scrollBefore = await subtaskNode.evaluate((el) => {
+        let n = el.parentElement;
+        while (n && n.scrollHeight <= n.clientHeight + 1) n = n.parentElement;
+        if (!n) return -1;
+        n.scrollTop = Math.max(1, Math.floor((n.scrollHeight - n.clientHeight) / 2));
+        n.__wcfScrollProbe = true;
+        return n.scrollTop;
+      });
+
+      // ── Processor: quiet save ──
+      const processorSelect = drawer.locator('[data-processing-processor-select]');
+      await processorSelect.selectOption('Quiet Processor A');
+      await expect(processorSelect).toHaveValue('Quiet Processor A');
+      // Silent reconcile clears the server-owned blocker without a reload.
+      await expect(drawer.getByText('Processor is required')).toHaveCount(0);
+      // Narrow row patch: the schedule shows the processor without a reload.
+      await expect(scheduleRow).toContainText('Quiet Processor A');
+      expect(processorCalls).toBe(1);
+      expect(page.url()).toBe(urlBefore);
+      await expect(drawer.getByText('Loading record…')).toHaveCount(0);
+      expect(await subtaskNode.evaluate((el) => el.__wcfKeepAlive)).toBe('drawer');
+      expect(await scheduleRow.evaluate((el) => el.__wcfKeepAlive)).toBe('schedule');
+      if (scrollBefore > 0) {
+        const scrollAfter = await subtaskNode.evaluate((el) => {
+          let n = el.parentElement;
+          while (n && !n.__wcfScrollProbe) n = n.parentElement;
+          return n ? n.scrollTop : -2;
+        });
+        expect(scrollAfter).toBe(scrollBefore);
+      }
+      await expect(page.locator('main[data-surface="processing.calendar"]')).toHaveAttribute(
+        'data-processing-loaded',
+        '1',
+      );
+
+      // ── Processor: RPC failure rolls back; select re-enables; row untouched ──
+      // Unroute by HANDLER so the pass-through counter route above survives.
+      const abortProcessor = (route) => route.abort();
+      await page.route('**/rest/v1/rpc/set_processing_processor*', abortProcessor);
+      await processorSelect.selectOption('Quiet Processor B');
+      await expect(drawer.getByText(/Something went wrong\. Please retry\./)).toBeVisible();
+      await expect(processorSelect).toHaveValue('Quiet Processor A');
+      await expect(processorSelect).toBeEnabled();
+      await expect(scheduleRow).toContainText('Quiet Processor A');
+      await page.unroute('**/rest/v1/rpc/set_processing_processor*', abortProcessor);
+      expect(await subtaskNode.evaluate((el) => el.__wcfKeepAlive)).toBe('drawer');
+
+      // ── Assignee: quiet assign; the silent reconcile keeps the selection ──
+      const assigneeSelect = subtaskNode.locator('select[aria-label="Assignee"]');
+      await assigneeSelect.selectOption(adminId);
+      await expect(assigneeSelect).toHaveValue(adminId);
+      await page.waitForTimeout(900); // give the silent reconcile a beat
+      await expect(assigneeSelect).toHaveValue(adminId);
+      expect(subtaskCalls).toBe(1);
+      expect(await subtaskNode.evaluate((el) => el.__wcfKeepAlive)).toBe('drawer');
+
+      // ── Assignee: quiet clear with the same stable behavior ──
+      await assigneeSelect.selectOption('');
+      await expect(assigneeSelect).toHaveValue('');
+      await page.waitForTimeout(900);
+      await expect(assigneeSelect).toHaveValue('');
+      expect(subtaskCalls).toBe(2);
+
+      // ── Assignee: RPC failure restores the exact prior assignment ──
+      const abortSubtask = (route) => route.abort();
+      await page.route('**/rest/v1/rpc/update_processing_subtask*', abortSubtask);
+      await assigneeSelect.selectOption(adminId);
+      await expect(drawer.getByText(/Something went wrong\. Please retry\./)).toBeVisible();
+      await expect(assigneeSelect).toHaveValue('');
+      await expect(assigneeSelect).toBeEnabled();
+      await page.unroute('**/rest/v1/rpc/update_processing_subtask*', abortSubtask);
+      expect(await subtaskNode.evaluate((el) => el.__wcfKeepAlive)).toBe('drawer');
+      expect(await scheduleRow.evaluate((el) => el.__wcfKeepAlive)).toBe('schedule');
+      expect(page.url()).toBe(urlBefore);
+
+      // ── Search consistency (Processor): a second REAL quiet save, then the
+      // active search matches the NEW value and drops the replaced one —
+      // without list_processing_records or the schedule loading state. ──
+      await processorSelect.selectOption('Quiet Processor B');
+      await expect(processorSelect).toHaveValue('Quiet Processor B');
+      await expect(scheduleRow).toContainText('Quiet Processor B');
+      expect(processorCalls).toBe(2);
+      await page.keyboard.press('Escape'); // close the cattle drawer
+      await expect(page.locator(`[data-processing-drawer="${BATCH_ID}"]`)).toHaveCount(0);
+      const searchInput = page.locator('[data-processing-search]');
+      await searchInput.fill('Quiet Processor B');
+      await expect(page.locator(`[data-processing-row="${BATCH_ID}"]`)).toBeVisible();
+      await searchInput.fill('Quiet Processor A');
+      await expect(page.locator(`[data-processing-row="${BATCH_ID}"]`)).toHaveCount(0);
+      await searchInput.fill('');
+      await expect(page.locator('main[data-surface="processing.calendar"]')).toHaveAttribute(
+        'data-processing-loaded',
+        '1',
+      );
+
+      // ── Customer (broiler-only): same quiet-autosave contract ──
+      let customerCalls = 0;
+      await page.route('**/rest/v1/rpc/set_processing_customer*', (route) => {
+        customerCalls++;
+        route.continue();
+      });
+      const broilerRow = page.locator('[data-processing-row="ptest-qa-broiler"]');
+      await broilerRow.click();
+      const broilerDrawer = page.locator('[data-processing-drawer="ptest-qa-broiler"]');
+      await expect(broilerDrawer).toBeVisible();
+      const customerSelect = broilerDrawer.locator('[data-processing-customer-select]');
+      await expect(customerSelect).toBeVisible();
+      const urlBroiler = page.url();
+      await customerSelect.evaluate((el) => {
+        el.__wcfKeepAlive = 'customer';
+      });
+      await broilerRow.evaluate((el) => {
+        el.__wcfKeepAlive = 'broiler-row';
+      });
+
+      await customerSelect.selectOption('Quiet Customer A');
+      await expect(customerSelect).toHaveValue('Quiet Customer A');
+      await expect(broilerRow).toContainText('Quiet Customer A');
+      expect(customerCalls).toBe(1);
+      expect(page.url()).toBe(urlBroiler);
+      await expect(broilerDrawer.getByText('Loading record…')).toHaveCount(0);
+      expect(await customerSelect.evaluate((el) => el.__wcfKeepAlive)).toBe('customer');
+      expect(await broilerRow.evaluate((el) => el.__wcfKeepAlive)).toBe('broiler-row');
+
+      // Replace with the second value (still quiet), then prove search
+      // consistency: new value matches, replaced value drops.
+      await customerSelect.selectOption('Quiet Customer B');
+      await expect(customerSelect).toHaveValue('Quiet Customer B');
+      await expect(broilerRow).toContainText('Quiet Customer B');
+      expect(customerCalls).toBe(2);
+      expect(await customerSelect.evaluate((el) => el.__wcfKeepAlive)).toBe('customer');
+
+      // ── Customer: RPC failure rolls back; select re-enables; row untouched ──
+      const abortCustomer = (route) => route.abort();
+      await page.route('**/rest/v1/rpc/set_processing_customer*', abortCustomer);
+      await customerSelect.selectOption('Quiet Customer A');
+      await expect(broilerDrawer.getByText(/Something went wrong\. Please retry\./)).toBeVisible();
+      await expect(customerSelect).toHaveValue('Quiet Customer B');
+      await expect(customerSelect).toBeEnabled();
+      await expect(broilerRow).toContainText('Quiet Customer B');
+      await page.unroute('**/rest/v1/rpc/set_processing_customer*', abortCustomer);
+      expect(await customerSelect.evaluate((el) => el.__wcfKeepAlive)).toBe('customer');
+
+      await page.keyboard.press('Escape');
+      await expect(page.locator('[data-processing-drawer="ptest-qa-broiler"]')).toHaveCount(0);
+      await searchInput.fill('Quiet Customer B');
+      await expect(page.locator('[data-processing-row="ptest-qa-broiler"]')).toBeVisible();
+      await searchInput.fill('Quiet Customer A');
+      await expect(page.locator('[data-processing-row="ptest-qa-broiler"]')).toHaveCount(0);
+      await searchInput.fill('');
+      await expect(page.locator('main[data-surface="processing.calendar"]')).toHaveAttribute(
+        'data-processing-loaded',
+        '1',
+      );
+    } finally {
+      await supabaseAdmin
+        .from('processing_asana_sync_settings')
+        .update({
+          processor_options: baseSettings.processor_options,
+          customer_options: baseSettings.customer_options,
+        })
+        .eq('id', 'singleton');
+    }
   });
 });

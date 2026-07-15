@@ -356,10 +356,20 @@ describe('delete/recovery classification inventory', () => {
     }
 
     const api = fs.readFileSync(path.join(ROOT, 'src/lib/processingBatchDeleteApi.js'), 'utf8');
-    const migration = fs.readFileSync(
+    // Migration 100 stays as read-only history; migration 179 reissues both
+    // functions with the hardened batch-first lock order and is the effective
+    // definition (see processing_lock_order_static.test.js for its contract).
+    const history = fs.readFileSync(
       path.join(ROOT, 'supabase-migrations/100_processing_batch_lifecycle_rpcs.sql'),
       'utf8',
     );
+    const migration = fs.readFileSync(
+      path.join(ROOT, 'supabase-migrations/179_processing_lifecycle_lock_order.sql'),
+      'utf8',
+    );
+    for (const fn of ['unschedule_cattle_processing_batch', 'delete_sheep_processing_batch']) {
+      expect(history).toContain(`CREATE OR REPLACE FUNCTION public.${fn}`);
+    }
 
     // No runtime client delete remains on either processing-batch root.
     expect(tables.has('cattle_processing_batches')).toBe(false);
