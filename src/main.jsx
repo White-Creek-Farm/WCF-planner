@@ -2023,16 +2023,33 @@ function App() {
 
   async function loadUser(user) {
     try {
-      // Race the profile fetch against a 5s timeout
-      const profilePromise = sb.from('profiles').select('*').eq('id', user.id).single();
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-      const {data: profile} = await Promise.race([profilePromise, timeoutPromise]).catch(() => ({data: null}));
+      // The profile row is the session's privilege source, so a failed or
+      // timed-out fetch must reach the fail-closed catch below — never resolve
+      // to an assumed role. A missed fetch here silently DEMOTED admins and
+      // ELEVATED light/inactive users to farm_team UI. Transient stalls are
+      // real on slow connections, so retry the 5s-capped fetch before failing.
+      let profile = null;
+      let profileFailure = null;
+      for (let attempt = 0; attempt < 3 && !profile; attempt++) {
+        const profilePromise = sb.from('profiles').select('*').eq('id', user.id).single();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('profile load timeout')), 5000),
+        );
+        try {
+          const res = await Promise.race([profilePromise, timeoutPromise]);
+          if (res.error) throw res.error;
+          profile = res.data;
+        } catch (e) {
+          profileFailure = e;
+        }
+      }
+      if (!profile) throw profileFailure || new Error('profile load failed');
       // DEV-only role override for Playwright role-tier coverage. The
       // production bundle tree-shakes this `import.meta.env.DEV` branch
       // entirely; no prod surface exists. Spec sets
       // localStorage.setItem('wcf-test-role-override', 'farm_team') before
       // navigation; the override applies for the rest of that page session.
-      let resolvedRole = profile?.role || 'farm_team';
+      let resolvedRole = profile.role || 'inactive';
       if (import.meta.env.DEV) {
         try {
           const override = window.localStorage.getItem('wcf-test-role-override');
@@ -2043,7 +2060,7 @@ function App() {
           /* localStorage may be unavailable in some sandboxes */
         }
       }
-      setAuthState({user, role: resolvedRole, profile, name: profile?.full_name || user.email});
+      setAuthState({user, role: resolvedRole, profile, name: profile.full_name || user.email});
       await loadAllData();
     } catch (e) {
       console.error('loadUser error:', e);
@@ -3338,6 +3355,20 @@ function App() {
   // aren't deletes. Mirrors confirmDelete shape; an optional confirmLabel
   // sets the action-button text.
   const [confirmAction, setConfirmAction] = React.useState(null);
+
+  // Stable <Header/> component identity (see the HEADER block below). The
+  // props ref is (re)assigned every render after the confirm modals are
+  // built; the component function itself is created exactly once so React
+  // never remounts HeaderBase on App re-renders.
+  const headerPropsRef = React.useRef(null);
+  const stableHeaderRef = React.useRef(null);
+  if (!stableHeaderRef.current) {
+    const ref = headerPropsRef;
+    stableHeaderRef.current = function AppBoundHeader() {
+      return React.createElement(HeaderBase, ref.current);
+    };
+  }
+  const stableHeader = stableHeaderRef.current;
   function confirmActionPrompt(message, onConfirm, confirmLabel) {
     setConfirmAction({message, onConfirm, confirmLabel});
   }
@@ -3507,20 +3538,6 @@ function App() {
   // the form ones by the soon-to-be-extracted BatchForm (same treatment),
   // and `counts` had no consumers at all after the home extraction.
 
-  // ── HEADER ──
-  // Phase 2 Round 6 tail: body moved to src/shared/Header.jsx. This local
-  // closure threads App-only props (form-open booleans, App helpers, the
-  // built-up DeleteConfirmModal) into the imported HeaderBase so that every
-  // extracted view can keep calling <Header/> as a zero-arg prop.
-  const Header = () =>
-    React.createElement(HeaderBase, {
-      sb,
-      signOut,
-      loadUsers,
-      DeleteConfirmModal,
-      ConfirmActionModal,
-    });
-
   // ── DELETE CONFIRM MODAL ── (proper component so useState is never conditional)
   const DeleteConfirmModal = deleteConfirm
     ? React.createElement(DeleteModal, {
@@ -3539,6 +3556,26 @@ function App() {
         onCancel: () => setConfirmAction(null),
       })
     : null;
+
+  // ── HEADER ──
+  // Phase 2 Round 6 tail: body moved to src/shared/Header.jsx. This local
+  // wrapper threads App-only props (App helpers, the built-up
+  // DeleteConfirmModal/ConfirmActionModal) into the imported HeaderBase so
+  // that every extracted view can keep calling <Header/> as a zero-arg prop.
+  // The wrapper must keep ONE component identity for the whole App lifetime:
+  // React reconciles <Header/> by function identity, so a fresh arrow
+  // function per render remounted HeaderBase on every background App state
+  // change and silently discarded Header-local overlay state (an open
+  // notifications panel or burger menu vanished mid-interaction). Current
+  // App values flow through a ref the stable component reads on each render.
+  headerPropsRef.current = {
+    sb,
+    signOut,
+    loadUsers,
+    DeleteConfirmModal,
+    ConfirmActionModal,
+  };
+  const Header = stableHeader;
 
   // ── AUTH GATES ──
   // Lane 1 CP1: the public report/form surfaces (webformhub, tasksWebform,
@@ -3586,6 +3623,7 @@ function App() {
   if (!dataLoaded)
     return (
       <div
+        data-farm-data-loading="1"
         style={{
           minHeight: '100vh',
           background: '#085041',

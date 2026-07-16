@@ -27,7 +27,10 @@ const cattleSheepEntryBranchStart = pageSrc.indexOf('{!isPig && sEntries.length 
 const cattleSheepEntryBranchEnd = pageSrc.indexOf('{!isPig && pendingReconciles.length > 0 && (');
 const pigEntryBranch = pageSrc.slice(pigEntryBranchStart, cattleSheepEntryBranchStart);
 const cattleSheepEntryBranch = pageSrc.slice(cattleSheepEntryBranchStart, cattleSheepEntryBranchEnd);
-const entryAutosaveStart = pageSrc.indexOf('async function saveEntryDraft');
+// The autosave save path is a sync FIFO wrapper (saveEntryDraft) over the
+// async worker (performEntryDraftSave); slice from the wrapper through the
+// worker so assertions see the whole engine.
+const entryAutosaveStart = pageSrc.indexOf('function saveEntryDraft');
 const entryAutosaveEnd = pageSrc.indexOf('function isEntryLocked', entryAutosaveStart);
 const entryAutosaveFunction = pageSrc.slice(entryAutosaveStart, entryAutosaveEnd);
 
@@ -196,6 +199,23 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
     expect(pageSrc).toContain('data-pig-entry-autosave');
     expect(pageSrc).toMatch(/sess\.species === 'pig'[\s\S]*?\{updates: \{weight: newWeight, note\}/);
     expect(entryAutosaveFunction).toContain('buildEntryDraftSave');
+  });
+  it('entry autosaves serialize per entry so a stale in-flight PATCH cannot revert a newer field', () => {
+    // Regression (Final Playwright closure lane): concurrent PATCHes on one
+    // weigh_ins row commit in arbitrary order — the old engine let the
+    // weight-blur flush and the note flush race, and the stale payload could
+    // land last and silently revert the note. Every save must queue behind
+    // the entry's in-flight save and re-read the newest draft when it runs.
+    expect(entryAutosaveFunction).toContain('entryAutosaveChainsRef.current[entryId]');
+    expect(entryAutosaveFunction).toMatch(
+      /const prior = entryAutosaveChainsRef\.current\[entryId\] \|\| Promise\.resolve\(true\)/,
+    );
+    expect(entryAutosaveFunction).toContain('performEntryDraftSave(entryId, seq)');
+    // A save whose seq went stale while queued must not issue its old payload.
+    expect(entryAutosaveFunction).toMatch(
+      /entryAutosaveSeqRef\.current\[entryId\] != null && entryAutosaveSeqRef\.current\[entryId\] !== seq\) return true;[\s\S]*?const \{updates, labels\} = save;/,
+    );
+    expect(pageSrc).toContain('const entryAutosaveChainsRef = React.useRef({});');
   });
   it('pig entry branch no longer renders per-row Save/Revert buttons', () => {
     expect(pigEntryBranch).not.toMatch(/>\s*Revert\s*</);

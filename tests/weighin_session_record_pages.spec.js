@@ -339,6 +339,92 @@ test('pig: edit weight + note, autosave, reload, persist', async ({page, supabas
   await expect(page.locator('[data-pig-entry-delta="save-pig-e1"]')).toContainText('+/- +20 lb');
 });
 
+test('pig: rapid weight-then-note edits serialize their PATCHes; a stale payload can never revert the note', async ({
+  page,
+  supabaseAdmin,
+  resetDb,
+}) => {
+  // Regression (Final Playwright closure lane): filling the note right after
+  // the weight fires the weight-blur flush first, so an entry PATCH carrying
+  // the OLD note is in flight when the note flush fires. The old engine issued
+  // both PATCHes concurrently — whichever landed last won, and in CI the stale
+  // {weight, note: 'orig'} landed after {weight, note: 'updated'}, silently
+  // reverting the note while the UI showed Saved. The engine must keep at most
+  // one entry save in flight and queue later saves behind it.
+  await resetDb();
+  await supabaseAdmin.from('webform_config').upsert({key: 'active_groups', data: ['P-TEST-01']}, {onConflict: 'key'});
+  const sess = await seedSession(supabaseAdmin, {id: 'ser-pig-1', species: 'pig', batchId: 'P-TEST-01'});
+  await seedEntry(supabaseAdmin, {id: 'ser-pig-e1', sessionId: sess.id, weight: 250, note: 'orig'});
+
+  // Track entry-PATCH concurrency and HOLD the first PATCH open long enough
+  // that the note flush fires while it is still in flight.
+  const isEntryPatch = (req) => req.method() === 'PATCH' && /\/rest\/v1\/weigh_ins/.test(req.url());
+  let inFlight = 0;
+  let maxInFlight = 0;
+  let patchCount = 0;
+  page.on('request', (req) => {
+    if (!isEntryPatch(req)) return;
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+  });
+  const settle = (req) => {
+    if (isEntryPatch(req)) inFlight -= 1;
+  };
+  page.on('requestfinished', settle);
+  page.on('requestfailed', settle);
+  let releaseFirst;
+  const firstHold = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  await page.route('**/rest/v1/weigh_ins*', async (route) => {
+    if (route.request().method() !== 'PATCH') {
+      await route.continue();
+      return;
+    }
+    patchCount += 1;
+    if (patchCount === 1) await firstHold;
+    await route.continue();
+  });
+
+  await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
+  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+  const entriesSection = page.locator('[data-weighin-entries="1"]');
+  const weightInput = entriesSection.locator('input[type="number"]').first();
+  const noteInput = entriesSection.locator('input[placeholder="Note"]').first();
+
+  await weightInput.fill('260');
+  // Focusing the note blurs the weight → the first flush PATCH goes out (held).
+  await noteInput.fill('updated');
+  await noteInput.blur();
+
+  // While the first PATCH is held, the note save must WAIT — even past the
+  // debounce window. The old engine had already issued a second PATCH here.
+  await page.waitForTimeout(1200);
+  expect(patchCount, 'second PATCH must queue behind the held first PATCH').toBe(1);
+
+  releaseFirst();
+
+  await expect
+    .poll(
+      async () => {
+        const r = await supabaseAdmin.from('weigh_ins').select('weight, note').eq('id', 'ser-pig-e1').single();
+        return r.data;
+      },
+      {timeout: 10_000},
+    )
+    .toEqual({weight: 260, note: 'updated'});
+  expect(maxInFlight, 'entry PATCHes must never overlap').toBe(1);
+  await expect(page.locator('[data-pig-entry-autosave="ser-pig-e1"]')).toContainText('Saved');
+
+  // Reload: both fields persisted.
+  await page.reload();
+  await waitForWeighInSessionLoaded(page);
+  await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
+  await expect(page.locator('[data-weighin-entries="1"] input[type="number"]').first()).toHaveValue('260');
+  await expect(page.locator('[data-weighin-entries="1"] input[placeholder="Note"]').first()).toHaveValue('updated');
+});
+
 // ============================================================================
 // Comments hash scroll
 // ============================================================================

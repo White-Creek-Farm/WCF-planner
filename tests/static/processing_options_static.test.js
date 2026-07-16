@@ -79,6 +79,28 @@ describe('admin options editor — AUTOSAVE (UX lane)', () => {
     expect(optionsModal).toMatch(/active: false\}\);/);
   });
 
+  it('persist chain suspends before any work and the flush loop is bounded (renderer live-lock regression)', () => {
+    // Zombie-chain regression: an async chain that converged WITHOUT crossing
+    // an await ran its finally (engine.chain = null) BEFORE the
+    // `engine.chain = (async () => ...)()` assignment landed, so the
+    // assignment resurrected the completed promise permanently. Every later
+    // persist/flush call then returned that stale instant-'ok' without
+    // re-reading items, and the surface-switch flush spun the main thread
+    // forever without issuing its RPC (CI + local Templates freeze). The
+    // chain must suspend FIRST so the assignment always precedes completion.
+    expect(optionsModal).toMatch(/engine\.chain = \(async \(\) => \{[\s\S]{0,700}?await null;[\s\S]{0,400}?try \{/);
+    // And the host-awaited flush is a bounded loop that degrades to the
+    // failed-flush contract (host stays open, edits retained) instead of a
+    // for(;;) spin if convergence ever breaks again.
+    const flushBody = optionsModal.slice(
+      optionsModal.indexOf('const flush = useCallback'),
+      optionsModal.indexOf('}, [persistNow, onBlankBlocked, kind]);'),
+    );
+    expect(flushBody).not.toContain('for (;;)');
+    expect(flushBody).toMatch(/for \(let pass = 0; pass < \d+; pass\+\+\)/);
+    expect(flushBody).toMatch(/setSaveState\('error'\);\s*return false;/);
+  });
+
   it('host flush contract: Templates modal awaits the flush on every exit path', () => {
     expect(optionsModal).toContain('registerFlush');
     expect(templatesModal).toContain('registerFlush={registerOptionsFlush}');

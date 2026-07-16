@@ -273,10 +273,12 @@ describe('Tasks v2 T3 — Header Tasks button + own due/past-due badge', () => {
     expect(headerJsx).toMatch(/try\s*\{[\s\S]*?countMyOpenDueOrPastTasks[\s\S]*?\}\s*catch/);
   });
 
-  it('main.jsx Header closure factory threads sb into HeaderBase', () => {
-    // The factory at line ~3097 must include `sb,` in its prop bag so
+  it('main.jsx Header wrapper threads sb into HeaderBase', () => {
+    // The stable AppBoundHeader wrapper (Final Playwright closure lane) reads
+    // its prop bag from headerPropsRef; that bag must include `sb,` so
     // HeaderBase has access to the supabase client.
-    expect(mainJsx).toMatch(/React\.createElement\(HeaderBase,\s*\{\s*sb\s*,/);
+    expect(mainJsx).toMatch(/headerPropsRef\.current = \{\s*sb\s*,/);
+    expect(mainJsx).toMatch(/React\.createElement\(HeaderBase, ref\.current\)/);
   });
 });
 
