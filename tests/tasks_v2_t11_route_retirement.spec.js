@@ -25,6 +25,15 @@ async function seedAdminProfile(supabaseAdmin) {
   return adminUser.id;
 }
 
+// Boot readiness: the app renders its "Loading your farm data..." gate until
+// loadAllData resolves; asserting content against the default 5s expect window
+// races a shared-TEST-DB stall (the measured post-merge failure snapshot was
+// exactly this gate). Wait the gate out first, like the other specs' readiness
+// helpers do.
+async function waitForFarmDataLoaded(page) {
+  await expect(page.locator('[data-farm-data-loading="1"]')).toHaveCount(0, {timeout: 20_000});
+}
+
 async function signInAsSimon(page) {
   await page.context().clearCookies();
   await page.goto('/');
@@ -50,6 +59,7 @@ test.describe('Tasks v2 T11 — legacy route retirement', () => {
 
     await page.goto('/my-tasks');
     await expect(page).toHaveURL(/\/tasks(?:[/?#]|$)/);
+    await waitForFarmDataLoaded(page);
     await expect(page.getByRole('heading', {name: /^Task Center$/})).toBeVisible();
     await expect(page.locator('[data-tasks-tab="my-tasks"]')).toBeVisible();
   });
@@ -64,6 +74,7 @@ test.describe('Tasks v2 T11 — legacy route retirement', () => {
 
     await page.goto('/admin/tasks');
     await expect(page).toHaveURL(/\/tasks(?:[/?#]|$)/);
+    await waitForFarmDataLoaded(page);
     await expect(page.getByRole('heading', {name: /^Task Center$/})).toBeVisible();
     await expect(page.locator('[data-tasks-tab-button="system"]')).toBeVisible();
   });
@@ -79,6 +90,7 @@ test.describe('Tasks v2 T11 — legacy route retirement', () => {
     await signInAsSimon(page);
     await page.goto('/admin/tasks');
     await expect(page).toHaveURL(/\/tasks(?:[/?#]|$)/);
+    await waitForFarmDataLoaded(page);
     await expect(page.getByRole('heading', {name: /^Task Center$/})).toBeVisible();
     // Non-admin gating still holds across the redirect.
     await expect(page.locator('[data-tasks-tab-button="system"]')).toHaveCount(0);

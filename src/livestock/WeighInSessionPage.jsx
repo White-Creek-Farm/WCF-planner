@@ -152,6 +152,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const sessionRef = React.useRef(session);
   const entryAutosaveTimersRef = React.useRef({});
   const entryAutosaveSeqRef = React.useRef({});
+  const entryAutosaveChainsRef = React.useRef({});
   const [entryAutosave, setEntryAutosave] = React.useState({});
   const [addForm, setAddForm] = React.useState({tag: '', weight: '', note: '', priorTag: ''});
   const [sessionForModal, setSessionForModal] = React.useState(null);
@@ -882,7 +883,25 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
     });
   }
 
-  async function saveEntryDraft(entryId, seq = entryAutosaveSeqRef.current[entryId]) {
+  function saveEntryDraft(entryId, seq = entryAutosaveSeqRef.current[entryId]) {
+    // Serialize saves per entry. Two concurrent PATCHes on the same weigh_ins
+    // row (weight-blur flush racing the note flush) can commit out of order,
+    // letting the older payload silently revert the newer field after the UI
+    // already showed Saved. Each save waits for the prior one and re-reads the
+    // latest draft when it actually runs, so the final write is the newest.
+    const prior = entryAutosaveChainsRef.current[entryId] || Promise.resolve(true);
+    const run = prior.then(
+      () => performEntryDraftSave(entryId, seq),
+      () => performEntryDraftSave(entryId, seq),
+    );
+    entryAutosaveChainsRef.current[entryId] = run.then(
+      () => true,
+      () => false,
+    );
+    return run;
+  }
+
+  async function performEntryDraftSave(entryId, seq) {
     const sess = sessionRef.current;
     const entry = sEntriesRef.current.find((x) => x.id === entryId);
     const draft = entryEditsRef.current[entryId] || (entry ? entryDraft(entry) : null);
@@ -896,6 +915,9 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       setEntryAutosaveState(entryId, null);
       return true;
     }
+    // A newer edit re-armed the debounce after this save was requested; its
+    // save owns the write. Issuing this stale payload anyway would race it.
+    if (entryAutosaveSeqRef.current[entryId] != null && entryAutosaveSeqRef.current[entryId] !== seq) return true;
     const {updates, labels} = save;
     setEntryAutosaveState(entryId, {status: 'saving', message: 'Saving...'});
     const result = await saveEntryUpdates(entry, updates, labels);

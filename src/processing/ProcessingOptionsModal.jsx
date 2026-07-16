@@ -164,6 +164,15 @@ function OptionListEditor({kind, title, initial, onPersist, onBlankBlocked, regi
     }
     if (!engine.chain) {
       engine.chain = (async () => {
+        // Suspend before doing ANY work. An async function runs synchronously
+        // to its first await, so a pass that converges without awaiting (the
+        // early 'ok' return below) would run its finally (engine.chain = null)
+        // BEFORE the `engine.chain = ...` assignment — which then resurrects
+        // the already-completed promise as a permanent zombie chain. Every
+        // later persist/flush call got that stale instant-'ok' without ever
+        // re-reading items, so a flush over a diverged list spun forever
+        // without issuing its RPC (the Templates renderer live-lock).
+        await null;
         try {
           for (;;) {
             const snapshot = itemsRef.current;
@@ -259,7 +268,13 @@ function OptionListEditor({kind, title, initial, onPersist, onBlankBlocked, regi
       clearTimeout(engine.timer);
       engine.timer = null;
     }
-    for (;;) {
+    // Bounded, not for(;;): each pass either persists progress (an RPC) or
+    // converges, so real flushes finish in one or two passes. If convergence
+    // is ever broken again (the zombie-chain bug in persistNow froze the
+    // renderer here), the cap turns an infinite microtask spin into the
+    // normal failed-flush contract: the host stays open with the inline
+    // error and the edits are retained for retry.
+    for (let pass = 0; pass < 25; pass++) {
       const res = await persistNow();
       if (res === 'blank') {
         if (onBlankBlocked) onBlankBlocked(kind);
@@ -268,6 +283,8 @@ function OptionListEditor({kind, title, initial, onPersist, onBlankBlocked, regi
       if (res === 'failed') return false;
       if (payloadKey(itemsRef.current) === engine.lastSavedKey) return true;
     }
+    setSaveState('error');
+    return false;
   }, [persistNow, onBlankBlocked, kind]);
 
   useEffect(() => {
