@@ -7,11 +7,12 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-15.
-Product checkpoint covered by this wrap: `189758c` (the complete CC#1-CC#8
-release plus the equipment meter-notice hotfix through PR #81). This
-documentation-only handoff follows that product commit and reconciles the Build
-Queue, live backend state, and local/remote Git inventory.
+Last updated: 2026-07-16.
+Product checkpoint covered by this wrap: `25f79f1` (PR #85, user-management
+audit/reset/throttle hardening, including PR #84's final Playwright repairs).
+This documentation-only handoff also records the active PR #86 Processing lane,
+the uncommitted Animals on Farm hotfix, the newsletter product decisions, and
+the approved risk-based CI redesign queue item.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -68,14 +69,15 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`. Product code is
-  merged through `189758c`; this documentation handoff changes no runtime code.
-  There are no open GitHub pull requests at this handoff.
+  merged through `25f79f1`; this documentation handoff changes no runtime code.
+  PR #86 (`feature/processing-attachments-comment-sync`, head `3d23427`) is open
+  and running CI; it is not merged or deployed.
 - Supabase live high-water: all repository migrations through `166` and
-  `170`-`182` are PROD-applied; numbers `167`-`169` are intentionally unused.
-  `rapid-processor` takeover/enumeration hardening is deployed to PROD v30 and
-  TEST v4. The filename-independent `processing-asana-sync` attachment build is
-  deployed to PROD v12 and TEST v1. Other current PROD versions are `tasks-cron`
-  v6, `tasks-summary` v8, and `newsletter-harvest` v6.
+  `170`-`183` are PROD-applied; numbers `167`-`169` are intentionally unused.
+  `rapid-processor` user-management hardening is deployed to PROD v31 (v30 is
+  the rollback target). The filename-independent `processing-asana-sync`
+  attachment build is deployed to PROD v12 and TEST v1. Other current PROD
+  versions are `tasks-cron` v6, `tasks-summary` v8, and `newsletter-harvest` v6.
 - Newsletter live state: Autopilot + direction-first redesign + fact fixes +
   archive-link gating + the UX polish pass are merged. The polish pass adds
   debounced/autosaved admin direction, prevents local direction clobbering during
@@ -115,8 +117,11 @@ Design/function invariants that govern cross-surface behavior live in
 - Processing Calendar schema is PROD-applied through `179`; the live Edge is
   `processing-asana-sync` PROD v12 / TEST v1. `ASANA_ACCESS_TOKEN` remains set
   on PROD, and `asana_sync_enabled` remains true pending Build Queue item 2's
-  explicit cutover decision. The function uses filename-independent attachment
-  keys and skips already-stored Asana GIDs before download/upload.
+  explicit cutover decision. PR #86 adds pending migrations `185`/`186`,
+  admin-only attachment deletion, operational drag/drop upload, and an OFF-by-
+  default comments-only recurring-import contract; none of those PR artifacts
+  are PROD-applied/deployed/activated. The function uses filename-independent
+  attachment keys and skips already-stored Asana GIDs before download/upload.
 - Processing planner integration is shipped end-to-end. Migrations `175`-`177`
   rekeyed planner rows to immutable batch/trip identity, made planned Pig trips
   first-class Processing records, backfilled phase/ordinal/status/template step
@@ -132,7 +137,12 @@ Design/function invariants that govern cross-surface behavior live in
 - Processing artifacts already imported: 1,104 recursive Asana subtasks
   (798 complete / 306 open; 557 assigned; 537 with due dates; 380 with start
   dates), preserving imported completion state and local ownership rules.
-  Processing has 129 imported Asana comments across 52 records. Conversation
+  Processing has 128 imported Asana conversation items from the last completed
+  comments run. A read-only 2026-07-16 dry run found exactly one additional
+  importable text comment: Ronnie's Jul 15 C-26-04 main-card comment with an
+  Isabel mention. Its chart image is already present as a record attachment.
+  The root cause is that no recurring Processing comments schedule exists; it
+  is not a mapping, filter, or subtask-card defect. Conversation
   fidelity imported 8 comment-media files (about 20.4 MB), and the ordinary
   attachment backfill has imported all 68 currently enumerable files into the
   private `processing-attachments` bucket. The final idempotence dry run found
@@ -212,11 +222,15 @@ Design/function invariants that govern cross-surface behavior live in
   request is active. Real TEST Edge proof covered unauthenticated 401,
   non-admin 403, retained-FK 409, successful delete, idempotent retry, crash
   reconciliation, terminal audit rows, and cleanup; the focused browser proof
-  passed 4/4. `rapid-processor` v30 removes the takeover-capable reset redirect,
-  ignores `test_to`, sends only to the Auth-resolved account, gives public
-  callers one enumeration-safe response, and rejects the removed `user_welcome`
-  type. Historical Activity backfill remains unapproved. The remaining
-  user-management audit/throttle decisions are Build Queue item 3.
+  passed 4/4. Migration `183` and `rapid-processor` PROD v31 now add audited
+  profile creation, reset-request and truthful reset-delivery terminal events,
+  one-terminal-per-request enforcement, a service-role-only HMAC throttle, and
+  a fail-closed report-email role gate. The PROD smoke created one linked
+  `profile.reset_requested` -> `profile.reset_send_succeeded` pair, delivered
+  one real reset email to the owner's inbox, and left the account usable. The
+  public flow remains enumeration-safe and stores no raw email/IP in the
+  throttle table. The user-management lane is shipped; no gate remains.
+  Historical Activity backfill remains unapproved under Processing item 2.
 - Home Weather now renders one stable collapsed button on first paint instead of
   appearing after the dashboard. Loading, ready, and unavailable states reuse
   that node; loading clicks are inert, retry/refresh are single-flight, the
@@ -228,15 +242,21 @@ Design/function invariants that govern cross-surface behavior live in
 - Dependency hardening is complete: Vite/Vitest/plugin-react majors upgraded,
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
-- Validation state at the shipped checkpoint: every CC#1-CC#8 release lane
-  passed its focused static/unit checks, formatting, lint with zero errors, and
-  required serial TEST proofs. The final post-merge whole-app measurement passed
-  516 browser tests and failed 7; the exact owned follow-ups are Build Queue
-  item 4. The DB-free verify gate (format, lint, full Vitest, production build)
-  passed, and both browser shards reached terminal verdicts within budget.
-- Git/workstation handoff: the primary workspace is the only registered
-  worktree and is clean on current `main`. All merged local/remote topic branches
-  and all superseded stashes were pruned. There are no open PRs. The intentional
+- Validation state at the shipped checkpoint: PR #84 fixed the measured
+  fail-closed session-role, Header identity, Processing options live-lock, and
+  weigh-in autosave defects without timeout inflation. PR #85's DB-free and
+  focused user-management coverage passed on the combined head and after merge.
+  Full shards still rotate through unrelated readiness/visibility failures; the
+  post-PR #85 main run passed shard 1 and had one pre-existing Tasks v2 badge
+  failure in shard 2. The product repairs are shipped, while Build Queue item 4
+  replaces per-PR full-suite waiting with a risk-based CI policy and preserves
+  periodic/manual full-app measurement.
+- Git/workstation handoff: four build worktrees plus this docs-wrap worktree are
+  registered. The primary workspace is clean on the pushed PR #86 head
+  `3d23427`; CC#2 and CC#3 worktrees are clean and fully merged; CC#4's
+  `hotfix/animal-history-accuracy-chart` worktree intentionally holds 17 modified
+  files plus one new browser spec, uncommitted, on old base `4429c45`. Do not
+  prune CC#4. PR #86 is the only open PR at this handoff. The intentional
   `archive/ui-cleanup-wip-2026-06-17` tag remains because it is the only unique
   snapshot of that abandoned WIP; diagnostic traces under
   `C:\Users\Ronni\cc-research\` remain intentionally outside the repo.
@@ -248,17 +268,14 @@ Per-PR shipped history is not maintained here. For what shipped and when, read
 Durable behavior lives in the Load-Bearing Contracts below; current migration and
 live state lives in Current State and Backend And Data State.
 
-Most recent session: Processing live-read/quiet-save/layout and lock-order
-hardening, Pasture rest/history and map manage fixes, serialized user management,
-the immediate Home Weather shell, all measured Tasks/Pig/Weigh-in/Cattle/UI
-regression repairs, the shared TEST lease, filename-safe Processing attachments,
-password-reset takeover/enumeration hardening, zero-cow cattle batch sequencing,
-and equipment meter-notice isolation across record navigation (`6d0c861` through
-`189758c`). Migrations `178`-`182` are
-PROD-applied; the live cattle schedule was reconciled so September is `C-26-05`
-and later populated months are sequential. The stale remote UI-cleanup branches
-were retired; their only unique WIP snapshot is preserved at tag
-`archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
+Most recent shipped session: PR #84 (`ca276e8` -> merge `c7631d3`) repaired the
+final measured session-role, Header, Processing options, route-readiness, and
+weigh-in autosave defects. PR #85 (`4729a1f` plus combined head `b70541c` -> merge
+`25f79f1`) shipped user-management migration `183` and `rapid-processor` v31;
+both are PROD-applied/deployed and verified. The cattle schedule remains
+reconciled with September `C-26-05`. The active PR #86 and uncommitted CC#4
+hotfix are not shipped checkpoints. The only unique abandoned UI WIP remains
+preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 
 ---
 
@@ -267,106 +284,133 @@ were retired; their only unique WIP snapshot is preserved at tag
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-Next-session routing: items 1-3 are Ronnie decision/editorial gates, not
-autonomous CC work. Item 4 is the next available engineering lane; start with
-shared TEST fixture isolation and the two deterministic stale/readiness repairs,
-then use the preserved trace for the Processing renderer live-lock.
+Next-session routing: PR #86 is the active merge/activation gate. CC#4 remains
+open on item 3 and must finish the freshness correction before commit. Item 4
+is approved design work but must not collide with an active TEST-backed CI run.
+Newsletter item 1 is Ronnie-led editorial/product work.
 
-1. Newsletter first production issue + PROD AI smoke
-   - Status: RONNIE-LED EDITORIAL WORK; DO NOT ASSIGN TO CC/CODEX WITHOUT A NEW
-     RONNIE PROMPT. PRODUCT/SQL/EDGE RELEASED; FIRST REAL ISSUE WORKFLOW NOT YET
-     RUN.
-     Newsletter Autopilot, direction-first editing, archive-link gating, and
-     `newsletter-harvest` PROD v6 are live. `NEWSLETTER_AI_API_KEY` is a
-     PROD-only Edge secret; TEST intentionally has no key. Cron remains off.
-   - Class: `ENH`/`AI`/`DATA-OPERATION`.
-   - Remaining actions:
-     - Confirm `aiConfigured: true` through an approved PROD admin probe.
-     - Gather/re-gather the first issue, review coverage and numbers, write or
-       rewrite the draft, approve/place photos, preview, and publish.
-     - Generate or confirm the rotating archive key, then verify the link-gated
-       public `/newsletter` result.
-     - Keep monthly cron off until Ronnie separately approves automation.
-   - Success criteria: one reviewed real issue is published, the keyed public
-     archive works, source coverage/numbers are checked, and no private or
-     unapproved media is exposed.
+1. July newsletter: first real issue and editorial redesign
+   - Status: DECISIONS REACHED; NO ISSUE HAS EVER BEEN PUBLISHED. Target the
+     July issue (covering July) for release by August 5. The existing application
+     is a useful framework but still needs a warm, restrained, professional
+     editorial presentation and a dramatically easier monthly workflow. The
+     draft must not read like a robot listing facts. Use Ronnie's supplied
+     writing example as the voice reference; do not invent a generic farm voice.
+   - Class: `ENH`/`EDITORIAL`/`AI`/`DATA-OPERATION`.
+   - Audience/message: owners, the farm team, and other family staff who interact
+     with the farm (including household and personal-assistant roles). Lightly
+     remind them that White Creek Farm is a multi-program regenerative Florida
+     Panhandle farm: grass-finished cattle/sheep; non-GMO, corn-free and soy-free
+     chicken/pig feed; nutritional meat and soil regeneration. Assume an informed
+     audience. The issue should prove that the team is growing/developing, its
+     work is effective, and the farm is distinctive/special.
+   - Editorial/data decisions:
+     - Team-centric `we` voice; warm and restrained, shorter rather than dense.
+       Ronnie's review target is 10-15 minutes.
+     - Facts are the backbone and positive feeling supports them. Prefer
+       year-over-year comparisons; year-to-date and up to three years may appear
+       when real comparable data exists. Missing periods display unavailable,
+       never zero. Cover cattle, broilers, pigs, sheep, and eggs; any genuine
+       increase may be noteworthy.
+     - Strong story types include animals on farm, processing volume versus the
+       same point last year, completed organizing/infrastructure projects and why
+       they matter, and a focused difficulty the team overcame. Do not publish
+       fragile promised timelines. If Animals on Farm is highlighted, keep it a
+       separate fact/story and omit a combined all-species Total.
+     - Photos/required-source list is due by the 1st; publish by the 5th. A named
+       helper can gather the supplied checklist. Source verification is
+       non-negotiable. The issue title/brand is simply `White Creek Farm`.
+     - Distribute the published issue as a rotating 7-day link in the group chat.
+       No email/PDF/RSS build is requested.
+   - Remaining actions: convert the consensus into the editor/template polish,
+     confirm the PROD AI probe, gather July facts/photos, let Ronnie edit/review,
+     publish the first issue, and verify the expiring archive link. Keep monthly
+     automation off until separately approved.
+   - Success criteria: Ronnie can complete the monthly work in 10-15 minutes;
+     one fact-checked, team-centric July issue is published by August 5; the
+     keyed reader works; no private/unapproved media or fabricated comparison is
+     exposed.
 
-2. Processing historical Activity decision and final Asana cutover
-   - Status: CORE + ATTACHMENT IMPORT COMPLETE; TWO EXPLICIT DECISIONS REMAIN.
-     Planner reconciliation, manual crosswalk resolution, 1,104 subtasks, 129
-     comments, 8 conversation-media files, and all 68 ordinary imported
-     attachment rows are live. The 55 filename-truncated `#` paths were copied,
-     hash/size verified, repointed to canonical `<parent-gid>/<attachment-gid>`
-     keys, reverified through signed URLs, and the obsolete objects deleted.
-     The hardened Edge function is live in PROD v12 and TEST v1; the final PROD
-     apply copied one attachment added after the original repair, and an
-     idempotence dry run reported 68 already stored / 0 new. Three deleted Asana
-     cards remain explicit source-404 skips. Canonical local v2 templates are
-     active; Asana template import is retired.
-   - Class: `DECISION`/`DATA-IMPORT`/`CUTOVER`.
-   - Decisions:
-     - Historical Activity: the dry run found about 16,855 Asana system stories.
-       Default recommendation is to keep the Planner history lean and leave
-       these unimported unless Ronnie explicitly wants field-churn history.
-     - Final cutover: after the Activity decision, optionally set
-       `asana_sync_enabled=false` through its separate gate. Do not infer this
-       from removal of the historical-import UI.
-   - Success criteria: the Activity decision is recorded and final cutover
-     occurs only after explicit approval.
+2. Processing attachments + automatic Asana comments, then final cutover
+   - Status: PR #86 OPEN, HEAD `3d23427`, CI RUN `29537126195` IN PROGRESS AT
+     WRAP. Nothing from this PR is merged or PROD-activated. The lane keeps
+     operational upload and adds accessible multi-file drag/drop; only deletion
+     is admin-only. Migrations `185`/`186` add a two-phase exact-path deletion/
+     tombstone contract and a comments-only pg_net cron delivery contract. The
+     Edge cron mode is pinned to `sync_comments`; the new comments flag defaults
+     false and no schedule is created by the migrations.
+   - Class: `ENH`/`SECURITY`/`DATA-OPERATION`/`CUTOVER`.
+   - Merge gate: accept PR #86 only after CI review proves any red is unrelated
+     rotating readiness debt; never label an on-lane failure as flake. Migration
+     `186` is part of the PR and must remain ordered after `185`.
+   - Activation gates, in order: PROD apply `185` then `186` transactionally;
+     deploy the updated `processing-asana-sync`; enable the comments-only flag;
+     create/set the Edge and Vault cron secrets; run comments-only manually and
+     prove Ronnie's missing C-26-04 comment imports; run again for zero inserts;
+     only then schedule hourly at minute 7. Every stage remains a separate
+     Ronnie-approved PROD/Vault/schedule gate unless explicitly bundled.
+   - Remaining decisions after activation: leave the roughly 16,855 historical
+     Asana system stories unimported by default unless Ronnie wants field-churn
+     history; set global `asana_sync_enabled=false` only through a separate final
+     cutover decision. The three deleted linked cards remain explicit 404 skips.
+   - Success criteria: drag/drop works for existing operational upload roles;
+     physical/tombstone deletion is admin-only, retry-safe, and non-resurrecting;
+     the recurring path imports only comments and is idempotent; final cutover
+     and historical Activity occur only by explicit approval.
 
-3. User-management audit/throttle scope decisions
-   - Status: DELETE AUDIT + CRITICAL RESET HARDENING SHIPPED. Migration `171`, the
-     audited RPCs, immutable ledger, guarded `rapid-processor` delete flow, and
-     deterministic whole-modal mutation serialization are live. Real Edge and
-     browser proofs are complete. Retained farm-record foreign keys still
-     intentionally require deactivation instead of hard delete. Password reset
-     now ignores `test_to`, sends only to the Auth-resolved account, returns one
-     uniform public response, and has no dead `user_welcome` branch; PROD v30 and
-     TEST v4 are live.
-   - Class: `SECURITY`/`DECISION`/`ENH`.
-   - Decisions:
-     - Packet A: decide whether `user_create` and admin password-reset actions
-       belong in the audit ledger. Reset events must distinguish request from
-       delivery outcome and must never claim "sent" when delivery failed.
-     - Anonymous throttle: decide whether to add email/IP rate limiting (and
-       optional CAPTCHA). Body/status enumeration is closed; throttling also
-       closes email-bombing/Resend-cost abuse and reduces the residual timing
-       signal for real accounts.
-     - Service-role/CORS boundary: decide whether branch-gate enforcement,
-       origin restrictions, and support-boundary documentation need hardening
-       beyond the current browser/RPC threat model.
-   - Gate: any resulting SQL/RPC/Edge change needs focused TEST proof and a
-     separate PROD migration/function-deploy approval.
+3. Animals on Farm accuracy, freshness, and readable history
+   - Status: CC#4 BUILD COMPLETE BUT UNCOMMITTED; ONE CODEX CORRECTION REQUIRED.
+     Worktree `hotfix/animal-history-accuracy-chart` is on base `4429c45` with 17
+     modified files and one new browser spec. Do not prune or reuse it.
+   - Class: `DEFECT`/`DATA-TRUTH`/`UX`.
+   - Built scope: fix sibling Layer housing double-counting (the false 701), keep
+     Retirement Home evidence, remove combined Total, and render one independently
+     scaled small-multiple chart per species. Current PROD evidence yields 631
+     layer hens (156/293/115/67), but that is recorded evidence, not verified
+     current inventory; the underlying positive counts are dated 2026-04-10.
+   - Required correction before commit: aggregate freshness must disclose the
+     OLDEST dated evidence contributing to the positive layer total, not the
+     newest; any positive undated contributor must trigger an explicit undated
+     warning. Apply the same truth on Home, the history header, and the Layer
+     chart, with mixed-date/undated/as-of regression coverage.
+   - Then: focused validation, commit approval, synchronize with current main,
+     revalidate, push/PR/CI/merge, and confirm Netlify. No backend/PROD data gate.
+   - Residual decision: 2023 retired housings without `retired_date` remain
+     excluded from history and may undercount old months; resolve separately,
+     without inventing retirement dates.
+   - Success criteria: no layer row can count for two sibling housings, the UI
+     never calls the recorded count verified current, smaller species trends are
+     legible, mobile does not overflow, and source-age disclosure cannot mask an
+     older/undated contributor.
 
-4. Final Playwright closure
-   - Status: MEASURED REGRESSION CLUSTERS + TEST ISOLATION CLOSED. `feb9224`
-     splits root Playwright into two sequential shards after a DB-free quality
-     gate, keeps Pasture path-gated and sequential, preserves workers=1, uploads
-     rerun-safe artifacts, and concludes inside budget. CC#1-CC#4 and CC#6
-     classified/repaired the Tasks, Pig, offline Weigh-ins, UI/readiness, and
-     Cattle clusters with focused serial TEST proofs. CC#5 adds a real
-     `wcf-test-db` workflow lease so local Playwright queues behind CI and loses
-     the lease fail-closed; its first live acquire/deploy/release proof passed.
-     The final post-merge workflow passed 516 browser tests and failed 7. Three
-     failures share leaked `wcf-test-admin` role state (`farm_team` instead of
-     admin), one is a stale case-sensitive To Do copy assertion, and three need
-     product/readiness follow-up: the known Processing Templates renderer
-     live-lock, Header remount losing a notification-panel click during a Home
-     update, and Pig weigh-in note autosave not persisting while weight did.
-   - Class: `DEFECT`/`TEST`.
+4. Risk-based Playwright CI policy
+   - Status: APPROVED FOR BUILD; QUEUED AT SESSION WRAP. Full two-shard browser
+     runs take too long on every ordinary PR and repeatedly produce rotating,
+     unrelated shared-TEST readiness failures. PR #84's owned defects are fixed;
+     current main can still be red from a different Tasks v2 visibility timeout.
+   - Class: `TEST`/`CI`/`ENH`.
    - Scope:
-     - Use the preserved trace/video in
-       `C:\Users\Ronni\cc-research\processing-templates-wedge-2026-07-15` and
-       an instrumented/CDP pause run to locate the exact render/microtask loop.
-     - Fix without timeout inflation or weakening flush-on-surface-switch.
-     - Make the shared admin fixture restore role/profile state before every
-       dependent spec, then repair the stale To Do capitalization assertion.
-     - Stabilize the App-bound Header component identity so background parent
-       renders cannot discard Header-local overlay state.
-     - Diagnose the Pig record-page note autosave path where the weight persisted
-       but the note remained at its original value.
-   - Success criteria: the focused Templates test passes repeatedly and the
-     final whole-app workflow carries no unowned failure.
+     - Ordinary low-risk PRs run the DB-free `verify` floor plus focused browser
+       specs selected from touched surfaces/contracts.
+     - Full two-shard whole-app Playwright remains mandatory for high-risk work:
+       auth/session/role/Header/router changes; shared TEST seed/fixture or test-
+       infrastructure changes; database/RLS/Storage/Edge changes; shared cross-
+       program components; CI/Playwright workflow changes; or an explicit
+       high-risk/full-e2e label. PR #86 qualifies as high-risk.
+     - Run the complete shards nightly and on manual dispatch. If path/risk
+       classification is unknown or fails, fail safe to the full shards.
+     - Preserve workers=1, sequential shared-DB behavior, the real
+       `wcf-test-db` lease/concurrency boundary, rerun-safe artifacts, and the
+       separate path-gated Pasture suite. Never allow local TEST Playwright to
+       overlap GitHub CI.
+     - Required checks must handle skipped/path-gated jobs cleanly so a safe
+       low-risk PR is not blocked by a context that never ran.
+   - Validation: workflow/static guards for low-risk, high-risk, unknown/fallback,
+     nightly/manual, Pasture, and lease behavior; one low-risk PR proof and one
+     forced full-suite proof.
+   - Success criteria: ordinary PR feedback is materially faster without losing
+     deterministic focused coverage; high-risk and periodic whole-app runs remain
+     fail-closed; no TEST DB overlap or hidden unowned failure is accepted.
 
 ---
 
@@ -560,7 +604,9 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all repository migrations through `166` and
-`170` through `182`; `167`-`169` are intentionally unused. Recent load-bearing
+`170` through `183`; `167`-`169` are intentionally unused. Migration `184` is
+reserved/not present; PR #86's `185`/`186` are pending and not PROD-applied.
+Recent load-bearing
 migrations:
 
 - `100` processing batch lifecycle RPCs.
@@ -907,8 +953,8 @@ migrations:
     deletion contract used by `rapid-processor` v29.
   - PROD-applied and TEST-proven. Retained operational profile FKs intentionally
     refuse hard delete and direct admins to deactivate. The real Edge proof and
-    whole-modal mutation serialization are complete; only the optional audit/
-    throttle decisions remain in Build Queue item 3.
+    whole-modal mutation serialization are complete; migration `183` closes the
+    later create/reset audit and throttle scope.
 - `172` Processing template suite v1:
   - Seeds one canonical Broiler/Cattle/Pig/Sheep template only when a program has
     no template rows and adds checkbox/URL validation to the field engine.
@@ -968,6 +1014,23 @@ migrations:
     atomically without disturbing worked records.
   - PROD-applied and behaviorally verified. The empty August row was retired;
     September is `C-26-05`, followed sequentially by October through December.
+- `183` User-management audit expansion and reset throttle:
+  - Adds admin-only audited profile creation, reset request/outcome ledger RPCs,
+    one terminal event per reset request, and a service-role-only HMAC throttle
+    table/gate that stores no raw email or IP. It also widens the immutable event
+    vocabulary for truthful create/reset evidence.
+  - PROD-applied with `psql --single-transaction -v ON_ERROR_STOP=1` and catalog,
+    RLS, grant, runtime, delivery, and account-usability verification. The paired
+    Edge deploy is `rapid-processor` PROD v31; v30 is the rollback target.
+- `185` Processing attachment deletion and comments-only cron contract (PENDING):
+  - PR #86 only; not PROD-applied. Adds admin-only two-phase exact-path Storage
+    deletion, attachment tombstones/comment scrubbing and resurrection guards,
+    an OFF-by-default comments-import flag, and a postgres-only Vault/pg_net cron
+    invoker. Operational native upload remains unchanged. Creates no schedule.
+- `186` Processing pg_net cron delivery timeout/status (PENDING):
+  - PR #86 follow-up; not PROD-applied. Keeps the comments-only invocation
+    contract auditable past pg_net's short default response window. It must be
+    applied after `185` and before cron activation.
 
 Special migration notes:
 
@@ -975,7 +1038,8 @@ Special migration notes:
 - `167`-`169` are intentionally unused; the sequence jumps from Processing
   migration `166` to detach/user-management migrations `170`/`171`, then resumes
   Processing migration work at `172`-`179`; Pasture follows at `180`-`181` and
-  cattle forecast-batch reconciliation at `182`.
+  cattle forecast-batch reconciliation at `182`. User-management `183` is live;
+  `184` is reserved/not present; Processing `185`/`186` remain pending in PR #86.
 - `083` public webform submitter identity is shelved.
 - `085` was applied before `084` in PROD so duplicate active daily identities
   were cleaned up before unique indexes.
@@ -1183,9 +1247,11 @@ Append-only upload expectations:
   emails and authenticated non-admin callers receive the same generic success
   response. `test_to` is ignored, reset delivery may target only the account
   email resolved by Auth, and the removed `user_welcome` branch must not return.
-  Admin callers may receive truthful operational errors. Audit-event expansion,
-  anonymous throttling, and service-role/CORS hardening remain Ronnie decisions
-  in Build Queue item 3.
+  Admin callers may receive truthful operational errors. Migration `183` records
+  the request separately from its delivery outcome, enforces one terminal per
+  request, and gives the anonymous path service-role-only HMAC email/global
+  throttles without storing raw email or IP. Report-email execution fails closed
+  to its role allowlist.
 
 ---
 
@@ -1466,7 +1532,10 @@ Workflow/worktable entities:
   under `native/`; Asana imports are service-role only. Eight conversation-media
   files and all 68 ordinary Asana attachments are live and indexed. Asana object
   paths are filename-independent, and stored GIDs are skipped before any
-  download/upload; the final dry run found 0 new attachments.
+  download/upload; the final dry run found 0 new attachments. Current main has
+  no authenticated delete policy. PR #86 proposes operational drag/drop upload
+  plus admin-only two-phase physical deletion/tombstones; treat that as pending
+  until the PR, migrations, and runtime gates are complete.
 - Processing Calendar status vocabulary is exactly `Planned`, `In Process`,
   and `Complete`, rendered from the server-derived `effective_status`
   (migration `176`): a record stays Planned until its processing date begins in
@@ -1530,13 +1599,20 @@ Workflow/worktable entities:
 - Admin creation/editing lives inside the planner and is admin-only. The public
   reader surface is web-only; no PDF, email send, RSS, or reader login is part
   of the current requirement.
-- The newsletter voice is factual positive PR for owners and periphery staff,
-  styled like White Creek Farm's current emails. Titles follow the pattern
-  `White Creek Farm June Review`; target length is about two pages.
-- Content should be based on prior-month facts: animals on farm, births, notable
-  processing/production/yield records, and other genuinely noteworthy good-news
-  events. Do not include finances or mortalities. First names of team members
-  are OK; avoid sensitive/private details and never expose private file paths.
+- The newsletter audience is informed: owners, the farm team, and other family
+  staff who interact with the farm. The voice is warm, restrained, factual, and
+  team-centric (`we`), using Ronnie's supplied writing example rather than a
+  generic AI farm voice. The issue brand/title is simply `White Creek Farm`;
+  prefer a shorter issue Ronnie can review in 10-15 minutes over a fixed page
+  count. The first issue targets July coverage and an August 5 release.
+- Content should prove growth/development, effectiveness, and what is distinctive
+  about the farm through prior-month facts: animals on farm, births, notable
+  processing/production/yield records, completed projects plus why they matter,
+  and focused difficulties the team overcame. Do not include finances or
+  mortalities, and do not publish fragile future timelines. First names of team
+  members are OK; avoid sensitive/private details and never expose private file
+  paths. If Animals on Farm is featured, it is a separate program story and
+  never a combined all-species Total.
 - Fact accuracy mirrors the app's canonical logic (PR #50/#55). Broilers "brought
   to processing" counts `totalToProcessor` (NOT the unpopulated processed-count
   fields), windows on the brought date (`processingDate − 1`, since a batch goes
@@ -1551,6 +1627,10 @@ Workflow/worktable entities:
   Planner data); eggs shown in dozens. Logic lives in the parity-locked
   `newsletterProductionYoy.js` (src/lib + `_shared` mirror); a strip-then-reappend
   keeps it from duplicating on revise.
+- Year over year is the preferred comparison. Year to date and up to three years
+  may be shown for cattle, broilers, pigs, sheep, and eggs when genuinely
+  comparable data exists; missing periods are unavailable, never zero. Any real
+  increase can be noteworthy, but every number must be source-verified.
 - The monthly workflow is minimum-human-input but Ronnie-directed:
   gather this month's facts from planner sources without AI, let Ronnie select/
   add facts and answer Monthly Q&A, then AI writes a draft and photo shot-list.
@@ -1576,6 +1656,10 @@ Workflow/worktable entities:
 - Photo boundary: uploads/copies start in private `newsletter-staging`. Approval
   copies bytes to public `newsletter-public`; unapproval deletes the public copy.
   A photo row being present or suggested is not public consent.
+- Monthly operating target: a named helper receives a concrete source/photo
+  checklist and returns it by the 1st; Ronnie reviews/publishes by the 5th. The
+  published link rotates/expires after 7 days and is distributed in the group
+  chat. No issue has yet been published, and monthly automation remains off.
 - Preview boundary: preview links require `preview_enabled=true`, a matching
   token, and an unexpired `preview_expires_at`. Publish rotates/disables preview
   links so a pre-publication URL cannot expose later draft edits.
@@ -2012,7 +2096,7 @@ Focused starting points:
 | Home / dashboard alerts | `tests/static/home_missed_daily_reports_static.test.js`, `tests/static/home_next_30_icons.test.js`, `tests/static/home_daily_tile_routing_static.test.js`, `tests/static/home_animal_history_static.test.js`, `tests/static/home_weather_static.test.js`, `tests/home_weather_shell.spec.js`, `src/lib/animalHistory.test.js`, `tests/static/light_user_portal_static.test.js` |
 | Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
 | Processing Calendar | `tests/static/processing_calendar_migration_static.test.js`, `tests/static/processing_wiring_static.test.js`, `tests/static/processing_asana_security_static.test.js`, `tests/static/processing_reconciler_migration_static.test.js`, `tests/static/processing_reconciler_wiring_static.test.js`, `tests/static/processing_reconciliation_workbench_static.test.js`, `tests/static/processing_comments_import_static.test.js`, `tests/static/processing_conversation_fidelity_static.test.js`, `tests/static/processing_engine_static.test.js`, `tests/static/processing_cleanup_static.test.js`, `tests/static/processing_options_static.test.js`, `tests/static/processing_checklist_toggle_static.test.js`, `tests/static/processing_template_suite_static.test.js`, `tests/static/processing_templates_import_static.test.js`, `tests/static/processing_attachments_storage_static.test.js`, `tests/static/processing_legacy_liveweights_static.test.js`, `tests/static/processing_lock_order_static.test.js`, `tests/processing_calendar.spec.js`, `tests/processing_asana_importer.test.js`, `tests/processing_conversation_fidelity.test.js`, `tests/processing_asana_shape.test.js`, `tests/processing_asana_matcher.test.js`, `tests/processing_asana_templates.test.js`, `scripts/apply_test_mig_156.cjs` through `scripts/apply_test_mig_162.cjs`, `scripts/apply_test_mig_164.cjs` through `scripts/apply_test_mig_166.cjs`, `scripts/apply_test_mig_170.cjs` through `scripts/apply_test_mig_179.cjs`, `scripts/proof_reconciler_blockers.cjs`, `scripts/proof_reconciler_enumeration.cjs`, `scripts/ops_processing_attachment_backfill.cjs`, `scripts/proof_processing_attachment_backfill.cjs` |
-| User management | `src/lib/userManagementApi.test.js`, `src/auth/usersModalMutationLock.test.js`, `tests/static/user_management_audit_static.test.js`, `tests/static/users_modal_self_name_edit.test.js`, `tests/static/rapid_processor_handlers.test.js`, `tests/static/rapid_processor_reset_hardening_static.test.js`, `tests/user_management_audit.spec.js`, `scripts/apply_test_mig_171.cjs`, `scripts/proof_test_user_delete_edge.cjs`, `scripts/proof_test_password_reset_hardening.cjs` |
+| User management | `src/lib/userManagementApi.test.js`, `src/auth/usersModalMutationLock.test.js`, `tests/static/user_management_audit_static.test.js`, `tests/static/users_modal_self_name_edit.test.js`, `tests/static/rapid_processor_handlers.test.js`, `tests/static/rapid_processor_reset_hardening_static.test.js`, `tests/static/rapid_processor_user_create_static.test.js`, `tests/user_management_audit.spec.js`, `scripts/apply_test_mig_171.cjs`, `scripts/apply_test_mig_183.cjs`, `scripts/proof_test_user_delete_edge.cjs`, `scripts/proof_test_password_reset_hardening.cjs` |
 | Newsletter | `tests/static/newsletter_boundary_static.test.js`, `tests/static/newsletter_shared_parity.test.js`, `src/lib/newsletterApi.test.js`, `src/lib/newsletterFacts.test.js`, `src/lib/newsletterProductionYoy.test.js`, `src/newsletter/NewsletterBlocks.test.js`, `tests/newsletter_public.spec.js`, `scripts/apply_test_mig_144_145.cjs`, `scripts/apply_test_mig_153.cjs` |
 | Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/static/pasture_direct_rest_history_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_placement.spec.js`, `tests/pasture_map_reports_records.spec.js`, `tests/pasture_map_reset_history.spec.js`, `tests/pasture_map_light_access.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_tweaks2.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `tests/pasture_map_tile_hover.spec.js`, `tests/pasture_map_open_line_edit.spec.js`, `tests/pasture_map_v1_measure.spec.js`, `playwright.pasture.config.js`, `scripts/apply_test_mig_147.cjs`, `scripts/apply_test_mig_148.cjs`, `scripts/apply_test_mig_150.cjs`, `scripts/apply_test_mig_180.cjs` |
 | Breeding pigs | `tests/static/breeding_pigs_parity_static.test.js` |
