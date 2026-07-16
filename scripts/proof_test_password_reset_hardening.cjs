@@ -12,6 +12,17 @@
 //   7. type=user_welcome -> Unknown type 400 (no link / no email)
 //   8. generating a recovery link does NOT change the account password
 //
+// Mig 183 additions (require migration 183 applied to TEST AND the v31-lane
+// rapid-processor deployed to TEST first):
+//   9. public throttle: a fresh email gets 3 allowed public resets (+3 rows by
+//      total row-count delta), then the 4th/5th are silently blocked
+//      (byte-identical generic 200) and add no rows (bounded growth)
+//  10. egg_report / starter_feed_check use a fail-closed role allowlist:
+//      anonymous -> 401; equipment_tech and inactive -> 403; non-admin
+//      test_to -> 403; an active permitted role (farm_team) passes
+//  11. admin user_create (manual password) writes the profile through the
+//      insert-only admin_create_user_profile: profile row + profile.created
+//
 // COORDINATION GATE: creates and deletes disposable TEST Auth/profile users and
 // makes the minimum number of reset requests. TEST has no RESEND_API_KEY by
 // design, so the Edge reset invokes short-circuit at the config preflight and
@@ -70,6 +81,19 @@ const createdIds = [];
 const sessions = [];
 let failures = 0;
 
+// The Edge computes an HMAC throttle key over its own injected service-role
+// secret, which is not guaranteed byte-identical to this proof's key, so the
+// proof does not try to reproduce it. Throttle assertions use total row-count
+// deltas under the exclusive DB lease instead, and cleanup deletes by a
+// generous time window (below) so no proof throttle row leaks regardless of key.
+const throttleWindowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+async function throttleCount() {
+  const {count, error} = await service.from('password_reset_throttle').select('*', {count: 'exact', head: true});
+  if (error) throw new Error(`throttle count: ${error.message}`);
+  return count || 0;
+}
+
 function ok(label) {
   console.log(`  [ok] ${label}`);
 }
@@ -106,7 +130,7 @@ async function signIn(email, password) {
   return {token: data?.session?.access_token || null, error: null};
 }
 
-async function makeDisposableUser(role) {
+async function makeDisposableUser(role, profileRole = null) {
   const email = `wcf-reset-proof+${role}-${stamp}-${createdIds.length}@example.com`;
   const password = `ResetProof-${role}-${stamp}!`;
   const {data, error} = await service.auth.admin.createUser({
@@ -119,9 +143,19 @@ async function makeDisposableUser(role) {
   const id = data?.user?.id;
   if (!id) throw new Error(`createUser(${role}) returned no id`);
   createdIds.push(id);
-  // No profile write is needed: sign-in resolves against auth.users, and a
-  // disposable user is non-admin by default (is_admin checks for role='admin').
-  // We assert is_admin=false explicitly where it matters (check 4).
+  // No profile write is needed for the reset checks: sign-in resolves against
+  // auth.users, and a disposable user is non-admin by default (is_admin checks
+  // for role='admin'). Check 10 needs an ACTIVE profile because the report-
+  // branch gate resolves profile_role(); pass profileRole to seed one.
+  if (profileRole) {
+    const {error: profileError} = await service
+      .from('profiles')
+      .upsert(
+        {id, email, full_name: `Reset Proof ${role}`, role: profileRole, program_access: null},
+        {onConflict: 'id'},
+      );
+    if (profileError) throw new Error(`profile seed(${role}): ${profileError.message}`);
+  }
   return {id, email, password};
 }
 
@@ -264,6 +298,104 @@ async function main() {
     !/ok"?\s*:\s*true/.test(c7.text);
   assert(c7Gone, 'check 7: user_welcome -> Unknown type 400 (no recovery link, no email)');
 
+  // ── Check 9 (mig 183): the public path is throttled and blocked calls don't grow the table ──
+  // A fresh email gets 3 allowed public resets (3 stored rows), then the 4th and
+  // 5th are silently blocked (uniform 200) and store nothing. Asserted by TOTAL
+  // row-count delta under the exclusive lease — no dependence on reproducing the
+  // Edge's HMAC key.
+  const burstEmail = `wcf-reset-proof+burst-${stamp}@example.com`;
+  const preBurst = await throttleCount();
+  for (let i = 0; i < 3; i += 1) {
+    const r = await invoke({type: 'password_reset', data: {email: burstEmail}});
+    assert(r.status === 200 && r.text === reference, `check 9: allowed public reset ${i + 1} -> generic 200`);
+  }
+  const midBurst = await throttleCount();
+  assert(
+    midBurst - preBurst === 3,
+    `check 9: 3 allowed public resets stored exactly 3 rows (delta ${midBurst - preBurst})`,
+  );
+  const c9 = await invoke({type: 'password_reset', data: {email: burstEmail}});
+  assert(c9.status === 200 && c9.text === reference, 'check 9: 4th request silently blocked (uniform 200)');
+  const c9b = await invoke({type: 'password_reset', data: {email: burstEmail}});
+  const afterBurst = await throttleCount();
+  assert(
+    c9b.text === reference && afterBurst === midBurst,
+    `check 9: blocked calls add no rows (bounded growth: ${midBurst} -> ${afterBurst})`,
+  );
+
+  // ── Check 10 (mig 183): report branches use a fail-closed role allowlist ──
+  const farmTeam = await makeDisposableUser('farmprofile', 'farm_team');
+  const ft = await signIn(farmTeam.email, farmTeam.password);
+  assert(ft.token !== null, 'check 10 precondition: profiled farm_team user signed in');
+  // Unresolved/anonymous identity -> 401.
+  const c10a = await invoke({type: 'egg_report', data: {date: '2026-01-01', team_member: 'proof'}});
+  assert(c10a.status === 401, `check 10a: anonymous egg_report -> 401 (got ${c10a.status})`);
+  const c10c = await invoke({type: 'starter_feed_check', data: {batch_label: 'x', feed_lbs: '1'}});
+  assert(c10c.status === 401, `check 10c: anonymous starter_feed_check -> 401 (got ${c10c.status})`);
+  // Authenticated but disallowed roles -> 403 (equipment_tech + inactive).
+  const equipTech = await makeDisposableUser('equiptech', 'equipment_tech');
+  const et = await signIn(equipTech.email, equipTech.password);
+  assert(et.token !== null, 'check 10 precondition: equipment_tech user signed in');
+  const c10e = await invoke({type: 'egg_report', data: {date: '2026-01-01', team_member: 'proof'}}, et.token);
+  assert(c10e.status === 403, `check 10e: equipment_tech egg_report -> 403 (got ${c10e.status})`);
+  const c10f = await invoke({type: 'starter_feed_check', data: {batch_label: 'x', feed_lbs: '1'}}, et.token);
+  assert(c10f.status === 403, `check 10f: equipment_tech starter_feed_check -> 403 (got ${c10f.status})`);
+  const inactiveUser = await makeDisposableUser('inactiveprofile', 'inactive');
+  const inact = await signIn(inactiveUser.email, inactiveUser.password);
+  assert(inact.token !== null, 'check 10 precondition: inactive user signed in');
+  const c10g = await invoke({type: 'egg_report', data: {date: '2026-01-01', team_member: 'proof'}}, inact.token);
+  assert(c10g.status === 403, `check 10g: inactive egg_report -> 403 (got ${c10g.status})`);
+  // test_to stays admin-only even for a permitted role.
+  const c10b = await invoke(
+    {type: 'egg_report', data: {date: '2026-01-01', team_member: 'proof'}, test_to: `attacker-${stamp}@example.com`},
+    ft.token,
+  );
+  assert(c10b.status === 403, `check 10b: non-admin egg_report with test_to -> 403 (got ${c10b.status})`);
+  // A permitted active role passes. TEST has no RESEND_API_KEY, so Resend
+  // refuses the send upstream — no real email risk.
+  const c10d = await invoke({type: 'egg_report', data: {date: '2026-01-01', team_member: 'proof'}}, ft.token);
+  assert(c10d.status === 200, `check 10d: active farm_team egg_report passes the gate (got ${c10d.status})`);
+
+  // ── Check 11 (mig 183): user_create writes the audited profile ──
+  const c11 = await invoke(
+    {
+      type: 'user_create',
+      data: {
+        email: `wcf-reset-proof+created-${stamp}@example.com`,
+        name: 'Proof Created',
+        role: 'farm_team',
+        initialPassword: `CreateProof-${stamp}!x`,
+      },
+    },
+    adm.token,
+  );
+  let c11Body = null;
+  try {
+    c11Body = JSON.parse(c11.text);
+  } catch (_e) {
+    c11Body = null;
+  }
+  const c11Id = c11Body?.user?.id || null;
+  if (c11Id) createdIds.push(c11Id);
+  assert(
+    c11.status === 200 && !!c11Id && c11Body?.manualPasswordSet === true,
+    `check 11: admin user_create (manual password) succeeds through the Edge (got ${c11.status})`,
+  );
+  if (c11Id) {
+    const {data: c11Profile} = await service.from('profiles').select('role').eq('id', c11Id).maybeSingle();
+    assert(c11Profile?.role === 'farm_team', 'check 11: profile row created with requested role');
+    const {data: c11Audit} = await service
+      .from('user_management_audit')
+      .select('event_type,changes,actor_profile_id')
+      .eq('target_profile_id', c11Id);
+    assert(
+      (c11Audit || []).some(
+        (r) => r.event_type === 'profile.created' && r.changes?.invite_method === 'manual_password',
+      ),
+      'check 11: profile.created ledger row carries the manual_password invite method',
+    );
+  }
+
   // Honest scope disclosure for the runtime portion.
   if (/missing env RESEND_API_KEY/.test(c6.text)) {
     console.log('  [note] TEST has no RESEND_API_KEY by design, so Edge reset invokes short-circuit at the config');
@@ -278,6 +410,24 @@ async function main() {
 async function cleanup() {
   let removed = 0;
   let remaining = 0;
+  let evidenceErrors = 0;
+  // Mig 183 evidence rows for disposable identities (no FKs; order-free).
+  if (createdIds.length) {
+    const {error} = await service.from('user_management_audit').delete().in('target_profile_id', createdIds);
+    if (error) {
+      evidenceErrors += 1;
+      console.log(`  [FAIL] cleanup audit rows: ${error.message}`);
+    }
+  }
+  // Time-window delete: under the exclusive lease every throttle row created
+  // since the proof started is the proof's, and this is key-agnostic.
+  {
+    const {error} = await service.from('password_reset_throttle').delete().gte('requested_at', throttleWindowStart);
+    if (error) {
+      evidenceErrors += 1;
+      console.log(`  [FAIL] cleanup throttle rows: ${error.message}`);
+    }
+  }
   for (const id of createdIds) {
     try {
       await service.auth.admin.deleteUser(id); // cascades the profiles row
@@ -297,7 +447,7 @@ async function cleanup() {
     }
   }
   console.log(`cleanup: disposable users removed ${removed}/${createdIds.length}, remaining ${remaining}`);
-  return remaining;
+  return remaining + evidenceErrors;
 }
 
 (async () => {

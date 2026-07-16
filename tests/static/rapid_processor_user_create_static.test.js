@@ -8,14 +8,14 @@ import {describe, it, expect} from 'vitest';
 // after Brian's Add User attempt failed with generic "Internal Server Error".
 //
 // The migration goals these locks enforce:
-//   1. Per-step error labeling (createUser / profileUpsert / generateLink / sendEmail)
+//   1. Per-step error labeling (createUser / profileCreate / generateLink / sendEmail)
 //      so the response body identifies WHERE the failure happened.
 //   2. Config preflight returns named missing-env list (no secret values).
 //   3. sendEmail uses AbortController timeout + res.text + defensive JSON
 //      parse + res.ok gate; never let res.json() swallow the real error.
 //   4. Non-fatal sendEmail: auth account succeeded → return ok:true with
 //      welcomeEmailDelivered:false + emailError + step:'sendEmail'.
-//   5. profileUpsert / generateLink failures return structured 500 with
+//   5. profileCreate / generateLink failures return structured 500 with
 //      `partial` so admins know not to retry blindly.
 //   6. UsersModal renders a WARNING (not a green success) when
 //      welcomeEmailDelivered === false.
@@ -75,11 +75,15 @@ describe('rapid-processor user_create — per-step error labeling', () => {
     expect(userCreateBlock).toMatch(/`createUser: \$\{/);
   });
 
-  it('profileUpsert is wrapped with labeled error + partial hint', () => {
-    expect(userCreateBlock).toMatch(/step:\s*'profileUpsert'/);
-    expect(userCreateBlock).toMatch(/`profileUpsert: \$\{/);
+  it('profileCreate is wrapped with labeled error + partial hint', () => {
+    expect(userCreateBlock).toMatch(/step:\s*'profileCreate'/);
+    expect(userCreateBlock).toMatch(/`profileCreate: \$\{/);
     expect(userCreateBlock).toMatch(/authUserId: createdUserId/);
     expect(userCreateBlock).toMatch(/do NOT retry/i);
+    // Insert-only: the mig-183 RPC refuses an existing profile, so this step
+    // no longer performs an upsert.
+    expect(userCreateBlock).toMatch(/admin_create_user_profile/);
+    expect(userCreateBlock).not.toMatch(/profileUpsert/);
   });
 
   it('generateLink is wrapped with labeled error + partial hint', () => {
