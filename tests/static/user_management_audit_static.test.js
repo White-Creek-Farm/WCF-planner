@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const migration = read('supabase-migrations/171_audited_user_management.sql');
+const migration183 = read('supabase-migrations/183_user_management_audit_expansion.sql');
 const modal = read('src/auth/UsersModal.jsx');
 const api = read('src/lib/userManagementApi.js');
 const edge = read('supabase-functions/rapid-processor.ts');
@@ -295,6 +296,145 @@ describe('rapid-processor — coordinated Auth deletion', () => {
       expect(allowlist).toContain(`'${role}'`);
     }
     expect(allowlist).not.toContain("'inactive'");
+  });
+});
+
+describe('migration 183 — audit expansion, reset evidence, and throttle', () => {
+  function fn183(name) {
+    const start = migration183.indexOf(`FUNCTION public.${name}`);
+    if (start < 0) return '';
+    const next = migration183.indexOf('CREATE OR REPLACE FUNCTION public.', start + 20);
+    return migration183.slice(start, next < 0 ? migration183.length : next);
+  }
+
+  it('is safe for exec_sql callers that already own the migration transaction', () => {
+    expect(migration183).not.toMatch(/^\s*(?:BEGIN|COMMIT);\s*$/im);
+  });
+
+  it('widens the event vocabulary and keeps one terminal per reset request', () => {
+    for (const eventType of [
+      'profile.created',
+      'profile.reset_requested',
+      'profile.reset_send_succeeded',
+      'profile.reset_send_failed',
+    ]) {
+      expect(migration183).toContain(`'${eventType}'`);
+    }
+    // The re-added CHECK still carries the full mig-171 vocabulary.
+    for (const eventType of [
+      'profile.name_changed',
+      'profile.role_changed',
+      'profile.deactivated',
+      'profile.reactivated',
+      'profile.program_access_changed',
+      'profile.delete_requested',
+      'profile.deleted',
+      'profile.delete_failed',
+    ]) {
+      expect(migration183).toContain(`'${eventType}'`);
+    }
+    expect(migration183).toMatch(/user_management_audit_reset_terminal_uq/);
+    expect(migration183).toMatch(/event_type IN \('profile\.reset_send_succeeded', 'profile\.reset_send_failed'\)/);
+  });
+
+  it('audited profile creation is admin-mutator-gated, insert-only, and bound to a real matching Auth account', () => {
+    const create = fn183('admin_create_user_profile');
+    expect(create).toMatch(/SECURITY DEFINER/);
+    expect(create).toMatch(/SET search_path = public/);
+    expect(create).toMatch(/_require_user_management_mutator\(\)/);
+    expect(create).toMatch(/FROM auth\.users/);
+    expect(create).toMatch(/auth account not found for profile id/);
+    expect(create).toMatch(/auth\/profile email mismatch/);
+    expect(create).toMatch(/'welcome_email', 'manual_password'/);
+    expect(create).toMatch(/'profile\.created'/);
+    expect(create).toMatch(/'invite_method', v_invite/);
+    // INSERT-ONLY: an existing profile is refused unchanged, never updated, so
+    // this RPC cannot relabel an account mutation as creation.
+    expect(create).toMatch(/IF EXISTS \(SELECT 1 FROM public\.profiles WHERE id = p_profile_id\)/);
+    expect(create).toMatch(/a profile already exists for this account; do not retry create/);
+    expect(create).toMatch(/INSERT INTO public\.profiles/);
+    expect(create).not.toMatch(/UPDATE public\.profiles/);
+    expect(create).not.toMatch(/v_repaired/);
+    // Assignable roles only; inactive cannot be minted.
+    expect(create).toMatch(/'admin', 'management', 'farm_team', 'equipment_tech', 'light'/);
+  });
+
+  it('reset evidence uses the delete-style request/terminal pattern', () => {
+    const request = fn183('admin_log_reset_request');
+    const outcome = fn183('admin_log_reset_outcome');
+    expect(request).toMatch(/_require_user_management_mutator\(\)/);
+    expect(request).toMatch(/'profile\.reset_requested'/);
+    expect(outcome).toMatch(/_require_user_management_admin\(\)/);
+    expect(outcome).toMatch(/_lock_user_management_admin\(v_caller, true\)/);
+    expect(outcome).toMatch(/event_type = 'profile\.reset_requested'/);
+    expect(outcome).toMatch(/request belongs to another admin/);
+    expect(outcome).toMatch(/already has a different outcome/);
+    expect(outcome).toMatch(/'profile\.reset_send_succeeded'/);
+    expect(outcome).toMatch(/'profile\.reset_send_failed'/);
+    expect(outcome).toMatch(/Reset email send failed/);
+  });
+
+  it('throttle storage is keyed, IP-free, and reconciles a prior TEST shape', () => {
+    // Negative checks run against comment-stripped SQL: the reconciliation
+    // comments legitimately name the retired email_hash/ip shape.
+    const sql183 = migration183.replace(/^\s*--.*$/gm, '');
+    expect(migration183).toMatch(/CREATE TABLE public\.password_reset_throttle/);
+    // Keyed HMAC identifier, not a raw email or reversible hash; no raw IP.
+    expect(migration183).toMatch(/email_key\s+text NOT NULL/);
+    expect(sql183).not.toMatch(/\bemail_hash\b/);
+    expect(sql183).not.toMatch(/\bip\s+text/);
+    // Re-runnable/reconciling: drops the prior 2-arg gate + old table shape.
+    expect(migration183).toMatch(/DROP FUNCTION IF EXISTS public\._password_reset_gate\(text, text\)/);
+    expect(migration183).toMatch(/DROP TABLE IF EXISTS public\.password_reset_throttle/);
+    expect(migration183).toMatch(/ALTER TABLE public\.password_reset_throttle ENABLE ROW LEVEL SECURITY/);
+    expect(migration183).toMatch(
+      /REVOKE ALL ON TABLE public\.password_reset_throttle FROM PUBLIC, anon, authenticated/,
+    );
+  });
+
+  it('throttle gate is single-arg, serialized, stores only allowed attempts, and drops IP limits', () => {
+    const gate = fn183('_password_reset_gate');
+    expect(gate).toMatch(/pg_advisory_xact_lock\(183001\)/);
+    expect(gate).toMatch(/interval '2 days'/);
+    // Blocked requests insert nothing: growth is bounded by the global ceiling.
+    expect(gate).toMatch(/IF v_allowed THEN\s*\n\s*INSERT INTO public\.password_reset_throttle/);
+    // Email + global limits only; no IP dimension, no allowed column.
+    expect(gate).not.toMatch(/AND allowed/);
+    expect(gate).not.toMatch(/ip_hourly|ip_daily|>= 10\b|>= 30\b/);
+    for (const limit of ["interval '1 hour'\\) >= 3", "interval '1 day'\\) >= 6", "interval '1 day'\\) >= 100"]) {
+      expect(gate).toMatch(new RegExp(limit));
+    }
+    expect(migration183).toMatch(
+      /REVOKE ALL ON FUNCTION public\._password_reset_gate\(text\) FROM PUBLIC, anon, authenticated/,
+    );
+    expect(migration183).toMatch(/GRANT EXECUTE ON FUNCTION public\._password_reset_gate\(text\) TO service_role/);
+  });
+
+  it('exposes the three new admin RPCs to authenticated and reloads PostgREST', () => {
+    for (const name of ['admin_create_user_profile', 'admin_log_reset_request', 'admin_log_reset_outcome']) {
+      expect(migration183).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}\\(`));
+      expect(migration183).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${name}\\([\\s\\S]*?FROM PUBLIC, anon`));
+    }
+    expect(migration183).toMatch(/NOTIFY pgrst, 'reload schema'/);
+  });
+});
+
+describe('rapid-processor — audited profile creation (mig 183)', () => {
+  const createBranch = edgeBranch('user_create', 'password_reset');
+
+  it('routes the profile write through admin_create_user_profile with the caller bearer', () => {
+    expect(createBranch).toMatch(/userClient\.rpc\('admin_create_user_profile'/);
+    expect(createBranch).toMatch(/p_invite_method:\s*useManualPassword\s*\?\s*'manual_password'\s*:\s*'welcome_email'/);
+    // The service role no longer writes profiles in this branch.
+    expect(createBranch).not.toMatch(/\.from\(\s*['"]profiles['"]\s*\)/);
+  });
+
+  it('keeps the audited write after createUser and before the welcome email', () => {
+    const createUserIdx = createBranch.indexOf('admin.auth.admin.createUser');
+    const rpcIdx = createBranch.indexOf("rpc('admin_create_user_profile'");
+    const sendIdx = createBranch.indexOf('api.resend.com/emails');
+    expect(rpcIdx).toBeGreaterThan(createUserIdx);
+    expect(rpcIdx).toBeLessThan(sendIdx);
   });
 });
 

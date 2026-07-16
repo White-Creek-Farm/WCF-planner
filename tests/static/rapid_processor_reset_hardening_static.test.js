@@ -159,3 +159,73 @@ describe('LoginScreen — delivery-agnostic public copy (F3/F6)', () => {
     expect(login).not.toMatch(/Check your email for a password reset link\./);
   });
 });
+
+// ============================================================================
+// Mig 183 — public throttle gate + admin reset ledger evidence
+// ============================================================================
+
+describe('password_reset — public throttle gate (mig 183)', () => {
+  it('calls the service-role gate with a domain-separated HMAC email key and no raw IP', () => {
+    expect(resetBranch).toMatch(/rpc\(\s*'_password_reset_gate'\s*,/);
+    expect(resetBranch).toMatch(/p_email_key:\s*await\s+hmacKey\(\s*'email'\s*,\s*email\s*\)/);
+    // The key is an HMAC over a server-only secret, not a reversible plain hash.
+    expect(code).toMatch(/async function\s+hmacKey\(/);
+    expect(code).toMatch(/name:\s*'HMAC',\s*hash:\s*'SHA-256'/);
+    expect(code).toMatch(/SUPABASE_SERVICE_ROLE_KEY/);
+    expect(code).toMatch(/`\$\{domain\}:\$\{value\}`/);
+    // No IP is passed or read: the spoofable Edge client IP is not a security id.
+    expect(resetBranch).not.toMatch(/p_ip:/);
+    expect(resetBranch).not.toMatch(/x-forwarded-for/);
+    // The retired plain-SHA-256 helper is gone.
+    expect(code).not.toMatch(/function\s+sha256Hex\(/);
+  });
+
+  it('runs the gate before the config preflight and before generateLink', () => {
+    const gateIdx = resetBranch.indexOf('_password_reset_gate');
+    const preflightIdx = resetBranch.indexOf("missingEnv.push('SUPABASE_URL')");
+    const genLinkIdx = resetBranch.indexOf('admin.auth.admin.generateLink(');
+    expect(gateIdx).toBeGreaterThan(-1);
+    expect(gateIdx).toBeLessThan(preflightIdx);
+    expect(gateIdx).toBeLessThan(genLinkIdx);
+  });
+
+  it('blocked and gate-error outcomes both return the uniform public body (fail-closed-silent)', () => {
+    expect(resetBranch).toMatch(
+      /if\s*\(\s*gateError\s*\|\|\s*gateData\?\.allowed\s*!==\s*true\s*\)\s*return\s*publicResponse\(\);/,
+    );
+    // The whole gate is public-only: admins bypass it.
+    const gateIdx = resetBranch.indexOf('_password_reset_gate');
+    const bypassIdx = resetBranch.lastIndexOf('if (!isAdmin) {', gateIdx);
+    expect(bypassIdx).toBeGreaterThan(-1);
+  });
+});
+
+describe('password_reset — admin ledger evidence (mig 183)', () => {
+  it('writes profile.reset_requested after fail-closed resolution and BEFORE any send', () => {
+    const failClosedIdx = resetBranch.indexOf('if (!resetLink || !resolvedEmail)');
+    const requestLogIdx = resetBranch.indexOf("rpc('admin_log_reset_request'");
+    const sendIdx = resetBranch.indexOf('api.resend.com/emails');
+    expect(requestLogIdx).toBeGreaterThan(-1);
+    expect(requestLogIdx).toBeGreaterThan(failClosedIdx);
+    expect(requestLogIdx).toBeLessThan(sendIdx);
+    // Request logging is admin-only; a failed request write aborts the send.
+    const guardIdx = resetBranch.lastIndexOf('if (isAdmin) {', requestLogIdx);
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(resetBranch).toMatch(/step:\s*'auditRequest'/);
+  });
+
+  it('writes the success terminal only after a Resend 2xx and failure terminals otherwise', () => {
+    const sendIdx = resetBranch.indexOf('api.resend.com/emails');
+    const successIdx = resetBranch.indexOf('logResetOutcome(true, null)');
+    expect(successIdx).toBeGreaterThan(sendIdx);
+    expect(resetBranch).toMatch(/rpc\(\s*'admin_log_reset_outcome'\s*,/);
+    // Both the !res.ok branch and the fetch/timeout catch record failure.
+    expect((resetBranch.match(/logResetOutcome\(false,/g) || []).length).toBeGreaterThanOrEqual(2);
+    // Responses report ledger acceptance truthfully.
+    expect((resetBranch.match(/auditFinalized/g) || []).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('public callers write no ledger rows: outcome writer is admin-gated', () => {
+    expect(resetBranch).toMatch(/if\s*\(!isAdmin\s*\|\|\s*!adminCaller\s*\|\|\s*!resetRequestId\)\s*return\s*true;/);
+  });
+});

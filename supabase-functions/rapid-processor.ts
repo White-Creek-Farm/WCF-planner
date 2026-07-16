@@ -73,6 +73,53 @@ function safeEqual(a: string | null | undefined, b: string | null | undefined): 
   return mismatch === 0;
 }
 
+// Domain-separated HMAC-SHA-256 identifier for the public forgot-password
+// throttle. The key is SUPABASE_SERVICE_ROLE_KEY, a server-only secret that
+// never leaves this function, so the throttle table stores no raw email and no
+// dictionary-reversible plain hash. Inputs are domain-separated (e.g.
+// 'email:<normalized-email>') so identifiers from different namespaces can
+// never collide. Rotating the service-role key harmlessly resets at most the
+// 2-day throttle window.
+async function hmacKey(domain: string, value: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(SUPABASE_SERVICE_ROLE_KEY),
+    {name: 'HMAC', hash: 'SHA-256'},
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${domain}:${value}`));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Fail-closed allowlist of profile roles permitted to send the operational
+// report emails (egg_report / starter_feed_check). Light submits egg dailys, so
+// it is included. equipment_tech, inactive, anonymous, and any unknown/future
+// role fall through to a refusal.
+const REPORT_SENDER_ROLES = ['admin', 'management', 'farm_team', 'light'];
+
+// Resolve the caller's profile role from their bearer (SECDEF profile_role(),
+// mig 058). Returns null for anonymous/unresolvable callers. Used by the
+// mig-183 lane to gate the report-email branches: rapid-processor is deployed
+// --no-verify-jwt, so an ungated branch is an anonymous branded-mail relay.
+async function resolveCallerRole(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  try {
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {persistSession: false, autoRefreshToken: false},
+      global: {headers: {Authorization: authHeader}},
+    });
+    const {data, error} = await client.rpc('profile_role');
+    if (error) return null;
+    return typeof data === 'string' && data ? data : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // SHARED BRANDED TEMPLATE — all emails use this wrapper
 // ═══════════════════════════════════════════════════════════════════
@@ -134,14 +181,14 @@ function eggEmailHtml(data: any, isTest: boolean) {
         <td width="48%" style="background:#f8f6f0;border-radius:8px;padding:20px 16px;text-align:center;border:1px solid #e8e4dc;">
           <div style="color:#566542;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;font-family:Arial,sans-serif;margin-bottom:8px;">Dozens on Hand</div>
           <div style="color:#566542;font-size:13px;font-style:italic;font-family:Georgia,serif;margin-bottom:6px;">(&lt;2 weeks old)</div>
-          <div style="color:#232323;font-size:36px;font-weight:700;font-family:Georgia,serif;line-height:1;">${data.dozens_on_hand != null ? data.dozens_on_hand : '—'}</div>
+          <div style="color:#232323;font-size:36px;font-weight:700;font-family:Georgia,serif;line-height:1;">${data.dozens_on_hand != null ? escapeHtml(data.dozens_on_hand) : '—'}</div>
           <div style="color:#888;font-size:12px;font-family:Arial,sans-serif;margin-top:4px;">dozen</div>
         </td>
         <td width="4%"></td>
         <td width="48%" style="background:#f8f6f0;border-radius:8px;padding:20px 16px;text-align:center;border:1px solid #e8e4dc;">
           <div style="color:#566542;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;font-family:Arial,sans-serif;margin-bottom:8px;">Collected Today</div>
           <div style="color:#566542;font-size:13px;font-style:italic;font-family:Georgia,serif;margin-bottom:6px;">&nbsp;</div>
-          <div style="color:#232323;font-size:36px;font-weight:700;font-family:Georgia,serif;line-height:1;">${data.daily_dozen_count ?? 0}</div>
+          <div style="color:#232323;font-size:36px;font-weight:700;font-family:Georgia,serif;line-height:1;">${escapeHtml(data.daily_dozen_count ?? 0)}</div>
           <div style="color:#888;font-size:12px;font-family:Arial,sans-serif;margin-top:4px;">dozen</div>
         </td>
       </tr>
@@ -149,7 +196,7 @@ function eggEmailHtml(data: any, isTest: boolean) {
 
     <!-- Submitted by -->
     <div style="border-top:1px solid #e8e4dc;padding-top:16px;text-align:center;">
-      <span style="color:#999;font-size:12px;font-family:Arial,sans-serif;">Submitted by <strong style="color:#566542;">${data.team_member || 'Farm Team'}</strong> · WCF Planner</span>
+      <span style="color:#999;font-size:12px;font-family:Arial,sans-serif;">Submitted by <strong style="color:#566542;">${escapeHtml(data.team_member || 'Farm Team')}</strong> · WCF Planner</span>
     </div>
   `;
   return brandedEmail({title: '🥚 Egg Report', subtitle: date, bodyHtml, isTest});
@@ -159,6 +206,7 @@ function eggEmailHtml(data: any, isTest: boolean) {
 // STARTER FEED ALERT — upgraded to use shared template
 // ═══════════════════════════════════════════════════════════════════
 function starterFeedHtml(batchLabel: string, totalLbs: number, isTest: boolean) {
+  const safeLabel = escapeHtml(batchLabel);
   const bodyHtml = `
     <p style="font-family:Georgia,serif;font-size:15px;color:#232323;margin:0 0 16px 0;">Dear Supreme Chicken Raiser,</p>
 
@@ -171,7 +219,7 @@ function starterFeedHtml(batchLabel: string, totalLbs: number, isTest: boolean) 
       </td></tr>
     </table>
 
-    <p style="font-family:Georgia,serif;font-size:15px;color:#232323;line-height:1.6;margin:0 0 16px 0;">The starter feed for <strong style="color:#566542;">${batchLabel}</strong> has reached <strong>${totalLbs.toLocaleString()} lbs</strong>. The max for each batch is 1,500 lbs. Your attention to this matter is greatly appreciated.</p>
+    <p style="font-family:Georgia,serif;font-size:15px;color:#232323;line-height:1.6;margin:0 0 16px 0;">The starter feed for <strong style="color:#566542;">${safeLabel}</strong> has reached <strong>${totalLbs.toLocaleString()} lbs</strong>. The max for each batch is 1,500 lbs. Your attention to this matter is greatly appreciated.</p>
 
     <p style="font-family:Georgia,serif;font-size:15px;color:#232323;margin:24px 0 0 0;">Best,<br>White Creek Farm</p>
 
@@ -180,7 +228,7 @@ function starterFeedHtml(batchLabel: string, totalLbs: number, isTest: boolean) 
       <span style="color:#999;font-size:11px;font-family:Arial,sans-serif;">WCF Planner automated alert</span>
     </div>
   `;
-  return brandedEmail({title: '⚠ Starter Feed Alert', subtitle: batchLabel, bodyHtml, isTest});
+  return brandedEmail({title: '⚠ Starter Feed Alert', subtitle: safeLabel, bodyHtml, isTest});
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -196,7 +244,7 @@ function welcomeEmailHtml(name: string, email: string, role: string, resetLink: 
   const roleDescription = roleLabels[role] || role;
 
   const bodyHtml = `
-    <p style="font-family:Georgia,serif;font-size:16px;color:#232323;margin:0 0 16px 0;">Welcome, <strong style="color:#566542;">${name || email}</strong>!</p>
+    <p style="font-family:Georgia,serif;font-size:16px;color:#232323;margin:0 0 16px 0;">Welcome, <strong style="color:#566542;">${escapeHtml(name || email)}</strong>!</p>
 
     <p style="font-family:Georgia,serif;font-size:15px;color:#232323;line-height:1.6;margin:0 0 20px 0;">Your account has been created for the White Creek Farm planner. This is the system we use to track all animal programs on the farm.</p>
 
@@ -238,7 +286,7 @@ function welcomeEmailHtml(name: string, email: string, role: string, resetLink: 
 // ═══════════════════════════════════════════════════════════════════
 function passwordResetHtml(name: string, resetLink: string, isTest: boolean) {
   const bodyHtml = `
-    <p style="font-family:Georgia,serif;font-size:16px;color:#232323;margin:0 0 16px 0;">Hi <strong style="color:#566542;">${name || 'there'}</strong>,</p>
+    <p style="font-family:Georgia,serif;font-size:16px;color:#232323;margin:0 0 16px 0;">Hi <strong style="color:#566542;">${escapeHtml(name || 'there')}</strong>,</p>
 
     <p style="font-family:Georgia,serif;font-size:15px;color:#232323;line-height:1.6;margin:0 0 24px 0;">A password reset was requested for your WCF Planner account. Click the button below to set a new password.</p>
 
@@ -468,7 +516,31 @@ serve(async (req) => {
     const {type, data, test_to} = await req.json();
 
     // ─── EGG REPORT ───
+    // Mig-183 lane: deployed --no-verify-jwt, so this branch gates itself with a
+    // fail-closed role allowlist (REPORT_SENDER_ROLES). Unresolved/anonymous
+    // identity is 401; an authenticated but disallowed role (equipment_tech,
+    // inactive, or any unknown/future role) is 403. test_to redirects are
+    // admin-only. This closes the prior anonymous branded-mail relay.
     if (type === 'egg_report') {
+      const eggCallerRole = await resolveCallerRole(req);
+      if (!eggCallerRole) {
+        return new Response(JSON.stringify({error: 'unauthorized'}), {
+          status: 401,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      if (!REPORT_SENDER_ROLES.includes(eggCallerRole)) {
+        return new Response(JSON.stringify({error: 'forbidden'}), {
+          status: 403,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      if (test_to && eggCallerRole !== 'admin') {
+        return new Response(JSON.stringify({error: 'forbidden: test_to is admin-only'}), {
+          status: 403,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
       const res = await sendEmail({
         from: FROM,
         to: test_to ? [test_to] : ['isabel@sonnysfarm.com'],
@@ -487,7 +559,30 @@ serve(async (req) => {
     }
 
     // ─── STARTER FEED ALERT ───
+    // Mig-183 lane: same fail-closed allowlist gate as egg_report — this branch
+    // also does a service-role poultry_dailys read, so a disallowed caller could
+    // both relay branded mail and probe feed totals by batch label. Unresolved
+    // identity is 401; a disallowed role is 403; test_to is admin-only.
     if (type === 'starter_feed_check') {
+      const feedCallerRole = await resolveCallerRole(req);
+      if (!feedCallerRole) {
+        return new Response(JSON.stringify({error: 'unauthorized'}), {
+          status: 401,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      if (!REPORT_SENDER_ROLES.includes(feedCallerRole)) {
+        return new Response(JSON.stringify({error: 'forbidden'}), {
+          status: 403,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+      if (test_to && feedCallerRole !== 'admin') {
+        return new Response(JSON.stringify({error: 'forbidden: test_to is admin-only'}), {
+          status: 403,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
       if (!data.batch_label || !data.feed_lbs || parseFloat(data.feed_lbs) <= 0) {
         return new Response(JSON.stringify({ok: true, skipped: true}), {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
@@ -525,7 +620,7 @@ serve(async (req) => {
 
     // ─── USER CREATE — admin creates auth account + sends welcome ───
     //
-    // Each step (createUser, profileUpsert, generateLink, sendEmail) is
+    // Each step (createUser, profileCreate, generateLink, sendEmail) is
     // wrapped in its own try so the response body identifies WHICH step
     // failed and includes a "partial" hint when prior steps already
     // mutated state. The client unwrapEdgeFunctionError helper surfaces
@@ -632,20 +727,31 @@ serve(async (req) => {
         );
       }
 
-      // Step 2: profileUpsert. If this fails the auth account exists but
+      // Step 2: profileCreate. If this fails the auth account exists but
       // is orphaned from profiles — admin must NOT retry blindly because
       // that would either succeed-with-collision (duplicate auth) or just
       // re-fail. Surface that explicitly.
+      //
+      // Mig 183: the profile write goes through the INSERT-ONLY
+      // admin_create_user_profile with the CALLER bearer, so the profile row and
+      // its profile.created ledger row land in one transaction with the real
+      // acting admin as actor (the service role previously upserted profiles
+      // with no audit; this step now inserts and refuses an existing row).
       try {
-        const r = await admin
-          .from('profiles')
-          .upsert({id: createdUserId, email, full_name: name, role}, {onConflict: 'id'});
+        const r = await userClient.rpc('admin_create_user_profile', {
+          p_profile_id: createdUserId,
+          p_email: email,
+          p_full_name: name,
+          p_role: role,
+          p_invite_method: useManualPassword ? 'manual_password' : 'welcome_email',
+        });
         if (r.error) throw new Error(r.error.message || String(r.error));
+        if (!r.data || r.data.ok !== true) throw new Error('admin_create_user_profile returned no ok');
       } catch (e) {
         return new Response(
           JSON.stringify({
-            error: `profileUpsert: ${e instanceof Error ? e.message : String(e)}`,
-            step: 'profileUpsert',
+            error: `profileCreate: ${e instanceof Error ? e.message : String(e)}`,
+            step: 'profileCreate',
             partial: {authUserId: createdUserId, email, profileCreated: false},
             hint: 'Auth account exists but profile row failed; do NOT retry Add User. Ask CC to repair the profiles row OR remove the orphan auth user.',
           }),
@@ -774,6 +880,15 @@ serve(async (req) => {
     // regardless of whether the account exists, the provider failed, or
     // delivery succeeded, so the endpoint is not an enumeration oracle and
     // never leaks provider data.
+    //
+    // Mig 183 (user-management hardening lane): public callers additionally
+    // pass a server-side throttle gate — HMAC-keyed per-email sliding windows
+    // plus a global daily ceiling, with no IP dimension because the Edge client
+    // IP is not trustworthy — whose blocked/error outcomes return the same
+    // uniform body with no send.
+    // Admin-triggered resets write profile.reset_requested BEFORE the send and
+    // exactly one reset_send_succeeded/_failed terminal after the provider
+    // answers; a send can never happen without its request row.
     if (type === 'password_reset') {
       // One fixed public acknowledgement. Unknown account, provider failure,
       // and successful delivery must all return this identical body/status so
@@ -788,9 +903,11 @@ serve(async (req) => {
       // Verified identity ONLY — never a caller-supplied mode. is_admin
       // resolves auth.uid() from the caller's bearer; an anon-key bearer yields
       // a NULL uid and therefore false. A missing header or any non-admin
-      // caller is treated as public.
+      // caller is treated as public. The admin caller's client is retained for
+      // the mig-183 ledger writes (request + outcome) further down.
       const authHeader = req.headers.get('authorization');
       let isAdmin = false;
+      let adminCaller: ReturnType<typeof createClient> | null = null;
       if (authHeader && SUPABASE_URL && SUPABASE_ANON_KEY) {
         try {
           const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -799,8 +916,48 @@ serve(async (req) => {
           });
           const {data: isAdminData} = await userClient.rpc('is_admin');
           isAdmin = isAdminData === true;
+          if (isAdmin) adminCaller = userClient;
         } catch (_e) {
           isAdmin = false;
+        }
+      }
+
+      // Parse the target email first: the public throttle gate keys on its
+      // hash and must run before any config- or account-dependent work.
+      const email = String(data?.email || '')
+        .trim()
+        .toLowerCase();
+      const name = String(data?.name || '').trim();
+      if (!email) {
+        if (!isAdmin) return publicResponse();
+        return new Response(JSON.stringify({error: 'email required', step: 'input'}), {
+          status: 400,
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+        });
+      }
+
+      // ── Public throttle gate (mig 183) ──
+      // Admin callers bypass. The gate records an HMAC-keyed request (no raw
+      // email, no reversible hash) and enforces per-email + global sliding-
+      // window limits server-side. A stored row is an allowed reset ATTEMPT (the
+      // gate runs before account/config/provider work, so it is not proof of a
+      // send or of an existing account); only allowed attempts are stored, so a
+      // blocked flood cannot grow the table. Blocked and gate-error outcomes
+      // BOTH return the identical public body with no send (fail-closed-silent):
+      // a broken gate must not open unlimited sends, and the response surface
+      // must never reveal throttling. The IP dimension is intentionally omitted — the Edge
+      // platform exposes no provably-spoof-resistant client IP, so per-email and
+      // global limits carry enforcement rather than an attacker-controllable id.
+      if (!isAdmin) {
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return publicResponse();
+        try {
+          const gateClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+          const {data: gateData, error: gateError} = await gateClient.rpc('_password_reset_gate', {
+            p_email_key: await hmacKey('email', email),
+          });
+          if (gateError || gateData?.allowed !== true) return publicResponse();
+        } catch (_e) {
+          return publicResponse();
         }
       }
 
@@ -816,18 +973,6 @@ serve(async (req) => {
         });
       }
 
-      const email = String(data?.email || '')
-        .trim()
-        .toLowerCase();
-      const name = String(data?.name || '').trim();
-      if (!email) {
-        if (!isAdmin) return publicResponse();
-        return new Response(JSON.stringify({error: 'email required', step: 'input'}), {
-          status: 400,
-          headers: {...corsHeaders, 'Content-Type': 'application/json'},
-        });
-      }
-
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
       // Step 1: resolve the account + recovery link. The recipient is ALWAYS
@@ -835,6 +980,7 @@ serve(async (req) => {
       // and never test_to.
       let resetLink: string | null = null;
       let resolvedEmail: string | null = null;
+      let resolvedUserId: string | null = null;
       try {
         const {data: linkData, error: linkError} = await admin.auth.admin.generateLink({
           type: 'recovery',
@@ -844,6 +990,7 @@ serve(async (req) => {
         if (linkError) throw new Error(linkError.message || String(linkError));
         resetLink = linkData?.properties?.action_link || null;
         resolvedEmail = linkData?.user?.email ? String(linkData.user.email).trim() : null;
+        resolvedUserId = linkData?.user?.id ? String(linkData.user.id) : null;
       } catch (e) {
         if (!isAdmin) return publicResponse();
         const msg = e instanceof Error ? e.message : String(e);
@@ -870,6 +1017,54 @@ serve(async (req) => {
           {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
         );
       }
+
+      // ── Admin ledger evidence (mig 183): request row BEFORE any send ──
+      // Mirrors the delete prepare-first design: if profile.reset_requested
+      // cannot be written, no email goes out, so the ledger can never miss an
+      // admin-triggered send. Public callers write no ledger rows.
+      let resetRequestId: string | null = null;
+      if (isAdmin) {
+        if (!adminCaller || !resolvedUserId) {
+          return new Response(
+            JSON.stringify({
+              error: 'auditRequest: could not resolve the target account for audit',
+              step: 'auditRequest',
+            }),
+            {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+          );
+        }
+        const {data: reqData, error: reqError} = await adminCaller.rpc('admin_log_reset_request', {
+          p_profile_id: resolvedUserId,
+        });
+        if (reqError || !reqData?.request_id) {
+          return new Response(
+            JSON.stringify({
+              error: `auditRequest: ${reqError?.message || 'reset request logging returned no id'}`,
+              step: 'auditRequest',
+            }),
+            {status: 500, headers: {...corsHeaders, 'Content-Type': 'application/json'}},
+          );
+        }
+        resetRequestId = String(reqData.request_id);
+      }
+
+      // Terminal evidence writer (admin path only). Returns whether the ledger
+      // accepted the outcome; responses report auditFinalized truthfully. The
+      // succeeded terminal is written only after a Resend 2xx — the ledger can
+      // never claim "sent" when delivery failed.
+      const logResetOutcome = async (succeeded: boolean, errorMessage: string | null): Promise<boolean> => {
+        if (!isAdmin || !adminCaller || !resetRequestId) return true;
+        try {
+          const {data: outData, error: outError} = await adminCaller.rpc('admin_log_reset_outcome', {
+            p_request_id: resetRequestId,
+            p_succeeded: succeeded,
+            p_error_message: errorMessage,
+          });
+          return !outError && outData?.ok === true;
+        } catch (_e) {
+          return false;
+        }
+      };
 
       // Step 2: send ONLY to the resolved Auth email. No test_to, no [TEST]
       // subject, no isTest banner.
@@ -901,8 +1096,9 @@ serve(async (req) => {
             (result && typeof result === 'object' && typeof result.error === 'string' && result.error) ||
             (typeof result === 'string' && result) ||
             `HTTP ${res.status}`;
+          const auditFinalized = await logResetOutcome(false, `Resend ${res.status}: ${parsedMsg}`);
           return new Response(
-            JSON.stringify({error: `sendEmail: Resend ${res.status}: ${parsedMsg}`, step: 'sendEmail'}),
+            JSON.stringify({error: `sendEmail: Resend ${res.status}: ${parsedMsg}`, step: 'sendEmail', auditFinalized}),
             {
               status: 502,
               headers: {...corsHeaders, 'Content-Type': 'application/json'},
@@ -910,7 +1106,8 @@ serve(async (req) => {
           );
         }
         if (!isAdmin) return publicResponse();
-        return new Response(JSON.stringify({ok: true, result}), {
+        const auditFinalized = await logResetOutcome(true, null);
+        return new Response(JSON.stringify({ok: true, result, auditFinalized}), {
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });
       } catch (e) {
@@ -919,7 +1116,8 @@ serve(async (req) => {
         const msg = isAbort
           ? 'Resend timed out after 10s'
           : `Resend fetch failed: ${e instanceof Error ? e.message : String(e)}`;
-        return new Response(JSON.stringify({error: `sendEmail: ${msg}`, step: 'sendEmail'}), {
+        const auditFinalized = await logResetOutcome(false, msg);
+        return new Response(JSON.stringify({error: `sendEmail: ${msg}`, step: 'sendEmail', auditFinalized}), {
           status: 502,
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
         });

@@ -67,7 +67,7 @@ describe('rapid-processor.ts — six handler branches present', () => {
 describe('rapid-processor.ts — account emails use noreply and admin-created users skip Supabase signup mail', () => {
   const userCreateIdx = code.indexOf("if (type === 'user_create')");
   // Widened from 4500 to 9000 chars: the hardening pass split createUser /
-  // profileUpsert / generateLink / sendEmail into their own try blocks
+  // profileCreate / generateLink / sendEmail into their own try blocks
   // with labeled errors + partial-state hints, which roughly doubled the
   // branch length. The downstream from:AUTH_FROM / Resend assertions
   // still need to fall inside the slice.
@@ -345,6 +345,97 @@ describe('rapid-processor.ts — bearer auth helpers', () => {
   it('extractBearer + safeEqual helpers are defined', () => {
     expect(code).toMatch(/function\s+extractBearer\(/);
     expect(code).toMatch(/function\s+safeEqual\(/);
+  });
+});
+
+describe('rapid-processor.ts — report branches are self-gated (mig 183 lane)', () => {
+  // The function is deployed --no-verify-jwt, so an ungated branch is an
+  // anonymous branded-mail relay from reports@wcfplanner.com. egg_report and
+  // starter_feed_check must resolve the caller's profile role from their
+  // bearer, refuse anonymous/inactive callers, and honor test_to redirects
+  // only for admins. starter_feed_check additionally does a service-role
+  // poultry_dailys read, so its gate also closes an anonymous data probe.
+  const eggIdx = code.indexOf("if (type === 'egg_report')");
+  const eggEnd = code.indexOf("if (type === 'starter_feed_check')", eggIdx + 1);
+  const eggBranch = eggIdx >= 0 ? code.slice(eggIdx, eggEnd) : '';
+  const feedIdx = code.indexOf("if (type === 'starter_feed_check')");
+  const feedEnd = code.indexOf("if (type === 'user_create')", feedIdx + 1);
+  const feedBranch = feedIdx >= 0 ? code.slice(feedIdx, feedEnd) : '';
+
+  it('resolveCallerRole helper resolves the bearer through SECDEF profile_role()', () => {
+    expect(code).toMatch(/async function\s+resolveCallerRole\(/);
+    expect(code).toMatch(/rpc\(\s*'profile_role'\s*\)/);
+  });
+
+  it('uses a fail-closed role allowlist, not an inactive-only denylist', () => {
+    // Explicit membership list: any role NOT named (equipment_tech, inactive,
+    // unknown/future) falls through to a refusal.
+    expect(code).toMatch(
+      /const\s+REPORT_SENDER_ROLES\s*=\s*\[\s*'admin',\s*'management',\s*'farm_team',\s*'light'\s*\]/,
+    );
+    // Scope the exclusion to the array literal, not the whole file (user_create
+    // legitimately allowlists equipment_tech elsewhere).
+    const arr = code.match(/const\s+REPORT_SENDER_ROLES\s*=\s*\[([^\]]*)\]/);
+    expect(arr, 'REPORT_SENDER_ROLES literal').not.toBeNull();
+    expect(arr[1]).not.toMatch(/equipment_tech/);
+    expect(arr[1]).not.toMatch(/inactive/);
+  });
+
+  it('egg_report returns 401 for unresolved identity and 403 for a disallowed role, before any send', () => {
+    expect(eggBranch).toMatch(/resolveCallerRole\(req\)/);
+    expect(eggBranch).toMatch(/if\s*\(!eggCallerRole\)/);
+    expect(eggBranch).toMatch(/status:\s*401/);
+    expect(eggBranch).toMatch(/!REPORT_SENDER_ROLES\.includes\(eggCallerRole\)/);
+    expect(eggBranch).toMatch(/status:\s*403/);
+    const gateIdx = eggBranch.indexOf('resolveCallerRole(req)');
+    const sendIdx = eggBranch.indexOf('sendEmail(');
+    expect(gateIdx).toBeGreaterThan(-1);
+    expect(gateIdx).toBeLessThan(sendIdx);
+  });
+
+  it('egg_report honors test_to only for admins', () => {
+    expect(eggBranch).toMatch(/test_to\s*&&\s*eggCallerRole\s*!==\s*'admin'/);
+    expect(eggBranch).toMatch(/status:\s*403/);
+  });
+
+  it('starter_feed_check gates by allowlist before the service-role read', () => {
+    expect(feedBranch).toMatch(/resolveCallerRole\(req\)/);
+    expect(feedBranch).toMatch(/if\s*\(!feedCallerRole\)/);
+    expect(feedBranch).toMatch(/status:\s*401/);
+    expect(feedBranch).toMatch(/!REPORT_SENDER_ROLES\.includes\(feedCallerRole\)/);
+    expect(feedBranch).toMatch(/status:\s*403/);
+    const gateIdx = feedBranch.indexOf('resolveCallerRole(req)');
+    const readIdx = feedBranch.indexOf("from('poultry_dailys')");
+    expect(gateIdx).toBeGreaterThan(-1);
+    expect(readIdx).toBeGreaterThan(gateIdx);
+  });
+
+  it('starter_feed_check honors test_to only for admins', () => {
+    expect(feedBranch).toMatch(/test_to\s*&&\s*feedCallerRole\s*!==\s*'admin'/);
+    expect(feedBranch).toMatch(/status:\s*403/);
+  });
+});
+
+describe('rapid-processor.ts — report/account templates escape user-controlled strings (mig 183 lane)', () => {
+  it('eggEmailHtml escapes team_member and both dozen figures', () => {
+    const fnMatch = code.match(/function\s+eggEmailHtml\([\s\S]*?\n\}\s*\n/);
+    expect(fnMatch, 'expected eggEmailHtml body').not.toBeNull();
+    expect(fnMatch[0]).toMatch(/escapeHtml\(data\.team_member/);
+    expect(fnMatch[0]).toMatch(/escapeHtml\(data\.dozens_on_hand\)/);
+    expect(fnMatch[0]).toMatch(/escapeHtml\(data\.daily_dozen_count/);
+  });
+
+  it('starterFeedHtml escapes the batch label in body and subtitle', () => {
+    const fnMatch = code.match(/function\s+starterFeedHtml\([\s\S]*?\n\}\s*\n/);
+    expect(fnMatch, 'expected starterFeedHtml body').not.toBeNull();
+    expect(fnMatch[0]).toMatch(/safeLabel\s*=\s*escapeHtml\(batchLabel\)/);
+    expect(fnMatch[0]).toMatch(/subtitle:\s*safeLabel/);
+    expect(fnMatch[0]).not.toMatch(/\$\{batchLabel\}/);
+  });
+
+  it('welcome and reset templates escape the greeting name', () => {
+    expect(code).toMatch(/escapeHtml\(name \|\| email\)/);
+    expect(code).toMatch(/escapeHtml\(name \|\| 'there'\)/);
   });
 });
 
