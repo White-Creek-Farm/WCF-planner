@@ -357,6 +357,12 @@ Codex:
 
 ## Validation
 
+Screenshots are NOT a default requirement for any build, review, or gate. Do not
+request, capture, or produce screenshots unless Ronnie explicitly asks for them
+for that named lane. This does not waive focused browser behavior tests when they
+are otherwise required. Automatically generated failure screenshots may remain
+diagnostic artifacts; they do not need to be presented as build deliverables.
+
 Default code-lane floor:
 
 - `npm run format:check`

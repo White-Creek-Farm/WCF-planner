@@ -7,12 +7,13 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-16.
-Product checkpoint covered by this wrap: `25f79f1` (PR #85, user-management
-audit/reset/throttle hardening, including PR #84's final Playwright repairs).
-This documentation-only handoff also records the active PR #86 Processing lane,
-the uncommitted Animals on Farm hotfix, the newsletter product decisions, and
-the approved risk-based CI redesign queue item.
+Last updated: 2026-07-17.
+Product checkpoint covered by this wrap: `41a2b13` (PR #89, risk-based
+Playwright CI), including PR #88's PROD-applied historical Layer retirement
+dates, PR #87's Animals on Farm correction, PR #86's Processing attachments and
+automatic Asana-comment activation, and PR #85's user-management hardening.
+This documentation-only handoff also records the newsletter product decisions
+and the approved fueling-checklist enhancement.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -69,11 +70,11 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`. Product code is
-  merged through `25f79f1`; this documentation handoff changes no runtime code.
-  PR #86 (`feature/processing-attachments-comment-sync`, head `3d23427`) is open
-  and running CI; it is not merged or deployed.
-- Supabase live high-water: all repository migrations through `166` and
-  `170`-`183` are PROD-applied; numbers `167`-`169` are intentionally unused.
+  merged and behaviorally confirmed through `41a2b13`; this documentation
+  handoff changes no runtime code.
+- Supabase live high-water: all repository migrations through `166`, `170`-`183`,
+  and `185`-`187` are PROD-applied; numbers `167`-`169` are intentionally unused
+  and `184` is reserved/not present.
   `rapid-processor` user-management hardening is deployed to PROD v31 (v30 is
   the rollback target). The filename-independent `processing-asana-sync`
   attachment build is deployed to PROD v12 and TEST v1. Other current PROD
@@ -114,14 +115,13 @@ Design/function invariants that govern cross-surface behavior live in
 - Production legacy import: `Processing Events - ALL.xlsx` upserted 69 rows into
   `production_legacy_events` on PROD by stable `source_key` (frozen historical
   count).
-- Processing Calendar schema is PROD-applied through `179`; the live Edge is
-  `processing-asana-sync` PROD v12 / TEST v1. `ASANA_ACCESS_TOKEN` remains set
-  on PROD, and `asana_sync_enabled` remains true pending Build Queue item 2's
-  explicit cutover decision. PR #86 adds pending migrations `185`/`186`,
-  admin-only attachment deletion, operational drag/drop upload, and an OFF-by-
-  default comments-only recurring-import contract; none of those PR artifacts
-  are PROD-applied/deployed/activated. The function uses filename-independent
-  attachment keys and skips already-stored Asana GIDs before download/upload.
+- Processing Calendar schema is PROD-applied through `186`. `ASANA_ACCESS_TOKEN`
+  remains set on PROD, and `asana_sync_enabled` remains true pending Build Queue
+  item 2's explicit final-cutover decision. Operational users can upload one or
+  many attachments by picker or drag/drop; physical/tombstone deletion is
+  admin-only and fail-safe. The comments-only `processing-asana-comments-hourly`
+  schedule runs at minute 7 through Vault/pg_net, is pinned to `sync_comments`,
+  and has repeatedly returned HTTP 200 with zero duplicate inserts.
 - Processing planner integration is shipped end-to-end. Migrations `175`-`177`
   rekeyed planner rows to immutable batch/trip identity, made planned Pig trips
   first-class Processing records, backfilled phase/ordinal/status/template step
@@ -137,21 +137,22 @@ Design/function invariants that govern cross-surface behavior live in
 - Processing artifacts already imported: 1,104 recursive Asana subtasks
   (798 complete / 306 open; 557 assigned; 537 with due dates; 380 with start
   dates), preserving imported completion state and local ownership rules.
-  Processing has 128 imported Asana conversation items from the last completed
-  comments run. A read-only 2026-07-16 dry run found exactly one additional
-  importable text comment: Ronnie's Jul 15 C-26-04 main-card comment with an
-  Isabel mention. Its chart image is already present as a record attachment.
-  The root cause is that no recurring Processing comments schedule exists; it
-  is not a mapping, filter, or subtask-card defect. Conversation
+  Processing has 130 imported Asana conversation items. Ronnie's Jul 15 C-26-04
+  main-card comment was imported with its original author/timestamp; the first
+  comments-only run inserted it and the immediate and hourly repeats inserted
+  zero. Imported `@mention` text may remain plain text and does not require
+  retroactive profile mapping, highlighting, or notification; newly written
+  Planner comments retain native working mentions. Conversation
   fidelity imported 8 comment-media files (about 20.4 MB), and the ordinary
   attachment backfill has imported all 68 currently enumerable files into the
   private `processing-attachments` bucket. The final idempotence dry run found
   68 already stored / 0 new. B-26-04 is the representative conversation proof:
   9 subtasks (8 complete / 1 open) and Brian Naide's two JPG posts are present.
   Three deleted Asana cards linked to dismissed placeholders consistently 404
-  and remain explicit source skips. Historical Activity would add roughly
-  16,855 Asana system-story rows and remains the only unrun artifact class; it
-  is an explicit decision in Build Queue item 2.
+  and remain explicit source skips. Ronnie decided on 2026-07-17 that the
+  roughly 16,855 historical Asana system-story rows will not be imported. They
+  are intentionally out of scope and must not be backfilled without a new
+  explicit decision.
 - Processing UI is simplified and live. The former Admin/maintenance,
   reconciliation, historical-import controls, status/processor filters, Show
   archived checkbox, stale sort label, and per-section Add milestone rows are
@@ -187,6 +188,17 @@ Design/function invariants that govern cross-surface behavior live in
   via `src/lib/processingStatusDisplay.js` (display-only; stored values are
   unchanged). See the Processing Calendar contract for the mapping and the
   pig-specific zero-head exception.
+- Animals on Farm is live without a misleading combined Total. Canonical Layer
+  housing matching removes the sibling double count: current PROD evidence is
+  631 hens (156 Eggmobile 2 / 293 Layer Schooner / 115 Eggmobile 3 / 67
+  Retirement Home), with the oldest contributing evidence dated 2026-04-10.
+  Home and the history page call these latest recorded—not verified current—
+  counts and disclose the oldest contributing date plus any undated contributor.
+  Each species uses its own readable small-multiple scale. PR #87's exact lane
+  browser spec passed in CI and Netlify bundle markers were confirmed live.
+  Migration `187` supplies the three approved evidence-backed historical Layer
+  retirement dates: Eggmobile #2 - 2023 and Layer Schooner - 2023 retired
+  2026-01-28; Retirement Home - 2023 retired 2024-06-27.
 - CP5 public webform island styling (`ceb7dcf`) is shipped in the static HTML
   shells (`index.html`, `dailys.html`, `equipment.html`, `pasture-map.html`).
   It updates the public `#webform-container` fallback/island form tokens and
@@ -230,7 +242,8 @@ Design/function invariants that govern cross-surface behavior live in
   one real reset email to the owner's inbox, and left the account usable. The
   public flow remains enumeration-safe and stores no raw email/IP in the
   throttle table. The user-management lane is shipped; no gate remains.
-  Historical Activity backfill remains unapproved under Processing item 2.
+  Historical Asana system-story Activity will not be backfilled, per Ronnie's
+  2026-07-17 decision.
 - Home Weather now renders one stable collapsed button on first paint instead of
   appearing after the dashboard. Loading, ready, and unavailable states reuse
   that node; loading clicks are inert, retry/refresh are single-flight, the
@@ -242,21 +255,16 @@ Design/function invariants that govern cross-surface behavior live in
 - Dependency hardening is complete: Vite/Vitest/plugin-react majors upgraded,
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
-- Validation state at the shipped checkpoint: PR #84 fixed the measured
-  fail-closed session-role, Header identity, Processing options live-lock, and
-  weigh-in autosave defects without timeout inflation. PR #85's DB-free and
-  focused user-management coverage passed on the combined head and after merge.
-  Full shards still rotate through unrelated readiness/visibility failures; the
-  post-PR #85 main run passed shard 1 and had one pre-existing Tasks v2 badge
-  failure in shard 2. The product repairs are shipped, while Build Queue item 4
-  replaces per-PR full-suite waiting with a risk-based CI policy and preserves
-  periodic/manual full-app measurement.
-- Git/workstation handoff: four build worktrees plus this docs-wrap worktree are
-  registered. The primary workspace is clean on the pushed PR #86 head
-  `3d23427`; CC#2 and CC#3 worktrees are clean and fully merged; CC#4's
-  `hotfix/animal-history-accuracy-chart` worktree intentionally holds 17 modified
-  files plus one new browser spec, uncommitted, on old base `4429c45`. Do not
-  prune CC#4. PR #86 is the only open PR at this handoff. The intentional
+- Validation state at the shipped checkpoint: the full shared-TEST shards remain
+  capable of rotating readiness failures and database/auth outages. PR #89 now
+  classifies changes into DB-free, focused, or full browser coverage; high-risk,
+  unknown, nightly, and manual runs remain fail-closed full. Its first main-push
+  proof (`29587188942`) passed verify and the stable policy gate while correctly
+  skipping focused, both shards, and Pasture for the already-tested GitHub PR
+  merge commit. Direct main pushes still undergo normal risk classification.
+- Git/workstation handoff: CC#1/CC#2/CC#3/CC#4, the retirement-date lane, and the
+  CI-policy lane are merged; their retained worktrees are safe to prune after
+  this docs wrap. The docs-wrap worktree contains this handoff. The intentional
   `archive/ui-cleanup-wip-2026-06-17` tag remains because it is the only unique
   snapshot of that abandoned WIP; diagnostic traces under
   `C:\Users\Ronni\cc-research\` remain intentionally outside the repo.
@@ -268,13 +276,15 @@ Per-PR shipped history is not maintained here. For what shipped and when, read
 Durable behavior lives in the Load-Bearing Contracts below; current migration and
 live state lives in Current State and Backend And Data State.
 
-Most recent shipped session: PR #84 (`ca276e8` -> merge `c7631d3`) repaired the
-final measured session-role, Header, Processing options, route-readiness, and
-weigh-in autosave defects. PR #85 (`4729a1f` plus combined head `b70541c` -> merge
-`25f79f1`) shipped user-management migration `183` and `rapid-processor` v31;
-both are PROD-applied/deployed and verified. The cattle schedule remains
-reconciled with September `C-26-05`. The active PR #86 and uncommitted CC#4
-hotfix are not shipped checkpoints. The only unique abandoned UI WIP remains
+Most recent shipped session: PR #85 (merge `25f79f1`) shipped user-management
+migration `183` and `rapid-processor` v31. PR #86 (merge `b237ffd`) shipped
+Processing drag/drop, admin-only truthful attachment deletion, migrations
+`185`/`186`, and the hourly comments-only Asana import. PR #87 (merge `95e62f0`)
+shipped truthful Animals on Farm counts/freshness and readable species charts.
+PR #88 (merge `c32dbd0`) shipped PROD-applied Layer retirement-date migration
+`187`. PR #89 (merge `41a2b13`) shipped risk-based Playwright selection and
+removed redundant PR-merge browser reruns. The cattle schedule remains
+reconciled with September `C-26-05`. The only unique abandoned UI WIP remains
 preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 
 ---
@@ -284,10 +294,9 @@ preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-Next-session routing: PR #86 is the active merge/activation gate. CC#4 remains
-open on item 3 and must finish the freshness correction before commit. Item 4
-is approved design work but must not collide with an active TEST-backed CI run.
-Newsletter item 1 is Ronnie-led editorial/product work.
+Next-session routing: newsletter item 1 is Ronnie-led editorial/product work.
+Item 2 is a later operational cutover decision. Item 3 is an approved Equipment
+build lane and must not collide with an active TEST-backed CI run.
 
 1. July newsletter: first real issue and editorial redesign
    - Status: DECISIONS REACHED; NO ISSUE HAS EVER BEEN PUBLISHED. Target the
@@ -331,86 +340,61 @@ Newsletter item 1 is Ronnie-led editorial/product work.
      keyed reader works; no private/unapproved media or fabricated comparison is
      exposed.
 
-2. Processing attachments + automatic Asana comments, then final cutover
-   - Status: PR #86 OPEN, HEAD `3d23427`, CI RUN `29537126195` IN PROGRESS AT
-     WRAP. Nothing from this PR is merged or PROD-activated. The lane keeps
-     operational upload and adds accessible multi-file drag/drop; only deletion
-     is admin-only. Migrations `185`/`186` add a two-phase exact-path deletion/
-     tombstone contract and a comments-only pg_net cron delivery contract. The
-     Edge cron mode is pinned to `sync_comments`; the new comments flag defaults
-     false and no schedule is created by the migrations.
-   - Class: `ENH`/`SECURITY`/`DATA-OPERATION`/`CUTOVER`.
-   - Merge gate: accept PR #86 only after CI review proves any red is unrelated
-     rotating readiness debt; never label an on-lane failure as flake. Migration
-     `186` is part of the PR and must remain ordered after `185`.
-   - Activation gates, in order: PROD apply `185` then `186` transactionally;
-     deploy the updated `processing-asana-sync`; enable the comments-only flag;
-     create/set the Edge and Vault cron secrets; run comments-only manually and
-     prove Ronnie's missing C-26-04 comment imports; run again for zero inserts;
-     only then schedule hourly at minute 7. Every stage remains a separate
-     Ronnie-approved PROD/Vault/schedule gate unless explicitly bundled.
-   - Remaining decisions after activation: leave the roughly 16,855 historical
-     Asana system stories unimported by default unless Ronnie wants field-churn
-     history; set global `asana_sync_enabled=false` only through a separate final
-     cutover decision. The three deleted linked cards remain explicit 404 skips.
-   - Success criteria: drag/drop works for existing operational upload roles;
-     physical/tombstone deletion is admin-only, retry-safe, and non-resurrecting;
-     the recurring path imports only comments and is idempotent; final cutover
-     and historical Activity occur only by explicit approval.
+2. Processing final Asana cutover
+   - Status: DECISION ONLY; recurring comments automation is live and healthy.
+   - Class: `DECISION`/`CUTOVER`.
+   - Remaining action: decide whether/when to set global
+     `asana_sync_enabled=false`. Do not infer this authorization from successful
+     comments-only automation; it is a separate operational gate.
+   - Historical Activity decision is closed: do not import the roughly 16,855
+     Asana system stories. They remain intentionally absent unless Ronnie makes
+     a new explicit decision. The three deleted linked cards remain explicit
+     404 skips.
+   - Imported Asana `@mentions` may remain plain text; they do not need profile
+     resolution, highlighting, or retroactive notifications. This is not a
+     follow-up build item. Newly written Planner comments must retain the native
+     working mention behavior.
+   - Success criteria: the deliberate cutover does not interrupt hourly comments
+     import, historical Activity remains absent, and no UI maintenance controls
+     are revived.
 
-3. Animals on Farm accuracy, freshness, and readable history
-   - Status: CC#4 BUILD COMPLETE BUT UNCOMMITTED; ONE CODEX CORRECTION REQUIRED.
-     Worktree `hotfix/animal-history-accuracy-chart` is on base `4429c45` with 17
-     modified files and one new browser spec. Do not prune or reuse it.
-   - Class: `DEFECT`/`DATA-TRUTH`/`UX`.
-   - Built scope: fix sibling Layer housing double-counting (the false 701), keep
-     Retirement Home evidence, remove combined Total, and render one independently
-     scaled small-multiple chart per species. Current PROD evidence yields 631
-     layer hens (156/293/115/67), but that is recorded evidence, not verified
-     current inventory; the underlying positive counts are dated 2026-04-10.
-   - Required correction before commit: aggregate freshness must disclose the
-     OLDEST dated evidence contributing to the positive layer total, not the
-     newest; any positive undated contributor must trigger an explicit undated
-     warning. Apply the same truth on Home, the history header, and the Layer
-     chart, with mixed-date/undated/as-of regression coverage.
-   - Then: focused validation, commit approval, synchronize with current main,
-     revalidate, push/PR/CI/merge, and confirm Netlify. No backend/PROD data gate.
-   - Residual decision: 2023 retired housings without `retired_date` remain
-     excluded from history and may undercount old months; resolve separately,
-     without inventing retirement dates.
-   - Success criteria: no layer row can count for two sibling housings, the UI
-     never calls the recorded count verified current, smaller species trends are
-     legible, mobile does not overflow, and source-age disclosure cannot mask an
-     older/undated contributor.
-
-4. Risk-based Playwright CI policy
-   - Status: APPROVED FOR BUILD; QUEUED AT SESSION WRAP. Full two-shard browser
-     runs take too long on every ordinary PR and repeatedly produce rotating,
-     unrelated shared-TEST readiness failures. PR #84's owned defects are fixed;
-     current main can still be red from a different Tasks v2 visibility timeout.
-   - Class: `TEST`/`CI`/`ENH`.
-   - Scope:
-     - Ordinary low-risk PRs run the DB-free `verify` floor plus focused browser
-       specs selected from touched surfaces/contracts.
-     - Full two-shard whole-app Playwright remains mandatory for high-risk work:
-       auth/session/role/Header/router changes; shared TEST seed/fixture or test-
-       infrastructure changes; database/RLS/Storage/Edge changes; shared cross-
-       program components; CI/Playwright workflow changes; or an explicit
-       high-risk/full-e2e label. PR #86 qualifies as high-risk.
-     - Run the complete shards nightly and on manual dispatch. If path/risk
-       classification is unknown or fails, fail safe to the full shards.
-     - Preserve workers=1, sequential shared-DB behavior, the real
-       `wcf-test-db` lease/concurrency boundary, rerun-safe artifacts, and the
-       separate path-gated Pasture suite. Never allow local TEST Playwright to
-       overlap GitHub CI.
-     - Required checks must handle skipped/path-gated jobs cleanly so a safe
-       low-risk PR is not blocked by a context that never ran.
-   - Validation: workflow/static guards for low-risk, high-risk, unknown/fallback,
-     nightly/manual, Pasture, and lease behavior; one low-risk PR proof and one
-     forced full-suite proof.
-   - Success criteria: ordinary PR feedback is materially faster without losing
-     deterministic focused coverage; high-risk and periodic whole-app runs remain
-     fail-closed; no TEST DB overlap or hidden unowned failure is accepted.
+3. Fueling checklists: optional early service intervals
+   - Status: APPROVED FOR BUILD. The fueling form currently renders only service
+     intervals returned by `computeDueIntervals`, so an operator cannot record a
+     configured interval early when doing the work during a convenient fueling.
+   - Class: `ENH`/`EQUIPMENT`/`UX`.
+   - Product behavior:
+     - After a valid hours/km reading is entered, keep due/overdue intervals
+       visually prominent, expanded, and clearly marked as due.
+     - Add a collapsed `Other service intervals` / `View all service intervals`
+       control containing every configured main service interval that is not
+       currently due. Operators can expand one, complete all or part of its
+       checklist, and submit it with the same fueling record.
+     - When nothing is due, preserve the green `No service due` confirmation and
+       still show the optional control. Every-fillup and attachment-specific
+       checklists remain unchanged; attachment intervals are already all shown.
+     - Display neutral context for a non-due interval (next scheduled milestone
+       and hours/km remaining). Do not make optional early work look overdue.
+   - Locked calculation/storage behavior: reuse `computeIntervalStatus`, the
+     existing `service_intervals_completed` payload, cumulative partial-task
+     union, and divisor propagation. Preserve the nearest-milestone rule exactly:
+     a 500-hour service at 1,200 satisfies 1,000 (next 1,500); at 1,300 it
+     satisfies 1,500 (next 2,000); an exact midpoint favors the earlier milestone.
+     Do not create a second due/next-service calculation or a migration.
+   - Likely scope: `src/webforms/EquipmentFuelingWebform.jsx`, shared helpers in
+     `src/lib/equipment.js` only if a reusable presentation projection is needed,
+     and focused unit/static/browser coverage. Refactor submit/implicit-completion
+     loops so selected non-due intervals persist exactly like selected due ones,
+     without duplicates when divisor completion covers another interval.
+   - Validation: hours and km equipment; due + non-due separation; no-due state;
+     early full and partial persistence; unchanged nearest-milestone and divisor
+     behavior; offline payload compatibility; mobile accessibility; format, lint,
+     full Vitest, build, and focused serial Equipment fueling Playwright. No
+     screenshots are required.
+   - Success criteria: every configured main service interval is reachable from
+     every applicable fueling checklist, due work remains unmistakable, optional
+     early work records truthfully and advances only under existing math, and no
+     backend/schema/permission behavior changes.
 
 ---
 
@@ -455,6 +439,7 @@ Locked functional invariants:
 | Audit-critical mutations through SECDEF RPCs | Entity Mutations And Audit Atomicity | `mutation_semantics_inventory_static.test.js` |
 | Daily edits/deletes through ownership RPCs | Daily Reports | `cp2_daily_writes_via_rpc_static.test.js` |
 | One canonical component per UI role | Shared UI And Record Chrome | `shared_ui_extraction_contract_static.test.js` |
+| Playwright coverage selected by risk; unknown risk fails full | Validation Map | `ci_playwright_plan.test.js`, `ci_risk_based_workflow_static.test.js` |
 
 ---
 
@@ -501,9 +486,10 @@ unless Ronnie changes the contract:
   tiles, Pasture Map + Weather field row, Processing/Admin utility row, Animals
   on Farm, Production, missed-daily/equipment/material alerts, Next 30 Days, and
   admin Last-5-Days.
-- `/animals-on-farm`: newest-first monthly species counts and multi-series line
-  graph for Broilers, Layer Hens, Pigs, Cattle, Sheep, and Total. History range
-  starts Oct 2024.
+- `/animals-on-farm`: newest-first monthly recorded species counts and one
+  independently scaled trend chart per species. There is no combined Total.
+  Layer counts disclose the oldest contributing evidence date and whether any
+  positive contributor is undated. History range starts Oct 2024.
 - `/production`: per-program production totals, per-program YoY, and production
   events. Internal reconciliation prevents double-counting historical backfill,
   but the visible page is production reporting, not audit/import review. No
@@ -603,9 +589,9 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 
 ### Supabase Migrations
 
-Current PROD architecture includes all repository migrations through `166` and
-`170` through `183`; `167`-`169` are intentionally unused. Migration `184` is
-reserved/not present; PR #86's `185`/`186` are pending and not PROD-applied.
+Current PROD architecture includes all repository migrations through `166`,
+`170` through `183`, and `185`-`187`; `167`-`169` are intentionally unused and
+`184` is reserved/not present.
 Recent load-bearing
 migrations:
 
@@ -859,8 +845,8 @@ migrations:
     `processing-asana-sync` Edge Function contract.
   - PROD-applied before the reconciler lane. Planner reconciliation, review
     resolution, comments, subtasks, conversation media, and ordinary attachments
-    have run; only historical Activity and final cutover remain Build Queue item
-    2 decisions.
+    have run. Historical Activity is intentionally not being imported; only
+    final cutover remains a Build Queue item 2 decision.
 - `157` Processing Planner reconciler + Asana link table:
   - Adds `processing_asana_links`, imported comment provenance, subtask local
     ownership, drift/ack fields, reconciliation reports, planner enumeration,
@@ -933,8 +919,10 @@ migrations:
   - Adds deterministic immutable Asana system-story Activity import, display-only
     mention mapping for imported comments, and profile mapping for imported
     record/checklist assignees while preserving local completion/assignment.
-  - PROD-applied. Subtask/mention support is live; the roughly 16,855-row system-
-    story Activity import has not run and is a Build Queue item 2 decision.
+  - PROD-applied. Subtask/mention support is live. Ronnie decided on 2026-07-17
+    not to run the roughly 16,855-row system-story Activity import. Imported
+    mention text does not require retroactive profile resolution or highlighting;
+    native mentions on newly written Planner comments remain required.
 - `166` Processing native attachment upload:
   - Adds append-only operational uploads only under
     `native/<record_id>/<uuid>-<filename>`, metadata registration, and Activity.
@@ -1022,15 +1010,24 @@ migrations:
   - PROD-applied with `psql --single-transaction -v ON_ERROR_STOP=1` and catalog,
     RLS, grant, runtime, delivery, and account-usability verification. The paired
     Edge deploy is `rapid-processor` PROD v31; v30 is the rollback target.
-- `185` Processing attachment deletion and comments-only cron contract (PENDING):
-  - PR #86 only; not PROD-applied. Adds admin-only two-phase exact-path Storage
+- `185` Processing attachment deletion and comments-only cron contract:
+  - Adds admin-only two-phase exact-path Storage
     deletion, attachment tombstones/comment scrubbing and resurrection guards,
     an OFF-by-default comments-import flag, and a postgres-only Vault/pg_net cron
     invoker. Operational native upload remains unchanged. Creates no schedule.
-- `186` Processing pg_net cron delivery timeout/status (PENDING):
-  - PR #86 follow-up; not PROD-applied. Keeps the comments-only invocation
-    contract auditable past pg_net's short default response window. It must be
-    applied after `185` and before cron activation.
+  - PROD-applied and proof-verified. The comments-only flag is enabled and the
+    hourly minute-7 schedule is active through Vault.
+- `186` Processing pg_net cron delivery timeout/status:
+  - Keeps the comments-only invocation contract auditable past pg_net's short
+    default response window. PROD-applied after `185`; live cron responses have
+    remained HTTP 200 and idempotent.
+- `187` Historical Layer retirement dates:
+  - Sets evidence-backed `retired_date` values only for `lh-23-01-em2`
+    (2026-01-28), `lh-23-01-ls` (2026-01-28), and `lh-23-01-rh23`
+    (2024-06-27). Missing rows are safe in non-PROD environments; conflicting
+    status/date state fails closed instead of being overwritten.
+  - PROD-applied transactionally from the merged-main blob and verified: all
+    three target rows remain retired with the exact approved dates.
 
 Special migration notes:
 
@@ -1038,8 +1035,9 @@ Special migration notes:
 - `167`-`169` are intentionally unused; the sequence jumps from Processing
   migration `166` to detach/user-management migrations `170`/`171`, then resumes
   Processing migration work at `172`-`179`; Pasture follows at `180`-`181` and
-  cattle forecast-batch reconciliation at `182`. User-management `183` is live;
-  `184` is reserved/not present; Processing `185`/`186` remain pending in PR #86.
+  cattle forecast-batch reconciliation at `182`. User-management `183` and
+  Processing `185`/`186` and Layer correction `187` are live; `184` is
+  reserved/not present.
 - `083` public webform submitter identity is shelved.
 - `085` was applied before `084` in PROD so duplicate active daily identities
   were cleaned up before unique indexes.
@@ -1523,19 +1521,21 @@ Workflow/worktable entities:
   deterministic animal-row locks with membership/status revalidation under the
   batch lock. Do not reintroduce animal-first delete/unschedule paths.
 - Asana operations are out-of-UI gated operations. Planner freshness still runs
-  automatically. Read-only audits/dry runs, historical Activity import, and
+  automatically, and the hourly minute-7 schedule is pinned to comments-only
+  sync through Vault/pg_net. Read-only audits/dry runs and
   `asana_sync_enabled` cutover require explicit operational approval; removal of
-  the UI controls is not permission to run them. Subtasks, comments,
-  conversation media, and ordinary attachment backfill are complete.
+  the UI controls is not permission to run them. Historical Activity will not
+  be imported. Subtasks, comments, conversation media, and ordinary attachment
+  backfill are complete.
 - Processing attachment files live in private `processing-attachments` Storage.
   Reads require operational authenticated roles. Native uploads are append-only
   under `native/`; Asana imports are service-role only. Eight conversation-media
   files and all 68 ordinary Asana attachments are live and indexed. Asana object
   paths are filename-independent, and stored GIDs are skipped before any
-  download/upload; the final dry run found 0 new attachments. Current main has
-  no authenticated delete policy. PR #86 proposes operational drag/drop upload
-  plus admin-only two-phase physical deletion/tombstones; treat that as pending
-  until the PR, migrations, and runtime gates are complete.
+  download/upload; the final dry run found 0 new attachments. Operational roles
+  can upload by picker or accessible multi-file drag/drop. Only admins can
+  delete; deletion uses the live two-phase exact-path physical/tombstone contract
+  and imported tombstones prevent resurrection on later syncs.
 - Processing Calendar status vocabulary is exactly `Planned`, `In Process`,
   and `Complete`, rendered from the server-derived `effective_status`
   (migration `176`): a record stays Planned until its processing date begins in
@@ -2114,6 +2114,22 @@ Focused starting points:
 
 Playwright notes:
 
+- `.github/workflows/ci.yml` delegates browser scope to
+  `scripts/ci_playwright_plan.cjs`. The only valid root-suite modes are `none`,
+  `focused`, and `full`; any missing diff or unclassified path fails safe to
+  `full`.
+- Docs/static/unit-only changes run the DB-free verify floor. Mapped ordinary
+  product changes run only their owned focused browser specs. Migrations, Edge,
+  auth/session/role/Header/router, shared test infrastructure, CI/Playwright
+  configuration, dependency changes, and explicit `high-risk`/`full-e2e` labels
+  run both complete shards.
+- The complete shards also run nightly and by manual dispatch. Pasture remains
+  a separate path-gated suite. `e2e-policy-gate` is the stable required-check
+  target and fails when the classifier-selected path did not succeed.
+- A GitHub `Merge pull request #...` main push runs the DB-free verification
+  floor without repeating browser work already executed against that PR's
+  combined head. Direct main pushes still undergo ordinary fail-closed risk
+  classification.
 - Specs that reset the shared TEST DB must run one file at a time.
 - Do not run local TEST-backed Playwright while a GitHub CI workflow is active;
   local processes are invisible to GitHub's `wcf-test-db` concurrency group and
