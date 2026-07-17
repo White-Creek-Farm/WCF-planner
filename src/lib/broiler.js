@@ -476,7 +476,7 @@ export function calcLayerFeedForMonth(batch, housings, layerDailys, yearMonth) {
       var hens = 0;
       if (batchHousings.length > 0) {
         batchHousings.forEach(function (h) {
-          var proj = computeProjectedCount(h, layerDailys);
+          var proj = computeProjectedCount(h, layerDailys, housings);
           hens += proj ? proj.projected : parseInt(h.current_count) || 0;
         });
       } else {

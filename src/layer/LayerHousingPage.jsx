@@ -330,8 +330,8 @@ export default function LayerHousingPage({
 
   const hStatsMap = computeHousingStats(parentBatch ? [parentBatch] : [], [housing], rawLayerDailys, rawEggDailys);
   const hs = hStatsMap[housing.id] || {};
-  const displayCount = computeHousingDisplayCount(housing, rawLayerDailys);
-  const proj = computeProjectedCount(housing, rawLayerDailys);
+  const displayCount = computeHousingDisplayCount(housing, rawLayerDailys, layerHousings);
+  const proj = computeProjectedCount(housing, rawLayerDailys, layerHousings);
   // Headline farm count = mortality-adjusted projected hens. computeProjectedCount
   // already falls back to the latest positive daily count when current_count is a
   // stale/empty 0, so an active housing (e.g. Eggmobile 3) never surfaces a bare

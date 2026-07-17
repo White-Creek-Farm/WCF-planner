@@ -1452,7 +1452,7 @@ export default function BroilerFeedView({
                 });
                 var hens = 0;
                 batchHousings.forEach(function (h) {
-                  var proj = computeProjectedCount(h, allLayerDailys || []);
+                  var proj = computeProjectedCount(h, allLayerDailys || [], layerHousings);
                   hens += proj ? proj.projected : parseInt(h.current_count) || 0;
                 });
                 if (hens === 0) hens = birdCount;

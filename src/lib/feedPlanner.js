@@ -370,7 +370,7 @@ function layerBatchDailyLbs(batch, housings, layerDailys, dateISO) {
   let hens = 0;
   if (batchHousings.length > 0) {
     for (const h of batchHousings) {
-      const proj = computeProjectedCount(h, layerDailys || []);
+      const proj = computeProjectedCount(h, layerDailys || [], housings);
       hens += proj ? proj.projected : parseInt(h.current_count) || 0;
     }
   } else {

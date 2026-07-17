@@ -1,3 +1,4 @@
+import {createLayerDailyHousingMatcher} from './layerHousing.js';
 import {pigSlug} from './pig.js';
 
 export const ANIMAL_HISTORY_SPECIES = Object.freeze([
@@ -141,18 +142,31 @@ export function broilersOnFarmAt(batches, broilerDailys, asOfDate) {
   return total;
 }
 
-function layerDailyMatchesHousing(daily, housing) {
-  if (!daily || !housing) return false;
-  const label = normLabel(daily.batch_label);
-  const housingName = normLabel(housing.housing_name);
-  if (label && housingName && label === housingName) return true;
-  return !!(housing.batch_id && daily.batch_id && String(daily.batch_id) === String(housing.batch_id));
-}
+// Housing ↔ daily matching is the shared canonical rule from layerHousing.js:
+// exact housing_name wins, a sibling housing's label never crosses over, and
+// batch_id fallback applies only to a batch with exactly one housing.
 
-function layerHousingCountAt(housing, parentBatch, layerDailys, asOf) {
-  const start = isoDate(
+function layerHousingStartDate(housing, parentBatch, layerDailys, matchesHousing) {
+  const declared = isoDate(
     housing.start_date || (parentBatch && (parentBatch.brooder_entry_date || parentBatch.arrival_date)),
   );
+  if (declared) return declared;
+  // No declared start date: derive one from the earliest dated housing-specific
+  // count evidence so a real active housing does not vanish from the totals.
+  const evidence = [];
+  for (const d of layerDailys || []) {
+    const date = isoDate(d && d.date);
+    if (date && int(d.layer_count) > 0 && matchesHousing(d, housing)) evidence.push(date);
+  }
+  const anchorDate = isoDate(housing.current_count_date);
+  if (anchorDate && int(housing.current_count) > 0) evidence.push(anchorDate);
+  return minISO(evidence);
+}
+
+// Count + the date that count was actually recorded. Layer figures are
+// "latest recorded" evidence, never a verified live inventory, so every
+// consumer can disclose how fresh the underlying report is.
+function layerHousingEvidenceAt(housing, start, layerDailys, asOf, matchesHousing) {
   const retired = isoDate(housing.retired_date);
   const latestDaily = (layerDailys || [])
     .filter((d) => {
@@ -160,20 +174,27 @@ function layerHousingCountAt(housing, parentBatch, layerDailys, asOf) {
       if (!date || date > asOf) return false;
       if (start && date < start) return false;
       if (retired && date >= retired) return false;
-      return int(d.layer_count) > 0 && layerDailyMatchesHousing(d, housing);
+      return int(d.layer_count) > 0 && matchesHousing(d, housing);
     })
     .sort((a, b) => (isoDate(b.date) || '').localeCompare(isoDate(a.date) || ''))[0];
-  if (latestDaily) return int(latestDaily.layer_count);
 
-  const currentCountDate = isoDate(housing.current_count_date);
-  if (housing.current_count != null && (!currentCountDate || currentCountDate <= asOf))
-    return Math.max(0, int(housing.current_count));
-  return 0;
+  const anchorDate = isoDate(housing.current_count_date);
+  const anchorEligible = housing.current_count != null && (!anchorDate || anchorDate <= asOf);
+  if (latestDaily) {
+    // Freshest housing-specific evidence wins: a positive current_count anchor
+    // dated after the latest matching daily supersedes it. An undated or zero
+    // anchor never overrides dated daily evidence.
+    if (anchorEligible && anchorDate && anchorDate > isoDate(latestDaily.date) && int(housing.current_count) > 0)
+      return {count: int(housing.current_count), date: anchorDate};
+    return {count: int(latestDaily.layer_count), date: isoDate(latestDaily.date)};
+  }
+  if (anchorEligible) return {count: Math.max(0, int(housing.current_count)), date: anchorDate || null};
+  return {count: 0, date: null};
 }
 
-export function layersOnFarmAt(layerBatches, layerHousings, layerDailys, asOfDate) {
+function layerEvidenceEntries(layerBatches, layerHousings, layerDailys, asOfDate) {
   const asOf = isoDate(asOfDate);
-  if (!asOf) return 0;
+  if (!asOf) return [];
   const batchesById = new Map((layerBatches || []).map((b) => [b && b.id, b]));
   const housingsByBatch = new Map();
   for (const h of layerHousings || []) {
@@ -181,17 +202,18 @@ export function layersOnFarmAt(layerBatches, layerHousings, layerDailys, asOfDat
     if (!housingsByBatch.has(h.batch_id)) housingsByBatch.set(h.batch_id, []);
     housingsByBatch.get(h.batch_id).push(h);
   }
+  const matchesHousing = createLayerDailyHousingMatcher(layerHousings);
 
-  let total = 0;
+  const entries = [];
   for (const housing of layerHousings || []) {
     if (!housing || housing.deleted_at) continue;
     const parent = batchesById.get(housing.batch_id) || null;
-    const start = isoDate(housing.start_date || (parent && (parent.brooder_entry_date || parent.arrival_date)));
+    const start = layerHousingStartDate(housing, parent, layerDailys, matchesHousing);
     if (!start || start > asOf) continue;
     const retired = isoDate(housing.retired_date);
     if (retired && retired <= asOf) continue;
     if (!retired && norm(housing.status) === 'retired') continue;
-    total += layerHousingCountAt(housing, parent, layerDailys, asOf);
+    entries.push(layerHousingEvidenceAt(housing, start, layerDailys, asOf, matchesHousing));
   }
 
   for (const batch of layerBatches || []) {
@@ -199,10 +221,35 @@ export function layersOnFarmAt(layerBatches, layerHousings, layerDailys, asOfDat
     const start = isoDate(batch.brooder_entry_date || batch.arrival_date || batch.start_date);
     if (!start || start > asOf) continue;
     if (norm(batch.status) === 'retired') continue;
-    total += Math.max(0, int(batch.original_count));
+    // Batch-level started counts carry no report date.
+    entries.push({count: Math.max(0, int(batch.original_count)), date: null});
   }
 
-  return total;
+  return entries;
+}
+
+export function layersOnFarmAt(layerBatches, layerHousings, layerDailys, asOfDate) {
+  return layerEvidenceEntries(layerBatches, layerHousings, layerDailys, asOfDate).reduce((sum, e) => sum + e.count, 0);
+}
+
+// Freshness of the layer figure at asOf. A combined layer total can mix
+// counts reported on different dates, so the honest disclosure is the OLDEST
+// dated evidence contributing to the displayed positive total (the newest
+// date would mask older evidence), plus whether any positive contributor
+// carries no evidence date at all. A zero-count housing contributes nothing
+// and cannot affect freshness. This is disclosure data; it must never be
+// used to extrapolate a "current" number (additions, transfers, or losses
+// may all be unreported).
+export function layersFreshnessAt(layerBatches, layerHousings, layerDailys, asOfDate) {
+  const positives = layerEvidenceEntries(layerBatches, layerHousings, layerDailys, asOfDate).filter((e) => e.count > 0);
+  const oldestReported = positives.reduce(
+    (oldest, e) => (e.date && (!oldest || e.date < oldest) ? e.date : oldest),
+    null,
+  );
+  return {
+    oldestReported,
+    hasUndatedCounts: positives.some((e) => !e.date),
+  };
 }
 
 function feederTargets(feederGroups) {
@@ -481,18 +528,33 @@ export function buildAnimalHistorySnapshot(data = {}, asOfDate = new Date()) {
   const snapshotDate = isoDate(asOfDate) || new Date().toISOString().slice(0, 10);
   const month = monthKey(snapshotDate);
   const end = monthEnd(month);
-  const row = {
+  // No combined total: species counts stay separate on every surface.
+  // Counts are "latest recorded" evidence at the snapshot date, not verified
+  // live inventory; layersOldestReported / layersHasUndatedCounts carry the
+  // layer freshness disclosure (oldest contributing evidence date + whether
+  // any positive contributor is undated).
+  const layersFreshness = layersFreshnessAt(data.layerBatches, data.layerHousings, data.layerDailys, snapshotDate);
+  return {
     month,
     snapshotDate,
     isPartialMonth: !!end && snapshotDate < end,
     broilers: broilersOnFarmAt(data.batches, data.broilerDailys, snapshotDate),
     layers: layersOnFarmAt(data.layerBatches, data.layerHousings, data.layerDailys, snapshotDate),
+    layersOldestReported: layersFreshness.oldestReported,
+    layersHasUndatedCounts: layersFreshness.hasUndatedCounts,
     pigs: pigsOnFarmAt(data.feederGroups, data.breeders, data.pigDailys, snapshotDate),
     cattle: cattleOnFarmAt(data.cattle, data.cattleTransfers, snapshotDate),
     sheep: sheepOnFarmAt(data.sheep, data.sheepTransfers, snapshotDate),
   };
-  row.total = ANIMAL_HISTORY_SPECIES.reduce((sum, s) => sum + row[s.key], 0);
-  return row;
+}
+
+// Per-species chart y-axis maximum. Each species chart computes its own scale
+// from its own values only, so one large flock cannot flatten another
+// species' trend line.
+export function animalHistoryScaleMax(values) {
+  const rawMax = Math.max(1, ...(values || []).map((v) => num(v)).filter((v) => Number.isFinite(v)));
+  const stepBase = rawMax > 1000 ? 500 : rawMax > 250 ? 100 : rawMax > 100 ? 50 : rawMax > 50 ? 25 : 10;
+  return Math.max(stepBase, Math.ceil(rawMax / stepBase) * stepBase);
 }
 
 function formatUtcDate(value, options) {

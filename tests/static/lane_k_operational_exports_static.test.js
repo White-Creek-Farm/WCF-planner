@@ -138,7 +138,7 @@ describe('Lane K operational export surface wiring', () => {
 
   it('layer exports are derived from batch stats and active housing display counts', () => {
     const src = read('src/layer/LayerBatchesView.jsx');
-    expect(src).toMatch(/computeHousingDisplayCount\(housing, rawLayerDailys\)/);
+    expect(src).toMatch(/computeHousingDisplayCount\(housing, rawLayerDailys, layerHousings\)/);
     expect(src).toMatch(/computeLayerFeedCost\(stats\.starterFeed, stats\.growerFeed, stats\.layerFeed, batch\)/);
     expect(src).toContain('active_housing_names');
   });

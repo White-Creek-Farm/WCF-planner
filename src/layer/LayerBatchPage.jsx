@@ -463,7 +463,10 @@ export default function LayerBatchPage({
   let perfTiles = null;
   if (!isRetHome) {
     const orig = parseInt(batch.original_count) || 0;
-    const currentHens = batchHousings.reduce((sum, h) => sum + computeHousingDisplayCount(h, rawLayerDailys), 0);
+    const currentHens = batchHousings.reduce(
+      (sum, h) => sum + computeHousingDisplayCount(h, rawLayerDailys, layerHousings),
+      0,
+    );
     const todayISOstr = new Date().toISOString().split('T')[0];
     let endDate = todayISOstr;
     if (batch.status === 'retired') {
@@ -884,8 +887,8 @@ export default function LayerBatchPage({
             {batchHousings.map((h) => {
               const hs = allHousingStats[h.id] || {};
               const cap = getHousingCap(h.housing_name);
-              const displayCount = computeHousingDisplayCount(h, rawLayerDailys);
-              const proj = computeProjectedCount(h, rawLayerDailys);
+              const displayCount = computeHousingDisplayCount(h, rawLayerDailys, layerHousings);
+              const proj = computeProjectedCount(h, rawLayerDailys, layerHousings);
               // Headline farm count = mortality-adjusted projected hens. computeProjectedCount
               // already falls back to the latest positive daily count when current_count is a
               // stale/empty 0, so an active housing (e.g. Eggmobile 3) never surfaces a bare

@@ -43,6 +43,26 @@ describe('Layer housing count — display helper consistency', () => {
     expect(housingSrc).toContain('export function computeHousingDisplayCount');
   });
 
+  it('layerHousing.js owns the canonical housing<->daily matcher and the helpers use it', () => {
+    expect(housingSrc).toContain('export function createLayerDailyHousingMatcher');
+    expect(housingSrc).toContain('export function layerDailyMatchesHousing');
+    // Both count helpers route matching through the shared rule; the legacy
+    // "name OR shared batch_id" inline predicate must not return.
+    expect(housingSrc).toMatch(/computeHousingDisplayCount[\s\S]{0,400}createLayerDailyHousingMatcher/);
+    expect(housingSrc).toMatch(/computeProjectedCount[\s\S]{0,600}createLayerDailyHousingMatcher/);
+    expect(housingSrc).not.toContain('=== hName) ||');
+  });
+
+  it('layer count surfaces pass the housing roster so sibling dailys cannot cross over', () => {
+    expect(homeSrc).toContain('computeHousingDisplayCount(h, allLayerDailys, layerHousings)');
+    expect(homeSrc).toContain('computeHousingDisplayCount(housing, allLayerDailys, layerHousings)');
+    expect(batchesSrc).toContain('computeHousingDisplayCount(housing, rawLayerDailys, layerHousings)');
+    expect(batchPageSrc).toContain('computeHousingDisplayCount(h, rawLayerDailys, layerHousings)');
+    expect(batchPageSrc).toContain('computeProjectedCount(h, rawLayerDailys, layerHousings)');
+    expect(housingPageSrc).toContain('computeHousingDisplayCount(housing, rawLayerDailys, layerHousings)');
+    expect(housingPageSrc).toContain('computeProjectedCount(housing, rawLayerDailys, layerHousings)');
+  });
+
   it('HomeDashboard delegates Animals on Farm layer totals to the shared animal snapshot', () => {
     expect(dashSrc).toContain('buildAnimalHistorySnapshot');
     expect(dashSrc).toContain('animalSnapshot.layers');
@@ -59,8 +79,8 @@ describe('Layer housing count — display helper consistency', () => {
 
   it('LayerBatchesView hub chip uses computeHousingDisplayCount', () => {
     // Cards -> unified grid: the per-housing reduce var was renamed h -> housing
-    // in decorateBatch; still computeHousingDisplayCount(<housing>, rawLayerDailys).
-    expect(batchesSrc).toContain('computeHousingDisplayCount(housing, rawLayerDailys)');
+    // in decorateBatch; still computeHousingDisplayCount(<housing>, rawLayerDailys, <roster>).
+    expect(batchesSrc).toContain('computeHousingDisplayCount(housing, rawLayerDailys, layerHousings)');
     expect(batchesSrc).not.toMatch(/h\.current_count\s*\?\s*['"].*hens/);
   });
 

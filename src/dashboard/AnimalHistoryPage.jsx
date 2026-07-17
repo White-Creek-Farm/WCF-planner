@@ -1,7 +1,12 @@
 import React from 'react';
 import './homeRedesign.css';
 import {sb} from '../lib/supabase.js';
-import {ANIMAL_HISTORY_SPECIES, buildAnimalHistoryRows, formatAnimalHistoryMonth} from '../lib/animalHistory.js';
+import {
+  ANIMAL_HISTORY_SPECIES,
+  animalHistoryScaleMax,
+  buildAnimalHistoryRows,
+  formatAnimalHistoryMonth,
+} from '../lib/animalHistory.js';
 import {fmt, todayISO} from '../lib/dateUtils.js';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
@@ -10,8 +15,6 @@ import {useLayer} from '../contexts/LayerContext.jsx';
 import {usePig} from '../contexts/PigContext.jsx';
 import {useUI} from '../contexts/UIContext.jsx';
 import InlineNotice from '../shared/InlineNotice.jsx';
-
-const CHART_SERIES = Object.freeze([...ANIMAL_HISTORY_SPECIES, {key: 'total', label: 'Total', cssVar: '--brand'}]);
 
 async function fetchAllRows(table, {orderBy = null, filterDeleted = false} = {}) {
   const PAGE = 1000;
@@ -39,7 +42,109 @@ function linePath(points) {
   return points.map((p) => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
 }
 
-function AnimalHistoryLineChart({rows}) {
+// One compact trend chart for one species. Each chart owns its y-scale
+// (animalHistoryScaleMax over that species' values only) so broiler flock
+// size cannot flatten the cattle, sheep, pig, or layer trend. All charts
+// share the same chronological month range on the x-axis.
+function SpeciesTrendChart({species, chronological, freshness}) {
+  const width = 320;
+  const height = 150;
+  const pad = {top: 10, right: 12, bottom: 26, left: 44};
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const maxValue = animalHistoryScaleMax(chronological.map((row) => row[species.key] || 0));
+  const xFor = (idx) =>
+    chronological.length === 1 ? pad.left + plotW / 2 : pad.left + (idx / (chronological.length - 1)) * plotW;
+  const yFor = (value) => pad.top + plotH - ((value || 0) / maxValue) * plotH;
+  const xStep = Math.max(1, Math.ceil(chronological.length / 3));
+  const gridValues = [0, 0.5, 1].map((p) => Math.round(maxValue * p));
+  const points = chronological.map((row, idx) => ({x: xFor(idx), y: yFor(row[species.key] || 0)}));
+  const latest = chronological[chronological.length - 1];
+
+  return (
+    <div className="animal-history-multiple" data-animal-history-series={species.key}>
+      <div className="animal-history-multiple-head">
+        <span className="animal-history-multiple-name">
+          <i style={{background: `var(${species.cssVar})`}} />
+          {species.label}
+        </span>
+        <span className="animal-history-multiple-figure">
+          <span className="animal-history-multiple-latest" data-animal-history-latest={species.key}>
+            {valueLabel(latest ? latest[species.key] : 0)}
+          </span>
+          {freshness && freshness.oldestReported && (
+            <span
+              className="animal-history-multiple-asof"
+              data-animal-history-oldest-reported={freshness.oldestReported}
+            >
+              oldest count reported {fmt(freshness.oldestReported)}
+            </span>
+          )}
+          {freshness && freshness.hasUndatedCounts && (
+            <span className="animal-history-multiple-asof" data-animal-history-has-undated="true">
+              some counts have no reported date
+            </span>
+          )}
+        </span>
+      </div>
+      <svg
+        className="animal-history-multiple-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`${species.label} monthly head count, on its own scale from 0 to ${valueLabel(maxValue)}`}
+      >
+        {gridValues.map((value) => {
+          const y = yFor(value);
+          return (
+            <g key={value}>
+              <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} className="animal-history-grid" />
+              <text x={pad.left - 8} y={y + 3.5} className="animal-history-axis-label" textAnchor="end">
+                {valueLabel(value)}
+              </text>
+            </g>
+          );
+        })}
+        {chronological.map((row, idx) => {
+          if (idx % xStep !== 0 && idx !== chronological.length - 1) return null;
+          const anchor = idx === 0 ? 'start' : idx === chronological.length - 1 ? 'end' : 'middle';
+          return (
+            <text
+              key={row.month}
+              x={xFor(idx)}
+              y={height - 8}
+              className="animal-history-axis-label"
+              textAnchor={anchor}
+            >
+              {formatAnimalHistoryMonth(row.month)}
+            </text>
+          );
+        })}
+        <polyline
+          points={linePath(points)}
+          fill="none"
+          stroke={`var(${species.cssVar})`}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          className="animal-history-line"
+        />
+        {points.map((point, idx) => (
+          <circle
+            key={chronological[idx].month}
+            cx={point.x}
+            cy={point.y}
+            r={2.4}
+            fill={`var(${species.cssVar})`}
+            className="animal-history-point"
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function AnimalHistorySmallMultiples({rows}) {
   const chronological = React.useMemo(() => [...(rows || [])].reverse(), [rows]);
   if (chronological.length === 0) {
     return (
@@ -49,79 +154,20 @@ function AnimalHistoryLineChart({rows}) {
     );
   }
 
-  const width = 920;
-  const height = 320;
-  const pad = {top: 18, right: 26, bottom: 52, left: 58};
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
-  const rawMax = Math.max(1, ...chronological.flatMap((row) => CHART_SERIES.map((series) => row[series.key] || 0)));
-  const stepBase = rawMax > 1000 ? 500 : rawMax > 250 ? 100 : rawMax > 100 ? 50 : rawMax > 50 ? 25 : 10;
-  const maxValue = Math.max(stepBase, Math.ceil(rawMax / stepBase) * stepBase);
-  const xFor = (idx) =>
-    chronological.length === 1 ? pad.left + plotW / 2 : pad.left + (idx / (chronological.length - 1)) * plotW;
-  const yFor = (value) => pad.top + plotH - ((value || 0) / maxValue) * plotH;
-  const xStep = Math.max(1, Math.ceil(chronological.length / 6));
-  const gridValues = [0, 0.25, 0.5, 0.75, 1].map((p) => Math.round(maxValue * p));
-
+  const latest = chronological[chronological.length - 1];
+  const layersFreshness = latest
+    ? {oldestReported: latest.layersOldestReported || null, hasUndatedCounts: !!latest.layersHasUndatedCounts}
+    : null;
   return (
-    <div className="animal-history-chart-scroll" data-animal-history-chart="line">
-      <svg
-        className="animal-history-chart"
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label="Animals on Farm monthly line chart"
-      >
-        {gridValues.map((value) => {
-          const y = yFor(value);
-          return (
-            <g key={value}>
-              <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} className="animal-history-grid" />
-              <text x={pad.left - 10} y={y + 4} className="animal-history-axis-label" textAnchor="end">
-                {valueLabel(value)}
-              </text>
-            </g>
-          );
-        })}
-        {chronological.map((row, idx) => {
-          if (idx % xStep !== 0 && idx !== chronological.length - 1) return null;
-          const x = xFor(idx);
-          return (
-            <g key={row.month}>
-              <line x1={x} y1={pad.top} x2={x} y2={height - pad.bottom} className="animal-history-grid x" />
-              <text x={x} y={height - 24} className="animal-history-axis-label" textAnchor="middle">
-                {formatAnimalHistoryMonth(row.month)}
-              </text>
-            </g>
-          );
-        })}
-        {CHART_SERIES.map((series) => {
-          const points = chronological.map((row, idx) => ({x: xFor(idx), y: yFor(row[series.key] || 0)}));
-          return (
-            <g key={series.key} data-animal-history-series={series.key}>
-              <polyline
-                points={linePath(points)}
-                fill="none"
-                stroke={`var(${series.cssVar})`}
-                strokeWidth={series.key === 'total' ? 3 : 2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-                className={series.key === 'total' ? 'animal-history-line is-total' : 'animal-history-line'}
-              />
-              {points.map((point, idx) => (
-                <circle
-                  key={chronological[idx].month}
-                  cx={point.x}
-                  cy={point.y}
-                  r={series.key === 'total' ? 3.3 : 2.7}
-                  fill={`var(${series.cssVar})`}
-                  className="animal-history-point"
-                />
-              ))}
-            </g>
-          );
-        })}
-      </svg>
+    <div className="animal-history-multiples" data-animal-history-chart="multiples">
+      {ANIMAL_HISTORY_SPECIES.map((species) => (
+        <SpeciesTrendChart
+          key={species.key}
+          species={species}
+          chronological={chronological}
+          freshness={species.key === 'layers' ? layersFreshness : null}
+        />
+      ))}
     </div>
   );
 }
@@ -233,13 +279,22 @@ export default function AnimalHistoryPage({Header}) {
           <div>
             <h1>Animals on Farm</h1>
             <p>
-              Month-end head count
+              Latest recorded month-end counts
               {latest?.isPartialMonth ? ` - current month as of ${fmt(latest.snapshotDate)}` : ''}
             </p>
-          </div>
-          <div className="animal-history-latest" data-animal-history-latest-total>
-            <span>{latest ? valueLabel(latest.total) : '-'}</span>
-            <strong>Total</strong>
+            {(latest?.layersOldestReported || latest?.layersHasUndatedCounts) && (
+              <p
+                className="animal-history-freshness"
+                data-animal-history-layers-oldest-reported={latest.layersOldestReported || ''}
+                data-animal-history-layers-has-undated={latest.layersHasUndatedCounts ? 'true' : 'false'}
+              >
+                These are the latest recorded counts, not verified current counts.
+                {latest.layersOldestReported
+                  ? ` Oldest layer count used was reported ${fmt(latest.layersOldestReported)}.`
+                  : ''}
+                {latest.layersHasUndatedCounts ? ' Some layer counts used have no reported date.' : ''}
+              </p>
+            )}
           </div>
         </section>
 
@@ -254,18 +309,13 @@ export default function AnimalHistoryPage({Header}) {
 
         <section className="card animal-history-chart-card">
           <div className="stats-head">
-            <div className="card-label">Monthly Trend</div>
+            <div className="card-label">Monthly Trend by Species</div>
             {loading && <div className="animal-history-loading">Loading</div>}
           </div>
-          <AnimalHistoryLineChart rows={rows} />
-          <div className="animal-history-legend">
-            {CHART_SERIES.map((series) => (
-              <span key={series.key}>
-                <i style={{background: `var(${series.cssVar})`}} />
-                {series.label}
-              </span>
-            ))}
-          </div>
+          <p className="animal-history-scale-note" data-animal-history-scale-note="true">
+            Each species is drawn on its own count scale - compare shapes over time, not line heights between species.
+          </p>
+          <AnimalHistorySmallMultiples rows={rows} />
         </section>
 
         <section className="card animal-history-table-card">
@@ -273,6 +323,10 @@ export default function AnimalHistoryPage({Header}) {
             <div className="card-label">Monthly Counts</div>
             <div className="animal-history-row-count">{rows.length.toLocaleString()} months</div>
           </div>
+          <p className="animal-history-scale-note" data-animal-history-method-note="true">
+            Each month shows the latest count recorded on or before that month&apos;s end (or the as-of date for the
+            current month) - counts are as last reported, not verified live inventory.
+          </p>
           <div className="animal-history-table-wrap">
             <table className="animal-history-table" data-animal-history-table="true">
               <thead>
@@ -281,7 +335,6 @@ export default function AnimalHistoryPage({Header}) {
                   {ANIMAL_HISTORY_SPECIES.map((species) => (
                     <th key={species.key}>{species.label}</th>
                   ))}
-                  <th>Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -296,12 +349,11 @@ export default function AnimalHistoryPage({Header}) {
                     {ANIMAL_HISTORY_SPECIES.map((species) => (
                       <td key={species.key}>{valueLabel(row[species.key])}</td>
                     ))}
-                    <td className="animal-history-total-cell">{valueLabel(row.total)}</td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={ANIMAL_HISTORY_SPECIES.length + 2}>No animal history is available yet.</td>
+                    <td colSpan={ANIMAL_HISTORY_SPECIES.length + 1}>No animal history is available yet.</td>
                   </tr>
                 )}
               </tbody>

@@ -810,13 +810,18 @@ export default function HomeDashboard({Header, loadUsers, canAccessProgram, VIEW
                     Sheep
                   </div>
                 </div>
-                <div className="stat stat-total">
-                  <div className="stat-n">{animalSnapshot.total.toLocaleString()}</div>
-                  <div className="stat-l">
-                    <span className="sdot sdot-total" />
-                    Total
-                  </div>
-                </div>
+              </div>
+              <div
+                className="stat-freshness"
+                data-animals-freshness-note="true"
+                data-layers-oldest-reported={animalSnapshot.layersOldestReported || ''}
+                data-layers-has-undated={animalSnapshot.layersHasUndatedCounts ? 'true' : 'false'}
+              >
+                Latest recorded counts, not verified current counts.
+                {animalSnapshot.layersOldestReported
+                  ? ` Oldest layer count used was reported ${fmt(animalSnapshot.layersOldestReported)}.`
+                  : ''}
+                {animalSnapshot.layersHasUndatedCounts ? ' Some layer counts used have no reported date.' : ''}
               </div>
             </button>
           );

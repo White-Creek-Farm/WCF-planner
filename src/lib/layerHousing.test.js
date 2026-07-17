@@ -1,5 +1,86 @@
 import {describe, it, expect} from 'vitest';
-import {computeProjectedCount, computeHousingDisplayCount} from './layerHousing.js';
+import {
+  computeProjectedCount,
+  computeHousingDisplayCount,
+  createLayerDailyHousingMatcher,
+  layerDailyMatchesHousing,
+} from './layerHousing.js';
+
+describe('layerDailyMatchesHousing (canonical shared rule)', () => {
+  const eggmobile2 = {id: 'h-e2', batch_id: 'l-26-01', housing_name: 'Eggmobile 2'};
+  const schooner = {id: 'h-ls', batch_id: 'l-26-01', housing_name: 'Layer Schooner'};
+  const soloHousing = {id: 'h-solo', batch_id: 'lb-9', housing_name: 'Eggmobile 1'};
+  const roster = [eggmobile2, schooner, soloHousing];
+
+  it('exact normalized label match wins', () => {
+    const daily = {batch_label: '  layer schooner ', batch_id: 'l-26-01'};
+    expect(layerDailyMatchesHousing(daily, schooner, roster)).toBe(true);
+  });
+
+  it('a sibling housing`s label never matches through the shared batch_id', () => {
+    const daily = {batch_label: 'Layer Schooner', batch_id: 'l-26-01'};
+    expect(layerDailyMatchesHousing(daily, eggmobile2, roster)).toBe(false);
+  });
+
+  it('one daily row matches at most one housing across the roster', () => {
+    const matcher = createLayerDailyHousingMatcher(roster);
+    const daily = {batch_label: 'Layer Schooner', batch_id: 'l-26-01'};
+    const matched = roster.filter((h) => matcher(daily, h));
+    expect(matched).toEqual([schooner]);
+  });
+
+  it('unambiguous batch-id fallback works for a single-housing batch', () => {
+    const daily = {batch_label: 'L-25-01', batch_id: 'lb-9'};
+    expect(layerDailyMatchesHousing(daily, soloHousing, roster)).toBe(true);
+  });
+
+  it('ambiguous multi-housing batch fallback fails closed', () => {
+    const daily = {batch_label: 'L-26-01', batch_id: 'l-26-01'};
+    expect(layerDailyMatchesHousing(daily, eggmobile2, roster)).toBe(false);
+    expect(layerDailyMatchesHousing(daily, schooner, roster)).toBe(false);
+  });
+
+  it('without a roster the housing itself is the only known housing (legacy fallback)', () => {
+    const daily = {batch_label: 'L-25-01', batch_id: 'lb-9'};
+    expect(layerDailyMatchesHousing(daily, soloHousing)).toBe(true);
+    expect(layerDailyMatchesHousing(daily, soloHousing, [])).toBe(true);
+  });
+
+  it('no batch ids on either side means exact label only', () => {
+    expect(
+      layerDailyMatchesHousing({batch_label: 'Retirement Home'}, {id: 'h-rh', housing_name: 'Retirement Home'}),
+    ).toBe(true);
+    expect(
+      layerDailyMatchesHousing({batch_label: 'Somewhere Else'}, {id: 'h-rh', housing_name: 'Retirement Home'}),
+    ).toBe(false);
+  });
+});
+
+describe('sibling housings do not double-count dailys', () => {
+  const eggmobile2 = {id: 'h-e2', batch_id: 'l-26-01', housing_name: 'Eggmobile 2', current_count: null};
+  const schooner = {id: 'h-ls', batch_id: 'l-26-01', housing_name: 'Layer Schooner', current_count: null};
+  const roster = [eggmobile2, schooner];
+  const dailys = [
+    {batch_label: 'Eggmobile 2', batch_id: 'l-26-01', date: '2026-04-10', layer_count: 156, mortality_count: 0},
+    {batch_label: 'Layer Schooner', batch_id: 'l-26-01', date: '2026-04-10', layer_count: 293, mortality_count: 0},
+  ];
+
+  it('computeHousingDisplayCount gives each sibling its own exact-label count', () => {
+    expect(computeHousingDisplayCount(eggmobile2, dailys, roster)).toBe(156);
+    expect(computeHousingDisplayCount(schooner, dailys, roster)).toBe(293);
+  });
+
+  it('computeProjectedCount anchors each sibling on its own daily', () => {
+    expect(computeProjectedCount(eggmobile2, dailys, roster).anchor).toBe(156);
+    expect(computeProjectedCount(schooner, dailys, roster).anchor).toBe(293);
+  });
+
+  it('a sibling with no evidence of its own stays empty instead of borrowing', () => {
+    const schoonerOnly = [dailys[1]];
+    expect(computeHousingDisplayCount(eggmobile2, schoonerOnly, roster)).toBe(0);
+    expect(computeProjectedCount(eggmobile2, schoonerOnly, roster)).toBeNull();
+  });
+});
 
 describe('computeProjectedCount', () => {
   it('returns null for null housing', () => {

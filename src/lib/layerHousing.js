@@ -66,27 +66,85 @@ export async function setHousingAnchorFromReport(sb, housingOrBatchName, newCoun
   return {ok: true, id: target.id, housingName: target.housing_name, newCount: newC, newDate: reportDate};
 }
 
+// ── Canonical housing ↔ layer-daily matching ───────────────────────────────
+// One shared rule for every surface that assigns a layer_dailys row to a
+// housing (Animals on Farm history, Home snapshot, layer dashboards, feed
+// planning):
+//   1. An exact normalized batch_label ↔ housing_name match wins.
+//   2. A label that names a DIFFERENT housing never matches this one, even
+//      when both housings share a batch_id (Eggmobile 2 and Layer Schooner
+//      both live under l-26-01; a Layer Schooner row is not Eggmobile 2's).
+//   3. A row with no housing-specific label (blank, or a batch-level label
+//      such as the batch name) may fall back to batch_id ONLY when the batch
+//      has exactly one known housing. An ambiguous multi-housing batch fails
+//      closed instead of guessing.
+// Pass the full housing roster so sibling ambiguity is visible. Without a
+// roster the housing itself is the only known housing, which preserves the
+// legacy single-housing batch fallback.
+
+function normHousingName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .trim();
+}
+
+function sameHousing(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return a.id != null && b.id != null && String(a.id) === String(b.id);
+}
+
+export function createLayerDailyHousingMatcher(allHousings) {
+  const roster = (Array.isArray(allHousings) ? allHousings : []).filter(Boolean);
+  const nameOwners = new Map(); // normalized housing_name -> housings claiming it
+  const batchHousings = new Map(); // String(batch_id) -> non-deleted housings
+  for (const h of roster) {
+    const name = normHousingName(h.housing_name);
+    if (name) {
+      if (!nameOwners.has(name)) nameOwners.set(name, []);
+      nameOwners.get(name).push(h);
+    }
+    if (h.batch_id != null && !h.deleted_at) {
+      const key = String(h.batch_id);
+      if (!batchHousings.has(key)) batchHousings.set(key, []);
+      batchHousings.get(key).push(h);
+    }
+  }
+  return function matchesHousing(daily, housing) {
+    if (!daily || !housing) return false;
+    const label = normHousingName(daily.batch_label);
+    const housingName = normHousingName(housing.housing_name);
+    if (label && housingName && label === housingName) return true;
+    // Housing-specific label owned by another housing: never reassign it.
+    if (label && (nameOwners.get(label) || []).some((h) => !sameHousing(h, housing))) return false;
+    // Batch-id fallback only when this housing is the batch's only housing.
+    if (housing.batch_id == null || daily.batch_id == null) return false;
+    if (String(daily.batch_id) !== String(housing.batch_id)) return false;
+    const siblings = batchHousings.get(String(housing.batch_id)) || [];
+    return !siblings.some((h) => !sameHousing(h, housing));
+  };
+}
+
+export function layerDailyMatchesHousing(daily, housing, allHousings) {
+  const roster = Array.isArray(allHousings) && allHousings.length > 0 ? allHousings : [housing];
+  return createLayerDailyHousingMatcher(roster)(daily, housing);
+}
+
 // Resolve the display hen count for a housing — positive current_count when
 // present, otherwise the latest positive matching layer_dailys.layer_count.
 // NO mortality subtraction. Use this for dashboard totals, chips, and any
-// surface labeled "hens" or "current count".
-export function computeHousingDisplayCount(housing, layerDailys) {
+// surface labeled "hens" or "current count". Pass allHousings so a sibling
+// housing's daily rows cannot be claimed through the shared batch_id.
+export function computeHousingDisplayCount(housing, layerDailys, allHousings) {
   if (!housing) return 0;
   const parsed = housing.current_count != null ? parseInt(housing.current_count) : NaN;
   if (parsed > 0) return parsed;
 
-  const hName = String(housing.housing_name || '')
-    .toLowerCase()
-    .trim();
+  const matchesHousing = createLayerDailyHousingMatcher(
+    Array.isArray(allHousings) && allHousings.length > 0 ? allHousings : [housing],
+  );
   const matches = (layerDailys || [])
-    .filter(
-      (d) =>
-        d &&
-        d.layer_count != null &&
-        parseInt(d.layer_count) > 0 &&
-        ((d.batch_label && String(d.batch_label).toLowerCase().trim() === hName) ||
-          (housing.batch_id && d.batch_id && d.batch_id === housing.batch_id)),
-    )
+    .filter((d) => d && d.layer_count != null && parseInt(d.layer_count) > 0 && matchesHousing(d, housing))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   if (matches.length === 0) return parsed >= 0 ? parsed : 0;
   const count = parseInt(matches[0].layer_count);
@@ -96,27 +154,21 @@ export function computeHousingDisplayCount(housing, layerDailys) {
 // Compute projected count for a housing.
 // projected = anchor - sum(mortalities reported between anchorDate and today)
 // Use this only where mortality-adjusted counts are explicitly intended.
+// Pass allHousings so the daily-anchor fallback uses the shared matching rule.
 // Returns {anchor, anchorDate, projected, mortSince} or null if no anchor.
-export function computeProjectedCount(housing, layerDailys) {
+export function computeProjectedCount(housing, layerDailys, allHousings) {
   if (!housing) return null;
   const parsed = housing.current_count != null ? parseInt(housing.current_count) : NaN;
   let anchor = isNaN(parsed) ? null : parsed;
   let anchorDate = housing.current_count_date || housing.start_date || null;
 
-  const hName = String(housing.housing_name || '')
-    .toLowerCase()
-    .trim();
+  const matchesHousing = createLayerDailyHousingMatcher(
+    Array.isArray(allHousings) && allHousings.length > 0 ? allHousings : [housing],
+  );
 
   function latestDailyAnchor() {
     const matches = (layerDailys || [])
-      .filter(
-        (d) =>
-          d &&
-          d.layer_count != null &&
-          parseInt(d.layer_count) > 0 &&
-          ((d.batch_label && String(d.batch_label).toLowerCase().trim() === hName) ||
-            (housing.batch_id && d.batch_id && d.batch_id === housing.batch_id)),
-      )
+      .filter((d) => d && d.layer_count != null && parseInt(d.layer_count) > 0 && matchesHousing(d, housing))
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     if (matches.length === 0) return null;
     const count = parseInt(matches[0].layer_count);

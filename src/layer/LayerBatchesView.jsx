@@ -318,7 +318,7 @@ const LayerBatchesHub = ({
     const stats = batchStats[batch.id] || {};
     const activeHousings = (layerHousings || []).filter((h) => h.batch_id === batch.id && h.status === 'active');
     const currentHens = activeHousings.reduce(
-      (sum, housing) => sum + computeHousingDisplayCount(housing, rawLayerDailys),
+      (sum, housing) => sum + computeHousingDisplayCount(housing, rawLayerDailys, layerHousings),
       0,
     );
     return {

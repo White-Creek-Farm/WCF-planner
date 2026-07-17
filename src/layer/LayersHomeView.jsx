@@ -126,7 +126,7 @@ export default function LayersHomeView({Header, loadUsers}) {
     const cost = computeLayerFeedCost(starterFeed, growerFeed, layerFeed, costBatch);
     const hens = myHousings
       .filter((h) => h.status === 'active')
-      .reduce((s, h) => s + computeHousingDisplayCount(h, allLayerDailys), 0);
+      .reduce((s, h) => s + computeHousingDisplayCount(h, allLayerDailys, layerHousings), 0);
     // Eggs/hen/day uses span of window
     const days = Math.max(
       1,
@@ -224,7 +224,7 @@ export default function LayersHomeView({Header, loadUsers}) {
       };
     }
     const cost = costBatchH ? computeLayerFeedCost(starterFeed, growerFeed, layerFeed, costBatchH) : null;
-    const hens = computeHousingDisplayCount(housing, allLayerDailys);
+    const hens = computeHousingDisplayCount(housing, allLayerDailys, layerHousings);
     const days = Math.max(
       1,
       Math.round((new Date(toISO + 'T12:00:00') - new Date(fromISO + 'T12:00:00')) / 86400000) + 1,
@@ -278,7 +278,7 @@ export default function LayersHomeView({Header, loadUsers}) {
   // Top stats
   const activeHousings = (layerHousings || []).filter((h) => h.status === 'active');
   const totalHens = activeHousings.reduce((s, h) => {
-    return s + computeHousingDisplayCount(h, allLayerDailys);
+    return s + computeHousingDisplayCount(h, allLayerDailys, layerHousings);
   }, 0);
   const last7iso = toISO(addDays(new Date(), -7));
   const totalEggsLast7 = (allEggDailys || [])
