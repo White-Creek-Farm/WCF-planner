@@ -54,6 +54,7 @@ import {
   PROCESSING_STATUS_DISPLAY,
 } from '../lib/processingStatusDisplay.js';
 import {sortProcessingRecordsForDisplay} from '../lib/processingDisplaySort.js';
+import {computeProgramChipCounts, computeCompletedProgramTotals} from '../lib/processingDashboardMetrics.js';
 import {PROCESSING_OPEN_RECORD_EVENT} from '../lib/processingNav.js';
 import {programDotStyle, getProgramColor} from '../lib/programColors.js';
 import {openableProps} from '../shared/openable.js';
@@ -446,6 +447,15 @@ function readDeepLinkParams() {
   return null;
 }
 
+// Display labels for the per-program annual-total tiles (second stat row), in
+// the locked Processing schedule program order. Lamb == sheep.
+const PROGRAM_TOTAL_LABELS = {
+  broiler: 'Broilers processed',
+  cattle: 'Cattle processed',
+  sheep: 'Lambs processed',
+  pig: 'Pigs processed',
+};
+
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 function StatCard({label, value, sub, color}) {
   return (
@@ -483,6 +493,67 @@ function StatCard({label, value, sub, color}) {
         {value}
       </div>
       {sub && <div style={{fontSize: 12, color: T.faint, fontWeight: 600, marginTop: 6}}>{sub}</div>}
+    </div>
+  );
+}
+
+// Compact per-program annual-total tile (second stat row). Deliberately a
+// LOCAL variant, not a shared design-system component. The program accent is
+// restrained to the small dot — the tile surface stays neutral. A completed
+// batch with no recorded count is disclosed instead of implying completeness;
+// the known subtotal stays truthful.
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function ProgramTotalCard({programKey, label, total, missingCount, year}) {
+  return (
+    <div
+      data-processing-program-total={programKey}
+      style={{
+        background: T.card,
+        border: `1px solid ${T.border}`,
+        borderRadius: 12,
+        padding: '11px 14px',
+        boxShadow: '0 1px 2px rgba(20,30,40,.045)',
+      }}
+    >
+      <div style={{display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, minWidth: 0}}>
+        <span style={programDotStyle(programKey, 8)} />
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '.08em',
+            textTransform: 'uppercase',
+            color: T.label,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <div
+        data-processing-program-total-value={programKey}
+        style={{
+          fontSize: 22,
+          fontWeight: 800,
+          letterSpacing: '-.02em',
+          fontVariantNumeric: 'tabular-nums',
+          lineHeight: 1,
+          color: T.ink,
+        }}
+      >
+        {total.toLocaleString()}
+      </div>
+      <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 5}}>{`in ${year}`}</div>
+      {missingCount > 0 && (
+        <div
+          data-processing-program-total-incomplete={programKey}
+          style={{fontSize: 11, color: '#8A6A1E', fontWeight: 600, marginTop: 3}}
+        >
+          {missingCount === 1 ? '1 completed batch missing count' : `${missingCount} completed batches missing counts`}
+        </div>
+      )}
     </div>
   );
 }
@@ -722,24 +793,27 @@ export default function ProcessingCalendarView({Header, authState}) {
   const commonRows = useMemo(() => yearRows.filter(passesCommon), [yearRows, passesCommon]);
 
   // Per-program section rows in the locked display order: processing_date
-  // ascending regardless of status.
+  // ascending regardless of status. The header count speaks truthfully: only
+  // batch rows are "batches" (agreeing with the batch-only program chips under
+  // the same year/search filters); milestones are disclosed separately.
   const sections = useMemo(() => {
     return PROGRAMS.map((p) => {
       const rows = sortProcessingRecordsForDisplay(commonRows.filter((r) => (r.program || r.source_kind) === p.key));
-      return {...p, rows, table: PROGRAM_TABLES[p.key]};
+      const batchCount = rows.filter((r) => r._isBatch).length;
+      return {...p, rows, batchCount, milestoneCount: rows.length - batchCount, table: PROGRAM_TABLES[p.key]};
     });
   }, [commonRows]);
 
-  // Program chip counts (respect the common filters, ignore the program filter).
-  const programCounts = useMemo(() => {
-    const counts = {all: commonRows.length};
-    for (const p of PROGRAMS) counts[p.key] = commonRows.filter((r) => (r.program || r.source_kind) === p.key).length;
-    return counts;
-  }, [commonRows]);
+  // Program chip counts (respect the common filters, ignore the program
+  // filter). BATCH records only — milestone rows never count toward 'All' or
+  // a program chip, though they stay visible in their schedule sections.
+  const programCounts = useMemo(() => computeProgramChipCounts(commonRows), [commonRows]);
 
   // Stat cards (whole selected year, before the interactive filters narrow it).
   // BATCH rows only — milestones are planning placeholders and never count as
-  // a scheduled batch or contribute head count.
+  // a scheduled batch or contribute to a program's processed total. There is
+  // NO combined all-species head count: the four programs total independently
+  // (completedProgramTotals) because the species are not comparable.
   const stats = useMemo(() => {
     const batchRows = yearRows.filter((r) => r._isBatch);
     const scheduled = batchRows.length;
@@ -752,8 +826,7 @@ export default function ProcessingCalendarView({Header, authState}) {
       if (r._statusLabel === PROCESSING_STATUS_DISPLAY.complete) return false;
       return iso >= t0 && iso <= t14;
     }).length;
-    const head = batchRows.reduce((s, r) => s + (num(r._count) || 0), 0);
-    return {scheduled, completed, dueSoon, head};
+    return {scheduled, completed, dueSoon, completedProgramTotals: computeCompletedProgramTotals(yearRows)};
   }, [yearRows]);
 
   const visibleSections = programFilter === 'all' ? sections : sections.filter((s) => s.key === programFilter);
@@ -954,12 +1027,44 @@ export default function ProcessingCalendarView({Header, authState}) {
           )}
         </div>
 
-        {/* Stat cards */}
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22}}>
+        {/* Stat cards — row 1: the three operational batch summaries (equal
+            tiles; auto-fit wraps them cleanly on narrow screens) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 14,
+            marginBottom: 14,
+          }}
+        >
           <StatCard label="Batches scheduled" value={stats.scheduled} sub={`in ${year}`} />
           <StatCard label="Completed" value={stats.completed} sub="processed & inventoried" color="#3F7A5B" />
           <StatCard label="Due in 14 days" value={stats.dueSoon} sub="nearing kill date" color="#8A6A1E" />
-          <StatCard label="Head count" value={stats.head.toLocaleString()} sub="animals processed" />
+        </div>
+        {/* Stat cards — row 2: the selected year's completed processing total
+            per program, in schedule order. Each species totals independently;
+            a combined all-species number is intentionally absent. */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 10,
+            marginBottom: 22,
+          }}
+        >
+          {PROGRAMS.map((p) => {
+            const totals = stats.completedProgramTotals[p.key];
+            return (
+              <ProgramTotalCard
+                key={p.key}
+                programKey={p.key}
+                label={PROGRAM_TOTAL_LABELS[p.key]}
+                total={totals.total}
+                missingCount={totals.missingCount}
+                year={year}
+              />
+            );
+          })}
         </div>
 
         {/* Program filter chips */}
@@ -1120,8 +1225,10 @@ export default function ProcessingCalendarView({Header, authState}) {
                           <span style={{fontSize: 13.5, fontWeight: 800, color: T.ink, letterSpacing: '.005em'}}>
                             {sec.section}
                           </span>
-                          <span style={{fontSize: 12, color: T.label, fontWeight: 600}}>
-                            {sec.rows.length} {sec.rows.length === 1 ? 'batch' : 'batches'}
+                          <span style={{fontSize: 12, color: T.label, fontWeight: 600}} data-processing-section-count>
+                            {sec.batchCount} {sec.batchCount === 1 ? 'batch' : 'batches'}
+                            {sec.milestoneCount > 0 &&
+                              ` · ${sec.milestoneCount} ${sec.milestoneCount === 1 ? 'milestone' : 'milestones'}`}
                           </span>
                         </span>
                         <span
