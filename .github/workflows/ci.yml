@@ -4,6 +4,15 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+    inputs:
+      full_e2e:
+        description: Run the complete two-shard browser suite
+        required: true
+        type: boolean
+        default: true
 
 # Read-only — workflow does not write to repo, comment on PRs, or push artifacts
 # beyond per-run debug uploads.
@@ -20,18 +29,17 @@ permissions:
 # its CI signal matters — a zero-job 'cancelled' run is displacement, not a
 # timeout.
 #
-# All DB-touching jobs (e2e-shard-1 -> e2e-shard-2 -> pasture-e2e) live in THIS
-# one workflow on purpose: they share a single concurrency slot and serialize
-# via `needs`. Splitting them into separate workflows on the same group is NOT
-# possible — GitHub keeps only one PENDING run per concurrency group and
-# cancels the other.
+# All DB-touching jobs (focused-e2e OR e2e-shard-1 -> e2e-shard-2, then optional
+# pasture-e2e) live in THIS one workflow. Risk classification is fail-closed:
+# unknown/high-risk changes run both full shards; ordinary mapped changes run
+# only focused specs; docs/unit-only changes use the DB-free verify floor.
 concurrency:
   group: wcf-test-db
   cancel-in-progress: false
 
 jobs:
-  # DB-free git diff to gate the heavy pasture browser suite. Runs in parallel with
-  # verify (no shared-DB access), so it never lengthens the common path.
+  # DB-free changed-file classifier. It selects none/focused/full root browser
+  # coverage and independently gates the isolated Pasture suite.
   changes:
     runs-on: ubuntu-latest
     # Completes in seconds; the explicit budget keeps a hung checkout from
@@ -39,34 +47,41 @@ jobs:
     # default.
     timeout-minutes: 5
     outputs:
-      pasture: ${{ steps.filter.outputs.pasture }}
+      mode: ${{ steps.plan.outputs.mode }}
+      pasture: ${{ steps.plan.outputs.pasture }}
+      specs_json: ${{ steps.plan.outputs.specs_json }}
+      reason: ${{ steps.plan.outputs.reason }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Detect pasture-lane changes
-        id: filter
+      - name: Classify browser-test risk
+        id: plan
         env:
           EVENT: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          FORCE_FULL: ${{ inputs.full_e2e || false }}
+          TRUSTED_PR_MERGE: "${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Merge pull request #') }}"
         run: |
-          if [ "$EVENT" = "pull_request" ]; then A="$PR_BASE"; B="$PR_HEAD"; else A="$PUSH_BEFORE"; B="$PUSH_AFTER"; fi
-          CHANGED="$(git diff --name-only "$A" "$B" 2>/dev/null || true)"
-          if [ -z "$CHANGED" ]; then
-            echo "diff empty/unavailable -> default pasture=true (safe)"
-            echo "pasture=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          : > changed-files.txt
+          if [ "$EVENT" = "pull_request" ]; then
+            git diff --name-only "$PR_BASE" "$PR_HEAD" > changed-files.txt 2>/dev/null || true
+          elif [ "$EVENT" = "push" ]; then
+            git diff --name-only "$PUSH_BEFORE" "$PUSH_AFTER" > changed-files.txt 2>/dev/null || true
           fi
-          echo "Changed files:"; echo "$CHANGED"
-          if echo "$CHANGED" | grep -qE '^(src/pasture/|src/lib/pasture|tests/pasture_map_|supabase-migrations/[0-9_]*pasture|playwright\.pasture\.config\.js|\.github/workflows/ci\.yml)'; then
-            echo "pasture=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "pasture=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "Changed files:"
+          cat changed-files.txt
+          node scripts/ci_playwright_plan.cjs \
+            --event "$EVENT" \
+            --force-full "$FORCE_FULL" \
+            --trusted-pr-merge "$TRUSTED_PR_MERGE" \
+            --labels "${LABELS_JSON:-[]}" \
+            --files changed-files.txt | tee -a "$GITHUB_OUTPUT"
 
   # Fast DB-free quality gate: format, lint, unit tests, production build.
   # The whole-app Playwright e2e moved to the e2e-shard-* jobs below after the
@@ -113,6 +128,66 @@ jobs:
       - name: Build (vite production)
         run: npm run build
 
+  # Ordinary mapped changes run only the browser specs owned by their touched
+  # surface. This job and the full-shard path are mutually exclusive.
+  focused-e2e:
+    needs: [changes, verify]
+    if: ${{ needs.changes.outputs.mode == 'focused' && needs.verify.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WCF_TEST_DATABASE: '1'
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VITE_TEST_ADMIN_EMAIL: ${{ secrets.VITE_TEST_ADMIN_EMAIL }}
+      VITE_TEST_ADMIN_PASSWORD: ${{ secrets.VITE_TEST_ADMIN_PASSWORD }}
+      SPECS_JSON: ${{ needs.changes.outputs.specs_json }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Focused E2E tests
+        timeout-minutes: 22
+        run: |
+          mapfile -t SPECS < <(node -e "JSON.parse(process.env.SPECS_JSON).forEach(s => console.log(s))")
+          if [ "${#SPECS[@]}" -eq 0 ]; then
+            echo "Focused mode selected without specs; refusing unsafe empty run"
+            exit 1
+          fi
+          npm run test:e2e:ci -- "${SPECS[@]}"
+
+      - name: Upload focused Playwright report on failure or cancellation
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-focused-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
   # Whole-app Playwright e2e, first half. Playwright's --shard partitions the
   # filtered test list deterministically: shard 1/2 + shard 2/2 together are
   # EXACTLY the full `test:e2e:ci` suite — disjoint, nothing dropped, nothing
@@ -144,7 +219,8 @@ jobs:
   # after meaningful suite growth — --shard balances by test COUNT, not
   # runtime, and today's heavy cattle_* files all happen to sit in shard 1.
   e2e-shard-1:
-    needs: verify
+    needs: [changes, verify]
+    if: ${{ needs.changes.outputs.mode == 'full' && needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -213,8 +289,8 @@ jobs:
   # so a failed or truncated shard 1 cannot poison shard 2). It is skipped only
   # when shard 1 never ran (verify failed) or the whole run was cancelled.
   e2e-shard-2:
-    needs: e2e-shard-1
-    if: ${{ !cancelled() && needs.e2e-shard-1.result != 'skipped' }}
+    needs: [changes, e2e-shard-1]
+    if: ${{ !cancelled() && needs.changes.outputs.mode == 'full' && needs.e2e-shard-1.result != 'skipped' }}
     runs-on: ubuntu-latest
     # Step budget 32 (vs shard 1's 27) because ~51% of this shard's runtime is
     # projected rather than measured; job budget = step + ~8 min setup/upload
@@ -277,8 +353,8 @@ jobs:
   # verify or a shard failed/was skipped, for independent signal — they only
   # need to wait their turn on the DB.
   pasture-e2e:
-    needs: [changes, e2e-shard-2]
-    if: ${{ !cancelled() && needs.changes.outputs.pasture == 'true' }}
+    needs: [changes, verify, focused-e2e, e2e-shard-2]
+    if: ${{ always() && !cancelled() && needs.changes.outputs.pasture == 'true' && needs.verify.result == 'success' && needs.focused-e2e.result != 'cancelled' && needs.e2e-shard-2.result != 'cancelled' }}
     runs-on: ubuntu-latest
     # Job budget = 17-min step budget + ~8 min setup/upload slack so a step
     # timeout concludes as a red failure, not a cancelled job (see e2e-shard-1).
@@ -330,3 +406,50 @@ jobs:
             test-results/
           retention-days: 7
           if-no-files-found: ignore
+
+  # One stable required-check target regardless of which conditional browser
+  # jobs ran. It fails closed if the classifier-selected path did not succeed.
+  e2e-policy-gate:
+    needs: [changes, verify, focused-e2e, e2e-shard-1, e2e-shard-2, pasture-e2e]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MODE: ${{ needs.changes.outputs.mode }}
+      PASTURE: ${{ needs.changes.outputs.pasture }}
+      VERIFY_RESULT: ${{ needs.verify.result }}
+      FOCUSED_RESULT: ${{ needs.focused-e2e.result }}
+      SHARD1_RESULT: ${{ needs.e2e-shard-1.result }}
+      SHARD2_RESULT: ${{ needs.e2e-shard-2.result }}
+      PASTURE_RESULT: ${{ needs.pasture-e2e.result }}
+    steps:
+      - name: Enforce selected browser policy
+        run: |
+          echo "mode=$MODE pasture=$PASTURE verify=$VERIFY_RESULT focused=$FOCUSED_RESULT shard1=$SHARD1_RESULT shard2=$SHARD2_RESULT pasture_result=$PASTURE_RESULT"
+          test "$VERIFY_RESULT" = "success"
+          case "$MODE" in
+            none)
+              test "$FOCUSED_RESULT" = "skipped"
+              test "$SHARD1_RESULT" = "skipped"
+              test "$SHARD2_RESULT" = "skipped"
+              ;;
+            focused)
+              test "$FOCUSED_RESULT" = "success"
+              test "$SHARD1_RESULT" = "skipped"
+              test "$SHARD2_RESULT" = "skipped"
+              ;;
+            full)
+              test "$FOCUSED_RESULT" = "skipped"
+              test "$SHARD1_RESULT" = "success"
+              test "$SHARD2_RESULT" = "success"
+              ;;
+            *)
+              echo "Unknown or empty mode; failing closed"
+              exit 1
+              ;;
+          esac
+          if [ "$PASTURE" = "true" ]; then
+            test "$PASTURE_RESULT" = "success"
+          else
+            test "$PASTURE_RESULT" = "skipped"
+          fi
