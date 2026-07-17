@@ -826,7 +826,10 @@ test('rows render in ascending cadence order; due rows stay expanded + marked Du
 
   await openForm(page, honda);
   await fillBasics(page, {reading: '210'});
-  await expect(rowFor(page, 'hours:200')).toBeVisible();
+  // Wait for a state only the loaded HISTORY can produce (50h flips from
+  // due to upcoming once its completion lands) before sampling row order —
+  // asserting earlier races the async history fetch.
+  await expect(rowFor(page, 'hours:50')).toHaveAttribute('data-interval-state', 'upcoming', {timeout: 10_000});
   const hondaOrder = await page
     .locator('[data-interval-row]')
     .evaluateAll((els) => els.map((el) => [el.dataset.intervalRow, el.dataset.intervalState]));
@@ -891,7 +894,9 @@ test('rows render in ascending cadence order; due rows stay expanded + marked Du
 
   await openForm(page, deere);
   await fillBasics(page, {reading: '1900'});
-  await expect(rowFor(page, 'hours:2000')).toBeVisible();
+  // Same race guard: 600h reads upcoming ONLY once its 1,750 completion has
+  // loaded from history.
+  await expect(rowFor(page, 'hours:600')).toHaveAttribute('data-interval-state', 'upcoming', {timeout: 10_000});
   const deereOrder = await page
     .locator('[data-interval-row]')
     .evaluateAll((els) => els.map((el) => [el.dataset.intervalRow, el.dataset.intervalState]));
@@ -906,6 +911,48 @@ test('rows render in ascending cadence order; due rows stay expanded + marked Du
   // The nearest non-due milestone (2000, 100h out) renders LAST, proving
   // next-milestone distance no longer controls order.
   await expect(rowFor(page, 'hours:2000')).toContainText('Next at 2,000h · 100h remaining');
+});
+
+// --------------------------------------------------------------------------
+// Test 14 — logo hotfix: WCF Planner title links to the Planner homepage
+// --------------------------------------------------------------------------
+test('WCF Planner logo is a keyboard-activatable link to / on the form AND the done screen', async ({
+  page,
+  supabaseAdmin,
+  resetDb,
+}) => {
+  await resetDb();
+  const eq = await seedEq(supabaseAdmin, {slug: seedKey('logo-link')});
+  await openForm(page, eq);
+
+  // Exposed as a real link (role + href), icon + title inside, subtitle out.
+  const logo = page.locator('a[data-fueling-logo-link]');
+  await expect(logo).toBeVisible();
+  await expect(logo).toHaveAttribute('href', '/');
+  await expect(page.getByRole('link', {name: /WCF Planner/})).toBeVisible();
+  await expect(logo).not.toContainText('Fueling Log');
+
+  // Keyboard activation navigates to the authenticated homepage (same tab).
+  await logo.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/$/, {timeout: 15_000});
+  await expect(page.locator('[data-home-grid="programs"]')).toBeVisible({timeout: 20_000});
+
+  // The done screen renders the SAME linked logoEl. Queue a submission
+  // offline so the done screen appears without needing the RPC.
+  await openForm(page, eq);
+  await page.route('**/rest/v1/rpc/submit_equipment_fueling**', (route) => route.abort('failed'));
+  await fillBasics(page, {reading: '250'});
+  await page.getByRole('button', {name: 'Save Fueling'}).click();
+  await expect(page.locator('[data-submit-state="queued"]')).toBeVisible({timeout: 15_000});
+  const doneLogo = page.locator('a[data-fueling-logo-link]');
+  await expect(doneLogo).toBeVisible();
+  await expect(doneLogo).toHaveAttribute('href', '/');
+  // Click activation from the done screen lands home too.
+  await doneLogo.click();
+  await expect(page).toHaveURL(/\/$/, {timeout: 15_000});
+  await expect(page.locator('[data-home-grid="programs"]')).toBeVisible({timeout: 20_000});
+  await page.unroute('**/rest/v1/rpc/submit_equipment_fueling**');
 });
 
 // --------------------------------------------------------------------------

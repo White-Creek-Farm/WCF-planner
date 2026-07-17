@@ -798,9 +798,16 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   };
+  // Icon + title link HOME (/) — a real anchor so normal browser behavior,
+  // keyboard activation, and link previews all work. Deliberately NOT the
+  // Back action (Back returns to the Equipment hub). The subtitle stays
+  // plain text. No textDecoration/underline, and focus visibility is left to
+  // the browser default (never suppressed).
   const logoEl = (
     <div style={{textAlign: 'center', marginBottom: 20}}>
-      <div
+      <a
+        href="/"
+        data-fueling-logo-link="1"
         style={{
           fontSize: 18,
           fontWeight: 800,
@@ -809,11 +816,12 @@ export default function EquipmentFuelingWebform({sb, equipment, equipmentList, o
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
+          textDecoration: 'none',
         }}
       >
         <PlannerIcon iconKey="fueling" size={22} />
         <span>WCF Planner</span>
-      </div>
+      </a>
       <div style={{fontSize: 12, color: 'var(--ink-muted)', marginTop: 2}}>Fueling Log</div>
     </div>
   );

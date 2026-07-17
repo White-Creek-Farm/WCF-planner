@@ -184,6 +184,28 @@ describe('EquipmentFuelingWebform — offline RPC wiring + client validation', (
   });
 });
 
+describe('EquipmentFuelingWebform — logo links home (2026-07-17 hotfix)', () => {
+  // The shared logoEl renders on the active form AND both done screens
+  // (synced/queued), so one anchor lock covers every render site.
+  const logo = formSrc.match(/const logoEl = \([\s\S]*?\n {2}\);/);
+  const logoSrc = logo ? logo[0] : '';
+
+  it('icon + WCF Planner title are ONE semantic anchor with href="/"', () => {
+    expect(logo, 'expected the logoEl block').not.toBeNull();
+    expect(logoSrc).toMatch(/<a\s[\s\S]*?href="\/"[\s\S]*?data-fueling-logo-link="1"/);
+    expect(logoSrc).toMatch(/<a[\s\S]*?PlannerIcon[\s\S]*?WCF Planner[\s\S]*?<\/a>/);
+  });
+
+  it('subtitle stays plain text outside the anchor; appearance preserved; focus not suppressed', () => {
+    // "Fueling Log" renders AFTER the closing </a>.
+    expect(logoSrc).toMatch(/<\/a>[\s\S]*?Fueling Log/);
+    expect(logoSrc).toMatch(/textDecoration: 'none'/);
+    expect(logoSrc).not.toMatch(/outline:\s*'?none/);
+    // Same-tab navigation: no target attribute.
+    expect(logoSrc).not.toContain('target=');
+  });
+});
+
 describe('equipment.js — latestSaneReading retained as defensive fallback', () => {
   it('the helper still exists and is exported', () => {
     expect(equipmentLibSrc).toMatch(/export function latestSaneReading\(eq, fuelings\)/);
