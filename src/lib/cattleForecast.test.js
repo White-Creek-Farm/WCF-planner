@@ -27,6 +27,7 @@ import {
   batchHasAllHangingWeights,
   batchMissingHangingTags,
   projectPlannedRoster,
+  formatAgeAtDate,
   ADG_SOURCES,
   WATCHLIST_REASONS,
   FORECAST_FALLBACK_ADG_DEFAULT,
@@ -1041,5 +1042,58 @@ describe('projectPlannedRoster — canonical planned-surface roster adapter', ()
     expect(roster.count).toBe(0);
     expect(roster.rows).toEqual([]);
     expect(roster.projectedTotalLbs).toBe(0);
+  });
+
+  it('rows carry the canonical birth date (null when unrecorded) without disturbing order/weights/totals', () => {
+    const withDobs = [
+      cow({id: 'F1', tag: '1001', birth_date: '2024-08-01'}),
+      cow({id: 'F2', tag: '1002', birth_date: null}),
+    ];
+    const wis = [wi('1001', 1300, '2026-04-20T12:00:00Z'), wi('1002', 1250, '2026-04-25T12:00:00Z')];
+    const out = buildForecast({cattle: withDobs, weighIns: wis, settings, todayMs: TODAY});
+    const roster = projectPlannedRoster(out, '2026-05');
+    expect(roster.ok).toBe(true);
+    expect(roster.rows.map((r) => [r.tag, r.birthDate])).toEqual([
+      ['1001', '2024-08-01'],
+      ['1002', null],
+    ]);
+    // Membership/order/weights/totals identical to the pre-age contract.
+    const byId = new Map(out.animalRows.map((r) => [r.cow.id, r]));
+    for (const row of roster.rows) {
+      expect(row.projectedWeight).toBe(byId.get(row.cattleId).projectedWeightAtReady);
+    }
+    expect(roster.projectedTotalLbs).toBe(roster.rows.reduce((s, r) => s + r.projectedWeight, 0));
+  });
+});
+
+// ── formatAgeAtDate — shared age-at-exact-date formatter ─────────────────────
+// One helper for every projected-roster surface (cattle batch page +
+// Processing drawer) so the same cow/batch shows identical ages everywhere.
+describe('formatAgeAtDate', () => {
+  it('computes the age at the EXACT date, compact years/months', () => {
+    // 2024-04-15 → 2026-07-20 = 826 days → 2y (730) + 96 days → 3 months.
+    expect(formatAgeAtDate('2024-04-15', '2026-07-20')).toBe('2y 3m');
+  });
+
+  it('is anchored to the planned date, not today: the same DOB ages differently by date', () => {
+    expect(formatAgeAtDate('2024-08-01', '2026-05-15')).toBe('1y 9m');
+    expect(formatAgeAtDate('2024-08-01', '2026-11-15')).toBe('2y 3m');
+  });
+
+  it('keeps under-one-year explicit as 0y Nm', () => {
+    // 2025-10-20 → 2026-07-20 = 273 days → 0y 9m.
+    expect(formatAgeAtDate('2025-10-20', '2026-07-20')).toBe('0y 9m');
+  });
+
+  it('returns null (→ "Not recorded") for missing, invalid, or future birth dates', () => {
+    expect(formatAgeAtDate(null, '2026-07-20')).toBeNull();
+    expect(formatAgeAtDate(undefined, '2026-07-20')).toBeNull();
+    expect(formatAgeAtDate('not-a-date', '2026-07-20')).toBeNull();
+    expect(formatAgeAtDate('2026-08-01', '2026-07-20')).toBeNull(); // born after the planned date
+    expect(formatAgeAtDate('2024-08-01', null)).toBeNull(); // no target date → never guess
+  });
+
+  it('same-day birth is 0y 0m, not null', () => {
+    expect(formatAgeAtDate('2026-07-20', '2026-07-20')).toBe('0y 0m');
   });
 });

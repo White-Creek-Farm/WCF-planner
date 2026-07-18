@@ -565,7 +565,7 @@ export default function CattleBatchPage({sb, fmt, authState, Header}) {
                 Projected roster unavailable — the forecast inputs could not be loaded. Refresh to retry.
               </div>
             ) : (
-              <ProjectedRosterTable roster={projectedRoster.roster} />
+              <ProjectedRosterTable roster={projectedRoster.roster} processDate={batch.planned_process_date} />
             )}
           </div>
         )}

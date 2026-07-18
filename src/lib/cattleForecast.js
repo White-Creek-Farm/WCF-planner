@@ -944,6 +944,24 @@ export function buildSequentialPlannedBatches({
   };
 }
 
+// Compact age at an EXACT date — "2y 3m"; under a year stays explicit
+// ("0y 9m"). Shared by every projected-roster surface (cattle batch page +
+// Processing drawer) so the same cow/batch can never show two different
+// ages. Returns null for a missing/invalid birth date or a birth date after
+// the target date — callers render their canonical "Not recorded"; this
+// helper never guesses. Same 365/30 floor idiom as the app's existing
+// age-at-processing display for actual attached cattle.
+export function formatAgeAtDate(birthDateISO, atDateISO) {
+  const birthMs = isoDateAtUtcNoon(birthDateISO);
+  const atMs = isoDateAtUtcNoon(atDateISO);
+  if (birthMs == null || atMs == null) return null;
+  const days = Math.floor((atMs - birthMs) / 86400000);
+  if (days < 0) return null;
+  const years = Math.floor(days / 365);
+  const months = Math.floor((days % 365) / 30);
+  return years + 'y ' + months + 'm';
+}
+
 // ── projected-roster adapter ─────────────────────────────────────────────────
 //
 // One canonical projected-roster source for every Planned surface: the
@@ -970,6 +988,10 @@ export function projectPlannedRoster(forecast, monthKeyWanted) {
     rows.push({
       cattleId: r.cow.id,
       tag: r.cow.tag != null ? String(r.cow.tag) : null,
+      // Canonical DOB carried through so surfaces can render age at the
+      // batch's exact planned date (formatAgeAtDate) without re-selecting
+      // cattle. Null when unrecorded — renders "Not recorded", never a guess.
+      birthDate: r.cow.birth_date || null,
       projectedWeight: r.projectedWeightAtReady,
     });
   }

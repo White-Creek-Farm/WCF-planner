@@ -5,14 +5,23 @@
 // projectPlannedRoster adapter in src/lib/cattleForecast.js so tags, per-cow
 // weights, and totals can never disagree between surfaces.
 //
+// When `processDate` is provided (a persisted batch's EXACT
+// planned_process_date), an "Age at processing" column renders via the
+// shared formatAgeAtDate helper — the same helper the Processing Drawer
+// uses, so the two surfaces always show identical ages. The forecast-only
+// detail page has no exact date (stable monthKey only) and passes none, so
+// it keeps the two-column layout; ages are never derived from a bare month.
+//
 // The weights here are LIVE FORECAST projections, not measurements. The
 // table always carries the Projected labeling; callers must not render it
 // for batches whose actual cows_detail has been attached.
 // eslint-disable-next-line no-unused-vars -- JSX-only use (eslint flat config has no react/jsx-uses-vars rule)
 import React from 'react';
+import {formatAgeAtDate} from '../lib/cattleForecast.js';
 
-export default function ProjectedRosterTable({roster}) {
+export default function ProjectedRosterTable({roster, processDate}) {
   const rows = (roster && roster.rows) || [];
+  const showAge = !!processDate;
   if (rows.length === 0) {
     return (
       <div
@@ -29,6 +38,7 @@ export default function ProjectedRosterTable({roster}) {
         <thead>
           <tr>
             <th style={thS}>Tag</th>
+            {showAge && <th style={thS}>Age at processing</th>}
             <th style={{...thS, textAlign: 'right'}}>Projected live weight</th>
           </tr>
         </thead>
@@ -36,6 +46,14 @@ export default function ProjectedRosterTable({roster}) {
           {rows.map((r) => (
             <tr key={r.cattleId} data-projected-roster-row={r.cattleId}>
               <td style={tdS}>{r.tag ? '#' + r.tag : r.cattleId}</td>
+              {showAge && (
+                <td
+                  data-projected-roster-age={r.cattleId}
+                  style={{...tdS, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums'}}
+                >
+                  {formatAgeAtDate(r.birthDate, processDate) || 'Not recorded'}
+                </td>
+              )}
               <td style={{...tdS, textAlign: 'right', fontVariantNumeric: 'tabular-nums'}}>
                 {Math.round(r.projectedWeight).toLocaleString()} lb
               </td>
@@ -44,7 +62,7 @@ export default function ProjectedRosterTable({roster}) {
         </tbody>
         <tfoot>
           <tr>
-            <td style={{...tdS, fontWeight: 700, color: 'var(--ink)'}}>
+            <td colSpan={showAge ? 2 : 1} style={{...tdS, fontWeight: 700, color: 'var(--ink)'}}>
               {roster.count} {roster.count === 1 ? 'cow' : 'cows'} projected
             </td>
             <td

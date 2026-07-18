@@ -152,6 +152,19 @@ test('scheduled record page shows Projected roster matching the list; date move 
   await expect(card).toContainText(`${scheduled.count} ${scheduled.count === 1 ? 'cow' : 'cows'} projected`);
   await expect(card).toContainText(`${scheduled.totalText} lb projected`);
 
+  // Age at processing column: one age cell per row, compact years/months
+  // (or the canonical Not recorded), anchored to the batch's planned date.
+  await expect(card).toContainText('Age at processing');
+  const ageCells = await card
+    .locator('[data-projected-roster-age]')
+    .evaluateAll((els) => els.map((el) => (el.textContent || '').trim()));
+  expect(ageCells.length).toBe(scheduled.count);
+  for (const age of ageCells) {
+    expect(age).toMatch(/^(\d+y \d+m|Not recorded)$/);
+  }
+  // Every seed cow carries a DOB — at least one real age must render.
+  expect(ageCells.some((a) => /\d+y \d+m/.test(a))).toBe(true);
+
   // Move the planned date to the SECOND forecast month — the roster must
   // recompute through the canonical forecast math for the new month.
   if (secondMonth && secondCount != null) {
@@ -252,6 +265,11 @@ test('Processing Source details show the same projected tags/weights for a sched
     .locator('[data-projected-roster-row]')
     .evaluateAll((els) => els.map((el) => (el.textContent || '').match(/#(\S+)/)?.[1]).filter(Boolean));
   expect(pageTags.length).toBe(scheduled.count);
+  // Row-ordered age strings for cross-surface equality below.
+  const pageAges = await card
+    .locator('[data-projected-roster-age]')
+    .evaluateAll((els) => els.map((el) => (el.textContent || '').trim()));
+  expect(pageAges.length).toBe(scheduled.count);
   const pageTotalAttr = await card.locator('[data-projected-roster-total]').getAttribute('data-projected-roster-total');
 
   // Best-effort force of the planner→Processing reconcile (the /processing
@@ -307,6 +325,19 @@ test('Processing Source details show the same projected tags/weights for a sched
     await expect(projected).toContainText(tag);
   }
   await expect(projected).toContainText(`${Number(pageTotalAttr).toLocaleString()} lb projected`);
+
+  // Age at processing: the drawer row for each tag carries EXACTLY the age
+  // string the batch page showed for that cow (same shared formatter, same
+  // planned date — the two surfaces can never disagree).
+  await expect(projected).toContainText('Age at processing');
+  const drawerRows = await projected
+    .locator('[data-processing-animals-table] > div')
+    .evaluateAll((els) => els.slice(1).map((el) => (el.textContent || '').trim()));
+  for (let i = 0; i < pageTags.length; i++) {
+    const row = drawerRows.find((t) => t.startsWith(pageTags[i]));
+    expect(row, 'drawer row for tag ' + pageTags[i]).toBeTruthy();
+    expect(row).toContain(pageAges[i]);
+  }
 });
 
 // --------------------------------------------------------------------------

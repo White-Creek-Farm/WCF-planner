@@ -327,8 +327,28 @@ describe('Consolidated Planned pipeline + projected rosters — canonical adapte
     for (const src of [pageSrc, drawerSrc, forecastPageSrc, rosterTableSrc]) {
       expect(src).not.toMatch(/projectedWeightAtMonth|computeLast[23]ADG|snapToNearestMilestone|buildForecast\(\{/);
     }
-    // The shared table is presentation-only (no math imports at all).
-    expect(rosterTableSrc).not.toContain("from '../lib/cattleForecast.js'");
+    // The shared table imports ONLY the shared age formatter from the
+    // forecast module — no selection/projection math.
+    expect(rosterTableSrc).toMatch(/import \{formatAgeAtDate\} from '\.\.\/lib\/cattleForecast\.js'/);
+  });
+
+  it('Age at processing: one shared formatter, exact planned date, both surfaces identical', () => {
+    // The canonical roster row carries the cow's birth date (null = never guess).
+    const forecastLibSrc = fs.readFileSync(path.join(ROOT, 'src/lib/cattleForecast.js'), 'utf8');
+    expect(forecastLibSrc).toMatch(/birthDate: r\.cow\.birth_date \|\| null/);
+    // Shared table renders the column only when the EXACT planned date is
+    // provided, via formatAgeAtDate with the canonical Not recorded fallback.
+    expect(rosterTableSrc).toContain('Age at processing');
+    expect(rosterTableSrc).toMatch(/formatAgeAtDate\(r\.birthDate, processDate\) \|\| 'Not recorded'/);
+    // Cattle batch page anchors the column to the batch's planned date.
+    expect(pageSrc).toContain('processDate={batch.planned_process_date}');
+    // Processing drawer uses the SAME helper with the SAME date source.
+    expect(drawerSrc).toMatch(/formatAgeAtDate\(a\.birthDate, state\.processDate\)/);
+    expect(drawerSrc).toMatch(/processDate: r\.batch\.planned_process_date/);
+    expect(drawerSrc).toContain("label: 'Age at processing'");
+    // The forecast-only detail has no exact date (monthKey identity) and
+    // must NOT fabricate ages from a bare month.
+    expect(forecastPageSrc).not.toContain('processDate=');
   });
 });
 

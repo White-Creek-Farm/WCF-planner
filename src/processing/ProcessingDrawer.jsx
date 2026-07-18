@@ -84,6 +84,7 @@ import {
 import {processingStatusLabel, processingStatusVariantFromLabel} from '../lib/processingStatusDisplay.js';
 import {activeOptionLabels} from '../lib/processingFields.js';
 import {loadProjectedRosterForScheduledBatch} from '../lib/cattleForecastApi.js';
+import {formatAgeAtDate} from '../lib/cattleForecast.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import Badge from '../shared/Badge.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -275,7 +276,10 @@ function CattleProjectedSourceRoster({sb, batchId}) {
     loadProjectedRosterForScheduledBatch(sb, batchId)
       .then((r) => {
         if (cancelled) return;
-        if (r.ok) setState({phase: 'ok', roster: r.roster});
+        // processDate = the batch's EXACT planned_process_date — the shared
+        // formatAgeAtDate anchor, so drawer ages always equal the cattle
+        // batch page's for the same cow/batch.
+        if (r.ok) setState({phase: 'ok', roster: r.roster, processDate: r.batch.planned_process_date});
         else if (r.reason === 'not_scheduled' || r.reason === 'batch_not_found') setState({phase: 'not_scheduled'});
         else setState({phase: 'unavailable'});
       })
@@ -317,6 +321,13 @@ function CattleProjectedSourceRoster({sb, batchId}) {
           rows={roster.rows}
           columns={[
             {key: 'tag', label: 'Tag', render: (a) => a.tag},
+            {
+              key: 'age',
+              label: 'Age at processing',
+              // null (missing/invalid/future DOB) renders the canonical
+              // 'Not recorded' via AnimalsTable's displayOrNotRecorded.
+              render: (a) => formatAgeAtDate(a.birthDate, state.processDate),
+            },
             {
               key: 'projected',
               label: 'Projected live weight',
