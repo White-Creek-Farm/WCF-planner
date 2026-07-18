@@ -7,13 +7,14 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-17.
-Product checkpoint covered by this wrap: `41a2b13` (PR #89, risk-based
-Playwright CI), including PR #88's PROD-applied historical Layer retirement
-dates, PR #87's Animals on Farm correction, PR #86's Processing attachments and
-automatic Asana-comment activation, and PR #85's user-management hardening.
-This documentation-only handoff also records the newsletter product decisions
-and the approved fueling-checklist enhancement.
+Last updated: 2026-07-18.
+Product checkpoint covered by this wrap: `d1e0e33` on `origin/main`. Current
+main includes the Equipment fueling service-interval and navigation fixes,
+consolidated cattle planned batches with projected rosters/ages, Processing
+annual program totals and pig/carcass-yield source details, and the Home
+Animals-on-Farm copy cleanup. Migration `188` is PROD-applied. This
+documentation-only handoff also records the approved disaster-recovery audit
+and the shared-TEST reliability follow-up.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -70,14 +71,13 @@ Design/function invariants that govern cross-surface behavior live in
 ## Current State
 
 - Production deploy: Netlify auto-deploys from GitHub `main`. Product code is
-  merged and behaviorally confirmed through `41a2b13`; this documentation
-  handoff changes no runtime code.
+  merged through `d1e0e33`; this documentation handoff changes no runtime code.
 - Supabase live high-water: all repository migrations through `166`, `170`-`183`,
-  and `185`-`187` are PROD-applied; numbers `167`-`169` are intentionally unused
+  and `185`-`188` are PROD-applied; numbers `167`-`169` are intentionally unused
   and `184` is reserved/not present.
-  `rapid-processor` user-management hardening is deployed to PROD v31 (v30 is
-  the rollback target). The filename-independent `processing-asana-sync`
-  attachment build is deployed to PROD v12 and TEST v1. Other current PROD
+  `rapid-processor` is currently deployed to PROD v32. The normal
+  `processing-asana-sync` build is restored and deployed to PROD v16 after the
+  temporary audit-only v15; TEST remains v1. Other current PROD
   versions are `tasks-cron` v6, `tasks-summary` v8, and `newsletter-harvest` v6.
 - Newsletter live state: Autopilot + direction-first redesign + fact fixes +
   archive-link gating + the UX polish pass are merged. The polish pass adds
@@ -88,7 +88,7 @@ Design/function invariants that govern cross-surface behavior live in
   deployed (PROD v6 / TEST v1); `NEWSLETTER_AI_API_KEY` is a PROD-only Edge
   Function secret (TEST intentionally unset); the monthly cron is off. The
   public archive is link-gated by a rotating `?key=`. See the Monthly Newsletter
-  contract for behavior and Build Queue item 1 for the open first-issue /
+  contract for behavior and the newsletter Build Queue item for the open first-issue /
   PROD-AI-smoke work. (Deploy version, secret presence, PROD migration apply,
   and published-issue/token counts are live state — see the live-verification
   note in the Supabase Migrations section.)
@@ -115,9 +115,9 @@ Design/function invariants that govern cross-surface behavior live in
 - Production legacy import: `Processing Events - ALL.xlsx` upserted 69 rows into
   `production_legacy_events` on PROD by stable `source_key` (frozen historical
   count).
-- Processing Calendar schema is PROD-applied through `186`. `ASANA_ACCESS_TOKEN`
+- Processing Calendar schema is PROD-applied through `188`. `ASANA_ACCESS_TOKEN`
   remains set on PROD, and `asana_sync_enabled` remains true pending Build Queue
-  item 2's explicit final-cutover decision. Operational users can upload one or
+  item 4's explicit final-cutover decision. Operational users can upload one or
   many attachments by picker or drag/drop; physical/tombstone deletion is
   admin-only and fail-safe. The comments-only `processing-asana-comments-hourly`
   schedule runs at minute 7 through Vault/pg_net, is pinned to `sync_comments`,
@@ -143,16 +143,27 @@ Design/function invariants that govern cross-surface behavior live in
   zero. Imported `@mention` text may remain plain text and does not require
   retroactive profile mapping, highlighting, or notification; newly written
   Planner comments retain native working mentions. Conversation
-  fidelity imported 8 comment-media files (about 20.4 MB), and the ordinary
-  attachment backfill has imported all 68 currently enumerable files into the
-  private `processing-attachments` bucket. The final idempotence dry run found
-  68 already stored / 0 new. B-26-04 is the representative conversation proof:
+  fidelity imported 8 comment-media files (about 20.4 MB). The ordinary
+  attachment backfill indexed all 68 enumerable Asana GIDs. A guarded PROD
+  cleanup later tombstoned all 55 copies of the stray Broiler workbook and
+  removed the 54 remaining Storage objects (C-26-04 was already tombstoned),
+  leaving 13 live ordinary Asana attachments plus one native upload untouched.
+  The post-cleanup v16 dry run remains idempotent at 68 already-known GIDs / 0
+  new. B-26-04 is the representative conversation proof:
   9 subtasks (8 complete / 1 open) and Brian Naide's two JPG posts are present.
   Three deleted Asana cards linked to dismissed placeholders consistently 404
   and remain explicit source skips. Ronnie decided on 2026-07-17 that the
   roughly 16,855 historical Asana system-story rows will not be imported. They
   are intentionally out of scope and must not be backfilled without a new
   explicit decision.
+- The stray workbook root cause is closed. Ronnie removed
+  `Broiler Inventory Batch #GOF-B-23-05.xlsx` from the sole Asana task template,
+  `WCF Add New Batch` (`1205492705980299`). A complete read-only post-edit audit
+  found `mentions_workbook: false`, zero candidates, and 1/1 templates examined.
+  `processing-asana-sync` was then restored from clean main as PROD v16; its
+  attachment dry run and the next hourly comments cron were healthy. Historical
+  task copies may remain in Asana, but their preserved tombstone GIDs prevent
+  reimport into Planner.
 - Processing UI is simplified and live. The former Admin/maintenance,
   reconciliation, historical-import controls, status/processor filters, Show
   archived checkbox, stale sort label, and per-section Add milestone rows are
@@ -180,6 +191,19 @@ Design/function invariants that govern cross-surface behavior live in
   Pig renders Batch before Trip. Migration `179` hardens the remaining
   unschedule/delete lifecycle functions with batch-first locking, deterministic
   animal locks, and status revalidation under the lock.
+- Processing now shows four independent selected-year completed-animal totals
+  (Broilers, Cattle, Lambs, Pigs) instead of a meaningless cross-species head
+  count. Program chips and section batch labels exclude milestones. Cattle
+  planned batches are consolidated into one planned section and expose their
+  projected tag/weight rosters; the batch page and Processing drawer show the
+  same per-animal age at the exact planned processing date.
+- Migration `188` and its client lane add guarded cattle/sheep live and hanging
+  totals plus actual-Pig hanging weight to Processing source projection. The
+  drawer shows Total live weight, Hanging weight, and Carcass yield for cattle,
+  sheep, and Pig when valid source data exists; malformed/non-positive values
+  fail closed to `Not recorded`. Pig roster rows retain canonical Boar/Gilt sex,
+  while the redundant standalone Sex and Trip source rows are absent. Pig drawer
+  titles use `<batch> · <trip>` without a `Pig Trip` prefix.
 - Cattle forecast batch sequencing skips zero-cow months. Migration `182` is
   PROD-applied and the live schedule was reconciled: empty August no longer
   consumes a label, September is `C-26-05`, and later populated months continue
@@ -192,8 +216,10 @@ Design/function invariants that govern cross-surface behavior live in
   housing matching removes the sibling double count: current PROD evidence is
   631 hens (156 Eggmobile 2 / 293 Layer Schooner / 115 Eggmobile 3 / 67
   Retirement Home), with the oldest contributing evidence dated 2026-04-10.
-  Home and the history page call these latest recorded—not verified current—
-  counts and disclose the oldest contributing date plus any undated contributor.
+  The Home tile intentionally shows only the five program totals; its explanatory
+  freshness/help sentence was removed. The dedicated Animal History page retains
+  the full latest-recorded-not-verified explanation, oldest contributing date,
+  and any undated-contributor warning.
   Each species uses its own readable small-multiple scale. PR #87's exact lane
   browser spec passed in CI and Netlify bundle markers were confirmed live.
   Migration `187` supplies the three approved evidence-backed historical Layer
@@ -256,16 +282,20 @@ Design/function invariants that govern cross-surface behavior live in
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
 - Validation state at the shipped checkpoint: the full shared-TEST shards remain
-  capable of rotating readiness failures and database/auth outages. PR #89 now
+  capable of rotating readiness failures and database/auth outages. Two recent
+  main runs failed on different, unrelated browser specs while each touched
+  lane's focused leased specs passed. PR #89 now
   classifies changes into DB-free, focused, or full browser coverage; high-risk,
   unknown, nightly, and manual runs remain fail-closed full. Its first main-push
   proof (`29587188942`) passed verify and the stable policy gate while correctly
   skipping focused, both shards, and Pasture for the already-tested GitHub PR
   merge commit. Direct main pushes still undergo normal risk classification.
-- Git/workstation handoff: CC#1/CC#2/CC#3/CC#4, the retirement-date lane, the
-  CI-policy lane, and the docs-wrap lane are merged. Their temporary worktrees
-  and fully merged topic branches were pruned on 2026-07-17; only the clean,
-  synchronized main worktree remains. The intentional
+- Git/workstation handoff: main is synchronized at `d1e0e33`. One merged CC#2
+  worktree remains at `C:\Users\Ronni\WCF-planner-cc2` on
+  `feature/processing-pig-drawer-title` at the same commit. The older merged
+  `feature/processing-year-program-totals` branch and local executed-cleanup
+  branch `ops/stray-workbook-cleanup` (`30b0402`) also remain and may be pruned
+  after this wrap; neither is active product work. The intentional
   `archive/ui-cleanup-wip-2026-06-17` tag remains because it is the only unique
   snapshot of that abandoned WIP; diagnostic traces under
   `C:\Users\Ronni\cc-research\` remain intentionally outside the repo.
@@ -277,14 +307,12 @@ Per-PR shipped history is not maintained here. For what shipped and when, read
 Durable behavior lives in the Load-Bearing Contracts below; current migration and
 live state lives in Current State and Backend And Data State.
 
-Most recent shipped session: PR #85 (merge `25f79f1`) shipped user-management
-migration `183` and `rapid-processor` v31. PR #86 (merge `b237ffd`) shipped
-Processing drag/drop, admin-only truthful attachment deletion, migrations
-`185`/`186`, and the hourly comments-only Asana import. PR #87 (merge `95e62f0`)
-shipped truthful Animals on Farm counts/freshness and readable species charts.
-PR #88 (merge `c32dbd0`) shipped PROD-applied Layer retirement-date migration
-`187`. PR #89 (merge `41a2b13`) shipped risk-based Playwright selection and
-removed redundant PR-merge browser reruns. The cattle schedule remains
+Most recent shipped checkpoints after PR #89 are `7a0f013` (early Equipment
+service), `7134798` (cattle planned-batch consolidation), `c062513` (Processing
+program totals), `df588fd` (Pig trip sex), `23647d2` (numeric service-interval
+order), `74b04d1` (fueling logo home link), `f6e1948` (Home help-copy removal),
+`ce41c39` (projected cattle ages), `15903bb` (carcass yield + PROD migration
+`188`), and `d1e0e33` (concise Pig drawer identity). The cattle schedule remains
 reconciled with September `C-26-05`. The only unique abandoned UI WIP remains
 preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 
@@ -295,11 +323,102 @@ preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-Next-session routing: newsletter item 1 is Ronnie-led editorial/product work.
-Item 2 is a later operational cutover decision. Item 3 is an approved Equipment
-build lane and must not collide with an active TEST-backed CI run.
+Next-session routing: item 1 is the first engineering priority and begins with
+independent CC#1 database/PITR and CC#2 Storage/configuration/draft audits. The
+audit is read-only: it does not authorize paid add-ons, backup copies, PROD
+mutation, secret exposure, deployment, or migration. Item 2 is the CI/shared-TEST
+reliability follow-up. Newsletter item 3 remains Ronnie-led editorial/product
+work. Item 4 is a later operational cutover decision.
 
-1. July newsletter: first real issue and editorial redesign
+1. Full disaster recovery: database, files, configuration, and drafts
+   - Status: APPROVED FOR AUDIT AND PLAN; IMPLEMENTATION/PROD/COST GATES REMAIN.
+   - Class: `RELIABILITY`/`SECURITY`/`DATA-OPERATION`/`ENH`.
+   - Recovery targets to validate: saved database changes RPO <=5 minutes and
+     RTO <=4 hours; uploaded-file RPO <=1 hour and RTO <=4 hours; recoverable
+     long-form drafts within 10-15 seconds of the last checkpoint. These are
+     targets for the audit, not claims about current coverage.
+   - Phase 0, read-only audit:
+     - CC#1 inventories the live Supabase plan/compute tier, daily-backup and
+       PITR state/retention, PostgreSQL schemas/data/Auth/functions/triggers/
+       extensions/RLS/grants/cron, current soft-delete/version coverage, hard-
+       delete gaps, legacy `_backup_*` snapshots, logical-dump requirements,
+       isolated restore design, integrity probes, costs, and downtime.
+     - CC#2 inventories every Supabase Storage bucket and owning feature,
+       object counts/bytes and metadata/path contracts, orphan/missing-object
+       risks, physical-delete/tombstone behavior, independent versioned mirror
+       requirements, checksums/manifests, Netlify/Edge/cron/webhook/DNS/Auth/
+       SMTP/Asana configuration dependencies, secret inventory boundaries,
+       and current offline/draft behavior by important form.
+     - Reports must distinguish prevention, app-level restore/history, provider
+       backups, and independent backups. Supabase database backups/PITR do not
+       restore Storage object bytes; old in-database snapshot tables, Git, audit
+       logs, tombstones, Asana, and device queues are not substitutes for a
+       complete off-account backup.
+   - Proposed architecture to validate before build:
+     - Enable Supabase PITR with an approved retention/cost only after Ronnie's
+       explicit billing and PROD gate.
+     - Create encrypted nightly logical database backups in a separate account
+       or provider, with checksums, manifests, immutable/versioned retention,
+       35 daily copies and 12 monthly copies.
+     - Mirror every Storage object off-account by exact bucket/path while
+       preserving content type/metadata and SHA-256; use hourly incremental
+       sync, nightly full inventory comparison, destination versioning, and
+       delayed deletion so source deletion does not immediately erase recovery.
+     - Maintain a secure recovery inventory for Edge/Netlify/Supabase settings,
+       scheduled jobs, webhooks, DNS, Auth/SMTP, integrations, and secrets.
+       Secret values never enter Git, logs, manifests, or ordinary reports.
+     - Add append-only record versions and selective admin restore for critical
+       saved data; add debounced local drafts plus 10-15-second server
+       checkpoints for long forms. Do not literally persist every physical
+       keystroke, and never let a stale draft overwrite a submitted record.
+     - Build dry-run-first database and Storage restore tooling targeting an
+       isolated recovery project before any overwrite-PROD path exists.
+   - Monitoring/validation: alert on stale/failed database backups, Storage
+     mirror lag, missing buckets, object-count collapse, checksum drift, PITR
+     unavailability, and failed restore tests. Run an automated isolated restore
+     monthly, a supervised drill quarterly, and a full Auth/Storage/configuration
+     exercise annually. Verify sign-in, animal histories, Processing and all
+     attachments, equipment/fueling photos, dailies, comments/tasks, private-
+     file access, submissions, and background jobs without touching PROD.
+   - Required gates: reconcile both audits into one architecture and cost plan;
+     Ronnie selects backup destination, retention, PITR spend, encryption-key
+     custody, notification recipients, RPO/RTO, and disaster authority. Each
+     backup, deploy, secret, external-account, migration, and PROD restore action
+     remains separately gated. A backup is not considered working until an
+     isolated restore proves database rows and physical files recover together.
+   - Success criteria: WCF Planner has documented and monitored recovery for
+     database, Auth, every uploaded object, code/configuration, integrations,
+     and unsaved drafts; no single Supabase/GitHub/Netlify/admin account can
+     erase both production and recovery copies; measured restore drills meet the
+     approved RPO/RTO; and Ronnie has a concise emergency runbook.
+
+2. Shared TEST / Playwright rotating-flake closure
+   - Status: APPROVED FOR INVESTIGATION AND BUILD; TEST-INFRA ONLY unless a real
+     product defect is proved.
+   - Class: `DEFECT`/`CI`/`TEST-INFRA`/`RELIABILITY`.
+   - Problem: consecutive main runs have failed on different browser specs while
+     the same specs pass elsewhere and each changed lane's focused leased tests
+     pass. Observed families include readiness/seed races, auth/session state,
+     reconcile debounce, and shared database cleanup contention. The rotation is
+     evidence of an environment/fixture problem, not permission to dismiss a
+     failing test.
+   - Investigation: correlate failed steps, timestamps, leases, GitHub jobs,
+     Supabase logs, seed/reset ownership, operational-profile setup, and cleanup;
+     reproduce representative failures under the same shard topology; separate
+     real deterministic defects from shared-environment failures.
+   - Build constraints: preserve fail-closed high-risk/full coverage and the
+     one-file-at-a-time TEST-DB lease contract. Do not add blind retries, sleeps,
+     weakened assertions, skipped coverage, or success-on-failure handling.
+     Prefer deterministic readiness signals, idempotent scoped seeds, explicit
+     session ownership, and isolation of cross-spec residue.
+   - Validation: demonstrate repeated clean full-shard/main-equivalent runs plus
+     focused reruns of every changed fixture family; keep DB-free/risk-selection
+     policy tests green and document any proven product defect as its own lane.
+   - Success criteria: main CI is trustworthy and repeatable, failures identify a
+     stable actionable cause, and no local Playwright or GitHub job can silently
+     collide with another TEST database owner.
+
+3. July newsletter: first real issue and editorial redesign
    - Status: DECISIONS REACHED; NO ISSUE HAS EVER BEEN PUBLISHED. Target the
      July issue (covering July) for release by August 5. The existing application
      is a useful framework but still needs a warm, restrained, professional
@@ -341,7 +460,7 @@ build lane and must not collide with an active TEST-backed CI run.
      keyed reader works; no private/unapproved media or fabricated comparison is
      exposed.
 
-2. Processing final Asana cutover
+4. Processing final Asana cutover
    - Status: DECISION ONLY; recurring comments automation is live and healthy.
    - Class: `DECISION`/`CUTOVER`.
    - Remaining action: decide whether/when to set global
@@ -358,44 +477,6 @@ build lane and must not collide with an active TEST-backed CI run.
    - Success criteria: the deliberate cutover does not interrupt hourly comments
      import, historical Activity remains absent, and no UI maintenance controls
      are revived.
-
-3. Fueling checklists: optional early service intervals
-   - Status: APPROVED FOR BUILD. The fueling form currently renders only service
-     intervals returned by `computeDueIntervals`, so an operator cannot record a
-     configured interval early when doing the work during a convenient fueling.
-   - Class: `ENH`/`EQUIPMENT`/`UX`.
-   - Product behavior:
-     - After a valid hours/km reading is entered, keep due/overdue intervals
-       visually prominent, expanded, and clearly marked as due.
-     - Add a collapsed `Other service intervals` / `View all service intervals`
-       control containing every configured main service interval that is not
-       currently due. Operators can expand one, complete all or part of its
-       checklist, and submit it with the same fueling record.
-     - When nothing is due, preserve the green `No service due` confirmation and
-       still show the optional control. Every-fillup and attachment-specific
-       checklists remain unchanged; attachment intervals are already all shown.
-     - Display neutral context for a non-due interval (next scheduled milestone
-       and hours/km remaining). Do not make optional early work look overdue.
-   - Locked calculation/storage behavior: reuse `computeIntervalStatus`, the
-     existing `service_intervals_completed` payload, cumulative partial-task
-     union, and divisor propagation. Preserve the nearest-milestone rule exactly:
-     a 500-hour service at 1,200 satisfies 1,000 (next 1,500); at 1,300 it
-     satisfies 1,500 (next 2,000); an exact midpoint favors the earlier milestone.
-     Do not create a second due/next-service calculation or a migration.
-   - Likely scope: `src/webforms/EquipmentFuelingWebform.jsx`, shared helpers in
-     `src/lib/equipment.js` only if a reusable presentation projection is needed,
-     and focused unit/static/browser coverage. Refactor submit/implicit-completion
-     loops so selected non-due intervals persist exactly like selected due ones,
-     without duplicates when divisor completion covers another interval.
-   - Validation: hours and km equipment; due + non-due separation; no-due state;
-     early full and partial persistence; unchanged nearest-milestone and divisor
-     behavior; offline payload compatibility; mobile accessibility; format, lint,
-     full Vitest, build, and focused serial Equipment fueling Playwright. No
-     screenshots are required.
-   - Success criteria: every configured main service interval is reachable from
-     every applicable fueling checklist, due work remains unmistakable, optional
-     early work records truthfully and advances only under existing math, and no
-     backend/schema/permission behavior changes.
 
 ---
 
@@ -591,7 +672,7 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all repository migrations through `166`,
-`170` through `183`, and `185`-`187`; `167`-`169` are intentionally unused and
+`170` through `183`, and `185`-`188`; `167`-`169` are intentionally unused and
 `184` is reserved/not present.
 Recent load-bearing
 migrations:
@@ -847,7 +928,7 @@ migrations:
   - PROD-applied before the reconciler lane. Planner reconciliation, review
     resolution, comments, subtasks, conversation media, and ordinary attachments
     have run. Historical Activity is intentionally not being imported; only
-    final cutover remains a Build Queue item 2 decision.
+    final cutover remains a Build Queue item 4 decision.
 - `157` Processing Planner reconciler + Asana link table:
   - Adds `processing_asana_links`, imported comment provenance, subtask local
     ownership, drift/ack fields, reconciliation reports, planner enumeration,
@@ -857,7 +938,7 @@ migrations:
     link/seed allowed provenance and artifacts. Manual crosswalks are sticky.
   - PROD-applied and catalog-verified. Planner reconcile, the retired workbench,
     comments, subtasks, and conversation-media lanes have run; see Current State
-    and Build Queue item 2 for live counts and remaining decisions.
+    and Build Queue item 4 for live counts and remaining decisions.
 - `158` Pasture Map positive-area overlap impacts:
   - Reissues the pasture overlap predicate and affected move/read functions so a
     shared boundary/edge touch no longer counts as grazing overlap. Overlap
@@ -907,8 +988,9 @@ migrations:
     writes are service-role importer work only.
   - PROD-applied and verified. Migration `166` later adds a narrow native-upload
     INSERT policy without opening the Asana namespace. Eight imported
-    conversation-media objects and all 68 currently enumerable ordinary Asana
-    attachments are stored; the final dry run found 0 new attachments.
+    conversation-media objects remain stored; all 68 ordinary Asana GIDs are
+    indexed, with the later verified stray-workbook cleanup represented by
+    tombstones rather than live objects. The final dry run found 0 new files.
 - `164` Processing engine:
   - Adds typed template field storage, profile-backed checklist assignees,
     automatic planner freshness, template checklist seeding for new Planner
@@ -1029,6 +1111,13 @@ migrations:
     status/date state fails closed instead of being overwritten.
   - PROD-applied transactionally from the merged-main blob and verified: all
     three target rows remain retired with the exact approved dates.
+- `188` Processing carcass-yield source totals:
+  - Adds guarded cattle/sheep total live and hanging weight plus actual-Pig
+    hanging weight to the Processing source projection and reissues animal-detail
+    reads with fail-closed numeric guards. Malformed, blank, zero, and negative
+    stored weights cannot throw or fabricate yield.
+  - PROD-applied atomically from merged main and verified read-only; the paired
+    drawer lane renders source totals/yield without changing planner ownership.
 
 Special migration notes:
 
@@ -1037,7 +1126,8 @@ Special migration notes:
   migration `166` to detach/user-management migrations `170`/`171`, then resumes
   Processing migration work at `172`-`179`; Pasture follows at `180`-`181` and
   cattle forecast-batch reconciliation at `182`. User-management `183` and
-  Processing `185`/`186` and Layer correction `187` are live; `184` is
+  Processing `185`/`186`, Layer correction `187`, and Processing yield `188` are
+  live; `184` is
   reserved/not present.
 - `083` public webform submitter identity is shelved.
 - `085` was applied before `084` in PROD so duplicate active daily identities
@@ -1076,10 +1166,13 @@ Processing attachments Storage is current PROD infrastructure as of 2026-07-15:
 roles (`farm_team`, `management`, `admin`). Migration `166` permits authenticated
 operational INSERT only under the append-only `native/` namespace; the Asana
 namespace remains service-role only. Eight Asana conversation-media objects
-(about 20.4 MB) and all 68 ordinary Asana attachments are stored and indexed.
-The filename-safe repair repointed 55 truncated `#` paths to canonical
-`<parent-gid>/<attachment-gid>` keys; the final dry run was idempotent at 68
-already stored / 0 new. Three deleted Asana cards remain source-404 skips.
+(about 20.4 MB) remain stored. All 68 ordinary Asana GIDs are indexed, but the 55
+stray-workbook rows are tombstoned and their remaining 54 objects were physically
+removed by a pinned, verified PROD cleanup. Thirteen legitimate ordinary Asana
+files plus one native upload remain live and were unchanged by that operation.
+The normal v16 dry run is idempotent at 68 already-known / 0 new; three deleted
+cards remain source-404 skips. The Asana template source was corrected and
+post-audited, so new cards do not inherit the workbook.
 
 Append-only upload expectations:
 
@@ -1475,6 +1568,14 @@ Workflow/worktable entities:
 - Processing titles remain synchronized to the live source batch name for every
   planner program. Legacy Pig source reads must accept both current and historic
   `liveWeights` shapes instead of failing the entire record response.
+- Selected-year summary totals are program-specific completed-animal counts for
+  Broilers, Cattle, Lambs, and Pigs; there is no combined cross-species head
+  count. Milestones count in neither program chips nor batch counts. Section
+  headers may disclose milestone counts separately without calling them batches.
+- Cattle planned batches render in one planned section. Their batch page and
+  Processing drawer consume the same projected roster identity, tag, projected
+  live weight, and exact planned-processing-date age. Missing/invalid/future DOB
+  renders `Not recorded`; a month-only forecast must not invent an exact age.
 - Planner-to-Processing reconciliation is first-class. Broiler rows require a
   Planner processing date; Pig persisted planned trips immediately create/update
   Processing records by stable planned-trip identity, then promote to actual trip
@@ -1518,6 +1619,16 @@ Workflow/worktable entities:
   successful selection must not refresh/remount the schedule or drawer.
 - Program sections render Sheep before Pig. Within the Pig table, Batch precedes
   Trip.
+- Pig drawer identity is `<batch> · <trip>`; do not prepend `Pig Trip` or repeat
+  a standalone Trip source row. Pig roster rows may show the trip-owned canonical
+  Boar/Gilt value, but the standalone Sex FieldRow remains removed. Missing or
+  conflicting sex is `Not recorded`, never inferred.
+- Cattle, sheep, and Pig Source details show source-owned Total live weight,
+  Hanging weight, and Carcass yield immediately after the count/age facts when
+  valid. Yield is `hanging / live * 100`; strict positive finite plain-decimal
+  inputs only. Malformed, formatted-with-commas, blank, zero, negative, NaN, or
+  infinite values are excluded and all-missing output is `Not recorded` without
+  a percent sign. Processing remains read-only for these planner facts.
 - Processing lifecycle RPCs use one compatible batch-first lock order, then
   deterministic animal-row locks with membership/status revalidation under the
   batch lock. Do not reintroduce animal-first delete/unschedule paths.
@@ -1531,9 +1642,10 @@ Workflow/worktable entities:
 - Processing attachment files live in private `processing-attachments` Storage.
   Reads require operational authenticated roles. Native uploads are append-only
   under `native/`; Asana imports are service-role only. Eight conversation-media
-  files and all 68 ordinary Asana attachments are live and indexed. Asana object
-  paths are filename-independent, and stored GIDs are skipped before any
-  download/upload; the final dry run found 0 new attachments. Operational roles
+  files remain live; ordinary Asana GIDs include live attachments and preserved
+  deletion tombstones. Asana object paths are filename-independent, and stored
+  GIDs are skipped before any download/upload; the final dry run found 0 new
+  attachments. Operational roles
   can upload by picker or accessible multi-file drag/drop. Only admins can
   delete; deletion uses the live two-phase exact-path physical/tombstone contract
   and imported tombstones prevent resurrection on later syncs.
@@ -1846,6 +1958,9 @@ Workflow/worktable entities:
   sale` / `Age at death` from the terminal event date (processing-batch date,
   sale date, or death date); active herds show current `Age`. Cattle
   processing-batch rows show each cow's age at the batch processing date.
+- Scheduled cattle Processing batches expose the same projected roster as the
+  cattle batch page: tag, age at the exact planned processing date, and projected
+  live weight. Forecast-only month views omit age because they lack an exact date.
 - Cattle Log (`/cattle/log`) is a comment-backed program field journal on the
   singleton `cattle.log` entity. It supports keyword search, @mentions, photo
   attachments, offline create replay, issue filters, and #tag mirrors.
@@ -1868,6 +1983,9 @@ Workflow/worktable entities:
 - Planned-trip locks live only in `ppp-pig-planned-trip-locks-v1`.
 - Planned-trip forecast weights are render-only and based on DOB/farrowing age
   at trip date times Global ADG.
+- Processing Pig records use the concise `<batch> · <trip>` drawer title and do
+  not repeat Trip as a Source-details field. Canonical trip sex belongs on each
+  Pig roster row, not as a standalone Sex field.
 - Pig Batches hub rows use the locked 14-column inspection grid and open the
   batch record page.
 - Breeding pigs (`/pig/sows`) are grouped table sections. The row is the record
@@ -1959,6 +2077,18 @@ Workflow/worktable entities:
 - Logged-in equipment lives under `/fleet`.
 - Login-gated equipment checklist/fueling lives under `/equipment`.
 - Equipment fueling submissions use `submit_equipment_fueling` RPC.
+- After a valid meter reading, one directly expandable Service intervals list
+  renders every configured main interval in numeric interval order. Due rows keep
+  red prominence, a Due badge, and automatic expansion at their numeric position;
+  non-due rows stay neutral/collapsed and show next milestone plus remaining
+  hours/km. There is no nested Other/View-all control.
+- Early full/partial service uses the same task keys, completion payload,
+  nearest-milestone math, divisor propagation, and offline replay as due service.
+  Collapse never clears state; machine changes and Log Another clear equipment-
+  scoped ticks/expansion/photos so work cannot leak into another record.
+- The fueling form's icon + `WCF Planner` title is one keyboard-accessible real
+  `/` anchor on active, synced, and queued screens; `Fueling Log` remains plain
+  text and Back continues to return to the Equipment hub.
 - Light My Submissions edits/deletes its own equipment fuelings and fuel
   supplies through ownership RPCs.
 - Fuel-log edit/delete paths recompute current readings from remaining fuel logs.
