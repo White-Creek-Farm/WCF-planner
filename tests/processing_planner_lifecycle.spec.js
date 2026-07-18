@@ -178,7 +178,11 @@ test('pig planned trip → /processing record → Send-to-Trip promotion → und
   await expect(drawer).toBeVisible();
   const pigSource = drawer.locator('[data-processing-source-section="pig"]');
   await expect(pigSource).toBeVisible();
-  await expect(pigSource).toContainText('Trip 1');
+  // The trip number moved from a standalone Source-details row into the
+  // drawer TITLE ('<batch> · Trip <n>', no 'Pig Trip · ' prefix) — 2026-07-18
+  // pig drawer title simplification.
+  await expect(drawer.locator('h2')).toContainText('P-26-01 · Trip 1');
+  await expect(drawer.locator('h2')).not.toContainText('Pig Trip ·');
   await expect(pigSource).toContainText(/Count\s*5/);
   await page.keyboard.press('Escape');
   await expect(drawer).toHaveCount(0);
