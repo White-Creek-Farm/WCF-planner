@@ -39,17 +39,18 @@ describe('canonical resolution', () => {
   it('the drawer never infers sex from weights, position, titles, or free text', () => {
     // The drawer performs NO sex derivation of its own: it never touches a
     // .sex property (that read lives only inside pigTripSexLabel) and the
-    // one resolver call is the single sex source for both the FieldRow and
-    // the table column.
+    // one resolver call is the single sex source for the roster column.
     expect(drawer).not.toMatch(/\.sex\b/);
     expect(drawer.match(/pigTripSexLabel\(/g)).toHaveLength(1);
-    expect(drawer.match(/\bpigSexLabel\b/g).length).toBeGreaterThanOrEqual(3); // declare + FieldRow + column
+    expect(drawer.match(/\bpigSexLabel\b/g)).toHaveLength(2); // declare + roster column
   });
 });
 
 describe('read-only presentation', () => {
-  it('renders the trip-level Sex row as a read-only SourceValue (no editable control)', () => {
-    expect(drawer).toMatch(/<FieldRow label="Sex">\s*<SourceValue value=\{pigSexLabel\} \/>\s*<\/FieldRow>/);
+  it('the standalone trip-level Sex FieldRow is REMOVED (2026-07-18 amendment); sex is roster-only and read-only', () => {
+    // The redundant summary row between Trip and Processing date is gone —
+    // per-pig sex lives exclusively in the roster's Sex column below.
+    expect(drawer).not.toMatch(/<FieldRow label="Sex">/);
     // No editable sex control anywhere: no select/input/checkbox is bound to
     // sex, and no mutation payload carries a sex field.
     expect(drawer).not.toMatch(/<(select|input|textarea)[^>]*[Ss]ex/);

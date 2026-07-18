@@ -85,6 +85,7 @@ import {processingStatusLabel, processingStatusVariantFromLabel} from '../lib/pr
 import {activeOptionLabels} from '../lib/processingFields.js';
 import {loadProjectedRosterForScheduledBatch} from '../lib/cattleForecastApi.js';
 import {formatAgeAtDate} from '../lib/cattleForecast.js';
+import {summarizeCarcassYield} from '../lib/carcassYield.js';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
 import Badge from '../shared/Badge.jsx';
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -172,6 +173,27 @@ function SourceValue({value}) {
   const missing = text === NOT_RECORDED;
   return (
     <span style={{fontSize: 13.5, color: missing ? T.faint : T.ink, fontWeight: missing ? 600 : 700}}>{text}</span>
+  );
+}
+
+// Compact read-only carcass-yield block (cattle/sheep batches + actual pig
+// trips): Total live weight / Hanging weight / Carcass yield, computed by
+// the shared summarizeCarcassYield helper from ACTUAL source weights only.
+// Null fields render the canonical 'Not recorded' — never 0%, NaN, or
+// Infinity. Sits below the Count/Weight/Age summary rows, above the roster.
+function renderCarcassYield(summary, kind) {
+  return (
+    <div data-processing-carcass-yield={kind}>
+      <FieldRow label="Total live weight">
+        <SourceValue value={weightText(summary.totalLive)} />
+      </FieldRow>
+      <FieldRow label="Hanging weight">
+        <SourceValue value={weightText(summary.totalHang)} />
+      </FieldRow>
+      <FieldRow label="Carcass yield">
+        <SourceValue value={summary.yieldPct != null ? summary.yieldPct.toFixed(1) + '%' : null} />
+      </FieldRow>
+    </div>
   );
 }
 
@@ -1140,6 +1162,19 @@ export default function ProcessingDrawer({
             <FieldRow label="Age">
               <SourceValue value={ageRangeText(source.age, yearsMonthsText)} />
             </FieldRow>
+            {/* Carcass yield from the batch's ACTUAL detail totals (mig 188:
+                summed server-side from cows_detail/sheep_detail — the same
+                per-row values the source batch page sums, so a page-side
+                weight correction can never diverge from this block). A
+                scheduled batch has none, so every field fails closed to
+                "Not recorded" (projected weights never feed yield math). */}
+            {renderCarcassYield(
+              summarizeCarcassYield({
+                liveValues: [source.total_live_weight],
+                hangingValues: [source.total_hanging_weight],
+              }),
+              kind,
+            )}
             {animals.length > 0 ? (
               <AnimalsTable
                 rows={animals}
@@ -1170,11 +1205,9 @@ export default function ProcessingDrawer({
             <FieldRow label="Trip">
               <SourceValue value={record.trip_ordinal != null ? `Trip ${record.trip_ordinal}` : null} />
             </FieldRow>
-            {/* Canonical single-sex trip identity (Gilt/Boar) from the exact
-                linked trip's attribution — read-only, never inferred. */}
-            <FieldRow label="Sex">
-              <SourceValue value={pigSexLabel} />
-            </FieldRow>
+            {/* The standalone Sex row was removed (2026-07-18) — per-pig sex
+                stays in the roster's Sex column below via the same canonical
+                resolver. */}
             {pigSignal && (
               <FieldRow label="Phase">
                 <StatusText tone="muted" style={{fontSize: 12.5}}>
@@ -1188,6 +1221,19 @@ export default function ProcessingDrawer({
             <FieldRow label="Count">
               <SourceValue value={countText(record.live_count)} />
             </FieldRow>
+            {/* Carcass yield for the EXACT actual trip: live total from the
+                same canonical per-pig rows rendered below (linked weigh-ins /
+                legacy fallback), hanging weight from the trip's planner-owned
+                hangingWeight (mig 188). Planned trips carry neither — every
+                field fails closed to "Not recorded", never 0%. Matches the
+                pig planner's tripYield contract exactly. */}
+            {renderCarcassYield(
+              summarizeCarcassYield({
+                liveValues: isPigActual ? animals.map((a) => a.live_weight) : [],
+                hangingTotal: isPigActual ? source.hanging_weight : null,
+              }),
+              kind,
+            )}
             {/* Planned trips have no animal rows — only ACTUAL trips list the
                 linked weigh-in live weights, labelled Pig 1..N in order. Every
                 row inherits the trip's canonical sex (single-sex trips). */}
