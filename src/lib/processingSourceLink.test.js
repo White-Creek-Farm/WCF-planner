@@ -6,6 +6,7 @@ import {
   NOT_RECORDED,
   ageRangeText,
   displayOrNotRecorded,
+  displayRecordTitle,
   monthsWeeksText,
   pigPlanSignal,
   pigTripSexLabel,
@@ -157,5 +158,60 @@ describe('pigTripSexLabel', () => {
   it('is pig-only and null-safe', () => {
     expect(pigTripSexLabel({source_kind: 'cattle', sub_batch_attribution: [{sex: 'Boars'}]})).toBeNull();
     expect(pigTripSexLabel(null)).toBeNull();
+  });
+});
+
+describe('displayRecordTitle — pig drawer title simplification (display-only)', () => {
+  const pigRec = (overrides = {}) => ({
+    source_kind: 'pig',
+    record_type: 'planner_batch',
+    title: 'Pig Trip · P-26-01 · Trip 3',
+    trip_ordinal: 3,
+    source: {matched: true, batch_name: 'P-26-01'},
+    ...overrides,
+  });
+
+  it("renders 'Pig Trip · P-26-01 · Trip 3' as 'P-26-01 · Trip 3'", () => {
+    expect(displayRecordTitle(pigRec())).toBe('P-26-01 · Trip 3');
+  });
+
+  it('preserves the canonical batch name and trip number, including Trip 0 and renamed batches', () => {
+    expect(displayRecordTitle(pigRec({trip_ordinal: 0, title: 'Pig Trip · P-26-01 · Trip 0'}))).toBe(
+      'P-26-01 · Trip 0',
+    );
+    expect(displayRecordTitle(pigRec({source: {matched: true, batch_name: 'P-26-02 renamed'}}))).toBe(
+      'P-26-02 renamed · Trip 3',
+    );
+  });
+
+  it('fails closed to the stored title when pig source data is missing or invalid', () => {
+    expect(displayRecordTitle(pigRec({source: {matched: false}}))).toBe('Pig Trip · P-26-01 · Trip 3');
+    expect(displayRecordTitle(pigRec({source: null}))).toBe('Pig Trip · P-26-01 · Trip 3');
+    expect(displayRecordTitle(pigRec({source: {matched: true, batch_name: '   '}}))).toBe(
+      'Pig Trip · P-26-01 · Trip 3',
+    );
+    expect(displayRecordTitle(pigRec({trip_ordinal: null}))).toBe('Pig Trip · P-26-01 · Trip 3');
+    expect(displayRecordTitle(pigRec({trip_ordinal: 'x'}))).toBe('Pig Trip · P-26-01 · Trip 3');
+  });
+
+  it('leaves every non-pig, milestone, and historical title byte-identical', () => {
+    expect(displayRecordTitle({source_kind: 'cattle', record_type: 'planner_batch', title: 'C-26-05'})).toBe('C-26-05');
+    expect(displayRecordTitle({source_kind: 'broiler', record_type: 'planner_batch', title: 'B-26-04'})).toBe(
+      'B-26-04',
+    );
+    expect(displayRecordTitle({record_type: 'milestone', title: 'Order boxes'})).toBe('Order boxes');
+    expect(displayRecordTitle({source_kind: null, record_type: 'asana_historical', title: 'WCF-P-25-3: 8'})).toBe(
+      'WCF-P-25-3: 8',
+    );
+    // A pig-kind row that is NOT a planner record also stays untouched.
+    expect(
+      displayRecordTitle({
+        source_kind: 'pig',
+        record_type: 'asana_historical',
+        title: 'WCF-P-25-4: 6',
+        trip_ordinal: 1,
+      }),
+    ).toBe('WCF-P-25-4: 6');
+    expect(displayRecordTitle(null)).toBe('');
   });
 });

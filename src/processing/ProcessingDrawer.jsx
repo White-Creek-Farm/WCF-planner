@@ -77,6 +77,7 @@ import {
   yearsMonthsText,
   ageRangeText,
   displayOrNotRecorded,
+  displayRecordTitle,
   pigPlanSignal,
   pigTripSexLabel,
   NOT_RECORDED,
@@ -1202,12 +1203,11 @@ export default function ProcessingDrawer({
             <FieldRow label="Batch">
               <SourceValue value={source.batch_name} />
             </FieldRow>
-            <FieldRow label="Trip">
-              <SourceValue value={record.trip_ordinal != null ? `Trip ${record.trip_ordinal}` : null} />
-            </FieldRow>
-            {/* The standalone Sex row was removed (2026-07-18) — per-pig sex
-                stays in the roster's Sex column below via the same canonical
-                resolver. */}
+            {/* The standalone Trip row was removed (2026-07-18) — the trip
+                number already leads the drawer title '<batch> · Trip <n>'.
+                The standalone Sex row was removed earlier the same day —
+                per-pig sex stays in the roster's Sex column below via the
+                same canonical resolver. */}
             {pigSignal && (
               <FieldRow label="Phase">
                 <StatusText tone="muted" style={{fontSize: 12.5}}>
@@ -1466,7 +1466,11 @@ export default function ProcessingDrawer({
                 </div>
               ) : (
                 <div style={{marginBottom: 14}}>
-                  <h2 style={{fontSize: 18, fontWeight: 800, letterSpacing: '-.01em', color: T.ink}}>{record.title}</h2>
+                  {/* Pig planner titles drop the 'Pig Trip · ' prefix for
+                      display only (fail-closed to the stored title). */}
+                  <h2 style={{fontSize: 18, fontWeight: 800, letterSpacing: '-.01em', color: T.ink}}>
+                    {displayRecordTitle(record)}
+                  </h2>
                   <div style={{fontSize: 11.5, color: T.faint, fontWeight: 600, marginTop: 3}}>
                     {(record.program || record.source_kind || '').replace(/^\w/, (c) => c.toUpperCase())}
                     {record.record_type ? ` · ${record.record_type.replace(/_/g, ' ')}` : ''}

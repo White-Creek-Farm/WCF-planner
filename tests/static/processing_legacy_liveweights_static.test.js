@@ -251,10 +251,14 @@ describe('client contract anchors', () => {
     expect(pigLib).toMatch(/filter\(\(v\) => !isNaN\(v\) && v > 0\)/);
   });
 
-  it('the drawer header renders record.title, which get_processing_record now guarantees is canonical', () => {
-    // Planner-backed drawer titles therefore cannot regress to stale stored
-    // values: the server overrides title at read time and the drawer renders
-    // that field directly (no client-side stale-title derivation).
-    expect(drawer).toMatch(/<h2[^>]*>\{record\.title\}<\/h2>/);
+  it('the drawer header renders the canonical server title through displayRecordTitle', () => {
+    // Planner-backed drawer titles cannot regress to stale stored values: the
+    // server overrides title at read time and the drawer renders that field
+    // through displayRecordTitle, which returns record.title byte-identical
+    // for every kind EXCEPT pig planner records, where it drops only the
+    // display prefix ('Pig Trip · X · Trip N' -> 'X · Trip N') and fails
+    // closed to record.title when source data is unusable (2026-07-18 lane).
+    expect(drawer).toContain('{displayRecordTitle(record)}');
+    expect(drawer).not.toMatch(/<h2[^>]*>\{record\.title\}<\/h2>/);
   });
 });

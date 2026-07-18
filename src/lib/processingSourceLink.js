@@ -108,6 +108,25 @@ export function displayOrNotRecorded(value) {
   return text === '' ? NOT_RECORDED : text;
 }
 
+// ── Drawer display title (presentation-only) ─────────────────────────────────
+// Pig planner records render '<batch> · Trip <ordinal>' in the drawer — the
+// stored/canonical 'Pig Trip · ' prefix is display noise there (the drawer
+// already says Pig, and the schedule keeps its separate Batch/Trip columns).
+// Built from the LIVE source batch name plus the immutable trip_ordinal;
+// nothing is rewritten server-side and identity is untouched. Fail closed:
+// any record without a usable batch name AND ordinal — and every non-pig,
+// milestone, historical, or unmatched record — returns the stored title
+// byte-identical, never invented text.
+export function displayRecordTitle(record) {
+  if (!record) return '';
+  if (record.source_kind !== 'pig' || record.record_type !== 'planner_batch') return record.title || '';
+  const src = record.source && record.source.matched !== false ? record.source : null;
+  const name = src && src.batch_name != null ? String(src.batch_name).trim() : '';
+  const ordinal = record.trip_ordinal;
+  if (!name || ordinal == null || !Number.isFinite(Number(ordinal))) return record.title || '';
+  return `${name} · Trip ${ordinal}`;
+}
+
 // ── Pig trip sex (canonical, read-only) ──────────────────────────────────────
 // Planned pig trips are single-sex by the (subBatchId, sex) trip-chain
 // contract, and the planner reconcile stamps each pig Processing record's
