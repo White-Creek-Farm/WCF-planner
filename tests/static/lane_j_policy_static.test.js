@@ -48,7 +48,9 @@ describe('Lane J route and header guard rails', () => {
   });
 
   it('keeps the hamburger menu source order stable', () => {
-    expectMenuOrder(header, ['home', 'activity', 'dailys', 'equipment', 'admin', 'users', 'client-errors', 'sign-out']);
+    // Client Errors was relocated from the hamburger into the Admin tab row,
+    // so it is intentionally absent from this menu order.
+    expectMenuOrder(header, ['home', 'activity', 'dailys', 'equipment', 'admin', 'users', 'sign-out']);
   });
 });
 

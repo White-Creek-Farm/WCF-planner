@@ -12,6 +12,7 @@ const apiSrc = fs.readFileSync(path.join(ROOT, 'src/lib/clientErrorsApi.js'), 'u
 const viewSrc = fs.readFileSync(path.join(ROOT, 'src/admin/ClientErrorsView.jsx'), 'utf8');
 const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.jsx'), 'utf8');
 const headerSrc = fs.readFileSync(path.join(ROOT, 'src/shared/Header.jsx'), 'utf8');
+const wfaSrc = fs.readFileSync(path.join(ROOT, 'src/webforms/WebformsAdminView.jsx'), 'utf8');
 
 describe('Route /admin/client-errors', () => {
   it('maps clientErrors view to /admin/client-errors', () => {
@@ -25,9 +26,44 @@ describe('Route /admin/client-errors', () => {
       /view === 'clientErrors'[\s\S]*?requireAdmin: true[\s\S]*?React\.createElement\(ClientErrorsView/,
     );
   });
-  it('Header exposes the client-errors item only inside the admin block', () => {
-    expect(headerSrc).toContain('data-header-menu-item="client-errors"');
-    expect(headerSrc).toMatch(/isAdmin &&[\s\S]*?data-header-menu-item="client-errors"[\s\S]*?<\/>/);
+  it('Header hamburger no longer exposes a Client Errors item (moved to the Admin tab row)', () => {
+    // Client Errors was relocated from the hamburger into the Admin tab row.
+    expect(headerSrc).not.toContain('data-header-menu-item="client-errors"');
+    // The neighbouring admin menu entries stay untouched.
+    expect(headerSrc).toContain('data-header-menu-item="admin"');
+    expect(headerSrc).toContain('data-header-menu-item="users"');
+    expect(headerSrc).toContain('data-header-menu-item="newsletter"');
+  });
+});
+
+describe('Admin tab row — Client Errors tab (relocated from the hamburger)', () => {
+  it('imports only the reusable ClientErrorsPanel, never the default Header-bearing page view', () => {
+    // Reuse the extracted panel; do NOT duplicate the table logic and do NOT
+    // pull in the default ClientErrorsView (which frames the global Header),
+    // so the Admin content never mounts a second Header.
+    expect(wfaSrc).toMatch(/import\s+\{ClientErrorsPanel\}\s+from\s+['"]\.\.\/admin\/ClientErrorsView\.jsx['"]/);
+    expect(wfaSrc).not.toMatch(/import\s+ClientErrorsView\b/);
+  });
+
+  it('adds a Client Errors tab after Deleted (a future Site & Recovery tab will slot between them)', () => {
+    const deletedIdx = wfaSrc.indexOf("{id: 'deleted', label: 'Deleted'}");
+    const clientErrorsIdx = wfaSrc.indexOf("{id: 'clientErrors', label: 'Client Errors'}");
+    expect(deletedIdx).toBeGreaterThan(-1);
+    expect(clientErrorsIdx).toBeGreaterThan(deletedIdx);
+  });
+
+  it('keeps the existing admin tabs and their order intact', () => {
+    let prev = -1;
+    for (const id of ['webforms', 'equipment', 'fuellog', 'feedcosts', 'costsbymonth', 'deleted', 'clientErrors']) {
+      const idx = wfaSrc.indexOf(`{id: '${id}',`);
+      expect(idx, `tab ${id} present`).toBeGreaterThan(-1);
+      expect(idx, `tab ${id} in order`).toBeGreaterThan(prev);
+      prev = idx;
+    }
+  });
+
+  it('renders the panel only when the Client Errors tab is active', () => {
+    expect(wfaSrc).toMatch(/adminTab === 'clientErrors'[\s\S]*?<ClientErrorsPanel\s*\/>/);
   });
 });
 

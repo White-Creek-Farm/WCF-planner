@@ -25,6 +25,7 @@ import NutritionTargetsPanel from '../admin/NutritionTargetsPanel.jsx';
 import EquipmentWebformsAdmin from '../admin/EquipmentWebformsAdmin.jsx';
 import FuelLogAdmin from '../admin/FuelLogAdmin.jsx';
 import RecentlyDeletedDailyReports from '../admin/RecentlyDeletedDailyReports.jsx';
+import {ClientErrorsPanel} from '../admin/ClientErrorsView.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useFeedCosts} from '../contexts/FeedCostsContext.jsx';
 import {useWebformsConfig} from '../contexts/WebformsConfigContext.jsx';
@@ -455,6 +456,9 @@ export default function WebformsAdminView({
           {id: 'feedcosts', label: 'Feed'},
           {id: 'costsbymonth', label: 'Cost by Month'},
           {id: 'deleted', label: 'Deleted'},
+          // A future Disaster Recovery/Takeover tab is reserved to slot in
+          // immediately after Deleted; Client Errors sits after Deleted for now.
+          {id: 'clientErrors', label: 'Client Errors'},
         ].map((t) => {
           const active = adminTab === t.id && !editWfId;
           // F045: the selected admin tab pill is a program-selected pill — re-tint
@@ -501,12 +505,20 @@ export default function WebformsAdminView({
           <RecentlyDeletedDailyReports refreshDailys={refreshDailys} />
         </div>
       )}
+      {adminTab === 'clientErrors' && (
+        <div style={{padding: '1rem', maxWidth: 1000, margin: '0 auto'}}>
+          <ClientErrorsPanel />
+        </div>
+      )}
       <div
         style={{
           padding: '1rem',
           maxWidth: 720,
           margin: '0 auto',
-          display: adminTab === 'equipment' || adminTab === 'fuellog' || adminTab === 'deleted' ? 'none' : 'block',
+          display:
+            adminTab === 'equipment' || adminTab === 'fuellog' || adminTab === 'deleted' || adminTab === 'clientErrors'
+              ? 'none'
+              : 'block',
         }}
       >
         {showUsers && (
