@@ -7,14 +7,12 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-18.
-Product checkpoint covered by this wrap: `d1e0e33` on `origin/main`. Current
-main includes the Equipment fueling service-interval and navigation fixes,
-consolidated cattle planned batches with projected rosters/ages, Processing
-annual program totals and pig/carcass-yield source details, and the Home
-Animals-on-Farm copy cleanup. Migration `188` is PROD-applied. This
-documentation-only handoff also records the approved disaster-recovery audit
-and the shared-TEST reliability follow-up.
+Last updated: 2026-07-20.
+Runtime checkpoint covered by this wrap: `68872cb`, including the newsletter
+editorial-steering checkpoint, both mobile Field hotfixes, and the Client Errors
+Admin-tab relocation. The approved repository cleanup and this final handoff
+follow in the docs commit; use `git log` for that commit's hash. Migrations
+through `189` are represented in source.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -70,26 +68,40 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
-- Production deploy: Netlify auto-deploys from GitHub `main`. Product code is
-  merged through `d1e0e33`; this documentation handoff changes no runtime code.
+- Production deploy: Netlify auto-deploys from the GitHub organization repo
+  `White-Creek-Farm/WCF-planner`, branch `main` (`npm run build`, publish `dist`,
+  Functions `netlify/functions`). Runtime code is merged through `68872cb`;
+  confirm the final Netlify production deploy after this wrap's remaining
+  checkpoints reach `main`.
 - Supabase live high-water: all repository migrations through `166`, `170`-`183`,
-  and `185`-`188` are PROD-applied; numbers `167`-`169` are intentionally unused
-  and `184` is reserved/not present.
+  `185`-`189` are reported PROD-applied; numbers `167`-`169` are intentionally
+  unused and `184` is reserved/not present. Migration `189`'s PROD apply was
+  reported and behaviorally verified in the newsletter lane, but this wrap did
+  not independently query the PROD database because no PROD DB URL is exposed
+  in the current shell.
   `rapid-processor` is currently deployed to PROD v32. The normal
   `processing-asana-sync` build is restored and deployed to PROD v16 after the
-  temporary audit-only v15; TEST remains v1. Other current PROD
-  versions are `tasks-cron` v6, `tasks-summary` v8, and `newsletter-harvest` v6.
+  temporary audit-only v15. A direct 2026-07-20 Supabase CLI check found current
+  PROD versions `tasks-cron` v7, `tasks-summary` v9, and `newsletter-harvest`
+  v7. The repository's default Supabase link is TEST, not PROD; its directly
+  observed versions were `rapid-processor` v7, `processing-asana-sync` v3,
+  `tasks-cron` v6, `tasks-summary` v3, and `newsletter-harvest` v2.
 - Newsletter live state: Autopilot + direction-first redesign + fact fixes +
-  archive-link gating + the UX polish pass are merged. The polish pass adds
+  archive-link gating + the UX polish and editorial-steering passes are merged.
+  Migration `189` adds the saved writing/voice example used by AI drafts. The
+  steering pass adds the writing-example editor, honest AI/template/unknown
+  helper states, required-style-save blocking before Write/Revise, and a
+  non-destructive revision path. The earlier polish pass adds
   debounced/autosaved admin direction, prevents local direction clobbering during
   refreshes, clarifies AI-vs-template/gather/fact workflow states, relabels
   newsletter runs, and brings the public reader into the WCF branded email
-  family. Migrations `146`/`151`/`153` are PROD-applied; `newsletter-harvest` is
-  deployed (PROD v6 / TEST v1); `NEWSLETTER_AI_API_KEY` is a PROD-only Edge
+  family. Migrations `146`/`151`/`153`/`189` are reported PROD-applied;
+  `newsletter-harvest` is deployed (PROD v7 / TEST v2, directly checked on
+  2026-07-20); `NEWSLETTER_AI_API_KEY` is a PROD-only Edge
   Function secret (TEST intentionally unset); the monthly cron is off. The
   public archive is link-gated by a rotating `?key=`. See the Monthly Newsletter
   contract for behavior and the newsletter Build Queue item for the open first-issue /
-  PROD-AI-smoke work. (Deploy version, secret presence, PROD migration apply,
+  writing-example/PROD-AI-smoke work. (Deploy version, secret presence, PROD migration apply,
   and published-issue/token counts are live state — see the live-verification
   note in the Supabase Migrations section.)
 - Pasture Map live state: the pasture migrations `116`, `127`-`132`, `135`-`137`,
@@ -110,7 +122,10 @@ Design/function invariants that govern cross-surface behavior live in
   re-applied to PROD (the function body was already live/verified). `/pasture-map`
   is an installable PWA hub; the service-worker cache version is
   `2026-06-30-pasture-pwa-v1`. Light has pasture farm-team-level Map/Field access
-  (migration `139`). See the Pasture Map contract for UI/behavior rules.
+  (migration `139`). On mobile Field, the three-action toolbar labels are now
+  `Walk paddock`, `Draw temp paddock`, and `Measure`; `77c3c57` prevents the
+  generic 900px mobile layout from positioning that toolbar below the phone
+  viewport. See the Pasture Map contract for UI/behavior rules.
 - Migration `143` remains deployed as a benign unused helper; no UI calls it.
 - Production legacy import: `Processing Events - ALL.xlsx` upserted 69 rows into
   `production_legacy_events` on PROD by stable `source_key` (frozen historical
@@ -240,8 +255,8 @@ Design/function invariants that govern cross-surface behavior live in
   audited transfer RPC. The cattle nutrition dashboard now calculates `DM lb/day`
   from true dry matter (as-fed pounds less feed-line moisture); CP and NFC are
   computed from the nutrition snapshot percentages against that dry matter. The
-  standalone cattle nutrition audit HTML was updated with the dry-matter
-  correction.
+  obsolete standalone cattle nutrition audit HTML is intentionally removed from
+  the repository; application code and tests are the maintained source of truth.
 - Home materials-needed hotfix: clearing one material in an equipment service
   interval preserves service-interval grouping/order, so later interval materials
   no longer jump to the bottom and look deleted.
@@ -281,21 +296,42 @@ Design/function invariants that govern cross-surface behavior live in
 - Dependency hardening is complete: Vite/Vitest/plugin-react majors upgraded,
   SheetJS pinned to the patched 0.20.3 tarball, Node pinned to 22 for Netlify, and
   `npm audit` is 0 on the hardened lockfile.
-- Validation state at the shipped checkpoint: the full shared-TEST shards remain
-  capable of rotating readiness failures and database/auth outages. Two recent
-  main runs failed on different, unrelated browser specs while each touched
-  lane's focused leased specs passed. PR #89 now
+- Client Errors checkpoint: the existing admin-only, fail-closed Client Errors
+  panel is relocated from the header hamburger to the Admin tab row. The
+  standalone `/admin/client-errors` route remains as a backward-compatible deep
+  link and does not duplicate the global Header. Focused static proof passed
+  27/27 and the leased browser proof passed 4/4 during this wrap. The future
+  final order is `Deleted` -> `Site & Recovery` -> `Client Errors`.
+- Disaster-recovery preparation: Supabase Pro is active. Ronnie approved the
+  Supabase Pro + Backblaze B2 + Cloudflare R2 architecture and created all three
+  accounts. B2/R2 buckets, credentials, retention locks, hourly automation,
+  monitoring, restore tooling, and a restore drill are NOT configured yet. All
+  service login identifiers use `ronnie@whitecreek.farm`; credentials live in
+  the shared 1Password Business vault `WCF Planner`. The Anthropic API remains a
+  documented personal-account dependency to transfer later.
+- Validation state at the shipped checkpoint: the full shared-TEST/browser
+  suites remain capable of rotating or deterministic failures that must not be
+  hidden. Main run `29747176411` (`06f04f6`) passed verify but failed four root
+  browser specs across both shards. Main run `29778369532` (`f61fb64`) passed
+  verify but failed seven Pasture specs; its new mobile label test itself passed.
+  Final viewport-hotfix run `29780589557` passed format/lint/unit/build and the
+  touched phone-toolbar test; the full Pasture job finished 41 passed / 6 failed
+  on the same older hover, open-line-edit, map, and reset-history families. The
+  previously failing Drop Point test passed. PR #89 now
   classifies changes into DB-free, focused, or full browser coverage; high-risk,
   unknown, nightly, and manual runs remain fail-closed full. Its first main-push
   proof (`29587188942`) passed verify and the stable policy gate while correctly
   skipping focused, both shards, and Pasture for the already-tested GitHub PR
   merge commit. Direct main pushes still undergo normal risk classification.
-- Git/workstation handoff: main is synchronized at `d1e0e33`. One merged CC#2
-  worktree remains at `C:\Users\Ronni\WCF-planner-cc2` on
-  `feature/processing-pig-drawer-title` at the same commit. The older merged
-  `feature/processing-year-program-totals` branch and local executed-cleanup
-  branch `ops/stray-workbook-cleanup` (`30b0402`) also remain and may be pruned
-  after this wrap; neither is active product work. The intentional
+- Git/workstation handoff: runtime work is linear through `68872cb`; the final
+  docs commit adds this `PROJECT.md` update plus only the approved historical-file
+  removals. The completed CC#1 label/viewport and CC#3 Client Errors worktrees
+  remain at their merged commits. The CC#2 worktree remains on merged
+  `feature/processing-pig-drawer-title` with one untracked generated report that
+  must not be staged. The clean CC#4 design-audit worktree remains at `06f04f6`.
+  The older merged `feature/processing-year-program-totals` branch and local
+  executed-cleanup branch `ops/stray-workbook-cleanup` (`30b0402`) remain and may
+  be pruned later; neither is active product work. The intentional
   `archive/ui-cleanup-wip-2026-06-17` tag remains because it is the only unique
   snapshot of that abandoned WIP; diagnostic traces under
   `C:\Users\Ronni\cc-research\` remain intentionally outside the repo.
@@ -312,7 +348,10 @@ service), `7134798` (cattle planned-batch consolidation), `c062513` (Processing
 program totals), `df588fd` (Pig trip sex), `23647d2` (numeric service-interval
 order), `74b04d1` (fueling logo home link), `f6e1948` (Home help-copy removal),
 `ce41c39` (projected cattle ages), `15903bb` (carcass yield + PROD migration
-`188`), and `d1e0e33` (concise Pig drawer identity). The cattle schedule remains
+`188`), `d1e0e33` (concise Pig drawer identity), `07027c0` (Pig drawer lifecycle
+proof), `06f04f6` (newsletter editorial steering + migration `189` source),
+`f61fb64` (mobile temp-paddock label), `77c3c57` (mobile Field toolbar kept
+inside the viewport), and `68872cb` (Client Errors moved to Admin). The cattle schedule remains
 reconciled with September `C-26-05`. The only unique abandoned UI WIP remains
 preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 
@@ -323,69 +362,68 @@ preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-Next-session routing: item 1 is the first engineering priority and begins with
-independent CC#1 database/PITR and CC#2 Storage/configuration/draft audits. The
-audit is read-only: it does not authorize paid add-ons, backup copies, PROD
-mutation, secret exposure, deployment, or migration. Item 2 is the CI/shared-TEST
-reliability follow-up. Newsletter item 3 remains Ronnie-led editorial/product
-work. Item 4 is a later operational cutover decision.
+Next-session routing: item 1 resumes the approved DR implementation by
+configuring B2 and R2, then proving the first encrypted backup and isolated
+restore. The Site & Recovery Admin tab follows the verified recovery framework.
+Item 2 is the unresolved CI/shared-TEST reliability lane. Newsletter item 3
+needs Ronnie's writing example and a controlled PROD AI probe before the first
+issue. Item 4 remains a later operational cutover decision.
 
-1. Full disaster recovery: database, files, configuration, and drafts
-   - Status: APPROVED FOR AUDIT AND PLAN; IMPLEMENTATION/PROD/COST GATES REMAIN.
+1. Full disaster recovery + Site & Recovery Admin tab
+   - Status: ARCHITECTURE APPROVED; SUPABASE PRO ACTIVE; B2/R2 ACCOUNTS CREATED;
+     PROVIDER CONFIGURATION, AUTOMATION, RESTORE PROOF, AND UI BUILD REMAIN.
    - Class: `RELIABILITY`/`SECURITY`/`DATA-OPERATION`/`ENH`.
-   - Recovery targets to validate: saved database changes RPO <=5 minutes and
-     RTO <=4 hours; uploaded-file RPO <=1 hour and RTO <=4 hours; recoverable
-     long-form drafts within 10-15 seconds of the last checkpoint. These are
-     targets for the audit, not claims about current coverage.
-   - Phase 0, read-only audit:
-     - CC#1 inventories the live Supabase plan/compute tier, daily-backup and
-       PITR state/retention, PostgreSQL schemas/data/Auth/functions/triggers/
-       extensions/RLS/grants/cron, current soft-delete/version coverage, hard-
-       delete gaps, legacy `_backup_*` snapshots, logical-dump requirements,
-       isolated restore design, integrity probes, costs, and downtime.
-     - CC#2 inventories every Supabase Storage bucket and owning feature,
-       object counts/bytes and metadata/path contracts, orphan/missing-object
-       risks, physical-delete/tombstone behavior, independent versioned mirror
-       requirements, checksums/manifests, Netlify/Edge/cron/webhook/DNS/Auth/
-       SMTP/Asana configuration dependencies, secret inventory boundaries,
-       and current offline/draft behavior by important form.
-     - Reports must distinguish prevention, app-level restore/history, provider
-       backups, and independent backups. Supabase database backups/PITR do not
-       restore Storage object bytes; old in-database snapshot tables, Git, audit
-       logs, tombstones, Asana, and device queues are not substitutes for a
-       complete off-account backup.
-   - Proposed architecture to validate before build:
-     - Enable Supabase PITR with an approved retention/cost only after Ronnie's
-       explicit billing and PROD gate.
-     - Create encrypted nightly logical database backups in a separate account
-       or provider, with checksums, manifests, immutable/versioned retention,
-       35 daily copies and 12 monthly copies.
-     - Mirror every Storage object off-account by exact bucket/path while
-       preserving content type/metadata and SHA-256; use hourly incremental
-       sync, nightly full inventory comparison, destination versioning, and
-       delayed deletion so source deletion does not immediately erase recovery.
-     - Maintain a secure recovery inventory for Edge/Netlify/Supabase settings,
-       scheduled jobs, webhooks, DNS, Auth/SMTP, integrations, and secrets.
-       Secret values never enter Git, logs, manifests, or ordinary reports.
-     - Add append-only record versions and selective admin restore for critical
-       saved data; add debounced local drafts plus 10-15-second server
-       checkpoints for long forms. Do not literally persist every physical
-       keystroke, and never let a stale draft overwrite a submitted record.
-     - Build dry-run-first database and Storage restore tooling targeting an
-       isolated recovery project before any overwrite-PROD path exists.
-   - Monitoring/validation: alert on stale/failed database backups, Storage
-     mirror lag, missing buckets, object-count collapse, checksum drift, PITR
-     unavailability, and failed restore tests. Run an automated isolated restore
-     monthly, a supervised drill quarterly, and a full Auth/Storage/configuration
-     exercise annually. Verify sign-in, animal histories, Processing and all
-     attachments, equipment/fueling photos, dailies, comments/tasks, private-
-     file access, submissions, and background jobs without touching PROD.
-   - Required gates: reconcile both audits into one architecture and cost plan;
-     Ronnie selects backup destination, retention, PITR spend, encryption-key
-     custody, notification recipients, RPO/RTO, and disaster authority. Each
-     backup, deploy, secret, external-account, migration, and PROD restore action
-     remains separately gated. A backup is not considered working until an
-     isolated restore proves database rows and physical files recover together.
+   - Locked architecture:
+     - Supabase Pro is the production database/Auth/Storage platform and first
+       provider recovery layer. GitHub owns code history; Netlify hosts and
+       deploys the site. Neither code history nor Netlify is a data backup.
+     - Backblaze B2 is the primary independent backup and Cloudflare R2 is the
+       second independent backup. Both receive hourly encrypted logical database
+       dumps and exact-path Storage copies with manifests/checksums.
+     - Retain 48 hourly, 35 daily, and 12 monthly database generations. Deleted
+       or replaced uploaded files must remain recoverable for at least 35 days.
+       Database packages are encrypted client-side before upload; Storage copies
+       stay private and provider-encrypted.
+     - B2 uses a private bucket, SSE-B2, Object Lock with a two-day default, and
+       longer per-object retention for daily/monthly/storage generations. R2
+       uses timestamped unique keys and bucket locks; do not design around S3
+       versioning because R2 does not provide it.
+     - The database encryption key lives in 1Password plus one offline emergency
+       copy. No password, token, MFA seed, recovery code, or encryption key may
+       enter Git, the app UI, logs, backup manifests, or an AI prompt.
+   - Current gap: B2/R2 buckets, application keys/tokens, lifecycle/retention
+     rules, backup runners, alerts, inventories, and restore tooling do not yet
+     exist. No successful combined database + Storage restore drill has run, so
+     the approved RPO/RTO targets are not yet claims of achieved protection.
+   - Next implementation sequence:
+     1. Configure the private B2 and R2 buckets/credentials and store secrets in
+        the `WCF Planner` 1Password Business vault; confirm the irreversible B2
+        Object Lock choices before bucket creation.
+     2. Build dry-run-first hourly database/Storage jobs, manifests, integrity
+        checks, retention promotion, and stale/failure alerts without logging
+        secrets.
+     3. Restore into an isolated recovery project and verify Auth/application
+        rows, animal histories, dailies, Processing, tasks/comments, every file
+        bucket/path, private-file access, submissions, and background jobs.
+     4. Only after the framework is exact and proven, build the final backup
+        graphic and the admin-only `Site & Recovery` tab between `Deleted` and
+        `Client Errors`.
+   - Site & Recovery v1 is deliberately lean and collapsible: Overview; Accounts
+     & Access; Backups & Recovery; Making Site Changes; Emergency Help; Takeover
+     & References. It explains that a successor should open the local
+     `WCF-planner` clone and have Codex or CC read `HO.md` then `PROJECT.md`.
+     `HO.md` is model-workflow guidance, not a standalone novice manual. Netlify
+     owns hosting/custom-domain/DNS/build/deploy instructions. Asana is excluded.
+     Login identifiers are `ronnie@whitecreek.farm`; passwords are referenced
+     only by the 1Password vault name. The common login/vault label must come
+     from the smallest server-side admin-only settings boundary, not public
+     source or browser env. The Anthropic API personal-account dependency is
+     disclosed for later transfer.
+   - Required gates: each bucket/retention change, secret, backup runner,
+     deployment, migration, and any PROD restore action remains explicitly
+     gated. A backup is not working until an isolated restore proves rows and
+     physical files recover together. Do not create the final backup graphic
+     before configuration and restore evidence settle the exact framework.
    - Success criteria: WCF Planner has documented and monitored recovery for
      database, Auth, every uploaded object, code/configuration, integrations,
      and unsaved drafts; no single Supabase/GitHub/Netlify/admin account can
@@ -398,10 +436,13 @@ work. Item 4 is a later operational cutover decision.
    - Class: `DEFECT`/`CI`/`TEST-INFRA`/`RELIABILITY`.
    - Problem: consecutive main runs have failed on different browser specs while
      the same specs pass elsewhere and each changed lane's focused leased tests
-     pass. Observed families include readiness/seed races, auth/session state,
-     reconcile debounce, and shared database cleanup contention. The rotation is
-     evidence of an environment/fixture problem, not permission to dismiss a
-     failing test.
+     pass. Run `29747176411` failed four root specs across both shards. Run
+     `29778369532` failed seven Pasture specs, including hover, open-line-edit,
+     map, reset-history, and Drop Point paths, while its new mobile label proof
+     passed. Some failures may be deterministic product/test drift; concurrency
+     inspection did not prove local/CI collision because the lease workflow uses
+     the shared `wcf-test-db` group. Treat every failure as real until reproduced
+     and classified, rather than assuming all are environmental.
    - Investigation: correlate failed steps, timestamps, leases, GitHub jobs,
      Supabase logs, seed/reset ownership, operational-profile setup, and cleanup;
      reproduce representative failures under the same shard topology; separate
@@ -419,12 +460,12 @@ work. Item 4 is a later operational cutover decision.
      collide with another TEST database owner.
 
 3. July newsletter: first real issue and editorial redesign
-   - Status: DECISIONS REACHED; NO ISSUE HAS EVER BEEN PUBLISHED. Target the
-     July issue (covering July) for release by August 5. The existing application
-     is a useful framework but still needs a warm, restrained, professional
-     editorial presentation and a dramatically easier monthly workflow. The
-     draft must not read like a robot listing facts. Use Ronnie's supplied
-     writing example as the voice reference; do not invent a generic farm voice.
+   - Status: EDITORIAL-STEERING UI/SOURCE SHIPPED; MIGRATION `189` REPORTED
+     PROD-APPLIED; `newsletter-harvest` PROD v7 VERIFIED; NO ISSUE HAS EVER BEEN
+     PUBLISHED. Target the July issue (covering July) for release by August 5.
+     The draft must not read like a robot listing facts. Ronnie must still enter
+     the real writing example used as the voice reference; do not invent a
+     generic farm voice.
    - Class: `ENH`/`EDITORIAL`/`AI`/`DATA-OPERATION`.
    - Audience/message: owners, the farm team, and other family staff who interact
      with the farm (including household and personal-assistant roles). Lightly
@@ -451,10 +492,10 @@ work. Item 4 is a later operational cutover decision.
        non-negotiable. The issue title/brand is simply `White Creek Farm`.
      - Distribute the published issue as a rotating 7-day link in the group chat.
        No email/PDF/RSS build is requested.
-   - Remaining actions: convert the consensus into the editor/template polish,
-     confirm the PROD AI probe, gather July facts/photos, let Ronnie edit/review,
-     publish the first issue, and verify the expiring archive link. Keep monthly
-     automation off until separately approved.
+   - Remaining actions: Ronnie enters the writing example, then run one controlled
+     PROD AI probe proving the style-save/write path; gather July facts/photos,
+     let Ronnie edit/review, publish the first issue, and verify the expiring
+     archive link. Keep monthly automation off until separately approved.
    - Success criteria: Ronnie can complete the monthly work in 10-15 minutes;
      one fact-checked, team-centric July issue is published by August 5; the
      keyed reader works; no private/unapproved media or fabricated comparison is
@@ -598,8 +639,10 @@ unless Ronnie changes the contract:
   Pasture Map (full Map + Field working controls, migration `139`). No Production
   or Weigh-ins.
 - Global Activity: `/activity`.
-- Admin/config: `/admin`.
-- Admin runtime observability: `/admin/client-errors`.
+- Admin/config: `/admin`, including the Client Errors tab after Deleted. Site &
+  Recovery is not built yet and will eventually slot between those two tabs.
+- Admin runtime observability keeps `/admin/client-errors` as a compatible deep
+  link to the same Client Errors panel.
 
 ### Login-Gated Form URLs
 
@@ -672,7 +715,7 @@ No operational record workspace should reintroduce legacy `ActivityPanel` or
 ### Supabase Migrations
 
 Current PROD architecture includes all repository migrations through `166`,
-`170` through `183`, and `185`-`188`; `167`-`169` are intentionally unused and
+`170` through `183`, and `185`-`189`; `167`-`169` are intentionally unused and
 `184` is reserved/not present.
 Recent load-bearing
 migrations:
@@ -1118,6 +1161,16 @@ migrations:
     stored weights cannot throw or fabricate yield.
   - PROD-applied atomically from merged main and verified read-only; the paired
     drawer lane renders source totals/yield without changing planner ownership.
+- `189` Newsletter voice example and tone precedence:
+  - Adds the bounded admin-only `newsletter_settings.voice_example` style
+    reference, makes the legacy `tone` field an optional custom override, and
+    reissues the settings/generation-input RPCs without widening the exactly-three
+    anon newsletter surface. The writing example is never returned in public,
+    preview, archive, or issue payloads.
+  - TEST-applied and behaviorally verified by `scripts/apply_test_mig_189.cjs`.
+    The lane reported a transactional PROD apply and post-apply verification;
+    this wrap independently verified the paired `newsletter-harvest` PROD v7
+    deploy but did not re-query the PROD database catalog.
 
 Special migration notes:
 
@@ -1126,8 +1179,8 @@ Special migration notes:
   migration `166` to detach/user-management migrations `170`/`171`, then resumes
   Processing migration work at `172`-`179`; Pasture follows at `180`-`181` and
   cattle forecast-batch reconciliation at `182`. User-management `183` and
-  Processing `185`/`186`, Layer correction `187`, and Processing yield `188` are
-  live; `184` is
+  Processing `185`/`186`, Layer correction `187`, Processing yield `188`, and
+  Newsletter voice/tone migration `189` are live; `184` is
   reserved/not present.
 - `083` public webform submitter identity is shelved.
 - `085` was applied before `084` in PROD so duplicate active daily identities
@@ -1268,8 +1321,10 @@ Append-only upload expectations:
   `supabase-migrations/146_newsletter_automation.sql`,
   `supabase-migrations/151_newsletter_autopilot.sql`,
   `supabase-migrations/153_newsletter_archive_link.sql`,
+  `supabase-migrations/189_newsletter_voice_example.sql`,
   `supabase/functions/newsletter-harvest/index.ts`, and
-  `scripts/apply_test_mig_144_145.cjs` + `scripts/apply_test_mig_153.cjs`:
+  `scripts/apply_test_mig_144_145.cjs`, `scripts/apply_test_mig_153.cjs`, and
+  `scripts/apply_test_mig_189.cjs`:
   Monthly Newsletter public/admin/API, boundary, storage, automation, archive-
   link gating, and the server-side harvest/detector/composer owners on `main`.
 - `src/pig/SowsView.jsx`: breeding-pig grouped tables and record pages.
@@ -1292,9 +1347,8 @@ Append-only upload expectations:
   builders.
 - `src/lib/feedPlanner.js` and `src/lib/feedOrderBasis.js`: feed order math and
   shared calendar-pinned order-month logic.
-- `src/lib/cattleNutrition.js`, `src/cattle/CattleHomeView.jsx`, and
-  `cattle-nutrition-audit-2026-07-08.html`: cattle nutrition dry-matter,
-  CP/NFC, herd rolling-window dashboard math, and the standalone audit graphic.
+- `src/lib/cattleNutrition.js` and `src/cattle/CattleHomeView.jsx`: cattle
+  nutrition dry-matter, CP/NFC, and herd rolling-window dashboard math.
 - `supabase-migrations/182_cattle_nonempty_batch_sequence.sql` and
   `scripts/apply_test_mig_182.cjs`: atomic zero-cow forecast-month removal and
   sequential cattle batch-label reconciliation.
@@ -1306,8 +1360,9 @@ Append-only upload expectations:
 - `src/lib/todoApi.js`: To Do List client owner.
 - `src/shared/DeleteModal.jsx`, `src/shared/ConfirmModal.jsx`, and
   `src/shared/useModalFocusTrap.js`: modal primitives.
-- `src/lib/clientErrorReporting.js` and `src/admin/ClientErrorsView.jsx`:
-  runtime error capture and admin review.
+- `src/lib/clientErrorReporting.js`, `src/admin/ClientErrorsView.jsx`, and
+  `src/webforms/WebformsAdminView.jsx`: runtime error capture plus the reusable
+  Client Errors panel and its Admin-tab owner.
 
 ### Route Ownership
 
@@ -1678,16 +1733,21 @@ Workflow/worktable entities:
 ### Monthly Newsletter
 
 - Current shipped scope is Newsletter Autopilot + the direction-first redesign +
-  archive-link gating: link-gated public archive + admin editor, migrations
+  editorial steering + archive-link gating: link-gated public archive + admin editor, migrations
   `144`/`145` (data/storage/public boundary), `146` (automation/run logging/cron
   RPC support), `151` (Autopilot settings/source coverage/photo plan/past-issue
-  context), `153` (archive-link gating), and the `newsletter-harvest` Edge
-  Function (PROD v6 / TEST v1). Autopilot gathers planner facts first, lets Ronnie
-  steer facts/Q&A/tone/length, writes or revises with AI/template composer,
+  context), `153` (archive-link gating), `189` (private writing example + tone
+  precedence), and the `newsletter-harvest` Edge Function (PROD v7 / TEST v2 as
+  directly checked 2026-07-20). Autopilot gathers planner facts first, lets Ronnie
+  steer facts/Q&A/tone/length/writing example, writes or revises with AI/template composer,
   generates a photo plan, supports private upload + approval + place planned
   photos, previews, and publishes. The real AI path is enabled in PROD through the
   PROD-only `NEWSLETTER_AI_API_KEY` Edge Function secret; TEST is intentionally
   not configured with that key.
+- Before Write/Revise, required unsaved style settings must save successfully;
+  failure blocks generation, preserves edits for retry, and marks the save
+  failed. The writing example is style reference only; facts are never reused
+  from it. Helper copy distinguishes AI-ready, template, and unknown states.
 - UI: the admin (`/admin/newsletter`) and public (`/newsletter`) surfaces follow
   the direction-first redesign (PR #54), built on the app's design tokens +
   shared primitives. Admin = a "this month" spotlight + section-banded openable
@@ -1843,7 +1903,10 @@ Workflow/worktable entities:
   `update_land_area` `p_parent_id`; no DB constraint, no auto-backfill);
   parentless paddocks surface in a Reports "Needs pasture assignment" section.
   Field is phone-first execution/offline queue. The Field bottom toolbar is
-  Walk paddock / Draw paddock / Measure only; one-time setup/help lives in a
+  Walk paddock / Draw temp paddock / Measure only. On mobile the Field layout
+  must fit that absolute bottom toolbar inside the viewport instead of inheriting
+  the generic 900px stacked-layout minimum; regression proof checks 390x844 and
+  360x800 before any click or Playwright auto-scroll. One-time setup/help lives in a
   secondary "Offline setup" status-row affordance (offline NAIP imagery
   download + the self-contained field guide) and saved measurements in a
   secondary "Saved measurements" toggle; the rail base/overlay popover stays available
@@ -2134,8 +2197,10 @@ Workflow/worktable entities:
 
 - `client_error_events` records redacted browser/runtime errors through
   `record_client_error`.
-- `/admin/client-errors` is read-only, admin-gated, fail-closed, paginated, and
-  uses `list_client_errors`.
+- Client Errors is a read-only, admin-gated, fail-closed, paginated Admin tab
+  using `list_client_errors`; it is not in the header hamburger. The existing
+  `/admin/client-errors` URL remains as a backward-compatible deep link. Both
+  surfaces reuse one `ClientErrorsPanel` and mount exactly one global Header.
 - Client error reporting must not store raw localStorage, auth tokens, full
   payloads, or secret-like data.
 
@@ -2228,7 +2293,7 @@ Focused starting points:
 | Production | `src/lib/production.test.js`, `tests/static/production_page_static.test.js` |
 | Processing Calendar | `tests/static/processing_calendar_migration_static.test.js`, `tests/static/processing_wiring_static.test.js`, `tests/static/processing_asana_security_static.test.js`, `tests/static/processing_reconciler_migration_static.test.js`, `tests/static/processing_reconciler_wiring_static.test.js`, `tests/static/processing_reconciliation_workbench_static.test.js`, `tests/static/processing_comments_import_static.test.js`, `tests/static/processing_conversation_fidelity_static.test.js`, `tests/static/processing_engine_static.test.js`, `tests/static/processing_cleanup_static.test.js`, `tests/static/processing_options_static.test.js`, `tests/static/processing_checklist_toggle_static.test.js`, `tests/static/processing_template_suite_static.test.js`, `tests/static/processing_templates_import_static.test.js`, `tests/static/processing_attachments_storage_static.test.js`, `tests/static/processing_legacy_liveweights_static.test.js`, `tests/static/processing_lock_order_static.test.js`, `tests/processing_calendar.spec.js`, `tests/processing_asana_importer.test.js`, `tests/processing_conversation_fidelity.test.js`, `tests/processing_asana_shape.test.js`, `tests/processing_asana_matcher.test.js`, `tests/processing_asana_templates.test.js`, `scripts/apply_test_mig_156.cjs` through `scripts/apply_test_mig_162.cjs`, `scripts/apply_test_mig_164.cjs` through `scripts/apply_test_mig_166.cjs`, `scripts/apply_test_mig_170.cjs` through `scripts/apply_test_mig_179.cjs`, `scripts/proof_reconciler_blockers.cjs`, `scripts/proof_reconciler_enumeration.cjs`, `scripts/ops_processing_attachment_backfill.cjs`, `scripts/proof_processing_attachment_backfill.cjs` |
 | User management | `src/lib/userManagementApi.test.js`, `src/auth/usersModalMutationLock.test.js`, `tests/static/user_management_audit_static.test.js`, `tests/static/users_modal_self_name_edit.test.js`, `tests/static/rapid_processor_handlers.test.js`, `tests/static/rapid_processor_reset_hardening_static.test.js`, `tests/static/rapid_processor_user_create_static.test.js`, `tests/user_management_audit.spec.js`, `scripts/apply_test_mig_171.cjs`, `scripts/apply_test_mig_183.cjs`, `scripts/proof_test_user_delete_edge.cjs`, `scripts/proof_test_password_reset_hardening.cjs` |
-| Newsletter | `tests/static/newsletter_boundary_static.test.js`, `tests/static/newsletter_shared_parity.test.js`, `src/lib/newsletterApi.test.js`, `src/lib/newsletterFacts.test.js`, `src/lib/newsletterProductionYoy.test.js`, `src/newsletter/NewsletterBlocks.test.js`, `tests/newsletter_public.spec.js`, `scripts/apply_test_mig_144_145.cjs`, `scripts/apply_test_mig_153.cjs` |
+| Newsletter | `tests/static/newsletter_boundary_static.test.js`, `tests/static/newsletter_shared_parity.test.js`, `src/lib/newsletterApi.test.js`, `src/lib/newsletterFacts.test.js`, `src/lib/newsletterProductionYoy.test.js`, `src/newsletter/NewsletterBlocks.test.js`, `tests/newsletter_public.spec.js`, `scripts/apply_test_mig_144_145.cjs`, `scripts/apply_test_mig_153.cjs`, `scripts/apply_test_mig_189.cjs` |
 | Pasture Map | `src/lib/pastureKml.test.js`, `src/lib/pastureGeometry.test.js`, `src/lib/pasturePlannerGroups.test.js`, `tests/static/pasture_map_static.test.js`, `tests/static/pasture_direct_rest_history_static.test.js`, `tests/pasture_map_p2_map.spec.js`, `tests/pasture_map_placement.spec.js`, `tests/pasture_map_reports_records.spec.js`, `tests/pasture_map_reset_history.spec.js`, `tests/pasture_map_light_access.spec.js`, `tests/pasture_map_setup.spec.js`, `tests/pasture_map_tweaks2.spec.js`, `tests/pasture_map_import.spec.js`, `tests/pasture_map_cp2.spec.js`, `tests/pasture_map_cp3.spec.js`, `tests/pasture_map_cp4.spec.js`, `tests/pasture_map_cp5.spec.js`, `tests/pasture_map_cp6.spec.js`, `tests/pasture_map_cp7.spec.js`, `tests/pasture_map_tile_hover.spec.js`, `tests/pasture_map_open_line_edit.spec.js`, `tests/pasture_map_v1_measure.spec.js`, `playwright.pasture.config.js`, `scripts/apply_test_mig_147.cjs`, `scripts/apply_test_mig_148.cjs`, `scripts/apply_test_mig_150.cjs`, `scripts/apply_test_mig_180.cjs` |
 | Breeding pigs | `tests/static/breeding_pigs_parity_static.test.js` |
 | Feed planning | `src/lib/feedPlanner.test.js`, `src/lib/feedOrderBasis.test.js`, `tests/static/feed_order_board_static.test.js` |
@@ -2241,7 +2306,7 @@ Focused starting points:
 | Export / print | `src/lib/csvExport.test.js`, `src/lib/printExport.test.js` |
 | Login/offline webforms | `tests/static/light_user_portal_static.test.js`, `tests/offline_*.spec.js`, `tests/daily_report_photos.spec.js` |
 | Storage/media guards | `tests/static/*storage*.test.js`, `tests/static/*photo*.test.js`, `tests/static/image_file_input_capture_static.test.js` |
-| Runtime observability | `tests/static/error_resilience_static.test.js`, `tests/static/client_error_boundary_static.test.js`, `tests/static/client_errors_review_static.test.js` |
+| Runtime observability | `tests/static/error_resilience_static.test.js`, `tests/static/client_error_boundary_static.test.js`, `tests/static/client_errors_review_static.test.js`, `tests/client_errors_admin_tab.spec.js` |
 
 Playwright notes:
 
@@ -2262,9 +2327,11 @@ Playwright notes:
   combined head. Direct main pushes still undergo ordinary fail-closed risk
   classification.
 - Specs that reset the shared TEST DB must run one file at a time.
-- Do not run local TEST-backed Playwright while a GitHub CI workflow is active;
-  local processes are invisible to GitHub's `wcf-test-db` concurrency group and
-  will corrupt both runs' seed/reset state.
+- Every local TEST-backed Playwright run must use
+  `scripts/test_db_lease_run.cjs`; it dispatches the shared GitHub
+  `wcf-test-db` concurrency lease and lets CI go first. Never run an unleased
+  local TEST browser process because that process is invisible to the group and
+  can corrupt seed/reset state.
 - Local dev-server cold-start can hang if stray node/vite processes remain in
   old worktrees. Clear stale processes before diagnosing product flake.
 
