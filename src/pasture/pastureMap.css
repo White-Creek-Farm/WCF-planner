@@ -3217,6 +3217,15 @@ a.pm-btn {
     flex-direction: column;
   }
 
+  /* Field is a full-viewport cockpit (hero map + a position:absolute bottom
+     toolbar), not a scrolling stacked layout. It must NOT inherit the generic
+     900px mobile min-height, or the toolbar's bottom:0 renders below the phone
+     viewport. min-height:0 lets base .pm-layout's flex:1 fit Field to the
+     cockpit height; Map/Plan keep the 900px stacked behavior. */
+  .pm-layout.is-field {
+    min-height: 0;
+  }
+
   .pm-map-col {
     min-height: 58vh;
     flex: none;

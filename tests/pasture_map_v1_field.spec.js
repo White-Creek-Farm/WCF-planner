@@ -185,20 +185,47 @@ test('mobile Field: toolbar exposes "Draw temp paddock" and it builds a temp pad
   await expect(page.locator('[data-pasture-field-walk]')).toContainText('Walk paddock');
   await expect(page.locator('[data-pasture-field-measure]')).toContainText('Measure');
 
-  // The longer label stays inside the toolbar and does not grow it into the draw
-  // form (bottom 104px) or field action card (bottom 96px) at the two tightest
-  // phone widths — it may wrap, but the toolbar keeps its height.
+  // The whole Field action toolbar must sit INSIDE the phone viewport at the two
+  // tightest widths, BEFORE any click/auto-scroll. Regression guard for the mobile
+  // 900px .pm-layout min-height that pushed the absolute bottom toolbar below the
+  // fold: toBeVisible() and click() both accept/scroll to off-screen elements, so
+  // this asserts viewport containment (position), not just render + no-overflow.
+  const toolbar = page.locator('[data-pasture-field-toolbar]');
+  const status = page.locator('[data-pasture-field-status]');
+  const walkBtn = page.locator('[data-pasture-field-walk]');
+  const measureBtn = page.locator('[data-pasture-field-measure]');
   for (const [w, h] of [
     [390, 844],
     [360, 800],
   ]) {
     await page.setViewportSize({width: w, height: h});
     await expect(drawBtn).toContainText('Draw temp paddock');
-    const tb = await page.locator('[data-pasture-field-toolbar]').boundingBox();
+
+    // 1. The toolbar intersects the viewport at all...
+    await expect(toolbar).toBeInViewport();
+    // 2. ...and is fully within it vertically (top >= 0, bottom edge <= viewport
+    //    height, allowing 2px rounding).
+    const tb = await toolbar.boundingBox();
+    expect(tb.y).toBeGreaterThanOrEqual(0);
+    expect(tb.y + tb.height).toBeLessThanOrEqual(h + 2);
+    // 3. The top Field status and the bottom toolbar are on-screen simultaneously.
+    await expect(status).toBeInViewport();
+    await expect(toolbar).toBeInViewport();
+    // 4. All three tools are visible AND in the viewport (not rendered off-screen).
+    for (const b of [walkBtn, drawBtn, measureBtn]) {
+      await expect(b).toBeVisible();
+      await expect(b).toBeInViewport();
+    }
+    await expect(walkBtn).toContainText('Walk paddock');
+    await expect(measureBtn).toContainText('Measure');
+
+    // 5. Existing guards: no horizontal overflow; the longer "Draw temp paddock"
+    //    label may wrap but the toolbar keeps its height (clears the action card at
+    //    bottom 96px and the draw form at bottom 104px).
     const btn = await drawBtn.boundingBox();
     expect(btn.x).toBeGreaterThanOrEqual(0);
-    expect(btn.x + btn.width).toBeLessThanOrEqual(w + 0.5); // no horizontal overflow
-    expect(tb.height).toBeLessThanOrEqual(96); // clears the action card (96) + draw form (104)
+    expect(btn.x + btn.width).toBeLessThanOrEqual(w + 0.5);
+    expect(tb.height).toBeLessThanOrEqual(96);
   }
 
   // Tapping the control enters draw mode (the bottom draw bar appears).
