@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Initiative C Phase 1D-B — WebformHub daily-report photo offline queue
@@ -137,7 +138,7 @@ async function readPhotoBlobs(page) {
 
 async function gotoForm(page, slug) {
   await page.goto(`/webforms/${slug}`);
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 }
 
 // Submitter is now a locked auto-filled field (signed-in user), not a select.

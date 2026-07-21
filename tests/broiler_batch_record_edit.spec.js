@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Broiler record-page edit regression — /broiler/batches/<encoded name>.
@@ -40,7 +41,7 @@ test('broiler record page: text + select edits stick and autosave persists', asy
   await seedBatch(supabaseAdmin);
 
   await page.goto('/broiler/batches/' + encodeURIComponent(BATCH_NAME));
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.locator('[data-record-title]').first()).toHaveText(BATCH_NAME, {timeout: 15_000});
   await expect(page.locator('[data-broiler-week4-weight-readonly="1"]')).toHaveText('1.5 lbs');
   await expect(page.locator('[data-broiler-week6-weight-readonly="1"]')).toHaveText('4.25 lbs');

@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Initiative C Phase 1C-A — AddFeed parent-aware RPC offline queue
@@ -78,7 +79,7 @@ async function readQueue(page) {
 // Drive the public /addfeed UI through a 2-batch broiler submission.
 // Mirrors the existing Test 9 in add_feed_parent_submission.spec.js.
 async function fillBroilerTwoBatchAndSubmit(page) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   await page.getByRole('button', {name: 'Broiler'}).click();
 

@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // PWA install entry points — manifest start_url + anon hub loads
@@ -80,7 +81,7 @@ test('manifest link href on legacy /webforms is the dailys manifest after load',
   // keeps link[rel="manifest"] pointing at the dailys manifest as the
   // route alias navigates from /webforms to /dailys.
   await page.goto('/webforms');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
   expect(href).toBe('/manifest-dailys.webmanifest');
 });
@@ -107,7 +108,7 @@ test('anon load of /dailys shows the login gate, URL preserved', async ({page}) 
   await page.goto('/dailys');
 
   // Boot loader fades after first paint.
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Login-required (Lane 1 CP1): LoginScreen is shown, the hub is NOT.
   await expect(page.locator('[data-login-screen]')).toBeVisible({timeout: 15_000});
@@ -120,7 +121,7 @@ test('anon load of /dailys shows the login gate, URL preserved', async ({page}) 
 test('anon load of /equipment shows the login gate, URL preserved', async ({page}) => {
   await page.goto('/equipment');
 
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   await expect(page.locator('[data-login-screen]')).toBeVisible({timeout: 15_000});
   await expect(page.getByText('Tap your equipment to log a fueling')).toHaveCount(0);
@@ -130,7 +131,7 @@ test('anon load of /equipment shows the login gate, URL preserved', async ({page
 
 test('manifest link href is /manifest.webmanifest on root', async ({page}) => {
   await page.goto('/');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
   expect(href).toBe('/manifest.webmanifest');
@@ -138,7 +139,7 @@ test('manifest link href is /manifest.webmanifest on root', async ({page}) => {
 
 test('manifest link href swaps to dailys manifest on /dailys', async ({page}) => {
   await page.goto('/dailys');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
   expect(href).toBe('/manifest-dailys.webmanifest');
@@ -146,7 +147,7 @@ test('manifest link href swaps to dailys manifest on /dailys', async ({page}) =>
 
 test('manifest link href swaps to equipment manifest on /equipment', async ({page}) => {
   await page.goto('/equipment');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // The module-scope shim runs before React mounts, so the link href
   // should be set by the time we read the DOM.
@@ -157,7 +158,7 @@ test('manifest link href swaps to equipment manifest on /equipment', async ({pag
 test('manifest link href tracks navigation between /equipment and /dailys', async ({page}) => {
   // Land on /equipment — module-scope shim sets the equipment manifest.
   await page.goto('/equipment');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest-equipment.webmanifest', {
     timeout: 5_000,
   });
@@ -167,7 +168,7 @@ test('manifest link href tracks navigation between /equipment and /dailys', asyn
   // Reports" button; the hubs are login-required as of Lane 1 CP1, so this
   // exercises the same applyManifestHref pathname effect via a fresh load.)
   await page.goto('/dailys');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page).toHaveURL(/\/dailys\/?$/, {timeout: 5_000});
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest-dailys.webmanifest', {
     timeout: 5_000,

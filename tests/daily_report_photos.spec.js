@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Daily Report Photos UI — 2026-04-29
@@ -56,7 +57,7 @@ function tinyImageFile(name) {
 // Submit button regardless of which program is being tested.
 async function gotoSheepWebform(page) {
   await page.goto('/webforms/sheep');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.locator('[data-daily-photo-capture="1"]')).toBeVisible({timeout: 10_000});
 }
 
@@ -204,7 +205,7 @@ test('admin display: photo chip on tile + thumbnails in edit modal (signed URL)'
   );
 
   await page.goto('/sheep/dailys');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Row chip renders with the count.
   await expect(page.locator('[data-photo-chip="1"][data-photo-count="2"]').first()).toBeVisible({timeout: 10_000});
@@ -265,7 +266,7 @@ test('hotfix: Home Last-5-Days tile → record page with locked submitter + phot
   );
 
   await page.goto('/');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Home reads the recent-dailys contexts loaded once at boot; tolerate a
   // cold-boot data race (home has no in-page self-heal) with a single reload
@@ -275,7 +276,7 @@ test('hotfix: Home Last-5-Days tile → record page with locked submitter + phot
     await page.waitForTimeout(1500);
     if (!(await tile.isVisible().catch(() => false))) {
       await page.reload();
-      await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+      await waitForAppReady(page);
     }
   }
   await expect(tile).toBeVisible({timeout: 15_000});
@@ -384,7 +385,7 @@ test('multi-row daily block: photos + extra group rejected, no row inserted', as
     );
 
   await page.goto('/webforms/broiler');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.locator('[data-daily-photo-capture="1"]')).toBeVisible({timeout: 10_000});
 
   // Fill primary group: submitter is locked (no team select), so the batch is

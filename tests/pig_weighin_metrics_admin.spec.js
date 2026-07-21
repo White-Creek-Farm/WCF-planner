@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Admin /pig/weighins metrics row + descending-by-weight display lock
@@ -138,7 +139,7 @@ test('pig session row renders the four metric columns; admin avg badge is absent
   });
 
   await page.goto('/pig/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // The pig list is a DataTable whose header carries the metric labels.
   for (const label of ['Age at weigh-in', 'Feed/pig', 'Group ADG', 'Avg weight', 'Rank-matched pig ADG']) {
@@ -187,7 +188,7 @@ test('pig group ADG returns from the RPC when a prior pig session exists for the
   });
 
   await page.goto('/pig/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   const sessionRow = page.locator('tr[data-weighin-session-tile="s-admin-current2"]');
   await expect(sessionRow).toBeVisible({timeout: 15_000});
@@ -212,7 +213,7 @@ test('session record page sorts entries by weight DESC while persisted order sta
   });
 
   await page.goto('/pig/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Open the session record page through the list row (row IS the target).
   const sessionRow = page.locator('tr[data-weighin-session-tile="s-admin-sort"]');

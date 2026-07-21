@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Cattle calf dam-link — 2026-04-29
@@ -214,7 +215,7 @@ test('UI: calf herd tile shows dam tag after trigger links it', async ({page, su
   });
 
   await page.goto('/cattle/herds');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expandAllHerds(page);
 
   // Enable the Dam Tag column (off by default) to verify the calf→dam link
@@ -251,7 +252,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is set', async
   });
 
   await page.goto('/cattle/herds');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   await expandAllHerds(page);
 
@@ -284,7 +285,7 @@ test('UI: CowDetail Lineage shows editable dam input when dam_tag is blank', asy
   await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
 
   await page.goto('/cattle/herds');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   await expandAllHerds(page);
 
@@ -323,7 +324,7 @@ test('UI: calving record list and form omit born/died entirely', async ({page, s
   });
 
   await page.goto('/cattle/herds');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   await expandAllHerds(page);
 
@@ -360,7 +361,7 @@ test('UI: + Add Calving submit writes no auto-comment to the dam timeline', asyn
   await supabaseAdmin.from('cattle').upsert([DAM, CALF_BLANK], {onConflict: 'id'});
 
   await page.goto('/cattle/herds');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   await expandAllHerds(page);
 

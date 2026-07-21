@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Initiative C Phase 1B canary — offline submission queue end-to-end
@@ -77,7 +78,7 @@ async function readQueue(page) {
 
 async function fillFormAndSubmit(page) {
   await expect(page.getByText('Fuel Supply Log')).toBeVisible({timeout: 15_000});
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Fill required fields. Today's ISO date is the default; the dropdowns
   // default to 'cell' destination + 'diesel' fuel type. The submitter is now a

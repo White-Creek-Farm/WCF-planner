@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // URL alias redirects — 2026-05-06 public-URL rename
@@ -25,7 +26,7 @@ test.use({storageState: {cookies: [], origins: []}});
 
 test('/webforms redirects to /dailys then login gate (anon)', async ({page}) => {
   await page.goto('/webforms');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page).toHaveURL(/\/dailys\/?$/, {timeout: 10_000});
   // Login-required: logged-out visitor sees LoginScreen, not the hub. The
   // canonical URL is preserved so login returns them to /dailys.
@@ -34,19 +35,19 @@ test('/webforms redirects to /dailys then login gate (anon)', async ({page}) => 
 
 test('/webforms/sheep redirects to /dailys/sheep (anon)', async ({page}) => {
   await page.goto('/webforms/sheep');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page).toHaveURL(/\/dailys\/sheep\/?$/, {timeout: 10_000});
 });
 
 test('/webforms/tasks redirects to /dailys/tasks (anon)', async ({page}) => {
   await page.goto('/webforms/tasks');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page).toHaveURL(/\/dailys\/tasks\/?$/, {timeout: 10_000});
 });
 
 test('/fueling redirects to /equipment then login gate (anon)', async ({page}) => {
   await page.goto('/fueling');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page).toHaveURL(/\/equipment\/?$/, {timeout: 10_000});
   // Login-required: logged-out visitor sees LoginScreen, not the hub.
   await expect(page.locator('[data-login-screen]')).toBeVisible({timeout: 10_000});
@@ -54,6 +55,6 @@ test('/fueling redirects to /equipment then login gate (anon)', async ({page}) =
 
 test('/fueling/supply redirects to /equipment/supply (anon)', async ({page}) => {
   await page.goto('/fueling/supply');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page).toHaveURL(/\/equipment\/supply\/?$/, {timeout: 10_000});
 });

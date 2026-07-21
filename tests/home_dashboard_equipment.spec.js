@@ -1,5 +1,6 @@
 import {test, expect} from './fixtures.js';
 import {createClient} from '@supabase/supabase-js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // HomeDashboard equipment-attention regression spec
@@ -37,7 +38,7 @@ async function gotoHomeAndWaitLoaded(page) {
   // Boot-loader fades after the first paint and the auth + data effects
   // resolve. Same load gate the smoke spec uses. Guarantees the dashboard
   // had a chance to render before we assert absence of a row.
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 }
 
 // --------------------------------------------------------------------------
@@ -220,6 +221,6 @@ test('auto-clear: anon fueling RPC ticking the 100hr service clears the overdue 
   expect(error).toBeNull();
 
   await page.reload();
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.locator(`[data-equipment-slug="${seed.slug}"]`)).toHaveCount(0);
 });

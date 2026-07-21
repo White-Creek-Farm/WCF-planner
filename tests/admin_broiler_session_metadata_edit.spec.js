@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Admin broiler session metadata edit (WK + locked team_member)
@@ -449,7 +450,7 @@ test('T9: reopen later complete wk4 session of two → wk4Lbs recomputes from th
 test('T10: broiler list tiles navigate to record page', async ({page, adminBroilerSessionMetaScenario}) => {
   const {draftId} = adminBroilerSessionMetaScenario;
   await page.goto('/broiler/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   await page.locator('[data-weighin-session-tile="' + draftId + '"]').click();
   await expect(page).toHaveURL(/\/weigh-in-sessions\//);

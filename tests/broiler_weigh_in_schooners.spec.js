@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Broiler public WeighIns schooner mapping hotfix
@@ -36,7 +37,7 @@ async function wipeOfflineQueue(page) {
 }
 
 async function startBroilerSession(page, batchName, week = 4) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await page.getByText('Broiler', {exact: true}).click();
   // Submitter is locked to the signed-in user (no team dropdown), so the batch
   // select is now the first combobox.
@@ -103,7 +104,7 @@ test.describe('public broiler weigh-in', () => {
     void broilerWeighInSchoonersScenario;
     await page.goto('/weighins');
     await wipeOfflineQueue(page);
-    await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+    await waitForAppReady(page);
     await page.getByText('Broiler', {exact: true}).click();
 
     // B-26-03 is an ACTIVE batch with empty schooners — still visible in the
@@ -297,7 +298,7 @@ test.describe('public broiler weigh-in', () => {
 
     await page.goto('/weighins');
     await wipeOfflineQueue(page);
-    await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+    await waitForAppReady(page);
     await page.getByText('Broiler', {exact: true}).click();
 
     await expect(page.getByText('Resume a draft session')).toBeVisible({timeout: 10_000});
@@ -358,7 +359,7 @@ test.describe('admin broiler weigh-ins view (authenticated)', () => {
 
     // Visit admin LivestockWeighInsView for broilers.
     await page.goto('/broiler/weighins');
-    await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+    await waitForAppReady(page);
 
     // The session row collapses by default — expand it.
     await expect(page.getByText('B-26-01').first()).toBeVisible({timeout: 15_000});

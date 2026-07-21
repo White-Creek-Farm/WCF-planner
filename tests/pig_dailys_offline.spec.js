@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Initiative C Phase 1C-B — PigDailys no-photo flat offline queue
@@ -81,7 +82,7 @@ async function readQueue(page) {
 }
 
 async function fillFormAndSubmit(page) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Submitter is locked to the signed-in user (no team dropdown). Pig group is
   // the first combobox now.

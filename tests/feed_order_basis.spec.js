@@ -1,12 +1,9 @@
 import {test, expect} from './fixtures.js';
 import {seedFeedOrderBasisScenario} from './scenarios/feed_order_basis_seed.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 function lbs(value) {
   return `${value.toLocaleString()} lbs`;
-}
-
-async function waitForAppReady(page) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
 }
 
 test.describe('feed-order count-aware basis', () => {

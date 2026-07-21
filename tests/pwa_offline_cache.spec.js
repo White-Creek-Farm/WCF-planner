@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 test.use({storageState: {cookies: [], origins: []}});
 
@@ -42,14 +43,14 @@ async function waitForServiceWorkerControl(page) {
 
 async function warmAppShell(page, pathname) {
   await page.goto(pathname);
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await waitForServiceWorkerControl(page);
 
   // Reload while controlled so Vite dev modules are captured in the runtime
   // cache. Production builds get their hashed /assets bundle from install-time
   // HTML parsing, but the focused test server serves the source module graph.
   await page.reload({waitUntil: 'domcontentloaded'});
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   const shellUrl = cachedShellFor(pathname);
   await expect
@@ -64,7 +65,7 @@ async function expectOfflineColdOpen(context, page, pathname) {
   await context.setOffline(true);
   try {
     await page.goto(pathname, {waitUntil: 'domcontentloaded'});
-    await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+    await waitForAppReady(page);
     await expect(page.locator('[data-login-screen]')).toBeVisible({timeout: 15_000});
     await expect(page).toHaveURL(new RegExp(`${pathname}/?$`));
     await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', expectedManifestFor(pathname));

@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Equipment fueling — directly expandable service intervals
@@ -73,7 +74,7 @@ async function seedEq(supabaseAdmin, overrides = {}) {
 
 async function openForm(page, eq) {
   await page.goto(`/equipment/${eq.slug}`);
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.getByText(eq.name)).toBeVisible({timeout: 15_000});
 }
 

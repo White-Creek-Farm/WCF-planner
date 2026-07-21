@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Cattle herd small-win — 2026-04-29
@@ -112,7 +113,7 @@ test('momma tile shows Calves: SUM(total_born) — twins double-count', async ({
   ]);
 
   await page.goto('/cattle/herds');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expandAllHerds(page);
 
   // The momma row renders with its Calf Count column (on by default).
@@ -132,7 +133,7 @@ test('momma tile shows Calves: 0 when no calving records', async ({page, supabas
   await supabaseAdmin.from('cattle').upsert({...MOMMA, id: 'cow-zero', tag: 'M-ZERO'}, {onConflict: 'id'});
 
   await page.goto('/cattle/herds');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expandAllHerds(page);
 
   const cowTile = page.locator(`#cow-cow-zero`).first();

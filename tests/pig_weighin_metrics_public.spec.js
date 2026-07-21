@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Public WeighInsWebform pig metrics + descending sort smoke
@@ -152,7 +153,7 @@ test('public form: metrics block renders above Recent entries with stable #N des
   await seedActiveDraftSession(supabaseAdmin);
 
   await page.goto('/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Pick Pig species. The species picker renders a "Pig" tile.
   await page.getByText('Pig', {exact: true}).click();

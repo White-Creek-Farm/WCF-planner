@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Route-wide mobile audit spec
@@ -85,7 +86,7 @@ const PUBLIC_ROUTES = [
 
 async function waitForRoute(page, isAuth) {
   // Boot loader is the same gate other specs use.
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   if (isAuth) {
     // Authenticated routes always paint the dark header bar.
     await expect(page.locator('[data-header-bar="1"]')).toBeVisible({timeout: 15_000});

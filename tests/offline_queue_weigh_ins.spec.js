@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Initiative C Phase 1C-D — WeighIns RPC offline queue (pig + broiler fresh)
@@ -92,7 +93,7 @@ async function getLockedSubmitterName(page) {
 // Drive the species picker → select stage → start-session for pig with the
 // canonical seeded batch.
 async function pigStartFreshSession(page) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await page.getByText('Pig', {exact: true}).click();
   const lockedSubmitter = await getLockedSubmitterName(page);
   // Pick batch + Start.
@@ -110,7 +111,7 @@ async function pigAddEntry(page, weight) {
 }
 
 async function broilerStartFreshSession(page) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await page.getByText('Broiler', {exact: true}).click();
   const lockedSubmitter = await getLockedSubmitterName(page);
   await page.getByRole('combobox').first().selectOption('B-26-01');
@@ -509,7 +510,7 @@ test('negative lock: cattle + sheep selection issues no submit_weigh_in_session_
   });
 
   await page.goto('/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Cattle: pick species, land on select stage, back out to species picker.
   await page.getByText('Cattle', {exact: true}).click();
@@ -517,7 +518,7 @@ test('negative lock: cattle + sheep selection issues no submit_weigh_in_session_
 
   // Sheep: navigate back, then pick sheep.
   await page.goto('/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await page.getByText('Sheep', {exact: true}).click();
   await expect(page.getByText('Start a new session')).toBeVisible({timeout: 10_000});
 
@@ -684,7 +685,7 @@ test('stuck modal renders on species picker (not only on session screen)', async
   const stuckSubmitter = FALLBACK_SUBMITTER_NAME;
 
   await page.goto('/weighins');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Pre-seed an IDB stuck row before mount completes hook init. Use
   // page.evaluate to write directly into the queue's submissions store
@@ -757,7 +758,7 @@ test('stuck modal renders on species picker (not only on session screen)', async
   // Reload — fresh hook mount sees the stuck row and auto-opens the modal.
   // Operator is still on the species picker stage at this point.
   await page.reload();
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Modal renders even though we never advanced past the species picker.
   // Anchor on the row's data-stuck-csid hook.

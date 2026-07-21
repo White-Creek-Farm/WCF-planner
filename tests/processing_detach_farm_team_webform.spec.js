@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // Genuine farm_team browser proof for the login-gated /weighins surface.
 // This catches both halves of PR3: migration-170 authorization and the client
@@ -94,7 +95,7 @@ test('farm_team /weighins toggle-clear uses one atomic cattle detach RPC', async
   try {
     await login(page);
     await page.goto('/weighins');
-    await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+    await waitForAppReady(page);
     await page.getByText('Cattle', {exact: true}).click();
     await expect(page.getByText('Resume a draft session')).toBeVisible({timeout: 10_000});
     await page.getByText('finishers', {exact: true}).click();

@@ -1,5 +1,6 @@
 import {test, expect} from './fixtures.js';
 import {createClient} from '@supabase/supabase-js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Add Feed parent-submission RPC contract — mig 034
@@ -368,7 +369,7 @@ test('UI: /addfeed broiler 2-batch submit creates 1 parent + 2 poultry_dailys vi
   void addFeedOfflineScenario;
 
   await page.goto('/addfeed');
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 
   // Pick Broiler program.
   await page.getByRole('button', {name: 'Broiler'}).click();

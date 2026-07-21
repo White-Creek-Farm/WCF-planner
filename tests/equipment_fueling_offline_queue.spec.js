@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Lane H — EquipmentFueling parent-aware RPC offline queue
@@ -101,7 +102,7 @@ async function seedPiece(supabaseAdmin) {
 // (number input #1), then Save. The piece tracks hours and takes no DEF, so
 // those are the only two number inputs on the page.
 async function fillFuelingAndSubmit(page, {gallons = '12', reading = '250'} = {}) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.getByText('Offline Test Tractor')).toBeVisible({timeout: 15_000});
 
   const gallonsInput = page.locator('input[type="number"]').first();

@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Equipment Materials Rolling Checklist (mig 048) — focused Playwright
@@ -70,7 +71,7 @@ async function seedMaterial(supabaseAdmin, equipment_id, overrides = {}) {
 }
 
 async function waitForHomeBoot(page) {
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
 }
 
 async function waitForMaterialsCard(page) {

@@ -1,4 +1,5 @@
 import {test, expect} from './fixtures.js';
+import {waitForAppReady} from './helpers/appReady.js';
 
 // ============================================================================
 // Mobile layout regression spec
@@ -35,7 +36,7 @@ async function waitForBoot(page) {
   // header bar — the early data-loading "Loading…" splash does not render
   // it, so requiring it ensures we're asserting against the real app
   // chrome and not the loading screen.
-  await expect(page.locator('#wcf-boot-loader')).toHaveCount(0, {timeout: 15_000});
+  await waitForAppReady(page);
   await expect(page.locator('[data-header-bar="1"]')).toBeVisible({timeout: 15_000});
   // Give layout one more frame to settle after async data hydrates the
   // page below the header. networkidle catches the Supabase round-trips
