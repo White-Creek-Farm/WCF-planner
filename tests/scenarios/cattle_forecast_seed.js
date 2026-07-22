@@ -22,37 +22,13 @@
 // ============================================================================
 
 import {assertTestDatabase} from '../setup/assertTestDatabase.js';
+import {ensureTestAdminProfile} from '../setup/testAdminIdentity.js';
 
 function must(result, label) {
   if (result?.error) {
     throw new Error(`cattleForecastSeed [${label}]: ${result.error.message}`);
   }
   return result;
-}
-
-async function ensureAdminProfile(supabaseAdmin) {
-  const adminEmail = process.env.VITE_TEST_ADMIN_EMAIL;
-  if (!adminEmail) {
-    throw new Error('cattleForecastSeed: VITE_TEST_ADMIN_EMAIL must be set in .env.test.local.');
-  }
-  const usersResult = await supabaseAdmin.auth.admin.listUsers();
-  if (usersResult.error) {
-    throw new Error(`cattleForecastSeed [auth.listUsers]: ${usersResult.error.message}`);
-  }
-  const adminUser = usersResult.data?.users?.find((u) => u.email === adminEmail);
-  if (!adminUser) {
-    throw new Error(
-      `cattleForecastSeed: test admin "${adminEmail}" missing from auth.users. ` +
-        'Re-create via Supabase Auth dashboard.',
-    );
-  }
-  must(
-    await supabaseAdmin
-      .from('profiles')
-      .upsert({id: adminUser.id, email: adminUser.email, role: 'admin'}, {onConflict: 'id'}),
-    'profiles upsert',
-  );
-  return adminEmail;
 }
 
 const TODAY_ISO = '2026-05-04';
@@ -216,15 +192,28 @@ const ORIGINS = [
 // (the rows carry identical data, so re-writing them is a no-op).
 export async function seedCattleForecast(supabaseAdmin) {
   assertTestDatabase(process.env.VITE_SUPABASE_URL || '');
-  await ensureAdminProfile(supabaseAdmin);
 
-  // cattle_breeds + cattle_origins aren't in the test reset whitelist;
-  // upsert so re-runs don't trip the PK constraint.
-  must(await supabaseAdmin.from('cattle_breeds').upsert(BREEDS, {onConflict: 'id'}), 'cattle_breeds upsert');
-  must(await supabaseAdmin.from('cattle_origins').upsert(ORIGINS, {onConflict: 'id'}), 'cattle_origins upsert');
+  // Barrier 1 — independent reference + profile rows. cattle_breeds/origins
+  // are not FK-referenced by the cattle rows (breed/origin are text labels),
+  // and the admin profile is independent of both, so all three run together.
+  // cattle_breeds + cattle_origins aren't in the test reset whitelist; upsert
+  // so re-runs don't trip the PK constraint.
+  await Promise.all([
+    ensureTestAdminProfile(supabaseAdmin),
+    supabaseAdmin
+      .from('cattle_breeds')
+      .upsert(BREEDS, {onConflict: 'id'})
+      .then((r) => must(r, 'cattle_breeds upsert')),
+    supabaseAdmin
+      .from('cattle_origins')
+      .upsert(ORIGINS, {onConflict: 'id'})
+      .then((r) => must(r, 'cattle_origins upsert')),
+  ]);
 
+  // Barrier 2 — animal rows.
   must(await supabaseAdmin.from('cattle').upsert(COWS, {onConflict: 'id'}), 'cattle upsert');
 
+  // Barrier 3 — session row (weigh_ins FK session_id → weigh_in_sessions).
   // Synthesize a cattle weigh-in session so the cattle cache returns the
   // weigh-ins via its two-query loader.
   must(
@@ -243,6 +232,8 @@ export async function seedCattleForecast(supabaseAdmin) {
     ),
     'weigh_in_sessions upsert',
   );
+
+  // Barrier 4 — dependent weigh-ins.
   must(
     await supabaseAdmin.from('weigh_ins').upsert(
       WEIGH_INS.map((w, i) => ({

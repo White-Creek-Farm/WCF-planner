@@ -133,62 +133,83 @@ export function getTestAdminClient() {
 // via exec_sql, but Supabase blocks direct DELETE on storage tables —
 // the API returns "Direct deletion from storage tables is not allowed.
 // Use the Storage API instead." So we recurse through the bucket and
-// .remove() the file paths via the Storage API. Best-effort (warns on
-// failure rather than aborting reset) since storage cruft is harmless
-// across runs and shouldn't block other tests on transient issues.
+// .remove() the file paths via the Storage API.
+//
+// FAIL CLOSED: any list or remove error rejects the reset. A swept object that
+// survives a reset is cross-test residue (a stale PDF/photo bleeds into the
+// next test), so a partial cleanup must never report success. An empty bucket
+// is the normal success path — only a real API error rejects. Error messages
+// name the bucket + operation and carry only the API message (no credentials).
+function storageCleanupError(bucket, op, error) {
+  return new Error(`resetTestDatabase storage cleanup [${bucket} ${op}]: ${error?.message || error}`);
+}
+
 async function cleanupFuelBillsStorage(client) {
-  try {
-    const top = await client.storage.from('fuel-bills').list();
-    if (top.error || !top.data?.length) return;
-    // Production layout is `fb-{id}/{filename}.pdf`. Recurse one level.
-    for (const dir of top.data) {
-      const inner = await client.storage.from('fuel-bills').list(dir.name);
-      if (inner.data?.length) {
-        const paths = inner.data.map((f) => `${dir.name}/${f.name}`);
-        await client.storage.from('fuel-bills').remove(paths);
-      }
+  const bucket = 'fuel-bills';
+  const top = await client.storage.from(bucket).list();
+  if (top.error) throw storageCleanupError(bucket, 'list', top.error);
+  // Production layout is `fb-{id}/{filename}.pdf`. Recurse one level.
+  for (const dir of top.data || []) {
+    const inner = await client.storage.from(bucket).list(dir.name);
+    if (inner.error) throw storageCleanupError(bucket, `list ${dir.name}`, inner.error);
+    const files = inner.data || [];
+    if (files.length) {
+      const removed = await client.storage.from(bucket).remove(files.map((f) => `${dir.name}/${f.name}`));
+      if (removed.error) throw storageCleanupError(bucket, 'remove', removed.error);
     }
-  } catch (e) {
-    console.warn(`cleanupFuelBillsStorage: ${e.message || e} (tolerating)`);
   }
 }
 
 // daily-photos bucket cleanup. Layout is
 // `<form_kind>/<client_submission_id>/<photo_key>.jpg` — two levels deep.
-// Same Supabase-blocks-DELETE-on-storage.objects rule as fuel-bills, so we
-// recurse via the Storage API and .remove() the file paths.
+// Same Supabase-blocks-DELETE-on-storage.objects rule, same fail-closed rule.
 async function cleanupDailyPhotosStorage(client) {
-  try {
-    const top = await client.storage.from('daily-photos').list();
-    if (top.error || !top.data?.length) return;
-    for (const formKindDir of top.data) {
-      const subs = await client.storage.from('daily-photos').list(formKindDir.name);
-      if (!subs.data?.length) continue;
-      for (const csidDir of subs.data) {
-        const inner = await client.storage.from('daily-photos').list(`${formKindDir.name}/${csidDir.name}`);
-        if (inner.data?.length) {
-          const paths = inner.data.map((f) => `${formKindDir.name}/${csidDir.name}/${f.name}`);
-          await client.storage.from('daily-photos').remove(paths);
-        }
+  const bucket = 'daily-photos';
+  const top = await client.storage.from(bucket).list();
+  if (top.error) throw storageCleanupError(bucket, 'list', top.error);
+  for (const formKindDir of top.data || []) {
+    const subs = await client.storage.from(bucket).list(formKindDir.name);
+    if (subs.error) throw storageCleanupError(bucket, `list ${formKindDir.name}`, subs.error);
+    for (const csidDir of subs.data || []) {
+      const prefix = `${formKindDir.name}/${csidDir.name}`;
+      const inner = await client.storage.from(bucket).list(prefix);
+      if (inner.error) throw storageCleanupError(bucket, `list ${prefix}`, inner.error);
+      const files = inner.data || [];
+      if (files.length) {
+        const removed = await client.storage.from(bucket).remove(files.map((f) => `${prefix}/${f.name}`));
+        if (removed.error) throw storageCleanupError(bucket, 'remove', removed.error);
       }
     }
-  } catch (e) {
-    console.warn(`cleanupDailyPhotosStorage: ${e.message || e} (tolerating)`);
   }
 }
 
-export async function resetTestDatabase() {
+export async function resetTestDatabase(client = getTestAdminClient()) {
   assertTestDatabase(process.env.VITE_SUPABASE_URL || '');
-  const client = getTestAdminClient();
   const tables = TEST_OWNED_TABLES.map((t) => `public."${t}"`).join(', ');
-  const {error} = await client.rpc('exec_sql', {
-    sql: `TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE;`,
-  });
-  if (error) {
-    throw new Error(`resetTestDatabase: TRUNCATE failed: ${error.message}`);
-  }
-  await cleanupFuelBillsStorage(client);
-  await cleanupDailyPhotosStorage(client);
+  // CONCURRENCY SAFETY (proven, not assumed):
+  //   • The TRUNCATE names ONLY public.* tables (TEST_OWNED_TABLES above) and
+  //     RESTART IDENTITY resets only sequences owned by those public tables.
+  //   • TRUNCATE ... CASCADE follows only FKs that REFERENCE the truncated set.
+  //     storage.objects has exactly one FK (bucket_id → storage.buckets) and no
+  //     column referencing any public table, so CASCADE cannot reach it. This
+  //     is a fixed Supabase platform invariant; user migrations cannot add an
+  //     FK into storage.objects.
+  //   • The two sweeps issue ZERO SQL against public.* — they call only the
+  //     Storage API (list/remove on storage.objects).
+  //   Write sets are therefore disjoint: {public tables + their public CASCADE
+  //   closure} vs {storage.objects in two buckets}. No shared table, FK,
+  //   sequence, or lock — so the three run concurrently.
+  //
+  // Promise.all (NOT allSettled): a rejection from ANY of the three members —
+  // the TRUNCATE or either fail-closed Storage sweep — rejects the whole reset.
+  // No member suppresses its own error, so a partial reset can never report
+  // success and leave cross-test residue behind.
+  const truncate = client
+    .rpc('exec_sql', {sql: `TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE;`})
+    .then(({error}) => {
+      if (error) throw new Error(`resetTestDatabase: TRUNCATE failed: ${error.message}`);
+    });
+  await Promise.all([truncate, cleanupFuelBillsStorage(client), cleanupDailyPhotosStorage(client)]);
 }
 
 export const _TEST_OWNED_TABLES = TEST_OWNED_TABLES;
