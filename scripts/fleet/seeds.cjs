@@ -85,24 +85,23 @@ end
 $fleet_vault$;`;
 }
 
-// Simon + Mak: minimal auth.users rows (placeholder password — these accounts
-// are never logged in; only their profile full_name/role matters to mig 052)
-// plus profiles rows. gen_random_uuid() is built-in (no pgcrypto needed).
-// GoTrue scans several token columns into non-nullable Go strings, so they MUST
-// be '' (empty string) not NULL, or the Auth admin API 500s ("Database error
-// finding users"). We set the standard set explicitly.
+// Simon + Mak — the two synthetic secondary TEST users. Migration 052 needs
+// profiles full_name='Simon'/'Mak' with role != 'inactive', but they are ALSO
+// loginable farm_team users the browser specs sign in as (tasks_v2_*,
+// cattle_log role-gates, todo approval, etc. use email
+// simon.tasks@wcfplanner.test with the placeholder password below). They are
+// therefore created through the GoTrue admin API (auth.cjs ensureUser, applied
+// by bootstrap) exactly like the admin — a hand-written encrypted_password is
+// NOT a real bcrypt hash and makes signInWithPassword fail. This SQL only binds
+// their profiles (role=farm_team) to the GoTrue-created auth rows and normalizes
+// GoTrue token columns. The password is a well-known TEST placeholder that is
+// already hard-coded in the specs (tests/tasks_v2_rpcs.spec.js), not a secret.
+const SIMON_MAK_PASSWORD = 'apply_test_mig_052_placeholder_password';
+const SIMON_MAK_USERS = [
+  {email: 'simon.tasks@wcfplanner.test', fullName: 'Simon'},
+  {email: 'mak.tasks@wcfplanner.test', fullName: 'Mak'},
+];
 const SIMON_MAK_SQL = `
-insert into auth.users
-  (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at,
-   raw_app_meta_data, raw_user_meta_data,
-   confirmation_token, recovery_token, email_change, email_change_token_new, reauthentication_token)
-select gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', v.e,
-       '$2a$10$placeholderplaceholderplaceholderplaceholderpl', now(), now(), now(),
-       '{"provider":"email","providers":["email"]}'::jsonb, jsonb_build_object('full_name', v.fn),
-       '', '', '', '', ''
-from (values ('simon.tasks@wcfplanner.test','Simon'), ('mak.tasks@wcfplanner.test','Mak')) as v(e, fn)
-where not exists (select 1 from auth.users u where u.email = v.e);
-
 insert into public.profiles (id, email, full_name, role)
 select u.id, u.email, u.raw_user_meta_data->>'full_name', 'farm_team'
 from auth.users u
@@ -184,4 +183,13 @@ end
 $fleet_pastures$;`;
 }
 
-module.exports = {vaultSecretsSql, VAULT_PLACEHOLDERS, SIMON_MAK_SQL, gotrueNormalizeSql, pigPasturesSql, PIG_PASTURES};
+module.exports = {
+  vaultSecretsSql,
+  VAULT_PLACEHOLDERS,
+  SIMON_MAK_SQL,
+  SIMON_MAK_USERS,
+  SIMON_MAK_PASSWORD,
+  gotrueNormalizeSql,
+  pigPasturesSql,
+  PIG_PASTURES,
+};

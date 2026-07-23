@@ -37,7 +37,7 @@ const {
   buildSupersededSet,
 } = require('./ledger.cjs');
 const {MARKER_DDL, markerUpsertSql} = require('./marker.cjs');
-const {ensureAdminUser, adminProfileUpsertSql, ADMIN_EMAIL} = require('./auth.cjs');
+const {ensureAdminUser, ensureUser, adminProfileUpsertSql, ADMIN_EMAIL} = require('./auth.cjs');
 const {disablePlaceholderCronJobs, PLACEHOLDER_CRON_JOBS} = require('./cron.cjs');
 const {buildAndSegment, stripInnerTx} = require('./bundle.cjs');
 const seeds = require('./seeds.cjs');
@@ -221,6 +221,19 @@ async function executeBootstrap(io, {entry, key, workdir, creds, adminPassword})
     password: adminPassword,
   });
   await runSql(io, {key, workdir, sql: adminProfileUpsertSql(admin.id)});
+  // Simon + Mak: loginable farm_team users the browser specs sign in as. Create
+  // them through GoTrue (like the admin) so they actually authenticate, THEN
+  // bind their profiles (role=farm_team) to the created auth rows.
+  for (const u of seeds.SIMON_MAK_USERS) {
+    await ensureUser(io, {
+      ref: entry.ref,
+      url: creds.url,
+      serviceRole: creds.serviceRole,
+      email: u.email,
+      password: seeds.SIMON_MAK_PASSWORD,
+      fullName: u.fullName,
+    });
+  }
   await runSql(io, {key, workdir, sql: seeds.SIMON_MAK_SQL});
   await runSql(io, {key, workdir, sql: seeds.vaultSecretsSql()});
 
