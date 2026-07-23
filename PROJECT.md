@@ -7,12 +7,12 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-20.
-Runtime checkpoint covered by this wrap: `68872cb`, including the newsletter
-editorial-steering checkpoint, both mobile Field hotfixes, and the Client Errors
-Admin-tab relocation. The approved repository cleanup and this final handoff
-follow in the docs commit; use `git log` for that commit's hash. Migrations
-through `189` are represented in source.
+Last updated: 2026-07-23.
+Runtime/source changes covered by this map include DR groundwork commit
+`b2c3826` and Broiler median hotfix `2cf332e`; this docs wrap accompanies their
+approved fast-forward push to `origin/main`. Migration `190` is PROD-applied and
+the resulting `wcf_backup` role is activated and verified read-only. Migrations
+through `190` are represented in source.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -68,15 +68,89 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
+- Active main state: the approved fast-forward push publishes DR groundwork
+  `b2c3826`, Broiler median hotfix `2cf332e`, and this docs-only wrap as three
+  separate commits. The Playwright reliability work remains isolated on
+  `feature/test-playwright-reliability` in CC#2's separate worktree.
+- Broiler weigh-ins: 4- and 6-week records now use one shared calculation
+  contract for average and median. The main weigh-in table places `Median
+  weight` immediately after `Avg weight`, the record header places median after
+  average, and Broiler CSV exports include the median column. Focused proof is
+  8/8; the complete DB-free suite passed 7,828 tests across 328 files, with
+  format, lint, build, and whitespace checks green.
+- Disaster recovery: the private Backblaze B2 primary bucket
+  `wcf-planner-dr-primary-2026` and Cloudflare R2 secondary bucket
+  `wcf-planner-dr-secondary-2026` exist. B2 uses SSE-B2, Object Lock, a two-day
+  governance default, and a bucket-scoped writer with only `listBuckets`,
+  `writeFiles`, and `writeFileRetentions`. R2 is private in Western North
+  America with 2-day global, 35-day `db/daily/`, 365-day `db/monthly/`, and
+  35-day `storage/` lock rules. Provider credentials, the Supabase Storage S3
+  source credential, the PROD database backup-reader DSN, and the age private
+  identity are stored as separate WCF Planner items in 1Password; the age
+  private identity also has an offline emergency copy. Temporary credentials
+  and local plaintext credential/dump artifacts were removed.
+- DR database identity: migration `190` is PROD-applied. `wcf_backup` can log in,
+  has `BYPASSRLS` plus only `pg_read_all_data`, and has no superuser, database
+  creation, role creation, replication, or application-write authority. A real
+  login dump completed with 133/133 `public`/`auth`/`storage` table-data entries;
+  a populated RLS read matched postgres at 826/826 rows, and a write probe failed
+  closed. Its DSN exists only in 1Password under `WCF Planner — PROD database
+  backup reader`; it has not been added to GitHub.
+- DR automation: commit `b2c3826` contains a streaming `pg_dump -> age`
+  runner, incremental Storage inventory/body transfer to both providers,
+  manifests/checksums, B2 per-object minimum immutability, R2 timestamped keys,
+  read-only provider preflight, fail-closed orchestration, behavioral/static
+  guards, migration `190`, and a `workflow_dispatch`-only workflow whose schedule
+  remains commented. No provider preflight, backup upload, immutable generation,
+  or isolated restore has run. The B2/R2 upload compatibility and B2's two-step
+  Storage-object retention call therefore remain unproven runtime facts.
+- GitHub DR containment: Environment `dr-backup` exists, is restricted to
+  `main`, and requires Ronnie's approval with self-review permitted. Environment
+  variables are complete (7/7); Environment secrets are still 0/7 and are the
+  explicit first action next session. Repository ruleset
+  `protect-main-destructive` blocks deletion and non-fast-forward updates to
+  `main` for everyone while preserving ordinary fast-forward pushes, existing
+  CI, and Netlify deployment behavior. The source is safe to publish because the
+  manual-only job cannot receive missing secrets; do not run its workflow until
+  all seven Environment secrets are present and verified by name.
+- Shared TEST/Playwright reliability: branch
+  `feature/test-playwright-reliability` contains boot-readiness commits
+  `61e9bed`/`6cbdd9c` and fixture-budget Package A commit `e5b9ab3`; none is
+  merged to `main`. Centralized application-navigation readiness eliminated the
+  observed cold-boot failures, and Package A reduced hot fixture setup stages
+  about 45%; the original `animalTransferScenario` and
+  `cattleForecastScenario` setup timeouts did not recur in run `29936691088`.
+  CI is still not repeatably green: that run passed shard 1 at 284/284 but shard
+  2 had four rotating failures (one TEST TRUNCATE lock timeout, one IndexedDB
+  hang, and two post-ready Task Center render races). Cross-run analysis refuted
+  late-file accumulation and instead found cold-start and 11–16.5-minute failure
+  bands, including three unrelated failures within one minute in run 29936691088.
+  Instrumented run `29954947453` confirmed 4 vCPU/~16 GB, at least ~12.8 GB
+  memory available, and ample disk; memory and disk pressure are ruled out.
+  Failures correlated with cold-start work or 1-minute CPU load spikes around
+  3.6–3.7 on four cores. The TEST TRUNCATE timeout did not recur, so its blocker
+  remained unobserved; the sanitized diagnostic is now pushed at `8a8bff7` and
+  remains armed for a future occurrence. Keep two shards. The next fix is one
+  automatic worker-scoped Vite/browser warm-up with its own fixture timeout,
+  followed by measurement; do not add shards or restart processes because both
+  would multiply the proven cold-start regime. A billed 8-vCPU runner is the
+  fallback only if steady-state CPU-spike failures remain after warm-up. No
+  merge, Package B isolation change, timeout inflation, or Pasture work is
+  approved. Worker warm-up commit `722ba1f` is pushed on the feature branch: one
+  logged-out `/` navigation primes the app's fully static import graph, and a
+  disposable IndexedDB open/close primes the browser path without touching the
+  real offline queue. Focused coverage is 44/44. Measured dispatch `30002663288`
+  is queued behind nightly run `29999814082`; its result is still pending.
+
 - Production deploy: Netlify auto-deploys from the GitHub organization repo
   `White-Creek-Farm/WCF-planner`, branch `main` (`npm run build`, publish `dist`,
-  Functions `netlify/functions`). Runtime code is merged through `68872cb`;
+  Functions `netlify/functions`). Runtime code is merged through `2cf332e`;
   Netlify reported the wrap commit `9860a08` published and `ready` at
   2026-07-20 21:43 UTC, directly confirming the organization-repo linkage and
   current build settings. Later docs-only commits may advance the displayed
   deploy ref without changing runtime behavior.
 - Supabase live high-water: all repository migrations through `166`, `170`-`183`,
-  `185`-`189` are reported PROD-applied; numbers `167`-`169` are intentionally
+  `185`-`190` are reported PROD-applied; numbers `167`-`169` are intentionally
   unused and `184` is reserved/not present. Migration `189`'s PROD apply was
   reported and behaviorally verified in the newsletter lane, but this wrap did
   not independently query the PROD database because no PROD DB URL is exposed
@@ -304,42 +378,25 @@ Design/function invariants that govern cross-surface behavior live in
   link and does not duplicate the global Header. Focused static proof passed
   27/27 and the leased browser proof passed 4/4 during this wrap. The future
   final order is `Deleted` -> `Site & Recovery` -> `Client Errors`.
-- Disaster-recovery preparation: Supabase Pro is active. Ronnie approved the
-  Supabase Pro + Backblaze B2 + Cloudflare R2 architecture and created all three
-  accounts. B2/R2 buckets, credentials, retention locks, hourly automation,
-  monitoring, restore tooling, and a restore drill are NOT configured yet. All
-  service login identifiers use `ronnie@whitecreek.farm`; credentials live in
-  the shared 1Password Business vault `WCF Planner`. The Anthropic API remains a
-  documented personal-account dependency to transfer later.
-- Validation state at the shipped checkpoint: the full shared-TEST/browser
-  suites remain capable of rotating or deterministic failures that must not be
-  hidden. Main run `29747176411` (`06f04f6`) passed verify but failed four root
-  browser specs across both shards. Main run `29778369532` (`f61fb64`) passed
-  verify but failed seven Pasture specs; its new mobile label test itself passed.
-  Final viewport-hotfix run `29780589557` passed format/lint/unit/build and the
-  touched phone-toolbar test; the full Pasture job finished 41 passed / 6 failed
-  on the same older hover, open-line-edit, map, and reset-history families. The
-  previously failing Drop Point test passed. PR #89 now
-  classifies changes into DB-free, focused, or full browser coverage; high-risk,
-  unknown, nightly, and manual runs remain fail-closed full. Its first main-push
-  proof (`29587188942`) passed verify and the stable policy gate while correctly
-  skipping focused, both shards, and Pasture for the already-tested GitHub PR
-  merge commit. Direct main pushes still undergo normal risk classification.
-  Wrap run `29781240070` started for `9860a08` and was still in progress when
-  this handoff closed; inspect that run first in the next CI reliability session.
-- Git/workstation handoff: runtime work is linear through `68872cb`; docs commit
-  `9860a08` adds this `PROJECT.md` wrap plus only the approved historical-file
-  removals. This deploy-confirmation addendum follows it. The completed CC#1
-  label/viewport and CC#3 Client Errors worktrees
-  remain at their merged commits. The CC#2 worktree remains on merged
-  `feature/processing-pig-drawer-title` with one untracked generated report that
-  must not be staged. The clean CC#4 design-audit worktree remains at `06f04f6`.
-  The older merged `feature/processing-year-program-totals` branch and local
-  executed-cleanup branch `ops/stray-workbook-cleanup` (`30b0402`) remain and may
-  be pruned later; neither is active product work. The intentional
-  `archive/ui-cleanup-wip-2026-06-17` tag remains because it is the only unique
-  snapshot of that abandoned WIP; diagnostic traces under
-  `C:\Users\Ronni\cc-research\` remain intentionally outside the repo.
+- Disaster recovery and shared-TEST reliability are active lanes; their
+  exact current facts and next gates are stated at the top of Current State and
+  in Build Queue items 1 and 2. Do not rely on older session reports for bucket,
+  key, migration, workflow, or CI status. All service login identifiers use
+  `ronnie@whitecreek.farm`; credentials live in the shared 1Password Business
+  vault `WCF Planner`. The Anthropic API remains a documented personal-account
+  dependency to transfer later.
+- CI policy remains fail closed. PR #89 classifies changes into DB-free,
+  focused, or full browser coverage; high-risk, unknown, nightly, and manual
+  runs select full coverage. Direct main pushes retain normal risk
+  classification. The current reliability branch evidence is not merge-ready;
+  see Build Queue item 2 rather than treating rotating timeouts as ignorable.
+- Git/workstation handoff: the approved main push contains three separate
+  commits: DR groundwork `b2c3826`, Broiler median hotfix `2cf332e`, and this
+  docs wrap. CC#2's active reliability worktree is on
+  `feature/test-playwright-reliability` at pushed warm-up commit `722ba1f`;
+  measured run `30002663288` is pending. Preserve
+  the intentional `archive/ui-cleanup-wip-2026-06-17` tag because it is the only
+  unique snapshot of that abandoned WIP.
 
 ### Recent Shipped Checkpoints
 
@@ -356,7 +413,8 @@ order), `74b04d1` (fueling logo home link), `f6e1948` (Home help-copy removal),
 `188`), `d1e0e33` (concise Pig drawer identity), `07027c0` (Pig drawer lifecycle
 proof), `06f04f6` (newsletter editorial steering + migration `189` source),
 `f61fb64` (mobile temp-paddock label), `77c3c57` (mobile Field toolbar kept
-inside the viewport), and `68872cb` (Client Errors moved to Admin). The cattle schedule remains
+inside the viewport), `68872cb` (Client Errors moved to Admin), and `2cf332e`
+(Broiler median in list, record header, and export). The cattle schedule remains
 reconciled with September `C-26-05`. The only unique abandoned UI WIP remains
 preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 
@@ -367,16 +425,23 @@ preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 Treat these as product lanes, not hotfixes, unless Ronnie says otherwise.
 This is the canonical home for outstanding build/design work.
 
-Next-session routing: item 1 resumes the approved DR implementation by
-configuring B2 and R2, then proving the first encrypted backup and isolated
-restore. The Site & Recovery Admin tab follows the verified recovery framework.
-Item 2 is the unresolved CI/shared-TEST reliability lane. Newsletter item 3
+Next-session routing: item 1 starts with Ronnie adding the seven already-stored
+1Password values as GitHub `dr-backup` Environment secrets. Then run the
+read-only preflight, separately approve the first immutable backup, and prove an
+isolated restore before building the Site & Recovery Admin tab. Item 2 resumes
+from pushed warm-up commit `722ba1f` after measured run `30002663288` reports;
+keep two shards and retain telemetry for the measured rerun.
+Newsletter item 3
 needs Ronnie's writing example and a controlled PROD AI probe before the first
-issue. Item 4 remains a later operational cutover decision.
+issue. Item 4 remains a later operational cutover decision. Item 5 removes
+Processing Center tasks from the Task Center list without deleting their source
+records or disrupting Processing workflows.
 
 1. Full disaster recovery + Site & Recovery Admin tab
-   - Status: ARCHITECTURE APPROVED; SUPABASE PRO ACTIVE; B2/R2 ACCOUNTS CREATED;
-     PROVIDER CONFIGURATION, AUTOMATION, RESTORE PROOF, AND UI BUILD REMAIN.
+   - Status: PROVIDERS AND CREDENTIAL CUSTODY CONFIGURED; BACKUP ROLE PROD-ACTIVE
+     AND READ-ONLY VERIFIED; AUTOMATION SOURCE PUSHED TO MAIN; GITHUB
+     VARIABLES/PROTECTIONS COMPLETE; 0/7 GITHUB SECRETS; NO PREFLIGHT, BACKUP,
+     RESTORE PROOF, OR UI BUILD YET.
    - Class: `RELIABILITY`/`SECURITY`/`DATA-OPERATION`/`ENH`.
    - Locked architecture:
      - Supabase Pro is the production database/Auth/Storage platform and first
@@ -385,10 +450,14 @@ issue. Item 4 remains a later operational cutover decision.
      - Backblaze B2 is the primary independent backup and Cloudflare R2 is the
        second independent backup. Both receive hourly encrypted logical database
        dumps and exact-path Storage copies with manifests/checksums.
-     - Retain 48 hourly, 35 daily, and 12 monthly database generations. Deleted
-       or replaced uploaded files must remain recoverable for at least 35 days.
-       Database packages are encrypted client-side before upload; Storage copies
-       stay private and provider-encrypted.
+     - Initial physical retention is deliberately indefinite: the narrow B2
+       writer has no delete or governance-bypass capability and no lifecycle
+       rule removes generations. The former 48-hourly/35-daily/12-monthly caps
+       are not enforced and must not be claimed. Minimum immutability is 2 days
+       for hourly database generations, 35 days for daily and Storage objects,
+       and 365 days for monthly database generations. Database packages are
+       encrypted client-side before upload; Storage copies stay private and
+       provider-encrypted.
      - B2 uses a private bucket, SSE-B2, Object Lock with a two-day default, and
        longer per-object retention for daily/monthly/storage generations. R2
        uses timestamped unique keys and bucket locks; do not design around S3
@@ -396,21 +465,35 @@ issue. Item 4 remains a later operational cutover decision.
      - The database encryption key lives in 1Password plus one offline emergency
        copy. No password, token, MFA seed, recovery code, or encryption key may
        enter Git, the app UI, logs, backup manifests, or an AI prompt.
-   - Current gap: B2/R2 buckets, application keys/tokens, lifecycle/retention
-     rules, backup runners, alerts, inventories, and restore tooling do not yet
-     exist. No successful combined database + Storage restore drill has run, so
-     the approved RPO/RTO targets are not yet claims of achieved protection.
+   - Current implementation: B2/R2 buckets, provider writers, lock policies,
+     Supabase Storage S3 source access, the age keypair, and the read-only PROD
+     database role exist. Commit `b2c3826` adds the streaming backup
+     runner, workflow, inventories, manifests, retention mapping, preflight, and
+     extensive behavioral/static safety tests and is published on `main`.
+     GitHub Environment `dr-backup` is main-only, reviewer-gated, and has all
+     seven variables but none of the seven secrets. No successful provider write
+     or combined database + Storage
+     restore drill has run, so no RPO/RTO or achieved-protection claim is valid.
+     Monitoring/alerts and restore tooling/procedure remain to be completed.
    - Next implementation sequence:
-     1. Configure the private B2 and R2 buckets/credentials and store secrets in
-        the `WCF Planner` 1Password Business vault; confirm the irreversible B2
-        Object Lock choices before bucket creation.
-     2. Build dry-run-first hourly database/Storage jobs, manifests, integrity
-        checks, retention promotion, and stale/failure alerts without logging
-        secrets.
-     3. Restore into an isolated recovery project and verify Auth/application
+     1. NEXT SESSION FIRST ACTION: add the seven GitHub Environment secrets from
+        their existing 1Password items: `DR_PROD_DB_URL`, `DR_B2_KEY_ID`,
+        `DR_B2_APPLICATION_KEY`, `DR_R2_ACCESS_KEY_ID`,
+        `DR_R2_SECRET_ACCESS_KEY`, `DR_STORAGE_S3_ACCESS_KEY_ID`, and
+        `DR_STORAGE_S3_SECRET_ACCESS_KEY`. Add them only under Environment
+        `dr-backup`, never as repository secrets; verify names only and never
+        expose values in chat, screenshots, source, shell arguments, or logs.
+     2. Manually approve and run the read-only preflight from `main`; settle
+        Supabase/B2/R2 endpoint, credential, AWS CLI, and bucket-access facts
+        without uploading anything.
+     3. Under a separate immutable-write gate, run the first combined encrypted
+        database + Storage backup. Verify manifests, checksums, coverage, B2
+        retention calls, R2 timestamped keys, and absence of plaintext residue.
+     4. Restore into an isolated recovery project and verify Auth/application
         rows, animal histories, dailies, Processing, tasks/comments, every file
         bucket/path, private-file access, submissions, and background jobs.
-     4. Only after the framework is exact and proven, build the final backup
+     5. Add stale/failure monitoring, then only after the framework is exact and
+        proven, build the final backup
         graphic and the admin-only `Site & Recovery` tab between `Deleted` and
         `Client Errors`.
    - Site & Recovery v1 is deliberately lean and collapsible: Overview; Accounts
@@ -436,30 +519,67 @@ issue. Item 4 remains a later operational cutover decision.
      approved RPO/RTO; and Ronnie has a concise emergency runbook.
 
 2. Shared TEST / Playwright rotating-flake closure
-   - Status: APPROVED FOR INVESTIGATION AND BUILD; TEST-INFRA ONLY unless a real
-     product defect is proved.
+   - Status: ACTIVE ON `feature/test-playwright-reliability`; FIVE TEST-INFRA
+     CHECKPOINTS PUSHED TO THE FEATURE BRANCH, NONE MERGED; MEASURED WARM-UP
+     DISPATCH QUEUED.
    - Class: `DEFECT`/`CI`/`TEST-INFRA`/`RELIABILITY`.
-   - Problem: consecutive main runs have failed on different browser specs while
-     the same specs pass elsewhere and each changed lane's focused leased tests
-     pass. Run `29747176411` failed four root specs across both shards. Run
-     `29778369532` failed seven Pasture specs, including hover, open-line-edit,
-     map, reset-history, and Drop Point paths, while its new mobile label proof
-     passed. Some failures may be deterministic product/test drift; concurrency
-     inspection did not prove local/CI collision because the lease workflow uses
-     the shared `wcf-test-db` group. Treat every failure as real until reproduced
-     and classified, rather than assuming all are environmental.
-   - Investigation: correlate failed steps, timestamps, leases, GitHub jobs,
-     Supabase logs, seed/reset ownership, operational-profile setup, and cleanup;
-     reproduce representative failures under the same shard topology; separate
-     real deterministic defects from shared-environment failures.
+   - Evidence and completed feature-branch work:
+     - `61e9bed` replaced direct splash waits in 26 families with the shared
+       two-marker readiness helper and guards its ownership. `6cbdd9c` makes
+       application `page.goto` readiness central through the canonical fixture,
+       with an explicit documented opt-out contract. The observed cold-boot
+       failure mechanism has not recurred since centralization.
+     - `e5b9ab3` keeps per-test isolation while parallelizing proven-independent
+       TEST reset operations, batching FK-independent seed stages, making
+       Storage cleanup fail closed, and caching a fully paginated immutable TEST
+       admin identity. Idle fixture setup improved roughly 975→590ms for cattle
+       forecast and 786→430ms for animal transfer; both original setup-timeout
+       targets passed in full run `29936691088`.
+     - CI remains red under rotating load. Run `29936691088` was clean on shard
+       1 (284/284) and failed four on shard 2: a new TRUNCATE statement/lock
+       timeout, an IndexedDB read hang, and two post-ready Task Center render
+       races. Earlier runs rotated among other specs while focused leased runs
+       passed. The unchanged common factor appears to be environmental
+       amplification during long serial shards, but that remains an inference
+       until the current diagnostic work reports runner and lock evidence.
+     - Pasture remains separately unmeasured by these manual full dispatches
+       because the classifier reports `pasture=false`; its earlier failure
+       cluster is still open and untouched.
+   - Diagnostic conclusion and next action: failure ordinals span the suite, so
+     late-file accumulation is refuted; elapsed failures cluster at cold start
+     and 11–16.5 minutes, and run `29936691088` placed three unrelated failures
+     inside one minute. A prior hung page may leave a PostgREST query holding an
+     ACCESS SHARE lock while the next reset's TRUNCATE waits for ACCESS
+     EXCLUSIVE, but no blocker snapshot exists yet. Commit `8a8bff7` adds the
+     fail-closed TEST-only lock diagnostic and bounded runner telemetry. Run
+     `29954947453` confirmed CPU/cold-start pressure rather than memory/disk
+     exhaustion: shard 1 failed two early Broiler public-form renders; shard 2
+     failed two cold-start IndexedDB reads and two Task Center renders after its
+     peak load sample. Package A's targets passed for the third run.
+   - Chosen next fix: one automatic worker-scoped warm-up through the
+     canonical fixture, with a separate fixture timeout so warm-up does not
+     consume a normal test's 30-second budget. It must hard-refuse non-TEST/non-
+     local targets, use a fresh context on the same worker browser, prime the
+     Vite module graph and a disposable IndexedDB path without mutating TEST
+     data, then close the context. This is committed and pushed as `722ba1f`;
+     inspection proved the app has no route
+     code-splitting, so one logged-out `/` visit compiles the full static module
+     graph and authenticated route visits would add no compile coverage. Keep
+     two serialized shards and retain telemetry/lock diagnostics for measured
+     post-warm-up run `30002663288`, queued behind nightly `29999814082`. If steady-state
+     CPU-spike failures remain after this measured fix, evaluate a billed 8-vCPU
+     runner; do not add shorter shards or process restarts, which would repay the
+     proven cold-start cost more often.
    - Build constraints: preserve fail-closed high-risk/full coverage and the
      one-file-at-a-time TEST-DB lease contract. Do not add blind retries, sleeps,
      weakened assertions, skipped coverage, or success-on-failure handling.
      Prefer deterministic readiness signals, idempotent scoped seeds, explicit
      session ownership, and isolation of cross-spec residue.
-   - Validation: demonstrate repeated clean full-shard/main-equivalent runs plus
-     focused reruns of every changed fixture family; keep DB-free/risk-selection
-     policy tests green and document any proven product defect as its own lane.
+   - Validation: after selecting the smallest evidence-backed structural fix,
+     demonstrate repeated clean full-shard/main-equivalent runs plus focused
+     reruns of every changed fixture family; keep DB-free/risk-selection policy
+     tests green and document any proven product defect as its own lane. Do not
+     merge the current feature branch on the existing red evidence.
    - Success criteria: main CI is trustworthy and repeatable, failures identify a
      stable actionable cause, and no local Playwright or GitHub job can silently
      collide with another TEST database owner.
@@ -523,6 +643,18 @@ issue. Item 4 remains a later operational cutover decision.
    - Success criteria: the deliberate cutover does not interrupt hourly comments
      import, historical Activity remains absent, and no UI maintenance controls
      are revived.
+
+5. Remove Processing Center tasks from Task Center lists
+   - Status: REQUESTED; NOT YET INVESTIGATED OR BUILT.
+   - Class: `ENH`/`TASK-CENTER`/`PROCESSING`.
+   - Problem: Processing Center tasks currently appear in the Task Center list;
+     they should not be shown there.
+   - Scope: identify the durable Processing-task marker and exclude matching
+     tasks from Task Center list surfaces without deleting task records,
+     weakening permissions, or disrupting Processing Center workflows.
+   - Success criteria: Processing Center tasks remain available to the
+   Processing workflow but no longer appear in Task Center lists; ordinary
+   Task Center tasks and their existing behavior remain unchanged.
 
 ---
 
@@ -1176,6 +1308,14 @@ migrations:
     The lane reported a transactional PROD apply and post-apply verification;
     this wrap independently verified the paired `newsletter-harvest` PROD v7
     deploy but did not re-query the PROD database catalog.
+- `190` DR backup database role:
+  - Creates `wcf_backup` inert as `NOLOGIN`, with `BYPASSRLS` and membership only
+    in `pg_read_all_data`; password/login activation is intentionally out of
+    band and never appears in the migration.
+  - PROD-applied and then separately activated. A direct login completed a full
+    logical dump with 133/133 table-data entries, matched postgres on a populated
+    RLS-protected Storage table, and failed a write probe. The credential lives
+    only in 1Password and is not yet in GitHub.
 
 Special migration notes:
 
@@ -1184,8 +1324,9 @@ Special migration notes:
   migration `166` to detach/user-management migrations `170`/`171`, then resumes
   Processing migration work at `172`-`179`; Pasture follows at `180`-`181` and
   cattle forecast-batch reconciliation at `182`. User-management `183` and
-  Processing `185`/`186`, Layer correction `187`, Processing yield `188`, and
-  Newsletter voice/tone migration `189` are live; `184` is
+  Processing `185`/`186`, Layer correction `187`, Processing yield `188`,
+  Newsletter voice/tone migration `189`, and DR read-only role migration `190`
+  are live; `184` is
   reserved/not present.
 - `083` public webform submitter identity is shelved.
 - `085` was applied before `084` in PROD so duplicate active daily identities
@@ -1242,6 +1383,20 @@ Append-only upload expectations:
 
 ### Important Files
 
+- `.github/workflows/dr-backup.yml`, `scripts/dr_backup.cjs`,
+  `scripts/dr_inventory.cjs`, `scripts/lib/dr_layout.cjs`, and
+  `scripts/lib/dr_orchestrate.cjs`: manual-only DR workflow, streaming encrypted
+  database/Storage backup runner, inventory/diff/key/retention rules, and
+  behaviorally tested upload orchestration. These are published on `main` in
+  commit `b2c3826`; runtime use remains gated by the seven missing Environment
+  secrets and explicit workflow approval.
+- `supabase-migrations/190_dr_backup_role.sql`: PROD-applied source for the
+  activated read-only `wcf_backup` role; password/login activation remains
+  deliberately out of band.
+- `tests/fixtures.js`, `tests/helpers/appReady.js`, `tests/setup/reset.js`,
+  `tests/setup/testAdminIdentity.js`, and the hot scenario seed helpers:
+  feature-branch Playwright readiness and fixture-budget ownership. Read Build
+  Queue item 2 before modifying; the current branch is not merge-ready.
 - `src/main.jsx`: app shell, view routing, auth-gated view rendering, global
   modals.
 - `src/lib/routes.js`: canonical route map and aliases.
