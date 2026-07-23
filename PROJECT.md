@@ -9,10 +9,9 @@ load-bearing contracts. Workflow, roles, gates, and relay format live in
 
 Last updated: 2026-07-23.
 Runtime/source changes covered by this map include DR groundwork commit
-`b2c3826` and Broiler median hotfix `2cf332e`; this docs wrap accompanies their
-approved fast-forward push to `origin/main`. Migration `190` is PROD-applied and
-the resulting `wcf_backup` role is activated and verified read-only. Migrations
-through `190` are represented in source.
+`b2c3826`; the former Broiler median hotfix `2cf332e` has been reverted.
+Migration `190` is PROD-applied and the resulting `wcf_backup` role is activated
+and verified read-only. Migrations through `190` are represented in source.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
 lives in the Load-Bearing Contracts below; migration/live state lives in Current
 State and Backend And Data State. Do not re-enumerate the changelog in this header.
@@ -68,16 +67,11 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
-- Active main state: the approved fast-forward push publishes DR groundwork
-  `b2c3826`, Broiler median hotfix `2cf332e`, and this docs-only wrap as three
-  separate commits. The Playwright reliability work remains isolated on
+- Active main state: DR groundwork `b2c3826` is published. The former Broiler
+  median hotfix `2cf332e` has been reverted at Ronnie's request; the main
+  weigh-in table, record header, and exports retain their prior average-only
+  behavior. The Playwright reliability work remains isolated on
   `feature/test-playwright-reliability` in CC#2's separate worktree.
-- Broiler weigh-ins: 4- and 6-week records now use one shared calculation
-  contract for average and median. The main weigh-in table places `Median
-  weight` immediately after `Avg weight`, the record header places median after
-  average, and Broiler CSV exports include the median column. Focused proof is
-  8/8; the complete DB-free suite passed 7,828 tests across 328 files, with
-  format, lint, build, and whitespace checks green.
 - Disaster recovery: the private Backblaze B2 primary bucket
   `wcf-planner-dr-primary-2026` and Cloudflare R2 secondary bucket
   `wcf-planner-dr-secondary-2026` exist. B2 uses SSE-B2, Object Lock, a two-day
@@ -161,7 +155,8 @@ Design/function invariants that govern cross-surface behavior live in
 
 - Production deploy: Netlify auto-deploys from the GitHub organization repo
   `White-Creek-Farm/WCF-planner`, branch `main` (`npm run build`, publish `dist`,
-  Functions `netlify/functions`). Runtime code is merged through `2cf332e`;
+  Functions `netlify/functions`). Runtime product behavior is merged through
+  `68872cb`; the later Broiler median behavior was reverted.
   Netlify reported the wrap commit `9860a08` published and `ready` at
   2026-07-20 21:43 UTC, directly confirming the organization-repo linkage and
   current build settings. Later docs-only commits may advance the displayed
@@ -407,9 +402,8 @@ Design/function invariants that govern cross-surface behavior live in
   runs select full coverage. Direct main pushes retain normal risk
   classification. The current reliability branch evidence is not merge-ready;
   see Build Queue item 2 rather than treating rotating timeouts as ignorable.
-- Git/workstation handoff: the approved main push contains three separate
-  commits: DR groundwork `b2c3826`, Broiler median hotfix `2cf332e`, and this
-  docs wrap. CC#2's active reliability worktree is on
+- Git/workstation handoff: main contains DR groundwork `b2c3826` and the
+  subsequent Broiler median rollback. CC#2's active reliability worktree is on
   `feature/test-playwright-reliability` at pushed warm-up commit `722ba1f`;
   measured run `30002663288` is complete and the merge-baseline decision remains
   open. Preserve
@@ -431,8 +425,8 @@ order), `74b04d1` (fueling logo home link), `f6e1948` (Home help-copy removal),
 `188`), `d1e0e33` (concise Pig drawer identity), `07027c0` (Pig drawer lifecycle
 proof), `06f04f6` (newsletter editorial steering + migration `189` source),
 `f61fb64` (mobile temp-paddock label), `77c3c57` (mobile Field toolbar kept
-inside the viewport), `68872cb` (Client Errors moved to Admin), and `2cf332e`
-(Broiler median in list, record header, and export). The cattle schedule remains
+inside the viewport), and `68872cb` (Client Errors moved to Admin). The former
+Broiler median checkpoint `2cf332e` was subsequently reverted. The cattle schedule remains
 reconciled with September `C-26-05`. The only unique abandoned UI WIP remains
 preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 

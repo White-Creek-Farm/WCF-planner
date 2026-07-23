@@ -36,7 +36,6 @@ import {
 import {pigSendToTrip, pigUndoSend} from '../lib/pigPlannerApi.js';
 import PigSendToTripModal from './PigSendToTripModal.jsx';
 import {writeBroilerBatchAvg, recomputeBroilerBatchWeekAvg} from '../lib/broiler.js';
-import {averageEntryWeight, medianEntryWeight} from '../lib/weighInSessionExports.js';
 import {LockedTeamMemberField, recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
@@ -1579,8 +1578,10 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
       ? computeRankMatchedPigEntryADG(sEntries, pigPriorSession.entries, session.date, pigPriorSession.date)
       : [];
   const pigEntryAdgById = Object.fromEntries(pigEntryAdgs.map((m) => [m.entryId, m]).filter(([id]) => id != null));
-  const broilerAvg = isBroiler ? averageEntryWeight(sEntries) : '';
-  const broilerMedian = isBroiler ? medianEntryWeight(sEntries) : '';
+  const broilerAvg =
+    isBroiler && sEntries.length > 0
+      ? Math.round((sEntries.reduce((s, e) => s + (parseFloat(e.weight) || 0), 0) / sEntries.length) * 100) / 100
+      : null;
   const groupLabelsMap = session.species === 'sheep' ? FLOCK_LABELS : HERD_LABELS;
   const groupName =
     isPig || isBroiler
@@ -1697,7 +1698,7 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               {'WK ' + session.broiler_week}
             </span>
           )}
-          {isBroiler && broilerAvg !== '' && (
+          {isBroiler && broilerAvg != null && (
             <span
               style={{
                 fontSize: 12,
@@ -1709,20 +1710,6 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
               }}
             >
               avg {broilerAvg} lb
-            </span>
-          )}
-          {isBroiler && broilerMedian !== '' && (
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#065f46',
-                padding: '2px 10px',
-                borderRadius: 10,
-                background: '#d1fae5',
-              }}
-            >
-              median {broilerMedian} lb
             </span>
           )}
         </div>

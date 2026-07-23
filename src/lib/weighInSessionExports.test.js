@@ -3,7 +3,6 @@ import {
   averageEntryWeight,
   buildLivestockWeighInSessionColumns,
   buildRuminantWeighInSessionColumns,
-  medianEntryWeight,
   roundToHundredths,
 } from './weighInSessionExports.js';
 
@@ -16,13 +15,6 @@ describe('weighInSessionExports', () => {
     expect(roundToHundredths(12.345)).toBe(12.35);
     expect(averageEntryWeight([])).toBe('');
     expect(averageEntryWeight([{weight: '10'}, {weight: '13.333'}, {weight: ''}])).toBe(7.78);
-  });
-
-  it('calculates odd and even medians from the same entry population as average weight', () => {
-    expect(medianEntryWeight([])).toBe('');
-    expect(medianEntryWeight([{weight: '4.5'}, {weight: '3.1'}, {weight: '4.2'}])).toBe(4.2);
-    expect(medianEntryWeight([{weight: '4.5'}, {weight: '3.1'}, {weight: '4.2'}, {weight: '3.8'}])).toBe(4);
-    expect(medianEntryWeight([{weight: '4'}, {weight: ''}, {weight: 'invalid'}])).toBe(0);
   });
 
   it('builds ruminant session columns with group labels and tag counts', () => {
@@ -87,7 +79,6 @@ describe('weighInSessionExports', () => {
       'Team member',
       'Entry count',
       'Average weight',
-      'Median weight',
       'Started at',
       'Session ID',
     ]);
@@ -95,10 +86,9 @@ describe('weighInSessionExports', () => {
     expect(valueFor(columns, 'Broiler week', session)).toBe('5');
     expect(valueFor(columns, 'Entry count', session)).toBe(2);
     expect(valueFor(columns, 'Average weight', session)).toBe(4.17);
-    expect(valueFor(columns, 'Median weight', session)).toBe(4.17);
   });
 
-  it('omits broiler-only week and median values for non-broiler livestock lists', () => {
+  it('omits broiler week values for non-broiler livestock lists', () => {
     const columns = buildLivestockWeighInSessionColumns({
       species: 'pig',
       speciesLabel: 'Pig',
@@ -106,6 +96,5 @@ describe('weighInSessionExports', () => {
     });
 
     expect(valueFor(columns, 'Broiler week', {id: 'session1', broiler_week: '9'})).toBe('');
-    expect(columns.some((column) => column.header === 'Median weight')).toBe(false);
   });
 });

@@ -1,11 +1,7 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import {recordSeqNavOptions} from '../lib/recordSequence.js';
-import {
-  averageEntryWeight,
-  buildLivestockWeighInSessionColumns,
-  medianEntryWeight,
-} from '../lib/weighInSessionExports.js';
+import {averageEntryWeight, buildLivestockWeighInSessionColumns} from '../lib/weighInSessionExports.js';
 import {csvFilename, downloadCsv, rowsToCsv} from '../lib/csvExport.js';
 import {printRows} from '../lib/printExport.js';
 import {listSavedViews, createSavedView, updateSavedView, deleteSavedView} from '../lib/savedViewsApi.js';
@@ -857,34 +853,19 @@ const LivestockWeighInsView = ({
                 },
               );
             } else {
-              columns.push(
-                {
-                  key: 'avg',
-                  label: 'Avg weight',
-                  align: 'right',
-                  render: (s) => {
-                    const avgWeight = averageEntryWeight(entries[s.id] || []);
-                    return avgWeight > 0 ? (
-                      <StatusText tone="ok">{'avg ' + Math.round(avgWeight * 100) / 100 + ' lb'}</StatusText>
-                    ) : (
-                      <StatusText tone="muted">{'—'}</StatusText>
-                    );
-                  },
+              columns.push({
+                key: 'avg',
+                label: 'Avg weight',
+                align: 'right',
+                render: (s) => {
+                  const avgWeight = averageEntryWeight(entries[s.id] || []);
+                  return avgWeight > 0 ? (
+                    <StatusText tone="ok">{'avg ' + Math.round(avgWeight * 100) / 100 + ' lb'}</StatusText>
+                  ) : (
+                    <StatusText tone="muted">{'—'}</StatusText>
+                  );
                 },
-                {
-                  key: 'median',
-                  label: 'Median weight',
-                  align: 'right',
-                  render: (s) => {
-                    const medianWeight = medianEntryWeight(entries[s.id] || []);
-                    return medianWeight > 0 ? (
-                      <StatusText tone="ok">{'median ' + medianWeight + ' lb'}</StatusText>
-                    ) : (
-                      <StatusText tone="muted">{'—'}</StatusText>
-                    );
-                  },
-                },
-              );
+              });
             }
 
             const sharedProps = {
