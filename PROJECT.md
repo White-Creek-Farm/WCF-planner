@@ -559,10 +559,16 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
      approved RPO/RTO; and Ronnie has a concise emergency runbook.
 
 2. Shared TEST / Playwright rotating-flake closure
-   - Status: ACTIVE ON `feature/test-playwright-reliability`; FIVE TEST-INFRA
-     CHECKPOINTS PUSHED TO THE FEATURE BRANCH, NONE MERGED; MEASURED WARM-UP
-     RUN COMPLETE; FIVE-PROJECT TEST FLEET CREATED BUT NOT BOOTSTRAPPED;
-     MERGE-BASELINE DECISION OPEN.
+   - Status: ISOLATED TEST FLEET A/B/C/D BOOTSTRAPPED (fresh repo-derived
+     execute, 174 migrations each), ATTESTED READY, BOOTSTRAP-PARITY IDENTICAL,
+     ISOLATION PROVEN, AND ROUTING MERGED TO `main` (@8de35f6). Live parallel
+     A/B (main-triggered run 30046534415, fully green) + C/D (dispatched run
+     30046599021, test-c green) proven; the only residual CI failures are
+     pre-existing rotating timing flakes (see below), zero fleet-infra failures.
+     `wcf-planner-test-main` QUARANTINED (Disk I/O) and EXCLUDED from the fleet.
+     The reliability rotating-flake CLOSURE itself remains open on
+     `feature/test-playwright-reliability` (the fleet is its enabler, not its
+     closure); merge-baseline decision open.
    - Class: `DEFECT`/`CI`/`TEST-INFRA`/`RELIABILITY`.
    - Locked TEST-fleet allocation:
      - PROD `Farm Planner` is prohibited for all tests, resets, seeds, probes,
@@ -605,15 +611,45 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
         no target collision, cross-project residue, configuration drift, or
         accidental PROD reference. Do not remove the legacy global lease until
         this gate passes.
-   - Fleet implementation checkpoint: CC#1 is working on
-     `feature/test-project-fleet` from `561e589`. TEST A has a repo-derived
-     structural bootstrap (83 base tables, 304 function names, nine buckets and
-     the required synthetic fixture prerequisites) but is explicitly NOT READY.
-     TEST B-D are untouched. `wcf-planner-test-main` remained read-only and PROD
-     was never targeted. Neither TEST-main nor the original TEST A apply has a
-     migration ledger; the in-progress bootstrap must add per-migration
-     checksums, atomic apply-once semantics, interruption-safe resume, and
-     fail-closed drift detection before replication.
+   - Fleet implementation (CC#1, `feature/test-project-fleet` -> `main`
+     @8de35f6): scripts/fleet/ builds each of TEST A/B/C/D as a fresh
+     repo-derived execute bootstrap (174 migrations, 86 base tables, 305 function
+     signatures, 9 buckets, 8 extensions) over a reset-safe wcf_fleet_migrations
+     ledger (per-migration checksums, atomic apply-once, resume-safe) and a
+     fail-closed attestation (12 checks incl. a privileges check). Four-project
+     BOOTSTRAP parity is IDENTICAL at the app-object, ledger-checksum, fixture
+     and provenance levels (runtime data differs only as benign test residue);
+     Simon+Mak are loginable on all four. Protected GitHub environments
+     test-a..d (custom branch policy, 5 secrets each via stdin, no reviewers),
+     per-project leases (wcf-test-db-<p>), and CI routing (e2e-full matrix
+     shard1->TEST A / shard2->TEST B concurrently; ci-secondary-full.yml for
+     TEST C/D). PROD was never targeted; test-main stayed read-only.
+   - Two bootstrap defects the browser pilots caught (object-presence
+     attestation could not) and fixed before cutover:
+     (a) the destructive reset's `drop schema public cascade` also wiped the
+         Supabase per-object DEFAULT PRIVILEGES (pg_default_acl), leaving
+         exec_sql present-but-not-executable by service_role and app tables
+         unreadable by anon/authenticated. reset now re-establishes the FOR ROLE
+         postgres defaults; attest asserts default_acls=3 + exec_sql grants.
+     (b) Simon/Mak were seeded via a raw auth.users INSERT with a non-bcrypt
+         placeholder password (assumed never-logged-in) but the tasks_v2 /
+         cattle_log / todo role-gate specs sign in as them. Now created through
+         the GoTrue admin API (loginable); the admin display name is 'Test Admin'
+         to match the specs' contract.
+   - Residual CI failures are NOT fleet-infra and were classified individually
+     with mechanism + reproduction evidence: the retired fuel_bill_pdf /
+     fuel_reconcile specs clicked the hidden Admin Fuel Log tab (5bae452) and are
+     removed from collected coverage (replaced by
+     tests/admin_fuel_tabs_retired.spec.js + a retirement guard; dormant panels /
+     data / fixtures untouched -> Build Queue item 6). The rest
+     (broiler_weigh_in_schooners, cattle_planned_batches, processing_calendar)
+     are rotating render/timing flakes that pass locally and fail a different
+     spec each run -> this item's reliability closure owns them.
+   - Legacy lease retained: scripts/test_db_lease_run.cjs still consumes
+     test-db-lease.yml (bare `wcf-test-db` group), so it was not deleted; the
+     per-project lease.cjs + test-db-lease-project.yml supersede it and retiring
+     both is a clean follow-up. Focused/main browser work now runs on TEST A
+     (not test-main, which is quarantined).
    - Original TEST health: Supabase warned that `wcf-planner-test-main` is
      depleting its Nano Disk I/O Budget. No new TEST-backed browser run should
      target it while quarantined. Inspect Database Health/I/O before reuse.
