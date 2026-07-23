@@ -123,6 +123,12 @@ Design/function invariants that govern cross-surface behavior live in
     `update_todo_item` overload. Do not copy its remote state to new projects;
     repository migrations are authoritative. Correcting this existing project
     remains separately gated.
+  - Supabase issued a Disk I/O Budget depletion warning for
+    `wcf-planner-test-main` on 2026-07-23. This Nano project is quarantined from
+    new TEST-backed browser runs until its I/O budget/health visibly recovers or
+    an explicitly approved compute change is completed. DB-free work may
+    continue. Do not interpret low GitHub-runner CPU as proof that a timeout was
+    not environmental: the remote database can be I/O-throttled independently.
   - `TEST A`, `TEST B`, `TEST C`, and `TEST D` exist as new isolated TEST
     projects (`AWS us-east-1`, Micro).
   - Project existence is not readiness. TEST A is bootstrapped from repository
@@ -135,8 +141,8 @@ Design/function invariants that govern cross-surface behavior live in
     credentials into a TEST project.
   - Target allocation is controlled by Codex for every CC iteration: one full
     run uses TEST A/B as shard 1/2; a second simultaneous full run may use TEST
-    C/D as shard 1/2; `wcf-planner-test-main` stays available for main/focused
-    browser proof. CCs may not choose, swap, or share targets themselves. Every
+    C/D as shard 1/2; `wcf-planner-test-main` is intended for main/focused
+    browser proof after its I/O quarantine clears. CCs may not choose, swap, or share targets themselves. Every
     prompt must name the exact project, shard, lease group, and prohibited
     targets. An unassigned CC performs DB-free work only.
 - Shared TEST/Playwright reliability: branch
@@ -149,8 +155,9 @@ Design/function invariants that govern cross-surface behavior live in
   CI is still not repeatably green. Cross-run analysis refuted late-file
   accumulation and found multiple independent classes rather than one capacity
   defect.
-  Instrumented run `29954947453` confirmed 4 vCPU/~16 GB, at least ~12.8 GB
-  memory available, and ample disk; memory and disk pressure are ruled out.
+  Instrumented run `29954947453` confirmed its GitHub runner had 4 vCPU/~16 GB,
+  at least ~12.8 GB memory available, and ample local disk; runner memory and
+  local-disk pressure are ruled out. It did not measure Supabase database I/O.
   Worker warm-up commit `722ba1f` is pushed on the feature branch: one
   logged-out `/` navigation primes the app's fully static import graph, and a
   disposable IndexedDB open/close primes the browser path without touching the
@@ -159,9 +166,12 @@ Design/function invariants that govern cross-surface behavior live in
   to 0.76–0.83 and recovered two prior offline-queue failures, but one rotating
   early IndexedDB timeout remained. The largest new cluster was three
   `sheep_send_to_processor` failures at low load 0.47, including an unoptimized
-  fixture setup timeout; Broiler also had a low-load form-render race. Only the
-  Task Center failure aligned with CPU saturation at load 4.8. Package A targets
-  passed for a fourth run. Therefore an 8-vCPU runner is not the primary fix.
+  fixture setup timeout; Broiler also had a low-runner-load form-render race.
+  Supabase's later Disk I/O warning makes remote database throttling a plausible
+  cause for these low-runner-load failures; the earlier lingering-query theory
+  is not proven. Only the Task Center failure aligned with runner CPU saturation
+  at load 4.8. Package A targets passed for a fourth run. Therefore an 8-vCPU
+  GitHub runner is not the primary fix.
   Keep two shards and the diagnostics. The next decision is whether to merge the
   coherent, independently validated reliability stack as a better baseline,
   then split remaining work into sheep fixture/TEST-query cascade, Broiler
@@ -604,6 +614,13 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
      migration ledger; the in-progress bootstrap must add per-migration
      checksums, atomic apply-once semantics, interruption-safe resume, and
      fail-closed drift detection before replication.
+   - Original TEST health: Supabase warned that `wcf-planner-test-main` is
+     depleting its Nano Disk I/O Budget. No new TEST-backed browser run should
+     target it while quarantined. Inspect Database Health/I/O before reuse.
+     Because Nano sustains only half Micro's documented baseline throughput and
+     IOPS, the new Micro fleet is also a capacity correction, not merely a
+     concurrency feature. Reassess the original project's role or compute after
+     the fleet pilot rather than spending on GitHub runner capacity first.
    - Exact reference classification: TEST-main's extra
      `webform_submitter_identities` table and trigger come from shelved migration
      `083`; its six-argument `update_todo_item` overload is stale. TEST-main
@@ -662,14 +679,15 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
      code-splitting, so one logged-out `/` visit compiles the full static module
      graph and authenticated route visits would add no compile coverage. Keep
      two serialized shards and retain telemetry/lock diagnostics. Run
-     `30002663288` finished 283/284 and 277/282. It flattened the early CPU spike
+     `30002663288` finished 283/284 and 277/282. It flattened the early runner CPU spike
      and recovered two earlier offline-queue failures, but one rotating early
      IndexedDB timeout remained. Three consecutive sheep failures occurred at
      load 0.47, including `sheepBatchPreAttachedScenario` setup; a Broiler render
      race occurred at load 0.83; only one Task Center race aligned with high
-     load. Package A targets passed for a fourth run. Remaining red is therefore
-     not predominantly CPU-bound, so do not choose a billed 8-vCPU runner as the
-     primary fix.
+     runner load. Package A targets passed for a fourth run. The later Supabase
+     Disk I/O warning means these observations cannot separate product/test
+     readiness from remote database throttling. Do not choose a billed 8-vCPU
+     GitHub runner as the primary fix.
    - Decision and next lanes: it is reasonable to merge this coherent,
      independently validated stack as a strictly better baseline even though it
      does not make CI green; alternatively it may remain on the feature branch.
