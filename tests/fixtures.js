@@ -1,6 +1,7 @@
 import {test as base} from '@playwright/test';
 import {getTestAdminClient, resetTestDatabase} from './setup/reset.js';
 import {waitForAppReady} from './helpers/appReady.js';
+import {LOCAL_APP_ORIGIN, WARMUP_PROBE_DB, assertLocalTestOrigin} from './setup/warmup.js';
 import {seedP2601Scenario} from './scenarios/p2601_seed.js';
 import {
   seedCattleSendToProcessor,
@@ -60,6 +61,71 @@ function appOriginKey(rawUrl) {
 }
 
 export const test = base.extend({
+  // ==========================================================================
+  // Cold-start warm-up — worker-scoped, automatic, once per worker.
+  // ==========================================================================
+  // CI telemetry (run 29954947453, 4 vCPU) showed the early cold-start window
+  // (Vite first-compile + browser IDB init) starving tests near the top of a
+  // shard. This pays that one-time cost UP FRONT, once per worker, on a
+  // throwaway context — so the real tests start against a warm module graph.
+  //
+  // The app has NO route code-splitting (the only dynamic import in the whole
+  // app is import('xlsx')); every view is a static import of main.jsx. So one
+  // logged-out navigation to '/' transforms the ENTIRE module graph — the
+  // weigh-in, Task Center, and offline-queue modules included — with no auth
+  // and no per-route visits needed.
+  //
+  // Contract: separate 60s fixture timeout (the ordinary test budget stays
+  // 30s); uses the worker's own browser; creates and always closes a temporary
+  // context; logged out; read-only (no reset/seed/insert/update/upload/delete,
+  // no real-user auth, no queue-record mutation); fails VISIBLY (no swallow,
+  // retry, reload, or sleep). Pasture is out of scope — it runs on its own
+  // config and does not import this fixture module.
+  _coldStartWarmUp: [
+    async ({browser}, use) => {
+      // Worker-scoped: cannot use the test-scoped `baseURL` fixture, so read the
+      // config-mirrored constant and validate it is a local TEST origin.
+      const origin = assertLocalTestOrigin(LOCAL_APP_ORIGIN);
+      const context = await browser.newContext(); // logged out — no storageState
+      try {
+        const page = await context.newPage();
+        // Prime the Vite module graph. Logged out, '/' renders LoginScreen; its
+        // marker appearing proves main.jsx and its static import graph compiled.
+        await page.goto(new URL('/', origin).href, {waitUntil: 'domcontentloaded'});
+        await page.locator('[data-login-screen]').waitFor({state: 'visible', timeout: 45_000});
+        // Warm the browser IndexedDB code path with a throwaway DB — never the
+        // real offline-queue DB, and no records written.
+        await page.evaluate(
+          (dbName) =>
+            new Promise((resolve, reject) => {
+              let req;
+              try {
+                req = indexedDB.open(dbName);
+              } catch (err) {
+                reject(err);
+                return;
+              }
+              req.onsuccess = () => {
+                try {
+                  req.result.close();
+                } catch {
+                  /* already closing */
+                }
+                resolve();
+              };
+              req.onerror = () => reject(new Error('warm-up IndexedDB open failed'));
+              req.onblocked = () => resolve();
+            }),
+          WARMUP_PROBE_DB,
+        );
+      } finally {
+        await context.close();
+      }
+      await use();
+    },
+    {scope: 'worker', auto: true, timeout: 60_000},
+  ],
+
   // ==========================================================================
   // Navigation readiness (see tests/helpers/appReady.js for the mechanism).
   // ==========================================================================
