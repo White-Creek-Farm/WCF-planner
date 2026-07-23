@@ -13,9 +13,9 @@ describe('risk-based Playwright planner', () => {
   });
 
   it('selects the exact changed root browser spec', () => {
-    const result = plan(['tests/fuel_bill_pdf.spec.js']);
+    const result = plan(['tests/animal_history_page.spec.js']);
     expect(result.mode).toBe('focused');
-    expect(result.specs).toEqual(['tests/fuel_bill_pdf.spec.js']);
+    expect(result.specs).toEqual(['tests/animal_history_page.spec.js']);
   });
 
   it('selects focused surface coverage for a low-risk product file', () => {

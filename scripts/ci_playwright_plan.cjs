@@ -53,7 +53,12 @@ const SURFACES = [
       /^src\/webforms\/Equipment/,
       /^src\/lib\/(?:equipment|fuel)/i,
     ],
-    specs: [/^tests\/(?:equipment_|fuel_|home_dashboard_equipment).*\.spec\.js$/],
+    // fuel_*.spec.js were retired (5bae452 hid the Admin Fuel Log / Cost by
+    // Month tabs; see tests/static/retired_fuel_admin_specs_static.test.js). The
+    // fuel-source patterns above now map to the equipment specs plus the
+    // hidden-tab contract proof, so touching the dormant fuel admin surface
+    // still runs the browser check that its tabs stay hidden.
+    specs: [/^tests\/(?:equipment_|home_dashboard_equipment|admin_fuel_tabs_retired).*\.spec\.js$/],
   },
   {
     name: 'processing',
