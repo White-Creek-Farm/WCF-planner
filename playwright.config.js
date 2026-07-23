@@ -6,7 +6,16 @@ import {loadEnv} from 'vite';
 // SUPABASE_SERVICE_ROLE_KEY, WCF_TEST_DATABASE, etc. The webServer (vite
 // dev server) loads them itself via --mode test; this is for the runner
 // process. Empty prefix = load every env var, not just VITE_*.
-const env = loadEnv('test', process.cwd(), '');
+//
+// PW_ENVDIR / PW_PORT are OPTIONAL overrides used only by the local isolated
+// fleet browser pilots (scripts/fleet) to run several projects concurrently on
+// different ports with per-project env dirs. Unset (CI, ordinary local runs) =>
+// identical behavior to before: envDir = cwd, port 5173, webServer =
+// `npm run dev:test`. process.env still wins over file values.
+const PW_ENVDIR = process.env.PW_ENVDIR || process.cwd();
+const PW_PORT = process.env.PW_PORT || '5173';
+const PW_CUSTOM = !!(process.env.PW_ENVDIR || process.env.PW_PORT);
+const env = loadEnv('test', PW_ENVDIR, '');
 for (const [k, v] of Object.entries(env)) {
   if (process.env[k] === undefined) process.env[k] = v;
 }
@@ -68,7 +77,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list'], ['html', {open: 'never'}]],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: `http://localhost:${PW_PORT}`,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -84,14 +93,21 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        storageState: 'tests/.auth/admin.json',
+        storageState: process.env.PW_STORAGE || 'tests/.auth/admin.json',
       },
       dependencies: ['setup'],
     },
   ],
   webServer: {
-    command: 'npm run dev:test',
-    url: 'http://localhost:5173',
+    // CI + ordinary local runs: unchanged (`npm run dev:test`). Fleet pilots
+    // set PW_PORT to run vite on a per-project port; the per-project backend
+    // creds arrive via process.env.VITE_SUPABASE_URL/ANON_KEY, which vite's
+    // loadEnv overlays on top of the root .env.test with priority (verified in
+    // node_modules/vite loadEnv: it loops process.env for VITE_* last). So no
+    // --envDir is needed (and vite's CLI has no such flag). PW_ENVDIR only
+    // scopes the RUNNER-side loadEnv (below) to an isolated dir per pilot.
+    command: PW_CUSTOM ? `npx vite --mode=test --host 127.0.0.1 --port ${PW_PORT} --strictPort` : 'npm run dev:test',
+    url: `http://localhost:${PW_PORT}`,
     // Codex-mandated for A2: never reuse. A reused PROD-mode dev server on
     // 5173 (e.g. left running from `npm run dev`) would silently serve the
     // app pointed at production Supabase and the smoke spec would fail with

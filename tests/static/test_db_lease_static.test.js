@@ -83,9 +83,15 @@ describe('test-db-lease.yml workflow contract', () => {
   });
 });
 
-describe('ci.yml stays lease-compatible', () => {
-  it('keeps the shared wcf-test-db concurrency group with cancel-in-progress: false', () => {
-    expect(ci).toMatch(/group: wcf-test-db/);
+describe('ci.yml uses per-project fleet concurrency (legacy shared group retired from CI)', () => {
+  // The isolated TEST fleet replaced the single workflow-level wcf-test-db group
+  // with per-project job-level groups (wcf-test-db-<project>). Full lock lives in
+  // tests/static/fleet_ci_routing_static.test.js; here we just assert ci.yml no
+  // longer serializes on the bare shared group and keeps queue (not cancel)
+  // semantics on its per-project groups.
+  it('has no bare shared wcf-test-db group and keeps cancel-in-progress: false', () => {
+    expect(ci).not.toMatch(/group: wcf-test-db(\s|$)/m);
+    expect(ci).toMatch(/group: wcf-test-db-/);
     expect(ci).toMatch(/cancel-in-progress: false/);
   });
 });

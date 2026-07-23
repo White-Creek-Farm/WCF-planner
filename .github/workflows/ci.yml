@@ -19,32 +19,32 @@ on:
 permissions:
   contents: read
 
-# Fixed serialization across the entire repo: every CI run shares the same test
-# Supabase project (single-DB, workers=1). Concurrent runs from different PRs
-# would race the truncate-and-reseed reset between specs. Queue rather than
-# cancel — re-pushing to a branch waits its turn instead of cancelling work.
-# NOTE: GitHub keeps only ONE pending run per concurrency group. When a second
-# run queues behind an in-progress run, the previously pending run is displaced
-# (conclusion 'cancelled' with zero jobs). Re-run a displaced commit manually if
-# its CI signal matters — a zero-job 'cancelled' run is displacement, not a
-# timeout.
+# NO workflow-level concurrency. Serialization is now PER-PROJECT at the job
+# level (concurrency: wcf-test-db-<project>), so the isolated TEST fleet can run
+# TEST A and TEST B shards CONCURRENTLY (different projects) while a single
+# project stays serialized against itself, against the focused/pasture jobs that
+# share it, and against a local run holding the same lease group
+# (scripts/fleet/lease.cjs dispatches test-db-lease-project.yml with the SAME
+# wcf-test-db-<project> groups). The legacy single wcf-test-db group is retired
+# by this change; the per-project groups replace it (mission Phase 5/12).
 #
-# All DB-touching jobs (focused-e2e OR e2e-shard-1 -> e2e-shard-2, then optional
-# pasture-e2e) live in THIS one workflow. Risk classification is fail-closed:
-# unknown/high-risk changes run both full shards; ordinary mapped changes run
-# only focused specs; docs/unit-only changes use the DB-free verify floor.
-concurrency:
-  group: wcf-test-db
-  cancel-in-progress: false
+# Fleet routing (mission Phase 5):
+#   primary full lane (main/nightly/manual full): shard 1 -> TEST A (env test-a,
+#     concurrency wcf-test-db-a); shard 2 -> TEST B (env test-b, wcf-test-db-b).
+#   focused browser work: TEST A (env test-a, wcf-test-db-a) — serialized with
+#     the primary shard 1 on the same project so they never overlap.
+#   secondary manual full lane (TEST C/D) lives in ci-secondary-full.yml.
+#   wcf-planner-test-main is QUARANTINED (Disk I/O) and is never a target here.
+#
+# Every DB-owning job binds to EXACTLY one environment + one concurrency group,
+# so it can only read that one project's secrets (a test-a job cannot read
+# test-b/PROD/DR values) and can only reset/seed that one project.
 
 jobs:
   # DB-free changed-file classifier. It selects none/focused/full root browser
   # coverage and independently gates the isolated Pasture suite.
   changes:
     runs-on: ubuntu-latest
-    # Completes in seconds; the explicit budget keeps a hung checkout from
-    # holding the repo-wide wcf-test-db concurrency slot for GitHub's 6-hour
-    # default.
     timeout-minutes: 5
     outputs:
       mode: ${{ steps.plan.outputs.mode }}
@@ -83,58 +83,43 @@ jobs:
             --labels "${LABELS_JSON:-[]}" \
             --files changed-files.txt | tee -a "$GITHUB_OUTPUT"
 
-  # Fast DB-free quality gate: format, lint, unit tests, production build.
-  # The whole-app Playwright e2e moved to the e2e-shard-* jobs below after the
-  # single-job layout outgrew every budget: on 2026-07-11 (run 29151368480) the
-  # serialized suite ran 28.7 min through only 71 of 91 spec files before the
-  # 30-min job budget cancelled it — the FULL suite needs ~39 min of measured
-  # test execution (28.0 min of in-test time for those 71 files alone; the
-  # between-spec truncate/reseed overhead is seconds, not minutes, so there is
-  # nothing to win inside the harness). No single job can both run the whole
-  # serialized suite and conclude inside a sane budget, so the suite is split
-  # across two sequential sharded jobs, each with its own measured budget.
-  #
-  # No env/secrets here on purpose: format, lint, vitest, and the vite build are
-  # fully offline (the unit suite constructs no Supabase client), and keeping
-  # the service-role key out of the job that runs npm ci on every PR shrinks
-  # the blast radius of a compromised dependency postinstall. The e2e jobs
-  # below keep the secret set; the assertTestDatabase guard belongs to the
-  # Playwright suite, not this job.
+  # Fast DB-free quality gate: format, lint, unit tests, production build. No
+  # env/secrets here on purpose (fully offline; keeps the service-role key out
+  # of the job that runs npm ci on every PR).
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Format check (prettier)
         run: npm run format:check
-
       - name: Lint
         run: npm run lint
-
       - name: Unit tests (vitest)
         run: npm test
-
       - name: Build (vite production)
         run: npm run build
 
   # Ordinary mapped changes run only the browser specs owned by their touched
-  # surface. This job and the full-shard path are mutually exclusive.
+  # surface, on TEST A (env test-a, lease wcf-test-db-a) — serialized with the
+  # primary full shard 1 on the same project. Mutually exclusive with e2e-full.
   focused-e2e:
     needs: [changes, verify]
     if: ${{ needs.changes.outputs.mode == 'focused' && needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: test-a
+    concurrency:
+      group: wcf-test-db-a
+      cancel-in-progress: false
     env:
       WCF_TEST_DATABASE: '1'
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -146,16 +131,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -163,10 +145,8 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
-
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
-
       - name: Focused E2E tests
         timeout-minutes: 22
         run: |
@@ -176,7 +156,6 @@ jobs:
             exit 1
           fi
           npm run test:e2e:ci -- "${SPECS[@]}"
-
       - name: Upload focused Playwright report on failure or cancellation
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
@@ -188,115 +167,35 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # Whole-app Playwright e2e, first half. Playwright's --shard partitions the
-  # filtered test list deterministically: shard 1/2 + shard 2/2 together are
-  # EXACTLY the full `test:e2e:ci` suite — disjoint, nothing dropped, nothing
-  # duplicated (provable locally: union of `--list --shard=1/2` and
-  # `--list --shard=2/2` diffs empty against plain `--list`). test:e2e:ci keeps
-  # excluding tests/ux_audit.spec.js (ad-hoc screenshot sweep, not regression
-  # floor) and playwright.config.js keeps ignoring pasture + screenshot-utility
-  # specs for broad runs; both exclusions predate the shard split.
-  #
-  # workers=1 and the shared TEST DB are unchanged: within each job the specs
-  # stay fully serialized, and the two shard jobs are chained via `needs` so
-  # they can never touch the DB concurrently. global.setup.js (admin auth +
-  # bucket check) is a project dependency and runs once per shard job — it is
-  # idempotent and already ran per-job in the old verify/pasture-e2e layout.
-  #
-  # Budgets (measured 2026-07-11, run 29151368480): shard 1 is fully measured at
-  # ~17.5 min of test time (~19 min with warm-cache job setup); shard 2 is
-  # ~20-24 min PROJECTED: 21 of its 44 files (~51% of its runtime) never ran
-  # before the old layout's cancellation and are estimated at a conservative
-  # 5.5 s/test vs the 4.4 s/test measured mean. The STEP timeout is the real
-  # test budget (27/32 min): a step timeout is a step FAILURE, so the
-  # failure-artifact upload still runs and the job concludes as a red X instead
-  # of a cancelled job. The JOB budget sits ~8 min ABOVE the step budget on
-  # purpose — cold-cache setup (npm ci + chromium download) can take 4-5 min
-  # and the post-failure report/video upload needs room too; a smaller gap
-  # would let the job budget preempt the step timeout and end the job
-  # 'cancelled' (inconclusive) instead of failed. Headroom costs nothing when
-  # green because the job ends when the tests end. Re-measure both shards
-  # after meaningful suite growth — --shard balances by test COUNT, not
-  # runtime, and today's heavy cattle_* files all happen to sit in shard 1.
-  e2e-shard-1:
+  # Primary full lane: the two Playwright shards run on TWO DIFFERENT projects
+  # CONCURRENTLY. shard 1 -> TEST A (env test-a, lease wcf-test-db-a); shard 2 ->
+  # TEST B (env test-b, lease wcf-test-db-b). Playwright's --shard partitions the
+  # filtered list deterministically: 1/2 + 2/2 together are EXACTLY the full
+  # test:e2e:ci suite (disjoint, nothing dropped/duplicated). Each leg binds
+  # exactly one environment + one concurrency group; fail-fast:false so one
+  # project's failure never cancels the other. workers=1 keeps each project's
+  # specs serialized within its own leg. Budgets from the old two-job layout
+  # (shard 1 ~27 min step, shard 2 ~32 min step); a single 32/40 min budget
+  # covers the slower shard, and the two legs no longer chain (no shared DB).
+  e2e-full:
     needs: [changes, verify]
     if: ${{ needs.changes.outputs.mode == 'full' && needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-    env:
-      # Preserves the assertTestDatabase guard. Tests refuse to run without this.
-      WCF_TEST_DATABASE: '1'
-      # Supabase test-project credentials — configured in repo Settings → Secrets
-      # and variables → Actions. Never commit these values; never echo them.
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      VITE_TEST_ADMIN_EMAIL: ${{ secrets.VITE_TEST_ADMIN_EMAIL }}
-      VITE_TEST_ADMIN_PASSWORD: ${{ secrets.VITE_TEST_ADMIN_PASSWORD }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-
-      - name: E2E tests (Playwright shard 1/2)
-        # Step timeout well below the 35-min job budget: an overrun FAILS the
-        # step (failure() stays true for the artifact upload) instead of
-        # cancelling the whole job, which would skip every later step.
-        timeout-minutes: 27
-        run: npm run test:e2e:ci -- --shard=1/2
-
-      - name: Upload Playwright report on failure or cancellation
-        # failure() alone misses timeout/cancellation: a job cancelled by
-        # timeout-minutes marks the in-flight step 'cancelled', not 'failed',
-        # and an if: failure() upload is skipped — proven by run 29151368480
-        # (0 artifacts despite 30 failing tests). cancelled() keeps artifacts
-        # flowing in every non-green ending. run_attempt is in the name because
-        # upload-artifact v4 artifacts are immutable per run and reruns reuse
-        # run_id — without it, a rerun's upload 409-conflicts with the prior
-        # attempt's artifact.
-        if: ${{ failure() || cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-shard1-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
-          if-no-files-found: ignore
-
-  # Whole-app Playwright e2e, second half. `needs: e2e-shard-1` is the shared-DB
-  # serialization, NOT a quality gate: shard 2 still runs when shard 1 failed or
-  # hit its budget (independent signal — each spec resets the DB in beforeAll,
-  # so a failed or truncated shard 1 cannot poison shard 2). It is skipped only
-  # when shard 1 never ran (verify failed) or the whole run was cancelled.
-  e2e-shard-2:
-    needs: [changes, e2e-shard-1]
-    if: ${{ !cancelled() && needs.changes.outputs.mode == 'full' && needs.e2e-shard-1.result != 'skipped' }}
-    runs-on: ubuntu-latest
-    # Step budget 32 (vs shard 1's 27) because ~51% of this shard's runtime is
-    # projected rather than measured; job budget = step + ~8 min setup/upload
-    # slack (see the budget comment above e2e-shard-1). Ends when tests end,
-    # so the extra headroom is free on green runs.
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            project: a
+            gh_environment: test-a
+          - shard: 2
+            project: b
+            gh_environment: test-b
+    environment: ${{ matrix.gh_environment }}
+    concurrency:
+      group: wcf-test-db-${{ matrix.project }}
+      cancel-in-progress: false
     env:
       WCF_TEST_DATABASE: '1'
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -307,16 +206,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -324,41 +220,38 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
-
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
-
-      - name: E2E tests (Playwright shard 2/2)
-        # Step timeout well below the 40-min job budget so an overrun fails the
-        # step and the artifact upload still runs (see shard 1).
+      - name: E2E tests (Playwright shard ${{ matrix.shard }}/2 on TEST ${{ matrix.project }})
+        # Step timeout below the job budget so an overrun FAILS the step (keeps
+        # the artifact upload) instead of cancelling the whole job.
         timeout-minutes: 32
-        run: npm run test:e2e:ci -- --shard=2/2
-
+        run: npm run test:e2e:ci -- --shard=${{ matrix.shard }}/2
       - name: Upload Playwright report on failure or cancellation
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-shard2-${{ github.run_id }}-${{ github.run_attempt }}
+          name: playwright-report-shard${{ matrix.shard }}-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/
           retention-days: 7
           if-no-files-found: ignore
 
-  # The Pasture Map browser specs are heavy (Leaflet/Geoman draw + GPS + offline
-  # flows) and run via the isolated playwright.pasture.config.js. `needs:
-  # e2e-shard-2` serializes them AFTER the root e2e shards on the shared test DB
-  # (no race); the `if` gate skips them on non-pasture PRs so they never slow
-  # the common path. !cancelled() lets them still run for pasture PRs even if
-  # verify or a shard failed/was skipped, for independent signal — they only
-  # need to wait their turn on the DB.
+  # The Pasture Map browser specs run via the isolated playwright.pasture.config.js
+  # (port 5199; does NOT reset the DB) on TEST A (env test-a, lease wcf-test-db-a)
+  # — serialized with the primary shard 1 and focused job on the same project.
+  # The `if` gate skips them on non-pasture PRs. !cancelled() lets them still run
+  # for pasture PRs even if verify or the full lane failed/was skipped.
   pasture-e2e:
-    needs: [changes, verify, focused-e2e, e2e-shard-2]
-    if: ${{ always() && !cancelled() && needs.changes.outputs.pasture == 'true' && needs.verify.result == 'success' && needs.focused-e2e.result != 'cancelled' && needs.e2e-shard-2.result != 'cancelled' }}
+    needs: [changes, verify, focused-e2e, e2e-full]
+    if: ${{ always() && !cancelled() && needs.changes.outputs.pasture == 'true' && needs.verify.result == 'success' && needs.focused-e2e.result != 'cancelled' && needs.e2e-full.result != 'cancelled' }}
     runs-on: ubuntu-latest
-    # Job budget = 17-min step budget + ~8 min setup/upload slack so a step
-    # timeout concludes as a red failure, not a cancelled job (see e2e-shard-1).
     timeout-minutes: 25
+    environment: test-a
+    concurrency:
+      group: wcf-test-db-a
+      cancel-in-progress: false
     env:
       WCF_TEST_DATABASE: '1'
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -369,16 +262,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -386,16 +276,11 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
-
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
-
       - name: Pasture Map E2E (isolated config)
-        # Step timeout well below the 25-min job budget so an overrun fails the
-        # step and the artifact upload still runs (see shard 1).
         timeout-minutes: 17
         run: npx playwright test --config playwright.pasture.config.js
-
       - name: Upload Playwright report on failure or cancellation
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
@@ -410,7 +295,7 @@ jobs:
   # One stable required-check target regardless of which conditional browser
   # jobs ran. It fails closed if the classifier-selected path did not succeed.
   e2e-policy-gate:
-    needs: [changes, verify, focused-e2e, e2e-shard-1, e2e-shard-2, pasture-e2e]
+    needs: [changes, verify, focused-e2e, e2e-full, pasture-e2e]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -419,29 +304,25 @@ jobs:
       PASTURE: ${{ needs.changes.outputs.pasture }}
       VERIFY_RESULT: ${{ needs.verify.result }}
       FOCUSED_RESULT: ${{ needs.focused-e2e.result }}
-      SHARD1_RESULT: ${{ needs.e2e-shard-1.result }}
-      SHARD2_RESULT: ${{ needs.e2e-shard-2.result }}
+      FULL_RESULT: ${{ needs.e2e-full.result }}
       PASTURE_RESULT: ${{ needs.pasture-e2e.result }}
     steps:
       - name: Enforce selected browser policy
         run: |
-          echo "mode=$MODE pasture=$PASTURE verify=$VERIFY_RESULT focused=$FOCUSED_RESULT shard1=$SHARD1_RESULT shard2=$SHARD2_RESULT pasture_result=$PASTURE_RESULT"
+          echo "mode=$MODE pasture=$PASTURE verify=$VERIFY_RESULT focused=$FOCUSED_RESULT full=$FULL_RESULT pasture_result=$PASTURE_RESULT"
           test "$VERIFY_RESULT" = "success"
           case "$MODE" in
             none)
               test "$FOCUSED_RESULT" = "skipped"
-              test "$SHARD1_RESULT" = "skipped"
-              test "$SHARD2_RESULT" = "skipped"
+              test "$FULL_RESULT" = "skipped"
               ;;
             focused)
               test "$FOCUSED_RESULT" = "success"
-              test "$SHARD1_RESULT" = "skipped"
-              test "$SHARD2_RESULT" = "skipped"
+              test "$FULL_RESULT" = "skipped"
               ;;
             full)
               test "$FOCUSED_RESULT" = "skipped"
-              test "$SHARD1_RESULT" = "success"
-              test "$SHARD2_RESULT" = "success"
+              test "$FULL_RESULT" = "success"
               ;;
             *)
               echo "Unknown or empty mode; failing closed"

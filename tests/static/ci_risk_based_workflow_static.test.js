@@ -18,11 +18,15 @@ describe('risk-based Playwright CI workflow', () => {
     expect(workflow).toContain('refusing unsafe empty run');
   });
 
-  it('reserves both full shards for full mode and keeps them serial', () => {
-    expect(workflow).toMatch(/e2e-shard-1:[\s\S]*?mode == 'full'/);
-    expect(workflow).toMatch(/e2e-shard-2:[\s\S]*?needs: \[changes, e2e-shard-1\]/);
-    expect(workflow).toContain('npm run test:e2e:ci -- --shard=1/2');
-    expect(workflow).toContain('npm run test:e2e:ci -- --shard=2/2');
+  it('runs both full shards for full mode as concurrent per-project matrix legs (A/B)', () => {
+    // The isolated fleet replaced the serial shard-1 -> shard-2 chain with a
+    // matrix e2e-full job: shard 1 on TEST A, shard 2 on TEST B, CONCURRENTLY
+    // (different projects, no shared DB, fail-fast:false).
+    expect(workflow).toMatch(/e2e-full:[\s\S]*?mode == 'full'/);
+    expect(workflow).toContain('--shard=${{ matrix.shard }}/2');
+    expect(workflow).toMatch(/shard: 1[\s\S]*?project: a/);
+    expect(workflow).toMatch(/shard: 2[\s\S]*?project: b/);
+    expect(workflow).toContain('fail-fast: false');
   });
 
   it('runs full coverage nightly and by explicit manual or label request', () => {
@@ -39,8 +43,11 @@ describe('risk-based Playwright CI workflow', () => {
     expect(planner).toContain("event === 'push' && trustedPrMerge");
   });
 
-  it('keeps TEST serialized and the Pasture suite separately path-gated', () => {
-    expect(workflow).toContain('group: wcf-test-db');
+  it('serializes each project via per-project concurrency and keeps the Pasture suite path-gated', () => {
+    // Per-project groups (wcf-test-db-<project>) replace the single shared group;
+    // queue (not cancel) semantics preserved.
+    expect(workflow).toContain('group: wcf-test-db-');
+    expect(workflow).not.toMatch(/group: wcf-test-db(\s|$)/m);
     expect(workflow).toContain('cancel-in-progress: false');
     expect(workflow).toContain("needs.changes.outputs.pasture == 'true'");
     expect(workflow).toContain('playwright.pasture.config.js');
@@ -49,7 +56,7 @@ describe('risk-based Playwright CI workflow', () => {
   it('provides one stable fail-closed policy gate across skipped jobs', () => {
     expect(workflow).toContain('e2e-policy-gate:');
     expect(workflow).toContain('Unknown or empty mode; failing closed');
-    expect(workflow).toContain('test "$SHARD1_RESULT" = "success"');
+    expect(workflow).toContain('test "$FULL_RESULT" = "success"');
     expect(workflow).toContain('test "$FOCUSED_RESULT" = "success"');
   });
 });

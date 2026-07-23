@@ -13,8 +13,10 @@ import {getTestAdminClient} from './reset.js';
 // placeholder + role queries.
 // ============================================================================
 
-const authDir = path.resolve('tests/.auth');
-const authFile = path.join(authDir, 'admin.json');
+// PW_STORAGE lets the isolated fleet pilots give each concurrent project run
+// its own storageState file (default unchanged for CI/ordinary local runs).
+const authFile = process.env.PW_STORAGE || path.join(path.resolve('tests/.auth'), 'admin.json');
+const authDir = path.dirname(authFile);
 
 setup('authenticate as admin', async ({page}) => {
   if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, {recursive: true});

@@ -1,0 +1,76 @@
+name: TEST DB lease (per-project)
+
+# Per-project variant of test-db-lease.yml for the isolated TEST fleet
+# (TEST A/B/C/D + focused main). Each project has its OWN concurrency group
+# wcf-test-db-<project>, so different projects can hold leases simultaneously
+# while a single project stays serialized. The legacy single wcf-test-db lease
+# (test-db-lease.yml) remains authoritative until the fleet cutover is proven.
+#
+# Like the legacy lease this job does NOTHING but sleep: no checkout, no
+# install, no DB access, no secrets, no repository mutation. Holding the slot
+# IS the feature. The `project` input is a fixed choice so the concurrency
+# group can never be an arbitrary attacker-supplied string.
+#
+# Driven by scripts/fleet/lease.cjs (mirrors the proven test_db_lease_run.cjs
+# lifecycle: dispatch -> wait for in_progress -> run command -> cancel to
+# release). An unassigned run is impossible: `project` is required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Which fleet project this lease is for (fixed choice; drives the per-project concurrency group)'
+        required: true
+        type: choice
+        options: [a, b, c, d, main]
+      lease_id:
+        description: 'Unique lease id minted by scripts/fleet/lease.cjs (echoed in run-name for run matching)'
+        required: true
+        type: string
+      hold_minutes:
+        description: 'Max minutes to hold the slot before auto-expiring (clamped to 1-120)'
+        required: false
+        type: string
+        default: '90'
+
+run-name: TEST DB lease ${{ inputs.project }} ${{ inputs.lease_id }}
+
+# No API permissions at all — the job only sleeps.
+permissions: {}
+
+# Per-project group: distinct projects never block each other; one project is
+# serialized against itself and against that project's CI jobs.
+concurrency:
+  group: wcf-test-db-${{ inputs.project }}
+  cancel-in-progress: false
+
+jobs:
+  hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 125
+    steps:
+      - name: Hold per-project concurrency slot
+        # Inputs are read via env, never interpolated into the script body.
+        env:
+          PROJECT: ${{ inputs.project }}
+          LEASE_ID: ${{ inputs.lease_id }}
+          HOLD_MINUTES: ${{ inputs.hold_minutes }}
+        run: |
+          case "$HOLD_MINUTES" in
+            '' | *[!0-9]*) HOLD_MINUTES=90 ;;
+          esac
+          if [ "$HOLD_MINUTES" -lt 1 ]; then HOLD_MINUTES=1; fi
+          if [ "$HOLD_MINUTES" -gt 120 ]; then HOLD_MINUTES=120; fi
+          echo "Holding TEST DB lease $LEASE_ID for project $PROJECT (group wcf-test-db-$PROJECT) for up to $HOLD_MINUTES minute(s)."
+          echo "Normal release is cancellation by scripts/fleet/lease.cjs."
+          held=0
+          total=$((HOLD_MINUTES * 60))
+          while [ "$held" -lt "$total" ]; do
+            sleep 30
+            held=$((held + 30))
+            if [ $((held % 300)) -eq 0 ]; then
+              echo "Lease $LEASE_ID (project $PROJECT) still held after $((held / 60)) minute(s)."
+            fi
+          done
+          echo "Lease $LEASE_ID (project $PROJECT) EXPIRED after $HOLD_MINUTES minute(s) without release." >&2
+          exit 1

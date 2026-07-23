@@ -1,0 +1,119 @@
+name: CI secondary full (TEST C/D)
+
+# Secondary MANUAL full browser lane for the isolated TEST fleet. It runs the
+# complete two-shard Playwright suite on TEST C + TEST D, each on its own
+# project/environment/lease, so it can execute a full run CONCURRENTLY with the
+# primary main/nightly lane on TEST A/B (ci.yml) without any shared TEST DB.
+#
+# Manual dispatch only (workflow_dispatch) — normal main/nightly full runs use
+# the primary A/B lane in ci.yml. Mission Phase 5/11: proving four shard jobs
+# across four distinct project environments + concurrency groups.
+#
+#   shard 1 -> TEST C (env test-c, concurrency wcf-test-db-c)
+#   shard 2 -> TEST D (env test-d, concurrency wcf-test-db-d)
+#
+# wcf-planner-test-main is QUARANTINED (Disk I/O) and is never a target.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # DB-free floor (same as ci.yml verify); no env/secrets.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Format check (prettier)
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests (vitest)
+        run: npm test
+      - name: Build (vite production)
+        run: npm run build
+
+  e2e-full:
+    needs: [verify]
+    if: ${{ needs.verify.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            project: c
+            gh_environment: test-c
+          - shard: 2
+            project: d
+            gh_environment: test-d
+    environment: ${{ matrix.gh_environment }}
+    concurrency:
+      group: wcf-test-db-${{ matrix.project }}
+      cancel-in-progress: false
+    env:
+      WCF_TEST_DATABASE: '1'
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VITE_TEST_ADMIN_EMAIL: ${{ secrets.VITE_TEST_ADMIN_EMAIL }}
+      VITE_TEST_ADMIN_PASSWORD: ${{ secrets.VITE_TEST_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+      - name: E2E tests (Playwright shard ${{ matrix.shard }}/2 on TEST ${{ matrix.project }})
+        timeout-minutes: 32
+        run: npm run test:e2e:ci -- --shard=${{ matrix.shard }}/2
+      - name: Upload Playwright report on failure or cancellation
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard${{ matrix.shard }}-${{ matrix.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  secondary-policy-gate:
+    needs: [verify, e2e-full]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VERIFY_RESULT: ${{ needs.verify.result }}
+      FULL_RESULT: ${{ needs.e2e-full.result }}
+    steps:
+      - name: Enforce secondary full policy
+        run: |
+          echo "verify=$VERIFY_RESULT full=$FULL_RESULT"
+          test "$VERIFY_RESULT" = "success"
+          test "$FULL_RESULT" = "success"
