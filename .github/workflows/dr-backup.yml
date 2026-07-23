@@ -75,7 +75,7 @@ jobs:
     # OPERATOR SETUP — values for the `dr-backup` Environment.
     #
     # ENVIRONMENT SECRETS (values live in 1Password; never in this repo):
-    #   DR_PROD_DB_URL                    1P: WCF Planner — Backup database unlock keys
+    #   DR_PROD_DB_URL                    1P: WCF Planner — PROD database backup reader
     #   DR_B2_KEY_ID                      1P: WCF Planner — Backblaze B2 backup writer
     #   DR_B2_APPLICATION_KEY             1P: WCF Planner — Backblaze B2 backup writer
     #   DR_R2_ACCESS_KEY_ID               1P: WCF Planner — Cloudflare R2 backup writer
