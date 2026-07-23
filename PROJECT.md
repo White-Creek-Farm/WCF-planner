@@ -120,27 +120,26 @@ Design/function invariants that govern cross-surface behavior live in
   observed cold-boot failures, and Package A reduced hot fixture setup stages
   about 45%; the original `animalTransferScenario` and
   `cattleForecastScenario` setup timeouts did not recur in run `29936691088`.
-  CI is still not repeatably green: that run passed shard 1 at 284/284 but shard
-  2 had four rotating failures (one TEST TRUNCATE lock timeout, one IndexedDB
-  hang, and two post-ready Task Center render races). Cross-run analysis refuted
-  late-file accumulation and instead found cold-start and 11–16.5-minute failure
-  bands, including three unrelated failures within one minute in run 29936691088.
+  CI is still not repeatably green. Cross-run analysis refuted late-file
+  accumulation and found multiple independent classes rather than one capacity
+  defect.
   Instrumented run `29954947453` confirmed 4 vCPU/~16 GB, at least ~12.8 GB
   memory available, and ample disk; memory and disk pressure are ruled out.
-  Failures correlated with cold-start work or 1-minute CPU load spikes around
-  3.6–3.7 on four cores. The TEST TRUNCATE timeout did not recur, so its blocker
-  remained unobserved; the sanitized diagnostic is now pushed at `8a8bff7` and
-  remains armed for a future occurrence. Keep two shards. The next fix is one
-  automatic worker-scoped Vite/browser warm-up with its own fixture timeout,
-  followed by measurement; do not add shards or restart processes because both
-  would multiply the proven cold-start regime. A billed 8-vCPU runner is the
-  fallback only if steady-state CPU-spike failures remain after warm-up. No
-  merge, Package B isolation change, timeout inflation, or Pasture work is
-  approved. Worker warm-up commit `722ba1f` is pushed on the feature branch: one
+  Worker warm-up commit `722ba1f` is pushed on the feature branch: one
   logged-out `/` navigation primes the app's fully static import graph, and a
   disposable IndexedDB open/close primes the browser path without touching the
-  real offline queue. Focused coverage is 44/44. Measured dispatch `30002663288`
-  is queued behind nightly run `29999814082`; its result is still pending.
+  real offline queue. Focused coverage is 44/44. Measured run `30002663288`
+  finished at 283/284 and 277/282. Warm-up flattened early load from about 3.58
+  to 0.76–0.83 and recovered two prior offline-queue failures, but one rotating
+  early IndexedDB timeout remained. The largest new cluster was three
+  `sheep_send_to_processor` failures at low load 0.47, including an unoptimized
+  fixture setup timeout; Broiler also had a low-load form-render race. Only the
+  Task Center failure aligned with CPU saturation at load 4.8. Package A targets
+  passed for a fourth run. Therefore an 8-vCPU runner is not the primary fix.
+  Keep two shards and the diagnostics. The next decision is whether to merge the
+  coherent, independently validated reliability stack as a better baseline,
+  then split remaining work into sheep fixture/TEST-query cascade, Broiler
+  render readiness, and offline IndexedDB readiness lanes.
 
 - Production deploy: Netlify auto-deploys from the GitHub organization repo
   `White-Creek-Farm/WCF-planner`, branch `main` (`npm run build`, publish `dist`,
@@ -394,7 +393,8 @@ Design/function invariants that govern cross-surface behavior live in
   commits: DR groundwork `b2c3826`, Broiler median hotfix `2cf332e`, and this
   docs wrap. CC#2's active reliability worktree is on
   `feature/test-playwright-reliability` at pushed warm-up commit `722ba1f`;
-  measured run `30002663288` is pending. Preserve
+  measured run `30002663288` is complete and the merge-baseline decision remains
+  open. Preserve
   the intentional `archive/ui-cleanup-wip-2026-06-17` tag because it is the only
   unique snapshot of that abandoned WIP.
 
@@ -429,9 +429,10 @@ Next-session routing: item 1 starts with Ronnie adding the seven already-stored
 1Password values as GitHub `dr-backup` Environment secrets. Then run the
 read-only preflight, separately approve the first immutable backup, and prove an
 isolated restore before building the Site & Recovery Admin tab. Item 2 resumes
-from pushed warm-up commit `722ba1f` after measured run `30002663288` reports;
-keep two shards and retain telemetry for the measured rerun.
-Newsletter item 3
+with the merge-baseline decision after measured run `30002663288`; do not buy a
+larger runner as the primary response. If merged, split the remaining low-load
+sheep fixture/query cascade, Broiler render race, and offline IndexedDB race into
+bounded lanes while keeping two shards and telemetry. Newsletter item 3
 needs Ronnie's writing example and a controlled PROD AI probe before the first
 issue. Item 4 remains a later operational cutover decision. Item 5 removes
 Processing Center tasks from the Task Center list without deleting their source
@@ -521,7 +522,7 @@ records or disrupting Processing workflows.
 2. Shared TEST / Playwright rotating-flake closure
    - Status: ACTIVE ON `feature/test-playwright-reliability`; FIVE TEST-INFRA
      CHECKPOINTS PUSHED TO THE FEATURE BRANCH, NONE MERGED; MEASURED WARM-UP
-     DISPATCH QUEUED.
+     RUN COMPLETE; MERGE-BASELINE DECISION OPEN.
    - Class: `DEFECT`/`CI`/`TEST-INFRA`/`RELIABILITY`.
    - Evidence and completed feature-branch work:
      - `61e9bed` replaced direct splash waits in 26 families with the shared
@@ -545,7 +546,7 @@ records or disrupting Processing workflows.
      - Pasture remains separately unmeasured by these manual full dispatches
        because the classifier reports `pasture=false`; its earlier failure
        cluster is still open and untouched.
-   - Diagnostic conclusion and next action: failure ordinals span the suite, so
+   - Diagnostic conclusion: failure ordinals span the suite, so
      late-file accumulation is refuted; elapsed failures cluster at cold start
      and 11–16.5 minutes, and run `29936691088` placed three unrelated failures
      inside one minute. A prior hung page may leave a PostgREST query holding an
@@ -556,7 +557,7 @@ records or disrupting Processing workflows.
      exhaustion: shard 1 failed two early Broiler public-form renders; shard 2
      failed two cold-start IndexedDB reads and two Task Center renders after its
      peak load sample. Package A's targets passed for the third run.
-   - Chosen next fix: one automatic worker-scoped warm-up through the
+   - Measured warm-up result: one automatic worker-scoped warm-up through the
      canonical fixture, with a separate fixture timeout so warm-up does not
      consume a normal test's 30-second budget. It must hard-refuse non-TEST/non-
      local targets, use a fresh context on the same worker browser, prime the
@@ -565,11 +566,23 @@ records or disrupting Processing workflows.
      inspection proved the app has no route
      code-splitting, so one logged-out `/` visit compiles the full static module
      graph and authenticated route visits would add no compile coverage. Keep
-     two serialized shards and retain telemetry/lock diagnostics for measured
-     post-warm-up run `30002663288`, queued behind nightly `29999814082`. If steady-state
-     CPU-spike failures remain after this measured fix, evaluate a billed 8-vCPU
-     runner; do not add shorter shards or process restarts, which would repay the
-     proven cold-start cost more often.
+     two serialized shards and retain telemetry/lock diagnostics. Run
+     `30002663288` finished 283/284 and 277/282. It flattened the early CPU spike
+     and recovered two earlier offline-queue failures, but one rotating early
+     IndexedDB timeout remained. Three consecutive sheep failures occurred at
+     load 0.47, including `sheepBatchPreAttachedScenario` setup; a Broiler render
+     race occurred at load 0.83; only one Task Center race aligned with high
+     load. Package A targets passed for a fourth run. Remaining red is therefore
+     not predominantly CPU-bound, so do not choose a billed 8-vCPU runner as the
+     primary fix.
+   - Decision and next lanes: it is reasonable to merge this coherent,
+     independently validated stack as a strictly better baseline even though it
+     does not make CI green; alternatively it may remain on the feature branch.
+     Ronnie/Codex must make that merge call explicitly. Afterward, treat the
+     unoptimized sheep fixture/shared-query cascade, Broiler form readiness, and
+     residual offline IndexedDB readiness as separate bounded lanes. Do not add
+     shorter shards or process restarts, which would repay cold-start cost more
+     often.
    - Build constraints: preserve fail-closed high-risk/full coverage and the
      one-file-at-a-time TEST-DB lease contract. Do not add blind retries, sleeps,
      weakened assertions, skipped coverage, or success-on-failure handling.
@@ -579,7 +592,7 @@ records or disrupting Processing workflows.
      demonstrate repeated clean full-shard/main-equivalent runs plus focused
      reruns of every changed fixture family; keep DB-free/risk-selection policy
      tests green and document any proven product defect as its own lane. Do not
-     merge the current feature branch on the existing red evidence.
+     represent a red run as green or claim that capacity alone explains it.
    - Success criteria: main CI is trustworthy and repeatable, failures identify a
      stable actionable cause, and no local Playwright or GitHub job can silently
      collide with another TEST database owner.
