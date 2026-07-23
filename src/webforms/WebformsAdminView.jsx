@@ -452,9 +452,7 @@ export default function WebformsAdminView({
         {[
           {id: 'webforms', label: 'Webforms'},
           {id: 'equipment', label: 'Equipment'},
-          {id: 'fuellog', label: 'Fuel Log'},
           {id: 'feedcosts', label: 'Feed'},
-          {id: 'costsbymonth', label: 'Cost by Month'},
           {id: 'deleted', label: 'Deleted'},
           // A future Disaster Recovery/Takeover tab is reserved to slot in
           // immediately after Deleted; Client Errors sits after Deleted for now.

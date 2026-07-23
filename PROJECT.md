@@ -72,6 +72,11 @@ Design/function invariants that govern cross-surface behavior live in
   weigh-in table, record header, and exports retain their prior average-only
   behavior. The Playwright reliability work remains isolated on
   `feature/test-playwright-reliability` in CC#2's separate worktree.
+- Admin navigation: `Fuel Log` and `Cost by Month` are intentionally hidden from
+  the Admin tab row because they are not currently useful. Their implementation,
+  supporting data, and underlying records are retained; no deletion or migration is
+  part of the hide-only hotfix. Build Queue item 6 owns the later decision and
+  evidence review for permanent removal.
 - Disaster recovery: the private Backblaze B2 primary bucket
   `wcf-planner-dr-primary-2026` and Cloudflare R2 secondary bucket
   `wcf-planner-dr-secondary-2026` exist. B2 uses SSE-B2, Object Lock, a two-day
@@ -450,7 +455,8 @@ Newsletter item 3
 needs Ronnie's writing example and a controlled PROD AI probe before the first
 issue. Item 4 remains a later operational cutover decision. Item 5 removes
 Processing Center tasks from the Task Center list without deleting their source
-records or disrupting Processing workflows.
+records or disrupting Processing workflows. Item 6 reviews whether the hidden
+Admin Fuel Log and Cost by Month implementations can be deleted safely.
 
 1. Full disaster recovery + Site & Recovery Admin tab
    - Status: PROVIDERS AND CREDENTIAL CUSTODY CONFIGURED; BACKUP ROLE PROD-ACTIVE
@@ -724,6 +730,22 @@ records or disrupting Processing workflows.
    - Success criteria: Processing Center tasks remain available to the
    Processing workflow but no longer appear in Task Center lists; ordinary
    Task Center tasks and their existing behavior remain unchanged.
+
+6. Review deletion of hidden Admin Fuel Log and Cost by Month
+   - Status: ADMIN TAB BUTTONS HIDDEN; IMPLEMENTATION AND DATA RETAINED.
+   - Class: `DECISION`/`CLEANUP`/`ADMIN`.
+   - Current behavior: `Fuel Log` and `Cost by Month` are not offered in the
+     Admin tab row. This is navigation-only; their panels, supporting APIs,
+     tests, database objects, and records have not been deleted.
+   - Scope: inventory all consumers and distinguish Admin-only reporting code
+     from still-used equipment fueling, fuel-bill, feed-cost, reconciliation,
+     and historical-record behavior before proposing deletion.
+   - Gate: permanent code, route, test, migration, or data removal requires a
+     separate Ronnie-approved plan with dependency proof and a PROD data-impact
+     review. Do not infer deletion approval from the tabs being hidden.
+   - Success criteria: either retain the dormant implementation intentionally,
+     or remove only proven-unused Admin reporting ownership without losing fuel,
+     equipment, feed-cost, audit, or historical data required elsewhere.
 
 ---
 

@@ -52,14 +52,16 @@ describe('Admin tab row — Client Errors tab (relocated from the hamburger)', (
     expect(clientErrorsIdx).toBeGreaterThan(deletedIdx);
   });
 
-  it('keeps the existing admin tabs and their order intact', () => {
+  it('keeps the approved visible admin tabs in order and hides the retired fuel reporting tabs', () => {
     let prev = -1;
-    for (const id of ['webforms', 'equipment', 'fuellog', 'feedcosts', 'costsbymonth', 'deleted', 'clientErrors']) {
+    for (const id of ['webforms', 'equipment', 'feedcosts', 'deleted', 'clientErrors']) {
       const idx = wfaSrc.indexOf(`{id: '${id}',`);
       expect(idx, `tab ${id} present`).toBeGreaterThan(-1);
       expect(idx, `tab ${id} in order`).toBeGreaterThan(prev);
       prev = idx;
     }
+    expect(wfaSrc).not.toContain("{id: 'fuellog', label: 'Fuel Log'}");
+    expect(wfaSrc).not.toContain("{id: 'costsbymonth', label: 'Cost by Month'}");
   });
 
   it('renders the panel only when the Client Errors tab is active', () => {
