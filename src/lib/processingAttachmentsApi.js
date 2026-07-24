@@ -29,6 +29,16 @@
 //     no error), so an empty result is verified via a signed-URL existence
 //     probe before success/failure is decided — this also makes a crashed
 //     earlier attempt (object already gone) converge to success on retry.
+//   • IMAGE THUMBNAILS (read-only preview): isThumbnailableImage() classifies a
+//     row (trusted content_type first, safe extension fallback for older
+//     imported rows); getProcessingAttachmentThumbUrl mints a short-lived signed
+//     URL for the private object — never a public URL. A server-side transform
+//     is an opt-in seam (`transform`); the drawer renders the signed original
+//     with constrained, lazy-loaded sizing.
+//   • RENAME (mig 191, native AND Asana-imported rows): renameProcessingAttachment
+//     validates the display name client-side (mirrors the RPC) and calls the
+//     narrow operational SECURITY DEFINER RPC. Metadata-only — storage_path,
+//     bytes, and provenance never move.
 // ============================================================================
 import {newProcessingId} from './processingApi.js';
 
@@ -43,6 +53,78 @@ export async function getProcessingAttachmentUrl(sb, storagePath, expiresIn = 60
   const {data, error} = await sb.storage.from(PROCESSING_ATTACHMENT_BUCKET).createSignedUrl(storagePath, expiresIn);
   if (error) return null;
   return data?.signedUrl || null;
+}
+
+// Short-lived signed URL for an IMAGE preview. Kept separate from the
+// open/download helper so callers only ever request preview bytes for images.
+// `transform` is an opt-in server-side thumbnail seam ({width,height,resize});
+// when omitted the caller gets the signed ORIGINAL and constrains it in the
+// DOM. Returns null on failure so the tile falls back to the file icon.
+export async function getProcessingAttachmentThumbUrl(sb, storagePath, {expiresIn = 600, transform = null} = {}) {
+  if (!storagePath) return null;
+  const options = transform ? {transform} : undefined;
+  const {data, error} = await sb.storage
+    .from(PROCESSING_ATTACHMENT_BUCKET)
+    .createSignedUrl(storagePath, expiresIn, options);
+  if (error) return null;
+  return data?.signedUrl || null;
+}
+
+// Raster image types we can render a browser thumbnail for.
+const THUMBNAIL_IMAGE_TYPE = /^image\/(jpeg|jpg|png|gif|webp)$/i;
+const THUMBNAIL_IMAGE_EXT = /\.(jpe?g|png|gif|webp)$/i;
+
+// Should this attachment show a picture thumbnail? content_type is TRUSTED
+// first: a supported raster type → yes; any OTHER declared type (svg, heic,
+// tiff, pdf, …) → no, even if the name looks like an image. Only when the type
+// is absent or generic (application/octet-stream — common on older imported
+// rows) do we fall back to the filename extension.
+export function isThumbnailableImage(att) {
+  if (!att) return false;
+  const type = String(att.content_type || '')
+    .trim()
+    .toLowerCase();
+  if (type) {
+    if (THUMBNAIL_IMAGE_TYPE.test(type)) return true;
+    if (type !== 'application/octet-stream') return false;
+  }
+  return THUMBNAIL_IMAGE_EXT.test(String(att.filename || ''));
+}
+
+// Max stored display filename (matches the mig 191 RPC cap).
+export const MAX_ATTACHMENT_FILENAME_LENGTH = 200;
+
+// Validate + normalize an edited display filename. Mirrors the server rules in
+// rename_processing_attachment so the UI can reject before a round trip.
+// Returns the trimmed name; throws Error(userMessage) on any violation.
+export function validateAttachmentDisplayName(raw) {
+  const name = String(raw ?? '').trim();
+  if (!name) throw new Error('Enter a file name.');
+  if (name.length > MAX_ATTACHMENT_FILENAME_LENGTH) {
+    throw new Error(`File name must be ${MAX_ATTACHMENT_FILENAME_LENGTH} characters or fewer.`);
+  }
+  if (/[/\\]/.test(name)) throw new Error('File name cannot contain / or \\.');
+  for (let i = 0; i < name.length; i++) {
+    const c = name.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) throw new Error('File name cannot contain control characters.');
+  }
+  return name;
+}
+
+// Rename one attachment's DISPLAY filename (metadata only — storage_path and
+// bytes never move). Validates locally first (fast UI feedback), then calls the
+// operational SECURITY DEFINER RPC, which re-validates, keeps linked comment
+// metadata coherent, and emits Activity. Returns the RPC result
+// ({status:'renamed'|'unchanged', old_filename, new_filename}).
+export async function renameProcessingAttachment(sb, {attachmentId, filename} = {}) {
+  if (!attachmentId) throw new Error('renameProcessingAttachment: attachmentId required');
+  const name = validateAttachmentDisplayName(filename);
+  const {data, error} = await sb.rpc('rename_processing_attachment', {
+    p_id: attachmentId,
+    p_filename: name,
+  });
+  if (error) throw new Error(`renameProcessingAttachment: ${error.message || String(error)}`);
+  return data;
 }
 
 // Keep the original filename readable in the object key but strip path

@@ -16,7 +16,7 @@ describe('listMigrations', () => {
   it('enumerates archive 001-026 + parent in numeric order with unique versions', () => {
     expect(migs.length).toBeGreaterThan(150);
     expect(migs[0].version).toBe('001');
-    expect(migs.at(-1).version).toBe('190');
+    expect(migs.at(-1).version).toBe('191');
     const versions = migs.map((m) => m.version);
     expect(new Set(versions).size).toBe(versions.length);
     // strictly ascending

@@ -503,6 +503,10 @@ const CP9_RAW_INSERT_SPEC_ALLOWLIST = [
   'tests/offline_queue_dedup.spec.js',
   'tests/offline_queue_pig_dailys_photos.spec.js',
   'tests/pig_dailys_offline.spec.js',
+  // Audited: seeds one linked processing comment (FIXED id cmt-ptest-rename,
+  // delete-first + afterAll cleanup) so the rename lane can prove comment
+  // attachment-name coherence; service-role insert behind delete-first hygiene.
+  'tests/processing_attachment_thumbnail_rename.spec.js',
   'tests/tasks_v2_rpcs.spec.js',
 ];
 

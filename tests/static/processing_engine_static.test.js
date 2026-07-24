@@ -433,7 +433,11 @@ describe('client — engine wiring', () => {
     expect(drawer).toContain('data-processing-attachment-open');
     expect(drawer).toContain('data-processing-attachment-delete');
     expect(drawer).toContain('data-processing-attachment-delete-confirm');
-    expect(drawer).toMatch(/\{isAdmin && !confirming && \(/);
+    // Delete is admin-gated and the whole action row is hidden while the
+    // filename-confirm is open (the rename lane moved Delete into a shared
+    // action group with Rename, still under !confirming and isAdmin).
+    expect(drawer).toMatch(/!confirming && \(/);
+    expect(drawer).toMatch(/\{isAdmin && \(/);
     expect(drawer).toContain('Delete {name}?');
     expect(drawer).toContain('deletingAttachmentIds.has(at.id)');
     expect(drawer).toContain('deleteProcessingAttachment(sb, {attachmentId: at.id})');

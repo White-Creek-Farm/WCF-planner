@@ -27,6 +27,11 @@ const EXPECTED_IMG_OWNERS = [
   // decorative thumb — same admin-authored pattern as NewsletterArchive, so an
   // image owner but NOT a USER_MEDIA_OWNER.
   'src/newsletter/NewsletterIssuePage.jsx',
+  // The Processing drawer attachment tile renders a DECORATIVE signed image
+  // thumbnail (alt="" + aria-hidden): the surrounding open button carries the
+  // accessible name (aria-label "Open <filename>"), so it is an image owner but
+  // NOT a USER_MEDIA_OWNER (no imageAltText fallback needed).
+  'src/processing/ProcessingDrawer.jsx',
   'src/shared/CommentsSection.jsx',
   'src/shared/DailyPhotoThumbnails.jsx',
   'src/tasks/TaskPhotoLightbox.jsx',

@@ -68,7 +68,11 @@ import {
 import {
   uploadProcessingAttachment,
   getProcessingAttachmentUrl,
+  getProcessingAttachmentThumbUrl,
   deleteProcessingAttachment,
+  renameProcessingAttachment,
+  isThumbnailableImage,
+  MAX_ATTACHMENT_FILENAME_LENGTH,
 } from '../lib/processingAttachmentsApi.js';
 import {
   sourceRouteForRecord,
@@ -144,6 +148,100 @@ function countText(value) {
 function weightText(value) {
   const n = Number(value);
   return value !== null && value !== undefined && Number.isFinite(n) ? `${n.toLocaleString()} lb` : null;
+}
+
+// Compact preview for an attachment tile. Image rows (classified by trusted
+// content_type first, filename-extension fallback for older imported rows)
+// render a lazy, short-lived SIGNED thumbnail of the PRIVATE object — no public
+// URL, no server transform assumed, the URL held only in local state and never
+// logged/persisted. A restrained skeleton shows while it loads; any signing or
+// decode failure falls back to the generic file glyph. Non-image documents
+// never fetch bytes here — they always show the glyph.
+const THUMB_SIZE = 44;
+// eslint-disable-next-line no-unused-vars -- JSX-only use
+function ProcessingAttachmentThumb({sb, attachment}) {
+  const {useState, useEffect} = React;
+  const isImage = isThumbnailableImage(attachment);
+  const path = attachment?.storage_path || null;
+  const [url, setUrl] = useState(null);
+  const [phase, setPhase] = useState('idle'); // idle | loading | ready | failed
+
+  useEffect(() => {
+    if (!isImage || !path) {
+      setUrl(null);
+      setPhase('idle');
+      return undefined;
+    }
+    let alive = true;
+    setUrl(null);
+    setPhase('loading');
+    (async () => {
+      const signed = await getProcessingAttachmentThumbUrl(sb, path, {expiresIn: 600});
+      if (!alive) return;
+      if (!signed) {
+        setPhase('failed');
+        return;
+      }
+      setUrl(signed);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [sb, path, isImage]);
+
+  const box = {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 10,
+    flex: 'none',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  if (isImage && phase !== 'failed') {
+    // The img is opacity-gated (NOT display:none): a display:none image with
+    // loading="lazy" never intersects the viewport, so it would never load and
+    // onLoad would never fire — a deadlock. Kept laid out at opacity 0, it loads
+    // (lazily, when scrolled near) and fades in on load; the skeleton sits behind.
+    return (
+      <span style={{...box, position: 'relative', background: '#EEF0F2'}} data-processing-attachment-thumb="image">
+        {phase !== 'ready' && (
+          <span aria-hidden="true" style={{position: 'absolute', inset: 0, background: '#EEF0F2'}} />
+        )}
+        {url && (
+          <img
+            src={url}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            onLoad={() => setPhase('ready')}
+            onError={() => setPhase('failed')}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: phase === 'ready' ? 1 : 0,
+              transition: 'opacity 150ms ease',
+            }}
+          />
+        )}
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      data-processing-attachment-thumb="icon"
+      style={{...box, background: '#E6F4EC', color: '#1F7A4D', fontSize: 18}}
+    >
+      ⎘
+    </span>
+  );
 }
 
 // eslint-disable-next-line no-unused-vars -- JSX-only use
@@ -410,6 +508,12 @@ export default function ProcessingDrawer({
   // busy so only the affected tile disables while its delete runs.
   const [confirmingAttachmentDelete, setConfirmingAttachmentDelete] = useState(null); // attachment id | null
   const [deletingAttachmentIds, setDeletingAttachmentIds] = useState(() => new Set());
+  // Inline attachment rename (operational roles): one editor open at a time,
+  // per-attachment busy so only the affected tile disables while saving.
+  const [editingAttachmentId, setEditingAttachmentId] = useState(null); // attachment id | null
+  const [editingAttachmentName, setEditingAttachmentName] = useState('');
+  const [renamingAttachmentIds, setRenamingAttachmentIds] = useState(() => new Set());
+  const [renameError, setRenameError] = useState(null);
   // Apply-template preview: null = closed; otherwise the server's read-only
   // diff from preview_latest_template.
   const [templatePreview, setTemplatePreview] = useState(null);
@@ -1033,6 +1137,55 @@ export default function ProcessingDrawer({
         next.delete(at.id);
         return next;
       });
+    }
+  }
+
+  // ── attachment rename (operational roles) ────────────────────────────────
+  // Inline edit of the DISPLAY filename only. Enter saves, Escape cancels; only
+  // the affected tile disables while its metadata-only rename runs.
+  function startRenameAttachment(at) {
+    setNotice(null);
+    setRenameError(null);
+    setConfirmingAttachmentDelete(null);
+    setEditingAttachmentId(at.id);
+    setEditingAttachmentName(at.filename || '');
+  }
+  function cancelRenameAttachment() {
+    setEditingAttachmentId(null);
+    setEditingAttachmentName('');
+    setRenameError(null);
+  }
+  async function saveRenameAttachment(at) {
+    if (renamingAttachmentIds.has(at.id)) return;
+    const next = editingAttachmentName;
+    setRenameError(null);
+    setNotice(null);
+    setRenamingAttachmentIds((prev) => new Set(prev).add(at.id));
+    try {
+      // renameProcessingAttachment validates locally (mirrors the RPC) and
+      // throws a user-presentable message before any round trip.
+      await renameProcessingAttachment(sb, {attachmentId: at.id, filename: next});
+      cancelRenameAttachment();
+      await load(); // drawer reload → the new filename is server-authoritative
+      if (notifyRef.current) notifyRef.current();
+    } catch (err) {
+      // Keep the editor open with the draft intact so the user can correct it.
+      setRenameError(friendlyProcessingError(err));
+    } finally {
+      setRenamingAttachmentIds((prev) => {
+        const copy = new Set(prev);
+        copy.delete(at.id);
+        return copy;
+      });
+    }
+  }
+  function onRenameAttachmentKeyDown(e, at) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveRenameAttachment(at);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRenameAttachment();
     }
   }
 
@@ -1972,6 +2125,9 @@ export default function ProcessingDrawer({
                         .join(' · ');
                       const deleting = deletingAttachmentIds.has(at.id);
                       const confirming = confirmingAttachmentDelete === at.id;
+                      const editing = editingAttachmentId === at.id;
+                      const renaming = renamingAttachmentIds.has(at.id);
+                      const tileBusy = deleting || renaming;
                       return (
                         <div
                           key={at.id || i}
@@ -1983,91 +2139,180 @@ export default function ProcessingDrawer({
                             width: 222,
                             maxWidth: '100%',
                             background: '#fff',
-                            opacity: deleting ? 0.6 : 1,
+                            opacity: tileBusy ? 0.6 : 1,
                           }}
                         >
                           <div style={{display: 'flex', alignItems: 'center', gap: 11}}>
+                            {/* Thumbnail — its own open target (retains signed
+                                open behavior); disabled while editing/saving. */}
                             <button
                               type="button"
                               onClick={() => openAttachment(at)}
-                              disabled={deleting}
-                              data-processing-attachment-open={at.id || i}
+                              disabled={tileBusy || editing}
+                              data-processing-attachment-open-thumb={at.id || i}
+                              aria-label={`Open ${name}`}
                               title={`Open ${name}`}
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 11,
-                                flex: 1,
-                                minWidth: 0,
                                 border: 'none',
                                 background: 'none',
                                 padding: 0,
-                                cursor: deleting ? 'default' : 'pointer',
-                                fontFamily: 'inherit',
-                                textAlign: 'left',
+                                flex: 'none',
+                                cursor: tileBusy || editing ? 'default' : 'pointer',
+                                lineHeight: 0,
                               }}
                             >
-                              <span
-                                aria-hidden="true"
-                                style={{
-                                  width: 34,
-                                  height: 34,
-                                  borderRadius: 10,
-                                  background: '#E6F4EC',
-                                  color: '#1F7A4D',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flex: 'none',
-                                  fontSize: 15,
-                                }}
-                              >
-                                ⎘
-                              </span>
-                              <span style={{minWidth: 0}}>
-                                <span
+                              <ProcessingAttachmentThumb sb={sb} attachment={at} />
+                            </button>
+                            {/* Name / meta OR the inline rename editor. */}
+                            <div style={{flex: 1, minWidth: 0}}>
+                              {editing ? (
+                                <input
+                                  type="text"
+                                  value={editingAttachmentName}
+                                  onChange={(e) => {
+                                    setEditingAttachmentName(e.target.value);
+                                    if (renameError) setRenameError(null);
+                                  }}
+                                  onKeyDown={(e) => onRenameAttachmentKeyDown(e, at)}
+                                  disabled={renaming}
+                                  maxLength={MAX_ATTACHMENT_FILENAME_LENGTH}
+                                  aria-label={`File name for ${name}`}
+                                  autoFocus
+                                  data-processing-attachment-rename-input={at.id || i}
+                                  style={{...inputStyle, width: '100%'}}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => openAttachment(at)}
+                                  disabled={tileBusy}
+                                  data-processing-attachment-open={at.id || i}
+                                  title={`Open ${name}`}
                                   style={{
                                     display: 'block',
-                                    fontSize: 13,
-                                    fontWeight: 700,
-                                    color: T.ink,
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
+                                    width: '100%',
+                                    minWidth: 0,
+                                    border: 'none',
+                                    background: 'none',
+                                    padding: 0,
+                                    cursor: tileBusy ? 'default' : 'pointer',
+                                    fontFamily: 'inherit',
+                                    textAlign: 'left',
                                   }}
                                 >
-                                  {name}
-                                </span>
-                                {meta && (
-                                  <span style={{display: 'block', fontSize: 11.5, color: T.faint, fontWeight: 600}}>
-                                    {meta}
+                                  <span
+                                    style={{
+                                      display: 'block',
+                                      fontSize: 13,
+                                      fontWeight: 700,
+                                      color: T.ink,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                  >
+                                    {name}
                                   </span>
-                                )}
-                              </span>
-                            </button>
-                            {isAdmin && !confirming && (
-                              <button
-                                type="button"
-                                onClick={() => setConfirmingAttachmentDelete(at.id)}
-                                disabled={deleting}
-                                aria-label={`Delete ${name}`}
-                                data-processing-attachment-delete={at.id || i}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: '#B4373A',
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  cursor: deleting ? 'default' : 'pointer',
-                                  fontFamily: 'inherit',
-                                  padding: 0,
-                                  flex: 'none',
-                                }}
-                              >
-                                {deleting ? 'Deleting…' : 'Delete'}
-                              </button>
+                                  {meta && (
+                                    <span style={{display: 'block', fontSize: 11.5, color: T.faint, fontWeight: 600}}>
+                                      {meta}
+                                    </span>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                            {/* Actions: Save/Cancel while editing; otherwise
+                                Rename (operational) + Delete (admin). */}
+                            {editing ? (
+                              <div style={{display: 'flex', gap: 6, flex: 'none'}}>
+                                <button
+                                  type="button"
+                                  onClick={() => saveRenameAttachment(at)}
+                                  disabled={renaming}
+                                  data-processing-attachment-rename-save={at.id || i}
+                                  style={{
+                                    ...ghostBtn,
+                                    padding: '6px 10px',
+                                    borderColor: T.green,
+                                    color: renaming ? T.faint : T.green,
+                                    cursor: renaming ? 'default' : 'pointer',
+                                  }}
+                                >
+                                  {renaming ? 'Saving…' : 'Save'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelRenameAttachment}
+                                  disabled={renaming}
+                                  data-processing-attachment-rename-cancel={at.id || i}
+                                  style={{...ghostBtn, padding: '6px 10px'}}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              !confirming && (
+                                <div style={{display: 'flex', gap: 10, flex: 'none', alignItems: 'center'}}>
+                                  {canOperate && (
+                                    <button
+                                      type="button"
+                                      onClick={() => startRenameAttachment(at)}
+                                      disabled={tileBusy}
+                                      aria-label={`Rename ${name}`}
+                                      data-processing-attachment-rename={at.id || i}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: T.muted,
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        cursor: tileBusy ? 'default' : 'pointer',
+                                        fontFamily: 'inherit',
+                                        padding: 0,
+                                      }}
+                                    >
+                                      Rename
+                                    </button>
+                                  )}
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmingAttachmentDelete(at.id)}
+                                      disabled={deleting}
+                                      aria-label={`Delete ${name}`}
+                                      data-processing-attachment-delete={at.id || i}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#B4373A',
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        cursor: deleting ? 'default' : 'pointer',
+                                        fontFamily: 'inherit',
+                                        padding: 0,
+                                      }}
+                                    >
+                                      {deleting ? 'Deleting…' : 'Delete'}
+                                    </button>
+                                  )}
+                                </div>
+                              )
                             )}
                           </div>
+                          {editing && renameError && (
+                            <div
+                              role="alert"
+                              data-processing-attachment-rename-error={at.id || i}
+                              style={{
+                                marginTop: 8,
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                color: '#B4373A',
+                              }}
+                            >
+                              {renameError}
+                            </div>
+                          )}
                           {isAdmin && confirming && (
                             <div
                               style={{

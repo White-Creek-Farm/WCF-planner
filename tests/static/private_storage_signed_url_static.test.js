@@ -16,10 +16,11 @@ const EXPECTED_SIGNED_URL_OWNERS = new Map([
   ['src/admin/FuelBillsView.jsx', 1],
   ['src/lib/commentAttachments.js', 1],
   // Processing attachments (migs 163/166/185): private processing-attachments
-  // bucket; short-lived signed open/download for the record drawer PLUS the
+  // bucket; short-lived signed open/download for the record drawer, the
   // mig-185 delete-flow existence probe (an empty storage.remove result is
-  // verified via a signed-URL mint before success/failure is decided).
-  ['src/lib/processingAttachmentsApi.js', 2],
+  // verified via a signed-URL mint before success/failure is decided), AND the
+  // image-thumbnail signer (getProcessingAttachmentThumbUrl).
+  ['src/lib/processingAttachmentsApi.js', 3],
   ['src/lib/tasksCenterMutationsApi.js', 2],
   ['src/lib/tasksUserApi.js', 2],
   // To Do photos (mig 115): private task-photos bucket, todo/<id>/ prefix.
@@ -83,7 +84,7 @@ describe('Private storage buckets use signed URLs only', () => {
       .filter(([rel, count]) => seen.get(rel) !== count)
       .map(([rel, count]) => `${rel}: expected ${count}, saw ${seen.get(rel) ?? 0}`);
 
-    expect(signedUrlCount).toBe(11);
+    expect(signedUrlCount).toBe(12);
     expect(unexpected).toEqual([]);
     expect(missing).toEqual([]);
     expect(wrongCounts).toEqual([]);
