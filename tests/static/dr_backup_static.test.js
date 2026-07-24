@@ -166,6 +166,16 @@ describe('provider write contract', () => {
     expect(putBody).toMatch(/if \(isB2\) \{[\s\S]*--object-lock-mode/);
   });
 
+  it('sends a Content-MD5 with B2 object-lock puts, which B2 requires', () => {
+    // B2 rejects a Put Object that carries Object Lock parameters unless it also
+    // has a Content-MD5 or x-amz-checksum-* header (InvalidRequest), and the
+    // shared when_required checksum mode does not add one. The B2-only branch must
+    // supply an explicit Content-MD5, before the object-lock flags.
+    const putBody = region(src, 'function putObject', 'let exitCode');
+    expect(putBody).toMatch(/if \(isB2\) \{[\s\S]*--content-md5[\s\S]*--object-lock-mode/);
+    expect(putBody).toMatch(/createHash\('md5'\)/);
+  });
+
   it('derives retention from the key rather than hardcoding one duration', () => {
     expect(src).toMatch(/retainUntilForKey\(key, new Date\(\)\)/);
   });

@@ -517,8 +517,20 @@ function putObject(provider, key, bodyPath) {
     endpointFor(provider),
   ];
   if (isB2) {
+    // B2 REQUIRES a Content-MD5 or x-amz-checksum-* header on any Put Object that
+    // carries Object Lock parameters (it returns InvalidRequest without one). The
+    // shared awsEnvFor sets AWS_REQUEST_CHECKSUM_CALCULATION=when_required so R2
+    // does not reject the CLI's default CRC32; "when_required" does NOT add a
+    // checksum for this B2 object-lock put, so supply an explicit Content-MD5 —
+    // the original, universally accepted S3 object-lock requirement. This is added
+    // only on the B2 branch, so R2 is unaffected. Bodies routed through put-object
+    // are small (the encrypted DB package and the JSON manifests); storage bodies
+    // use `aws s3 cp` and set retention separately.
+    const contentMd5 = crypto.createHash('md5').update(fs.readFileSync(bodyPath)).digest('base64');
     // The bucket default is only 2 days; daily/monthly/storage must outlive it.
     args.push(
+      '--content-md5',
+      contentMd5,
       '--object-lock-mode',
       'GOVERNANCE',
       '--object-lock-retain-until-date',
