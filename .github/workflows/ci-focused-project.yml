@@ -1,0 +1,122 @@
+name: CI focused (single TEST project)
+
+# Manually dispatched FOCUSED Playwright runner for the isolated TEST fleet.
+# It runs one or more explicitly named EXISTING root spec files against ONE
+# assigned TEST project (A/B/C/D) — without launching the two-shard full suite.
+# This unblocks focused per-lane browser validation (sheep, Broiler, Timeline,
+# and future lanes) on the four isolated projects.
+#
+# Security model (see scripts/ci_focused_specs.cjs +
+# tests/static/ci_focused_project_workflow_static.test.js):
+#   - workflow_dispatch ONLY. Never runs on push/PR/schedule.
+#   - `project` is a FIXED CHOICE (a|b|c|d). The bound Environment and the
+#     concurrency group are DERIVED from that choice, so they can only ever be
+#     test-a..d / wcf-test-db-a..d. There is no main/test-main, PROD, reference,
+#     arbitrary-Environment, arbitrary-concurrency, or fallback option.
+#   - `specs_json` is untrusted operator input. It is passed ONLY through `env`
+#     to scripts/ci_focused_specs.cjs, which parses it with JSON.parse (no eval,
+#     no shell) and fail-closed rejects anything that is not an existing root
+#     tests/<safe-name>.spec.js (no traversal, absolute paths, nested/scenario/
+#     setup/helper files, screenshot/audit utilities, pasture specs, globs,
+#     flags, or shell fragments). Validated paths are written to a controlled
+#     file and passed to Playwright as a quoted argument array.
+#   - There is intentionally NO `ref` input. The operator dispatches with
+#     --ref <exact-feature-branch>; github.ref is therefore the real allowed
+#     branch and the checkout uses it exactly. The target Environment must
+#     SEPARATELY allow that exact branch in its deployment-branch policy before
+#     dispatch — this workflow never edits Environment policies.
+#   - permissions: contents read only. Different projects run concurrently; a
+#     single project stays serialized (queue, never cancel) against itself and
+#     against that project's ci.yml jobs and local leases.
+#   - wcf-planner-test-main is QUARANTINED and is never a target here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Which isolated TEST project to run against (fixed choice; drives Environment + concurrency)'
+        required: true
+        type: choice
+        options: [a, b, c, d]
+      specs_json:
+        description: 'JSON array of one or more existing root spec paths, e.g. ["tests/sheep_send_to_processor.spec.js"]'
+        required: true
+        type: string
+
+run-name: CI focused TEST ${{ inputs.project }}
+
+# Read-only. The runner never writes to the repo, comments on PRs, or pushes
+# anything beyond per-run failure diagnostics.
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    # Fixed choice -> only ever test-a/test-b/test-c/test-d. GitHub also enforces
+    # the target Environment's deployment-branch policy against github.ref, and
+    # binds ONLY that one project's five secrets to this job.
+    environment: test-${{ inputs.project }}
+    # Fixed choice -> only ever wcf-test-db-a/b/c/d. Shared with ci.yml jobs for
+    # the SAME project so they never overlap; distinct projects run in parallel.
+    concurrency:
+      group: wcf-test-db-${{ inputs.project }}
+      cancel-in-progress: false
+    env:
+      WCF_TEST_DATABASE: '1'
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VITE_TEST_ADMIN_EMAIL: ${{ secrets.VITE_TEST_ADMIN_EMAIL }}
+      VITE_TEST_ADMIN_PASSWORD: ${{ secrets.VITE_TEST_ADMIN_PASSWORD }}
+    steps:
+      - name: Checkout dispatched ref
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      # Fail-closed spec validation FIRST — before npm ci, browser install, or
+      # any DB reset. specs_json arrives only via env, never a shell arg. A bad
+      # list exits non-zero here and no TEST project is ever touched.
+      - name: Validate requested specs (fail closed)
+        env:
+          SPECS_JSON: ${{ inputs.specs_json }}
+        run: node scripts/ci_focused_specs.cjs --out validated-specs.txt
+      - name: Install dependencies
+        run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+      - name: Focused E2E on TEST project
+        timeout-minutes: 28
+        # Read the VALIDATED paths (controlled file, only tests/<safe>.spec.js
+        # lines) into a bash array. workers=1 keeps the per-test truncate/reseed
+        # reset serialized within the one selected project.
+        run: |
+          mapfile -t SPECS < validated-specs.txt
+          if [ "${#SPECS[@]}" -eq 0 ]; then
+            echo "No validated specs; refusing unsafe empty run"
+            exit 1
+          fi
+          echo "Running ${#SPECS[@]} focused spec(s) on TEST project:"
+          printf '  %s\n' "${SPECS[@]}"
+          npm run test:e2e:ci -- --workers=1 "${SPECS[@]}"
+      - name: Upload focused Playwright report on failure or cancellation
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-playwright-report-${{ inputs.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
