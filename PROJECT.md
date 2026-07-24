@@ -7,9 +7,10 @@ This file is the durable project map: current state, architecture, roadmap, and
 load-bearing contracts. Workflow, roles, gates, and relay format live in
 [HO.md](HO.md). Do not turn this file into a session transcript.
 
-Last updated: 2026-07-23.
+Last updated: 2026-07-24.
 Runtime/source changes covered by this map include DR groundwork commit
-`b2c3826`; the former Broiler median hotfix `2cf332e` has been reverted.
+`b2c3826` and the isolated TEST-fleet shipment completed at `974d7ed`; the
+former Broiler median hotfix `2cf332e` has been reverted.
 Migration `190` is PROD-applied and the resulting `wcf_backup` role is activated
 and verified read-only. Migrations through `190` are represented in source.
 Shipped history lives in `git log` and `archive/SESSION_LOG.md`; durable behavior
@@ -67,11 +68,15 @@ Design/function invariants that govern cross-surface behavior live in
 
 ## Current State
 
-- Active main state: DR groundwork `b2c3826` is published. The former Broiler
-  median hotfix `2cf332e` has been reverted at Ronnie's request; the main
-  weigh-in table, record header, and exports retain their prior average-only
-  behavior. The Playwright reliability work remains isolated on
-  `feature/test-playwright-reliability` in CC#2's separate worktree.
+- Active main state: DR groundwork `b2c3826` and the isolated TEST fleet through
+  final reconciliation `974d7ed` are published. TEST A-D are execution-ready,
+  protected, independently leased, and available as four concurrent
+  TEST-backed lanes under explicit Codex assignment; the main-triggered A/B
+  proof is green. The former Broiler median hotfix `2cf332e` has been reverted
+  at Ronnie's request; the main weigh-in table, record header, and exports
+  retain their prior average-only behavior. The remaining rotating-flake
+  reliability work remains isolated on `feature/test-playwright-reliability` in
+  CC#2's separate worktree.
 - Admin navigation: `Fuel Log` and `Cost by Month` are intentionally hidden from
   the Admin tab row because they are not currently useful. Their implementation,
   supporting data, and underlying records are retained; no deletion or migration is
@@ -451,9 +456,14 @@ order), `74b04d1` (fueling logo home link), `f6e1948` (Home help-copy removal),
 proof), `06f04f6` (newsletter editorial steering + migration `189` source),
 `f61fb64` (mobile temp-paddock label), `77c3c57` (mobile Field toolbar kept
 inside the viewport), and `68872cb` (Client Errors moved to Admin). The former
-Broiler median checkpoint `2cf332e` was subsequently reverted. The cattle schedule remains
-reconciled with September `C-26-05`. The only unique abandoned UI WIP remains
-preserved at tag `archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
+Broiler median checkpoint `2cf332e` was subsequently reverted by `ac2cea0`.
+Later shipped checkpoints are `b2c3826` (manual-only DR groundwork),
+`5bae452` (hide the unused Admin fuel-reporting tabs), and the isolated TEST
+fleet sequence `13cc40b`/`755f7a3`/`199fe4f`/`8de35f6`, finalized by
+`974d7ed`. Documentation reconciliation followed at `64845ff` and `1489277`.
+The cattle schedule remains reconciled with September `C-26-05`. The only
+unique abandoned UI WIP remains preserved at tag
+`archive/ui-cleanup-wip-2026-06-17` (`f316ed8`).
 
 ---
 
@@ -560,9 +570,10 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
      approved RPO/RTO; and Ronnie has a concise emergency runbook.
 
 2. Shared TEST / Playwright rotating-flake closure
-   - Status: ISOLATED TEST FLEET A/B/C/D BOOTSTRAPPED (fresh repo-derived
+   - Status: ISOLATED TEST FLEET A/B/C/D SHIPPED AT `974d7ed`, BOOTSTRAPPED
+     (fresh repo-derived
      execute, 174 migrations each), ATTESTED READY, BOOTSTRAP-PARITY IDENTICAL,
-     ISOLATION PROVEN, AND ROUTING MERGED TO `main` (@8de35f6). Live parallel
+     ISOLATION PROVEN, AND ROUTING LIVE ON `main`. Live parallel
      A/B (main-triggered run 30046534415, fully green) + C/D (dispatched run
      30046599021, test-c green) proven; the only residual CI failures are
      pre-existing rotating timing flakes (see below), zero fleet-infra failures.
@@ -642,8 +653,9 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
      target it while quarantined. Inspect Database Health/I/O before reuse.
      Because Nano sustains only half Micro's documented baseline throughput and
      IOPS, the new Micro fleet is also a capacity correction, not merely a
-     concurrency feature. Reassess the original project's role or compute after
-     the fleet pilot rather than spending on GitHub runner capacity first.
+     concurrency feature. The fleet pilot is complete; keep the original
+     project excluded until a separate recover/upgrade/delete decision is made
+     from current I/O-health evidence.
    - Exact reference classification: TEST-main's extra
      `webform_submitter_identities` table and trigger come from shelved migration
      `083`; its six-argument `update_todo_item` overload is stale. TEST-main
@@ -675,9 +687,10 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
        1 (284/284) and failed four on shard 2: a new TRUNCATE statement/lock
        timeout, an IndexedDB read hang, and two post-ready Task Center render
        races. Earlier runs rotated among other specs while focused leased runs
-       passed. The unchanged common factor appears to be environmental
-       amplification during long serial shards, but that remains an inference
-       until the current diagnostic work reports runner and lock evidence.
+       passed. Later telemetry ruled out runner memory/local-disk exhaustion and
+       showed that not every failure aligned with runner CPU saturation;
+       Supabase I/O throttling remains plausible but unproven for the low-load
+       failures.
      - Pasture remains separately unmeasured by these manual full dispatches
        because the classifier reports `pasture=false`; its earlier failure
        cluster is still open and untouched.
