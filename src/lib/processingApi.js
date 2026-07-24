@@ -313,16 +313,12 @@ export async function previewLatestTemplate(sb, recordId) {
   return data || {};
 }
 
-// list_my_processing_subtasks() -> the CURRENT USER's open Processing subtasks
-// (caller-scoped server-side) for the no-due-date "Processing work" section in
-// My Tasks. Each: subtask_id, label, sort_order, record_id, record_title,
-// program, processing_date, record_type. Link-only display data — Processing
-// work is NOT task_instances and has no due dates.
-export async function listMyProcessingSubtasks(sb) {
-  const {data, error} = await sb.rpc('list_my_processing_subtasks');
-  if (error) throw new Error(`listMyProcessingSubtasks: ${error.message || String(error)}`);
-  return Array.isArray(data) ? data : [];
-}
+// The caller-scoped RPC list_my_processing_subtasks (mig 175/178) is
+// intentionally NOT wrapped for client use: Processing Center checklist steps
+// are no longer surfaced in the Task Center (Build Queue item 5). The RPC
+// remains deployed. Assigned processing work is worked from its Processing
+// record, reached through the Processing Center or the
+// processing_subtask_assigned notification deep link.
 
 // ── Admin-only ───────────────────────────────────────────────────────────────
 

@@ -4,17 +4,17 @@ import {fileURLToPath} from 'node:url';
 import {describe, it, expect} from 'vitest';
 import {resolveNotificationRoute} from '../../src/lib/activityRegistry.js';
 
-// Static guards for the My Tasks "Processing work" section + its navigation
-// plumbing (processing-planner-integration lane, mig 175 read RPC + mig 177
-// notifications):
-//   • MyTasksTab renders a LINK-ONLY 'Processing work' section fed by
-//     list_my_processing_subtasks — these rows are NOT task_instances: no
-//     due-date buckets, no complete/edit-due/assign/delete controls; each row
-//     just opens its Processing record via processingNav;
-//   • the Processing loader failure degrades to an empty (hidden) section and
-//     can never take down My Tasks;
-//   • the activityRegistry + notification resolver deep-link
-//     processing.record / processing_subtask_assigned to /processing?record=;
+// Static guards proving Processing Center work is EXCLUDED from the Task Center
+// (Build Queue item 5), plus the still-valid processing NOTIFICATION deep-link
+// plumbing (which is independent of the Task Center list):
+//   • MyTasksTab no longer renders a 'Processing work' section and no longer
+//     fetches list_my_processing_subtasks — processing_subtasks are not
+//     task_instances and must not appear in any Task Center list surface;
+//   • processingApi.js no longer exports the listMyProcessingSubtasks client
+//     wrapper (the RPC stays deployed but has no client consumer);
+//   • the activityRegistry + notification resolver still deep-link
+//     processing.record / processing_subtask_assigned to /processing?record=
+//     so assignees still reach their work from the Processing record;
 //   • the Header routes every /processing* notification through
 //     navigateToProcessingRoute (query string preserved + open-record event
 //     for the already-mounted view);
@@ -26,53 +26,34 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const myTasks = read('src/tasks/MyTasksTab.jsx');
+const processingApi = read('src/lib/processingApi.js');
 const header = read('src/shared/Header.jsx');
 
-// The Processing work section block: from its data-tasks-section marker to the
-// next section ("others"). Scoped assertions below run against ONLY this slice
-// so surrounding task_instances markup can't mask a regression.
-const sectionStart = myTasks.indexOf('data-tasks-section="processing"');
-const sectionEnd = myTasks.indexOf('data-tasks-section="others"');
-
-describe('MyTasksTab — Processing work section', () => {
-  it('renders the section fed by listMyProcessingSubtasks with a .catch degrade', () => {
-    expect(sectionStart).toBeGreaterThan(-1);
-    expect(sectionEnd).toBeGreaterThan(sectionStart);
-    expect(myTasks).toMatch(/import \{listMyProcessingSubtasks\} from '\.\.\/lib\/processingApi\.js';/);
-    // A Processing loader failure degrades to an empty (hidden) section —
-    // it must never reject the Promise.all that loads My Tasks proper.
-    expect(myTasks).toMatch(/listMyProcessingSubtasks\(sb\)\.catch\(\(\) => \[\]\)/);
-    // Section header + link-only copy.
-    expect(myTasks).toMatch(/Processing work \(\{processingWork\.length\}\)/);
-    expect(myTasks).toContain('processingWork.length > 0 &&');
-  });
-
-  it('the section is LINK-ONLY: no complete/assign/due-date controls, no task-row machinery', () => {
-    const section = myTasks.slice(sectionStart, sectionEnd);
+describe('Task Center excludes Processing Center work (Build Queue item 5)', () => {
+  it('MyTasksTab renders no Processing work section and fetches no processing subtasks', () => {
+    // The removed section and every marker/state that fed it must be gone, so
+    // no processing_subtasks row can appear in a task_instances list surface.
     for (const forbidden of [
-      'data-task-complete-button',
-      'data-task-edit-due-button',
-      'data-task-assign-button',
-      'data-task-delete-button',
-      '<TaskRow',
-      'dueStateFor',
-      'data-tasks-due-bucket',
-      'setCompleteTaskTarget',
-      'setEditDueTarget',
-      'setAssignTarget',
-      'setDeleteTarget',
+      'data-tasks-section="processing"',
+      'data-processing-work-row',
+      'data-processing-work-date',
+      'listMyProcessingSubtasks',
+      'list_my_processing_subtasks',
+      'navigateToProcessingRecord',
+      'processingWork',
+      'Processing work (',
     ]) {
-      expect(section, `Processing section must not contain ${forbidden}`).not.toContain(forbidden);
+      expect(myTasks, `MyTasksTab must not contain ${forbidden}`).not.toContain(forbidden);
     }
-    // Rows are identifiable + display-only (program dot, record title, date text).
-    expect(section).toContain('data-processing-work-row={st.subtask_id}');
-    expect(section).toContain('data-processing-work-date={st.processing_date}');
+    // The two remaining sections (mine + others) render ordinary task_instances
+    // exactly as before; the Processing section is not among them.
+    expect(myTasks).toContain('data-tasks-section="mine"');
+    expect(myTasks).toContain('data-tasks-section="others"');
   });
 
-  it('rows navigate via processingNav.navigateToProcessingRecord (drawer deep link)', () => {
-    expect(myTasks).toMatch(/import \{navigateToProcessingRecord\} from '\.\.\/lib\/processingNav\.js';/);
-    const section = myTasks.slice(sectionStart, sectionEnd);
-    expect(section).toContain('navigateToProcessingRecord(navigate, st.record_id)');
+  it('processingApi.js no longer exports the listMyProcessingSubtasks client wrapper', () => {
+    expect(processingApi).not.toContain('export async function listMyProcessingSubtasks');
+    expect(processingApi).not.toContain('listMyProcessingSubtasks');
   });
 });
 

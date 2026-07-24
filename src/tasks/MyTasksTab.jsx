@@ -52,9 +52,6 @@ import {
   photoPresenceFor,
 } from '../lib/tasksCenterApi.js';
 import {TASK_CHANGE_EVENT, fireTaskChangeEvent} from '../lib/tasksCenterMutationsApi.js';
-import {listMyProcessingSubtasks} from '../lib/processingApi.js';
-import {navigateToProcessingRecord} from '../lib/processingNav.js';
-import {programDotStyle} from '../lib/programColors.js';
 import {todayCentralISO} from '../lib/dateUtils.js';
 import {usePersistentViewState} from '../lib/usePersistentViewState.js';
 import CompleteTaskModal from './CompleteTaskModal.jsx';
@@ -373,7 +370,6 @@ function TaskRow({
 export default function MyTasksTab({sb, authState}) {
   const navigate = useNavigate();
   const [tasks, setTasks] = React.useState([]);
-  const [processingWork, setProcessingWork] = React.useState([]);
   const [profiles, setProfiles] = React.useState({});
   const [assignableProfiles, setAssignableProfiles] = React.useState({});
   const [loading, setLoading] = React.useState(true);
@@ -396,24 +392,19 @@ export default function MyTasksTab({sb, authState}) {
       setErr('');
       setLoading(true);
       try {
-        const [list, profMap, assignableMap, processingList] = await Promise.all([
+        const [list, profMap, assignableMap] = await Promise.all([
           loadOpenTaskInstances(sb),
           loadEligibleProfilesById(sb),
           loadTaskAssignableProfilesById(sb),
-          // Link-only auxiliary section: a Processing loader failure must not
-          // take down My Tasks, so it degrades to an empty (hidden) section.
-          listMyProcessingSubtasks(sb).catch(() => []),
         ]);
         if (!cancelled) {
           setTasks(list);
           setProfiles(profMap);
           setAssignableProfiles(assignableMap);
-          setProcessingWork(processingList);
         }
       } catch (e) {
         if (!cancelled) {
           setTasks([]);
-          setProcessingWork([]);
           setProfiles({});
           setAssignableProfiles({});
           setErr(e && e.message ? e.message : String(e));
@@ -656,65 +647,14 @@ export default function MyTasksTab({sb, authState}) {
             )}
           </div>
 
-          {/* Processing work — link-only rows from list_my_processing_subtasks.
-              These are NOT task_instances: no due dates, no complete/edit/
-              assign/delete actions; each row just opens its Processing record
-              (/processing?record=<id>) where the checklist step is worked.
-              Intentionally NOT scoped by the filter chips above — the chips
-              filter task_instances by due state / designation, neither of
-              which Processing steps carry, so hiding the section on non-All
-              chips would only make assigned work vanish. Renders only when
-              the caller has open Processing steps. */}
-          {processingWork.length > 0 && (
-            <div data-tasks-section="processing" style={{marginTop: 18}}>
-              <div style={SECTION_HEADER}>Processing work ({processingWork.length})</div>
-              <div style={{...SUB, margin: '0 0 8px'}}>
-                Checklist steps assigned to you on processing records. No due dates — work them from the record.
-              </div>
-              {processingWork.map((st) => (
-                <div
-                  key={st.subtask_id}
-                  className="hoverable-tile"
-                  data-processing-work-row={st.subtask_id}
-                  {...openableProps(() => navigateToProcessingRecord(navigate, st.record_id))}
-                  aria-label={`Open processing record: ${st.record_title || st.label}`}
-                  style={CARD}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'baseline',
-                      gap: 10,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: 'var(--ink)',
-                        flex: '1 1 200px',
-                        minWidth: 0,
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {st.label}
-                    </div>
-                    {st.processing_date && (
-                      <span style={{...SUB, whiteSpace: 'nowrap'}} data-processing-work-date={st.processing_date}>
-                        {st.processing_date}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{...SUB, marginTop: 4, display: 'flex', alignItems: 'center', gap: 6}}>
-                    <span style={programDotStyle(st.program)} aria-hidden="true" />
-                    <span style={{color: 'var(--ink)'}}>{st.record_title}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Processing Center checklist steps are intentionally NOT shown in
+              the Task Center (Build Queue item 5). Assigned processing work is
+              worked from its Processing record — reached via the Processing
+              Center or the assignment notification deep link
+              (/processing?record=<id>). The caller-scoped my-processing-subtasks
+              RPC (mig 175/178) stays deployed but has no client consumer here.
+              Do not reintroduce a processing section into any task_instances
+              list surface. */}
 
           <div data-tasks-section="others" style={{marginTop: 18}}>
             <div style={SECTION_HEADER}>All other open tasks ({otherCount})</div>

@@ -2,16 +2,17 @@
 // REQUIRES supabase-migrations 175-177 applied to TEST — run only after the
 // gated apply; run this file ALONE.
 // ============================================================================
-// My Tasks 'Processing work' section + processing_subtask_assigned
-// notification — browser TEST proof (planner-integration lane, mig 175
-// list_my_processing_subtasks + mig 177 notification type).
+// Task Center EXCLUDES Processing Center work (Build Queue item 5) +
+// processing_subtask_assigned notification — browser TEST proof.
 //
-//   1. an open Processing subtask assigned to the signed-in admin surfaces as
-//      a LINK-ONLY 'Processing work (1)' row on /tasks (no complete/assign/
-//      due-date controls) and clicking it deep-links to the record's drawer;
+//   1. an open Processing subtask assigned to the signed-in admin does NOT
+//      surface anywhere in the Task Center: /tasks renders no Processing work
+//      section while an ordinary open task_instance for the same user still
+//      shows (proves the My Tasks list itself is intact, not broken);
 //   2. a processing_subtask_assigned notification (linked to a
 //      processing.record Activity event, exactly as _processing_notify_assignment
-//      writes it) deep-links from the Header bell to /processing?record=<id>.
+//      writes it) still deep-links from the Header bell to /processing?record=,
+//      so assigned processing work remains reachable from the Processing Center.
 //
 // Shared TEST DB: resetDb truncates shared tables — run this file ALONE.
 import {test, expect} from './fixtures.js';
@@ -78,45 +79,42 @@ async function seedAssignedProcessingWork(supabaseAdmin, adminId) {
   expect(subErr, subErr && subErr.message).toBeFalsy();
 }
 
-test("My Tasks shows the link-only 'Processing work' section and opens the record drawer", async ({
+test('Task Center shows no Processing work section for an assigned processing subtask; ordinary tasks still render', async ({
   page,
   supabaseAdmin,
   resetDb,
 }) => {
   await resetDb();
   const adminId = await signedInAdminProfileId(supabaseAdmin);
+  // A processing subtask assigned to the signed-in admin — exactly the row the
+  // retired 'Processing work' section used to surface in the Task Center.
   await seedAssignedProcessingWork(supabaseAdmin, adminId);
-  await stampFreshnessNow(supabaseAdmin);
+  // An ordinary open task_instance for the same admin so we can prove the My
+  // Tasks list is intact (not simply broken/empty) with the section removed.
+  const {error: tiErr} = await supabaseAdmin.from('task_instances').upsert(
+    {
+      id: 'ptest-ordinary-task-1',
+      assignee_profile_id: adminId,
+      due_date: '2026-08-20',
+      title: 'TEST ordinary task',
+      submission_source: 'admin_manual',
+      status: 'open',
+    },
+    {onConflict: 'id'},
+  );
+  expect(tiErr, tiErr && tiErr.message).toBeFalsy();
 
   await page.goto('/tasks');
   await page.waitForSelector('[data-tasks-my-loaded="true"]');
 
-  const section = page.locator('[data-tasks-section="processing"]');
-  await expect(section).toBeVisible();
-  await expect(section).toContainText('Processing work (1)');
-  const row = section.locator(`[data-processing-work-row="${SUB_ID}"]`);
-  await expect(row).toBeVisible();
-  await expect(row).toContainText('TEST assigned step');
-  await expect(row).toContainText(REC_TITLE);
-  await expect(row.locator(`[data-processing-work-date]`)).toContainText('2026-08-20');
+  // The ordinary task_instance renders in the My Tasks list.
+  await expect(page.locator('[data-task-row="ptest-ordinary-task-1"]')).toBeVisible();
 
-  // LINK-ONLY: none of the task_instances row controls render here, and the
-  // rows never join the due-state buckets.
-  for (const gone of [
-    '[data-task-complete-button]',
-    '[data-task-edit-due-button]',
-    '[data-task-assign-button]',
-    '[data-task-delete-button]',
-    '[data-tasks-due-bucket]',
-  ]) {
-    await expect(section.locator(gone)).toHaveCount(0);
-  }
-
-  // Clicking the row deep-links to the record's drawer.
-  await row.click();
-  await expect(page).toHaveURL(new RegExp(`/processing\\?record=${REC_ID}`), {timeout: 15_000});
-  await page.waitForSelector('[data-processing-deeplink-ready="1"]');
-  await expect(page.locator(`[data-processing-drawer="${REC_ID}"]`)).toBeVisible();
+  // Processing Center work is excluded: no section, and no processing-work row
+  // anywhere on the page — even though an assigned subtask exists for the user.
+  await expect(page.locator('[data-tasks-section="processing"]')).toHaveCount(0);
+  await expect(page.locator('[data-processing-work-row]')).toHaveCount(0);
+  await expect(page.locator(`[data-processing-work-row="${SUB_ID}"]`)).toHaveCount(0);
 });
 
 test('processing_subtask_assigned notification deep-links from the Header bell to the record drawer', async ({
