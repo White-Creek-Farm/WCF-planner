@@ -378,64 +378,170 @@ function verifyStorageCoverage(manifestObjects, restored) {
 
 // ---------------------------------------------------------------------------
 // SELECTIVE restore TOC policy. `pg_restore -l` emits one line per archive
-// entry; we generate a REVIEWED selection that keeps public schema+data and the
-// auth/storage TABLE DATA needed for recovery, and NEVER re-creates Supabase-
-// managed auth/storage DDL, ownership, grants, or service infrastructure. Pure
-// decisions over parsed entries so the policy is unit-tested.
+// entry. FAIL-CLOSED throughout: every real entry must parse, every entry must
+// map to an explicit include/exclude decision, and anything not understood
+// REFUSES the whole restore. The policy keeps public object DDL+data (never
+// SCHEMA creation, never ACL/OWNER), and ONLY the explicit managed-data allowlist
+// below. It never re-creates Supabase-managed auth/storage DDL and never restores
+// storage.objects (the later official Storage upload must create those rows;
+// restoring them first would create ghost/duplicate metadata).
 
-/** Whether a single parsed TOC entry {desc, schema} is included. */
-function tocEntryIncluded(entry) {
-  const desc = String(entry && entry.desc ? entry.desc : '').toUpperCase();
-  const schema = String(entry && entry.schema ? entry.schema : '');
-  if (MANAGED_SCHEMAS.includes(schema)) return desc === 'TABLE DATA';
-  if (desc === 'ACL' || desc === 'OWNER') return false;
-  return true;
-}
+// The ONLY managed-schema TABLE DATA a restore may load. Everything else in auth/
+// storage (sessions, refresh tokens, audit log, flow state, schema_migrations,
+// instances, storage.objects, storage migrations, ...) is excluded.
+const MANAGED_DATA_ALLOWLIST = Object.freeze(['auth.users', 'auth.identities', 'storage.buckets']);
+
+// Known pg_restore object descriptions, longest-first so multi-word descs win.
+const TOC_DESCS = Object.freeze(
+  [
+    'MATERIALIZED VIEW DATA',
+    'MATERIALIZED VIEW',
+    'SEQUENCE OWNED BY',
+    'SEQUENCE SET',
+    'FK CONSTRAINT',
+    'CHECK CONSTRAINT',
+    'DEFAULT ACL',
+    'TABLE DATA',
+    'PROCEDURAL LANGUAGE',
+    'OPERATOR CLASS',
+    'OPERATOR FAMILY',
+    'TEXT SEARCH CONFIGURATION',
+    'TEXT SEARCH DICTIONARY',
+    'TEXT SEARCH PARSER',
+    'TEXT SEARCH TEMPLATE',
+    'FOREIGN DATA WRAPPER',
+    'FOREIGN TABLE',
+    'ACCESS METHOD',
+    'EVENT TRIGGER',
+    'DATABASE PROPERTIES',
+    'ROW SECURITY',
+    'LARGE OBJECT',
+    'USER MAPPING',
+    'PUBLICATION TABLE',
+    'SCHEMA',
+    'TABLE',
+    'VIEW',
+    'SEQUENCE',
+    'FUNCTION',
+    'PROCEDURE',
+    'AGGREGATE',
+    'TYPE',
+    'DOMAIN',
+    'CAST',
+    'CONSTRAINT',
+    'TRIGGER',
+    'RULE',
+    'INDEX',
+    'DEFAULT',
+    'COMMENT',
+    'ACL',
+    'OWNER',
+    'EXTENSION',
+    'POLICY',
+    'PUBLICATION',
+    'SUBSCRIPTION',
+    'GRANT',
+    'SERVER',
+    'COLLATION',
+    'CONVERSION',
+    'BLOB',
+    'ENCODING',
+    'STDSTRINGS',
+    'SEARCHPATH',
+    'DATABASE',
+    'TRANSFORM',
+    'STATISTICS',
+    'OPERATOR',
+  ].sort((a, b) => b.length - a.length),
+);
 
 /**
- * Build the reviewed restore list from parsed TOC entries. Returns {list,
- * included, excluded}. Fail-closed: refuses an empty/unparseable TOC, refuses if
- * no managed-schema DATA is selected (a recovery with zero Auth rows is almost
- * certainly wrong), and refuses if any managed-schema DDL leaked into the set.
- */
-function buildSelectiveRestoreList(entries, {allowEmptyManaged = false} = {}) {
-  if (!Array.isArray(entries) || entries.length === 0) throw new Error('refusing restore: empty or unparseable TOC');
-  const included = [];
-  const excluded = [];
-  for (const e of entries) (tocEntryIncluded(e) ? included : excluded).push(e);
-  const managedData = included.filter(
-    (e) => MANAGED_SCHEMAS.includes(e.schema) && String(e.desc).toUpperCase() === 'TABLE DATA',
-  );
-  if (!allowEmptyManaged && managedData.length === 0) {
-    throw new Error(
-      'refusing restore: selective TOC selected no auth/storage DATA — refusing a recovery with no Auth rows',
-    );
-  }
-  const leak = included.find(
-    (e) => MANAGED_SCHEMAS.includes(e.schema) && String(e.desc).toUpperCase() !== 'TABLE DATA',
-  );
-  if (leak) throw new Error(`refusing restore: selective TOC would restore managed ${safeLabel(leak.schema, 16)} DDL`);
-  const list = `${included.map((e) => e.line).join('\n')}\n`;
-  return {list, included, excluded};
-}
-
-/**
- * Parse a `pg_restore -l` listing into structured entries. Data lines look like
- * "<dumpId>; <objId> <objId2> <DESC> <SCHEMA> <TAG> <OWNER>"; ";" comments are
- * ignored. We keep desc + schema for the policy and the original line for -L.
+ * Parse a `pg_restore -l` listing into structured entries. FAIL-CLOSED: comment
+ * (";") and blank lines are skipped, but every remaining "<dumpId>; ..." line
+ * MUST parse into a known desc + schema or this throws. entry = {line, desc,
+ * schema, tag}; schema is "-" for global objects; tag is the object name (owner
+ * is dropped as the trailing token).
  */
 function parseRestoreList(text) {
   const entries = [];
   for (const raw of String(text || '').split(/\r?\n/)) {
     const line = raw.replace(/\s+$/, '');
-    if (!line || line.startsWith(';')) continue;
+    if (!line || /^\s*;/.test(line)) continue;
     const m = line.match(/^\d+;\s+\S+\s+\S+\s+(.+)$/);
-    if (!m) continue;
-    const dm = m[1].match(/^(TABLE DATA|MATERIALIZED VIEW DATA|SEQUENCE SET|[A-Z][A-Z ]*?)\s+(\S+)\s+(\S+)/);
-    if (!dm) continue;
-    entries.push({line, desc: dm[1].trim(), schema: dm[2], tag: dm[3]});
+    if (!m) throw new Error(`refusing restore: unparseable pg_restore -l line: ${safeLabel(line, 80)}`);
+    const rest = m[1];
+    const desc = TOC_DESCS.find((d) => rest === d || rest.startsWith(`${d} `));
+    if (!desc) throw new Error(`refusing restore: unknown TOC object type in: ${safeLabel(line, 80)}`);
+    const tokens = rest.slice(desc.length).trim().split(/\s+/).filter(Boolean);
+    if (tokens.length < 2) throw new Error(`refusing restore: malformed TOC entry: ${safeLabel(line, 80)}`);
+    entries.push({line, desc, schema: tokens[0], tag: tokens.slice(1, -1).join(' ')});
   }
   return entries;
+}
+
+/**
+ * include | exclude | refuse decision for one parsed entry, by desc + schema +
+ * tag (never schema alone). 'refuse' aborts the whole restore.
+ */
+function tocDecision(entry) {
+  const desc = String(entry && entry.desc ? entry.desc : '').toUpperCase();
+  const schema = String(entry && entry.schema != null ? entry.schema : '');
+  const tag = String(entry && entry.tag != null ? entry.tag : '');
+  if (desc === 'SCHEMA') return 'exclude'; // the fresh project already owns schemas
+  if (desc === 'ACL' || desc === 'OWNER' || desc === 'DEFAULT ACL' || desc === 'GRANT') return 'exclude';
+  if (schema === '-' || schema === '') {
+    // Global objects: extensions/comments/directives are reconciled out-of-band.
+    if (
+      ['EXTENSION', 'COMMENT', 'ENCODING', 'STDSTRINGS', 'SEARCHPATH', 'DATABASE', 'DATABASE PROPERTIES'].includes(desc)
+    )
+      return 'exclude';
+    return 'refuse';
+  }
+  if (schema === 'public') return 'include'; // public object DDL + data
+  if (MANAGED_SCHEMAS.includes(schema)) {
+    if (desc === 'TABLE DATA' && MANAGED_DATA_ALLOWLIST.includes(`${schema}.${tag}`)) return 'include';
+    return 'exclude'; // all other managed DDL/data (incl. storage.objects) excluded
+  }
+  return 'refuse'; // any other schema is not understood
+}
+
+/**
+ * Build the reviewed restore list. FAIL-CLOSED: refuses empty/unparseable TOC,
+ * refuses ANY not-understood entry, requires every allowlisted managed table to
+ * be present as DATA, and refuses if managed DDL or a non-allowlisted managed
+ * table (e.g. storage.objects) leaked into the included set.
+ */
+function buildSelectiveRestoreList(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) throw new Error('refusing restore: empty or unparseable TOC');
+  const included = [];
+  const excluded = [];
+  for (const e of entries) {
+    const d = tocDecision(e);
+    if (d === 'refuse') {
+      throw new Error(
+        `refusing restore: TOC entry not understood/approved: ${safeLabel(e.line || `${e.desc} ${e.schema} ${e.tag}`, 80)}`,
+      );
+    }
+    (d === 'include' ? included : excluded).push(e);
+  }
+  for (const key of MANAGED_DATA_ALLOWLIST) {
+    const [sch, tab] = key.split('.');
+    const has = included.some(
+      (e) => e.schema === sch && String(e.desc).toUpperCase() === 'TABLE DATA' && e.tag === tab,
+    );
+    if (!has) throw new Error(`refusing restore: selective TOC is missing required managed data ${key}`);
+  }
+  const leak = included.find(
+    (e) =>
+      MANAGED_SCHEMAS.includes(e.schema) &&
+      !(String(e.desc).toUpperCase() === 'TABLE DATA' && MANAGED_DATA_ALLOWLIST.includes(`${e.schema}.${e.tag}`)),
+  );
+  if (leak)
+    throw new Error(
+      `refusing restore: selective TOC would restore managed ${safeLabel(`${leak.schema} ${leak.desc}`, 40)}`,
+    );
+  const list = `${included.map((e) => e.line).join('\n')}\n`;
+  return {list, included, excluded};
 }
 
 module.exports = {
@@ -445,6 +551,7 @@ module.exports = {
   SUPABASE_DIRECT_USER,
   SUPABASE_DB,
   MANAGED_SCHEMAS,
+  MANAGED_DATA_ALLOWLIST,
   requiredConfirmation,
   safeLabel,
   assertRecoveryDestination,
@@ -458,7 +565,7 @@ module.exports = {
   assertSha256,
   assertByteCount,
   verifyStorageCoverage,
-  tocEntryIncluded,
+  tocDecision,
   buildSelectiveRestoreList,
   parseRestoreList,
   redactSecrets: L.redactSecrets,

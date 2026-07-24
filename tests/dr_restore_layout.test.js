@@ -252,45 +252,79 @@ describe('checksum + byte-count assertions', () => {
   });
 });
 
-describe('selective restore TOC policy', () => {
-  const line = (id, desc, schema, tag) => `${id}; 1 2 ${desc} ${schema} ${tag} postgres`;
+describe('selective restore TOC policy (fail-closed, explicit allowlist)', () => {
+  const line = (id, desc, schema, tag, owner = 'postgres') => `${id}; 1 2 ${desc} ${schema} ${tag} ${owner}`;
+  // A realistic TOC covering SCHEMA, EXTENSION, TABLE, TABLE DATA, SEQUENCE,
+  // SEQUENCE SET, FUNCTION, TYPE, FK CONSTRAINT, TRIGGER, INDEX, COMMENT, ACL, and
+  // managed-schema entries (auth/storage), including allowed + disallowed DATA.
   const toc = [
     '; Archive created ...',
-    line(1, 'TABLE', 'public', 'animals'),
-    line(2, 'TABLE DATA', 'public', 'animals'),
-    line(3, 'ACL', 'public', 'animals'),
-    line(4, 'TABLE DATA', 'auth', 'users'),
-    line(5, 'TABLE', 'auth', 'users'),
-    line(6, 'FUNCTION', 'storage', 'foldername'),
-    line(7, 'TABLE DATA', 'storage', 'objects'),
+    line(1, 'SCHEMA', '-', 'public'),
+    line(2, 'SCHEMA', '-', 'auth'),
+    line(3, 'EXTENSION', '-', 'pg_stat_statements', '-'),
+    line(4, 'TYPE', 'public', 'my_enum'),
+    line(5, 'TABLE', 'public', 'animals'),
+    line(6, 'SEQUENCE', 'public', 'animals_id_seq'),
+    line(7, 'SEQUENCE SET', 'public', 'animals_id_seq'),
+    line(8, 'FUNCTION', 'public', 'fn(integer)'),
+    line(9, 'TABLE DATA', 'public', 'animals'),
+    line(10, 'FK CONSTRAINT', 'public', 'animals animals_fkey'),
+    line(11, 'TRIGGER', 'public', 'animals trg_x'),
+    line(12, 'INDEX', 'public', 'animals_pkey'),
+    line(13, 'COMMENT', '-', 'SCHEMA public'),
+    line(14, 'ACL', 'public', 'animals'),
+    line(15, 'TABLE DATA', 'auth', 'users'),
+    line(16, 'TABLE DATA', 'auth', 'identities'),
+    line(17, 'TABLE DATA', 'auth', 'sessions'),
+    line(18, 'TABLE', 'auth', 'users'),
+    line(19, 'FUNCTION', 'storage', 'foldername'),
+    line(20, 'TABLE DATA', 'storage', 'buckets'),
+    line(21, 'TABLE DATA', 'storage', 'objects'),
   ].join('\n');
 
-  it('parses entries and includes public schema+data, excludes ACL and managed DDL', () => {
-    const entries = RL.parseRestoreList(toc);
-    expect(entries).toHaveLength(7);
-    expect(RL.tocEntryIncluded({desc: 'TABLE', schema: 'public'})).toBe(true);
-    expect(RL.tocEntryIncluded({desc: 'ACL', schema: 'public'})).toBe(false);
-    expect(RL.tocEntryIncluded({desc: 'TABLE DATA', schema: 'auth'})).toBe(true);
-    expect(RL.tocEntryIncluded({desc: 'TABLE', schema: 'auth'})).toBe(false);
-    expect(RL.tocEntryIncluded({desc: 'FUNCTION', schema: 'storage'})).toBe(false);
+  it('parses every non-comment line fail-closed (unknown desc / malformed throws)', () => {
+    expect(RL.parseRestoreList(toc)).toHaveLength(21);
+    expect(() => RL.parseRestoreList('12; 1 2 BOGUSDESC public x postgres')).toThrow(/unknown TOC object type/);
+    expect(() => RL.parseRestoreList('12; 1 2')).toThrow(/unparseable/);
   });
 
-  it('builds a list that keeps auth/storage DATA and never their DDL', () => {
+  it('decides include/exclude/refuse by desc+schema+tag', () => {
+    expect(RL.tocDecision({desc: 'TABLE', schema: 'public', tag: 'x'})).toBe('include');
+    expect(RL.tocDecision({desc: 'SCHEMA', schema: '-', tag: 'public'})).toBe('exclude');
+    expect(RL.tocDecision({desc: 'ACL', schema: 'public', tag: 'x'})).toBe('exclude');
+    expect(RL.tocDecision({desc: 'TABLE DATA', schema: 'auth', tag: 'users'})).toBe('include');
+    expect(RL.tocDecision({desc: 'TABLE DATA', schema: 'auth', tag: 'sessions'})).toBe('exclude');
+    expect(RL.tocDecision({desc: 'TABLE DATA', schema: 'storage', tag: 'objects'})).toBe('exclude');
+    expect(RL.tocDecision({desc: 'TABLE DATA', schema: 'storage', tag: 'buckets'})).toBe('include');
+    expect(RL.tocDecision({desc: 'TABLE', schema: 'auth', tag: 'users'})).toBe('exclude');
+    // Not understood → refuse the whole restore.
+    expect(RL.tocDecision({desc: 'TABLE', schema: 'otherschema', tag: 'x'})).toBe('refuse');
+    expect(RL.tocDecision({desc: 'POLICY', schema: '-', tag: 'x'})).toBe('refuse');
+  });
+
+  it('builds a list with public DDL+data + only allowlisted managed DATA; never SCHEMA/ACL/managed DDL/storage.objects', () => {
     const {list, included, excluded} = RL.buildSelectiveRestoreList(RL.parseRestoreList(toc));
-    expect(included.map((e) => `${e.desc}/${e.schema}`)).toEqual([
-      'TABLE/public',
-      'TABLE DATA/public',
-      'TABLE DATA/auth',
-      'TABLE DATA/storage',
-    ]);
-    expect(excluded.map((e) => `${e.desc}/${e.schema}`)).toEqual(['ACL/public', 'TABLE/auth', 'FUNCTION/storage']);
-    expect(list).toContain('TABLE DATA auth users');
-    expect(list).not.toContain('FUNCTION storage foldername');
+    const inKeys = included.map((e) => `${e.desc}/${e.schema}.${e.tag}`);
+    expect(inKeys).toContain('TABLE DATA/auth.users');
+    expect(inKeys).toContain('TABLE DATA/auth.identities');
+    expect(inKeys).toContain('TABLE DATA/storage.buckets');
+    expect(inKeys).toContain('TABLE/public.animals');
+    expect(inKeys).not.toContain('TABLE DATA/storage.objects');
+    expect(inKeys).not.toContain('TABLE DATA/auth.sessions');
+    expect(list).not.toMatch(/SCHEMA - (public|auth)/);
+    expect(list).not.toContain('storage objects');
+    expect(list).not.toContain('ACL public');
+    // storage.objects, auth.sessions, managed DDL, SCHEMA, ACL, EXTENSION excluded.
+    expect(excluded.length).toBe(9);
   });
 
-  it('fails closed on an empty TOC or a TOC with no managed DATA', () => {
+  it('refuses an empty TOC, a not-understood entry, and a missing allowlisted table', () => {
     expect(() => RL.buildSelectiveRestoreList([])).toThrow(/empty or unparseable TOC/);
-    const onlyPublic = RL.parseRestoreList([line(1, 'TABLE DATA', 'public', 'x')].join('\n'));
-    expect(() => RL.buildSelectiveRestoreList(onlyPublic)).toThrow(/no auth\/storage DATA/);
+    const withUnknown = RL.parseRestoreList(toc + '\n' + line(99, 'TABLE', 'weird', 'x'));
+    expect(() => RL.buildSelectiveRestoreList(withUnknown)).toThrow(/not understood\/approved/);
+    const missing = RL.parseRestoreList(
+      [line(1, 'TABLE DATA', 'auth', 'users'), line(2, 'TABLE DATA', 'public', 'x')].join('\n'),
+    );
+    expect(() => RL.buildSelectiveRestoreList(missing)).toThrow(/missing required managed data auth\.identities/);
   });
 });

@@ -114,14 +114,68 @@ describe('checksum-before-restore ordering + selective TOC policy', () => {
     expect(dr.indexOf('assertByteCount')).toBeLessThan(dr.indexOf('buildSelectiveRestoreList'));
     expect(dr.indexOf('buildSelectiveRestoreList')).toBeLessThan(dr.indexOf('pgRestoreApply('));
   });
-  it('builds + re-validates the selective list, refusing managed DDL, before connecting', () => {
+  it('builds + re-validates the selective list via tocDecision before connecting', () => {
     const dr = region(runner, 'async function runDbRestore', '(async () =>');
     expect(dr).toMatch(/RL\.buildSelectiveRestoreList\(/);
     expect(dr).toMatch(/validateGeneratedList\(/);
     expect(dr.indexOf('validateGeneratedList(')).toBeLessThan(dr.indexOf('pgRestoreApply('));
-    const vg = region(runner, 'function validateGeneratedList', 'function pgRestoreApply');
-    expect(vg).toMatch(/MANAGED_SCHEMAS/);
-    expect(vg).toMatch(/managed .* DDL/);
+    const vg = region(runner, 'function validateGeneratedList', 'function psqlQuery');
+    expect(vg).toMatch(/RL\.tocDecision\(e\) !== 'include'/);
+    expect(vg).toMatch(/refusing to connect/);
+  });
+});
+
+describe('live-restore corrections (Codex review of 3f1bef7)', () => {
+  it('pg_restore uses --exit-on-error and throws on nonzero status', () => {
+    const pa = region(runner, 'function pgRestoreApply', 'function runDbRestore');
+    expect(pa).toMatch(/--exit-on-error/);
+    expect(pa).toMatch(/if \(res\.status !== 0\)/);
+    expect(pa).toMatch(/throw new Error\(`pg_restore failed/);
+    expect(pa).not.toMatch(/status: res\.status/); // no ok/complete on a nonzero status
+  });
+
+  it('runs a destination-state preflight (fresh project) before the first write', () => {
+    const dr = region(runner, 'async function runDbRestore', '(async () =>');
+    expect(dr).toMatch(/destinationPreflight\(cfg, dsnPassword, manifest\)/);
+    expect(dr.indexOf('destinationPreflight(')).toBeLessThan(dr.indexOf('pgRestoreApply('));
+    const dp = region(runner, 'function destinationPreflight', 'async function restoreStorage');
+    expect(dp).toMatch(/is not empty/);
+    expect(dp).toMatch(/missing required extensions/);
+    expect(dp).toMatch(/information_schema/);
+  });
+
+  it('cleanup overwrites the full file, verifies removal, never clears the marker on residue', () => {
+    const cp = region(runner, 'function cleanupPlaintext', "process.on('exit'");
+    expect(cp).toMatch(/fsyncSync/);
+    expect(cp).toMatch(/for \(let off = 0; off < sz/);
+    expect(cp).toMatch(/return \{ok: false, remaining\}/);
+    expect(cp).toMatch(/do NOT clear ACTIVE_PLAINTEXT_DIR/);
+    expect(runner).toMatch(/killChildren\(\);\s*\n\s*cleanupPlaintext\(ACTIVE_PLAINTEXT_DIR\)/);
+    expect(runner).toMatch(/function trackChild/);
+  });
+
+  it('uses only the fixed restore root (no caller-selected alternate)', () => {
+    expect(runner).toMatch(/const RESTORE_ROOT = 'C:\\\\wcf-dr-restore'/);
+    expect(runner).not.toMatch(/arg\('restore-root'/);
+  });
+
+  it('storage restore streams R2 → recovery Storage API, bounded, fail-closed, source intact', () => {
+    const rs = region(runner, 'async function restoreStorage', 'function planPostRestoreVerification');
+    expect(rs).toMatch(/serviceRoleKey/);
+    expect(rs).toMatch(/storage\/v1\/object/);
+    expect(rs).toMatch(/const CONC = /);
+    expect(rs).toMatch(/RL\.verifyStorageCoverage/);
+    expect(rs).toMatch(/immutable R2 source left intact/);
+    expect(rs).not.toMatch(/delete-object/);
+  });
+
+  it('post-restore verification is scaffolded and not implied by pg_restore status', () => {
+    expect(runner).toMatch(/planPostRestoreVerification/);
+    expect(runner).toMatch(/NOT complete on pg_restore status alone/);
+    const pv = region(runner, 'function planPostRestoreVerification', '(async () =>');
+    expect(pv).toMatch(/authLogin/);
+    expect(pv).toMatch(/privateStorage/);
+    expect(pv).toMatch(/reconcile/);
   });
 });
 
