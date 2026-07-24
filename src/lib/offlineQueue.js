@@ -50,6 +50,28 @@ export function getDb() {
           p.createIndex('by_form_kind', 'form_kind', {unique: false});
         }
       },
+      // Yield the connection when something else needs exclusive access to the
+      // database: a deleteDatabase() (the browser-test wipe) or a schema
+      // upgrade opened in another tab. This cached connection lives for the
+      // page lifetime, so without closing on the versionchange it blocks that
+      // operation indefinitely — and because IndexedDB serializes a delete
+      // ahead of any later open, a subsequent indexedDB.open() then hangs
+      // behind the pending delete (the offline_queue_canary readQueue hang).
+      // Close and drop the cache so the blocked op completes deterministically;
+      // the next getDb() transparently reopens. No queued data is lost — the
+      // object store persists, and app code never issues a delete.
+      blocking() {
+        const closing = dbPromise;
+        dbPromise = null;
+        if (closing) {
+          closing.then((db) => db.close()).catch(() => {});
+        }
+      },
+      // The browser force-closed our connection (e.g. storage eviction). Drop
+      // the cache so the next access reopens instead of using a dead handle.
+      terminated() {
+        dbPromise = null;
+      },
     });
   }
   return dbPromise;
