@@ -15,6 +15,7 @@ import {sb} from '../lib/supabase.js';
 import {toISO, addDays, fmt, fmtS, todayISO} from '../lib/dateUtils.js';
 import {S} from '../lib/styles.js';
 import {calcTimeline, RESOURCES, getBatchColor, breedLabel} from '../lib/broiler.js';
+import {timelineRowSeparation} from '../lib/broilerTimelineRows.js';
 import UsersModal from '../auth/UsersModal.jsx';
 import {useAuth} from '../contexts/AuthContext.jsx';
 import {useBatches} from '../contexts/BatchesContext.jsx';
@@ -317,7 +318,12 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
 
             {/* Today line overlay — calculated in row */}
             {RESOURCES.map((res, ri) => {
-              const thick = ri === 2;
+              // Visual row separation (presentational only): one strong divider
+              // at the brooder -> schooner boundary and an alternating light
+              // fill on schooner rows for horizontal scanning. See
+              // src/lib/broilerTimelineRows.js.
+              const {boundaryTop, fill} = timelineRowSeparation(ri);
+              const rowBg = fill === 'shaded' ? 'var(--surface-2)' : fill === 'plain' ? 'var(--bg-card)' : null;
               const rowBatches = batches.filter((b) => {
                 if (res.type === 'brooder' && b.brooder !== res.id) return false;
                 if (res.type === 'schooner' && b.schooner !== res.id) return false;
@@ -327,8 +333,17 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
               });
               const todayPct = pct(todayISO());
               return (
-                <div key={res.label} style={{display: 'flex', borderTop: thick ? '2px solid #ccc' : '1px solid #eee'}}>
+                <div
+                  key={res.label}
+                  data-resource-row="1"
+                  data-resource-type={res.type}
+                  data-resource-label={res.label}
+                  data-row-fill={fill}
+                  data-row-divider={boundaryTop ? '1' : undefined}
+                  style={{display: 'flex', borderTop: boundaryTop ? '2px solid var(--border)' : '1px solid #eee'}}
+                >
                   <div
+                    data-row-region="label"
                     style={{
                       width: 145,
                       flexShrink: 0,
@@ -340,7 +355,9 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
                       fontWeight: 600,
                       color: 'var(--ink-muted)',
                       borderRight: '1px solid var(--border)',
-                      background: 'var(--surface-2)',
+                      // Opaque fill so bars scrolling under the sticky label stay
+                      // hidden; schooner rows alternate, brooders keep the sidebar.
+                      background: rowBg || 'var(--surface-2)',
                       position: 'sticky',
                       left: 0,
                       zIndex: 10,
@@ -348,7 +365,10 @@ export default function BroilerTimelineView({Header, loadUsers, openEdit}) {
                   >
                     {res.label}
                   </div>
-                  <div style={{flex: 1, position: 'relative', height: 44}}>
+                  <div
+                    data-row-region="grid"
+                    style={{flex: 1, position: 'relative', height: 44, background: rowBg || undefined}}
+                  >
                     {/* week grid lines */}
                     {wkHdrs.map((_, i) => (
                       <div

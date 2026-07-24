@@ -179,3 +179,78 @@ test('today indicator: vertical green line renders within the gantt', async ({pa
   const count = await page.locator('[data-today-line="1"]').count();
   expect(count).toBeGreaterThanOrEqual(1);
 });
+
+// --------------------------------------------------------------------------
+// Test 5 — row separation: boundary divider + schooner alternating fills
+// --------------------------------------------------------------------------
+// Locks the visual-scanning hotfix on the rendered surface:
+//   - exactly one strong 2px divider, at the brooder -> schooner boundary
+//     (above Schooner 1), NOT above Brooder 3
+//   - schooner rows alternate plain / shaded fill in resource order
+//   - the fill covers BOTH the sticky label cell and the grid body (one band)
+//   - brooder rows stay unstriped (transparent grid body)
+test('row separation: divider at brooder/schooner boundary and schooner fills alternate', async ({
+  page,
+  broilerTimelineScenario,
+}) => {
+  await broilerTimelineScenario({withActiveLayer: true});
+
+  await page.goto('/broiler/timeline');
+  await expect(page.locator('[data-week-header="1"]').first()).toBeVisible({timeout: 15_000});
+
+  const rows = await page.evaluate(() => {
+    const bg = (el) => (el ? getComputedStyle(el).backgroundColor : null);
+    return [...document.querySelectorAll('[data-resource-row="1"]')].map((row) => ({
+      label: row.getAttribute('data-resource-label'),
+      type: row.getAttribute('data-resource-type'),
+      fill: row.getAttribute('data-row-fill'),
+      divider: row.getAttribute('data-row-divider'),
+      borderTopWidth: getComputedStyle(row).borderTopWidth,
+      labelBg: bg(row.querySelector('[data-row-region="label"]')),
+      gridBg: bg(row.querySelector('[data-row-region="grid"]')),
+    }));
+  });
+
+  // All eight resource rows render.
+  expect(rows.map((r) => r.label)).toEqual([
+    'Brooder 1',
+    'Brooder 2',
+    'Brooder 3',
+    'Schooner 1',
+    'Schooner 2 & 3',
+    'Schooner 4 & 5',
+    'Schooner 6 & 6A',
+    'Schooner 7 & 7A',
+  ]);
+
+  // Exactly one divider, on Schooner 1, at 2px; the row above it is a brooder.
+  const dividerRows = rows.filter((r) => r.divider === '1');
+  expect(dividerRows).toHaveLength(1);
+  expect(dividerRows[0].label).toBe('Schooner 1');
+  expect(dividerRows[0].type).toBe('schooner');
+  expect(dividerRows[0].borderTopWidth).toBe('2px');
+  const dividerIdx = rows.findIndex((r) => r.divider === '1');
+  expect(rows[dividerIdx - 1].type).toBe('brooder');
+  expect(rows[dividerIdx - 1].label).toBe('Brooder 3');
+  // No other row carries the thick border.
+  rows.filter((r) => r.divider !== '1').forEach((r) => expect(r.borderTopWidth).toBe('1px'));
+
+  // Schooner fill bands alternate in resource order, starting plain.
+  const schooners = rows.filter((r) => r.type === 'schooner');
+  expect(schooners.map((r) => r.fill)).toEqual(['plain', 'shaded', 'plain', 'shaded', 'plain']);
+
+  // Every schooner row is one continuous band: label cell bg === grid body bg.
+  schooners.forEach((r) => expect(r.labelBg).toBe(r.gridBg));
+
+  // Shaded and plain fills are visually distinct.
+  const plainBg = schooners.find((r) => r.fill === 'plain').gridBg;
+  const shadedBg = schooners.find((r) => r.fill === 'shaded').gridBg;
+  expect(plainBg).not.toBe(shadedBg);
+
+  // Brooder rows stay unstriped: transparent grid body, fill marked 'none'.
+  const brooders = rows.filter((r) => r.type === 'brooder');
+  brooders.forEach((r) => {
+    expect(r.fill).toBe('none');
+    expect(r.gridBg).toBe('rgba(0, 0, 0, 0)');
+  });
+});
