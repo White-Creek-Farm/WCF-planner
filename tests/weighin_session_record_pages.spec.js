@@ -480,3 +480,162 @@ test('comment hash scroll: navigate to #comment-<id> scrolls target into view', 
   await expect(page.locator('[data-record-title="1"]')).toBeVisible({timeout: 15_000});
   await expect(page.locator('#' + commentId)).toBeVisible({timeout: 10_000});
 });
+
+// ============================================================================
+// Sortable entry columns + CSV export
+// ============================================================================
+
+function stripBom(s) {
+  return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
+}
+
+async function readCsvDownload(page, triggerLocator) {
+  const [download] = await Promise.all([page.waitForEvent('download', {timeout: 15_000}), triggerLocator.click()]);
+  const stream = await download.createReadStream();
+  let content = '';
+  for await (const chunk of stream) content += chunk.toString('utf8');
+  return {filename: download.suggestedFilename(), content};
+}
+
+test('cattle weigh-in: sortable columns toggle direction, expose aria-sort, keyboard-activate, skip action columns', async ({
+  page,
+  supabaseAdmin,
+  resetDb,
+}) => {
+  await resetDb();
+  const sess = await seedSession(supabaseAdmin, {id: 'sort-cattle-1', species: 'cattle', herd: 'finishers'});
+  await seedEntry(supabaseAdmin, {id: 'sc-e1', sessionId: sess.id, tag: '30', weight: 500, note: 'plain'});
+  await seedEntry(supabaseAdmin, {id: 'sc-e2', sessionId: sess.id, tag: '10', weight: 700, note: 'apple'});
+  await seedEntry(supabaseAdmin, {id: 'sc-e3', sessionId: sess.id, tag: '20', weight: 600, note: 'mango'});
+
+  await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
+
+  const tagsInOrder = () =>
+    page
+      .locator('[data-weighin-entry-list="1"] [data-entry-tag]')
+      .evaluateAll((rows) => rows.map((r) => r.getAttribute('data-entry-tag')));
+
+  // Default order = Tag ascending (existing behavior preserved).
+  expect(await tagsInOrder()).toEqual(['10', '20', '30']);
+
+  // Sort by Weight ascending -> 500,600,700 -> tags 30,20,10.
+  await page.locator('[data-weighin-sort="weight"]').click();
+  expect(await tagsInOrder()).toEqual(['30', '20', '10']);
+  await expect(page.locator('th:has([data-weighin-sort="weight"])')).toHaveAttribute('aria-sort', 'ascending');
+
+  // Toggle same column -> Weight descending -> tags 10,20,30.
+  await page.locator('[data-weighin-sort="weight"]').click();
+  expect(await tagsInOrder()).toEqual(['10', '20', '30']);
+  await expect(page.locator('th:has([data-weighin-sort="weight"])')).toHaveAttribute('aria-sort', 'descending');
+
+  // Text column (Note) ascending -> apple,mango,plain -> tags 10,20,30.
+  await page.locator('[data-weighin-sort="note"]').click();
+  expect(await tagsInOrder()).toEqual(['10', '20', '30']);
+  await expect(page.locator('th:has([data-weighin-sort="note"])')).toHaveAttribute('aria-sort', 'ascending');
+  // The Weight header is no longer the active sort.
+  await expect(page.locator('th:has([data-weighin-sort="weight"])')).toHaveAttribute('aria-sort', 'none');
+
+  // Keyboard: focus the Tag header button and activate with Enter.
+  await page.locator('[data-weighin-sort="tag"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('th:has([data-weighin-sort="tag"])')).toHaveAttribute('aria-sort', 'ascending');
+  expect(await tagsInOrder()).toEqual(['10', '20', '30']);
+
+  // Action column is not sortable — no sort button is rendered for it.
+  expect(await page.locator('[data-weighin-sort="actions"]').count()).toBe(0);
+});
+
+test('cattle weigh-in: Export CSV downloads every entry in the current sort order with clean, escaped values', async ({
+  page,
+  supabaseAdmin,
+  resetDb,
+}) => {
+  await resetDb();
+  const sess = await seedSession(supabaseAdmin, {
+    id: 'exp-cattle-1',
+    species: 'cattle',
+    herd: 'finishers',
+    date: '2026-07-24',
+  });
+  await seedEntry(supabaseAdmin, {id: 'ec-e1', sessionId: sess.id, tag: '30', weight: 500, note: 'plain'});
+  await seedEntry(supabaseAdmin, {id: 'ec-e2', sessionId: sess.id, tag: '10', weight: 700, note: '=danger,x'});
+  await seedEntry(supabaseAdmin, {id: 'ec-e3', sessionId: sess.id, tag: '20', weight: 600, note: 'has "q"'});
+
+  await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
+
+  // Sort Weight descending so CSV order is deterministic: tags 10,20,30.
+  await page.locator('[data-weighin-sort="weight"]').click();
+  await page.locator('[data-weighin-sort="weight"]').click();
+
+  const {filename, content} = await readCsvDownload(page, page.locator('[data-weighin-export-csv="1"]'));
+  expect(filename).toBe('weighin-cattle-finishers-2026-07-24.csv');
+  expect(content.charCodeAt(0)).toBe(0xfeff); // Excel UTF-8 BOM
+  const lines = stripBom(content)
+    .split('\r\n')
+    .filter((l) => l.length > 0);
+  // Header + exactly the 3 seeded entries (all rows, not just viewport).
+  expect(lines.length).toBe(4);
+  expect(lines[0]).toContain('Tag');
+  expect(lines[0]).toContain('Weight (lb)');
+  expect(lines[0]).toContain('Note');
+  // Row order follows the on-screen Weight-desc sort: 10, 20, 30.
+  expect(lines[1]).toContain(',10,');
+  expect(lines[1]).toContain(',700,'); // clean numeric weight, not "700 lb"
+  expect(lines[2]).toContain(',20,');
+  expect(lines[3]).toContain(',30,');
+  // Formula-injection defended + comma-wrapped; embedded quote doubled.
+  expect(content).toContain('"\'=danger,x"');
+  expect(content).toContain('"has ""q"""');
+});
+
+test('pig weigh-in: sortable columns skip the selection column, and CSV uses the pig schema (Batch, no Tag/Time)', async ({
+  page,
+  supabaseAdmin,
+  resetDb,
+}) => {
+  await resetDb();
+  const sess = await seedSession(supabaseAdmin, {
+    id: 'sort-pig-1',
+    species: 'pig',
+    batchId: 'P-SORT-01',
+    date: '2026-07-24',
+  });
+  await seedEntry(supabaseAdmin, {id: 'sp-e1', sessionId: sess.id, weight: 250, note: 'a'});
+  await seedEntry(supabaseAdmin, {id: 'sp-e2', sessionId: sess.id, weight: 300, note: 'b'});
+  await seedEntry(supabaseAdmin, {id: 'sp-e3', sessionId: sess.id, weight: 275, note: 'c'});
+
+  await page.goto('/weigh-in-sessions/' + sess.id);
+  await waitForWeighInSessionLoaded(page);
+
+  const weightsInOrder = async () =>
+    (
+      await page
+        .locator('[data-weighin-entry-list="1"] [data-pig-entry-row] input[type="number"]')
+        .evaluateAll((els) => els.map((e) => e.value))
+    ).map(Number);
+
+  // Default pig order = weight descending (existing behavior preserved).
+  expect(await weightsInOrder()).toEqual([300, 275, 250]);
+
+  // Sort Weight ascending.
+  await page.locator('[data-weighin-sort="weight"]').click();
+  expect(await weightsInOrder()).toEqual([250, 275, 300]);
+  await expect(page.locator('th:has([data-weighin-sort="weight"])')).toHaveAttribute('aria-sort', 'ascending');
+
+  // Selection ("Trip") and action columns are not sortable; Status is.
+  expect(await page.locator('[data-weighin-sort="select"]').count()).toBe(0);
+  expect(await page.locator('[data-weighin-sort="actions"]').count()).toBe(0);
+  await expect(page.locator('[data-weighin-sort="rowStatus"]')).toHaveCount(1);
+
+  // Export CSV — pig schema has Batch + Row status, and no Tag / Entry time.
+  const {filename, content} = await readCsvDownload(page, page.locator('[data-weighin-export-csv="1"]'));
+  expect(filename).toBe('weighin-pig-p-sort-01-2026-07-24.csv');
+  const header = stripBom(content).split('\r\n')[0];
+  expect(header).toContain('Batch');
+  expect(header).toContain('Weight (lb)');
+  expect(header).toContain('Row status');
+  expect(header).not.toContain('Tag');
+  expect(header).not.toContain('Entry time');
+});

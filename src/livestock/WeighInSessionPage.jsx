@@ -37,6 +37,14 @@ import {pigSendToTrip, pigUndoSend} from '../lib/pigPlannerApi.js';
 import PigSendToTripModal from './PigSendToTripModal.jsx';
 import {writeBroilerBatchAvg, recomputeBroilerBatchWeekAvg} from '../lib/broiler.js';
 import {LockedTeamMemberField, recordControl, recordFieldLabel} from '../shared/recordPageControls.jsx';
+import {
+  weighInEntrySortColumns,
+  weighInEntryExportColumns,
+  serializeWeighInEntriesCsv,
+  weighInSessionCsvFilename,
+  sortWeighInEntryRows,
+} from '../lib/weighInSessionExports.js';
+import {downloadCsv} from '../lib/csvExport.js';
 
 const HERD_LABELS = {mommas: 'Mommas', backgrounders: 'Backgrounders', finishers: 'Finishers', bulls: 'Bulls'};
 const FLOCK_LABELS = {rams: 'Rams', ewes: 'Ewes', feeders: 'Feeders'};
@@ -53,6 +61,31 @@ const inp = {
   borderRadius: 10,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
+};
+const sortThStyle = {
+  fontSize: 10,
+  fontWeight: 700,
+  color: 'var(--ink-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+  padding: '4px 6px',
+  whiteSpace: 'nowrap',
+};
+const sortBtnStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 2,
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  margin: 0,
+  fontSize: 10,
+  fontWeight: 700,
+  color: 'var(--ink-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
 };
 const BLACKLIST_OPTION_STYLE = {backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: 700};
 const WEIGHIN_ENTRY_AUTOSAVE_DELAY_MS = 700;
@@ -161,6 +194,10 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const [feederGroups, setFeederGroups] = React.useState([]);
   const [selectedEntryIds, setSelectedEntryIds] = React.useState(new Set());
   const [openPigNoteEntryIds, setOpenPigNoteEntryIds] = React.useState(new Set());
+  // Entry-table sort. null = species default order (cattle/sheep Tag asc, pig
+  // weight desc) — preserved exactly. {key,dir} = an explicit user sort. This is
+  // display/export state only: it never mutates sEntries, autosave, or the DB.
+  const [entrySort, setEntrySort] = React.useState(null);
   const [tripModal, setTripModal] = React.useState(null);
   const [transferModal, setTransferModal] = React.useState(null);
   const [transferForm, setTransferForm] = React.useState({tag: '', group: '1', sex: 'Gilt', birthDate: ''});
@@ -1612,6 +1649,125 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
   const pendingReconciles = isPig || isBroiler ? [] : sEntries.filter((e) => e.new_tag_flag === true);
   const expectedTags = herdCows.length;
 
+  // ── Entry-table sort + CSV export ───────────────────────────────────────────
+  // Display/export only: this projects each entry into a plain typed row (using
+  // the CURRENT displayed draft values from entryEdits so sort + CSV match what
+  // Ronnie sees), sorts a COPY for rendering, and never touches sEntries,
+  // autosave, selection, or the database.
+  const entrySortColumns = weighInEntrySortColumns(session.species);
+  const entrySortColumnsByKey = Object.fromEntries(entrySortColumns.map((c) => [c.key, c]));
+
+  function projectEntryRow(e) {
+    const ef = entryEdits[e.id] || entryDraft(e);
+    const weightNum = parseFloat(ef.weight);
+    const row = {
+      _id: e.id,
+      _tie: e.entered_at || '',
+      entry: e,
+      sessionDate: session.date || '',
+      species: session.species || '',
+      group: groupName,
+      sessionStatus: session.status || '',
+      teamMember: session.team_member || '',
+      note: ef.note || '',
+      weight: Number.isFinite(weightNum) ? weightNum : null,
+    };
+    if (isPig) {
+      const m = pigEntryAdgById[e.id] || null;
+      const isSent = !!e.sent_to_trip_id;
+      const isTransferred = !!(e.transferred_to_breeding || /\[transferred_to_breeding/.test(e.note || ''));
+      return {
+        ...row,
+        tag: '',
+        priorWeight: m ? m.priorWeightLbs : null,
+        priorDate: m && m.priorDate ? m.priorDate : '',
+        days: m ? m.daysBetween : null,
+        delta: m ? m.weightDeltaLbs : null,
+        adg: m ? m.adgLbsPerDay : null,
+        groupSort: '',
+        rowStatus: isSent ? 'Sent to trip' : isTransferred ? 'Transferred' : 'Draft',
+        time: '',
+      };
+    }
+    const prior = priors[e.tag];
+    const priorDays = prior ? daysBetweenDates(prior.date, curDate) : null;
+    const adg = prior ? adgLbPerDay(prior.weight, prior.date, ef.weight, curDate) : null;
+    const weightDelta =
+      prior && Number.isFinite(parseFloat(ef.weight)) && Number.isFinite(parseFloat(prior.weight))
+        ? parseFloat(ef.weight) - parseFloat(prior.weight)
+        : null;
+    const cow = animals.find((c) => c.tag === e.tag);
+    const groupLabel = cow ? groupLabelsMap[cow.herd || cow.flock] || cow.herd || cow.flock || '' : '';
+    return {
+      ...row,
+      tag: ef.tag || '',
+      priorWeight: prior ? parseFloat(prior.weight) : null,
+      priorDate: prior && prior.date ? prior.date : '',
+      days: priorDays,
+      delta: weightDelta,
+      adg,
+      groupSort: e.new_tag_flag ? 'NEW TAG' : e.send_to_processor ? 'Processor' : groupLabel,
+      rowStatus: e.new_tag_flag ? 'New tag' : e.send_to_processor ? 'Processor' : groupLabel ? 'Weighed' : '',
+      time: e.entered_at || '',
+    };
+  }
+
+  const projectedEntryRows = (sEntries || []).map(projectEntryRow);
+  let sortedEntryRows;
+  if (entrySort) {
+    sortedEntryRows = sortWeighInEntryRows(projectedEntryRows, entrySort, entrySortColumnsByKey);
+  } else if (isPig) {
+    // Default pig order = existing weight-desc (sortPigEntriesByWeightDesc).
+    sortedEntryRows = [...projectedEntryRows].sort(
+      (a, b) => (parseFloat(b.entry.weight) || 0) - (parseFloat(a.entry.weight) || 0),
+    );
+  } else {
+    // Default cattle/sheep order = existing Tag ascending (sortEntriesByTagAsc).
+    sortedEntryRows = [...projectedEntryRows].sort((a, b) => sortEntriesByTagAsc(a.entry, b.entry));
+  }
+
+  function toggleEntrySort(key) {
+    setEntrySort((prev) =>
+      prev && prev.key === key ? {key, dir: prev.dir === 'asc' ? 'desc' : 'asc'} : {key, dir: 'asc'},
+    );
+  }
+
+  function renderSortHeader(col) {
+    if (!col.sortable) {
+      return (
+        <th key={col.key} style={sortThStyle}>
+          {col.label}
+        </th>
+      );
+    }
+    const active = !!entrySort && entrySort.key === col.key;
+    const dir = active ? entrySort.dir : null;
+    return (
+      <th key={col.key} aria-sort={active ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'} style={sortThStyle}>
+        <button
+          type="button"
+          data-weighin-sort={col.key}
+          data-weighin-sort-active={active ? '1' : '0'}
+          data-weighin-sort-dir={active ? dir : ''}
+          onClick={() => toggleEntrySort(col.key)}
+          style={sortBtnStyle}
+        >
+          <span>{col.label}</span>
+          <span aria-hidden="true" style={{marginLeft: 3, opacity: active ? 1 : 0.4}}>
+            {active ? (dir === 'desc' ? '▼' : '▲') : '↕'}
+          </span>
+        </button>
+      </th>
+    );
+  }
+
+  function handleExportCsv() {
+    const columns = weighInEntryExportColumns(session.species);
+    const csv = serializeWeighInEntriesCsv(columns, sortedEntryRows);
+    const filename = weighInSessionCsvFilename({species: session.species, group: groupName, date: session.date});
+    downloadCsv(filename, csv);
+  }
+
   return (
     <RecordPageFrame Header={Header}>
       <RecordPageBody maxWidth={900} data-weighin-session-record-loaded="true">
@@ -1886,6 +2042,27 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
           >
             Delete Session
           </button>
+          {!isBroiler && sEntries.length > 0 && (
+            <button
+              type="button"
+              data-weighin-export-csv="1"
+              onClick={handleExportCsv}
+              title="Download every entry in this session as CSV, in the current sort order"
+              style={{
+                padding: '10px 16px',
+                borderRadius: 10,
+                border: '1px solid var(--border-strong)',
+                background: 'white',
+                color: 'var(--ink)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Export CSV
+            </button>
+          )}
           {/* Send-to-Trip stays available on COMPLETED sessions too (5cd008a
               product decision): completing a weigh-in must not strand unsent
               pigs behind a reopen. Entry locking is per-row (sent/transferred),
@@ -2077,26 +2254,11 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 >
                   <thead>
                     <tr style={{borderBottom: '1px solid var(--border)', textAlign: 'left'}}>
-                      {['Trip', 'Weight', 'Note', 'Prior', 'Days', '+/-', 'ADG', 'Status', ''].map((h, i) => (
-                        <th
-                          key={i}
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: 'var(--ink-muted)',
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.4,
-                            padding: '4px 6px',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
+                      {entrySortColumns.map(renderSortHeader)}
                     </tr>
                   </thead>
                   <tbody>
-                    {sEntries.map((e) => {
+                    {sortedEntryRows.map(({entry: e}) => {
                       const ef = entryEdits[e.id] || entryDraft(e);
                       const isSent = !!e.sent_to_trip_id;
                       const isTransferred = !!(
@@ -2401,37 +2563,11 @@ export default function WeighInSessionPage({sb, fmt, authState, Header}) {
                 >
                   <thead>
                     <tr style={{borderBottom: '1px solid var(--border)', textAlign: 'left'}}>
-                      {[
-                        'Tag',
-                        'Weight',
-                        'Note',
-                        'Prior',
-                        'Days',
-                        '+/-',
-                        'ADG',
-                        session.species === 'sheep' ? 'Flock/Status' : 'Herd/Status',
-                        'Time',
-                        '',
-                      ].map((h, i) => (
-                        <th
-                          key={i}
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: 'var(--ink-muted)',
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.4,
-                            padding: '4px 6px',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
+                      {entrySortColumns.map(renderSortHeader)}
                     </tr>
                   </thead>
                   <tbody>
-                    {[...sEntries].sort(sortEntriesByTagAsc).map((e) => {
+                    {sortedEntryRows.map(({entry: e}) => {
                       const ef = entryEdits[e.id] || entryDraft(e);
                       const cow = animals.find((c) => c.tag === e.tag);
                       const prior = priors[e.tag];

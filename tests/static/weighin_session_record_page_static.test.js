@@ -159,9 +159,11 @@ describe('WeighInSessionPage — cattle + sheep + pig + broiler support', () => 
     expect(pigEntryBranch).not.toContain('minmax(260px, 1fr)');
   });
   it('puts the send-to-trip checkbox in the leftmost pig table column', () => {
-    // First column header is the trip-select column; the row checkbox carries
+    // Headers now come from the shared column model (weighInEntrySortColumns);
+    // the first column is the trip-select column, and the row checkbox carries
     // the send-select marker and toggles selectedEntryIds.
-    expect(pigEntryBranch).toContain("['Trip', 'Weight', 'Note', 'Prior', 'Days', '+/-', 'ADG', 'Status', '']");
+    expect(pigEntryBranch).toContain('entrySortColumns.map(renderSortHeader)');
+    expect(weighInSessionExportsSrc).toContain("{key: 'select', label: 'Trip', type: null, sortable: false}");
     expect(pigEntryBranch).toContain('data-pig-send-select');
     expect(pigEntryBranch).toMatch(/type="checkbox"[\s\S]*?setSelectedEntryIds/);
     // Sent rows show locked-checked; ineligible rows are disabled.
@@ -458,8 +460,13 @@ describe('WeighInSessionPage — cattle weigh-in entry parity (Lane 18)', () => 
     // No card-grid auto-fill template inside the cattle/sheep branch anymore.
     expect(cattleSheepEntryBranch).not.toContain('minmax(260px, 1fr)');
   });
-  it('sorts the cattle/sheep table ascending by numeric tag', () => {
-    expect(cattleSheepEntryBranch).toContain('[...sEntries].sort(sortEntriesByTagAsc)');
+  it('defaults the cattle/sheep table to Tag-ascending and renders the sorted rows', () => {
+    // The table now iterates the sorted projected rows; when no explicit sort is
+    // active the default order is still the existing Tag-ascending comparator
+    // (sortEntriesByTagAsc), applied to a COPY so sEntries is never mutated.
+    expect(cattleSheepEntryBranch).toContain('sortedEntryRows.map(({entry: e})');
+    expect(pageSrc).toContain('sortEntriesByTagAsc(a.entry, b.entry)');
+    expect(pageSrc).toContain('const projectedEntryRows = (sEntries || []).map(projectEntryRow)');
   });
   it('keeps the per-row autosave handlers wired identically in the table cells', () => {
     expect(cattleSheepEntryBranch).toContain("setEntryField(e, 'tag', ev.target.value)");
@@ -1370,5 +1377,83 @@ describe('LivestockWeighInsView - CSV export (Lane K)', () => {
     expect(livestockSrc).toContain('CSV export is only available in the browser.');
     expect(livestockSrc).not.toContain('window.alert');
     expect(livestockSrc).not.toContain('window.confirm');
+  });
+});
+
+describe('weigh-in session record — sortable entry columns', () => {
+  it('renders headers through the shared sortable-header helper in both tables', () => {
+    expect(pigEntryBranch).toContain('entrySortColumns.map(renderSortHeader)');
+    expect(cattleSheepEntryBranch).toContain('entrySortColumns.map(renderSortHeader)');
+  });
+  it('sortable headers expose aria-sort, a sort marker, and a keyboard-native button', () => {
+    // renderSortHeader emits a real <button> (keyboard accessible), aria-sort on
+    // the <th>, and a per-column data marker; non-sortable columns render plain.
+    expect(pageSrc).toContain('function renderSortHeader(col)');
+    expect(pageSrc).toContain("aria-sort={active ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}");
+    expect(pageSrc).toContain('data-weighin-sort={col.key}');
+    expect(pageSrc).toContain('<button');
+    expect(pageSrc).toContain('onClick={() => toggleEntrySort(col.key)}');
+    // Non-sortable columns short-circuit to a plain header.
+    expect(pageSrc).toContain('if (!col.sortable) {');
+  });
+  it('toggling a header flips asc/desc and never mutates the entries or DB', () => {
+    expect(pageSrc).toContain('function toggleEntrySort(key)');
+    expect(pageSrc).toContain(
+      "prev && prev.key === key ? {key, dir: prev.dir === 'asc' ? 'desc' : 'asc'} : {key, dir: 'asc'}",
+    );
+    // The sort state is display-only React state, applied to a projected COPY.
+    expect(pageSrc).toContain('const [entrySort, setEntrySort] = React.useState(null)');
+  });
+  it('action/selection columns are declared non-sortable in the column model', () => {
+    expect(weighInSessionExportsSrc).toContain("{key: 'select', label: 'Trip', type: null, sortable: false}");
+    expect(weighInSessionExportsSrc).toContain("{key: 'actions', label: '', type: null, sortable: false}");
+    // Pig has no Tag column; cattle/sheep group column sorts by displayed text.
+    expect(weighInSessionExportsSrc).toContain("{key: 'groupSort',");
+  });
+  it('comparators handle missing-last and stable deterministic tie-breaking', () => {
+    expect(weighInSessionExportsSrc).toContain('export function compareAlnum');
+    expect(weighInSessionExportsSrc).toContain('export function compareNumber');
+    expect(weighInSessionExportsSrc).toContain('export function compareText');
+    expect(weighInSessionExportsSrc).toContain('export function compareChrono');
+    expect(weighInSessionExportsSrc).toContain('if (am && bm) return tieBreak(a, b)');
+    expect(weighInSessionExportsSrc).toContain('if (am) return 1;');
+    expect(weighInSessionExportsSrc).toContain('if (bm) return -1;');
+  });
+});
+
+describe('weigh-in session record — entry CSV export', () => {
+  it('adds a visible Export CSV button that never mutates data', () => {
+    expect(pageSrc).toContain('data-weighin-export-csv="1"');
+    expect(pageSrc).toContain('onClick={handleExportCsv}');
+    expect(pageSrc).toContain('function handleExportCsv()');
+  });
+  it('exports every entry in the current on-screen sort order, not just viewport rows', () => {
+    // handleExportCsv serializes sortedEntryRows (all projected rows in the
+    // active sort order) — the same array the table renders.
+    expect(pageSrc).toContain('serializeWeighInEntriesCsv(columns, sortedEntryRows)');
+    expect(pageSrc).toContain('weighInEntryExportColumns(session.species)');
+  });
+  it('uses the shared csvExport downloader and a meaningful sanitized filename', () => {
+    expect(pageSrc).toContain("from '../lib/csvExport.js'");
+    expect(pageSrc).toContain('downloadCsv(filename, csv)');
+    expect(pageSrc).toContain(
+      'weighInSessionCsvFilename({species: session.species, group: groupName, date: session.date})',
+    );
+  });
+  it('serializer emits Excel BOM, defends text injection, and preserves numeric type', () => {
+    // Numeric columns emit the raw value (negatives stay numbers); text columns
+    // route through csvCell for escaping + formula/DDE-injection defense; a BOM
+    // makes Excel read UTF-8 correctly.
+    expect(weighInSessionExportsSrc).toContain("import {csvCell} from './csvExport.js'");
+    expect(weighInSessionExportsSrc).toContain("if (col.type === 'number')");
+    expect(weighInSessionExportsSrc).toContain('return Number.isFinite(n) ? String(n) : ');
+    expect(weighInSessionExportsSrc).toContain('csvCell(raw == null ?');
+    expect(weighInSessionExportsSrc).toContain("'\\r\\n'");
+  });
+  it('draft edits flow into the export via the current displayed values', () => {
+    // projectEntryRow reads entryEdits (the live draft) for tag/weight/note, so
+    // the CSV matches what Ronnie currently sees, not stale pre-edit values.
+    expect(pageSrc).toContain('const ef = entryEdits[e.id] || entryDraft(e)');
+    expect(pageSrc).toContain('function projectEntryRow(e)');
   });
 });
