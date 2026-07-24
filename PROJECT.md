@@ -141,7 +141,9 @@ Design/function invariants that govern cross-surface behavior live in
     run uses TEST A/B as shard 1/2; a second simultaneous full run may use TEST
     C/D as shard 1/2. Focused work uses an explicitly assigned free project from
     TEST A-D; `wcf-planner-test-main` is not an execution target while
-    quarantined. CCs may not choose, swap, or share targets themselves. Every
+    quarantined. Therefore current safe TEST-backed capacity is four concurrent
+    project lanes, not five; any fifth CC must remain DB-free unless a lane is
+    released. CCs may not choose, swap, or share targets themselves. Every
     prompt must name the exact project, shard, lease group, and prohibited
     targets. An unassigned CC performs DB-free work only.
 - Shared TEST/Playwright reliability: branch
@@ -633,8 +635,8 @@ Admin Fuel Log and Cost by Month implementations can be deleted safely.
    - Legacy lease retained: scripts/test_db_lease_run.cjs still consumes
      test-db-lease.yml (bare `wcf-test-db` group), so it was not deleted; the
      per-project lease.cjs + test-db-lease-project.yml supersede it and retiring
-     both is a clean follow-up. Focused/main browser work now runs on TEST A
-     (not test-main, which is quarantined).
+     both is a clean follow-up. Focused/main browser work uses an explicitly
+     assigned free TEST A-D project (not test-main, which is quarantined).
    - Original TEST health: Supabase warned that `wcf-planner-test-main` is
      depleting its Nano Disk I/O Budget. No new TEST-backed browser run should
      target it while quarantined. Inspect Database Health/I/O before reuse.
@@ -2657,7 +2659,9 @@ Playwright notes:
 - The approved target map is A/B for full-run lane 1 and C/D for full-run lane
   2. Focused browser work uses a free TEST A-D project explicitly assigned by
   Codex. `wcf-planner-test-main` is quarantined and excluded. CC numbering does
-  not imply project ownership; PROD `Farm Planner` is prohibited.
+  not imply project ownership. Four concurrent TEST-backed project lanes is the
+  current maximum; additional CCs must be DB-free until a lane is released.
+  PROD `Farm Planner` is prohibited.
 - Per-project routing and isolation proof are live. Every TEST-backed
   Playwright run must acquire the exact target's project-specific lease; never
   run an unleased local TEST browser process. The legacy
